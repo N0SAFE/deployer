@@ -25,7 +25,7 @@ import React from 'react'
 import redirect from '@/actions/redirect'
 import { AlertCircle, Spinner } from '@repo/ui/components/atomics/atoms/Icon'
 import { signupSchema } from './schema'
-import { Home, Authsignup, Authsignin } from '@/routes'
+import { Dashboard, Authsignup, Authsignin } from '@/routes'
 import { ArrowLeft, UserPlus } from 'lucide-react'
 import { authClient } from '@/lib/auth'
 import { useSearchParams } from '@/routes/hooks'
@@ -223,10 +223,10 @@ const SignupPage: React.FC = () => {
                         </Authsignin.Link>
                     </p>
                     <p className="mt-2">
-                        <Home.Link className="text-muted-foreground hover:text-foreground inline-flex items-center space-x-2 text-sm">
+                        <Dashboard.Link className="text-muted-foreground hover:text-foreground inline-flex items-center space-x-2 text-sm">
                             <ArrowLeft className="h-4 w-4" />
                             <span>Back to Home</span>
-                        </Home.Link>
+                        </Dashboard.Link>
                     </p>
                 </div>
             </div>

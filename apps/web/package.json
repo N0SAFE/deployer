@@ -41,6 +41,8 @@
         "@orpc/contract": "catalog:orpc",
         "@orpc/openapi-client": "catalog:orpc",
         "@orpc/tanstack-query": "catalog:orpc",
+        "@radix-ui/react-avatar": "^1.1.10",
+        "@radix-ui/react-navigation-menu": "^1.2.14",
         "@repo/api-contracts": "*",
         "@repo/ui": "*",
         "@tanstack/react-devtools": "catalog:query",
@@ -52,6 +54,7 @@
         "concurrently": "catalog:dev",
         "cross-env": "catalog:dev",
         "declarative-routing": "^0.1.20",
+        "immer": "^10.1.1",
         "lodash.snakecase": "catalog:utils",
         "lucide-react": "catalog:ui",
         "next": "catalog:next",
@@ -60,9 +63,12 @@
         "query-string": "catalog:utils",
         "react": "catalog:react",
         "react-dom": "catalog:react",
+        "react-resizable-panels": "^3.0.4",
         "react-use": "^17.6.0",
+        "socket.io-client": "^4.8.1",
+        "sonner": "^2.0.7",
         "zod": "catalog:utils",
-        "zustand": "catalog:utils"
+        "zustand": "^5.0.7"
     },
     "devDependencies": {
         "@asteasolutions/zod-to-openapi": "^8.0.0",

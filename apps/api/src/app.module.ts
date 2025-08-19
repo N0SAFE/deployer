@@ -1,16 +1,39 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { DatabaseModule } from './db/database.module';
-import { HealthModule } from './health/health.module';
-import { UserModule } from './user/user.module';
+import { BullModule } from '@nestjs/bull';
+import { DatabaseModule } from './core/modules/db/database.module';
+import { CoreModule } from './core/core.module';
+import { HealthModule } from './modules/health/health.module';
+import { UserModule } from './modules/user/user.module';
+import { JobsModule } from './modules/jobs/jobs.module';
+import { WebSocketModule } from './modules/websocket/websocket.module';
+import { TraefikModule } from './modules/traefik/traefik.module';
+import { ProjectModule } from './modules/project/project.module';
+import { ServiceModule } from './modules/service/service.module';
 import { onError, ORPCModule } from '@orpc/nest';
-import { DATABASE_CONNECTION } from './db/database-connection';
-import {AuthModule} from './auth/auth.module'
+import { DATABASE_CONNECTION } from './core/modules/db/database-connection';
+import { AuthModule } from './modules/auth/auth.module';
+import { betterAuthFactory } from './auth';
+import { LoggerMiddleware } from './core/middlewares/logger.middleware';
 
 @Module({
   imports: [
+    // Redis/Bull Queue configuration
+    BullModule.forRoot({
+      redis: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+        password: process.env.REDIS_PASSWORD,
+      },
+    }),
     DatabaseModule,
+    CoreModule,
     HealthModule,
     UserModule,
+    JobsModule,
+    WebSocketModule,
+    TraefikModule,
+    ProjectModule,
+    ServiceModule,
     AuthModule.forRootAsync({
       imports: [DatabaseModule],
       useFactory: betterAuthFactory,
@@ -32,27 +55,4 @@ export class AppModule implements NestModule {
       .apply(LoggerMiddleware)
       .forRoutes('*'); // Apply the logger middleware to all routes
   }
-}
-
-import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
-
-import { Request, Response } from 'express';
-import { betterAuthFactory } from './auth';
-
-@Injectable()
-export class LoggerMiddleware implements NestMiddleware {
-    use(req: Request, res: Response, next: Function) {
-        const { ip, method, originalUrl: url  } = req;
-        const hostname = require('os').hostname();
-        const userAgent = req.get('user-agent') || '';
-        const referer = req.get('referer') || '';
-
-        res.on('close', () => {
-            const { statusCode, statusMessage } = res;
-            const contentLength = res.get('content-length');
-            Logger.debug(`[${hostname}] "${method} ${url}" ${statusCode} ${statusMessage} ${contentLength} "${referer}" "${userAgent}" "${ip}"`);
-        });
-
-        next();
-    }
 }
