@@ -2,7 +2,7 @@ import { Controller, Logger } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { serviceContract } from '@repo/api-contracts';
 import { DatabaseService } from '../../../core/modules/db/services/database.service';
-import { services, serviceDependencies, projects, deployments } from '../../../core/modules/db/drizzle/schema';
+import { services, serviceDependencies, projects } from '../../../core/modules/db/drizzle/schema';
 import { eq, desc, count, ilike, and, or } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 

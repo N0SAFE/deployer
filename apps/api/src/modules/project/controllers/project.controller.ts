@@ -1,11 +1,11 @@
-import { Controller, Logger, UseGuards } from '@nestjs/common';
+import { Controller, Logger } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { projectContract } from '@repo/api-contracts';
 import { DatabaseService } from '../../../core/modules/db/services/database.service';
 import { projects, projectCollaborators } from '../../../core/modules/db/drizzle/schema';
 import { eq, desc, count, ilike, asc } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { Session, Public } from '@/modules/auth/decorators/decorators';
+import { Session } from '@/modules/auth/decorators/decorators';
 import { UserSession } from '@/modules/auth/guards/auth.guard';
 
 @Controller()

@@ -195,7 +195,7 @@ export class TraefikService {
         const config = yaml.load(content) as TraefikConfig;
 
         if (config.http && config.http.routers) {
-          Object.entries(config.http.routers).forEach(([routerName, router]) => {
+          Object.entries(config.http.routers).forEach(([_routerName, router]) => {
             // Extract domain from rule: Host(`subdomain.domain.com`)
             const domainMatch = router.rule.match(/Host\(`([^`]+)`\)/);
             if (domainMatch) {
