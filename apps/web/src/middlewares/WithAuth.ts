@@ -13,6 +13,7 @@ import { toAbsoluteUrl } from '@/lib/utils'
 import { Authsignin } from '@/routes/index'
 import { createDebug } from '@/lib/debug'
 import { getServerSession } from '@/lib/auth/actions'
+import { getCookieCache, getSessionCookie } from "better-auth/cookies";
 
 const debugAuth = createDebug('middleware/auth')
 const debugAuthError = createDebug('middleware/auth/error')
@@ -33,38 +34,17 @@ const withAuth: MiddlewareFactory = (next: NextMiddleware) => {
         })
 
         // Get session using Better Auth directly
-        let session: typeof $Infer.Session | null = null
+        let sessionCookie: string | null = null
         let sessionError: Error | unknown = null
         const startTime = Date.now()
 
         try {
             debugAuth('Getting session using Better Auth')
             
-            // Use the existing getServerSession helper that properly handles Better Auth
-            const sessionResult = await getServerSession(request.headers)
-            
-            const duration = Date.now() - startTime
-            debugAuth(`Better Auth session retrieval completed in ${duration}ms`)
-            
-            // Better Auth returns a result object that needs to be checked
-            if (sessionResult && typeof sessionResult === 'object') {
-                // Check if it's an error response
-                if ('error' in sessionResult && sessionResult.error) {
-                    throw new Error(`Better Auth error: ${sessionResult.error}`)
-                }
-                
-                // Check if it has session data
-                if ('data' in sessionResult && sessionResult.data) {
-                    session = sessionResult.data as typeof $Infer.Session
-                } else if ('user' in sessionResult && 'session' in sessionResult) {
-                    // Direct session object
-                    session = sessionResult as typeof $Infer.Session
-                }
-            }
+            sessionCookie = getSessionCookie(request);
             
             debugAuth('Session processed:', {
-                hasSession: !!session,
-                hasUser: !!(session?.user)
+                hasSession: !!sessionCookie,
             })
             
         } catch (error) {
@@ -79,7 +59,7 @@ const withAuth: MiddlewareFactory = (next: NextMiddleware) => {
             })
         }
 
-        const isAuth = !!session
+        const isAuth = !!sessionCookie
 
         debugAuth(`Session result - isAuth: ${isAuth}, hasError: ${!!sessionError}`, {
             path: request.nextUrl.pathname,

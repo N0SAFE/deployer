@@ -2,6 +2,7 @@ import { validateEnvPath } from "#/env"
 import { createAuthClient } from "better-auth/react"
 import { passkeyClient } from "better-auth/client/plugins"
 import { organizationClient } from "better-auth/client/plugins"
+import { nextCookies } from "better-auth/next-js";
 
 const appUrl = validateEnvPath(process.env.NEXT_PUBLIC_APP_URL!, "NEXT_PUBLIC_APP_URL")
 
@@ -15,6 +16,7 @@ export const authClient = createAuthClient({
         enabled: true
       }
     }),
+    nextCookies() // make sure this is the last plugin in the array
   ],
 })
 
