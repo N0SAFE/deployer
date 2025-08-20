@@ -1,127 +1,183 @@
 # Active Context: Universal Deployment Platform Development
 
 ## Current Focus
-Building the core deployment engine with Traefik domain management integration. Currently implementing the fundamental services for Docker orchestration, Git operations, deployment management, and automatic domain registration.
+Expanding the foundational deployment system into a comprehensive universal deployment platform similar to Dokploy. The platform will support multiple deployment sources (GitHub, GitLab, Git, ZIP uploads), advanced preview environments, multi-service orchestration, and team collaboration.
 
-## Recent Progress
-1. **Traefik Service Implementation**: Created comprehensive TraefikService for dynamic domain management and SSL certificate provisioning
-2. **Service Integration**: Updated ServicesModule to register all deployment services including TraefikService
-3. **Domain Architecture**: Designed automatic subdomain generation system for preview environments 
-4. **Memory Bank Updates**: Enhanced system patterns with Traefik integration architecture
+## 🎯 **TRANSFORMATION OVERVIEW**
+Converting the existing NestJS + Next.js application into a self-hosted universal deployment platform that can be installed on any VPS and handle complex deployment workflows with enterprise-grade features.
 
-## Next Immediate Steps
-1. **Update Deployment Processor**: Integrate TraefikService with deployment job processing for automatic domain registration
-2. **Deploy Integration**: Update DeploymentService to use TraefikService for domain management during deployments
-3. **Environment Variables**: Add Traefik-specific configuration to environment setup
-4. **Docker Integration**: Update DockerService to generate appropriate Traefik labels for containers
+### **Core Platform Features Being Implemented**
+1. **Multi-Source Deployments**: GitHub, GitLab, generic Git, file uploads, custom integrations
+2. **Advanced Preview Environments**: Configurable domains, environment variables, automatic cleanup
+3. **Service Orchestration**: Dependency graphs, cascade deployments, health monitoring  
+4. **Team Collaboration**: Role-based access, project sharing, audit trails
+5. **Self-Hosted Solution**: Easy VPS installation with minimal configuration
 
-## Recent Implementation Details
+## Current Implementation Status
 
-### Traefik Integration Pattern
-- **Dynamic Service Discovery**: Automatic container registration with domain routing using Docker labels
-- **SSL Certificate Management**: Automatic Let's Encrypt certificate provisioning via Traefik
-- **Subdomain Generation**: Intelligent naming conventions for production, staging, and preview environments
-- **Configuration Management**: YAML-based dynamic configuration files for route management
+### ✅ **FOUNDATION COMPLETE** 
+- **Core Architecture**: NestJS API with ORPC contracts, Next.js dashboard, PostgreSQL + Redis
+- **Basic Services**: DockerService, GitService, DeploymentService, TraefikService implemented
+- **Authentication System**: Better Auth with role-based access control foundation
+- **Database Schema**: Initial deployment tables (projects, services, deployments, logs)
+- **WebSocket Integration**: Real-time deployment updates and event broadcasting
+- **Job Queue System**: Bull Queue with Redis for asynchronous deployment processing
 
-### Service Architecture Updates
-- **TraefikService**: Handles domain registration, subdomain generation, and route configuration
-- **Enhanced DockerService**: Ready for Traefik label integration
-- **DeploymentService**: Foundation for deployment orchestration with domain management
-- **ServicesModule**: All services registered for dependency injection
+### 🏗️ **NEXT IMMEDIATE PRIORITIES**
 
-## Current Technical Environment
-- **Application Status**: ✅ Running successfully with all services loaded
-- **Database**: ✅ PostgreSQL running with migrations applied
-- **Services**: ✅ Docker, Git, Deployment, and Traefik services implemented
-- **Dependencies**: ✅ js-yaml added for Traefik YAML configuration generation
+#### **Priority 1: Database Schema Extension** (Week 1)
+- Extend Drizzle schema for universal deployment features
+- Add tables: git_integrations, service_dependencies, preview_environments, project_collaborators
+- Implement proper indexes and constraints for performance
 
-## Active Considerations
+#### **Priority 2: Git Integration Services** (Weeks 2-3) 
+- GitHub API integration (@octokit/rest) with OAuth and webhook validation
+- GitLab API integration (@gitbeaker/node) with merge request handling
+- Generic Git service (simple-git) for any repository with credential management
+- Secure webhook endpoints with signature validation
 
-### Domain Management Strategy
-- **Base Domain Configuration**: Environment variable `DEPLOYER_BASE_DOMAIN` for customization
-- **Subdomain Patterns**: 
-  - Production: `project-service.domain.com`
-  - Staging: `project-service-staging.domain.com`
-  - Preview: `project-service-{branch|pr|custom}.domain.com`
-- **SSL/TLS**: Automatic certificate generation in production environments
+#### **Priority 3: Enhanced Deployment Engine** (Week 4)
+- Multi-source deployment processing (GitHub, GitLab, Git, upload)
+- Service dependency-aware orchestration with topological sorting
+- Preview environment lifecycle management with automatic cleanup
 
-### Container Orchestration Integration
-- **Traefik Labels**: Automatic generation based on deployment configuration
-- **Service Discovery**: Dynamic registration and deregistration of services
-- **Health Monitoring**: Integration with Traefik health checks
-- **Load Balancing**: Automatic load balancer configuration for deployed services
+## Technical Architecture Enhancements
 
-## Implementation Patterns Being Used
-
-### Domain Management Pattern
+### **New Service Components Required**
 ```typescript
-// Automatic subdomain generation with sanitization
-const subdomain = traefikService.generateSubdomain({
-  projectName: 'my-app',
-  serviceName: 'api',
-  environment: 'preview',
-  branch: 'feature/new-auth'
-});
-// Result: my-app-api-feature-new-auth.domain.com
+// Git Integration Services
+GitHubService: OAuth, webhooks, PR previews, commit status
+GitLabService: API integration, MR previews, project management  
+GitService: Generic Git operations, credential management
+FileUploadService: ZIP handling, artifact storage, validation
+
+// Enhanced Orchestration
+ServiceDependencyService: Dependency graph resolution
+PreviewEnvironmentService: Lifecycle management, domain assignment
+ResourceMonitoringService: Usage tracking, limit enforcement
+
+// Team Collaboration  
+TeamService: Role management, invitations, permissions
+AuditService: Activity logging, compliance reporting
 ```
 
-### Service Registration Pattern
-```typescript
-// Automatic Traefik configuration generation
-await traefikService.registerDeployment({
-  subdomain: 'my-app-api-preview',
-  baseDomain: 'deploy.example.com',
-  projectId: 'proj_123',
-  serviceId: 'svc_456', 
-  deploymentId: 'dep_789',
-  port: 3000,
-  containerId: 'container_abc'
-});
+### **Database Schema Extensions**
+```sql
+-- New tables needed for universal platform
+git_integrations: Repository connections and credentials
+service_dependencies: Service relationship graph
+preview_environments: Dynamic environment management  
+project_collaborators: Team access and permissions
+audit_logs: Complete activity tracking
+webhook_events: Event processing and validation
 ```
 
-## Key Architectural Decisions Made
+### **Enhanced API Contracts**
+```typescript
+// New ORPC contract extensions
+gitContract: Repository management, webhook handling
+teamContract: Collaboration, invitations, permissions  
+previewContract: Environment lifecycle, domain management
+webhookContract: Event processing, validation, routing
+```
 
-### 1. **Traefik Integration Method**
-- **Chosen**: Dynamic file-based configuration with Docker labels
-- **Rationale**: Provides maximum flexibility and doesn't require Traefik restarts
-- **Alternative Considered**: Direct Docker socket integration (more complex setup)
+## Implementation Strategy
 
-### 2. **Domain Strategy**  
-- **Chosen**: Automatic subdomain generation with sanitization
-- **Rationale**: Predictable, scalable, and user-friendly naming
-- **Alternative Considered**: Random subdomain generation (less intuitive)
+### **Phase 1: Multi-Source Deployment System** (4-6 weeks)
+Focus on supporting all deployment sources with proper authentication and webhook handling.
 
-### 3. **SSL Certificate Management**
-- **Chosen**: Traefik with Let's Encrypt integration
-- **Rationale**: Automatic certificate provisioning and renewal
-- **Alternative Considered**: Manual certificate management (maintenance overhead)
+### **Phase 2: Advanced Preview Environments** (3-4 weeks) 
+Implement dynamic subdomain generation, environment variable management, and lifecycle automation.
 
-### 4. **Configuration Storage**
-- **Chosen**: File-based YAML configuration with dynamic updates
-- **Rationale**: Human-readable, version-controllable, and easy to debug
-- **Alternative Considered**: Database-stored configuration (more complex)
+### **Phase 3: Service Orchestration** (4-5 weeks)
+Build dependency-aware deployment chains with health monitoring and rollback capabilities.
 
-## Immediate Technical Tasks
+### **Phase 4: Team Collaboration** (3-4 weeks)
+Implement enterprise-grade team management with roles, permissions, and audit trails.
 
-### Priority 1: Deployment Integration
-1. **Update deployment processor** to call TraefikService during deployments
-2. **Enhance DockerService** to generate Traefik labels automatically
-3. **Test domain registration** with sample deployment
+### **Phase 5: Advanced Dashboard** (3-4 weeks)
+Build comprehensive UI for all platform features with real-time updates and visualizations.
 
-### Priority 2: Configuration Management
-1. **Add Traefik environment variables** to environment template system
-2. **Create Docker Compose integration** for Traefik service
-3. **Document domain configuration** for users
+### **Phase 6: Production Readiness** (2-3 weeks)
+Optimization, security hardening, documentation, and installation automation.
 
-### Priority 3: Error Handling & Monitoring
-1. **Implement health checks** for Traefik service integration
-2. **Add deployment rollback** with domain cleanup
-3. **Create domain status monitoring** for deployment dashboard
+## Key Architectural Decisions
 
-## Current Environment Status
-- **Development Setup**: ✅ Ready (all dependencies installed and services registered)
-- **Traefik Integration**: ✅ Service implemented and ready for testing
-- **Memory Bank**: ✅ Updated with Traefik architecture patterns
-- **Next Phase Ready**: ✅ All foundation services available for deployment integration
+### **1. Container Orchestration Evolution**
+- **Current**: Docker Compose for simplicity
+- **Target**: Docker Swarm for better service management and scaling
+- **Future**: Optional Kubernetes support for enterprise deployments
 
-**Ready to Continue Implementation**: ✅ All Traefik foundation complete, ready to integrate with deployment processor and test domain registration workflow.
+### **2. Domain Management Strategy**
+- **Current**: Basic Traefik integration with manual configuration
+- **Target**: Automatic subdomain generation with Let's Encrypt SSL
+- **Pattern**: `{service}-{environment}-{branch}.{domain.com}`
+
+### **3. Multi-Source Integration Approach**
+- **GitHub**: Official API with OAuth app integration
+- **GitLab**: API tokens with project-level access
+- **Generic Git**: SSH/HTTPS with credential vault
+- **File Upload**: Temporary storage with build system integration
+
+### **4. Preview Environment Management**
+- **Creation**: Automatic on PR/MR creation via webhooks
+- **Configuration**: Hierarchical environment variables (Global → Project → Service → Preview)
+- **Cleanup**: Configurable expiration with grace periods
+- **Resources**: Isolated containers with CPU/memory limits
+
+## Current Development Environment
+
+### **Enhanced Dependencies Required**
+```json
+{
+  "@octokit/rest": "^20.0.2",      // GitHub API
+  "@gitbeaker/node": "^35.8.1",    // GitLab API  
+  "simple-git": "^3.21.0",         // Git operations
+  "multer": "^1.4.5-lts.1",        // File uploads
+  "tar-stream": "^3.1.6",          // Archive handling
+  "dockerode": "^4.0.2",           // Enhanced Docker API
+  "node-cron": "^3.0.3"            // Cleanup scheduling
+}
+```
+
+### **Environment Variables Extensions**
+```env
+# Git Integration
+GITHUB_APP_ID=
+GITHUB_APP_PRIVATE_KEY=  
+GITHUB_WEBHOOK_SECRET=
+GITLAB_ACCESS_TOKEN=
+GITLAB_WEBHOOK_SECRET=
+
+# Domain Management
+DEPLOYER_BASE_DOMAIN=deploy.example.com
+LETS_ENCRYPT_EMAIL=admin@example.com
+
+# Resource Limits
+PREVIEW_CPU_LIMIT=0.5
+PREVIEW_MEMORY_LIMIT=512M
+PREVIEW_CLEANUP_DAYS=7
+```
+
+## Success Criteria
+
+### **Technical Milestones**
+- [ ] **Multi-source deployments**: Deploy from GitHub, GitLab, Git, and uploads
+- [ ] **Preview environments**: Automatic creation with custom subdomains
+- [ ] **Service orchestration**: Deploy services in dependency order
+- [ ] **Team collaboration**: Role-based access with audit trails
+- [ ] **Performance**: <5min deployment time, <2min preview creation
+
+### **User Experience Goals**
+- [ ] **Easy installation**: <15 minutes from VPS to first deployment
+- [ ] **Intuitive UI**: Non-technical users can manage projects and deployments
+- [ ] **Reliable operations**: >99% deployment success rate
+- [ ] **Comprehensive monitoring**: Real-time status and resource usage
+
+## Ready for Implementation
+
+**Current Status**: ✅ **FOUNDATION COMPLETE - READY FOR UNIVERSAL PLATFORM EXPANSION**
+
+All foundational services, database schema, API contracts, and core infrastructure are implemented and tested. Ready to begin Phase 1 development focusing on multi-source deployment system and enhanced preview environments.
+
+**Next Action**: Begin database schema extension for universal deployment features and implement Git integration services for GitHub, GitLab, and generic Git repository support.

@@ -14,6 +14,7 @@ import Validate from '@/lib/auth/validate'
 import Script from 'next/script'
 import { validateEnv } from '#/env'
 import { DynamicTanstackDevTools } from '@/components/devtools/DynamicTanstackDevTools'
+import { UIProvider } from '@/contexts/UIContext'
 
 const fontSans = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
@@ -65,20 +66,22 @@ export default async function RootLayout({
                             enableSystem
                             disableTransitionOnChange
                         >
-                            <NextTopLoader />
-                            <ReactQueryProviders>
-                                <Suspense
-                                    fallback={
-                                        <div className="flex h-screen w-screen items-center justify-center">
-                                            <Loader />
-                                        </div>
-                                    }
-                                >
-                                    {children}
-                                </Suspense>
-                                
-                                <DynamicTanstackDevTools />
-                            </ReactQueryProviders>
+                            <UIProvider>
+                                <NextTopLoader />
+                                <ReactQueryProviders>
+                                    <Suspense
+                                        fallback={
+                                            <div className="flex h-screen w-screen items-center justify-center">
+                                                <Loader />
+                                            </div>
+                                        }
+                                    >
+                                        {children}
+                                    </Suspense>
+                                    
+                                    <DynamicTanstackDevTools />
+                                </ReactQueryProviders>
+                            </UIProvider>
                         </ThemeProvider>
                     </Validate>
                 </NextAuthProviders>

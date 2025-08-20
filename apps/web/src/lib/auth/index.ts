@@ -1,6 +1,7 @@
 import { validateEnvPath } from "#/env"
 import { createAuthClient } from "better-auth/react"
 import { passkeyClient } from "better-auth/client/plugins"
+import { organizationClient } from "better-auth/client/plugins"
 
 const appUrl = validateEnvPath(process.env.NEXT_PUBLIC_APP_URL!, "NEXT_PUBLIC_APP_URL")
 
@@ -9,6 +10,11 @@ export const authClient = createAuthClient({
   baseURL: appUrl,
   plugins: [
     passkeyClient(),
+    organizationClient({
+      teams: {
+        enabled: true
+      }
+    }),
   ],
 })
 
@@ -21,7 +27,8 @@ export const {
   $store,
   $fetch,
   $ERROR_CODES,
-  $Infer
+  $Infer,
+  organization
 } = authClient
 
 // Auth pages configuration for Better Auth

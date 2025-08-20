@@ -2,17 +2,12 @@
 
 import { SidebarTrigger } from '@repo/ui/components/shadcn/sidebar'
 import { Separator } from '@repo/ui/components/shadcn/separator'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Bell, Wifi, WifiOff } from 'lucide-react'
-import { useWebSocketConnection } from '@/state/websocketStore'
-import { useNotifications } from '@/state/uiStore'
+import { Wifi, WifiOff } from 'lucide-react'
+import { useWebSocketConnection } from '@/hooks/useWebSocket'
 import ThemeToggle from '@repo/ui/components/shadcn/mode-toggle'
 
 export function Header() {
   const { isConnected, isConnecting } = useWebSocketConnection()
-  const notifications = useNotifications()
-  const unreadCount = notifications.filter(n => n.type === 'error' || n.type === 'warning').length
 
   return (
     <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -40,19 +35,6 @@ export function Header() {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
-        {/* Notifications */}
-        <Button variant="ghost" size="sm" className="relative">
-          <Bell className="h-4 w-4" />
-          {unreadCount > 0 && (
-            <Badge 
-              variant="destructive" 
-              className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 text-xs"
-            >
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </Badge>
-          )}
-        </Button>
-
         {/* Theme Toggle */}
         <ThemeToggle />
       </div>

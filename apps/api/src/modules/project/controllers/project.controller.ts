@@ -1,10 +1,12 @@
-import { Controller, Logger } from '@nestjs/common';
+import { Controller, Logger, UseGuards } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { projectContract } from '@repo/api-contracts';
 import { DatabaseService } from '../../../core/modules/db/services/database.service';
 import { projects, projectCollaborators } from '../../../core/modules/db/drizzle/schema';
 import { eq, desc, count, ilike, asc } from 'drizzle-orm';
-import { nanoid } from 'nanoid';
+import { randomUUID } from 'crypto';
+import { Session } from '@/modules/auth/decorators/decorators';
+import { UserSession } from '@/modules/auth/guards/auth.guard';
 
 @Controller()
 export class ProjectController {
@@ -110,25 +112,22 @@ export class ProjectController {
   }
 
   @Implement(projectContract.create)
-  create() {
+  create(@Session() session: UserSession) {
     return implement(projectContract.create).handler(async ({ input }) => {
       this.logger.log(`Creating project: ${input.name}`);
 
       // Get database connection
       const db = this.databaseService.db;
 
-      // Generate unique ID
-      const id = nanoid();
-
+      // Create project (let Postgres generate the UUID)
       // Create project
       const [newProject] = await db
         .insert(projects)
         .values({
-          id,
           name: input.name,
           description: input.description || null,
           baseDomain: input.baseDomain || null,
-          ownerId: 'system', // TODO: Get from auth context
+          ownerId: session.user.id, // Use existing admin user ID
           settings: input.settings || null,
           createdAt: new Date(),
           updatedAt: new Date()
@@ -250,7 +249,7 @@ export class ProjectController {
       this.logger.log('Inviting collaborator (not implemented)');
 
       return {
-        inviteId: nanoid(),
+        inviteId: randomUUID(),
         message: 'Invitation sent successfully (mock implementation)'
       };
     });
@@ -264,7 +263,7 @@ export class ProjectController {
       
       // Return a mock collaborator object that matches collaboratorSchema
       return {
-        id: nanoid(),
+        id: randomUUID(),
         projectId: 'mock-project-id',
         userId: 'mock-user-id',
         role: 'viewer' as const,

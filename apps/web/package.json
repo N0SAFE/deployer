@@ -7,7 +7,7 @@
         "echo": "envcli echo $:{NEXT_PUBLIC_API_URL}$:{API_PING_PATH}",
         "prettify": "bun x prettier . --write --no-error-on-unmatched-pattern",
         "dev": "bun --bun wait-api && concurrently --kill-others-on-fail -n next,routing -c green,magenta \"envcli cross-env NODE_OPTIONS='--inspect' next dev -p $:{NEXT_PUBLIC_APP_PORT} --turbopack\" \"bun --bun dr:build:watch\"",
-        "dev:docker": "bun --bun dr:build && envcli cross-env NODE_OPTIONS='--inspect' next dev -H 0.0.0.0 -p $:{NEXT_PUBLIC_APP_PORT} --turbopack",
+        "dev:docker": "envcli cross-env NODE_OPTIONS='--inspect' next dev -H 0.0.0.0 -p $:{NEXT_PUBLIC_APP_PORT} --turbopack",
         "dev:open": "bun --bun wait-api && concurrently --kill-others-on-fail -n next,routing -c green,magenta \"(envcli open $:{NEXT_PUBLIC_APP_URL} || envcli cmd.exe /c start $:{NEXT_PUBLIC_APP_URL}) && envcli cross-env NODE_OPTIONS='--inspect' next dev -p $:{NEXT_PUBLIC_APP_PORT} --turbopack\" \"bun --bun dr:build:watch\"",
         "wait-api": "envcli echo $:{NEXT_PUBLIC_API_URL}$:{API_PING_PATH} && envcli wait-port $:{NEXT_PUBLIC_API_URL}$:{API_PING_PATH} || wait-port api:3001",
         "analyze": "cross-env ANALYZE=true bun --bun build",
@@ -67,8 +67,7 @@
         "react-use": "^17.6.0",
         "socket.io-client": "^4.8.1",
         "sonner": "^2.0.7",
-        "zod": "catalog:utils",
-        "zustand": "^5.0.7"
+        "zod": "catalog:utils"
     },
     "devDependencies": {
         "@asteasolutions/zod-to-openapi": "^8.0.0",

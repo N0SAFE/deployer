@@ -5,6 +5,8 @@ import { Request, Response } from 'express';
 
 @Injectable()
 export class LoggerMiddleware implements NestMiddleware {
+    private readonly logger = new Logger(LoggerMiddleware.name);
+
     use(req: Request, res: Response, next: Function) {
         const { ip, method, originalUrl: url  } = req;
         const hostname = require('os').hostname();
@@ -14,7 +16,11 @@ export class LoggerMiddleware implements NestMiddleware {
         res.on('close', () => {
             const { statusCode, statusMessage } = res;
             const contentLength = res.get('content-length');
-            Logger.debug(`[${hostname}] "${method} ${url}" ${statusCode} ${statusMessage} ${contentLength} "${referer}" "${userAgent}" "${ip}"`);
+            
+            // Enhanced debug logging with structured data
+            this.logger.debug(`[${hostname}] "${method} ${url}" ${statusCode} ${statusMessage} ${contentLength} "${referer}" "${userAgent}" "${ip}"`);
+            console.log('response: ', res.statusCode, res.statusMessage, contentLength, referer, userAgent, ip);
+            res.end()
         });
 
         next();

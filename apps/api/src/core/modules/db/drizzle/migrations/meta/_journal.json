@@ -43,6 +43,13 @@
       "when": 1755627077853,
       "tag": "0005_bitter_the_executioner",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1755689309905,
+      "tag": "0006_giant_fantastic_four",
+      "breakpoints": true
     }
   ]
 }

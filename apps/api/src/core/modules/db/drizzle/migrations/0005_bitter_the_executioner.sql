@@ -16,7 +16,7 @@ CREATE TABLE "domain_configs" (
 CREATE TABLE "route_configs" (
 	"id" text PRIMARY KEY NOT NULL,
 	"domain_config_id" text NOT NULL,
-	"deployment_id" text,
+	"deployment_id" uuid,
 	"route_name" text NOT NULL,
 	"service_name" text NOT NULL,
 	"container_name" text,

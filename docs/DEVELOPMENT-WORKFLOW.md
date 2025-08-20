@@ -264,6 +264,78 @@ npm update
 npm update package-name
 ```
 
+## Debug Configuration
+
+The project includes a comprehensive debug system for middleware and application components, controlled by the `NEXT_PUBLIC_DEBUG` environment variable.
+
+### Enabling Debug Logging
+
+Set the `NEXT_PUBLIC_DEBUG` environment variable in your `.env` file to enable debug logging:
+
+```bash
+# Enable all middleware debugging
+NEXT_PUBLIC_DEBUG=middleware/**
+
+# Enable specific middleware
+NEXT_PUBLIC_DEBUG=middleware/auth,middleware/env
+
+# Enable with brace expansion
+NEXT_PUBLIC_DEBUG=middleware/{auth,env,redirect}/**
+
+# Enable only error logs
+NEXT_PUBLIC_DEBUG=middleware/*/error
+
+# Multiple patterns with complex matching
+NEXT_PUBLIC_DEBUG=middleware/auth/**,middleware/env/error
+```
+
+### Available Debug Scopes
+
+The following debug scopes are available:
+
+**Middleware Scopes:**
+- `middleware/env` - Environment validation middleware
+- `middleware/env/error` - Environment validation errors
+- `middleware/headers` - Header processing middleware
+- `middleware/redirect` - URL redirection logic
+- `middleware/healthcheck` - API health monitoring
+- `middleware/healthcheck/error` - Health check failures
+- `middleware/auth` - Authentication flow
+- `middleware/auth/error` - Authentication errors
+- `middleware/stack` - Middleware composition and execution
+- `middleware/stack/error` - Middleware execution errors
+
+### Debug Pattern Syntax
+
+The debug system supports advanced pattern matching:
+
+- `*` - Single level wildcard (matches one level)
+- `**` - Multi-level wildcard (matches any depth)
+- `{auth,env}` - Brace expansion (matches multiple options)
+- `/error` - Specific path segments
+- Comma-separated patterns for multiple scopes
+
+### Debug Output
+
+When enabled, debug logs appear in the console with:
+- 🟡 Yellow `[DEBUG]` labels for visibility
+- ISO timestamps for timing analysis
+- Structured JSON context with relevant data
+- Hierarchical scope organization
+
+### Docker Development
+
+The debug configuration is automatically passed to Docker containers in development mode. After setting `NEXT_PUBLIC_DEBUG` in your `.env` file:
+
+```bash
+# Restart containers to pick up new environment variables
+bun run dev
+```
+
+### Production Considerations
+
+Debug logging is automatically disabled in production environments. The `NEXT_PUBLIC_DEBUG` variable only affects development and testing environments.
+
 ## Troubleshooting
 
 If you encounter issues during development:
