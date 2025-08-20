@@ -8,10 +8,11 @@ import { ConfigFactory, Matcher, MiddlewareFactory } from './utils/types'
 import { nextjsRegexpPageOnly, nextNoApi } from './utils/static'
 import { $Infer } from '@/lib/auth'
 import { matcherHandler } from './utils/utils'
-import { envSchema, validateEnvSafe } from '#/env'
+import { validateEnvSafe } from '#/env'
 import { toAbsoluteUrl } from '@/lib/utils'
 import { Authsignin } from '@/routes/index'
 import { createDebug } from '@/lib/debug'
+import { getServerSession } from '@/lib/auth/actions'
 
 const debugAuth = createDebug('middleware/auth')
 const debugAuthError = createDebug('middleware/auth/error')
@@ -31,70 +32,49 @@ const withAuth: MiddlewareFactory = (next: NextMiddleware) => {
             path: request.nextUrl.pathname
         })
 
-        // Get session using Better Auth with proper timeout
+        // Get session using Better Auth directly
         let session: typeof $Infer.Session | null = null
         let sessionError: Error | unknown = null
         const startTime = Date.now()
 
         try {
-            const apiUrl = envSchema.shape.API_URL.parse(process.env.API_URL)
-            const sessionUrl = `${apiUrl}/api/auth/get-session`
-
-            console.log(`Fetching session from: ${sessionUrl}`)
-
-            debugAuth(`Making fetch request to ${sessionUrl}`)
-            debugAuth(`Request headers - Cookie: ${request.headers.get('cookie') ? 'present' : 'missing'}`)
+            debugAuth('Getting session using Better Auth')
             
-            const TIMEOUT_MS = 3000 // 3 second timeout
+            // Use the existing getServerSession helper that properly handles Better Auth
+            const sessionResult = await getServerSession(request.headers)
             
-            // Use regular fetch with proper timeout handling
-            const controller = new AbortController()
-            const timeoutId = setTimeout(() => {
-                debugAuth('Aborting request due to timeout')
-                controller.abort()
-            }, TIMEOUT_MS)
+            const duration = Date.now() - startTime
+            debugAuth(`Better Auth session retrieval completed in ${duration}ms`)
             
-            const fetchResponse = await fetch(sessionUrl, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': request.headers.get('cookie') || '',
-                },
-                signal: controller.signal,
+            // Better Auth returns a result object that needs to be checked
+            if (sessionResult && typeof sessionResult === 'object') {
+                // Check if it's an error response
+                if ('error' in sessionResult && sessionResult.error) {
+                    throw new Error(`Better Auth error: ${sessionResult.error}`)
+                }
+                
+                // Check if it has session data
+                if ('data' in sessionResult && sessionResult.data) {
+                    session = sessionResult.data as typeof $Infer.Session
+                } else if ('user' in sessionResult && 'session' in sessionResult) {
+                    // Direct session object
+                    session = sessionResult as typeof $Infer.Session
+                }
+            }
+            
+            debugAuth('Session processed:', {
+                hasSession: !!session,
+                hasUser: !!(session?.user)
             })
             
-            clearTimeout(timeoutId)
-            
-            if (!fetchResponse.ok) {
-                throw new Error(`HTTP ${fetchResponse.status}: ${fetchResponse.statusText}`)
-            }
-            
-            const response = await fetchResponse.json()
-                
-            const duration = Date.now() - startTime
-            debugAuth(`betterFetch completed in ${duration}ms`)
-            debugAuth(`Response received:`, { hasResponse: !!response })
-                
-            // Check if the response has the expected structure
-            if (response && typeof response === 'object' && 'data' in response) {
-                session = response.data as typeof $Infer.Session
-            } else if (response && typeof response === 'object' && 'user' in response && 'session' in response) {
-                session = response as typeof $Infer.Session
-            } else {
-                debugAuth('Response does not have expected session structure:', { response })
-            }
         } catch (error) {
-            console.error('Error fetching session:', error)
+            console.error('Error getting session from Better Auth:', error)
             sessionError = error
             const duration = Date.now() - startTime
-            debugAuthError('Error fetching session:', {
+            debugAuthError('Error getting session from Better Auth:', {
                 error: error instanceof Error ? error.message : error,
                 stack: error instanceof Error ? error.stack : undefined,
-                internalUrl: `http://localhost:${process.env.NEXT_PUBLIC_APP_PORT || '3000'}`,
                 duration: `${duration}ms`,
-                hasRedirectLoop: error instanceof Error && error.message.includes('redirect'),
-                hasTimeout: error instanceof Error && (error.message.includes('timeout') || error.message.includes('abort')),
-                hasNetworkError: error instanceof Error && error.message.includes('fetch'),
                 errorType: error instanceof Error ? error.constructor.name : typeof error,
             })
         }
