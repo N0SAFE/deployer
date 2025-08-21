@@ -239,9 +239,7 @@ jobs:
             - name: 🏗️ Build packages
               run: |
                   # Build shared packages first
-                  bun x turbo run build --filter="!web"
-                  # Build web app without static generation to avoid API calls
-                  bun run --cwd apps/web compile
+                  bun x turbo run compile
 
     # Job 3: Test
     test:

@@ -5,6 +5,7 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "bun --bun nest build",
+    "compile": "bun run build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "dev": "bun run start:dev",
     "start": "bun --bun nest start --preserveWatchOutput",

@@ -18,6 +18,11 @@
             "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
             "inputs": ["src/**", "public/**", "*.config.*", "package.json"]
         },
+        "compile": {
+            "dependsOn": ["^compile"],
+            "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+            "inputs": ["src/**", "public/**", "*.config.*", "package.json"]
+        },
         "start": {
             "cache": false,
             "persistent": true,
@@ -64,7 +69,6 @@
             "inputs": ["src/**", "test/**", "**/*.test.*", "**/*.spec.*", "*.config.*", "vitest.config.*", "vitest.setup.*"]
         },
         "lint": {
-            "cache": false,
             "inputs": ["src/**", "*.config.*", "package.json"]
         },
         "prettify": {

@@ -154,7 +154,7 @@
     "dev:api:run": "envcli docker exec -it ${COMPOSE_PROJECT_NAME:-nextjs-directus}-api-dev /bin/sh",
     "dev:web:run": "envcli docker exec -it ${COMPOSE_PROJECT_NAME:-nextjs-directus}-web-dev /bin/sh",
     "dev:local": "turbo dev",
-    "build": "turbo build",
+    "build:local": "turbo build",
     "start": "docker compose -f ./docker-compose.prod.yml down && docker compose -f ./docker-compose.prod.yml up --build",
     "start:local": "turbo start",
     "test": "turbo test",
