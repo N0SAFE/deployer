@@ -4,6 +4,8 @@ import { OpenAPILink } from '@orpc/openapi-client/fetch'
 import { ContractRouterClient } from '@orpc/contract'
 import { createTanstackQueryUtils } from '@orpc/tanstack-query'
 import { validateEnvPath } from '#/env';
+import { Authsignin } from '@/routes/index';
+import { toAbsoluteUrl } from '@/lib/utils';
 
 const APP_URL = validateEnvPath(process.env.NEXT_PUBLIC_APP_URL!, 'NEXT_PUBLIC_APP_URL')
 
@@ -15,7 +17,31 @@ const link = new OpenAPILink(appContract, {
   }),
   interceptors: [
     onError((error) => {
-      console.error(error)
+      console.error('ORPC Error:', error)
+      
+      // Check if this is a 401 Unauthorized error
+      if (error && typeof error === 'object' && 'status' in error && error.status === 401) {
+        // Only redirect on client-side to avoid SSR issues
+        if (typeof window !== 'undefined') {
+          console.log('401 Unauthorized detected, redirecting to login...')
+          
+          // Get current page URL for redirect callback
+          const currentPath = window.location.pathname + window.location.search
+          
+          // Generate login URL with callback
+          const loginUrl = toAbsoluteUrl(
+            Authsignin(
+              {},
+              {
+                callbackUrl: currentPath,
+              }
+            )
+          )
+          
+          // Redirect to login page
+          window.location.href = loginUrl
+        }
+      }
     })
   ],
 })

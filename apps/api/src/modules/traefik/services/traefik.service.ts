@@ -6,19 +6,19 @@ import * as fs from 'fs/promises';
 import { randomUUID } from 'crypto';
 import { DatabaseService } from '../../../core/modules/db/services/database.service';
 import { DockerService } from '../../../core/services/docker.service';
-import { 
+import {
   traefikInstances,
-  domainConfigs, 
+  domainConfigs,
   routeConfigs,
-  traefikConfigs,
+  // traefikConfigs,
   type TraefikInstance,
-  type CreateTraefikInstance,
+  // type CreateTraefikInstance,
   type DomainConfig,
-  type CreateDomainConfig,
+  // type CreateDomainConfig,
   type RouteConfig,
-  type CreateRouteConfig,
-  type TraefikConfig,
-  type CreateTraefikConfig
+  // type CreateRouteConfig,
+  // type TraefikConfig,
+  // type CreateTraefikConfig
 } from '../../../core/modules/db/drizzle/schema/traefik';
 
 export interface TraefikInstanceConfig {
@@ -75,7 +75,7 @@ export class TraefikService {
    * Create a new Traefik instance
    */
   async createInstance(config: TraefikInstanceConfig): Promise<TraefikInstance> {
-    const id = randomUUID();
+    // const id = randomUUID();
     
     // Create database record
     const instanceData = {

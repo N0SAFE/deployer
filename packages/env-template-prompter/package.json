@@ -27,6 +27,7 @@
   "scripts": {
     " ": " ",
     "build": "tsup",
+    "compile": "bun run build",
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",

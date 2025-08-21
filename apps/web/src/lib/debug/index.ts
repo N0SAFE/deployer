@@ -1,6 +1,6 @@
-import { validateEnvSafe } from '#/env'
+import { envSchema } from '#/env'
 
-const env = validateEnvSafe(process.env).data
+const NEXT_PUBLIC_DEBUG = envSchema.shape.NEXT_PUBLIC_DEBUG.parse(process.env.NEXT_PUBLIC_DEBUG)
 
 // ANSI color codes
 const YELLOW = '\x1b[33m'
@@ -96,15 +96,9 @@ function shouldLog(scopes: string[], config: DebugConfig): boolean {
  * @param args Additional arguments to log
  */
 export function debug(scopes: string | string[], ...args: unknown[]): void {
-    if (!env) {
-        console.warn('Environment variables not available for debug logging')
-        return
-    }
-    
     const scopeArray = Array.isArray(scopes) ? scopes : [scopes]
-    const debugConfig = env.NEXT_PUBLIC_DEBUG
-    
-    if (shouldLog(scopeArray, debugConfig)) {
+
+    if (shouldLog(scopeArray, NEXT_PUBLIC_DEBUG)) {
         const scopeStr = scopeArray.join(', ')
         const timestamp = new Date().toISOString()
         
@@ -130,14 +124,8 @@ export function createDebug(scopes: string | string[]) {
  * @returns true if debug is enabled for any of the provided scopes
  */
 export function isDebugEnabled(scopes: string | string[]): boolean {
-    if (!env) {
-        return false
-    }
-    
     const scopeArray = Array.isArray(scopes) ? scopes : [scopes]
-    const debugConfig = env.NEXT_PUBLIC_DEBUG
-    
-    return shouldLog(scopeArray, debugConfig)
+    return shouldLog(scopeArray, NEXT_PUBLIC_DEBUG)
 }
 
 // Export some commonly used debug instances for convenience

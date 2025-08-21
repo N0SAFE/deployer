@@ -27,10 +27,13 @@ export default defineConfig(
         },
         resolve: {
             alias: {
+                // Add fallback for routes when not generated
+                '@/routes': path.resolve(__dirname, './src/__mocks__/@/routes.ts'),
                 '@': path.resolve(__dirname, './src'),
                 '#': path.resolve(__dirname, './'),
                 '~': path.resolve(__dirname, './'),
                 '@repo': path.resolve(__dirname, '../../packages'),
+                
             },
         },
         define: {

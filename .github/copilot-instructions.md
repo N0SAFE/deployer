@@ -34,7 +34,57 @@ Never run `next dev` or `nest start` directly - services are containerized with 
 - Client usage: Generated hooks via `@orpc/tanstack-query`
 - Changes require rebuilding web app: `bun run web -- generate`
 
-### 4. Shared Package System
+### 4. Better Auth Development Workflow
+**Plugin addition and auth generation:**
+```bash
+# When adding new Better Auth plugins
+bun run --cwd apps/api auth:generate    # Generate auth configuration
+```
+
+### 5. API Development Workflow
+**Creating new API endpoints (REQUIRED ORDER):**
+
+1. **Generate Contract** (First Step):
+   ```bash
+   # Edit packages/api-contracts/index.ts
+   # Add new ORPC procedure definitions
+   ```
+
+2. **Create NestJS Implementation** (Required Order):
+   ```bash
+   # 1. Create Repository (Database access layer)
+   # 2. Create Service (Business logic layer)  
+   # 3. Create Controller (HTTP endpoint layer)
+   ```
+
+**Standard API Development Process**:
+```typescript
+// 1. Define contract in packages/api-contracts/index.ts
+export const userRouter = {
+  getUsers: procedure.query()
+  createUser: procedure.input(z.object({...})).mutation()
+}
+
+// 2. Create Repository (apps/api/src/modules/user/repositories/)
+@Injectable()
+export class UserRepository {
+  // Database operations
+}
+
+// 3. Create Service (apps/api/src/modules/user/services/)
+@Injectable() 
+export class UserService {
+  constructor(private userRepository: UserRepository) {}
+  // Business logic
+}
+
+// 4. Create Controller (apps/api/src/modules/user/controllers/)
+@Controller()
+export class UserController {
+  constructor(private userService: UserService) {}
+  // HTTP endpoints
+}
+```
 **Internal packages use workspace references:**
 ```json
 "@repo/ui": "*"           // Not published packages
@@ -42,7 +92,15 @@ Never run `next dev` or `nest start` directly - services are containerized with 
 ```
 Import like: `import { Button } from '@repo/ui'`
 
-### 5. Environment Configuration
+### 6. Shared Package System
+**Internal packages use workspace references:**
+```json
+"@repo/ui": "*"           // Not published packages
+"@repo/api-contracts": "*" // Shared between apps
+```
+Import like: `import { Button } from '@repo/ui'`
+
+### 7. Environment Configuration
 **Multi-environment setup with Docker:**
 - Development: `.env` file with Docker service URLs
 - API URL patterns: `http://api:3001` (internal) vs `http://localhost:3001` (external)
@@ -60,30 +118,89 @@ bun run api -- db:studio      # Database admin UI
 ### Building & Testing
 ```bash
 bun run build                  # Build all apps and packages
-bun run test                   # Run all tests
+bun run test                   # Run all tests (uses vitest)
+npm run test                   # Alternative test command (uses vitest)
+npx vitest run                 # Direct vitest execution
+bun x vitest run               # Alternative direct vitest execution
 bun run test:coverage          # Coverage across monorepo
 ```
 
+**⚠️ CRITICAL: Testing Requirements**
+- **ALWAYS use Vitest** for testing - never use `bun test`, `deno test`, or other test runners
+- **Preferred commands**: `bun run test` or `npm run test` (both use vitest internally)
+- **Direct execution**: Use `npx vitest` or `bun x vitest` with appropriate options
+- **Never use**: `bun test` (different test runner with different behavior)
+
 ### Database Operations
 ```bash
-bun run api -- db:generate    # Generate migrations
-bun run api -- db:push        # Push schema changes
-bun run api -- db:migrate     # Run migrations
-bun run api -- db:seed        # Seed development data
+# Container-based database operations (REQUIRED during development)
+bun run api -- db:generate    # Generate migrations (can run on host)
+bun run api -- db:push        # Push schema changes (CONTAINER ONLY)
+bun run api -- db:migrate     # Run migrations (CONTAINER ONLY)
+bun run api -- db:seed        # Seed development data (CONTAINER ONLY)
+bun run api -- db:studio      # Database admin UI (CONTAINER ONLY)
 ```
+
+**⚠️ CRITICAL: Database Command Requirements**
+- **During development**: ALL database operations (push, migrate, seed, studio) MUST run inside containers
+- **Code generation**: Commands like `db:generate` can run on host as they only generate files
+- **Never run directly on host**: Database modification commands bypass Docker networking and env setup
+- **Container execution ensures**: Proper database connections, environment variables, and network access
 
 ## File Organization Patterns
 
 ### Next.js App (apps/web/)
 - **App Router**: `src/app/*/page.tsx` with co-located `page.info.ts`
-- **Components**: `src/components/` for app-specific, `packages/ui/` for shared
+- **Components**: Atomic component architecture in `src/components/`
 - **State**: Zustand stores in `src/state/`
 - **API Client**: Generated ORPC hooks in `src/lib/api.ts`
+
+#### Component Architecture Structure (apps/web/src/components/)
+**Atomic Design Pattern**:
+```
+src/components/
+├── ui/                    # Basic UI atoms (buttons, inputs, cards)
+├── layout/               # Layout-specific components (header, sidebar)
+├── navigation/           # Navigation-related components
+├── dashboard/            # Dashboard-specific components
+├── project/              # Project management components
+├── services/             # Service management components
+├── deployments/          # Deployment-related components  
+├── team-management/      # Team and collaboration components
+├── activity/             # Activity and logging components
+├── devtools/            # Development tools components
+└── [feature]/           # Feature-specific component groups
+```
+
+**Component Organization Principles**:
+- **Atoms**: Basic UI components (buttons, inputs, typography)
+- **Molecules**: Component combinations (form fields, search bars)
+- **Organisms**: Complex UI sections (headers, forms, data tables)
+- **Templates**: Page layouts without content
+- **Pages**: Complete page implementations with real content
 
 ### NestJS API (apps/api/)
 - **Modules**: Feature-based modules with ORPC contracts
 - **Database**: Drizzle schema in `src/db/drizzle/schema/`
 - **Auth**: Better Auth configuration in `src/auth.ts`
+
+#### API Module Structure (apps/api/src/modules/)
+**Standard Module Pattern**:
+```
+src/modules/[feature]/
+├── dto/                  # Data transfer objects
+├── entities/            # Database entities (if using TypeORM)
+├── repositories/        # Database access layer (1st to create)
+├── services/           # Business logic layer (2nd to create)
+├── controllers/        # HTTP request handlers (3rd to create)
+├── [feature].module.ts  # Module definition
+└── __tests__/          # Module-specific tests
+```
+
+**Module Creation Order**:
+1. **Repository**: Database access and query logic
+2. **Service**: Business logic and operations
+3. **Controller**: HTTP endpoints and request handling
 
 ### Shared Packages
 - **UI**: Shadcn components with Tailwind in `packages/ui/`
@@ -113,6 +230,82 @@ docker exec -it [container] sh # Shell into containers
 ```
 
 When making changes, follow this order: API contracts → API implementation → route generation → frontend implementation.
+
+## Turborepo Remote Caching Configuration
+
+This project is configured with Turborepo remote caching to speed up builds across development environments and CI/CD pipelines.
+
+### Setting Up Remote Caching
+
+**1. Create Vercel Account & Token**
+- Visit [Vercel.com](https://vercel.com) and create an account
+- Go to [Account Settings > Tokens](https://vercel.com/account/tokens)
+- Create a new token with appropriate permissions
+- Copy the token for use in configuration
+
+**2. Configure Environment Variables**
+
+**For Local Development:**
+```bash
+# Add to your .env file
+TURBO_TOKEN=your-vercel-token-here
+TURBO_TEAM=your-team-name-or-username  # Your Vercel username or team name
+```
+
+**For CI/CD (GitHub Secrets):**
+- Go to your GitHub repository Settings > Secrets and variables > Actions
+- Add repository secrets:
+  - `TURBO_TOKEN`: Your Vercel token
+  - `TURBO_TEAM`: Your Vercel username or team name
+
+**3. Docker Compose Integration**
+Remote caching is automatically configured in Docker containers when environment variables are set:
+```bash
+# Docker containers will inherit TURBO_TOKEN and TURBO_TEAM from your .env file
+bun run dev  # Uses remote cache in containers
+```
+
+**4. Host Development**
+For direct host development (not in containers):
+```bash
+# Ensure environment variables are set, then run:
+bun run build    # Will use remote cache
+bun run test     # Will use remote cache
+```
+
+**5. Verification**
+To verify remote caching is working:
+```bash
+# Clean local cache and build
+bun run clean
+bun run build    # Should show "MISS" for first build
+bun run clean
+bun run build    # Should show "HIT" for subsequent builds
+```
+
+### Remote Cache Benefits
+- **🚀 Faster Builds**: Share build artifacts across environments
+- **💾 Storage Efficient**: Avoid rebuilding unchanged packages
+- **🔄 Team Collaboration**: Share cache between team members
+- **⚡ CI/CD Speed**: Dramatically faster pipeline execution
+- **🐳 Container Optimization**: Faster Docker builds with persistent cache
+
+### Cache Locations
+- **Local Development**: Docker containers automatically use remote cache
+- **CI/CD Pipeline**: GitHub Actions configured with remote caching
+- **Host Development**: Uses remote cache when `TURBO_TOKEN` is configured
+
+### Troubleshooting Remote Cache
+```bash
+# View cache status
+bun run build --dry-run     # Shows what would be cached
+
+# Force bypass cache (for testing)
+bun run build --force      # Ignores remote cache
+
+# Clear local cache
+bun run clean              # Clears local Turbo cache
+```
 
 ## Documentation References
 

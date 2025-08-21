@@ -1,4 +1,4 @@
-import { Authsignin, Home, Appshowcase } from '@/routes/index'
+import { Authsignin, Dashboard } from '@/routes/index'
 import { Button } from '@repo/ui/components/shadcn/button'
 import {
     Card,
@@ -135,15 +135,6 @@ export default async function MePage() {
                     </CardHeader>
                     <CardContent>
                         <div className="flex flex-wrap gap-3">
-                            <Appshowcase.Link>
-                                <Button
-                                    variant="default"
-                                    className="flex items-center space-x-2"
-                                >
-                                    <Database className="h-4 w-4" />
-                                    <span>View Showcase</span>
-                                </Button>
-                            </Appshowcase.Link>
                             <Authsignin.Link search={{ callbackUrl: url }}>
                                 <Button
                                     variant="outline"
@@ -158,10 +149,10 @@ export default async function MePage() {
                     </CardContent>
                 </Card>
                 <div className="text-center">
-                    <Home.Link className="text-muted-foreground hover:text-foreground inline-flex items-center space-x-2 text-sm">
+                    <Dashboard.Link className="text-muted-foreground hover:text-foreground inline-flex items-center space-x-2 text-sm">
                         <ArrowLeft className="h-4 w-4" />
-                        <span>Back to Home</span>
-                    </Home.Link>
+                        <span>Back to Dashboard</span>
+                    </Dashboard.Link>
                 </div>
             </div>
         </div>

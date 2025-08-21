@@ -81,8 +81,8 @@ export class TraefikController {
   // Domain management endpoints
   @Implement(traefikContract.createDomainConfig)
   createDomainConfig() {
-    return implement(traefikContract.createDomainConfig).handler(async ({ input }) => {
-      const { instanceId, ...domainConfig } = input;
+    return implement(traefikContract.createDomainConfig).handler(async ({ input: _ }) => {
+      // const { instanceId, ...domainConfig } = input;
       // Need to implement createDomainConfig method in TraefikService
       throw new Error('Method not implemented yet');
     });
@@ -90,8 +90,8 @@ export class TraefikController {
 
   @Implement(traefikContract.listDomainConfigs)
   listDomainConfigs() {
-    return implement(traefikContract.listDomainConfigs).handler(async ({ input }) => {
-      const { instanceId } = input;
+    return implement(traefikContract.listDomainConfigs).handler(async ({ input: _ }) => {
+      // const { instanceId } = input;
       // Need to implement listDomainConfigs method in TraefikService
       throw new Error('Method not implemented yet');
     });
@@ -100,8 +100,8 @@ export class TraefikController {
   // Route management endpoints
   @Implement(traefikContract.createRouteConfig)
   createRouteConfig() {
-    return implement(traefikContract.createRouteConfig).handler(async ({ input }) => {
-      const { domainConfigId, ...routeConfig } = input;
+    return implement(traefikContract.createRouteConfig).handler(async ({ input: _ }) => {
+      // const { domainConfigId, ...routeConfig } = input;
       // Need to implement createRouteConfig method in TraefikService
       throw new Error('Method not implemented yet');
     });
@@ -109,8 +109,8 @@ export class TraefikController {
 
   @Implement(traefikContract.listRouteConfigs)
   listRouteConfigs() {
-    return implement(traefikContract.listRouteConfigs).handler(async ({ input }) => {
-      const { domainConfigId } = input;
+    return implement(traefikContract.listRouteConfigs).handler(async ({ input: _ }) => {
+      // const { domainConfigId } = input;
       // Need to implement listRouteConfigs method in TraefikService
       throw new Error('Method not implemented yet');
     });
@@ -118,8 +118,8 @@ export class TraefikController {
 
   @Implement(traefikContract.deleteRouteConfig)
   deleteRouteConfig() {
-    return implement(traefikContract.deleteRouteConfig).handler(async ({ input }) => {
-      const { routeConfigId } = input;
+    return implement(traefikContract.deleteRouteConfig).handler(async ({ input: _ }) => {
+      // const { routeConfigId } = input;
       // Need to implement deleteRouteConfig method in TraefikService
       throw new Error('Method not implemented yet');
     });
@@ -128,8 +128,8 @@ export class TraefikController {
   // Deployment registration endpoints
   @Implement(traefikContract.registerDeployment)
   registerDeployment() {
-    return implement(traefikContract.registerDeployment).handler(async ({ input }) => {
-      const { instanceId, ...registrationData } = input;
+    return implement(traefikContract.registerDeployment).handler(async ({ input: _ }) => {
+      // const { instanceId, ...registrationData } = input;
       // The registerDeployment method exists but has a different signature
       // Need to update it to match the API contract
       throw new Error('Method not implemented yet');
