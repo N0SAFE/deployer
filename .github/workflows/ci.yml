@@ -125,7 +125,7 @@ jobs:
         name: 🔍 Lint & Type Check
         runs-on: ubuntu-latest
         timeout-minutes: 8
-        needs: [setup, generate-declarative-routes]
+        needs: [setup]
         env:
             # Essential environment variables for linting/type checking
             API_URL: http://localhost:8055/
@@ -190,7 +190,7 @@ jobs:
         name: 🏗️ Build
         runs-on: ubuntu-latest
         timeout-minutes: 12
-        needs: [setup, lint-and-typecheck, generate-declarative-routes]
+        needs: [lint-and-typecheck, generate-declarative-routes]
         env:
             # API Configuration
             API_URL: http://localhost:8055/
@@ -271,7 +271,7 @@ jobs:
         name: 🧪 Test
         runs-on: ubuntu-latest
         timeout-minutes: 12
-        needs: [setup, lint-and-typecheck, generate-declarative-routes]
+        needs: [lint-and-typecheck, generate-declarative-routes]
         env:
             # API Configuration
             API_URL: http://localhost:8055/
@@ -344,7 +344,7 @@ jobs:
         name: 🚀 Deployment Ready
         runs-on: ubuntu-latest
         timeout-minutes: 3
-        needs: [setup, lint-and-typecheck, build, test, generate-declarative-routes]
+        needs: [build, test]
         if: always()
 
         steps:
