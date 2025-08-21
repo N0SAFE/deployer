@@ -321,8 +321,8 @@ jobs:
         if: always()
 
         steps:
-            - name: 📚 Checkout repository
-              uses: actions/checkout@v4
+            # - name: 📚 Checkout repository
+            #   uses: actions/checkout@v4
 
             - name: ✅ Check deployment readiness
               run: |
