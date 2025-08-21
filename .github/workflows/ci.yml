@@ -109,16 +109,16 @@ jobs:
                   bun run openapi:yaml
                   bun run openapi:html
 
-            # - name: 📤 Upload declarative routes artifacts
-            #   uses: actions/upload-artifact@v4
-            #   with:
-            #       name: declarative-routes
-            #       path: |
-            #           apps/web/src/routes/index.ts
-            #           apps/web/src/routes/openapi.ts
-            #           apps/web/openapi-docs.yml
-            #           apps/web/redoc-static.html
-            #       retention-days: 1
+            - name: 📤 Upload declarative routes artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: declarative-routes
+                  path: |
+                      apps/web/src/routes/index.ts
+                      apps/web/src/routes/openapi.ts
+                      apps/web/openapi-docs.yml
+                      apps/web/redoc-static.html
+                  retention-days: 1
 
     # Job 2: Lint and Type Check
     lint-and-typecheck:
