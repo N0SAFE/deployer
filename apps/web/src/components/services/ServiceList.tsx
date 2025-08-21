@@ -78,13 +78,13 @@ export default function ServiceList({ projectId }: ServiceListProps) {
           />
         </div>
         
-        <Select value={typeFilter || ''} onValueChange={(value) => setTypeFilter(value || undefined)}>
+        <Select value={typeFilter || 'all-types'} onValueChange={(value) => setTypeFilter(value === 'all-types' ? undefined : value)}>
           <SelectTrigger className="w-[150px]">
             <Filter className="h-4 w-4 mr-2" />
             <SelectValue placeholder="All Types" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Types</SelectItem>
+            <SelectItem value="all-types">All Types</SelectItem>
             {serviceTypes.map(type => (
               <SelectItem key={type} value={type}>
                 {type}
@@ -94,14 +94,14 @@ export default function ServiceList({ projectId }: ServiceListProps) {
         </Select>
         
         <Select 
-          value={isActiveFilter === undefined ? '' : isActiveFilter.toString()} 
-          onValueChange={(value) => setIsActiveFilter(value === '' ? undefined : value === 'true')}
+          value={isActiveFilter === undefined ? 'all-status' : isActiveFilter.toString()} 
+          onValueChange={(value) => setIsActiveFilter(value === 'all-status' ? undefined : value === 'true')}
         >
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="All Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Status</SelectItem>
+            <SelectItem value="all-status">All Status</SelectItem>
             <SelectItem value="true">Active Only</SelectItem>
             <SelectItem value="false">Inactive Only</SelectItem>
           </SelectContent>
