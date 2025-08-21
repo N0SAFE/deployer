@@ -2,8 +2,10 @@ import { Controller } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { HealthService } from '../services/health.service';
 import { healthContract } from '@repo/api-contracts';
+import { Public } from '@/modules/auth/decorators/decorators';
 
 @Controller()
+@Public()
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 

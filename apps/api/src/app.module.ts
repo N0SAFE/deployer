@@ -14,6 +14,8 @@ import { DATABASE_CONNECTION } from './core/modules/db/database-connection';
 import { AuthModule } from './modules/auth/auth.module';
 import { betterAuthFactory } from './auth';
 import { LoggerMiddleware } from './core/middlewares/logger.middleware';
+import { APP_GUARD } from '@nestjs/core';
+import { AuthGuard } from './modules/auth/guards/auth.guard';
 
 @Module({
   imports: [
@@ -47,6 +49,12 @@ import { LoggerMiddleware } from './core/middlewares/logger.middleware';
       ],
       eventIteratorKeepAliveInterval: 5000, // 5 seconds
     }),
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard,
+    },
   ],
 })
 export class AppModule implements NestModule {
