@@ -87,6 +87,9 @@ services:
             # Traefik Configuration
             TRAEFIK_DOMAIN: ${TRAEFIK_DOMAIN:-localhost}
             TRAEFIK_ACME_EMAIL: ${TRAEFIK_ACME_EMAIL:-admin@localhost}
+            # Turbo Remote Cache Configuration
+            TURBO_TOKEN: ${TURBO_TOKEN}
+            TURBO_TEAM: ${TURBO_TEAM}
         healthcheck:
             test: wget --no-verbose --tries=1 --spider http://127.0.0.1:${API_PORT:-3005}/health || exit 1
             start_period: 15s
@@ -148,6 +151,9 @@ services:
             - NEXT_PUBLIC_DEBUG=${NEXT_PUBLIC_DEBUG}
             # Enable hot reloading
             - WATCHPACK_POLLING=true
+            # Turbo Remote Cache Configuration
+            - TURBO_TOKEN=${TURBO_TOKEN}
+            - TURBO_TEAM=${TURBO_TEAM}
             - CHOKIDAR_USEPOLLING=true
         networks:
             - app_network_dev

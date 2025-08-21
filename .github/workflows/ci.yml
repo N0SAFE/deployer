@@ -10,6 +10,8 @@ on:
 env:
     BUN_VERSION: "1.2.14"
     NODE_VERSION: "22"
+    TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+    TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
 jobs:
     # Job 0: Generate Declarative Routes

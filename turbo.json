@@ -1,9 +1,12 @@
 {
     "$schema": "https://turbo.build/schema.json",
     "ui": "tui",
+    "remoteCache": {
+        "enabled": true
+    },
     "globalDependencies": ["**/.env.*local", "**/.env", ".env.local"],
-    "globalPassThroughEnv": [".env.local"],
-    "globalEnv": ["NEXT_PUBLIC_API_URL", "API_PING_PATH", "API_ADMIN_TOKEN", "TEMP_APP_NEXTAUTH_URL", "NEXT_AUTH"],
+    "globalPassThroughEnv": [".env.local", "TURBO_TOKEN", "TURBO_TEAM"],
+    "globalEnv": ["NEXT_PUBLIC_API_URL", "API_PING_PATH", "API_ADMIN_TOKEN", "TEMP_APP_NEXTAUTH_URL", "NEXT_AUTH", "TURBO_TOKEN", "TURBO_TEAM"],
     "tasks": {
         "dev": {
             "cache": false,
