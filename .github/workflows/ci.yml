@@ -54,24 +54,14 @@ jobs:
                   bun install --frozen-lockfile
                 fi
 
-            # - name: 📤 Upload workspace artifacts
-            #   uses: actions/upload-artifact@v4
-            #   with:
-            #       name: workspace-setup
-            #       path: |
-            #           node_modules
-            #           apps/*/node_modules  
-            #           packages/*/node_modules
-            #           bun.lockb
-            #           .turbo
-            #       retention-days: 1
-
     # Job 1: Generate Declarative Routes
     generate-declarative-routes:
         name: 📝 Generate Declarative Routes
         runs-on: ubuntu-latest
         timeout-minutes: 8
         needs: setup
+        outputs:
+            cache-hit: ${{ steps.cache-declarative-routes.outputs.cache-hit }}
         steps:
             - name: 📚 Checkout repository
               uses: actions/checkout@v4
@@ -80,19 +70,6 @@ jobs:
               uses: oven-sh/setup-bun@v2
               with:
                   bun-version: ${{ env.BUN_VERSION }}
-
-            - name: 💾 Restore Bun dependencies cache
-              uses: actions/cache@v4
-              with:
-                  path: |
-                      ~/.bun
-                      node_modules
-                      apps/*/node_modules
-                      packages/*/node_modules
-                      bun.lockb
-                  key: bun-deps-${{ runner.os }}-${{ hashFiles('**/bun.lock', '**/package.json') }}
-                  restore-keys: |
-                      bun-deps-${{ runner.os }}-
 
             - name: � Cache declarative routes
               id: cache-declarative-routes
@@ -106,6 +83,20 @@ jobs:
                   key: declarative-routes-${{ runner.os }}-${{ hashFiles('apps/web/src/**/page.tsx', 'apps/web/src/**/page.info.ts') }}
                   restore-keys: |
                       declarative-routes-${{ runner.os }}-
+
+            - name: 💾 Restore Bun dependencies cache
+              if: steps.cache-declarative-routes.outputs.cache-hit != 'true'
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.bun
+                      node_modules
+                      apps/*/node_modules
+                      packages/*/node_modules
+                      bun.lockb
+                  key: bun-deps-${{ runner.os }}-${{ hashFiles('**/bun.lock', '**/package.json') }}
+                  restore-keys: |
+                      bun-deps-${{ runner.os }}-
 
             - name: � Generate declarative routes
               if: steps.cache-declarative-routes.outputs.cache-hit != 'true'
@@ -164,12 +155,6 @@ jobs:
                   key: bun-deps-${{ runner.os }}-${{ hashFiles('**/bun.lock', '**/package.json') }}
                   restore-keys: |
                       bun-deps-${{ runner.os }}-
-
-            # - name: 📥 Download workspace setup
-            #   uses: actions/download-artifact@v4
-            #   with:
-            #       name: workspace-setup
-            #       path: .
 
             - name: 🔍 Run ESLint
               run: bun run lint
@@ -322,12 +307,6 @@ jobs:
                   restore-keys: |
                       bun-deps-${{ runner.os }}-
 
-            # - name: 📥 Download workspace setup
-            #   uses: actions/download-artifact@v4
-            #   with:
-            #       name: workspace-setup
-            #       path: .
-
             - name: 🧪 Run tests for all packages
               run: bun run test
 
@@ -336,7 +315,7 @@ jobs:
         name: 🚀 Deployment Ready
         runs-on: ubuntu-latest
         timeout-minutes: 3
-        needs: [build, test]
+        needs: [setup, generate-declarative-routes, lint-and-typecheck, build, test]
         if: always()
 
         steps:
@@ -353,12 +332,21 @@ jobs:
                   TEST_STATUS="${{ needs.test.result }}"
                   DR_STATUS="${{ needs.generate-declarative-routes.result }}"
 
+                  # Cache hit information
+                  BUN_CACHE_HIT="${{ needs.setup.outputs.cache-hit }}"
+                  DR_CACHE_HIT="${{ needs.generate-declarative-routes.outputs.cache-hit }}"
+
                   echo "📋 Pipeline Results:"
                   echo "  - Setup & Dependencies: $SETUP_STATUS"
                   echo "  - Lint & Type Check: $LINT_STATUS"
                   echo "  - Build: $BUILD_STATUS"
                   echo "  - Test: $TEST_STATUS"
                   echo "  - Declarative Routes: $DR_STATUS"
+                  
+                  echo ""
+                  echo "🎯 Cache Performance:"
+                  echo "  - Bun Dependencies: $([ "$BUN_CACHE_HIT" = "true" ] && echo "✅ Cache HIT" || echo "❌ Cache MISS")"
+                  echo "  - Declarative Routes: $([ "$DR_CACHE_HIT" = "true" ] && echo "✅ Cache HIT" || echo "❌ Cache MISS")"
 
                   if [ "$SETUP_STATUS" = "success" ] && [ "$LINT_STATUS" = "success" ] && [ "$BUILD_STATUS" = "success" ] && [ "$TEST_STATUS" = "success" ] && [ "$DR_STATUS" = "success" ]; then
                     if [ "${{ github.ref }}" = "refs/heads/main" ]; then
@@ -376,6 +364,10 @@ jobs:
 
             - name: 📋 Generate deployment summary
               run: |
+                  # Cache hit information
+                  BUN_CACHE_HIT="${{ needs.setup.outputs.cache-hit }}"
+                  DR_CACHE_HIT="${{ needs.generate-declarative-routes.outputs.cache-hit }}"
+                  
                   echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
                   echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
@@ -385,6 +377,14 @@ jobs:
                   echo "| Build | ${{ needs.build.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
                   echo "| Test | ${{ needs.test.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
                   echo "| Declarative Routes | ${{ needs.generate-declarative-routes.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  
+                  echo "### 🎯 Cache Performance" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "| Cache Type | Status |" >> $GITHUB_STEP_SUMMARY
+                  echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+                  echo "| Bun Dependencies | $([ "$BUN_CACHE_HIT" = "true" ] && echo "✅ HIT" || echo "❌ MISS") |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Declarative Routes | $([ "$DR_CACHE_HIT" = "true" ] && echo "✅ HIT" || echo "❌ MISS") |" >> $GITHUB_STEP_SUMMARY
                   echo "" >> $GITHUB_STEP_SUMMARY
 
                   if [ "${{ github.ref }}" = "refs/heads/main" ]; then
