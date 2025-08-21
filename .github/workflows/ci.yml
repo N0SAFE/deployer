@@ -94,31 +94,29 @@ jobs:
                   restore-keys: |
                       bun-deps-${{ runner.os }}-
 
-            # - name: 📥 Download workspace setup
-            #   uses: actions/download-artifact@v4
-            #   with:
-            #       name: workspace-setup
-            #       path: .
-
-            - name: 📝 Generate declarative routes
-              run: bun run --cwd apps/web dr:build
-
-            - name: 📝 Generate OpenAPI documentation
-              run: |
-                  cd apps/web
-                  bun run openapi:yaml
-                  bun run openapi:html
-
-            - name: 📤 Upload declarative routes artifacts
-              uses: actions/upload-artifact@v4
+            - name: � Cache declarative routes
+              id: cache-declarative-routes
+              uses: actions/cache@v4
               with:
-                  name: declarative-routes
                   path: |
                       apps/web/src/routes/index.ts
                       apps/web/src/routes/openapi.ts
                       apps/web/openapi-docs.yml
                       apps/web/redoc-static.html
-                  retention-days: 1
+                  key: declarative-routes-${{ runner.os }}-${{ hashFiles('apps/web/src/**/page.tsx', 'apps/web/src/**/page.info.ts') }}
+                  restore-keys: |
+                      declarative-routes-${{ runner.os }}-
+
+            - name: � Generate declarative routes
+              if: steps.cache-declarative-routes.outputs.cache-hit != 'true'
+              run: bun run --cwd apps/web dr:build
+
+            - name: 📝 Generate OpenAPI documentation
+              if: steps.cache-declarative-routes.outputs.cache-hit != 'true'
+              run: |
+                  cd apps/web
+                  bun run openapi:yaml
+                  bun run openapi:html
 
     # Job 2: Lint and Type Check
     lint-and-typecheck:
@@ -243,17 +241,17 @@ jobs:
                   restore-keys: |
                       bun-deps-${{ runner.os }}-
 
-            # - name: 📥 Download workspace setup
-            #   uses: actions/download-artifact@v4
-            #   with:
-            #       name: workspace-setup
-            #       path: .
-
-            - name: 📥 Download declarative routes artifacts
-              uses: actions/download-artifact@v4
+            - name: � Restore declarative routes cache
+              uses: actions/cache@v4
               with:
-                  name: declarative-routes
-                  path: .
+                  path: |
+                      apps/web/src/routes/index.ts
+                      apps/web/src/routes/openapi.ts
+                      apps/web/openapi-docs.yml
+                      apps/web/redoc-static.html
+                  key: declarative-routes-${{ runner.os }}-${{ hashFiles('apps/web/src/**/page.tsx', 'apps/web/src/**/page.info.ts') }}
+                  restore-keys: |
+                      declarative-routes-${{ runner.os }}-
 
             - name: 🏗️ Build packages
               run: |
