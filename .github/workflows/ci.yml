@@ -25,11 +25,6 @@ jobs:
             - name: 📚 Checkout repository
               uses: actions/checkout@v4
 
-            - name: 🐰 Setup Bun
-              uses: oven-sh/setup-bun@v2
-              with:
-                  bun-version: ${{ env.BUN_VERSION }}
-
             - name: 💾 Cache Bun dependencies
               id: cache-dependencies
               uses: actions/cache@v4
@@ -43,6 +38,12 @@ jobs:
                   key: bun-deps-${{ runner.os }}-${{ hashFiles('**/bun.lock', '**/package.json') }}
                   restore-keys: |
                       bun-deps-${{ runner.os }}-
+
+            - name: 🐰 Setup Bun
+              if: steps.cache-dependencies.outputs.cache-hit != 'true'
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: ${{ env.BUN_VERSION }}
 
             - name: 📦 Install dependencies
               if: steps.cache-dependencies.outputs.cache-hit != 'true'
