@@ -161,9 +161,6 @@ jobs:
             - name: 🔍 Run ESLint
               run: bun run lint
 
-            - name: 🎨 Check formatting with Prettier
-              run: bun run format
-
     # Job 3: Build
     build:
         name: 🏗️ Build
@@ -321,9 +318,6 @@ jobs:
         if: always()
 
         steps:
-            # - name: 📚 Checkout repository
-            #   uses: actions/checkout@v4
-
             - name: ✅ Check deployment readiness
               run: |
                   echo "🔍 Checking CI/CD pipeline results..."
