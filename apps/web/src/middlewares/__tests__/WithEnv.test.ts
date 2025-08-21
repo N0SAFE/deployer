@@ -1,16 +1,38 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextFetchEvent, NextRequest, NextResponse } from 'next/server'
-import withEnv from '../WithEnv'
 
-// Mock the environment validation functions
+// All mocks must be at the top level before any imports that use them
+// Mock the entire #/env module export including envSchema
 vi.mock('#/env', () => ({
+    envSchema: {
+        parse: vi.fn(),
+        safeParse: vi.fn(),
+        shape: {}
+    },
     envIsValid: vi.fn(),
     validateEnvSafe: vi.fn(),
+    validateEnv: vi.fn(),
+    validateEnvPath: vi.fn(),
 }))
 
 // Mock the utility functions
 vi.mock('../utils/utils', () => ({
     matcherHandler: vi.fn(),
+}))
+
+// Mock the routes module
+vi.mock('@/routes', () => ({
+    Middlewareerrorenv: vi.fn(() => '/middleware/error/env'),
+}))
+
+// Mock the utils lib
+vi.mock('@/lib/utils', () => ({
+    toAbsoluteUrl: vi.fn((path) => `http://localhost:3003${path}`),
+}))
+
+// Mock the debug lib
+vi.mock('@/lib/debug', () => ({
+    createDebug: vi.fn(() => vi.fn()),
 }))
 
 // Mock the static imports
@@ -20,6 +42,8 @@ vi.mock('../utils/static', () => ({
     noPublic: {},
 }))
 
+// Now import the modules after mocking
+import withEnv from '../WithEnv'
 import { envIsValid, validateEnvSafe } from '#/env'
 import { matcherHandler } from '../utils/utils'
 
