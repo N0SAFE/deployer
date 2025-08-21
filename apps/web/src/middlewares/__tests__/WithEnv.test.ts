@@ -6,7 +6,6 @@ describe('WithEnv Middleware', () => {
     const mockEnvIsValid = vi.fn()
     const mockValidateEnvSafe = vi.fn()
     const mockMatcherHandler = vi.fn()
-    const mockMiddlewareerrorenv = vi.fn(() => '/middleware/error/env')
     const mockToAbsoluteUrl = vi.fn((path) => `http://localhost:3003${path}`)
     const mockCreateDebug = vi.fn(() => vi.fn())
     
@@ -30,10 +29,6 @@ describe('WithEnv Middleware', () => {
 
         vi.doMock('../utils/utils', () => ({
             matcherHandler: mockMatcherHandler,
-        }))
-
-        vi.doMock('@/routes', () => ({
-            Middlewareerrorenv: mockMiddlewareerrorenv,
         }))
 
         vi.doMock('@/lib/utils', () => ({
