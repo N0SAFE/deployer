@@ -72,8 +72,7 @@
             "inputs": ["src/**", "*.config.*", "package.json"]
         },
         "prettify": {
-            "dependsOn": ["^lint"],
-            "cache": false
+            "dependsOn": ["^lint"]
         },
         "clean": {
             "cache": false
