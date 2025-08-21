@@ -54,17 +54,17 @@ jobs:
                   bun install --frozen-lockfile
                 fi
 
-            - name: 📤 Upload workspace artifacts
-              uses: actions/upload-artifact@v4
-              with:
-                  name: workspace-setup
-                  path: |
-                      node_modules
-                      apps/*/node_modules  
-                      packages/*/node_modules
-                      bun.lockb
-                      .turbo
-                  retention-days: 1
+            # - name: 📤 Upload workspace artifacts
+            #   uses: actions/upload-artifact@v4
+            #   with:
+            #       name: workspace-setup
+            #       path: |
+            #           node_modules
+            #           apps/*/node_modules  
+            #           packages/*/node_modules
+            #           bun.lockb
+            #           .turbo
+            #       retention-days: 1
 
     # Job 1: Generate Declarative Routes
     generate-declarative-routes:
