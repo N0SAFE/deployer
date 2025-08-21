@@ -66,12 +66,7 @@ jobs:
             - name: 📚 Checkout repository
               uses: actions/checkout@v4
 
-            - name: 🐰 Setup Bun
-              uses: oven-sh/setup-bun@v2
-              with:
-                  bun-version: ${{ env.BUN_VERSION }}
-
-            - name: � Cache declarative routes
+            - name: 💾 Cache declarative routes
               id: cache-declarative-routes
               uses: actions/cache@v4
               with:
@@ -83,6 +78,12 @@ jobs:
                   key: declarative-routes-${{ runner.os }}-${{ hashFiles('apps/web/src/**/page.tsx', 'apps/web/src/**/page.info.ts') }}
                   restore-keys: |
                       declarative-routes-${{ runner.os }}-
+
+            - name: 🐰 Setup Bun
+              if: steps.cache-declarative-routes.outputs.cache-hit != 'true'
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: ${{ env.BUN_VERSION }}
 
             - name: 💾 Restore Bun dependencies cache
               if: steps.cache-declarative-routes.outputs.cache-hit != 'true'
@@ -98,7 +99,7 @@ jobs:
                   restore-keys: |
                       bun-deps-${{ runner.os }}-
 
-            - name: � Generate declarative routes
+            - name: 🛤️ Generate declarative routes
               if: steps.cache-declarative-routes.outputs.cache-hit != 'true'
               run: bun run --cwd apps/web dr:build
 
@@ -226,7 +227,7 @@ jobs:
                   restore-keys: |
                       bun-deps-${{ runner.os }}-
 
-            - name: � Restore declarative routes cache
+            - name: 💾 Restore declarative routes cache
               uses: actions/cache@v4
               with:
                   path: |
