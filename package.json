@@ -96,7 +96,6 @@
         "zod": "^4.0.0",
         "@hookform/resolvers": "^3.9.0",
         "query-string": "^9.2.2",
-        "zustand": "^5.0.6",
         "lodash.snakecase": "^4.1.1",
         "@types/lodash.snakecase": "^4.1.1",
         "commander": "^14.0.0",

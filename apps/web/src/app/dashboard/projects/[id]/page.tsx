@@ -15,7 +15,6 @@ import {
 import { 
   Activity,
   Settings,
-  Plus,
   MoreHorizontal,
   ExternalLink,
   GitBranch,
@@ -30,6 +29,7 @@ import {
 import { useProject } from '@/hooks/useProjects'
 import ActivityFeed from '@/components/activity/ActivityFeed'
 import OrganizationTeamManagement from '@/components/organization/OrganizationTeamManagement'
+import ServiceList from '@/components/services/ServiceList'
 
 export default function ProjectDetailPage() {
   const params = useParams()
@@ -245,42 +245,7 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="services" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-medium">Services</h3>
-              <p className="text-sm text-muted-foreground">
-                Manage your deployable services and their configurations
-              </p>
-            </div>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Service
-            </Button>
-          </div>
-          
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {services.length === 0 ? (
-              <div className="col-span-full text-center py-12">
-                <Server className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">No services yet</h3>
-                <p className="text-muted-foreground mb-6">
-                  Add your first service to start deploying
-                </p>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Service
-                </Button>
-              </div>
-            ) : (
-              <div className="col-span-full text-center py-12">
-                <Server className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">Services will be shown here</h3>
-                <p className="text-muted-foreground">
-                  Service cards will be implemented with proper hooks
-                </p>
-              </div>
-            )}
-          </div>
+          <ServiceList projectId={projectId} />
         </TabsContent>
 
         <TabsContent value="deployments" className="space-y-4">
