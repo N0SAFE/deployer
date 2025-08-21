@@ -94,11 +94,11 @@ jobs:
                   restore-keys: |
                       bun-deps-${{ runner.os }}-
 
-            - name: 📥 Download workspace setup
-              uses: actions/download-artifact@v4
-              with:
-                  name: workspace-setup
-                  path: .
+            # - name: 📥 Download workspace setup
+            #   uses: actions/download-artifact@v4
+            #   with:
+            #       name: workspace-setup
+            #       path: .
 
             - name: 📝 Generate declarative routes
               run: bun run --cwd apps/web dr:build
