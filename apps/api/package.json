@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@mguay/nestjs-better-auth": "catalog:auth",
-    "@nestjs/bull": "^10.0.1",
+    "@nestjs/bull": "^11.0.3",
     "@nestjs/common": "catalog:api:nest",
     "@nestjs/core": "catalog:api:nest",
     "@nestjs/platform-express": "catalog:api:nest",
