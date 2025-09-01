@@ -133,6 +133,10 @@
         "@nestjs/swagger": "^8.0.9",
         "reflect-metadata": "^0.1.13",
         "rxjs": "^7.8.1"
+      },
+      "mcp": {
+        "@modelcontextprotocol/sdk": "^1.0.0",
+        "@rekog/mcp-nest": "^1.8.1"
       }
     }
   },
@@ -207,6 +211,9 @@
     "@repo/tsconfig": "dotenv -e .env -- bun --cwd=./packages/tsconfig run --",
     "@repo/tailwind-config": "dotenv -e .env -- bun --cwd=./packages/tailwind-config run --",
     "@repo/eslint-config": "dotenv -e .env -- bun --cwd=./packages/eslint-config run --",
+    "@repo/mcp-repo-manager": "dotenv -e .env -- bun --cwd=./packages/mcp-repo-manager run --",
+    "mcp": "dotenv -e .env -- bun --cwd=./packages/mcp-repo-manager run start",
+    "mcp:dev": "dotenv -e .env -- bun --cwd=./packages/mcp-repo-manager run dev",
     ".": "dotenv -e .env -- bun --cwd=./ run --",
     "rm:node_modules": "concurrently \"bun --bun x rimraf node_modules\" \"bun --bun x rimraf --glob packages/*/node_modules\" \"bun --bun x rimraf --glob apps/*/node_modules\"",
     " ": " "
@@ -217,13 +224,14 @@
     "@n0safe/rununtil": "^1.0.5",
     "@n0safe/trycli": "^1.0.4",
     "@types/bun": "latest",
+    "@types/js-yaml": "^4.0.9",
+    "concurrently": "catalog:dev",
     "nyc": "^15.1.0",
     "prompts": "catalog:utils",
     "rimraf": "catalog:build",
     "turbo": "^2.1.2",
-    "vitest": "catalog:testing",
     "vite": "catalog:build",
-    "concurrently": "catalog:dev"
+    "vitest": "catalog:testing"
   },
   "engines": {
     "bun": ">=1.2.14"
@@ -233,6 +241,8 @@
     "dotenv": "^16.4.5",
     "dotenv-cli": "^7.4.2",
     "dotenv-expand": "^11.0.6",
+    "fs-extra": "^11.3.1",
+    "js-yaml": "^4.1.0",
     "kill-port-process": "^3.2.1",
     "wait-on": "^8.0.1",
     "wait-port": "^1.1.0"

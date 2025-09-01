@@ -9,6 +9,12 @@ import { WebSocketModule } from './modules/websocket/websocket.module';
 import { TraefikModule } from './modules/traefik/traefik.module';
 import { ProjectModule } from './modules/project/project.module';
 import { ServiceModule } from './modules/service/service.module';
+import { EnvironmentModule } from './modules/environment/environment.module';
+import { DeploymentModule } from './modules/deployment/deployment.module';
+import { OrchestrationModule } from './modules/orchestration/orchestration.module';
+import { StorageModule } from './modules/storage/storage.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { CiCdModule } from './modules/ci-cd/ci-cd.module';
 import { onError, ORPCModule } from '@orpc/nest';
 import { DATABASE_CONNECTION } from './core/modules/db/database-connection';
 import { AuthModule } from './modules/auth/auth.module';
@@ -36,6 +42,12 @@ import { AuthGuard } from './modules/auth/guards/auth.guard';
     TraefikModule,
     ProjectModule,
     ServiceModule,
+    EnvironmentModule,
+    DeploymentModule,
+    OrchestrationModule,
+    StorageModule,
+    AnalyticsModule,
+    CiCdModule,
     AuthModule.forRootAsync({
       imports: [DatabaseModule],
       useFactory: betterAuthFactory,

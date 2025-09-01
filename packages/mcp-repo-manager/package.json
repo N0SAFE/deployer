@@ -1,0 +1,53 @@
+{
+  "name": "@repo/mcp-repo-manager",
+  "version": "0.0.0",
+  "description": "MCP server for managing monorepo operations - list packages, apps, create new ones, and perform repository management tasks",
+  "author": "",
+  "private": true,
+  "license": "MIT",
+  "main": "./dist/main.js",
+  "types": "./dist/main.d.ts",
+  "bin": {
+    "mcp-repo-manager": "./bin/mcp-repo-manager.ts"
+  },
+  "scripts": {
+    "build": "nest build",
+    "compile": "nest build",
+    "clean": "rimraf dist",
+    "dev": "nest start --watch",
+    "start": "nest start",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/src/main.js",
+    "lint": "eslint \"{src,test}/**/*.ts\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "prettify": "prettier --write \"{src,test}/**/*.ts\""
+  },
+  "dependencies": {
+    "@nestjs/common": "catalog:api:nest",
+    "@nestjs/core": "catalog:api:nest",
+    "@nestjs/platform-express": "catalog:api:nest",
+    "@rekog/mcp-nest": "catalog:mcp",
+    "@modelcontextprotocol/sdk": "catalog:mcp",
+    "zod": "^3.11.6",
+    "reflect-metadata": "catalog:api:nest",
+    "rxjs": "catalog:api:nest",
+    "commander": "catalog:utils",
+    "picocolors": "catalog:utils",
+    "prompts": "catalog:utils"
+  },
+  "devDependencies": {
+    "@repo/tsconfig": "*",
+    "@repo/eslint-config": "*",
+    "@repo/prettier-config": "*",
+    "@repo/vitest-config": "*",
+    "@nestjs/cli": "catalog:api:nest",
+    "@nestjs/testing": "catalog:api:nest",
+    "@types/node": "catalog:build",
+    "@types/prompts": "catalog:utils",
+    "typescript": "catalog:build",
+    "rimraf": "catalog:build",
+    "vitest": "catalog:testing"
+  }
+}

@@ -22,13 +22,37 @@ import {
   GitBranch,
   Calendar
 } from 'lucide-react'
-import { type Deployment } from '@/state/deploymentStore'
+import { deploymentListOutput } from '@repo/api-contracts'
+import { z } from 'zod'
+import { useDeploymentActions } from '@/hooks/useDeployments'
+import { DashboardProjectsProjectIdServicesServiceIdTabsLogs as ServiceLogsRoute } from '@/routes'
+
+// Base type from API contract
+type BaseDeployment = z.infer<typeof deploymentListOutput>['deployments'][0]
+
+// Extended type with additional properties used by the component
+type Deployment = BaseDeployment & {
+  sourceConfig?: {
+    branch?: string
+  }
+  sourceType?: string
+  duration?: number
+  url?: string
+  progress?: number
+}
 
 interface DeploymentCardProps {
   deployment: Deployment
+  // When provided, enables navigation to the logs tab for this service
+  projectId?: string
+  serviceId?: string
+  // Optional: when provided, enables direct rollback action target
+  rollbackTargetId?: string
 }
 
-export default function DeploymentCard({ deployment }: DeploymentCardProps) {
+export default function DeploymentCard({ deployment, projectId, serviceId, rollbackTargetId }: DeploymentCardProps) {
+  const { cancelDeployment, rollbackDeployment } = useDeploymentActions()
+
   const getStatusIcon = () => {
     switch (deployment.status) {
       case 'success':
@@ -80,6 +104,33 @@ export default function DeploymentCard({ deployment }: DeploymentCardProps) {
 
   const isActive = ['pending', 'building', 'deploying'].includes(deployment.status)
 
+  const handleViewLogs = () => {
+    // Requires explicit projectId and serviceId to build a typed route
+    if (!projectId || !serviceId) {
+      console.warn('Cannot navigate to logs: missing projectId or serviceId')
+      return
+    }
+    const href = ServiceLogsRoute(
+      { projectId, serviceId },
+      { deploymentId: deployment.id }
+    )
+    if (typeof window !== 'undefined') {
+      window.location.href = href
+    }
+  }
+
+  const handleCancel = () => {
+    cancelDeployment({ deploymentId: deployment.id })
+  }
+
+  const handleRollback = () => {
+    if (!rollbackTargetId) {
+      console.warn('Cannot rollback: missing targetDeploymentId')
+      return
+    }
+    rollbackDeployment({ deploymentId: deployment.id, targetDeploymentId: rollbackTargetId })
+  }
+
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="pb-3">
@@ -99,7 +150,7 @@ export default function DeploymentCard({ deployment }: DeploymentCardProps) {
                 <Calendar className="h-3 w-3" />
                 <span>{new Date(deployment.createdAt).toLocaleString()}</span>
               </div>
-              {deployment.sourceConfig.branch && (
+              {deployment.sourceConfig?.branch && (
                 <div className="flex items-center space-x-1">
                   <GitBranch className="h-3 w-3" />
                   <span className="font-mono text-xs">{deployment.sourceConfig.branch}</span>
@@ -118,18 +169,18 @@ export default function DeploymentCard({ deployment }: DeploymentCardProps) {
                 <ExternalLink className="h-4 w-4 mr-2" />
                 View Details
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={handleViewLogs} disabled={!projectId || !serviceId}>
                 <FileText className="h-4 w-4 mr-2" />
                 View Logs
               </DropdownMenuItem>
               {deployment.status === 'success' && (
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={handleRollback} disabled={!rollbackTargetId}>
                   <RotateCcw className="h-4 w-4 mr-2" />
                   Rollback
                 </DropdownMenuItem>
               )}
               {isActive && (
-                <DropdownMenuItem className="text-destructive">
+                <DropdownMenuItem className="text-destructive" onClick={handleCancel}>
                   <X className="h-4 w-4 mr-2" />
                   Cancel
                 </DropdownMenuItem>
@@ -189,7 +240,7 @@ export default function DeploymentCard({ deployment }: DeploymentCardProps) {
                 </a>
               </Button>
             )}
-            <Button variant="outline" size="sm" className="flex-1">
+            <Button variant="outline" size="sm" className="flex-1" onClick={handleViewLogs} disabled={!projectId || !serviceId}>
               <FileText className="h-3 w-3 mr-1" />
               Logs
             </Button>

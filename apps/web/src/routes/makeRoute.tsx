@@ -14,6 +14,13 @@ export { emptySchema }
 
 type LinkProps = Parameters<typeof Link>[0]
 
+// When Params is an empty z.object({}), z.input<Params> can resolve to Record<string, never>,
+// which poisons intersections (e.g., children: ReactNode becomes never). This conditional
+// removes the index-signature when there are no params so React props work as expected.
+type ParamProps<P extends z.ZodSchema> = z.input<P> extends Record<string, never>
+    ? object
+    : z.input<P>
+
 export type RouteInfo<
     Params extends z.ZodSchema,
     Search extends z.ZodSchema,
@@ -128,7 +135,7 @@ export type RouteBuilder<
 
     Link: React.FC<
         Omit<LinkProps, 'href'> &
-            z.input<Params> & {
+            ParamProps<Params> & {
                 search?: z.input<Search>
             } & { children?: React.ReactNode }
     >
@@ -464,10 +471,10 @@ export function makeRoute<
         children,
         ...props
     }: Omit<LinkProps, 'href'> &
-        z.input<Params> & {
+        ParamProps<Params> & {
             search?: z.input<Search>
         } & { children?: React.ReactNode }) {
-        const parsedParams = info.params.parse(props)
+        const parsedParams = info.params.parse(props as any)
         const params = parsedParams as Record<string, any>
         const extraProps = { ...props }
         for (const key of Object.keys(params)) {
@@ -476,7 +483,7 @@ export function makeRoute<
         return (
             <Link
                 {...extraProps}
-                href={urlBuilder(parsedParams, linkSearch)}
+                href={urlBuilder(parsedParams as any, linkSearch)}
             >
                 {children}
             </Link>

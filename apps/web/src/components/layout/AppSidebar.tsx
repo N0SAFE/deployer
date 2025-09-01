@@ -26,6 +26,11 @@ import {
   Users,
   ChevronDown,
   Plus,
+  Server,
+  BarChart3,
+  HardDrive,
+  Variable,
+  GitBranch,
 } from 'lucide-react'
 import { 
   Tooltip,
@@ -67,9 +72,34 @@ const navigationItems = [
     icon: Zap,
   },
   {
+    title: 'Orchestration',
+    url: '/dashboard/orchestration',
+    icon: Server,
+  },
+  {
+    title: 'Storage',
+    url: '/dashboard/storage',
+    icon: HardDrive,
+  },
+  {
+    title: 'Analytics',
+    url: '/dashboard/analytics',
+    icon: BarChart3,
+  },
+  {
     title: 'Traefik',
     url: '/dashboard/traefik',
     icon: Globe,
+  },
+  {
+    title: 'Environment',
+    url: '/dashboard/environment',
+    icon: Variable,
+  },
+  {
+    title: 'CI/CD',
+    url: '/dashboard/cicd',
+    icon: GitBranch,
   },
 ] as const
 
@@ -149,7 +179,7 @@ export function AppSidebar() {
       collapsible="icon"
       className="border-none shadow-lg"
     >
-      <SidebarHeader className={`border-b border-border/40 ${isCollapsed ? 'px-2' : ''}`}>
+      <SidebarHeader className={`border-b border-gray-200 dark:border-gray-800 ${isCollapsed ? 'px-2' : ''}`}>
         <div className={`flex items-center gap-2 py-2 ${isCollapsed ? 'justify-center px-0' : 'px-4'}`}>
           <Rocket className={`text-primary ${isCollapsed ? 'h-5 w-5' : 'h-6 w-6'}`} />
           {!isCollapsed && <span className="text-lg font-semibold">Deployer</span>}
@@ -188,7 +218,7 @@ export function AppSidebar() {
                 </DropdownMenuItem>
                 
                 {/* Organization list */}
-                {organizations.map((org) => (
+                {organizations.map((org: { id: string; name: string }) => (
                   <DropdownMenuItem
                     key={org.id}
                     onClick={() => setActiveOrganization.mutate({ organizationId: org.id })}
@@ -256,13 +286,13 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-border/40 mt-auto">
+      <SidebarFooter className="border-t border-gray-200 dark:border-gray-800 mt-auto">
         {/* User Profile Section */}
         <UserProfileFooter isCollapsed={isCollapsed} accountItems={accountItems} />
         
         {/* Version Info */}
         {!isCollapsed && (
-          <div className="px-3 py-2 mt-1 text-xs text-muted-foreground/70 border-t border-border/20">
+          <div className="px-3 py-2 mt-1 text-xs text-muted-foreground/70 border-t border-gray-200/20 dark:border-gray-800/20">
             <div className="flex items-center justify-between">
               <span>Deployer</span>
               <span className="text-muted-foreground/50">v1.0.0</span>

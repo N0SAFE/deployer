@@ -125,8 +125,16 @@ async function seed() {
         projectId: insertedProjects[0].id,
         name: 'api',
         type: 'backend',
-        dockerfilePath: 'apps/api/Dockerfile',
-        buildContext: '.',
+        provider: 'github' as const,
+        builder: 'dockerfile' as const,
+        providerConfig: {
+          repositoryUrl: 'https://github.com/example/api-service',
+          branch: 'main'
+        },
+        builderConfig: {
+          dockerfilePath: 'apps/api/Dockerfile',
+          buildContext: '.'
+        },
         port: 3001,
         healthCheckPath: '/health',
         environmentVariables: {
@@ -145,8 +153,16 @@ async function seed() {
         projectId: insertedProjects[0].id,
         name: 'web',
         type: 'frontend',
-        dockerfilePath: 'apps/web/Dockerfile',
-        buildContext: '.',
+        provider: 'github' as const,
+        builder: 'nixpack' as const,
+        providerConfig: {
+          repositoryUrl: 'https://github.com/example/web-app',
+          branch: 'main'
+        },
+        builderConfig: {
+          buildCommand: 'npm run build',
+          outputDirectory: '.next'
+        },
         port: 3000,
         healthCheckPath: '/',
         environmentVariables: {

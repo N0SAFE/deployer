@@ -246,7 +246,11 @@ export default function OrganizationTeamManagement({ className }: OrganizationTe
             </div>
           ) : members.length > 0 ? (
             <div className="space-y-4">
-              {members.map((member) => (
+              {members.map((member: {
+                id: string;
+                role: string | string[];
+                user: { name: string | null; email: string; image?: string | null };
+              }) => (
                 <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-8 w-8">
@@ -336,7 +340,7 @@ export default function OrganizationTeamManagement({ className }: OrganizationTe
             </div>
           ) : invitations.length > 0 ? (
             <div className="space-y-4">
-              {invitations.map((invitation) => (
+              {invitations.map((invitation: { id: string; email: string; role: string | string[]; expiresAt: string | number | Date }) => (
                 <div key={invitation.id} className="flex items-center justify-between p-4 border rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="flex items-center justify-center h-8 w-8 bg-muted rounded-full">

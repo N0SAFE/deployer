@@ -31,15 +31,19 @@ export function IsSignedOut({
 }
 
 export function LoginLink(
-    props: React.ComponentProps<typeof Authsignin.Link>
+    props: Omit<React.ComponentProps<typeof Authsignin.Link>, 'search'>
 ) {
     const pathname = usePathname()
     const searchParams = useSearchParams()
 
     const callbackUrl = toAbsoluteUrl(`/${pathname}?${searchParams.toString()}`)
 
+    // Cast the entire Link component to work around type generation issues
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const LinkComponent = Authsignin.Link as any
+
     return (
-        <Authsignin.Link {...props} search={{ callbackUrl, ...props.search }} />
+        <LinkComponent {...props} search={{ callbackUrl }} />
     )
 }
 

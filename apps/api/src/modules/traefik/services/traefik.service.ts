@@ -40,13 +40,15 @@ export interface DomainConfigInput {
 }
 
 export interface RouteConfigInput {
-  containerName: string;
+  deploymentId?: string;
+  routeName: string;
+  serviceName: string;
+  containerName?: string;
   targetPort: number;
   pathPrefix?: string;
   priority?: number;
-  middleware?: Record<string, any>;
+  middleware?: string[] | Record<string, any>;
   healthCheck?: Record<string, any>;
-  deploymentId?: string;
 }
 
 export interface DeploymentRegistrationInput {
@@ -212,8 +214,9 @@ export class TraefikService {
    */
   async createRouteConfig(domainConfigId: string, config: RouteConfigInput): Promise<RouteConfig> {
     const id = randomUUID();
-    const routeName = `route-${config.containerName}-${Date.now()}`;
-    const serviceName = `service-${config.containerName}-${Date.now()}`;
+    // Use provided names or generate them
+    const routeName = config.routeName || `route-${config.containerName || 'service'}-${Date.now()}`;
+    const serviceName = config.serviceName || `service-${config.containerName || 'service'}-${Date.now()}`;
 
     const routeData = {
       id,
@@ -221,11 +224,11 @@ export class TraefikService {
       deploymentId: config.deploymentId || null,
       routeName,
       serviceName,
-      containerName: config.containerName,
+      containerName: config.containerName || null,
       targetPort: config.targetPort,
       pathPrefix: config.pathPrefix || null,
       priority: config.priority || 1,
-      middleware: config.middleware || null,
+      middleware: Array.isArray(config.middleware) ? { middlewares: config.middleware } : config.middleware || null,
       healthCheck: config.healthCheck || null,
       isActive: true,
     };
@@ -261,6 +264,8 @@ export class TraefikService {
 
     // Create route config
     const routeConfig = await this.createRouteConfig(domainConfig.id, {
+      routeName: `route-${containerName}-${Date.now()}`,
+      serviceName: `service-${containerName}-${Date.now()}`,
       containerName,
       targetPort,
       deploymentId,
@@ -318,6 +323,96 @@ export class TraefikService {
    */
   async listInstances(): Promise<TraefikInstance[]> {
     return await this.databaseService.db.select().from(traefikInstances);
+  }
+
+  /**
+   * List domain configurations for an instance
+   */
+  async listDomainConfigs(instanceId: string): Promise<DomainConfig[]> {
+    return await this.databaseService.db
+      .select()
+      .from(domainConfigs)
+      .where(eq(domainConfigs.traefikInstanceId, instanceId));
+  }
+
+  /**
+   * List route configurations for a domain
+   */
+  async listRouteConfigs(domainConfigId: string): Promise<RouteConfig[]> {
+    return await this.databaseService.db
+      .select()
+      .from(routeConfigs)
+      .where(eq(routeConfigs.domainConfigId, domainConfigId));
+  }
+
+  /**
+   * Delete a route configuration
+   */
+  async deleteRouteConfig(routeConfigId: string): Promise<void> {
+    await this.databaseService.db
+      .delete(routeConfigs)
+      .where(eq(routeConfigs.id, routeConfigId));
+
+    this.logger.log(`Deleted route config ${routeConfigId}`);
+  }
+
+  /**
+   * Register a deployment (combining domain + route creation)
+   */
+  async registerDeploymentAdvanced(instanceId: string, registrationData: {
+    deploymentId: string;
+    serviceName: string;
+    containerName: string;
+    targetPort: number;
+    domain: string;
+    subdomain?: string;
+    pathPrefix?: string;
+    sslEnabled?: boolean;
+    middleware?: string[];
+  }): Promise<{
+    domainConfigId: string;
+    routeConfigId: string;
+    fullDomain: string;
+    deploymentUrl: string;
+    message: string;
+  }> {
+    const { deploymentId, serviceName, containerName, targetPort, domain, subdomain, pathPrefix, sslEnabled, middleware } = registrationData;
+
+    // Create or find domain config
+    let domainConfig = await this.findDomainConfig(domain, subdomain);
+    if (!domainConfig) {
+      domainConfig = await this.createDomainConfig(instanceId, {
+        domain,
+        subdomain,
+        sslEnabled: sslEnabled || false,
+        middleware: middleware ? middleware.reduce((acc, mid) => ({ ...acc, [mid]: {} }), {}) : undefined,
+      });
+    }
+
+    // Create route config
+    const routeConfig = await this.createRouteConfig(domainConfig.id, {
+      routeName: `route-${serviceName}-${Date.now()}`,
+      serviceName: `service-${serviceName}-${Date.now()}`,
+      containerName,
+      targetPort,
+      pathPrefix: pathPrefix || '/',
+      deploymentId,
+      middleware: middleware ? middleware.reduce((acc, mid) => ({ ...acc, [mid]: {} }), {}) : undefined,
+    });
+
+    const protocol = sslEnabled ? 'https' : 'http';
+    const deploymentUrl = `${protocol}://${domainConfig.fullDomain}${pathPrefix || ''}`;
+
+    // Update dynamic configuration
+    await this.updateDynamicConfig(instanceId);
+
+    return {
+      domainConfigId: domainConfig.id,
+      routeConfigId: routeConfig.id,
+      fullDomain: domainConfig.fullDomain,
+      deploymentUrl,
+      message: `Successfully registered deployment ${deploymentId}`,
+    };
   }
 
   /**

@@ -34,6 +34,23 @@ export const sourceTypeEnum = pgEnum('source_type', [
   'upload',
   'custom'
 ]);
+export const serviceProviderEnum = pgEnum('service_provider', [
+  'github',
+  'gitlab',
+  'bitbucket',
+  'docker_registry',
+  'gitea',
+  's3_bucket',
+  'manual'
+]);
+export const serviceBuilderEnum = pgEnum('service_builder', [
+  'nixpack',
+  'railpack',
+  'dockerfile',
+  'buildpack',
+  'static',
+  'docker_compose'
+]);
 export const logLevelEnum = pgEnum('log_level', ['info', 'warn', 'error', 'debug']);
 
 // Projects table - main container for all services and deployments
@@ -67,12 +84,48 @@ export const services = pgTable("services", {
     .references(() => projects.id, { onDelete: "cascade" }),
   name: text("name").notNull(), // e.g., "web", "api", "docs"
   type: text("type").notNull(), // e.g., "web", "worker", "database"
-  dockerfilePath: text("dockerfile_path").default("Dockerfile"),
-  buildContext: text("build_context").default("."),
+  provider: serviceProviderEnum("provider").notNull(), // Source provider
+  builder: serviceBuilderEnum("builder").notNull(), // Build system
+  providerConfig: jsonb("provider_config").$type<{
+    // GitHub/GitLab/Bitbucket/Gitea
+    repositoryUrl?: string;
+    branch?: string;
+    accessToken?: string;
+    deployKey?: string;
+    // Docker Registry
+    registryUrl?: string;
+    imageName?: string;
+    tag?: string;
+    username?: string;
+    password?: string;
+    // S3 Bucket
+    bucketName?: string;
+    region?: string;
+    accessKeyId?: string;
+    secretAccessKey?: string;
+    objectKey?: string;
+    // Manual
+    instructions?: string;
+    deploymentScript?: string;
+  }>(),
+  builderConfig: jsonb("builder_config").$type<{
+    // Dockerfile
+    dockerfilePath?: string;
+    buildContext?: string;
+    buildArgs?: Record<string, string>;
+    // Nixpack/Railpack/Buildpack
+    buildCommand?: string;
+    startCommand?: string;
+    installCommand?: string;
+    // Static
+    outputDirectory?: string;
+    // Docker Compose  
+    composeFilePath?: string;
+    serviceName?: string;
+  }>(),
   port: integer("port"), // Main port for the service
   healthCheckPath: text("health_check_path").default("/health"),
   environmentVariables: jsonb("environment_variables").$type<Record<string, string>>(),
-  buildArguments: jsonb("build_arguments").$type<Record<string, string>>(),
   resourceLimits: jsonb("resource_limits").$type<{
     memory?: string; // e.g., "512m"
     cpu?: string; // e.g., "0.5"

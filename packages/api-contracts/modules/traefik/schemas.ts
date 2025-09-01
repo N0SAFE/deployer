@@ -1,0 +1,104 @@
+import { z } from 'zod';
+
+// Traefik Instance schemas
+export const CreateTraefikInstanceSchema = z.object({
+  name: z.string().min(1).max(255),
+  dashboardPort: z.number().min(1024).max(65535).optional(),
+  httpPort: z.number().min(80).max(65535).optional(),
+  httpsPort: z.number().min(443).max(65535).optional(),
+  acmeEmail: z.string().email().optional(),
+  logLevel: z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']).default('INFO'),
+  insecureApi: z.boolean().default(true),
+});
+
+export const TraefikInstanceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  containerId: z.string().nullable(),
+  status: z.enum(['stopped', 'starting', 'running', 'stopping', 'error']),
+  dashboardPort: z.number().nullable(),
+  httpPort: z.number().nullable(),
+  httpsPort: z.number().nullable(),
+  acmeEmail: z.string().nullable(),
+  logLevel: z.string().nullable(),
+  insecureApi: z.boolean().nullable(),
+  config: z.any(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+// Domain Config schemas
+export const CreateDomainConfigSchema = z.object({
+  domain: z.string().min(1),
+  subdomain: z.string().optional(),
+  sslEnabled: z.boolean().default(false),
+  sslProvider: z.enum(['letsencrypt', 'selfsigned', 'custom']).optional(),
+  certificatePath: z.string().optional(),
+  middleware: z.record(z.string(), z.any()).optional(),
+  isActive: z.boolean().default(true),
+});
+
+export const DomainConfigSchema = z.object({
+  id: z.string(),
+  traefikInstanceId: z.string(),
+  domain: z.string(),
+  subdomain: z.string().nullable(),
+  fullDomain: z.string(),
+  sslEnabled: z.boolean().nullable(),
+  sslProvider: z.string().nullable(),
+  certificatePath: z.string().nullable(),
+  middleware: z.any(),
+  isActive: z.boolean().nullable(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+// Route Config schemas
+export const CreateRouteConfigSchema = z.object({
+  deploymentId: z.string().optional(),
+  routeName: z.string().min(1),
+  serviceName: z.string().min(1),
+  containerName: z.string().optional(),
+  targetPort: z.number(),
+  pathPrefix: z.string().min(1).default('/'),
+  priority: z.number().optional(),
+  middleware: z.array(z.string()).default([]),
+  isActive: z.boolean().default(true),
+});
+
+export const RouteConfigSchema = z.object({
+  id: z.string(),
+  domainConfigId: z.string(),
+  deploymentId: z.string().nullable(),
+  routeName: z.string(),
+  serviceName: z.string(),
+  containerName: z.string().nullable(),
+  targetPort: z.number(),
+  pathPrefix: z.string().nullable(),
+  priority: z.number().nullable(),
+  middleware: z.any(),
+  isActive: z.boolean().nullable(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+// Deployment Registration schemas
+export const RegisterDeploymentSchema = z.object({
+  deploymentId: z.string().min(1),
+  serviceName: z.string().min(1),
+  containerName: z.string().min(1),
+  targetPort: z.number(),
+  domain: z.string().min(1),
+  subdomain: z.string().optional(),
+  pathPrefix: z.string().default('/'),
+  sslEnabled: z.boolean().default(false),
+  middleware: z.array(z.string()).default([]),
+});
+
+export const DeploymentRegistrationResponseSchema = z.object({
+  domainConfigId: z.string(),
+  routeConfigId: z.string(),
+  fullDomain: z.string(),
+  deploymentUrl: z.string().url(),
+  message: z.string(),
+});

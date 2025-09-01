@@ -7,6 +7,8 @@ import { deployments, deploymentLogs, deploymentStatusEnum, projects, services }
 import { TraefikService } from '../../traefik/services/traefik.service';
 import { DockerService } from '../../../core/services/docker.service';
 import { GitService } from '../../../core/services/git.service';
+import { FileUploadService } from '../../storage/services/file-upload.service';
+import { StaticFileServingService } from '../../storage/services/static-file-serving.service';
 import { DeploymentJobData, DeploymentJobResult } from '../types/deployment-job.types';
 
 @Processor('deployment')
@@ -18,6 +20,8 @@ export class DeploymentProcessor {
     private readonly dockerService: DockerService,
     private readonly gitService: GitService,
     private readonly traefikService: TraefikService,
+    private readonly fileUploadService: FileUploadService,
+    private readonly staticFileServingService: StaticFileServingService,
   ) {}
 
   @Process('deploy')
@@ -162,6 +166,126 @@ export class DeploymentProcessor {
     }
   }
 
+  @Process('deploy-upload')
+  async handleUploadDeployment(job: Job<{
+    uploadId: string;
+    serviceId: string;
+    deploymentId: string;
+    extractPath: string;
+    environment?: string;
+  }>): Promise<DeploymentJobResult> {
+    const { uploadId, serviceId, deploymentId, extractPath, environment = 'production' } = job.data;
+    
+    this.logger.log(`Starting upload deployment job for upload ${uploadId}`);
+
+    try {
+      // Update deployment status to building
+      await this.updateDeploymentStatus(deploymentId, 'building');
+      await this.logDeployment(deploymentId, 'info', 'Upload deployment started', { 
+        uploadId, 
+        serviceId,
+        environment 
+      });
+
+      // Get upload info and service details
+      const uploadInfo = await this.fileUploadService.getUploadedFileInfo(uploadId);
+      if (!uploadInfo) {
+        throw new Error(`Upload ${uploadId} not found or expired`);
+      }
+
+      // Get service details to determine deployment strategy
+      const serviceResult = await this.databaseService.db.select()
+        .from(services)
+        .innerJoin(projects, eq(services.projectId, projects.id))
+        .where(eq(services.id, serviceId))
+        .limit(1);
+
+      if (!serviceResult.length) {
+        throw new Error(`Service ${serviceId} not found`);
+      }
+
+      const { projects: project, services: service } = serviceResult[0];
+
+      // Determine deployment strategy based on detected file type
+      let deploymentResult;
+      
+      if (uploadInfo.metadata.detectedType === 'static') {
+        // Static file deployment
+        deploymentResult = await this.deployStaticFiles(
+          deploymentId, 
+          extractPath, 
+          uploadInfo,
+          service,
+          project
+        );
+      } else if (uploadInfo.metadata.detectedType === 'docker') {
+        // Docker-based deployment
+        deploymentResult = await this.deployDockerFiles(
+          deploymentId,
+          extractPath,
+          uploadInfo,
+          service,
+          project
+        );
+      } else if (uploadInfo.metadata.detectedType === 'node') {
+        // Node.js deployment
+        deploymentResult = await this.deployNodeFiles(
+          deploymentId,
+          extractPath,
+          uploadInfo,
+          service,
+          project
+        );
+      } else {
+        // Default to static file serving
+        deploymentResult = await this.deployStaticFiles(
+          deploymentId,
+          extractPath,
+          uploadInfo,
+          service,
+          project
+        );
+      }
+
+      // Success - update status
+      await this.updateDeploymentStatus(deploymentId, 'success');
+      await this.logDeployment(deploymentId, 'info', 'Upload deployment completed successfully', {
+        uploadId,
+        deploymentType: uploadInfo.metadata.detectedType,
+        ...deploymentResult
+      });
+
+      // Clean up upload files after successful deployment
+      await this.fileUploadService.cleanupUpload(uploadId);
+
+      return {
+        success: true,
+        deploymentId,
+        message: 'Upload deployment completed successfully',
+        ...deploymentResult
+      };
+
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error(`Upload deployment job failed for upload ${uploadId}:`, err);
+
+      // Update status to failed
+      await this.updateDeploymentStatus(deploymentId, 'failed');
+      await this.logDeployment(deploymentId, 'error', `Upload deployment failed: ${err.message}`, {
+        error: err.stack,
+        uploadId,
+        extractPath
+      });
+
+      return {
+        success: false,
+        deploymentId,
+        error: err.message,
+        message: 'Upload deployment failed'
+      };
+    }
+  }
+
   private async prepareSourceCode(sourceConfig: any, deploymentId: string): Promise<string> {
     if (sourceConfig.type === 'github' || sourceConfig.type === 'gitlab' || sourceConfig.type === 'git') {
       return await this.gitService.cloneRepository({
@@ -299,5 +423,182 @@ export class DeploymentProcessor {
     if (stack.includes('performHealthCheck')) return 'health_check';
     
     return 'unknown';
+  }
+
+  private async deployStaticFiles(
+    deploymentId: string,
+    extractPath: string,
+    uploadInfo: any,
+    service: any,
+    project: any
+  ): Promise<{
+    containerId?: string;
+    domainUrl: string;
+    deploymentType: 'static';
+  }> {
+    await this.logDeployment(deploymentId, 'info', 'Deploying static files');
+
+    // Setup static file serving
+    await this.staticFileServingService.setupStaticServing(deploymentId, extractPath);
+
+    // Generate domain URL
+    const subdomain = this.generateSubdomain(project.name, service.name, 'production');
+    const domainUrl = `https://${subdomain}.${project.baseDomain || 'localhost'}`;
+
+    // Configure Traefik for static file serving
+    const traefikService = this.traefikService as any; // Type assertion for new methods
+    if (traefikService.configureStaticFileServing) {
+      await traefikService.configureStaticFileServing({
+        serviceId: service.id,
+        projectId: project.id,
+        domain: domainUrl,
+        staticPath: `/app/static-files/${deploymentId}`,
+      });
+    }
+
+    await this.logDeployment(deploymentId, 'info', 'Static files deployed successfully', {
+      domainUrl,
+      fileCount: uploadInfo.fileCount
+    });
+
+    return {
+      domainUrl,
+      deploymentType: 'static'
+    };
+  }
+
+  private async deployDockerFiles(
+    deploymentId: string,
+    extractPath: string,
+    _uploadInfo: any,
+    _service: any,
+    _project: any
+  ): Promise<{
+    containerId: string;
+    domainUrl: string;
+    imageTag: string;
+    deploymentType: 'docker';
+  }> {
+    await this.logDeployment(deploymentId, 'info', 'Deploying Docker application');
+
+    // Build container image from Dockerfile
+    const imageTag = await this.buildContainerImage(extractPath, deploymentId);
+
+    // Deploy container
+    const { containerId } = await this.deployContainer(imageTag, deploymentId);
+
+    // Register domain with Traefik
+    const domainUrl = await this.registerDomain(deploymentId, containerId);
+
+    // Perform health check
+    await this.performHealthCheck(containerId);
+
+    await this.logDeployment(deploymentId, 'info', 'Docker application deployed successfully', {
+      containerId,
+      imageTag,
+      domainUrl
+    });
+
+    return {
+      containerId,
+      domainUrl,
+      imageTag,
+      deploymentType: 'docker'
+    };
+  }
+
+  private async deployNodeFiles(
+    deploymentId: string,
+    extractPath: string,
+    uploadInfo: any,
+    _service: any,
+    _project: any
+  ): Promise<{
+    containerId: string;
+    domainUrl: string;
+    imageTag: string;
+    deploymentType: 'node';
+  }> {
+    await this.logDeployment(deploymentId, 'info', 'Deploying Node.js application');
+
+    // Create Dockerfile for Node.js app if it doesn't exist
+    await this.generateNodeDockerfile(extractPath, uploadInfo);
+
+    // Build container image
+    const imageTag = await this.buildContainerImage(extractPath, deploymentId);
+
+    // Deploy container
+    const { containerId } = await this.deployContainer(imageTag, deploymentId);
+
+    // Register domain with Traefik
+    const domainUrl = await this.registerDomain(deploymentId, containerId);
+
+    // Perform health check
+    await this.performHealthCheck(containerId);
+
+    await this.logDeployment(deploymentId, 'info', 'Node.js application deployed successfully', {
+      containerId,
+      imageTag,
+      domainUrl,
+      buildCommand: uploadInfo.metadata.buildCommand,
+      startCommand: uploadInfo.metadata.startCommand
+    });
+
+    return {
+      containerId,
+      domainUrl,
+      imageTag,
+      deploymentType: 'node'
+    };
+  }
+
+  private async generateNodeDockerfile(extractPath: string, uploadInfo: any): Promise<string> {
+    const dockerfilePath = `${extractPath}/Dockerfile`;
+    const fs = require('fs-extra');
+    
+    if (await fs.pathExists(dockerfilePath)) {
+      return dockerfilePath; // Already has Dockerfile
+    }
+
+    // Generate Dockerfile for Node.js app
+    const nodeVersion = '18'; // Default Node.js version
+    const buildCommand = uploadInfo.metadata.buildCommand || 'npm ci';
+    const startCommand = uploadInfo.metadata.startCommand || 'npm start';
+
+    const dockerfileContent = `
+FROM node:${nodeVersion}-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN ${buildCommand}
+
+# Copy source code
+COPY . .
+
+# Build if build script exists
+RUN if [ -f package.json ] && npm run build --silent 2>/dev/null; then npm run build; fi
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \\
+  CMD curl -f http://localhost:3000/health || exit 1
+
+# Start application
+CMD ["sh", "-c", "${startCommand}"]
+    `.trim();
+
+    await fs.writeFile(dockerfilePath, dockerfileContent);
+    return dockerfilePath;
+  }
+
+  private generateSubdomain(projectName: string, serviceName: string, environment: string): string {
+    const sanitize = (str: string) => str.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    return `${sanitize(serviceName)}-${sanitize(environment)}-${sanitize(projectName)}`;
   }
 }

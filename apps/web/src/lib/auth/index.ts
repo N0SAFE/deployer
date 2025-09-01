@@ -14,11 +14,12 @@ export const authClient = createAuthClient({
     organizationClient({
       teams: {
         enabled: true
-      }
+      },
     }),
     nextCookies() // make sure this is the last plugin in the array
   ],
-})
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Better Auth plugins augment the client type at runtime; explicit any keeps types portable
+}) as any
 
 export const {
   signIn,

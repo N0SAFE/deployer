@@ -39,8 +39,12 @@ const serviceSchema = z.object({
     .max(100, 'Service name must be less than 100 characters')
     .regex(/^[a-z0-9-]+$/, 'Service name must be lowercase alphanumeric with hyphens only'),
   type: z.string().min(1, 'Service type is required'),
-  dockerfilePath: z.string().min(1, 'Dockerfile path is required'),
-  buildContext: z.string().min(1, 'Build context is required'),
+  provider: z.enum(['github', 'gitlab', 'bitbucket', 'docker_registry', 'gitea', 's3_bucket', 'manual'], {
+    message: 'Provider is required'
+  }),
+  builder: z.enum(['nixpack', 'railpack', 'dockerfile', 'buildpack', 'static', 'docker_compose'], {
+    message: 'Builder is required'
+  }),
   port: z.number().int().positive().optional(),
   healthCheckPath: z.string().min(1, 'Health check path is required'),
 })
@@ -58,6 +62,25 @@ const SERVICE_TYPES = [
   { value: 'static', label: 'Static Files' },
 ]
 
+const SERVICE_PROVIDERS = [
+  { value: 'github', label: 'GitHub', description: 'Deploy from GitHub repository' },
+  { value: 'gitlab', label: 'GitLab', description: 'Deploy from GitLab repository' },
+  { value: 'bitbucket', label: 'Bitbucket', description: 'Deploy from Bitbucket repository' },
+  { value: 'gitea', label: 'Gitea', description: 'Deploy from Gitea repository' },
+  { value: 'docker_registry', label: 'Docker Registry', description: 'Deploy pre-built Docker images' },
+  { value: 's3_bucket', label: 'S3 Bucket', description: 'Deploy from S3 bucket storage' },
+  { value: 'manual', label: 'Manual', description: 'Manual deployment with custom scripts' },
+]
+
+const SERVICE_BUILDERS = [
+  { value: 'dockerfile', label: 'Dockerfile', description: 'Build using Dockerfile' },
+  { value: 'nixpack', label: 'Nixpack', description: 'Auto-detect and build with Nixpack' },
+  { value: 'railpack', label: 'Railpack', description: 'Build Ruby on Rails applications' },
+  { value: 'buildpack', label: 'Buildpack', description: 'Build with Cloud Native Buildpacks' },
+  { value: 'static', label: 'Static', description: 'Serve static files directly' },
+  { value: 'docker_compose', label: 'Docker Compose', description: 'Multi-container deployment' },
+]
+
 interface CreateServiceDialogProps {
   projectId: string
   open: boolean
@@ -70,7 +93,8 @@ export default function CreateServiceDialog({
   onOpenChange 
 }: CreateServiceDialogProps) {
   const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([])
-  const [buildArgs, setBuildArgs] = useState<Array<{ key: string; value: string }>>([])
+  const [providerConfig, setProviderConfig] = useState<Record<string, string>>({})
+  const [builderConfig, setBuilderConfig] = useState<Record<string, string>>({})
   
   const createService = useCreateService()
   
@@ -79,8 +103,8 @@ export default function CreateServiceDialog({
     defaultValues: {
       name: '',
       type: '',
-      dockerfilePath: 'Dockerfile',
-      buildContext: '.',
+      provider: undefined,
+      builder: undefined,
       port: undefined,
       healthCheckPath: '/health',
     },
@@ -93,27 +117,24 @@ export default function CreateServiceDialog({
         return acc
       }, {} as Record<string, string>)
 
-      const buildArguments = buildArgs.reduce((acc, { key, value }) => {
-        if (key && value) acc[key] = value
-        return acc
-      }, {} as Record<string, string>)
-
       await createService.mutateAsync({
         projectId,
         name: data.name,
         type: data.type,
-        dockerfilePath: data.dockerfilePath,
-        buildContext: data.buildContext,
+        provider: data.provider,
+        builder: data.builder,
         port: data.port || undefined,
         healthCheckPath: data.healthCheckPath,
         environmentVariables: Object.keys(environmentVariables).length > 0 ? environmentVariables : undefined,
-        buildArguments: Object.keys(buildArguments).length > 0 ? buildArguments : undefined,
+        providerConfig: Object.keys(providerConfig).length > 0 ? providerConfig : undefined,
+        builderConfig: Object.keys(builderConfig).length > 0 ? builderConfig : undefined,
       })
 
       // Reset form and close dialog
       form.reset()
       setEnvVars([])
-      setBuildArgs([])
+      setProviderConfig({})
+      setBuilderConfig({})
       onOpenChange(false)
     } catch (error) {
       console.error('Failed to create service:', error)
@@ -134,18 +155,12 @@ export default function CreateServiceDialog({
     setEnvVars(newEnvVars)
   }
 
-  const addBuildArg = () => {
-    setBuildArgs([...buildArgs, { key: '', value: '' }])
+  const updateProviderConfig = (key: string, value: string) => {
+    setProviderConfig(prev => ({ ...prev, [key]: value }))
   }
 
-  const removeBuildArg = (index: number) => {
-    setBuildArgs(buildArgs.filter((_, i) => i !== index))
-  }
-
-  const updateBuildArg = (index: number, field: 'key' | 'value', value: string) => {
-    const newBuildArgs = [...buildArgs]
-    newBuildArgs[index][field] = value
-    setBuildArgs(newBuildArgs)
+  const updateBuilderConfig = (key: string, value: string) => {
+    setBuilderConfig(prev => ({ ...prev, [key]: value }))
   }
 
   return (
@@ -196,7 +211,7 @@ export default function CreateServiceDialog({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Service Type</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value || ''}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select service type" />
@@ -219,18 +234,29 @@ export default function CreateServiceDialog({
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="dockerfilePath"
+                    name="provider"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Dockerfile Path</FormLabel>
-                        <FormControl>
-                          <Input 
-                            placeholder="Dockerfile" 
-                            {...field} 
-                          />
-                        </FormControl>
+                        <FormLabel>Source Provider</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ''}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select provider" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {SERVICE_PROVIDERS.map(provider => (
+                              <SelectItem key={provider.value} value={provider.value}>
+                                <div>
+                                  <div className="font-medium">{provider.label}</div>
+                                  <div className="text-xs text-muted-foreground">{provider.description}</div>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormDescription>
-                          Relative path to Dockerfile
+                          Where your code or deployment artifacts come from
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -239,18 +265,29 @@ export default function CreateServiceDialog({
 
                   <FormField
                     control={form.control}
-                    name="buildContext"
+                    name="builder"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Build Context</FormLabel>
-                        <FormControl>
-                          <Input 
-                            placeholder="." 
-                            {...field} 
-                          />
-                        </FormControl>
+                        <FormLabel>Build System</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ''}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select builder" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {SERVICE_BUILDERS.map(builder => (
+                              <SelectItem key={builder.value} value={builder.value}>
+                                <div>
+                                  <div className="font-medium">{builder.label}</div>
+                                  <div className="text-xs text-muted-foreground">{builder.description}</div>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormDescription>
-                          Docker build context path
+                          How your service will be built and deployed
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -304,6 +341,127 @@ export default function CreateServiceDialog({
               </CardContent>
             </Card>
 
+            {/* Provider Configuration */}
+            {form.watch('provider') && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    {SERVICE_PROVIDERS.find(p => p.value === form.watch('provider'))?.label} Configuration
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {form.watch('provider') === 'github' && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium">Repository URL</label>
+                          <Input 
+                            placeholder="https://github.com/user/repo"
+                            onChange={(e) => updateProviderConfig('repositoryUrl', e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium">Branch</label>
+                          <Input 
+                            placeholder="main"
+                            onChange={(e) => updateProviderConfig('branch', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Access Token (Optional)</label>
+                        <Input 
+                          type="password"
+                          placeholder="ghp_xxxxxxxxxxxx"
+                          onChange={(e) => updateProviderConfig('accessToken', e.target.value)}
+                        />
+                      </div>
+                    </>
+                  )}
+                  {form.watch('provider') === 'docker_registry' && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium">Registry URL</label>
+                          <Input 
+                            placeholder="docker.io"
+                            onChange={(e) => updateProviderConfig('registryUrl', e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium">Image Name</label>
+                          <Input 
+                            placeholder="nginx:latest"
+                            onChange={(e) => updateProviderConfig('imageName', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Builder Configuration */}
+            {form.watch('builder') && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    {SERVICE_BUILDERS.find(b => b.value === form.watch('builder'))?.label} Configuration
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {form.watch('builder') === 'dockerfile' && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium">Dockerfile Path</label>
+                        <Input 
+                          placeholder="Dockerfile"
+                          onChange={(e) => updateBuilderConfig('dockerfilePath', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Build Context</label>
+                        <Input 
+                          placeholder="."
+                          onChange={(e) => updateBuilderConfig('buildContext', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {form.watch('builder') === 'static' && (
+                    <div>
+                      <label className="text-sm font-medium">Output Directory</label>
+                      <Input 
+                        placeholder="dist"
+                        onChange={(e) => updateBuilderConfig('outputDirectory', e.target.value)}
+                      />
+                    </div>
+                  )}
+                  {(form.watch('builder') === 'nixpack' || form.watch('builder') === 'buildpack') && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium">Build Command (Optional)</label>
+                          <Input 
+                            placeholder="npm run build"
+                            onChange={(e) => updateBuilderConfig('buildCommand', e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium">Start Command (Optional)</label>
+                          <Input 
+                            placeholder="npm start"
+                            onChange={(e) => updateBuilderConfig('startCommand', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Environment Variables */}
             <Card>
               <CardHeader>
@@ -340,52 +498,6 @@ export default function CreateServiceDialog({
                           variant="ghost"
                           size="sm"
                           onClick={() => removeEnvVar(index)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Build Arguments */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">Build Arguments</CardTitle>
-                  <Button type="button" variant="outline" size="sm" onClick={addBuildArg}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Argument
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {buildArgs.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No build arguments defined
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {buildArgs.map((buildArg, index) => (
-                      <div key={index} className="flex items-center space-x-2">
-                        <Input
-                          placeholder="ARG_NAME"
-                          value={buildArg.key}
-                          onChange={(e) => updateBuildArg(index, 'key', e.target.value)}
-                        />
-                        <span className="text-muted-foreground">=</span>
-                        <Input
-                          placeholder="value"
-                          value={buildArg.value}
-                          onChange={(e) => updateBuildArg(index, 'value', e.target.value)}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeBuildArg(index)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

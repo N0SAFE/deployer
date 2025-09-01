@@ -50,6 +50,34 @@
       "when": 1755689309905,
       "tag": "0006_giant_fantastic_four",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1755810264111,
+      "tag": "0007_bored_the_hand",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1756200816438,
+      "tag": "0008_orange_shen",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1756203582410,
+      "tag": "0009_slow_karma",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1756204472880,
+      "tag": "0010_nifty_sentinels",
+      "breakpoints": true
     }
   ]
 }

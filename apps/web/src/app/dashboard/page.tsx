@@ -16,10 +16,12 @@ import {
 } from 'lucide-react'
 import { useProjects } from '@/hooks/useProjects'
 import { useDeployments } from '@/hooks/useDeployments'
+import { useSystemHealthOverview } from '@/hooks/useHealth'
 
 export default function DashboardPage() {
   const { data: projectsResponse } = useProjects()
   const { data: deploymentsResponse } = useDeployments({ limit: 100 })
+  const healthOverview = useSystemHealthOverview()
   
   const projects = projectsResponse?.projects || []
   const globalDeployments = deploymentsResponse?.deployments || []
@@ -35,11 +37,10 @@ export default function DashboardPage() {
   // Recent deployments (last 5)
   const recentDeployments = globalDeployments.slice(0, 5)
   
-  // Mock system health data (will be replaced with real data later)
-  const systemHealth = {
-    traefik: { status: 'healthy', uptime: '99.9%' },
-    database: { status: 'healthy', uptime: '100%' },
-    queue: { status: 'healthy', jobs: 5 }
+  // Real system health data from API
+  const systemHealthData = healthOverview.detailed || {
+    status: 'unknown',
+    database: { status: 'unknown' },
   }
 
   return (
@@ -176,10 +177,17 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Globe className="h-4 w-4" />
-                  <span className="text-sm font-medium">Traefik</span>
+                  <span className="text-sm font-medium">System</span>
                 </div>
-                <Badge variant="outline" className="text-green-600">
-                  Healthy
+                <Badge 
+                  variant="outline" 
+                  className={
+                    healthOverview.basic?.status === 'healthy' ? 'text-green-600' : 
+                    healthOverview.isLoading ? 'text-yellow-600' : 'text-red-600'
+                  }
+                >
+                  {healthOverview.isLoading ? 'Checking...' : 
+                   healthOverview.basic?.status || 'Unknown'}
                 </Badge>
               </div>
               
@@ -188,20 +196,42 @@ export default function DashboardPage() {
                   <Server className="h-4 w-4" />
                   <span className="text-sm font-medium">Database</span>
                 </div>
-                <Badge variant="outline" className="text-green-600">
-                  Healthy
+                <Badge 
+                  variant="outline" 
+                  className={
+                    systemHealthData.database.status === 'healthy' ? 'text-green-600' : 
+                    healthOverview.isLoading ? 'text-yellow-600' : 'text-red-600'
+                  }
+                >
+                  {healthOverview.isLoading ? 'Checking...' : 
+                   systemHealthData.database.status || 'Unknown'}
                 </Badge>
               </div>
               
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Activity className="h-4 w-4" />
-                  <span className="text-sm font-medium">Job Queue</span>
+                  <span className="text-sm font-medium">Memory Usage</span>
                 </div>
-                <Badge variant="outline" className="text-green-600">
-                  {systemHealth.queue.jobs} jobs
+                <Badge variant="outline" className="text-blue-600">
+                  {'memory' in systemHealthData && systemHealthData.memory ? 
+                    `${Math.round((systemHealthData.memory.used / systemHealthData.memory.total) * 100)}%` : 
+                    'N/A'
+                  }
                 </Badge>
               </div>
+              
+              {'uptime' in systemHealthData && systemHealthData.uptime && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Clock className="h-4 w-4" />
+                    <span className="text-sm font-medium">Uptime</span>
+                  </div>
+                  <Badge variant="outline" className="text-blue-600">
+                    {'uptime' in systemHealthData ? Math.floor(systemHealthData.uptime / 3600) : 0}h
+                  </Badge>
+                </div>
+              )}
             </div>
 
             {/* Quick Actions */}

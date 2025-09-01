@@ -23,7 +23,7 @@ import {
 import { useProjects } from '@/hooks/useProjects'
 import { CreateProjectDialog } from '@/components/projects/CreateProjectDialog'
 import Link from 'next/link'
-import { DashboardProjectsId } from '@/routes'
+import { DashboardProjectsProjectIdTabs } from '@/routes'
 
 export default function ProjectsPage() {
   const { data: projectsResponse, isLoading, error } = useProjects()
@@ -100,10 +100,10 @@ export default function ProjectsPage() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem asChild>
-                        <DashboardProjectsId.Link id={project.id}>
+                        <DashboardProjectsProjectIdTabs.Link projectId={project.id}>
                           <ExternalLink className="h-4 w-4 mr-2" />
                           View Project
-                        </DashboardProjectsId.Link>
+                        </DashboardProjectsProjectIdTabs.Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
                         <Link href={`/projects/${project.id}/settings`}>
@@ -124,24 +124,24 @@ export default function ProjectsPage() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Services</span>
                     <Badge variant="outline">
-                      {project.servicesCount || 0}
+                      {project._count?.services || 0}
                     </Badge>
                   </div>
                   
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Status</span>
                     <Badge 
-                      variant={project.status === 'active' ? 'default' : 'secondary'}
+                      variant={project.latestDeployment?.status === 'success' ? 'default' : 'secondary'}
                     >
-                      {project.status || 'active'}
+                      {project.latestDeployment?.status || 'No deployments'}
                     </Badge>
                   </div>
 
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Last Deploy</span>
                     <span className="text-xs">
-                      {project.lastDeploymentAt 
-                        ? new Date(project.lastDeploymentAt).toLocaleDateString()
+                      {project.latestDeployment?.createdAt 
+                        ? new Date(project.latestDeployment.createdAt).toLocaleDateString()
                         : 'Never'
                       }
                     </span>
@@ -149,9 +149,9 @@ export default function ProjectsPage() {
 
                   <div className="pt-2 border-t flex space-x-2">
                     <Button asChild variant="outline" size="sm" className="flex-1">
-                      <DashboardProjectsId.Link id={project.id}>
+                      <DashboardProjectsProjectIdTabs.Link projectId={project.id}>
                         View Project
-                      </DashboardProjectsId.Link>
+                      </DashboardProjectsProjectIdTabs.Link>
                     </Button>
                     <Button asChild size="sm" className="flex-1">
                       <Link href={`/projects/${project.id}/services`}>

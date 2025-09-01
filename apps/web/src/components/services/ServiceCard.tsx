@@ -42,6 +42,7 @@ import {
 } from 'lucide-react'
 import { useServiceDependencies, useToggleServiceActive, useDeleteService } from '@/hooks/useServices'
 import ServiceDependencyView from './ServiceDependencyView'
+import { DashboardProjectsProjectIdServicesServiceIdTabs } from '@/routes'
 
 interface ServiceCardProps {
   service: {
@@ -49,12 +50,40 @@ interface ServiceCardProps {
     projectId: string
     name: string
     type: string
-    dockerfilePath: string
-    buildContext: string
+    provider: 'github' | 'gitlab' | 'bitbucket' | 'docker_registry' | 'gitea' | 's3_bucket' | 'manual'
+    builder: 'nixpack' | 'railpack' | 'dockerfile' | 'buildpack' | 'static' | 'docker_compose'
+    providerConfig: {
+      repositoryUrl?: string
+      branch?: string
+      accessToken?: string
+      deployKey?: string
+      registryUrl?: string
+      imageName?: string
+      tag?: string
+      username?: string
+      password?: string
+      bucketName?: string
+      region?: string
+      accessKeyId?: string
+      secretAccessKey?: string
+      objectKey?: string
+      instructions?: string
+      deploymentScript?: string
+    } | null
+    builderConfig: {
+      dockerfilePath?: string
+      buildContext?: string
+      buildArgs?: Record<string, string>
+      buildCommand?: string
+      startCommand?: string
+      installCommand?: string
+      outputDirectory?: string
+      composeFilePath?: string
+      serviceName?: string
+    } | null
     port: number | null
     healthCheckPath: string
     environmentVariables: Record<string, string> | null
-    buildArguments: Record<string, string> | null
     resourceLimits: {
       memory?: string
       cpu?: string
@@ -91,6 +120,31 @@ export default function ServiceCard({ service }: ServiceCardProps) {
   const deleteService = useDeleteService()
   
   const dependencies = dependenciesData?.dependencies || []
+  
+  const getProviderLabel = (provider: string) => {
+    const labels = {
+      github: 'GitHub',
+      gitlab: 'GitLab', 
+      bitbucket: 'Bitbucket',
+      docker_registry: 'Docker Registry',
+      gitea: 'Gitea',
+      s3_bucket: 'S3 Bucket',
+      manual: 'Manual'
+    }
+    return labels[provider as keyof typeof labels] || provider
+  }
+  
+  const getBuilderLabel = (builder: string) => {
+    const labels = {
+      dockerfile: 'Dockerfile',
+      nixpack: 'Nixpack',
+      railpack: 'Railpack', 
+      buildpack: 'Buildpack',
+      static: 'Static',
+      docker_compose: 'Docker Compose'
+    }
+    return labels[builder as keyof typeof labels] || builder
+  }
   
   const getStatusBadge = (status: string) => {
     const statusConfig = {
@@ -145,6 +199,9 @@ export default function ServiceCard({ service }: ServiceCardProps) {
                     • {service.project.baseDomain}
                   </span>
                 )}
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {getProviderLabel(service.provider)} • {getBuilderLabel(service.builder)}
+                </div>
               </CardDescription>
             </div>
             <DropdownMenu>
@@ -154,22 +211,29 @@ export default function ServiceCard({ service }: ServiceCardProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <DashboardProjectsProjectIdServicesServiceIdTabs.Link
+                    projectId={service.projectId} 
+                    serviceId={service.id}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    View Details
+                  </DashboardProjectsProjectIdServicesServiceIdTabs.Link>
+                </DropdownMenuItem>
                 {service.latestDeployment?.domainUrl && (
-                  <>
-                    <DropdownMenuItem asChild>
-                      <a 
-                        href={service.latestDeployment.domainUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center"
-                      >
-                        <ExternalLink className="h-4 w-4 mr-2" />
-                        Open Service
-                      </a>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
+                  <DropdownMenuItem asChild>
+                    <a 
+                      href={service.latestDeployment.domainUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Open Service
+                    </a>
+                  </DropdownMenuItem>
                 )}
+                <DropdownMenuSeparator />
                 <DropdownMenuItem>
                   <Settings className="h-4 w-4 mr-2" />
                   Configure
@@ -278,6 +342,15 @@ export default function ServiceCard({ service }: ServiceCardProps) {
                 {service.isActive ? 'Active' : 'Inactive'}
               </span>
             </div>
+            <Button asChild size="sm" variant="outline">
+              <DashboardProjectsProjectIdServicesServiceIdTabs.Link 
+                projectId={service.projectId} 
+                serviceId={service.id}
+              >
+                <ChevronRight className="h-4 w-4 mr-1" />
+                View Details
+              </DashboardProjectsProjectIdServicesServiceIdTabs.Link>
+            </Button>
           </div>
         </CardContent>
       </Card>

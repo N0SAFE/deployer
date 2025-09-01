@@ -11,6 +11,13 @@ This Next.js + NestJS turborepo uses modern patterns and conventions that requir
 
 ## Critical Development Patterns
 
+### 0. File Management Policy
+**⚠️ NEVER delete or remove files without explicit user permission:**
+- Always ask before deleting any files, even if they appear redundant or outdated
+- When reorganizing code, preserve existing functionality by migrating content properly
+- If files need to be removed, explicitly request permission and explain why
+- **NEVER** use `rm`, `git rm`, or file deletion commands without user approval
+
 ### 1. Docker-First Development
 **Always use Docker commands for development:**
 ```bash
