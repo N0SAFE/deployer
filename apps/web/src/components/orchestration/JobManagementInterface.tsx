@@ -419,12 +419,12 @@ export default function JobManagementInterface({ projectId }: JobManagementInter
                 </div>
                 <div>
                   <Label htmlFor="status-filter">Status</Label>
-                  <Select value={filters.status} onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}>
+                  <Select value={filters.status || 'all-statuses'} onValueChange={(value) => setFilters(prev => ({ ...prev, status: value === 'all-statuses' ? '' : value }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="All Statuses" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Statuses</SelectItem>
+                      <SelectItem value="all-statuses">All Statuses</SelectItem>
                       <SelectItem value="waiting">Waiting</SelectItem>
                       <SelectItem value="active">Active</SelectItem>
                       <SelectItem value="completed">Completed</SelectItem>
@@ -436,12 +436,12 @@ export default function JobManagementInterface({ projectId }: JobManagementInter
                 </div>
                 <div>
                   <Label htmlFor="type-filter">Type</Label>
-                  <Select value={filters.type} onValueChange={(value) => setFilters(prev => ({ ...prev, type: value }))}>
+                  <Select value={filters.type || 'all-types'} onValueChange={(value) => setFilters(prev => ({ ...prev, type: value === 'all-types' ? '' : value }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="All Types" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Types</SelectItem>
+                      <SelectItem value="all-types">All Types</SelectItem>
                       <SelectItem value="deployment">Deployment</SelectItem>
                       <SelectItem value="scaling">Scaling</SelectItem>
                       <SelectItem value="ssl-renewal">SSL Renewal</SelectItem>
@@ -452,12 +452,12 @@ export default function JobManagementInterface({ projectId }: JobManagementInter
                 </div>
                 <div>
                   <Label htmlFor="queue-filter">Queue</Label>
-                  <Select value={filters.queue} onValueChange={(value) => setFilters(prev => ({ ...prev, queue: value }))}>
+                  <Select value={filters.queue || 'all-queues'} onValueChange={(value) => setFilters(prev => ({ ...prev, queue: value === 'all-queues' ? '' : value }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="All Queues" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Queues</SelectItem>
+                      <SelectItem value="all-queues">All Queues</SelectItem>
                       {queueStats.map((queue: JobQueueStats) => (
                         <SelectItem key={queue.queue} value={queue.queue}>
                           {queue.queue}

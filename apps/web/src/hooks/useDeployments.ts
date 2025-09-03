@@ -68,6 +68,14 @@ export function useDeploymentLogs(deploymentId: string, options?: {
     },
     enabled: !!deploymentId,
     staleTime: 1000 * 10, // 10 seconds
+    // Ensure AbortController signal is properly handled
+    retry: (failureCount, error) => {
+      // Don't retry on abort errors
+      if (error?.name === 'AbortError' || (error && typeof error === 'object' && 'code' in error && error.code === 'ABORT_ERR')) {
+        return false;
+      }
+      return failureCount < 3;
+    },
   }));
 }
 

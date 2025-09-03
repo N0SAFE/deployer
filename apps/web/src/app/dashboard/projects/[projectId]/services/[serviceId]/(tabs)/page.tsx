@@ -8,15 +8,11 @@ import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { CheckCircle2, XCircle, Clock, Loader2, AlertCircle, Network, FileText, RotateCcw } from 'lucide-react'
 import ServiceScalingCard from '@/components/orchestration/ServiceScalingCard'
+import { DashboardProjectsProjectIdServicesServiceIdTabs } from '@/routes';
+import { useParams } from '@/routes/hooks';
 
-interface ServiceOverviewPageProps {
-  params: {
-    id: string
-    serviceId: string
-  }
-}
-
-export default function ServiceOverviewPage({ params }: ServiceOverviewPageProps) {
+export default function ServiceOverviewPage() {
+  const params = useParams(DashboardProjectsProjectIdServicesServiceIdTabs)
   const [dependenciesOpen, setDependenciesOpen] = useState(false)
   
   const { data: service } = useService(params.serviceId)
@@ -170,7 +166,7 @@ export default function ServiceOverviewPage({ params }: ServiceOverviewPageProps
       {/* Service Scaling */}
       {service && (
         <ServiceScalingCard 
-          stackId={params.id} // project ID as stack ID
+          stackId={params.projectId} // project ID as stack ID
           service={{
             name: service.name,
             status: 'running',

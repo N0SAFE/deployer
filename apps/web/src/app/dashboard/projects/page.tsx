@@ -1,186 +1,41 @@
-'use client'
+import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
+import { createServerORPC } from '@/lib/orpc/server'
+import getQueryClient from '@/lib/getQueryClient'
+import { ProjectsClient } from './ProjectsClient'
 
-import { useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@repo/ui/components/shadcn/dropdown-menu'
-import { 
-  FolderOpen, 
-  Search, 
-  MoreHorizontal,
-  Settings,
-  Trash2,
-  ExternalLink,
-  Loader2
-} from 'lucide-react'
-import { useProjects } from '@/hooks/useProjects'
-import { CreateProjectDialog } from '@/components/projects/CreateProjectDialog'
-import Link from 'next/link'
-import { DashboardProjectsProjectIdTabs } from '@/routes'
-
-export default function ProjectsPage() {
-  const { data: projectsResponse, isLoading, error } = useProjects()
-  const [searchTerm, setSearchTerm] = useState('')
-
-  // Filter projects based on search term
-  const filteredProjects = projectsResponse?.projects?.filter(project =>
-    project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    project.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || []
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-2">Loading projects...</span>
-      </div>
-    )
+export default async function ProjectsPage() {
+  const pageStart = performance.now();
+  const queryClient = getQueryClient()
+  
+  // Create server-side ORPC client with authentication cookies
+  const clientStart = performance.now();
+  const orpc = await createServerORPC()
+  const clientTime = performance.now() - clientStart;
+  
+  try {
+    // Prefetch projects data on the server
+    const prefetchStart = performance.now();
+    await queryClient.prefetchQuery(orpc.project.list.queryOptions())
+    const prefetchTime = performance.now() - prefetchStart;
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`📋 Projects prefetch completed in ${prefetchTime.toFixed(2)}ms`);
+    }
+  } catch (error) {
+    // If prefetching fails, let the client handle it
+    console.error('Failed to prefetch projects:', error)
   }
 
-  if (error) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-destructive mb-4">Failed to load projects</p>
-        <p className="text-sm text-muted-foreground">{error.message}</p>
-      </div>
-    )
+  const totalTime = performance.now() - pageStart;
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`📄 Projects page server render completed in ${totalTime.toFixed(2)}ms (client: ${clientTime.toFixed(2)}ms)`);
   }
+
+  const dehydratedState = dehydrate(queryClient)
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
-          <p className="text-muted-foreground">
-            Manage your deployment projects
-          </p>
-        </div>
-        <CreateProjectDialog />
-      </div>
-
-      {/* Search and Filters */}
-      <div className="flex items-center space-x-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-          <Input
-            placeholder="Search projects..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </div>
-
-      {/* Projects Grid */}
-      {filteredProjects.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredProjects.map((project) => (
-            <Card key={project.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <CardTitle className="text-lg">{project.name}</CardTitle>
-                    <CardDescription className="line-clamp-2">
-                      {project.description || 'No description provided'}
-                    </CardDescription>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild>
-                        <DashboardProjectsProjectIdTabs.Link projectId={project.id}>
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          View Project
-                        </DashboardProjectsProjectIdTabs.Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href={`/projects/${project.id}/settings`}>
-                          <Settings className="h-4 w-4 mr-2" />
-                          Settings
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Services</span>
-                    <Badge variant="outline">
-                      {project._count?.services || 0}
-                    </Badge>
-                  </div>
-                  
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Status</span>
-                    <Badge 
-                      variant={project.latestDeployment?.status === 'success' ? 'default' : 'secondary'}
-                    >
-                      {project.latestDeployment?.status || 'No deployments'}
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Last Deploy</span>
-                    <span className="text-xs">
-                      {project.latestDeployment?.createdAt 
-                        ? new Date(project.latestDeployment.createdAt).toLocaleDateString()
-                        : 'Never'
-                      }
-                    </span>
-                  </div>
-
-                  <div className="pt-2 border-t flex space-x-2">
-                    <Button asChild variant="outline" size="sm" className="flex-1">
-                      <DashboardProjectsProjectIdTabs.Link projectId={project.id}>
-                        View Project
-                      </DashboardProjectsProjectIdTabs.Link>
-                    </Button>
-                    <Button asChild size="sm" className="flex-1">
-                      <Link href={`/projects/${project.id}/services`}>
-                        Services
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-12">
-          <FolderOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium mb-2">
-            {searchTerm ? 'No projects found' : 'No projects yet'}
-          </h3>
-          <p className="text-muted-foreground mb-6">
-            {searchTerm 
-              ? `No projects match "${searchTerm}". Try adjusting your search.`
-              : 'Get started by creating your first project.'
-            }
-          </p>
-          {!searchTerm && (
-            <CreateProjectDialog />
-          )}
-        </div>
-      )}
-    </div>
+    <HydrationBoundary state={dehydratedState}>
+      <ProjectsClient />
+    </HydrationBoundary>
   )
 }

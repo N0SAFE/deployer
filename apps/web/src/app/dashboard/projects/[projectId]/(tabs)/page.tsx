@@ -1,12 +1,12 @@
 'use client'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import OrchestrationDashboard from '@/components/orchestration/OrchestrationDashboard'
 import StackList from '@/components/orchestration/StackList'
-import { useParams } from 'next/navigation'
+import { useParams } from '@/routes/hooks'
+import { DashboardProjectsProjectIdTabs } from '@/routes'
 
 export default function ProjectOverviewPage() {
-  const params = useParams() as { projectId: string }
+  const params = useParams(DashboardProjectsProjectIdTabs)
   const projectId = params.projectId
 
   return (

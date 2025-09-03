@@ -2,12 +2,13 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
 import DomainMappingCard from '@/components/orchestration/DomainMappingCard'
-import { useParams } from 'next/navigation'
+import { useParams } from '@/routes/hooks'
+import { DashboardProjectsProjectIdTabsDomains } from '@/routes'
 import { useProject } from '@/hooks/useProjects'
 import { Globe } from 'lucide-react'
 
 export default function ProjectDomainsPage() {
-  const params = useParams() as { projectId: string }
+  const params = useParams(DashboardProjectsProjectIdTabsDomains)
   const projectId = params.projectId
   const { data: project } = useProject(projectId)
 

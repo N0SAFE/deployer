@@ -21,6 +21,10 @@ RUN bun install -g @nestjs/cli
 # Set working directory
 WORKDIR /app
 
+# Create upload directories with proper permissions
+RUN mkdir -p /app/uploads /app/extracted /app/static-files && \
+    chmod 755 /app/uploads /app/extracted /app/static-files
+
 # Copy workspace configuration files for dependency installation
 COPY package.json bun.lock* ./
 COPY turbo.json ./

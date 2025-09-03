@@ -1,11 +1,12 @@
 'use client'
 
 import JobManagementInterface from '@/components/orchestration/JobManagementInterface'
-import { useParams } from 'next/navigation'
+import { DashboardProjectsProjectIdTabsJobs } from '@/routes'
+import { useParams } from '@/routes/hooks'
 import { Briefcase } from 'lucide-react'
 
 export default function ProjectJobsPage() {
-  const params = useParams() as { projectId: string }
+  const params = useParams(DashboardProjectsProjectIdTabsJobs)
   const projectId = params.projectId
 
   return (

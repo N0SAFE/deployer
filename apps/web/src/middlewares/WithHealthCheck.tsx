@@ -10,7 +10,6 @@ import {
     nextjsRegexpPageOnly,
     nextNoApi,
 } from './utils/static'
-import { orpcServer } from '@/lib/orpc'
 import { toAbsoluteUrl } from '@/lib/utils'
 import { MiddlewareerrorhealthCheck } from '@/routes'
 import { createDebug } from '@/lib/debug'
@@ -32,7 +31,9 @@ const withHealthCheck: MiddlewareFactory = (next: NextMiddleware) => {
             try {
                 debugHealthCheck('Checking API health via ORPC in development mode')
                 try {
-                    const data = await orpcServer.health.check({})
+                    const { createServerORPC } = await import('@/lib/orpc/server');
+                    const serverORPC = await createServerORPC();
+                    const data = await serverORPC.health.check.call({})
                     debugHealthCheck('Health check response received', { data })
                     
                     if (!(data.status === 'ok')) {

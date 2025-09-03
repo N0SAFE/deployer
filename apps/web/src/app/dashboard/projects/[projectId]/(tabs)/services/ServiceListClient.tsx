@@ -12,14 +12,14 @@ import {
   SelectValue,
 } from '@repo/ui/components/shadcn/select'
 import { useServices } from '@/hooks/useServices'
-import ServiceCard from './ServiceCard'
-import CreateServiceDialog from './CreateServiceDialog'
+import ServiceCard from '@/components/services/ServiceCard'
+import CreateServiceDialog from '@/components/services/CreateServiceDialog'
 
-interface ServiceListProps {
+interface ServiceListClientProps {
   projectId: string
 }
 
-export default function ServiceList({ projectId }: ServiceListProps) {
+export default function ServiceListClient({ projectId }: ServiceListClientProps) {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<string | undefined>()
   const [isActiveFilter, setIsActiveFilter] = useState<boolean | undefined>()
@@ -85,7 +85,7 @@ export default function ServiceList({ projectId }: ServiceListProps) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all-types">All Types</SelectItem>
-            {serviceTypes.map(type => (
+            {serviceTypes.filter(type => type && type.trim() !== '').map(type => (
               <SelectItem key={type} value={type}>
                 {type}
               </SelectItem>

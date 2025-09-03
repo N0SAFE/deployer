@@ -14,11 +14,17 @@ import {
   Calendar
 } from 'lucide-react'
 import { Input } from '@repo/ui/components/shadcn/input'
-// import { useParams } from 'next/navigation'
+import { useParams } from '@/routes/hooks'
+import { DashboardProjectsProjectIdServicesServiceIdTabsLogs } from '@/routes'
 import { useDeploymentLogs } from '@/hooks/useDeployments'
 import { useDeploymentWebSocket } from '@/hooks/useWebSocket'
 
 export default function ServiceLogsPage() {
+  const params = useParams(DashboardProjectsProjectIdServicesServiceIdTabsLogs)
+  // Extract params for potential future use
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { projectId, serviceId } = params
+  
   const [isStreaming, setIsStreaming] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const limit = 200
@@ -26,14 +32,14 @@ export default function ServiceLogsPage() {
 
   // Select the latest deployment for this service by convention via search params or context.
   // For now, support an optional `deploymentId` search param in URL; fallback to empty (no data).
-  // const params = useParams() as { projectId: string; serviceId: string }
+  // TODO: In the future, we could use serviceId to fetch the latest deployment automatically
   const url = new URL(typeof window !== 'undefined' ? window.location.href : 'http://localhost')
   const deploymentId = url.searchParams.get('deploymentId') || ''
 
   // Historical logs via ORPC
   const { data, isLoading, refetch, isRefetching } = useDeploymentLogs(deploymentId, { limit, offset })
 
-  // Live stream via websocket
+  // Live stream via websocket - only connect if we have a deploymentId and streaming is enabled
   const ws = useDeploymentWebSocket(isStreaming && deploymentId ? deploymentId : undefined)
 
   // Refetch when socket connects and streaming is active

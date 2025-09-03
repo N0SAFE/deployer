@@ -1,11 +1,12 @@
 'use client'
 
 import SslCertificateDashboard from '@/components/orchestration/SslCertificateDashboard'
-import { useParams } from 'next/navigation'
+import { DashboardProjectsProjectIdTabsSsl } from '@/routes'
+import { useParams } from '@/routes/hooks'
 import { Shield } from 'lucide-react'
 
 export default function ProjectSslPage() {
-  const params = useParams() as { projectId: string }
+  const params = useParams(DashboardProjectsProjectIdTabsSsl)
   const projectId = params.projectId
 
   return (

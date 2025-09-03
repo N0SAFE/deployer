@@ -350,10 +350,13 @@ export function useDeploymentWebSocket(deploymentId?: string) {
       webSocket.joinRoom(room);
       
       return () => {
-        webSocket.leaveRoom(room);
+        // Only cleanup if the WebSocket is still connected
+        if (webSocket.isConnected) {
+          webSocket.leaveRoom(room);
+        }
       };
     }
-  }, [deploymentId, webSocket.isConnected]);
+  }, [deploymentId, webSocket.isConnected, webSocket]);
 
   return webSocket;
 }
@@ -368,10 +371,13 @@ export function useServiceWebSocket(serviceId?: string) {
       webSocket.joinRoom(room);
       
       return () => {
-        webSocket.leaveRoom(room);
+        // Only cleanup if the WebSocket is still connected
+        if (webSocket.isConnected) {
+          webSocket.leaveRoom(room);
+        }
       };
     }
-  }, [serviceId, webSocket.isConnected]);
+  }, [serviceId, webSocket.isConnected, webSocket]);
 
   return webSocket;
 }
@@ -386,10 +392,13 @@ export function useProjectWebSocket(projectId?: string) {
       webSocket.joinRoom(room);
       
       return () => {
-        webSocket.leaveRoom(room);
+        // Only cleanup if the WebSocket is still connected
+        if (webSocket.isConnected) {
+          webSocket.leaveRoom(room);
+        }
       };
     }
-  }, [projectId, webSocket.isConnected]);
+  }, [projectId, webSocket.isConnected, webSocket]);
 
   return webSocket;
 }

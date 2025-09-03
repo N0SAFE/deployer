@@ -1,81 +1,52 @@
-'use client'
-
-import { Activity, BarChart3, Server, Shield, AlertCircle } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/shadcn/tabs'
-import { ResourceMonitoringDashboard } from '@/components/orchestration/ResourceMonitoringDashboard'
-import SystemHealthDashboard from '@/components/orchestration/SystemHealthDashboard'
+import { HydrationBoundary, dehydrate } from '@tanstack/react-query'
+import getQueryClient from '@/lib/getQueryClient'
+import { createServerORPC } from '@/lib/orpc/server'
+import ProjectMonitoringPageClient from './ProjectMonitoringPageClient'
 
 interface ProjectMonitoringPageProps {
-  params: {
-    projectId: string
-  }
+  params: Promise<{ projectId: string }>
 }
 
-export default function ProjectMonitoringPage({ params }: ProjectMonitoringPageProps) {
+export default async function ProjectMonitoringPage({ params }: ProjectMonitoringPageProps) {
+  const { projectId } = await params
+  const startTime = Date.now()
+  const queryClient = getQueryClient()
+  
+  try {
+    console.log(`🔄 [Monitoring-${projectId}] Starting server prefetch...`)
+    
+    const orpc = await createServerORPC()
+    
+        // Prefetch monitoring data in parallel
+    await Promise.all([
+      // System resource summary (system-wide, no parameters)
+      queryClient.prefetchQuery(orpc.orchestration.getSystemResourceSummary.queryOptions({
+        input: void 0
+      })),
+      
+      // Resource alerts (system-wide, no parameters)
+      queryClient.prefetchQuery(orpc.orchestration.getResourceAlerts.queryOptions({
+        input: void 0
+      })),
+      
+      // List stacks for the project
+      queryClient.prefetchQuery(orpc.orchestration.listStacks.queryOptions({
+        input: { projectId }
+      }))
+    ])
+    
+    const endTime = Date.now()
+    console.log(`✅ [Monitoring-${projectId}] Prefetch completed in ${endTime - startTime}ms`)
+    
+  } catch (error) {
+    const endTime = Date.now()
+    console.error(`❌ [Monitoring-${projectId}] Prefetch failed in ${endTime - startTime}ms:`, error)
+    // Continue with client-side rendering as fallback
+  }
+
   return (
-    <div className="space-y-6">
-      <Tabs defaultValue="resources" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="resources" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Resource Monitoring
-          </TabsTrigger>
-          <TabsTrigger value="health" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            System Health
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="resources" className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Resources</CardTitle>
-                <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">2.4 GB</div>
-                <p className="text-xs text-muted-foreground">
-                  Memory across all services
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">CPU Usage</CardTitle>
-                <Activity className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">0.8 CPU</div>
-                <p className="text-xs text-muted-foreground">
-                  Total CPU allocation
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Storage</CardTitle>
-                <Server className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">12 GB</div>
-                <p className="text-xs text-muted-foreground">
-                  Total storage used
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <ResourceMonitoringDashboard projectId={params.projectId} />
-        </TabsContent>
-
-        <TabsContent value="health" className="space-y-6">
-          <SystemHealthDashboard projectId={params.projectId} />
-        </TabsContent>
-      </Tabs>
-    </div>
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <ProjectMonitoringPageClient />
+    </HydrationBoundary>
   )
 }

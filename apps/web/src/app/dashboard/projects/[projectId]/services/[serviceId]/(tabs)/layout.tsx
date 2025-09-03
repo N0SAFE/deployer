@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { ReactElement, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import {
     Card,
@@ -59,10 +59,38 @@ interface ServiceLayoutProps {
     children: React.ReactNode
 }
 
+const getConfigSections = ({
+    projectId,
+    serviceId,
+}: {
+    projectId: string
+    serviceId: string
+}) =>
+    Object.entries({
+        Overview: DashboardProjectsProjectIdServicesServiceIdTabs,
+        Deployments: DashboardProjectsProjectIdServicesServiceIdTabsDeployments,
+        Previews: DashboardProjectsProjectIdServicesServiceIdTabsPreviews,
+        Logs: DashboardProjectsProjectIdServicesServiceIdTabsLogs,
+        Monitoring: DashboardProjectsProjectIdServicesServiceIdTabsMonitoring,
+        Configuration:
+            DashboardProjectsProjectIdServicesServiceIdTabsConfiguration,
+    }).map(([label, routeBuilder]) => ({
+        label: label,
+        path: routeBuilder({ projectId, serviceId }),
+        link: routeBuilder.Link({
+            projectId,
+            serviceId,
+            children: label,
+            prefetch: true,
+        }) as ReactElement,
+    }))
+
 export default function ServiceLayout({ children }: ServiceLayoutProps) {
     const { projectId, serviceId } = useParams(
         DashboardProjectsProjectIdServicesServiceIdTabs
     )
+    const configSections = getConfigSections({ projectId, serviceId })
+
     const router = useRouter()
     const pathname = usePathname()
 
@@ -93,19 +121,6 @@ export default function ServiceLayout({ children }: ServiceLayoutProps) {
         }
     }, [deployments])
 
-    // Determine active tab from pathname
-    const getActiveTab = () => {
-        const basePath = `/dashboard/projects/${projectId}/services/${serviceId}`
-        if (pathname === basePath) return 'overview'
-        if (pathname.startsWith(`${basePath}/deployments`)) return 'deployments'
-        if (pathname.startsWith(`${basePath}/previews`)) return 'previews'
-        if (pathname.startsWith(`${basePath}/logs`)) return 'logs'
-        if (pathname.startsWith(`${basePath}/monitoring`)) return 'monitoring'
-        if (pathname.startsWith(`${basePath}/configuration`))
-            return 'configuration'
-        return 'overview'
-    }
-
     if (isLoading) {
         return (
             <div className="flex h-96 items-center justify-center">
@@ -130,6 +145,20 @@ export default function ServiceLayout({ children }: ServiceLayoutProps) {
                 </div>
             </div>
         )
+    }
+
+    const getActiveTab = () => {
+        let section = configSections.find(
+            (section) => section.path === pathname
+        )
+        if (!section) {
+            configSections.forEach((s) => {
+                if (pathname.includes(s.path)) {
+                    section = s
+                }
+            })
+        }
+        return section?.path || ''
     }
 
     const getProviderLabel = (provider: string) => {
@@ -320,54 +349,15 @@ export default function ServiceLayout({ children }: ServiceLayoutProps) {
 
             <Tabs value={getActiveTab()} className="space-y-4">
                 <TabsList>
-                    <TabsTrigger asChild value="overview">
-                        <DashboardProjectsProjectIdServicesServiceIdTabs.Link
-                            projectId={projectId}
-                            serviceId={serviceId}
+                    {configSections.map((section) => (
+                        <TabsTrigger
+                            asChild
+                            value={section.path}
+                            key={section.path}
                         >
-                            Overview
-                        </DashboardProjectsProjectIdServicesServiceIdTabs.Link>
-                    </TabsTrigger>
-                    <TabsTrigger asChild value="deployments">
-                        <DashboardProjectsProjectIdServicesServiceIdTabsDeployments.Link
-                            projectId={projectId}
-                            serviceId={serviceId}
-                        >
-                            Deployments
-                        </DashboardProjectsProjectIdServicesServiceIdTabsDeployments.Link>
-                    </TabsTrigger>
-                    <TabsTrigger asChild value="previews">
-                        <DashboardProjectsProjectIdServicesServiceIdTabsPreviews.Link
-                            projectId={projectId}
-                            serviceId={serviceId}
-                        >
-                            Preview Environments
-                        </DashboardProjectsProjectIdServicesServiceIdTabsPreviews.Link>
-                    </TabsTrigger>
-                    <TabsTrigger asChild value="logs">
-                        <DashboardProjectsProjectIdServicesServiceIdTabsLogs.Link
-                            projectId={projectId}
-                            serviceId={serviceId}
-                        >
-                            Logs
-                        </DashboardProjectsProjectIdServicesServiceIdTabsLogs.Link>
-                    </TabsTrigger>
-                    <TabsTrigger asChild value="monitoring">
-                        <DashboardProjectsProjectIdServicesServiceIdTabsMonitoring.Link
-                            projectId={projectId}
-                            serviceId={serviceId}
-                        >
-                            Monitoring
-                        </DashboardProjectsProjectIdServicesServiceIdTabsMonitoring.Link>
-                    </TabsTrigger>
-                    <TabsTrigger asChild value="configuration">
-                        <DashboardProjectsProjectIdServicesServiceIdTabsConfiguration.Link
-                            projectId={projectId}
-                            serviceId={serviceId}
-                        >
-                            Configuration
-                        </DashboardProjectsProjectIdServicesServiceIdTabsConfiguration.Link>
-                    </TabsTrigger>
+                            {section.link}
+                        </TabsTrigger>
+                    ))}
                 </TabsList>
 
                 <TabsContent value={getActiveTab()}>{children}</TabsContent>

@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams } from '@/routes/hooks'
+import { DashboardProjectsProjectIdTabsConfigurationEnvironmentsEnvironmentId } from '@/routes'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
@@ -151,9 +152,9 @@ const mockEnvironment: EnvironmentDetails = {
 }
 
 export default function EnvironmentConfigPage() {
-  const params = useParams()
-  const projectId = params.projectId as string
-  // const environmentId = params.environmentId as string // We'll use this later for API calls
+  const params = useParams(DashboardProjectsProjectIdTabsConfigurationEnvironmentsEnvironmentId)
+  const projectId = params.projectId
+  const environmentId = params.environmentId
 
   const [environment, setEnvironment] = useState<EnvironmentDetails>(mockEnvironment)
   const [activeTab, setActiveTab] = useState('general')

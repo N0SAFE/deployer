@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { orpcServer } from '@/lib/orpc'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +17,9 @@ export async function GET() {
 
         try {
             // Check the NestJS API health endpoint using ORPC
-            const apiRes = await orpcServer.health.check({})
+            const { createServerORPC } = await import('@/lib/orpc/server');
+            const serverORPC = await createServerORPC();
+            const apiRes = await serverORPC.health.check.call({})
 
             if (apiRes.status === 'ok') {
                 return NextResponse.json({

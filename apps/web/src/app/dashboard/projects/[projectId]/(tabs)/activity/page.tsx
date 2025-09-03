@@ -1,11 +1,44 @@
-'use client'
-
-import { useParams } from 'next/navigation'
+import { HydrationBoundary, dehydrate } from '@tanstack/react-query'
+import getQueryClient from '@/lib/getQueryClient'
+import { createServerORPC } from '@/lib/orpc/server'
 import ActivityFeed from '@/components/activity/ActivityFeed'
 
-export default function ProjectActivityPage() {
-  const params = useParams()
-  const projectId = params.id as string
+interface ProjectActivityPageProps {
+  params: Promise<{ projectId: string }>
+}
 
-  return <ActivityFeed projectId={projectId} />
+export default async function ProjectActivityPage({ params }: ProjectActivityPageProps) {
+  const { projectId } = await params
+  const startTime = Date.now()
+  const queryClient = getQueryClient()
+  
+  try {
+    console.log(`🔄 [Activity-${projectId}] Starting server prefetch...`)
+    
+    const orpc = await createServerORPC()
+    
+    // Prefetch project activity data
+    await queryClient.prefetchQuery(orpc.analytics.getUserActivity.queryOptions({
+      input: {
+        resource: `project:${projectId}`, // Filter by project resource
+        timeRange: '7d',
+        limit: 10,
+        offset: 0
+      }
+    }))
+    
+    const endTime = Date.now()
+    console.log(`✅ [Activity-${projectId}] Prefetch completed in ${endTime - startTime}ms`)
+    
+  } catch (error) {
+    const endTime = Date.now()
+    console.error(`❌ [Activity-${projectId}] Prefetch failed in ${endTime - startTime}ms:`, error)
+    // Continue with client-side rendering as fallback
+  }
+
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <ActivityFeed projectId={projectId} />
+    </HydrationBoundary>
+  )
 }
