@@ -1,16 +1,16 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { createServerORPC } from '@/lib/orpc/server'
 import getQueryClient from '@/lib/getQueryClient'
-import { NetworkConfigurationClient } from './NetworkConfigurationClient'
+import { BuildConfigurationClient } from './BuildConfigurationClient'
 
-interface ServiceNetworkConfigProps {
+interface ServiceBuildConfigProps {
   params: {
     id: string
     serviceId: string
   }
 }
 
-export default async function ServiceNetworkConfigPage({ params }: ServiceNetworkConfigProps) {
+export default async function ServiceBuildConfigPage({ params }: ServiceBuildConfigProps) {
   const orpcServer = await createServerORPC()
   const queryClient = getQueryClient()
 
@@ -20,7 +20,7 @@ export default async function ServiceNetworkConfigPage({ params }: ServiceNetwor
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <NetworkConfigurationClient params={params} />
+      <BuildConfigurationClient params={params} />
     </HydrationBoundary>
   )
 }

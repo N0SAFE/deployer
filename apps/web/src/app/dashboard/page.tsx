@@ -1,4 +1,4 @@
-import { HydrationBoundary, dehydrate, queryOptions } from '@tanstack/react-query'
+import { HydrationBoundary, dehydrate } from '@tanstack/react-query'
 import { createServerORPC } from '@/lib/orpc/server'
 import DashboardClient from './DashboardClient'
 import getQueryClient from '@/lib/getQueryClient'
@@ -17,14 +17,15 @@ export default async function DashboardPage() {
       // Prefetch projects
       queryClient.prefetchQuery(orpc.project.list.queryOptions()),
       
-      // Prefetch deployments with high limit for dashboard metrics
-      queryClient.prefetchQuery(orpc.deployment.list.queryOptions({ limit: 100 })),
-      
       // Prefetch health check (basic)
-      queryClient.prefetchQuery(orpc.health.check.queryOptions()),
+      queryClient.prefetchQuery(orpc.health.check.queryOptions({
+        input: {}
+      })),
       
       // Prefetch detailed health data
-      queryClient.prefetchQuery(orpc.health.detailed.queryOptions())
+      queryClient.prefetchQuery(orpc.health.detailed.queryOptions({
+        input: {}
+      }))
     ])
     
     const endTime = Date.now()

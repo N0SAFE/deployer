@@ -17,7 +17,7 @@ coverage
 # next.js
 .next/
 out/
-build
+/build
 .swc/
 
 # misc

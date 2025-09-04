@@ -17,12 +17,10 @@ import {
     DashboardProjectsProjectIdTabsSsl,
     DashboardProjectsProjectIdTabsTeam,
 } from '@/routes/index'
-import ProjectLayoutClient from './ProjectLayoutClient'
 import ProjectActionsDropdown from './ProjectActionsDropdown'
-import ProjectMetricsClient from './ProjectMetricsClient'
 import { ReactElement } from 'react'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@repo/ui/components/shadcn/tabs'
-import { headers } from 'next/headers'
+import ProjectTabsList from './ProjectTabsList'
+import z from 'zod'
 
 interface ProjectLayoutProps {
     children: React.ReactNode
@@ -52,34 +50,39 @@ const getTabSections = ({ projectId }: { projectId: string }) =>
         }) as ReactElement,
     }))
 
-export default async function ProjectLayout({ children, params }: ProjectLayoutProps) {
+export default async function ProjectLayout({
+    children,
+    params,
+}: ProjectLayoutProps) {
     const { projectId } = await params
     const startTime = Date.now()
     const queryClient = getQueryClient()
-
-    const pathname = (await headers()).get('x-pathname') || ''
 
     console.log(`🔄 [ProjectLayout-${projectId}] Starting server prefetch...`)
 
     const orpcServer = await createServerORPC()
 
     // Initialize project with correct types
-    let project: { name?: string; description?: string | null } | null = null
+    let project: Awaited<ReturnType<typeof orpcServer.project.getById.call>> | null = null
 
     try {
         // Prefetch shared data and get results for server rendering
         const [projectResult, servicesResult] = await Promise.allSettled([
             // Project data - used by layout header and all child pages
-            queryClient.fetchQuery(orpcServer.project.getById.queryOptions({
-                input: { id: projectId }
-            })),
+            queryClient.fetchQuery(
+                orpcServer.project.getById.queryOptions({
+                    input: { id: projectId },
+                })
+            ),
             // Services data - used by services page, deployments page, and overview
-            queryClient.fetchQuery(orpcServer.service.listByProject.queryOptions({
-                input: {
-                    projectId,
-                    limit: 50
-                }
-            }))
+            queryClient.fetchQuery(
+                orpcServer.service.listByProject.queryOptions({
+                    input: {
+                        projectId,
+                        limit: 50,
+                    },
+                })
+            ),
         ])
 
         // Extract data for server-side rendering
@@ -90,42 +93,33 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
         // Also prefetch for client hydration
         if (projectResult.status === 'fulfilled') {
             queryClient.setQueryData(
-                orpcServer.project.getById.queryKey({ input: { id: projectId } }),
+                orpcServer.project.getById.queryKey({
+                    input: { id: projectId },
+                }),
                 projectResult.value
             )
         }
         if (servicesResult.status === 'fulfilled') {
             queryClient.setQueryData(
-                orpcServer.service.listByProject.queryKey({ input: { projectId, limit: 50 } }),
+                orpcServer.service.listByProject.queryKey({
+                    input: { projectId, limit: 50 },
+                }),
                 servicesResult.value
             )
         }
-
     } catch (error) {
         console.error('Failed to prefetch project data:', error)
     }
 
     const endTime = Date.now()
-    console.log(`✅ [ProjectLayout-${projectId}] Server render completed in ${endTime - startTime}ms`)
+    console.log(
+        `✅ [ProjectLayout-${projectId}] Server render completed in ${endTime - startTime}ms`
+    )
 
     // Get tab sections for server-side rendering
-    const tabSections = getTabSections({projectId})
+    const tabSections = getTabSections({ projectId })
 
     const dehydratedState = dehydrate(queryClient)
-
-    const getActiveTab = () => {
-        let section = tabSections.find(
-            (section) => section.path === pathname
-        )
-        if (!section) {
-            tabSections.forEach((s) => {
-                if (pathname.includes(s.path)) {
-                    section = s
-                }
-            })
-        }
-        return section?.path || ''
-    }
 
     // Return server-side rendered content with client components for interactivity
     return (
@@ -153,23 +147,9 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
                     </div>
                 </div>
 
-                {/* Client-rendered dynamic metrics */}
-                <ProjectMetricsClient projectId={projectId} />
+                <ProjectTabsList tabSections={tabSections} />
 
-            <Tabs value={getActiveTab()} className="space-y-4">
-                <TabsList>
-                    {tabSections.map((section) => (
-                        <TabsTrigger
-                            asChild
-                            value={section.path}
-                            key={section.path}
-                        >
-                            {section.link}
-                        </TabsTrigger>
-                    ))}
-                </TabsList>
-
-                <TabsContent value={getActiveTab()}>{children}</TabsContent>
+                {children}
 
                 {/* Fallback for when no children are rendered */}
                 {children ? null : (
@@ -177,7 +157,6 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
                         Select a tab to view content
                     </div>
                 )}
-            </Tabs>
             </div>
         </HydrationBoundary>
     )

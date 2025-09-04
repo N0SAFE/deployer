@@ -115,8 +115,8 @@ services:
                 - NEXT_PUBLIC_APP_PORT=${NEXT_PUBLIC_APP_PORT:-3000}
         user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
         restart: unless-stopped
-        mem_limit: 4g
-        memswap_limit: 4g
+        mem_limit: 8g
+        memswap_limit: 8g
         ports:
             - "${NEXT_PUBLIC_APP_PORT:-3000}:${NEXT_PUBLIC_APP_PORT:-3000}"
         volumes:
