@@ -2,18 +2,13 @@ import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { createServerORPC } from '@/lib/orpc/server'
 import getQueryClient from '@/lib/getQueryClient'
 import { ResourcesConfigurationClient } from './ResourcesConfigurationClient'
+import { DashboardProjectsProjectIdServicesServiceIdTabsConfigurationResources } from '@/routes'
 
-interface ServiceResourceConfigProps {
-  params: {
-    id: string
-    serviceId: string
-  }
-}
-
-export default async function ServiceResourceConfigPage({ params }: ServiceResourceConfigProps) {
+export default DashboardProjectsProjectIdServicesServiceIdTabsConfigurationResources.Page(async function ServiceResourceConfigPage({ params }) {
+  const { serviceId } = await params
+  
   const orpcServer = createServerORPC()
   const queryClient = getQueryClient()
-  const serviceId = params.serviceId
 
   // Prefetch service data (already prefetched in layout but ensure it's here)
   await queryClient.prefetchQuery(
@@ -27,4 +22,4 @@ export default async function ServiceResourceConfigPage({ params }: ServiceResou
       <ResourcesConfigurationClient serviceId={serviceId} />
     </HydrationBoundary>
   )
-}
+})

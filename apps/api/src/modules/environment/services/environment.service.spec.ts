@@ -215,16 +215,22 @@ describe('EnvironmentService', () => {
       const updates = { name: 'production-v2' };
       const updatedEnvironment = { ...mockEnvironment, name: 'production-v2' };
 
+      mockRepository.findEnvironmentById.mockResolvedValue(mockEnvironment);
+      mockRepository.validateEnvironmentSlug.mockResolvedValue(true);
       mockRepository.updateEnvironment.mockResolvedValue(updatedEnvironment);
 
       const result = await service.updateEnvironment('1', updates);
 
       expect(result).toEqual(updatedEnvironment);
-      expect(mockRepository.updateEnvironment).toHaveBeenCalledWith('1', updates);
+      expect(mockRepository.updateEnvironment).toHaveBeenCalledWith('1', {
+        ...updates,
+        slug: 'production-v2',
+        updatedAt: expect.any(Date),
+      });
     });
 
     it('should throw NotFoundException when environment not found', async () => {
-      mockRepository.updateEnvironment.mockResolvedValue(null);
+      mockRepository.findEnvironmentById.mockResolvedValue(null);
 
       await expect(service.updateEnvironment('nonexistent', { name: 'new-name' })).rejects.toThrow(NotFoundException);
     });
@@ -233,6 +239,8 @@ describe('EnvironmentService', () => {
       const updates = { name: 'New Production Name' };
       const updatedEnvironment = { ...mockEnvironment, name: 'New Production Name', slug: 'new-production-name' };
 
+      mockRepository.findEnvironmentById.mockResolvedValue(mockEnvironment);
+      mockRepository.validateEnvironmentSlug.mockResolvedValue(true);
       mockRepository.updateEnvironment.mockResolvedValue(updatedEnvironment);
 
       await service.updateEnvironment('1', updates);
@@ -247,6 +255,7 @@ describe('EnvironmentService', () => {
 
   describe('deleteEnvironment', () => {
     it('should delete environment when it exists', async () => {
+      mockRepository.findEnvironmentById.mockResolvedValue(mockEnvironment);
       mockRepository.deleteEnvironment.mockResolvedValue(true);
 
       await service.deleteEnvironment('1');
@@ -255,7 +264,7 @@ describe('EnvironmentService', () => {
     });
 
     it('should throw NotFoundException when environment not found', async () => {
-      mockRepository.deleteEnvironment.mockResolvedValue(false);
+      mockRepository.findEnvironmentById.mockResolvedValue(null);
 
       await expect(service.deleteEnvironment('nonexistent')).rejects.toThrow(NotFoundException);
     });
@@ -264,6 +273,7 @@ describe('EnvironmentService', () => {
   describe('Environment Variables', () => {
     describe('getEnvironmentVariables', () => {
       it('should get variables for environment', async () => {
+        mockRepository.findEnvironmentById.mockResolvedValue(mockEnvironment);
         mockRepository.findEnvironmentVariables.mockResolvedValue([mockVariable]);
 
         const result = await service.getEnvironmentVariables('1');
@@ -283,7 +293,9 @@ describe('EnvironmentService', () => {
           },
         ];
 
+        mockRepository.findEnvironmentById.mockResolvedValue(mockEnvironment);
         mockRepository.bulkUpdateVariables.mockResolvedValue([mockVariable]);
+        mockRepository.findEnvironmentVariables.mockResolvedValue([]);
 
         const result = await service.updateEnvironmentVariables('1', variables, 'user-1');
 
@@ -299,6 +311,8 @@ describe('EnvironmentService', () => {
             isSecret: false,
           },
         ];
+
+        mockRepository.findEnvironmentById.mockResolvedValue(mockEnvironment);
 
         await expect(service.updateEnvironmentVariables('1', variables, 'user-1')).rejects.toThrow(BadRequestException);
         expect(mockRepository.bulkUpdateVariables).not.toHaveBeenCalled();
@@ -317,6 +331,8 @@ describe('EnvironmentService', () => {
             isSecret: false,
           },
         ];
+
+        mockRepository.findEnvironmentById.mockResolvedValue(mockEnvironment);
 
         await expect(service.updateEnvironmentVariables('1', variables, 'user-1')).rejects.toThrow(BadRequestException);
         expect(mockRepository.bulkUpdateVariables).not.toHaveBeenCalled();
@@ -387,6 +403,7 @@ describe('EnvironmentService', () => {
         const previewEnv = { ...mockEnvironment, type: 'preview', name: 'pr-123' };
 
         mockRepository.findEnvironmentBySlug.mockResolvedValue(null);
+        mockRepository.validateEnvironmentSlug.mockResolvedValue(true);
         mockRepository.createEnvironment.mockResolvedValue(previewEnv);
 
         const result = await service.createPreviewEnvironment(input);
@@ -417,6 +434,7 @@ describe('EnvironmentService', () => {
         mockRepository.findEnvironmentBySlug
           .mockResolvedValueOnce(mockEnvironment)
           .mockResolvedValueOnce(null);
+        mockRepository.validateEnvironmentSlug.mockResolvedValue(true);
         mockRepository.createEnvironment.mockResolvedValue(mockEnvironment);
 
         await service.createPreviewEnvironment(input);
@@ -451,9 +469,28 @@ describe('EnvironmentService', () => {
 
     describe('cleanupExpiredPreviewEnvironments', () => {
       it('should cleanup expired preview environments', async () => {
+        const yesterdayDate = new Date();
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        
         const expiredEnvs = [
-          { ...mockEnvironment, id: 'expired-1', type: 'preview' },
-          { ...mockEnvironment, id: 'expired-2', type: 'preview' },
+          { 
+            ...mockEnvironment, 
+            id: 'expired-1', 
+            type: 'preview',
+            previewSettings: {
+              autoCleanupEnabled: true,
+              expiresAt: yesterdayDate.toISOString(),
+            }
+          },
+          { 
+            ...mockEnvironment, 
+            id: 'expired-2', 
+            type: 'preview',
+            previewSettings: {
+              autoCleanupEnabled: true,
+              expiresAt: yesterdayDate.toISOString(),
+            }
+          },
         ];
 
         // Mock finding expired environments

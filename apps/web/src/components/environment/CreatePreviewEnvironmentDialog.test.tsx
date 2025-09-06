@@ -96,7 +96,8 @@ describe('CreatePreviewEnvironmentDialog', () => {
     )
 
     expect(screen.getByTestId('dialog-trigger')).toBeInTheDocument()
-    expect(screen.getByText('Create Preview')).toBeInTheDocument()
+    // Check the trigger button exists without checking text due to multiple elements
+    expect(screen.getByTestId('dialog-trigger')).toHaveTextContent('Create Preview')
   })
 
   it('should display form fields', () => {
@@ -148,7 +149,9 @@ describe('CreatePreviewEnvironmentDialog', () => {
       'API_URL': 'https://api-preview.example.com'
     }, null, 2)
     
-    await user.type(variablesEditor, customVars)
+    // Use paste with clipboardData instead of clipboard API
+    await user.click(variablesEditor)
+    await user.paste(customVars)
     expect(variablesEditor).toHaveValue(customVars)
   })
 

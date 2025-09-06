@@ -2,12 +2,9 @@ import { HydrationBoundary, dehydrate } from '@tanstack/react-query'
 import getQueryClient from '@/lib/getQueryClient'
 import { createServerORPC } from '@/lib/orpc/server'
 import ActivityFeed from '@/components/activity/ActivityFeed'
+import { DashboardProjectsProjectIdTabsActivity } from '@/routes'
 
-interface ProjectActivityPageProps {
-  params: Promise<{ projectId: string }>
-}
-
-export default async function ProjectActivityPage({ params }: ProjectActivityPageProps) {
+export default DashboardProjectsProjectIdTabsActivity.Page(async function ProjectActivityPage({ params }) {
   const { projectId } = await params
   const startTime = Date.now()
   const queryClient = getQueryClient()
@@ -41,4 +38,4 @@ export default async function ProjectActivityPage({ params }: ProjectActivityPag
       <ActivityFeed projectId={projectId} />
     </HydrationBoundary>
   )
-}
+})

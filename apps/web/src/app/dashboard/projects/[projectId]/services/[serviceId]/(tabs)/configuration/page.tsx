@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 
 interface ServiceConfigurationPageProps {
   params: {
-    id: string
+    projectId: string
     serviceId: string
   }
 }
@@ -15,8 +15,8 @@ export default function ServiceConfigurationPage({ params }: ServiceConfiguratio
 
   useEffect(() => {
     // Redirect to general configuration by default
-    router.replace(`/dashboard/projects/${params.id}/services/${params.serviceId}/configuration/general`)
-  }, [router, params.id, params.serviceId])
+    router.replace(`/dashboard/projects/${params.projectId}/services/${params.serviceId}/configuration/general`)
+  }, [router, params.projectId, params.serviceId])
 
   return (
     <div className="flex h-96 items-center justify-center">

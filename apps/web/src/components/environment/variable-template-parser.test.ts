@@ -103,7 +103,7 @@ describe('VariableTemplateParser', () => {
           {
             type: 'invalid_reference',
             message: 'Invalid reference format: invalid.reference',
-            position: 2,
+            position: 0,
             raw: '${invalid.reference}',
           },
         ],

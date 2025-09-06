@@ -11,6 +11,8 @@ export class EnvironmentController {
 
   // Helper to transform database environment to contract format
   private transformEnvironment(env: any) {
+    if (!env) return null;
+    
     return {
       id: env.id,
       projectId: env.projectId || '', // Ensure required field
@@ -27,13 +29,15 @@ export class EnvironmentController {
       tags: [], // Default empty array
       protectionRules: undefined, // Map if needed
       createdBy: env.createdBy,
-      createdAt: env.createdAt,
-      updatedAt: env.updatedAt,
+      createdAt: env.createdAt instanceof Date ? env.createdAt.toISOString() : env.createdAt,
+      updatedAt: env.updatedAt instanceof Date ? env.updatedAt.toISOString() : env.updatedAt,
     };
   }
 
   // Helper to transform database variable to contract format
   private transformVariable(variable: any) {
+    if (!variable) return null;
+    
     return {
       id: variable.id,
       environmentId: variable.environmentId,
@@ -43,8 +47,8 @@ export class EnvironmentController {
       isDynamic: variable.isDynamic,
       resolutionStatus: (variable.resolutionStatus || 'pending') as 'pending' | 'resolved' | 'failed',
       createdBy: variable.createdBy,
-      createdAt: variable.createdAt,
-      updatedAt: variable.updatedAt,
+      createdAt: variable.createdAt instanceof Date ? variable.createdAt.toISOString() : variable.createdAt,
+      updatedAt: variable.updatedAt instanceof Date ? variable.updatedAt.toISOString() : variable.updatedAt,
       description: variable.description || undefined,
       template: variable.template || undefined,
       resolvedValue: variable.resolvedValue || undefined,
@@ -73,7 +77,7 @@ export class EnvironmentController {
       return {
         success: true,
         data: {
-          environments: result.environments.map(env => this.transformEnvironment(env)),
+          environments: result.environments.map(env => this.transformEnvironment(env)).filter(env => env !== null),
           pagination: {
             total: result.total,
             limit: input?.limit || 20,
@@ -171,7 +175,7 @@ export class EnvironmentController {
 
       return {
         success: true,
-        data: variables.map(variable => this.transformVariable(variable)),
+        data: variables.map(variable => this.transformVariable(variable)).filter(variable => variable !== null),
       };
     });
   }
@@ -205,7 +209,7 @@ export class EnvironmentController {
 
       return {
         success: true,
-        data: variables.map(variable => this.transformVariable(variable)),
+        data: variables.map(variable => this.transformVariable(variable)).filter(variable => variable !== null),
       };
     });
   }
@@ -224,7 +228,7 @@ export class EnvironmentController {
 
       return {
         success: true,
-        data: variables.map(variable => this.transformVariable(variable)),
+        data: variables.map(variable => this.transformVariable(variable)).filter(variable => variable !== null),
       };
     });
   }
@@ -294,7 +298,7 @@ export class EnvironmentController {
 
       return {
         success: true,
-        data: environments.map(env => this.transformEnvironment(env)),
+        data: environments.map(env => this.transformEnvironment(env)).filter(env => env !== null),
       };
     });
   }
@@ -474,7 +478,7 @@ export class EnvironmentController {
 
       // Return direct object matching contract schema: { environments, total, hasMore }
       return {
-        environments: environments.map(env => this.transformEnvironment(env)),
+        environments: environments.map(env => this.transformEnvironment(env)).filter(env => env !== null),
         total: environments.length,
         hasMore: false, // Simple implementation - could be enhanced with proper pagination
       };
@@ -647,15 +651,18 @@ export class EnvironmentController {
       // Return object matching contract schema
       return {
         environmentId: input.id,
-        staticVariables: staticVariables.map(v => this.transformVariable(v)),
-        dynamicVariables: dynamicVariables.map(v => ({
-          ...this.transformVariable(v),
-          resolutionResult: {
-            status: v.resolutionStatus || 'pending',
-            resolvedValue: v.resolvedValue,
-            error: v.resolutionError,
-          },
-        })),
+        staticVariables: staticVariables.map(v => this.transformVariable(v)).filter(v => v !== null),
+        dynamicVariables: dynamicVariables.map(v => {
+          const transformed = this.transformVariable(v);
+          return transformed ? {
+            ...transformed,
+            resolutionResult: {
+              status: v.resolutionStatus || 'pending',
+              resolvedValue: v.resolvedValue,
+              error: v.resolutionError,
+            }
+          } : null;
+        }).filter(v => v !== null),
         summary: {
           totalVariables: variables.length,
           staticVariables: staticVariables.length,

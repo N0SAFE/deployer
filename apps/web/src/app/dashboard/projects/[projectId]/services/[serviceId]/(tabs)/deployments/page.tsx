@@ -2,12 +2,9 @@ import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import getQueryClient from '@/lib/getQueryClient'
 import { createServerORPC } from '@/lib/orpc/server'
 import ServiceDeploymentsClient from './ServiceDeploymentsClient'
+import { DashboardProjectsProjectIdServicesServiceIdTabsDeployments } from '@/routes'
 
-interface PageProps {
-  params: Promise<{ projectId: string; serviceId: string }>
-}
-
-export default async function ServiceDeploymentsPage({ params }: PageProps) {
+export default DashboardProjectsProjectIdServicesServiceIdTabsDeployments.Page(async function ServiceDeploymentsPage({ params }) {
   const { serviceId } = await params
   const queryClient = getQueryClient()
   const orpc = await createServerORPC()
@@ -29,4 +26,4 @@ export default async function ServiceDeploymentsPage({ params }: PageProps) {
       <ServiceDeploymentsClient />
     </HydrationBoundary>
   )
-}
+})

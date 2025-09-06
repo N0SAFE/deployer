@@ -2,12 +2,9 @@ import { HydrationBoundary, dehydrate } from '@tanstack/react-query'
 import getQueryClient from '@/lib/getQueryClient'
 import { createServerORPC } from '@/lib/orpc/server'
 import ProjectMonitoringPageClient from './ProjectMonitoringPageClient'
+import { DashboardProjectsProjectIdTabsMonitoring } from '@/routes'
 
-interface ProjectMonitoringPageProps {
-  params: Promise<{ projectId: string }>
-}
-
-export default async function ProjectMonitoringPage({ params }: ProjectMonitoringPageProps) {
+export default DashboardProjectsProjectIdTabsMonitoring.Page(async function ProjectMonitoringPage({ params }) {
   const { projectId } = await params
   const startTime = Date.now()
   const queryClient = getQueryClient()
@@ -49,4 +46,4 @@ export default async function ProjectMonitoringPage({ params }: ProjectMonitorin
       <ProjectMonitoringPageClient />
     </HydrationBoundary>
   )
-}
+})

@@ -15,12 +15,14 @@ import Script from 'next/script'
 import { validateEnv } from '#/env'
 import { DynamicTanstackDevTools } from '@/components/devtools/DynamicTanstackDevTools'
 import { UIProvider } from '@/contexts/UIContext'
+import { NuqsAdapter } from 'nuqs/adapters/next/app'
 
 const fontSans = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
 export const metadata: Metadata = {
     title: 'Deployer - Deployment Platform',
-    description: 'Modern deployment platform with Docker and Traefik integration',
+    description:
+        'Modern deployment platform with Docker and Traefik integration',
 }
 
 export default async function RootLayout({
@@ -60,29 +62,31 @@ export default async function RootLayout({
                     )}
                 <NextAuthProviders>
                     <Validate>
-                        <ThemeProvider
-                            attribute="class"
-                            defaultTheme="system"
-                            enableSystem
-                            disableTransitionOnChange
-                        >
-                            <UIProvider>
-                                <NextTopLoader />
-                                <ReactQueryProviders>
-                                    <Suspense
-                                        fallback={
-                                            <div className="flex h-screen w-screen items-center justify-center">
-                                                <Loader />
-                                            </div>
-                                        }
-                                    >
-                                        {children}
-                                    </Suspense>
-                                    
-                                    <DynamicTanstackDevTools />
-                                </ReactQueryProviders>
-                            </UIProvider>
-                        </ThemeProvider>
+                        <NuqsAdapter>
+                            <ThemeProvider
+                                attribute="class"
+                                defaultTheme="system"
+                                enableSystem
+                                disableTransitionOnChange
+                            >
+                                <UIProvider>
+                                    <NextTopLoader />
+                                    <ReactQueryProviders>
+                                        <Suspense
+                                            fallback={
+                                                <div className="flex h-screen w-screen items-center justify-center">
+                                                    <Loader />
+                                                </div>
+                                            }
+                                        >
+                                            {children}
+                                        </Suspense>
+
+                                        <DynamicTanstackDevTools />
+                                    </ReactQueryProviders>
+                                </UIProvider>
+                            </ThemeProvider>
+                        </NuqsAdapter>
                     </Validate>
                 </NextAuthProviders>
             </body>

@@ -402,14 +402,14 @@ export function GeneralConfigurationClient({ serviceId }: GeneralConfigurationCl
           <div className="space-y-2">
             <Label>Created</Label>
             <p className="text-sm text-muted-foreground">
-              {service.createdAt.toLocaleDateString()} at {service.createdAt.toLocaleTimeString()}
+              {new Date(service.createdAt).toLocaleDateString()} at {new Date(service.createdAt).toLocaleTimeString()}
             </p>
           </div>
 
           <div className="space-y-2">
             <Label>Last Updated</Label>
             <p className="text-sm text-muted-foreground">
-              {service.updatedAt.toLocaleDateString()} at {service.updatedAt.toLocaleTimeString()}
+              {new Date(service.updatedAt).toLocaleDateString()} at {new Date(service.updatedAt).toLocaleTimeString()}
             </p>
           </div>
 

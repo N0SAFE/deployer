@@ -2,12 +2,9 @@ import { HydrationBoundary, dehydrate } from '@tanstack/react-query'
 import getQueryClient from '@/lib/getQueryClient'
 import { createServerORPC } from '@/lib/orpc/server'
 import OrchestrationDashboard from '@/components/orchestration/OrchestrationDashboard'
+import { DashboardProjectsProjectIdTabsOrchestration } from '@/routes'
 
-interface ProjectOrchestrationPageProps {
-  params: Promise<{ projectId: string }>
-}
-
-export default async function ProjectOrchestrationPage({ params }: ProjectOrchestrationPageProps) {
+export default DashboardProjectsProjectIdTabsOrchestration.Page(async function ProjectOrchestrationPage({ params }) {
   const { projectId } = await params
   const startTime = Date.now()
   const queryClient = getQueryClient()
@@ -49,4 +46,4 @@ export default async function ProjectOrchestrationPage({ params }: ProjectOrches
       <OrchestrationDashboard projectId={projectId} />
     </HydrationBoundary>
   )
-}
+})

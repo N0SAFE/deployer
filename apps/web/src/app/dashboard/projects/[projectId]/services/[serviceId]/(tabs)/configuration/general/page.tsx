@@ -2,15 +2,9 @@ import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import getQueryClient from '@/lib/getQueryClient'
 import { createServerORPC } from '@/lib/orpc/server'
 import { GeneralConfigurationClient } from './GeneralConfigurationClient'
+import { DashboardProjectsProjectIdServicesServiceIdTabsConfigurationGeneral } from '@/routes'
 
-interface ServiceGeneralConfigProps {
-  params: Promise<{
-    projectId: string
-    serviceId: string
-  }>
-}
-
-export default async function ServiceGeneralConfigPage({ params }: ServiceGeneralConfigProps) {
+export default DashboardProjectsProjectIdServicesServiceIdTabsConfigurationGeneral.Page(async function ServiceGeneralConfigPage({ params }) {
   const { serviceId } = await params
   const queryClient = getQueryClient()
   const orpcServer = await createServerORPC()
@@ -33,4 +27,4 @@ export default async function ServiceGeneralConfigPage({ params }: ServiceGenera
       <GeneralConfigurationClient serviceId={serviceId} />
     </HydrationBoundary>
   )
-}
+})

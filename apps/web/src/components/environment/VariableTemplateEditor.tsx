@@ -23,30 +23,75 @@ import {
   Lightbulb,
 } from 'lucide-react'
 import { type VariableResolutionContext, type VariableResolutionResult, type VariableTemplateParseResult } from '@repo/api-contracts/modules/variable-resolver'
+import { VariableTemplateParser as RealVariableTemplateParser } from './variable-template-parser'
 
-// Simple client-side parser mock (should be replaced with proper implementation)
+// Initialize the real parser
+const variableTemplateParser = new RealVariableTemplateParser()
+
+// Adapter to match the expected interface
 const VariableTemplateParser = {
-  parseTemplate: (template: string): VariableTemplateParseResult => ({
-    isValid: true,
-    originalValue: template,
-    hasReferences: template.includes('${'),
-    staticParts: [template],
-    references: [],
-    errors: [],
-  }),
+  parseTemplate: (template: string): VariableTemplateParseResult => {
+    const result = variableTemplateParser.parseTemplate(template)
+    return {
+      isValid: result.isValid,
+      originalValue: template,
+      hasReferences: template.includes('${'),
+      staticParts: result.isValid ? [template] : [],
+      references: result.references.map(ref => ({
+        type: ref.type === 'service' ? 'service' as const : 
+              ref.type === 'project' ? 'project' as const : 
+              ref.type === 'env' ? 'environment' as const : 'variable' as const,
+        identifier: ref.name,
+        property: ref.property,
+        fullPath: ref.fullPath,
+        raw: ref.raw,
+        isEscaped: false,
+        isExternal: false,
+      })),
+      errors: result.errors,
+    }
+  },
   
-  resolveTemplate: async (template: string, _context: VariableResolutionContext): Promise<VariableResolutionResult> => ({
-    success: true,
-    resolvedValue: template,
-    errors: [],
-    warnings: [],
-  }),
+  resolveTemplate: async (template: string, context: VariableResolutionContext): Promise<VariableResolutionResult> => {
+    try {
+      // Adapt context to match parser expectations
+      const adaptedContext = {
+        services: context.services,
+        projects: context.projects,
+        env: context.environments,
+      }
+      const result = await variableTemplateParser.resolveTemplate(template, adaptedContext)
+      return {
+        success: result.success,
+        resolvedValue: result.resolved,
+        errors: result.errors.map(err => ({
+          type: 'resolution_error' as const,
+          message: err.message,
+          reference: err.reference,
+          raw: err.raw,
+          error: err.message,
+        })),
+        warnings: [],
+      }
+    } catch (error) {
+      return {
+        success: false,
+        resolvedValue: template,
+        errors: [{
+          type: 'resolution_error' as const,
+          message: String(error),
+          reference: template,
+          raw: template,
+          error: String(error),
+        }],
+        warnings: [],
+      }
+    }
+  },
   
-  validateTemplate: (_template: string) => ({
-    isValid: true,
-    errors: [],
-    warnings: [],
-  }),
+  validateTemplate: (template: string) => {
+    return variableTemplateParser.validateTemplate(template)
+  },
 }
 
 interface VariableTemplateEditorProps {
@@ -281,7 +326,7 @@ export function VariableTemplateEditor({
                   </div>
                   <ul className="text-sm text-red-700 space-y-1">
                     {validation.errors.map((error, index) => (
-                      <li key={index}>• {error}</li>
+                      <li key={index}>• {error.message}</li>
                     ))}
                   </ul>
                 </div>

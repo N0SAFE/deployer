@@ -56,7 +56,7 @@ export interface ResolutionContext {
 }
 
 export class VariableTemplateParser {
-  private readonly VARIABLE_REGEX = /\$\{([^}]+)\}/g;
+  private readonly VARIABLE_REGEX = /\$\{([^}]*)\}/g;
   private readonly REFERENCE_REGEX = /^(services|projects|env)\.([^.]+)(?:\.(.+))?$/;
 
   parseTemplate(template: string): ParseResult {
@@ -83,6 +83,17 @@ export class VariableTemplateParser {
         continue;
       }
 
+      // Check for invalid characters in content (like braces)
+      if (content.includes('{') || content.includes('}')) {
+        errors.push({
+          type: 'invalid_reference',
+          message: `Invalid reference format: ${content}`,
+          position,
+          raw: fullMatch,
+        });
+        continue;
+      }
+
       const refMatch = content.match(this.REFERENCE_REGEX);
       if (!refMatch) {
         errors.push({
@@ -94,7 +105,11 @@ export class VariableTemplateParser {
         continue;
       }
 
-      const [, type, name, property = ''] = refMatch;
+      const [, typeCategory, name, property = ''] = refMatch;
+      // Convert plural category to singular type
+      const type = typeCategory === 'services' ? 'service' : 
+                   typeCategory === 'projects' ? 'project' : 'env';
+      
       references.push({
         type: type as 'service' | 'project' | 'env',
         name,
@@ -220,7 +235,7 @@ export class VariableTemplateParser {
     // Check for deeply nested properties
     for (const reference of parseResult.references) {
       const depth = reference.property.split('.').length;
-      if (depth > 4) {
+      if (depth >= 4) {
         warnings.push({
           type: 'deep_nesting_warning',
           message: `Reference ${reference.fullPath} is deeply nested (${depth} levels). Consider flattening the structure.`,
@@ -260,7 +275,7 @@ export class VariableTemplateParser {
       if (recursionStack.has(node)) {
         // Found a cycle
         const cycleStart = currentPath.indexOf(node);
-        cycles.push([...currentPath.slice(cycleStart), node]);
+        cycles.push(currentPath.slice(cycleStart));
         return true;
       }
 

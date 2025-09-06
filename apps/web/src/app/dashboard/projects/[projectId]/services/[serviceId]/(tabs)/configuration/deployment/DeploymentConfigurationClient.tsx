@@ -23,14 +23,13 @@ import {
 } from 'lucide-react'
 
 interface DeploymentConfigurationClientProps {
-  params: {
-    id: string
+    projectId: string
     serviceId: string
-  }
+  
 }
 
-export function DeploymentConfigurationClient({ params }: DeploymentConfigurationClientProps) {
-  const { data: service } = useService(params.serviceId)
+export function DeploymentConfigurationClient({ projectId, serviceId }: DeploymentConfigurationClientProps) {
+  const { data: service } = useService(serviceId)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [autoDeployEnabled, setAutoDeployEnabled] = useState(true)

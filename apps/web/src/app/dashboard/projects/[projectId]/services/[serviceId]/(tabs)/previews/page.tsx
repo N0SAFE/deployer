@@ -2,15 +2,9 @@ import { createServerORPC } from '@/lib/orpc/server'
 import getQueryClient from '@/lib/getQueryClient'
 import { HydrationBoundary, dehydrate } from '@tanstack/react-query'
 import { ServicePreviewsClient } from './ServicePreviewsClient'
+import { DashboardProjectsProjectIdServicesServiceIdTabsPreviews } from '@/routes'
 
-interface ServicePreviewDeploymentsPageProps {
-  params: Promise<{
-    projectId: string
-    serviceId: string
-  }>
-}
-
-export default async function ServicePreviewDeploymentsPage({ params }: ServicePreviewDeploymentsPageProps) {
+export default DashboardProjectsProjectIdServicesServiceIdTabsPreviews.Page(async function ServicePreviewDeploymentsPage({ params }) {
   const { projectId } = await params
   
   const queryClient = getQueryClient()
@@ -32,4 +26,4 @@ export default async function ServicePreviewDeploymentsPage({ params }: ServiceP
       <ServicePreviewsClient projectId={projectId} />
     </HydrationBoundary>
   )
-}
+})

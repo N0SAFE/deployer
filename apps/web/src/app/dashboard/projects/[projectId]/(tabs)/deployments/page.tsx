@@ -1,12 +1,9 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import getQueryClient from '@/lib/getQueryClient'
 import DeploymentsClient from './DeploymentsClient'
+import { DashboardProjectsProjectIdTabsDeployments } from '@/routes'
 
-interface PageProps {
-    params: Promise<{ projectId: string }>
-}
-
-export default async function ProjectDeploymentsPage({ params }: PageProps) {
+export default DashboardProjectsProjectIdTabsDeployments.Page(async function ProjectDeploymentsPage({ params }) {
     const { projectId } = await params
     const queryClient = getQueryClient()
     
@@ -19,4 +16,4 @@ export default async function ProjectDeploymentsPage({ params }: PageProps) {
             <DeploymentsClient projectId={projectId} />
         </HydrationBoundary>
     )
-}
+})

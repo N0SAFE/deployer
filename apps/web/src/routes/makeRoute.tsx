@@ -119,6 +119,36 @@ type DeleteRouteBuilder<Params extends z.ZodSchema> = CoreRouteElements<
     (p?: z.input<Params>, options?: FetchOptions): Promise<void>
 }
 
+// Page component props that all pages receive
+export type BasePageProps = {
+    children?: React.ReactNode
+}
+
+// Typed page props including params and search
+export type PageProps<
+    Params extends z.ZodSchema,
+    Search extends z.ZodSchema,
+> = {
+    params: Promise<z.output<Params>>
+    searchParams: Promise<z.output<Search>>
+} & BasePageProps
+
+// Page wrapper component type
+export type PageComponent<
+    Params extends z.ZodSchema,
+    Search extends z.ZodSchema,
+    AdditionalProps = object,
+> = React.FC<PageProps<Params, Search> & AdditionalProps>
+
+// Utility types to extract params and search types from RouteBuilder
+export type RouteBuilderParams<T extends RouteBuilder<any, any>> = T extends RouteBuilder<infer Params, any> 
+    ? z.output<Params> 
+    : never
+
+export type RouteBuilderSearch<T extends RouteBuilder<any, any>> = T extends RouteBuilder<any, infer Search> 
+    ? z.output<Search> 
+    : never
+
 export type RouteBuilder<
     Params extends z.ZodSchema,
     Search extends z.ZodSchema,
@@ -145,6 +175,14 @@ export type RouteBuilder<
             search?: z.input<Search>
         } & { children?: React.ReactNode }
     >
+
+    Page: <AdditionalProps = object>(
+        component: PageComponent<Params, Search, AdditionalProps>
+    ) => PageComponent<Params, Search, AdditionalProps>
+
+    // Validation helpers
+    validateParams: (params: unknown) => z.output<Params>
+    validateSearch: (search: unknown) => z.output<Search>
 }
 
 function createPathBuilder<T extends Record<string, string | string[]>>(
@@ -488,6 +526,29 @@ export function makeRoute<
                 {children}
             </Link>
         )
+    }
+
+    urlBuilder.Page = function PageWrapper<AdditionalProps = object>(
+        component: PageComponent<Params, Search, AdditionalProps>
+    ) {
+        const WrappedComponent = (props: PageProps<Params, Search> & AdditionalProps) => {
+            // Always use props as-is since they're already properly typed
+            // The hooks should be used directly in components that need reactive updates
+            return component(props)
+        }
+        
+        // Preserve component name for debugging
+        WrappedComponent.displayName = `RoutePageWrapper(${component.displayName || component.name || 'Component'})`
+        
+        return WrappedComponent as PageComponent<Params, Search, AdditionalProps>
+    }
+
+    urlBuilder.validateParams = function validateParams(params: unknown) {
+        return info.params.parse(params)
+    }
+
+    urlBuilder.validateSearch = function validateSearch(search: unknown) {
+        return info.search.parse(search)
     }
 
     urlBuilder.params = undefined as z.output<Params>
