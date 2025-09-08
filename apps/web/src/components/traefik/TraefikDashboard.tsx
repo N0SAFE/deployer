@@ -220,6 +220,70 @@ export default function TraefikDashboard() {
     })
   )
 
+  // Static Configuration Management
+  const staticConfigQueries = {
+    get: useQuery(
+      orpc.traefik.getStaticConfig.queryOptions({
+        input: { instanceId: selectedInstanceId },
+        enabled: !!selectedInstanceId,
+        staleTime: 30000, // 30 seconds
+      })
+    ),
+    getYaml: useMutation(
+      orpc.traefik.getStaticConfigYaml.mutationOptions({
+        onError: (error: Error) => {
+          toast.error(`Failed to get YAML configuration: ${error.message}`)
+        },
+      })
+    ),
+    save: useMutation(
+      orpc.traefik.saveStaticConfig.mutationOptions({
+        onSuccess: () => {
+          queryClient.invalidateQueries({ 
+            predicate: (query) => query.queryKey[0] === 'traefik' && query.queryKey[1] === 'getStaticConfig'
+          })
+          toast.success('Static configuration saved successfully')
+        },
+        onError: (error: Error) => {
+          toast.error(`Failed to save static configuration: ${error.message}`)
+        },
+      })
+    ),
+    updateSection: useMutation(
+      orpc.traefik.updateStaticConfigSection.mutationOptions({
+        onSuccess: () => {
+          queryClient.invalidateQueries({ 
+            predicate: (query) => query.queryKey[0] === 'traefik' && query.queryKey[1] === 'getStaticConfig'
+          })
+          toast.success('Configuration section updated successfully')
+        },
+        onError: (error: Error) => {
+          toast.error(`Failed to update configuration section: ${error.message}`)
+        },
+      })
+    ),
+    createDefault: useMutation(
+      orpc.traefik.createDefaultStaticConfig.mutationOptions({
+        onSuccess: () => {
+          queryClient.invalidateQueries({ 
+            predicate: (query) => query.queryKey[0] === 'traefik' && query.queryKey[1] === 'getStaticConfig'
+          })
+          toast.success('Default static configuration created successfully')
+        },
+        onError: (error: Error) => {
+          toast.error(`Failed to create default configuration: ${error.message}`)
+        },
+      })
+    ),
+    validate: useMutation(
+      orpc.traefik.validateStaticConfig.mutationOptions({
+        onError: (error: Error) => {
+          toast.error(`Failed to validate configuration: ${error.message}`)
+        },
+      })
+    ),
+  }
+
   // Configuration management queries and mutations
   const { data: instanceConfigs = [], isLoading: configsLoading } = useQuery(
     orpc.traefik.getInstanceConfigs.queryOptions({
@@ -526,7 +590,7 @@ export default function TraefikDashboard() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="instances" className="flex items-center gap-2">
             <Server className="h-4 w-4" />
             Instances
@@ -542,6 +606,10 @@ export default function TraefikDashboard() {
           <TabsTrigger value="configuration" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
             Configuration
+          </TabsTrigger>
+          <TabsTrigger value="static-config" className="flex items-center gap-2">
+            <File className="h-4 w-4" />
+            Static Config
           </TabsTrigger>
           <TabsTrigger value="dns" className="flex items-center gap-2">
             <CheckCircle className="h-4 w-4" />
@@ -1589,6 +1657,324 @@ export default function TraefikDashboard() {
                 </div>
               </CardContent>
             </Card>
+          )}
+        </TabsContent>
+
+        {/* Static Configuration Tab */}
+        <TabsContent value="static-config" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Static Configuration Management</h2>
+            {selectedInstanceId && (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    staticConfigQueries.createDefault.mutate({ instanceId: selectedInstanceId })
+                  }}
+                  disabled={staticConfigQueries.createDefault.isPending}
+                >
+                  {staticConfigQueries.createDefault.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Plus className="h-4 w-4 mr-2" />
+                  )}
+                  Create Default Config
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    staticConfigQueries.validate.mutate({ instanceId: selectedInstanceId })
+                  }}
+                  disabled={staticConfigQueries.validate.isPending}
+                >
+                  {staticConfigQueries.validate.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                  )}
+                  Validate Config
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {!selectedInstanceId ? (
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-muted-foreground text-center">
+                  Select a Traefik instance to manage its static configuration
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Static Config Overview */}
+              {staticConfigQueries.get.data ? (
+                <Card>
+                  <CardHeader>
+                    <h3 className="text-lg font-semibold">Configuration Overview</h3>
+                    <CardDescription>
+                      Main Traefik static configuration (traefik.yml)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">Version</p>
+                        <p className="text-2xl font-bold">{staticConfigQueries.get.data.configVersion || 1}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">Status</p>
+                        <Badge variant={staticConfigQueries.get.data.isValid ? "default" : "destructive"}>
+                          {staticConfigQueries.get.data.isValid ? "Valid" : "Invalid"}
+                        </Badge>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">Sync Status</p>
+                        <Badge variant={
+                          staticConfigQueries.get.data.syncStatus === 'synced' ? "default" :
+                          staticConfigQueries.get.data.syncStatus === 'failed' ? "destructive" : 
+                          "secondary"
+                        }>
+                          {staticConfigQueries.get.data.syncStatus || 'pending'}
+                        </Badge>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">Last Updated</p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(staticConfigQueries.get.data.updatedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+
+                    {staticConfigQueries.get.data.validationErrors && (
+                      <div className="bg-destructive/10 p-3 rounded-md">
+                        <h4 className="font-medium text-destructive mb-2">Validation Errors:</h4>
+                        <ul className="space-y-1">
+                          {(Array.isArray(staticConfigQueries.get.data.validationErrors) ? 
+                            staticConfigQueries.get.data.validationErrors : 
+                            [staticConfigQueries.get.data.validationErrors]).map((error: any, index: number) => (
+                            <li key={index} className="text-sm text-destructive">• {error}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          staticConfigQueries.getYaml.mutate({ instanceId: selectedInstanceId })
+                        }}
+                        disabled={staticConfigQueries.getYaml.isPending}
+                      >
+                        {staticConfigQueries.getYaml.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <File className="h-4 w-4 mr-2" />
+                        )}
+                        View YAML
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-center space-y-4">
+                      <p className="text-muted-foreground">
+                        No static configuration found for this instance
+                      </p>
+                      <Button
+                        onClick={() => {
+                          staticConfigQueries.createDefault.mutate({ instanceId: selectedInstanceId })
+                        }}
+                        disabled={staticConfigQueries.createDefault.isPending}
+                      >
+                        {staticConfigQueries.createDefault.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <Plus className="h-4 w-4 mr-2" />
+                        )}
+                        Create Default Configuration
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Configuration Sections */}
+              {staticConfigQueries.get.data && (
+                <div className="grid gap-6">
+                  {/* Core Configuration */}
+                  <Card>
+                    <CardHeader>
+                      <h3 className="text-lg font-semibold">Core Configuration</h3>
+                      <CardDescription>
+                        API, entry points, and providers configuration
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">API & Dashboard</Label>
+                          <Badge variant={staticConfigQueries.get.data.apiConfig ? "default" : "secondary"}>
+                            {staticConfigQueries.get.data.apiConfig ? "Configured" : "Not Set"}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Entry Points</Label>
+                          <Badge variant={staticConfigQueries.get.data.entryPointsConfig ? "default" : "secondary"}>
+                            {staticConfigQueries.get.data.entryPointsConfig ? "Configured" : "Not Set"}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Providers</Label>
+                          <Badge variant={staticConfigQueries.get.data.providersConfig ? "default" : "secondary"}>
+                            {staticConfigQueries.get.data.providersConfig ? "Configured" : "Not Set"}
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Observability */}
+                  <Card>
+                    <CardHeader>
+                      <h3 className="text-lg font-semibold">Observability</h3>
+                      <CardDescription>
+                        Logging, metrics, and tracing configuration
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid md:grid-cols-4 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Logging</Label>
+                          <Badge variant={staticConfigQueries.get.data.logConfig ? "default" : "secondary"}>
+                            {staticConfigQueries.get.data.logConfig ? "Configured" : "Not Set"}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Access Logs</Label>
+                          <Badge variant={staticConfigQueries.get.data.accessLogConfig ? "default" : "secondary"}>
+                            {staticConfigQueries.get.data.accessLogConfig ? "Configured" : "Not Set"}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Metrics</Label>
+                          <Badge variant={staticConfigQueries.get.data.metricsConfig ? "default" : "secondary"}>
+                            {staticConfigQueries.get.data.metricsConfig ? "Configured" : "Not Set"}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Tracing</Label>
+                          <Badge variant={staticConfigQueries.get.data.tracingConfig ? "default" : "secondary"}>
+                            {staticConfigQueries.get.data.tracingConfig ? "Configured" : "Not Set"}
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Security & Advanced */}
+                  <Card>
+                    <CardHeader>
+                      <h3 className="text-lg font-semibold">Security & Advanced Features</h3>
+                      <CardDescription>
+                        TLS, certificate resolvers, and plugins
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">TLS Configuration</Label>
+                          <Badge variant={staticConfigQueries.get.data.tlsConfig ? "default" : "secondary"}>
+                            {staticConfigQueries.get.data.tlsConfig ? "Configured" : "Not Set"}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Certificate Resolvers</Label>
+                          <Badge variant={staticConfigQueries.get.data.certificateResolversConfig ? "default" : "secondary"}>
+                            {staticConfigQueries.get.data.certificateResolversConfig ? "Configured" : "Not Set"}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Plugins & Experimental</Label>
+                          <Badge variant={staticConfigQueries.get.data.experimentalConfig ? "default" : "secondary"}>
+                            {staticConfigQueries.get.data.experimentalConfig ? "Configured" : "Not Set"}
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* YAML Display */}
+              {staticConfigQueries.getYaml.data && (
+                <Card>
+                  <CardHeader>
+                    <h3 className="text-lg font-semibold">Generated Configuration (YAML)</h3>
+                    <CardDescription>
+                      Complete traefik.yml configuration generated from database
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <pre className="bg-muted p-4 rounded-md text-sm overflow-auto max-h-96">
+                      <code>{staticConfigQueries.getYaml.data.yaml}</code>
+                    </pre>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Validation Results */}
+              {staticConfigQueries.validate.data && (
+                <Card>
+                  <CardHeader>
+                    <h3 className="text-lg font-semibold">Validation Results</h3>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        {staticConfigQueries.validate.data.isValid ? (
+                          <>
+                            <CheckCircle className="h-5 w-5 text-green-500" />
+                            <span className="font-medium text-green-700">Configuration is valid</span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-5 w-5 text-red-500" />
+                            <span className="font-medium text-red-700">Configuration has issues</span>
+                          </>
+                        )}
+                      </div>
+
+                      {staticConfigQueries.validate.data.errors.length > 0 && (
+                        <div className="bg-destructive/10 p-3 rounded-md">
+                          <h4 className="font-medium text-destructive mb-2">Errors:</h4>
+                          <ul className="space-y-1">
+                            {staticConfigQueries.validate.data.errors.map((error, index) => (
+                              <li key={index} className="text-sm text-destructive">• {error}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {staticConfigQueries.validate.data.warnings && staticConfigQueries.validate.data.warnings.length > 0 && (
+                        <div className="bg-warning/10 p-3 rounded-md">
+                          <h4 className="font-medium text-yellow-700 mb-2">Warnings:</h4>
+                          <ul className="space-y-1">
+                            {staticConfigQueries.validate.data.warnings.map((warning, index) => (
+                              <li key={index} className="text-sm text-yellow-700">• {warning}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
         </TabsContent>
       </Tabs>
