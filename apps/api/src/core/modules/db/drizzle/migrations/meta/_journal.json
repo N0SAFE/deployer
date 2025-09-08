@@ -78,6 +78,20 @@
       "when": 1756204472880,
       "tag": "0010_nifty_sentinels",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1757332542530,
+      "tag": "0011_smooth_synch",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1757367444943,
+      "tag": "0012_soft_grey_gargoyle",
+      "breakpoints": true
     }
   ]
 }
