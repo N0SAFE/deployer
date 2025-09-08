@@ -48,9 +48,34 @@ export const DomainConfigSchema = z.object({
   sslProvider: z.string().nullable(),
   certificatePath: z.string().nullable(),
   middleware: z.any(),
+  // DNS validation fields
+  dnsStatus: z.enum(['pending', 'valid', 'invalid', 'error']).nullable(),
+  dnsRecords: z.any().nullable(),
+  dnsLastChecked: z.date().nullable(),
+  dnsErrorMessage: z.string().nullable(),
   isActive: z.boolean().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
+});
+
+// DNS Check schemas
+export const DNSCheckSchema = z.object({
+  domain: z.string(),
+  recordType: z.enum(['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS']).default('A'),
+});
+
+export const DNSRecordSchema = z.object({
+  type: z.string(),
+  value: z.string(),
+  ttl: z.number().optional(),
+});
+
+export const DNSCheckResultSchema = z.object({
+  domain: z.string(),
+  status: z.enum(['valid', 'invalid', 'error']),
+  records: z.array(DNSRecordSchema),
+  errorMessage: z.string().nullable(),
+  checkedAt: z.date(),
 });
 
 // Route Config schemas

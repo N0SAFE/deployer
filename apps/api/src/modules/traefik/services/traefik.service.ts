@@ -6,6 +6,7 @@ import * as fs from 'fs/promises';
 import { randomUUID } from 'crypto';
 import { DatabaseService } from '../../../core/modules/db/services/database.service';
 import { DockerService } from '../../../core/services/docker.service';
+import { DNSService, DNSCheckResult } from './dns.service';
 import {
   traefikInstances,
   domainConfigs,
@@ -71,6 +72,7 @@ export class TraefikService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly docker: DockerService,
+    private readonly dnsService: DNSService,
   ) {}
 
   /**
@@ -187,6 +189,7 @@ export class TraefikService {
     const id = randomUUID();
     const fullDomain = config.subdomain ? `${config.subdomain}.${config.domain}` : config.domain;
 
+    // Initial domain data with pending DNS status
     const domainData = {
       id,
       traefikInstanceId: instanceId,
@@ -197,6 +200,10 @@ export class TraefikService {
       sslProvider: config.sslProvider || null,
       certificatePath: null, // Will be set when SSL is configured
       middleware: config.middleware || null,
+      dnsStatus: 'pending' as const,
+      dnsRecords: null,
+      dnsLastChecked: null,
+      dnsErrorMessage: null,
       isActive: true,
     };
 
@@ -206,6 +213,12 @@ export class TraefikService {
       .returning();
 
     this.logger.log(`Created domain config ${fullDomain} for instance ${instanceId}`);
+    
+    // Trigger DNS validation in background (don't await to avoid blocking)
+    this.validateDomainDNS(domainConfig.id).catch(error => {
+      this.logger.error(`Background DNS validation failed for ${fullDomain}:`, error);
+    });
+
     return domainConfig;
   }
 
@@ -653,5 +666,93 @@ export class TraefikService {
       this.logger.error(`Failed to unregister deployment ${deploymentId}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Check DNS records for a domain
+   */
+  async checkDNS(domain: string, recordType: 'A' | 'AAAA' | 'CNAME' | 'MX' | 'TXT' | 'NS' = 'A'): Promise<DNSCheckResult> {
+    return await this.dnsService.checkDNS(domain, recordType);
+  }
+
+  /**
+   * Validate DNS records for a specific domain configuration
+   */
+  async validateDomainDNS(domainConfigId: string): Promise<DomainConfig> {
+    const [domainConfig] = await this.databaseService.db
+      .select()
+      .from(domainConfigs)
+      .where(eq(domainConfigs.id, domainConfigId))
+      .limit(1);
+
+    if (!domainConfig) {
+      throw new Error(`Domain configuration not found: ${domainConfigId}`);
+    }
+
+    this.logger.log(`Validating DNS for domain: ${domainConfig.fullDomain}`);
+
+    try {
+      // Check A records for the full domain
+      const dnsResult = await this.dnsService.checkDNS(domainConfig.fullDomain, 'A');
+      
+      // Update domain config with DNS validation results
+      const [updatedDomainConfig] = await this.databaseService.db
+        .update(domainConfigs)
+        .set({
+          dnsStatus: dnsResult.status,
+          dnsRecords: dnsResult.records,
+          dnsLastChecked: dnsResult.checkedAt,
+          dnsErrorMessage: dnsResult.errorMessage,
+          updatedAt: new Date(),
+        })
+        .where(eq(domainConfigs.id, domainConfigId))
+        .returning();
+
+      this.logger.log(`DNS validation completed for ${domainConfig.fullDomain}: ${dnsResult.status}`);
+      return updatedDomainConfig;
+
+    } catch (error) {
+      this.logger.error(`DNS validation failed for ${domainConfig.fullDomain}:`, error);
+      
+      // Update domain config with error status
+      const [updatedDomainConfig] = await this.databaseService.db
+        .update(domainConfigs)
+        .set({
+          dnsStatus: 'error',
+          dnsErrorMessage: error instanceof Error ? error.message : 'Unknown DNS validation error',
+          dnsLastChecked: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(domainConfigs.id, domainConfigId))
+        .returning();
+
+      return updatedDomainConfig;
+    }
+  }
+
+  /**
+   * Bulk validate DNS for all domain configurations
+   */
+  async validateAllDomainDNS(instanceId?: string): Promise<DomainConfig[]> {
+    const conditions = instanceId ? [eq(domainConfigs.traefikInstanceId, instanceId)] : [];
+    
+    const domains = await this.databaseService.db
+      .select()
+      .from(domainConfigs)
+      .where(instanceId ? eq(domainConfigs.traefikInstanceId, instanceId) : undefined);
+
+    const results: DomainConfig[] = [];
+
+    for (const domain of domains) {
+      try {
+        const result = await this.validateDomainDNS(domain.id);
+        results.push(result);
+      } catch (error) {
+        this.logger.error(`Failed to validate DNS for domain ${domain.fullDomain}:`, error);
+        results.push(domain); // Return original domain if validation fails
+      }
+    }
+
+    return results;
   }
 }

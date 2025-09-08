@@ -141,4 +141,23 @@ export class TraefikController {
       await this.traefikService.unregisterDeployment(deploymentId);
     });
   }
+
+  // DNS checking endpoints
+  @Implement(traefikContract.checkDNS)
+  checkDNS() {
+    return implement(traefikContract.checkDNS).handler(async ({ input }) => {
+      const { domain, recordType = 'A' } = input;
+      const result = await this.traefikService.checkDNS(domain, recordType);
+      return result;
+    });
+  }
+
+  @Implement(traefikContract.validateDomainDNS)
+  validateDomainDNS() {
+    return implement(traefikContract.validateDomainDNS).handler(async ({ input }) => {
+      const { domainConfigId } = input;
+      const result = await this.traefikService.validateDomainDNS(domainConfigId);
+      return result;
+    });
+  }
 }

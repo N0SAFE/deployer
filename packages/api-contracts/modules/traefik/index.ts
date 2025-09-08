@@ -13,6 +13,8 @@ import {
 import {
   traefikCreateDomainConfigContract,
   traefikListDomainConfigsContract,
+  traefikCheckDNSContract,
+  traefikValidateDomainDNSContract,
 } from './domain';
 
 import {
@@ -39,6 +41,8 @@ export const traefikContract = oc.tag("Traefik").prefix("/traefik").router({
   // Domain management
   createDomainConfig: traefikCreateDomainConfigContract,
   listDomainConfigs: traefikListDomainConfigsContract,
+  checkDNS: traefikCheckDNSContract,
+  validateDomainDNS: traefikValidateDomainDNSContract,
   
   // Route management
   createRouteConfig: traefikCreateRouteConfigContract,

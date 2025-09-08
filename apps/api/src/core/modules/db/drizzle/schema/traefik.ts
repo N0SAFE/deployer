@@ -2,6 +2,9 @@ import { pgTable, text, boolean, timestamp, jsonb, integer, uuid } from 'drizzle
 import { z } from 'zod';
 import { deployments } from './deployment';
 
+// Create enum for DNS status
+const dnsStatusEnum = ['pending', 'valid', 'invalid', 'error'] as const;
+
 // Traefik Instance table
 export const traefikInstances = pgTable('traefik_instances', {
   id: text('id').primaryKey(),
@@ -32,6 +35,11 @@ export const domainConfigs = pgTable('domain_configs', {
   sslProvider: text('ssl_provider'), // letsencrypt, selfsigned, custom
   certificatePath: text('certificate_path'),
   middleware: jsonb('middleware'), // CORS, auth, rate limiting, etc.
+  // DNS validation fields
+  dnsStatus: text('dns_status', { enum: dnsStatusEnum }).default('pending'), // pending, valid, invalid, error
+  dnsRecords: jsonb('dns_records'), // Store resolved DNS records
+  dnsLastChecked: timestamp('dns_last_checked'),
+  dnsErrorMessage: text('dns_error_message'),
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -105,6 +113,11 @@ export const domainConfigSchema = z.object({
   sslProvider: z.string().nullable(),
   certificatePath: z.string().nullable(),
   middleware: z.any().nullable(),
+  // DNS validation fields
+  dnsStatus: z.enum(['pending', 'valid', 'invalid', 'error']).nullable(),
+  dnsRecords: z.any().nullable(),
+  dnsLastChecked: z.date().nullable(),
+  dnsErrorMessage: z.string().nullable(),
   isActive: z.boolean().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
