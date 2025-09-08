@@ -381,3 +381,27 @@ export const getServiceHealthOutput = z.object({
   uptime: z.number(), // seconds
   containerStatus: z.enum(['running', 'stopped', 'restarting', 'paused', 'exited']),
 });
+
+// Add service log
+export const addServiceLogInput = z.object({
+  serviceId: z.string().uuid(),
+  deploymentId: z.string().uuid(),
+  level: z.enum(['info', 'warn', 'error', 'debug']),
+  message: z.string(),
+  phase: z.string().optional(),
+  step: z.string().optional(),
+  stage: z.string().optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
+});
+
+export const addServiceLogOutput = z.object({
+  id: z.string(),
+  timestamp: z.date(),
+  level: z.enum(['info', 'warn', 'error', 'debug']),
+  message: z.string(),
+  service: z.string().optional(),
+  phase: z.string().optional(),
+  step: z.string().optional(),
+  stage: z.string().optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
+});

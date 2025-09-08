@@ -8,6 +8,8 @@ import {
   createServiceDependencySchema,
   serviceDependencySchema,
   deploymentSummarySchema,
+  addServiceLogInput,
+  addServiceLogOutput,
 } from './schemas';
 
 export const serviceListByProjectInput = z.object({
@@ -188,3 +190,13 @@ export const serviceToggleActiveContract = oc
     })
   )
   .output(serviceSchema);
+
+// Add service log
+export const serviceAddLogContract = oc
+  .route({
+    method: "POST",
+    path: "/logs",
+    summary: "Add service log entry",
+  })
+  .input(addServiceLogInput)
+  .output(addServiceLogOutput);

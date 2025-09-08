@@ -127,45 +127,70 @@ export class DeploymentController {
     return implement(deploymentContract.getLogs).handler(async ({ input }) => {
       this.logger.log(`Getting logs for deployment: ${input.deploymentId}`);
 
-      // TODO: Implement actual deployment log retrieval
+      // TODO: Replace this with real database log retrieval
+      // This should integrate with the ServiceRepository.findDeploymentLogs method
       const mockLogs = [
         {
           id: '1',
-          timestamp: new Date(Date.now() - 120000),
+          timestamp: new Date(Date.now() - 300000), // 5 minutes ago
           level: 'info' as const,
-          message: 'Deployment started',
+          message: 'Starting deployment process',
           service: 'deployment-service',
           stage: 'initialization',
         },
         {
           id: '2',
-          timestamp: new Date(Date.now() - 90000),
+          timestamp: new Date(Date.now() - 240000), // 4 minutes ago
+          level: 'info' as const,
+          message: 'Cloning repository from source',
+          service: 'build-service',
+          stage: 'source',
+        },
+        {
+          id: '3',
+          timestamp: new Date(Date.now() - 180000), // 3 minutes ago
           level: 'info' as const,
           message: 'Building container image',
           service: 'build-service',
           stage: 'build',
         },
         {
-          id: '3',
-          timestamp: new Date(Date.now() - 60000),
+          id: '4',
+          timestamp: new Date(Date.now() - 120000), // 2 minutes ago
           level: 'info' as const,
-          message: 'Pushing image to registry',
-          service: 'registry-service',
-          stage: 'push',
+          message: 'Creating Traefik configuration for service',
+          service: 'traefik-service',
+          stage: 'configuration',
         },
         {
-          id: '4',
-          timestamp: new Date(Date.now() - 30000),
+          id: '5',
+          timestamp: new Date(Date.now() - 90000), // 1.5 minutes ago
           level: 'info' as const,
-          message: 'Deploying to environment',
+          message: 'Registering service with Traefik instance',
+          service: 'traefik-service',
+          stage: 'registration',
+        },
+        {
+          id: '6',
+          timestamp: new Date(Date.now() - 60000), // 1 minute ago
+          level: 'info' as const,
+          message: 'Starting service container',
           service: 'orchestrator-service',
           stage: 'deployment',
         },
         {
-          id: '5',
+          id: '7',
+          timestamp: new Date(Date.now() - 30000), // 30 seconds ago
+          level: 'info' as const,
+          message: 'Service health check passed',
+          service: 'health-check-service',
+          stage: 'validation',
+        },
+        {
+          id: '8',
           timestamp: new Date(),
           level: 'info' as const,
-          message: 'Deployment completed successfully',
+          message: 'Deployment completed successfully - Service available via Traefik',
           service: 'deployment-service',
           stage: 'completion',
         },

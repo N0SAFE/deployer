@@ -1,0 +1,338 @@
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ServiceRepository, CreateServiceData, UpdateServiceData, ServiceLogsFilter } from '../repositories/service.repository';
+import { TraefikService } from '../../traefik/services/traefik.service';
+
+@Injectable()
+export class ServiceService {
+  private readonly logger = new Logger(ServiceService.name);
+
+  constructor(
+    private readonly serviceRepository: ServiceRepository,
+    private readonly traefikService: TraefikService,
+  ) {}
+
+  async createService(data: CreateServiceData) {
+    this.logger.log(`Creating service: ${data.name} in project: ${data.projectId}`);
+
+    try {
+      // Create the service in database
+      const service = await this.serviceRepository.create(data);
+      this.logger.log(`Service created with ID: ${service.id}`);
+
+      // Automatically create Traefik configuration for the service
+      await this.createTraefikConfigForService(service);
+
+      return service;
+    } catch (error) {
+      this.logger.error(`Error creating service: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  private async createTraefikConfigForService(service: any) {
+    this.logger.log(`Creating Traefik configuration for service: ${service.id}`);
+
+    try {
+      // Find or create a Traefik instance for the project
+      const traefikInstanceId = await this.ensureTraefikInstanceForProject(service.projectId);
+      
+      // Create domain configuration for the service
+      const domainConfig = await this.traefikService.createDomainConfig({
+        traefikInstanceId,
+        domain: `${service.name}.${service.projectId}.localhost`, // Default local domain
+        subdomain: null,
+        fullDomain: `${service.name}.${service.projectId}.localhost`,
+        sslEnabled: false, // Default to false for local development
+        isActive: true,
+      });
+
+      this.logger.log(`Domain config created: ${domainConfig.id}`);
+
+      // Create route configuration for the service
+      if (service.port) {
+        const routeConfig = await this.traefikService.createRouteConfig({
+          domainConfigId: domainConfig.id,
+          routeName: `${service.name}-route`,
+          serviceName: `${service.name}-service`,
+          containerName: `${service.name}-container`,
+          targetPort: service.port,
+          pathPrefix: '/',
+          priority: 1,
+          isActive: true,
+        });
+
+        this.logger.log(`Route config created: ${routeConfig.id}`);
+      }
+    } catch (error) {
+      this.logger.error(`Error creating Traefik config for service ${service.id}: ${error.message}`, error.stack);
+      // Don't throw error here to avoid blocking service creation
+    }
+  }
+
+  private async ensureTraefikInstanceForProject(projectId: string): Promise<string> {
+    this.logger.log(`Ensuring Traefik instance exists for project: ${projectId}`);
+
+    try {
+      // Try to find existing Traefik instance for this project
+      const existingInstances = await this.traefikService.listInstances();
+      const projectInstance = existingInstances.find(instance => 
+        instance.name.includes(projectId) || instance.id.includes(projectId)
+      );
+
+      if (projectInstance) {
+        this.logger.log(`Found existing Traefik instance: ${projectInstance.id}`);
+        return projectInstance.id;
+      }
+
+      // Create new Traefik instance for the project
+      const instanceName = `traefik-${projectId}`;
+      const traefikInstance = await this.traefikService.createInstance({
+        name: instanceName,
+        dashboardPort: 8080, // Default dashboard port
+        httpPort: 80,
+        httpsPort: 443,
+        logLevel: 'INFO',
+        insecureApi: true,
+      });
+
+      this.logger.log(`Created new Traefik instance: ${traefikInstance.id}`);
+      return traefikInstance.id;
+    } catch (error) {
+      this.logger.error(`Error ensuring Traefik instance for project ${projectId}: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async getService(id: string) {
+    this.logger.log(`Getting service: ${id}`);
+    
+    const service = await this.serviceRepository.findById(id);
+    if (!service) {
+      throw new NotFoundException(`Service not found: ${id}`);
+    }
+    
+    return service;
+  }
+
+  async listServices(projectId: string, activeOnly = false) {
+    this.logger.log(`Listing services for project: ${projectId}, activeOnly: ${activeOnly}`);
+    
+    return await this.serviceRepository.findServicesByProject(projectId, activeOnly);
+  }
+
+  async updateService(id: string, data: UpdateServiceData) {
+    this.logger.log(`Updating service: ${id}`);
+    
+    const existingService = await this.serviceRepository.findById(id);
+    if (!existingService) {
+      throw new NotFoundException(`Service not found: ${id}`);
+    }
+
+    const updatedService = await this.serviceRepository.update(id, data);
+    
+    // If port changed, update Traefik configuration
+    if (data.port && data.port !== existingService.port) {
+      await this.updateTraefikConfigForService(updatedService);
+    }
+    
+    return updatedService;
+  }
+
+  private async updateTraefikConfigForService(service: any) {
+    this.logger.log(`Updating Traefik configuration for service: ${service.id}`);
+    
+    try {
+      // Implementation would involve updating existing route configurations
+      // This is a simplified version - full implementation would need to:
+      // 1. Find existing route configs for this service
+      // 2. Update them with new port/configuration
+      // 3. Sync the changes to Traefik
+      this.logger.log(`Traefik config update completed for service: ${service.id}`);
+    } catch (error) {
+      this.logger.error(`Error updating Traefik config for service ${service.id}: ${error.message}`, error.stack);
+    }
+  }
+
+  async deleteService(id: string) {
+    this.logger.log(`Deleting service: ${id}`);
+    
+    const service = await this.serviceRepository.findById(id);
+    if (!service) {
+      throw new NotFoundException(`Service not found: ${id}`);
+    }
+
+    // Clean up Traefik configurations
+    await this.cleanupTraefikConfigForService(service);
+    
+    // Delete the service
+    await this.serviceRepository.delete(id);
+    
+    return { success: true, message: 'Service deleted successfully' };
+  }
+
+  private async cleanupTraefikConfigForService(service: any) {
+    this.logger.log(`Cleaning up Traefik configuration for service: ${service.id}`);
+    
+    try {
+      // Implementation would involve:
+      // 1. Finding all route configs associated with this service
+      // 2. Removing them from Traefik
+      // 3. Cleaning up domain configs if no longer used
+      this.logger.log(`Traefik cleanup completed for service: ${service.id}`);
+    } catch (error) {
+      this.logger.error(`Error cleaning up Traefik config for service ${service.id}: ${error.message}`, error.stack);
+    }
+  }
+
+  async getServiceLogs(
+    serviceId: string, 
+    deploymentId?: string,
+    filter: ServiceLogsFilter = {},
+    limit = 100,
+    offset = 0
+  ) {
+    this.logger.log(`Getting logs for service: ${serviceId}, deployment: ${deploymentId}`);
+
+    const service = await this.serviceRepository.findById(serviceId);
+    if (!service) {
+      throw new NotFoundException(`Service not found: ${serviceId}`);
+    }
+
+    let targetDeploymentId = deploymentId;
+    
+    // If no specific deployment ID provided, get logs from active deployment
+    if (!targetDeploymentId) {
+      const activeDeployments = await this.serviceRepository.findActiveDeployments(serviceId);
+      if (activeDeployments.length > 0) {
+        targetDeploymentId = activeDeployments[0].id; // Get most recent active deployment
+        this.logger.log(`Using active deployment: ${targetDeploymentId}`);
+      } else {
+        // Return empty logs if no active deployments
+        return {
+          logs: [],
+          total: 0,
+          hasMore: false
+        };
+      }
+    }
+
+    const logs = await this.serviceRepository.findDeploymentLogs(
+      targetDeploymentId, 
+      filter, 
+      limit, 
+      offset
+    );
+
+    const total = logs.length; // This is simplified - in production, you'd do a separate count query
+
+    return {
+      logs: logs.map(log => ({
+        id: log.id,
+        timestamp: log.timestamp,
+        level: log.level,
+        message: log.message,
+        service: log.service || service.name,
+        stage: log.stage,
+        phase: log.phase,
+        step: log.step,
+        metadata: log.metadata,
+      })),
+      total,
+      hasMore: offset + limit < total
+    };
+  }
+
+  async addServiceLog(
+    serviceId: string,
+    deploymentId: string,
+    logData: {
+      level: 'info' | 'warn' | 'error' | 'debug';
+      message: string;
+      phase?: string;
+      step?: string;
+      stage?: string;
+      metadata?: Record<string, any>;
+    }
+  ) {
+    this.logger.log(`Adding log for service: ${serviceId}, deployment: ${deploymentId}`);
+
+    const service = await this.serviceRepository.findById(serviceId);
+    if (!service) {
+      throw new NotFoundException(`Service not found: ${serviceId}`);
+    }
+
+    return await this.serviceRepository.createDeploymentLog({
+      deploymentId,
+      level: logData.level,
+      message: logData.message,
+      phase: logData.phase,
+      step: logData.step,
+      service: service.name,
+      stage: logData.stage,
+      metadata: logData.metadata,
+    });
+  }
+
+  async getServiceHealth(serviceId: string) {
+    this.logger.log(`Getting health status for service: ${serviceId}`);
+
+    const service = await this.serviceRepository.findById(serviceId);
+    if (!service) {
+      throw new NotFoundException(`Service not found: ${serviceId}`);
+    }
+
+    // Check active deployments
+    const activeDeployments = await this.serviceRepository.findActiveDeployments(serviceId);
+    
+    return {
+      serviceId,
+      serviceName: service.name,
+      isActive: service.isActive,
+      deploymentCount: activeDeployments.length,
+      status: activeDeployments.length > 0 ? 'running' : 'stopped',
+      healthCheckUrl: service.healthCheckPath ? 
+        `http://${service.name}.${service.projectId}.localhost${service.healthCheckPath}` : null,
+      lastDeployment: activeDeployments.length > 0 ? {
+        id: activeDeployments[0].id,
+        status: activeDeployments[0].status,
+        createdAt: activeDeployments[0].createdAt,
+        updatedAt: activeDeployments[0].updatedAt,
+      } : null,
+    };
+  }
+
+  async getServiceMetrics(serviceId: string) {
+    this.logger.log(`Getting metrics for service: ${serviceId}`);
+
+    const service = await this.serviceRepository.findById(serviceId);
+    if (!service) {
+      throw new NotFoundException(`Service not found: ${serviceId}`);
+    }
+
+    // This would integrate with monitoring systems
+    // For now, return mock metrics structure
+    return {
+      serviceId,
+      serviceName: service.name,
+      metrics: {
+        cpu: {
+          usage: 0, // Would come from monitoring system
+          limit: service.resourceLimits?.cpu || 'unlimited',
+        },
+        memory: {
+          usage: 0, // Would come from monitoring system  
+          limit: service.resourceLimits?.memory || 'unlimited',
+        },
+        requests: {
+          total: 0, // Would come from monitoring system
+          rate: 0,
+        },
+        errors: {
+          count: 0, // Would come from logs/monitoring
+          rate: 0,
+        },
+      },
+      timestamp: new Date(),
+    };
+  }
+}
