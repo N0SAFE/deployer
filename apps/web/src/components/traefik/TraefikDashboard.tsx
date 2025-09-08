@@ -1664,46 +1664,71 @@ export default function TraefikDashboard() {
         <TabsContent value="static-config" className="space-y-6">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Static Configuration Management</h2>
-            {selectedInstanceId && (
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    staticConfigQueries.createDefault.mutate({ instanceId: selectedInstanceId })
-                  }}
-                  disabled={staticConfigQueries.createDefault.isPending}
-                >
-                  {staticConfigQueries.createDefault.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <Plus className="h-4 w-4 mr-2" />
-                  )}
-                  Create Default Config
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    staticConfigQueries.validate.mutate({ instanceId: selectedInstanceId })
-                  }}
-                  disabled={staticConfigQueries.validate.isPending}
-                >
-                  {staticConfigQueries.validate.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                  )}
-                  Validate Config
-                </Button>
-              </div>
-            )}
+            <div className="flex gap-2 items-center">
+              <select 
+                value={selectedInstanceId} 
+                onChange={(e) => setSelectedInstanceId(e.target.value)}
+                className="px-3 py-2 border border-gray-200 rounded-md"
+              >
+                <option value="">Select an instance</option>
+                {instances.map(instance => (
+                  <option key={instance.id} value={instance.id}>{instance.name}</option>
+                ))}
+              </select>
+              {selectedInstanceId && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      staticConfigQueries.createDefault.mutate({ instanceId: selectedInstanceId })
+                    }}
+                    disabled={staticConfigQueries.createDefault.isPending}
+                  >
+                    {staticConfigQueries.createDefault.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Plus className="h-4 w-4 mr-2" />
+                    )}
+                    Create Default Config
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      staticConfigQueries.validate.mutate({ instanceId: selectedInstanceId })
+                    }}
+                    disabled={staticConfigQueries.validate.isPending}
+                  >
+                    {staticConfigQueries.validate.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                    )}
+                    Validate Config
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
           {!selectedInstanceId ? (
             <Card>
               <CardContent className="pt-6">
-                <p className="text-muted-foreground text-center">
-                  Select a Traefik instance to manage its static configuration
-                </p>
+                <div className="text-center space-y-4">
+                  <Settings className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+                  <h3 className="text-lg font-semibold mb-2">Select Instance</h3>
+                  <p className="text-muted-foreground">
+                    Choose a Traefik instance from the dropdown above to manage its static configuration
+                  </p>
+                  {instances.length === 0 && (
+                    <div className="mt-4">
+                      <p className="text-sm text-gray-500 mb-3">No instances available. Create one first.</p>
+                      <Button onClick={() => setActiveTab('instances')}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Go to Instances Tab
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ) : (
