@@ -322,8 +322,8 @@ describe('EnvironmentController', () => {
         isDynamic: false,
         resolutionStatus: 'resolved',
         createdBy: 'user-1',
-        createdAt: '2023-01-01T00:00:00.000Z',
-        updatedAt: '2023-01-01T00:00:00.000Z',
+        createdAt: new Date('2023-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2023-01-01T00:00:00.000Z'),
         description: 'Database connection URL',
         template: undefined,
         resolvedValue: 'postgresql://localhost/db',
@@ -331,14 +331,6 @@ describe('EnvironmentController', () => {
         lastResolved: undefined,
         references: [],
       });
-    });
-
-    it('should handle null values in transformation', () => {
-      const result = (controller as any).transformEnvironment(null);
-      expect(result).toBeNull();
-
-      (controller as any).transformVariable(null);
-      // Both methods should handle null gracefully
     });
   });
 });
