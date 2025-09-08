@@ -8,9 +8,7 @@ import {
   domainConfigs,
   routeConfigs,
   type TraefikConfig,
-  type CreateTraefikConfig,
-  type DomainConfig,
-  type RouteConfig
+  type CreateTraefikConfig
 } from '../../../core/modules/db/drizzle/schema/traefik';
 
 export interface TraefikStaticConfig {
@@ -40,7 +38,22 @@ export interface TraefikStaticConfig {
     level?: string;
   };
   certificatesResolvers?: {
-    [key: string]: any;
+    [key: string]: {
+      acme?: {
+        tlsChallenge?: Record<string, unknown>;
+        httpChallenge?: {
+          entryPoint?: string;
+        };
+        dnsChallenge?: {
+          provider?: string;
+          delayBeforeCheck?: number;
+        };
+        email?: string;
+        storage?: string;
+        keyType?: string;
+        caServer?: string;
+      };
+    };
   };
 }
 
@@ -68,7 +81,20 @@ export interface TraefikDynamicConfig {
       };
     };
     middlewares?: {
-      [key: string]: any;
+      [key: string]: {
+        addPrefix?: { prefix: string };
+        stripPrefix?: { prefixes: string[] };
+        replacePath?: { path: string };
+        redirectRegex?: { regex: string; replacement: string };
+        rateLimit?: { burst?: number; average?: number };
+        headers?: {
+          customRequestHeaders?: Record<string, string>;
+          customResponseHeaders?: Record<string, string>;
+        };
+        basicAuth?: { users: string[] };
+        compress?: Record<string, unknown>;
+        [key: string]: unknown;
+      };
     };
   };
 }
@@ -99,6 +125,10 @@ export class DatabaseConfigService {
       requiresFile: true, // Traefik needs static config as file
       syncStatus: 'pending',
       configVersion: 1,
+      isActive: true,
+      lastSyncedAt: null,
+      syncErrorMessage: null,
+      fileChecksum: null,
       metadata: {
         generatedAt: new Date().toISOString(),
         configType: 'static',
@@ -109,7 +139,7 @@ export class DatabaseConfigService {
 
     const [storedConfig] = await this.databaseService.db
       .insert(traefikConfigs)
-      .values(configData)
+      .values(configData as typeof traefikConfigs.$inferInsert)
       .returning();
 
     this.logger.log(`Stored static configuration for instance ${instanceId}: ${configName}`);
@@ -137,6 +167,10 @@ export class DatabaseConfigService {
       requiresFile: true, // Most dynamic configs need files
       syncStatus: 'pending',
       configVersion: 1,
+      isActive: true,
+      lastSyncedAt: null,
+      syncErrorMessage: null,
+      fileChecksum: null,
       metadata: {
         generatedAt: new Date().toISOString(),
         configType: 'dynamic',
@@ -149,7 +183,7 @@ export class DatabaseConfigService {
 
     const [storedConfig] = await this.databaseService.db
       .insert(traefikConfigs)
-      .values(configData)
+      .values(configData as typeof traefikConfigs.$inferInsert)
       .returning();
 
     this.logger.log(`Stored dynamic configuration for instance ${instanceId}: ${configName}`);
@@ -200,7 +234,7 @@ export class DatabaseConfigService {
         const serviceName = route.serviceName;
 
         // Router configuration
-        (dynamicConfig.http!.routers as any)[routerName] = {
+        (dynamicConfig.http!.routers as Record<string, any>)[routerName] = {
           rule: `Host(\`${domain.fullDomain}\`)${route.pathPrefix && route.pathPrefix !== '/' ? ` && PathPrefix(\`${route.pathPrefix}\`)` : ''}`,
           service: serviceName,
           priority: route.priority || 1,
@@ -209,7 +243,7 @@ export class DatabaseConfigService {
 
         // Add TLS if SSL is enabled
         if (domain.sslEnabled) {
-          (dynamicConfig.http!.routers as any)[routerName].tls = {
+          (dynamicConfig.http!.routers as Record<string, any>)[routerName].tls = {
             certResolver: domain.sslProvider || 'letsencrypt'
           };
         }
@@ -219,7 +253,7 @@ export class DatabaseConfigService {
         if (route.middleware && typeof route.middleware === 'object') {
           if (Array.isArray(route.middleware)) {
             middlewares.push(...route.middleware);
-          } else if (route.middleware.middlewares) {
+          } else if ('middlewares' in route.middleware && Array.isArray(route.middleware.middlewares)) {
             middlewares.push(...route.middleware.middlewares);
           }
         }
@@ -231,7 +265,7 @@ export class DatabaseConfigService {
         }
 
         if (middlewares.length > 0) {
-          (dynamicConfig.http!.routers as any)[routerName].middlewares = middlewares;
+          (dynamicConfig.http!.routers as Record<string, any>)[routerName].middlewares = middlewares;
         }
 
         // Service configuration
@@ -239,7 +273,7 @@ export class DatabaseConfigService {
           ? `http://${route.containerName}:${route.targetPort}`
           : `http://localhost:${route.targetPort}`;
 
-        (dynamicConfig.http!.services as any)[serviceName] = {
+        (dynamicConfig.http!.services as Record<string, any>)[serviceName] = {
           loadBalancer: {
             servers: [{ url: targetUrl }]
           }
@@ -247,7 +281,7 @@ export class DatabaseConfigService {
 
         // Add health check if specified
         if (route.healthCheck && typeof route.healthCheck === 'object') {
-          (dynamicConfig.http!.services as any)[serviceName].loadBalancer.healthCheck = route.healthCheck;
+          (dynamicConfig.http!.services as Record<string, any>)[serviceName].loadBalancer.healthCheck = route.healthCheck;
         }
       }
 
@@ -321,7 +355,7 @@ export class DatabaseConfigService {
 
     const newVersion = (existingConfig.configVersion || 1) + 1;
     const updatedMetadata = {
-      ...existingConfig.metadata,
+      ...(existingConfig.metadata && typeof existingConfig.metadata === 'object' ? existingConfig.metadata : {}),
       ...metadata,
       updatedAt: new Date().toISOString(),
       previousVersion: existingConfig.configVersion
@@ -456,7 +490,7 @@ export class DatabaseConfigService {
   /**
    * Get configuration content as parsed object
    */
-  async getConfigurationAsObject(configId: string): Promise<any> {
+  async getConfigurationAsObject(configId: string): Promise<TraefikStaticConfig | TraefikDynamicConfig> {
     const [config] = await this.databaseService.db
       .select()
       .from(traefikConfigs)
@@ -468,7 +502,8 @@ export class DatabaseConfigService {
     }
 
     try {
-      return yaml.load(config.configContent);
+      const parsed = yaml.load(config.configContent);
+      return parsed as TraefikStaticConfig | TraefikDynamicConfig;
     } catch (error) {
       this.logger.error(`Failed to parse configuration ${configId}:`, error);
       throw new Error(`Invalid YAML configuration: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -481,7 +516,7 @@ export class DatabaseConfigService {
   async validateConfiguration(configContent: string): Promise<{
     isValid: boolean;
     errors: string[];
-    parsedConfig?: any;
+    parsedConfig?: TraefikStaticConfig | TraefikDynamicConfig;
   }> {
     const errors: string[] = [];
 
@@ -496,7 +531,7 @@ export class DatabaseConfigService {
       return {
         isValid: errors.length === 0,
         errors,
-        parsedConfig
+        parsedConfig: parsedConfig as TraefikStaticConfig | TraefikDynamicConfig
       };
     } catch (error) {
       errors.push(`YAML parsing error: ${error instanceof Error ? error.message : 'Unknown error'}`);
