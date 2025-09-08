@@ -47,8 +47,6 @@
     "@nestjs/testing": "catalog:api:nest",
     "@types/node": "catalog:build",
     "@types/prompts": "catalog:utils",
-    "@types/supertest": "catalog:testing",
-    "supertest": "catalog:testing",
     "typescript": "catalog:build",
     "rimraf": "catalog:build",
     "vitest": "catalog:testing"
