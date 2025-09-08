@@ -78,20 +78,6 @@
       "when": 1756204472880,
       "tag": "0010_nifty_sentinels",
       "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1757272481897,
-      "tag": "0011_burly_albert_cleary",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "7",
-      "when": 1757282951866,
-      "tag": "0012_clean_epoch",
-      "breakpoints": true
     }
   ]
 }

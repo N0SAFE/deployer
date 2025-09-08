@@ -66,6 +66,53 @@ export const routeConfigs = pgTable('route_configs', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+// Traefik Instance Static Configuration (main traefik.yml config)
+export const traefikStaticConfigs = pgTable('traefik_static_configs', {
+  id: text('id').primaryKey(),
+  traefikInstanceId: text('traefik_instance_id')
+    .references(() => traefikInstances.id, { onDelete: 'cascade' })
+    .notNull()
+    .unique(), // One static config per instance
+  
+  // Core configuration sections
+  globalConfig: jsonb('global_config'), // Global settings
+  apiConfig: jsonb('api_config'), // API and dashboard settings
+  entryPointsConfig: jsonb('entry_points_config'), // Entry points configuration
+  providersConfig: jsonb('providers_config'), // Providers (docker, file, etc.)
+  
+  // Observability
+  logConfig: jsonb('log_config'), // Logging configuration
+  accessLogConfig: jsonb('access_log_config'), // Access logs
+  metricsConfig: jsonb('metrics_config'), // Metrics (prometheus, datadog, etc.)
+  tracingConfig: jsonb('tracing_config'), // Tracing (jaeger, zipkin, etc.)
+  
+  // Security and TLS
+  tlsConfig: jsonb('tls_config'), // TLS configuration
+  certificateResolversConfig: jsonb('certificate_resolvers_config'), // ACME and cert resolvers
+  
+  // Advanced features
+  experimentalConfig: jsonb('experimental_config'), // Experimental features and plugins
+  serversTransportConfig: jsonb('servers_transport_config'), // Server transport config
+  hostResolverConfig: jsonb('host_resolver_config'), // Host resolver config
+  clusterConfig: jsonb('cluster_config'), // Cluster configuration
+  
+  // Full configuration cache (generated from individual sections)
+  fullConfig: jsonb('full_config'), // Complete merged configuration
+  configVersion: integer('config_version').default(1), // Version for tracking changes
+  
+  // File sync status
+  syncStatus: text('sync_status').default('pending'), // pending, synced, failed
+  lastSyncedAt: timestamp('last_synced_at'),
+  syncErrorMessage: text('sync_error_message'),
+  
+  // Validation
+  isValid: boolean('is_valid').default(true),
+  validationErrors: jsonb('validation_errors'), // Configuration validation errors
+  
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 // Traefik Configuration Files (dynamic configs)
 export const traefikConfigs = pgTable('traefik_configs', {
   id: text('id').primaryKey(),
@@ -133,6 +180,46 @@ export const traefikInstanceSchema = z.object({
 export const createTraefikInstanceSchema = traefikInstanceSchema.omit({ 
   createdAt: true, 
   updatedAt: true 
+}).partial({ id: true });
+
+export const traefikStaticConfigSchema = z.object({
+  id: z.string(),
+  traefikInstanceId: z.string(),
+  // Core configuration sections
+  globalConfig: z.any().nullable(),
+  apiConfig: z.any().nullable(),
+  entryPointsConfig: z.any().nullable(),
+  providersConfig: z.any().nullable(),
+  // Observability
+  logConfig: z.any().nullable(),
+  accessLogConfig: z.any().nullable(),
+  metricsConfig: z.any().nullable(),
+  tracingConfig: z.any().nullable(),
+  // Security and TLS
+  tlsConfig: z.any().nullable(),
+  certificateResolversConfig: z.any().nullable(),
+  // Advanced features
+  experimentalConfig: z.any().nullable(),
+  serversTransportConfig: z.any().nullable(),
+  hostResolverConfig: z.any().nullable(),
+  clusterConfig: z.any().nullable(),
+  // Full configuration cache
+  fullConfig: z.any().nullable(),
+  configVersion: z.number().nullable(),
+  // File sync status
+  syncStatus: z.string().nullable(),
+  lastSyncedAt: z.date().nullable(),
+  syncErrorMessage: z.string().nullable(),
+  // Validation
+  isValid: z.boolean().nullable(),
+  validationErrors: z.any().nullable(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export const createTraefikStaticConfigSchema = traefikStaticConfigSchema.omit({
+  createdAt: true,
+  updatedAt: true
 }).partial({ id: true });
 
 export const domainConfigSchema = z.object({
@@ -236,6 +323,9 @@ export const createConfigFileSchema = configFileSchema.omit({
 // TypeScript types
 export type TraefikInstance = z.infer<typeof traefikInstanceSchema>;
 export type CreateTraefikInstance = z.infer<typeof createTraefikInstanceSchema>;
+
+export type TraefikStaticConfig = z.infer<typeof traefikStaticConfigSchema>;
+export type CreateTraefikStaticConfig = z.infer<typeof createTraefikStaticConfigSchema>;
 
 export type DomainConfig = z.infer<typeof domainConfigSchema>;
 export type CreateDomainConfig = z.infer<typeof createDomainConfigSchema>;

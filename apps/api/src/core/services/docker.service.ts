@@ -10,20 +10,45 @@ export class DockerService {
 
   constructor() {
     // Configure Docker connection based on environment
-    if (process.env.NODE_ENV === 'production' || process.env.DOCKER_HOST) {
-      // Use DOCKER_HOST if provided, or default to socket
+    if (process.env.DOCKER_HOST) {
+      // Use DOCKER_HOST if provided
       this.docker = new Docker({
-        host: process.env.DOCKER_HOST || 'unix:///var/run/docker.sock',
+        host: process.env.DOCKER_HOST,
         port: process.env.DOCKER_PORT ? parseInt(process.env.DOCKER_PORT) : undefined
       });
-    } else {
-      // Development: try to connect to Docker socket or default
+      this.logger.log(`Connected to Docker via DOCKER_HOST: ${process.env.DOCKER_HOST}`);
+    } else if (fs.existsSync('/var/run/docker.sock')) {
+      // Check if we're running in a container with mounted Docker socket
       try {
+        // Verify socket permissions
+        const socketStats = fs.statSync('/var/run/docker.sock');
+        this.logger.log(`Docker socket found - mode: ${socketStats.mode.toString(8)}, uid: ${socketStats.uid}, gid: ${socketStats.gid}`);
+        
         this.docker = new Docker({ socketPath: '/var/run/docker.sock' });
-      } catch {
-        this.logger.warn('Failed to connect via socket, using default Docker connection');
+        this.logger.log('Connected to Docker via mounted socket');
+      } catch (error) {
+        this.logger.error('Failed to access Docker socket:', error);
+        // Fallback to default Docker connection
         this.docker = new Docker();
       }
+    } else {
+      // Fallback to default Docker connection
+      this.logger.warn('Docker socket not found, using default connection');
+      this.docker = new Docker();
+    }
+  }
+
+  /**
+   * Test Docker connection and log connection status
+   */
+  async testConnection(): Promise<boolean> {
+    try {
+      await this.docker.ping();
+      this.logger.log('Docker connection successful');
+      return true;
+    } catch (error) {
+      this.logger.error('Docker connection failed:', error);
+      return false;
     }
   }
 
@@ -251,6 +276,18 @@ CMD ["npm", "start"]
     } catch (error) {
       this.logger.error(`Failed to get container info for ${containerId}:`, error);
       throw error;
+    }
+  }
+
+  async listContainers(options: any = {}): Promise<any[]> {
+    try {
+      // Force the typing since TypeScript is having issues with dockerode
+      const dockerInstance = this.docker as any;
+      const containers = await dockerInstance.listContainers(options);
+      return containers || [];
+    } catch (error) {
+      this.logger.error('Failed to list containers:', error);
+      return [];
     }
   }
 

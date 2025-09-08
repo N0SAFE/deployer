@@ -11,32 +11,347 @@ import {
   type CreateTraefikConfig
 } from '../../../core/modules/db/drizzle/schema/traefik';
 
+// Forward declaration to avoid circular dependency
+interface IConfigFileSyncService {
+  checkForDuplicateBeforeCreate(
+    instanceId: string,
+    configPath: string,
+    configContent: string,
+    configName: string
+  ): Promise<{
+    shouldCreate: boolean;
+    existingId?: string;
+    message: string;
+  }>;
+  updateConfigurationContent(
+    configId: string,
+    newContent: string,
+    configName: string
+  ): Promise<void>;
+}
+
 export interface TraefikStaticConfig {
+  // Global configuration
   global?: {
     sendAnonymousUsage?: boolean;
   };
+
+  // API and Dashboard
   api?: {
     dashboard?: boolean;
     insecure?: boolean;
+    debug?: boolean;
   };
+
+  // Entry Points
   entryPoints?: {
     [key: string]: {
       address: string;
+      http?: {
+        redirections?: {
+          entryPoint?: {
+            to: string;
+            scheme?: string;
+            permanent?: boolean;
+            priority?: number;
+          };
+        };
+        middlewares?: string[];
+        tls?: {
+          options?: string;
+          certResolver?: string;
+          domains?: Array<{
+            main: string;
+            sans?: string[];
+          }>;
+        };
+      };
+      proxyProtocol?: {
+        version?: number;
+        insecure?: boolean;
+        trustedIPs?: string[];
+      };
+      forwardedHeaders?: {
+        trustedIPs?: string[];
+        insecure?: boolean;
+      };
+      transport?: {
+        lifeCycle?: {
+          requestAcceptGraceTimeout?: string;
+          graceTimeOut?: string;
+        };
+        respondingTimeouts?: {
+          readTimeout?: string;
+          writeTimeout?: string;
+          idleTimeout?: string;
+        };
+      };
     };
   };
+
+  // Providers
   providers?: {
     docker?: {
       endpoint?: string;
       exposedByDefault?: boolean;
+      network?: string;
+      defaultRule?: string;
+      constraints?: string;
+      watch?: boolean;
+      pollInterval?: string;
+      swarmMode?: boolean;
+      swarmModeRefreshSeconds?: string;
+      httpClientTimeout?: string;
+      tls?: {
+        cert?: string;
+        key?: string;
+        ca?: string;
+        caOptional?: boolean;
+        insecureSkipVerify?: boolean;
+      };
     };
     file?: {
       directory?: string;
       watch?: boolean;
+      filename?: string;
+      debugLogGeneratedTemplate?: boolean;
+    };
+    consulCatalog?: {
+      endpoints?: string[];
+      rootKey?: string;
+      username?: string;
+      password?: string;
+      watch?: boolean;
+      prefix?: string;
+      exposedByDefault?: boolean;
+      defaultRule?: string;
+      constraints?: string;
+      stale?: boolean;
+      pollInterval?: string;
+    };
+    kubernetes?: {
+      endpoint?: string;
+      token?: string;
+      certAuthFilePath?: string;
+      namespaces?: string[];
+      labelSelector?: string;
+      ingressClass?: string;
+      throttleDuration?: string;
+      allowCrossNamespace?: boolean;
+      allowExternalNameServices?: boolean;
     };
   };
+
+  // Logging
   log?: {
-    level?: string;
+    level?: 'ERROR' | 'WARN' | 'INFO' | 'DEBUG';
+    format?: 'json' | 'common';
+    filePath?: string;
+    bufferingSize?: number;
+    compress?: boolean;
+    maxSize?: number;
+    maxAge?: number;
+    maxBackups?: number;
+    localTime?: boolean;
   };
+
+  // Access Logs
+  accessLog?: {
+    filePath?: string;
+    format?: 'json' | 'common';
+    bufferingSize?: number;
+    compress?: boolean;
+    maxSize?: number;
+    maxAge?: number;
+    maxBackups?: number;
+    localTime?: boolean;
+    filters?: {
+      statusCodes?: string[];
+      retryAttempts?: boolean;
+      minDuration?: string;
+    };
+    fields?: {
+      defaultMode?: 'keep' | 'drop';
+      names?: Record<string, 'keep' | 'drop'>;
+      headers?: {
+        defaultMode?: 'keep' | 'drop';
+        names?: Record<string, 'keep' | 'drop'>;
+      };
+    };
+  };
+
+  // Metrics
+  metrics?: {
+    prometheus?: {
+      addEntryPointsLabels?: boolean;
+      addServicesLabels?: boolean;
+      buckets?: number[];
+      entryPoint?: string;
+      manualRouting?: boolean;
+      headerLabels?: Record<string, string>;
+    };
+    datadog?: {
+      address?: string;
+      pushInterval?: string;
+      addEntryPointsLabels?: boolean;
+      addServicesLabels?: boolean;
+      prefix?: string;
+    };
+    statsD?: {
+      address?: string;
+      pushInterval?: string;
+      addEntryPointsLabels?: boolean;
+      addServicesLabels?: boolean;
+      prefix?: string;
+    };
+    influxDB?: {
+      address?: string;
+      protocol?: string;
+      pushInterval?: string;
+      database?: string;
+      retentionPolicy?: string;
+      username?: string;
+      password?: string;
+      addEntryPointsLabels?: boolean;
+      addServicesLabels?: boolean;
+    };
+    influxDB2?: {
+      address?: string;
+      token?: string;
+      pushInterval?: string;
+      org?: string;
+      bucket?: string;
+      addEntryPointsLabels?: boolean;
+      addServicesLabels?: boolean;
+    };
+    otlp?: {
+      http?: {
+        endpoint?: string;
+        headers?: Record<string, string>;
+        tls?: {
+          cert?: string;
+          key?: string;
+          ca?: string;
+          insecureSkipVerify?: boolean;
+        };
+      };
+      grpc?: {
+        endpoint?: string;
+        headers?: Record<string, string>;
+        tls?: {
+          cert?: string;
+          key?: string;
+          ca?: string;
+          insecureSkipVerify?: boolean;
+        };
+      };
+      pushInterval?: string;
+      addEntryPointsLabels?: boolean;
+      addServicesLabels?: boolean;
+    };
+  };
+
+  // Tracing
+  tracing?: {
+    serviceName?: string;
+    spanNameLimit?: number;
+    jaeger?: {
+      samplingServerURL?: string;
+      samplingType?: string;
+      samplingParam?: number;
+      localAgentHostPort?: string;
+      gen128Bit?: boolean;
+      propagation?: string;
+      traceContextHeaderName?: string;
+      disableAttemptReconnecting?: boolean;
+      collector?: {
+        endpoint?: string;
+        user?: string;
+        password?: string;
+      };
+    };
+    zipkin?: {
+      httpEndpoint?: string;
+      sameSpan?: boolean;
+      id128Bit?: boolean;
+      sampleRate?: number;
+    };
+    datadog?: {
+      localAgentHostPort?: string;
+      debug?: boolean;
+      globalTag?: string;
+      prioritySampling?: boolean;
+    };
+    instana?: {
+      localAgentHost?: string;
+      localAgentPort?: number;
+      logLevel?: string;
+    };
+    haystack?: {
+      localAgentHost?: string;
+      localAgentPort?: number;
+      globalTag?: string;
+      traceIDHeaderName?: string;
+      parentIDHeaderName?: string;
+      spanIDHeaderName?: string;
+      baggagePrefixHeaderName?: string;
+    };
+    elastic?: {
+      serverURL?: string;
+      secretToken?: string;
+      serviceEnvironment?: string;
+    };
+    otlp?: {
+      http?: {
+        endpoint?: string;
+        headers?: Record<string, string>;
+        tls?: {
+          cert?: string;
+          key?: string;
+          ca?: string;
+          insecureSkipVerify?: boolean;
+        };
+      };
+      grpc?: {
+        endpoint?: string;
+        headers?: Record<string, string>;
+        tls?: {
+          cert?: string;
+          key?: string;
+          ca?: string;
+          insecureSkipVerify?: boolean;
+        };
+      };
+    };
+  };
+
+  // TLS
+  tls?: {
+    stores?: {
+      [key: string]: {
+        defaultCertificate?: {
+          certFile?: string;
+          keyFile?: string;
+        };
+      };
+    };
+    options?: {
+      [key: string]: {
+        minVersion?: string;
+        maxVersion?: string;
+        cipherSuites?: string[];
+        curvePreferences?: string[];
+        clientAuth?: {
+          caFiles?: string[];
+          clientAuthType?: string;
+        };
+        sniStrict?: boolean;
+        alpnProtocols?: string[];
+      };
+    };
+  };
+
+  // Certificate Resolvers
   certificatesResolvers?: {
     [key: string]: {
       acme?: {
@@ -46,14 +361,72 @@ export interface TraefikStaticConfig {
         };
         dnsChallenge?: {
           provider?: string;
-          delayBeforeCheck?: number;
+          delayBeforeCheck?: string;
+          resolvers?: string[];
+          disablePropagationCheck?: boolean;
         };
         email?: string;
         storage?: string;
-        keyType?: string;
+        keyType?: 'EC256' | 'EC384' | 'RSA2048' | 'RSA4096' | 'RSA8192';
         caServer?: string;
+        preferredChain?: string;
+        certificatesDuration?: number;
+        eab?: {
+          kid?: string;
+          hmacEncoded?: string;
+        };
       };
     };
+  };
+
+  // Experimental features and plugins
+  experimental?: {
+    plugins?: {
+      [pluginName: string]: {
+        moduleName?: string;
+        version?: string;
+        settings?: Record<string, unknown>;
+      };
+    };
+    localPlugins?: {
+      [pluginName: string]: {
+        moduleName?: string;
+        settings?: Record<string, unknown>;
+      };
+    };
+    http3?: boolean;
+    kubernetesGateway?: boolean;
+  };
+
+  // Pilot (deprecated but might be used)
+  pilot?: {
+    token?: string;
+    dashboard?: boolean;
+  };
+
+  // Server Transport
+  serversTransport?: {
+    insecureSkipVerify?: boolean;
+    rootCAs?: string[];
+    maxIdleConnsPerHost?: number;
+    forwardingTimeouts?: {
+      dialTimeout?: string;
+      responseHeaderTimeout?: string;
+      idleConnTimeout?: string;
+    };
+  };
+
+  // Cluster configuration
+  cluster?: {
+    store?: string;
+    prefix?: string;
+  };
+
+  // Host resolver
+  hostResolver?: {
+    cnameFlattening?: boolean;
+    resolvConfig?: string;
+    resolvDepth?: number;
   };
 }
 
@@ -106,14 +479,50 @@ export class DatabaseConfigService {
   constructor(private readonly databaseService: DatabaseService) {}
 
   /**
-   * Store static configuration in database
+   * Store static configuration in database with deduplication
    */
   async storeStaticConfiguration(
     instanceId: string,
     config: TraefikStaticConfig,
-    configName: string = 'traefik-static'
+    configName: string = 'traefik-static',
+    configFileSyncService?: IConfigFileSyncService
   ): Promise<TraefikConfig> {
     const configContent = yaml.dump(config);
+    const expectedPath = `${instanceId}/static/${configName}.yml`;
+
+    // Check for duplicates if sync service is available
+    if (configFileSyncService) {
+      const duplicateCheck = await configFileSyncService.checkForDuplicateBeforeCreate(
+        instanceId,
+        expectedPath,
+        configContent,
+        configName
+      );
+
+      if (!duplicateCheck.shouldCreate && duplicateCheck.existingId) {
+        this.logger.log(`Using existing static configuration ${duplicateCheck.existingId}: ${duplicateCheck.message}`);
+        
+        // Return the existing configuration
+        const [existing] = await this.databaseService.db
+          .select()
+          .from(traefikConfigs)
+          .where(eq(traefikConfigs.id, duplicateCheck.existingId))
+          .limit(1);
+
+        if (existing) {
+          // Update content if it's different (path conflict case)
+          if (existing.configContent !== configContent) {
+            await configFileSyncService.updateConfigurationContent(
+              duplicateCheck.existingId,
+              configContent,
+              configName
+            );
+            this.logger.log(`Updated existing static configuration ${duplicateCheck.existingId} with new content`);
+          }
+          return existing;
+        }
+      }
+    }
     
     const configData: CreateTraefikConfig = {
       id: randomUUID(),
@@ -147,15 +556,51 @@ export class DatabaseConfigService {
   }
 
   /**
-   * Store dynamic configuration in database
+   * Store dynamic configuration in database with deduplication
    */
   async storeDynamicConfiguration(
     instanceId: string,
     config: TraefikDynamicConfig,
     configName: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, any>,
+    configFileSyncService?: IConfigFileSyncService
   ): Promise<TraefikConfig> {
     const configContent = yaml.dump(config);
+    const expectedPath = `${instanceId}/dynamic/${configName}.yml`;
+
+    // Check for duplicates if sync service is available
+    if (configFileSyncService) {
+      const duplicateCheck = await configFileSyncService.checkForDuplicateBeforeCreate(
+        instanceId,
+        expectedPath,
+        configContent,
+        configName
+      );
+
+      if (!duplicateCheck.shouldCreate && duplicateCheck.existingId) {
+        this.logger.log(`Using existing dynamic configuration ${duplicateCheck.existingId}: ${duplicateCheck.message}`);
+        
+        // Return the existing configuration
+        const [existing] = await this.databaseService.db
+          .select()
+          .from(traefikConfigs)
+          .where(eq(traefikConfigs.id, duplicateCheck.existingId))
+          .limit(1);
+
+        if (existing) {
+          // Update content if it's different (path conflict case)
+          if (existing.configContent !== configContent) {
+            await configFileSyncService.updateConfigurationContent(
+              duplicateCheck.existingId,
+              configContent,
+              configName
+            );
+            this.logger.log(`Updated existing dynamic configuration ${duplicateCheck.existingId} with new content`);
+          }
+          return existing;
+        }
+      }
+    }
     
     const configData: CreateTraefikConfig = {
       id: randomUUID(),
@@ -437,7 +882,7 @@ export class DatabaseConfigService {
         }
       },
       log: {
-        level: instance.logLevel || 'INFO'
+        level: instance.logLevel as 'INFO' || 'INFO'
       }
     };
 

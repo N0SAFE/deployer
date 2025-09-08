@@ -817,7 +817,7 @@ export default function TraefikDashboard() {
                     <CardContent>
                       <div className="flex items-center gap-4 text-sm text-gray-600">
                         <span>Dashboard Port: {instance.dashboardPort || 'Not configured'}</span>
-                        <span>Created: {instance.createdAt.toLocaleDateString()}</span>
+                        <span>Created: {new Date(instance.createdAt).toLocaleDateString()}</span>
                       </div>
                     </CardContent>
                   )}

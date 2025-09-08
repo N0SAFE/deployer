@@ -14,7 +14,6 @@ import {
   traefikInstances,
   domainConfigs,
   routeConfigs,
-  traefikConfigs,
   type TraefikInstance,
   type DomainConfig,
   type RouteConfig,
@@ -69,7 +68,7 @@ export interface DeploymentRegistrationInput {
 export class TraefikService {
   private readonly logger = new Logger(TraefikService.name);
   private readonly traefikImage = 'traefik:v3.2';
-  private readonly configBasePath = '/tmp/traefik-configs';
+  private readonly configBasePath = './traefik-configs';
   private readonly baseDomain = process.env.TRAEFIK_BASE_DOMAIN || 'localhost';
 
   constructor(
@@ -162,7 +161,13 @@ export class TraefikService {
     }
 
     try {
-      // Generate static configuration in database
+      // First update the instance status to 'running'
+      await this.databaseService.db
+        .update(traefikInstances)
+        .set({ status: 'running' })
+        .where(eq(traefikInstances.id, instanceId));
+
+      // Generate static configuration if needed
       await this.databaseConfigService.generateStaticConfigForInstance(instanceId, {
         dashboardPort: instance.dashboardPort || 8080,
         httpPort: instance.httpPort || 80,
@@ -172,52 +177,51 @@ export class TraefikService {
         insecureApi: instance.insecureApi || false,
       });
 
-      // Generate dynamic configurations from current database state
-      await this.databaseConfigService.generateDynamicConfigFromDatabase(instanceId);
+      // Only generate dynamic configurations if none exist
+      // This prevents creating duplicate configurations
+      const existingConfigs = await this.databaseConfigService.getConfigurationsByType(instanceId, 'dynamic');
+      if (existingConfigs.length === 0) {
+        await this.databaseConfigService.generateDynamicConfigFromDatabase(instanceId);
+      }
 
-      // Sync all configurations to files
-      const syncResults = await this.configFileSyncService.syncInstanceConfigurations(instanceId, {
-        forceSync: true,
-        createDirectories: true,
-        backupExisting: false
-      });
+      // Perform full sync with cleanup - database is source of truth
+      const syncResults = await this.configFileSyncService.fullSyncWithCleanup(instanceId);
 
       // Log sync results
-      const successful = syncResults.filter(r => r.success).length;
-      const failed = syncResults.filter(r => !r.success).length;
-      this.logger.log(`Configuration sync completed: ${successful} successful, ${failed} failed`);
+      this.logger.log(`Full sync with cleanup completed: ${syncResults.successful} synced, ${syncResults.failed} failed, ${syncResults.removedOrphans.length} orphans removed`);
 
-      if (failed > 0) {
+      if (syncResults.failed > 0) {
         this.logger.warn(`Some configurations failed to sync, but proceeding with container start`);
       }
 
-      // Get the static config file path for container startup
-      const staticConfigs = await this.databaseConfigService.getConfigurationsByType(instanceId, 'static');
-      let configPath = this.configBasePath; // Default fallback
-
-      if (staticConfigs.length > 0 && staticConfigs[0].configPath) {
-        configPath = path.dirname(path.resolve(this.configBasePath, staticConfigs[0].configPath));
+      // Test Docker connection before attempting to work with containers
+      const dockerConnected = await this.docker.testConnection();
+      if (!dockerConnected) {
+        throw new Error('Cannot start Traefik instance: Docker connection failed');
       }
       
-      // Create and start container
-      const container = await this.createTraefikContainer(instance, configPath);
+      // Find the existing Traefik container
+      const traefikContainer = await this.findTraefikContainer();
+      if (!traefikContainer) {
+        throw new Error('Traefik container not found. Please ensure Traefik is running via docker-compose.');
+      }
       
-      // Update instance with container ID and status
+      // Update instance with container ID and final status
       const [updatedInstance] = await this.databaseService.db
         .update(traefikInstances)
         .set({ 
-          containerId: container.id,
+          containerId: traefikContainer.Id,
           status: 'running',
           config: { 
-            configPath,
-            configCount: syncResults.length,
+            configPath: this.configBasePath,
+            configCount: syncResults.total,
             lastConfigSync: new Date().toISOString()
           }
         })
         .where(eq(traefikInstances.id, instanceId))
         .returning();
 
-      this.logger.log(`Started Traefik instance ${instanceId} with ${syncResults.length} configurations`);
+      this.logger.log(`Started Traefik instance ${instanceId} with ${syncResults.total} configurations`);
       return updatedInstance;
       
     } catch (error) {
@@ -234,29 +238,33 @@ export class TraefikService {
   }
 
   /**
-   * Stop a Traefik instance
+   * Stop a Traefik instance (deactivate configurations and remove files)
    */
   async stopInstance(instanceId: string): Promise<TraefikInstance> {
     const instance = await this.getInstance(instanceId);
     
-    if (!instance.containerId) {
-      this.logger.log(`Instance ${instanceId} has no container to stop`);
-      return instance;
-    }
-
     try {
-      await this.docker.stopContainer(instance.containerId);
-      
+      // First, update the instance status to 'stopped'
       const [updatedInstance] = await this.databaseService.db
         .update(traefikInstances)
         .set({ 
           status: 'stopped',
-          containerId: null 
+          config: { 
+            ...instance.config,
+            lastConfigUpdate: new Date().toISOString()
+          }
         })
         .where(eq(traefikInstances.id, instanceId))
         .returning();
 
-      this.logger.log(`Stopped Traefik instance ${instanceId}`);
+      // Now trigger sync - since instance is stopped, all config files will be removed
+      const syncResults = await this.configFileSyncService.fullSyncWithCleanup(instanceId);
+      
+      this.logger.log(
+        `Stopped Traefik instance ${instanceId}: ${syncResults.total} configurations processed, ` +
+        `${syncResults.removedOrphans.length} files removed`
+      );
+
       return updatedInstance;
       
     } catch (error) {
@@ -388,18 +396,15 @@ export class TraefikService {
       // Regenerate all dynamic configurations from database state
       const result = await this.databaseConfigService.regenerateInstanceConfigurations(instanceId);
       
-      // Sync the updated configurations to files
-      const syncResults = await this.configFileSyncService.syncInstanceConfigurations(instanceId, {
-        forceSync: false, // Only sync changed configurations
-        createDirectories: true,
-        validateChecksum: true
-      });
+      // Perform full sync with cleanup - database is source of truth
+      const syncResults = await this.configFileSyncService.fullSyncWithCleanup(instanceId);
 
-      const successful = syncResults.filter(r => r.success).length;
-      const failed = syncResults.filter(r => !r.success).length;
+      if (syncResults.failed > 0) {
+        this.logger.warn(`Some configuration files failed to sync: ${syncResults.failed} failed, ${syncResults.successful} successful`);
+      }
 
-      if (failed > 0) {
-        this.logger.warn(`Some configuration files failed to sync: ${failed} failed, ${successful} successful`);
+      if (syncResults.removedOrphans.length > 0) {
+        this.logger.log(`Cleaned up ${syncResults.removedOrphans.length} orphaned configuration files`);
       }
 
       // Update instance timestamp to indicate configuration change
@@ -411,14 +416,14 @@ export class TraefikService {
             ...(typeof this.getInstance(instanceId).then(i => i.config) === 'object' ? await this.getInstance(instanceId).then(i => i.config) : {}),
             lastConfigUpdate: new Date().toISOString(),
             configCount: result.generated,
-            syncStatus: failed === 0 ? 'synced' : 'partial'
+            syncStatus: syncResults.failed === 0 ? 'synced' : 'partial'
           }
         })
         .where(eq(traefikInstances.id, instanceId));
 
       this.logger.log(
         `Updated dynamic config for instance ${instanceId}: ` +
-        `${result.deactivated} deactivated, ${result.generated} generated, ${successful} synced`
+        `${result.deactivated} deactivated, ${result.generated} generated, ${syncResults.successful} synced`
       );
     } catch (error) {
       this.logger.error(`Failed to update dynamic config for instance ${instanceId}:`, error);
@@ -589,6 +594,36 @@ export class TraefikService {
       .where(eq(domainConfigs.id, domainConfigId));
 
     this.logger.log(`Deleted domain config ${domainConfigId}`);
+  }
+
+  /**
+   * Find the existing Traefik container from docker-compose
+   */
+  private async findTraefikContainer(): Promise<any> {
+    try {
+      const containers = await this.docker.listContainers({
+        all: true,
+        filters: {
+          name: ['traefik-dev', 'traefik']
+        }
+      });
+      
+      // Look for a running Traefik container
+      const traefikContainer = containers.find(container => 
+        container.Names.some(name => name.includes('traefik')) &&
+        container.State === 'running'
+      );
+      
+      if (traefikContainer) {
+        this.logger.log(`Found running Traefik container: ${traefikContainer.Names[0]}`);
+        return traefikContainer;
+      }
+      
+      return null;
+    } catch (error) {
+      this.logger.error('Failed to find Traefik container:', error);
+      return null;
+    }
   }
 
   /**
@@ -846,8 +881,6 @@ export class TraefikService {
    * Bulk validate DNS for all domain configurations
    */
   async validateAllDomainDNS(instanceId?: string): Promise<DomainConfig[]> {
-    const conditions = instanceId ? [eq(domainConfigs.traefikInstanceId, instanceId)] : [];
-    
     const domains = await this.databaseService.db
       .select()
       .from(domainConfigs)
@@ -938,11 +971,13 @@ export class TraefikService {
 
   /**
    * Force sync all configurations for an instance
+   * Uses fullSyncWithCleanup to ensure database is source of truth
    */
   async forceSyncInstanceConfigurations(instanceId: string): Promise<{
     total: number;
     successful: number;
     failed: number;
+    removedOrphans: string[];
     results: Array<{
       configId: string;
       configName: string;
@@ -951,45 +986,31 @@ export class TraefikService {
       message?: string;
     }>;
   }> {
+    // Use fullSyncWithCleanup to ensure database is source of truth
+    const syncResults = await this.configFileSyncService.fullSyncWithCleanup(instanceId);
+    
+    // Get config details for detailed results
     const configs = await this.getInstanceConfigurations(instanceId);
-    const results: Array<{
-      configId: string;
-      configName: string;
-      success: boolean;
-      action: string;
-      message?: string;
-    }> = [];
-
-    let successful = 0;
-    let failed = 0;
-
-    for (const config of configs) {
-      const syncResult = await this.configFileSyncService.syncConfigurationToFile(config.id, {
-        forceSync: true,
-        createDirectories: true,
-        backupExisting: true,
-        validateChecksum: true
-      });
-
-      results.push({
-        configId: config.id,
-        configName: config.configName,
-        success: syncResult.success,
-        action: syncResult.action,
-        message: syncResult.message
-      });
-
-      if (syncResult.success) {
-        successful++;
-      } else {
-        failed++;
-      }
-    }
+    const configMap = new Map(configs.map(c => [c.configPath, c]));
+    
+    const results = syncResults.syncResults.map(result => {
+      const relativePath = result.filePath ? path.relative(this.configFileSyncService['basePath'] || '', result.filePath) : '';
+      const config = configMap.get(relativePath);
+      
+      return {
+        configId: config?.id || 'unknown',
+        configName: config?.configName || path.basename(result.filePath || 'unknown', '.yml'),
+        success: result.success,
+        action: result.action,
+        message: result.message
+      };
+    });
 
     return {
-      total: configs.length,
-      successful,
-      failed,
+      total: syncResults.total,
+      successful: syncResults.successful,
+      failed: syncResults.failed,
+      removedOrphans: syncResults.removedOrphans,
       results
     };
   }

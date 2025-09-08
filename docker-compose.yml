@@ -42,9 +42,12 @@ services:
             tags:
               - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-dev:latest"
               - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-dev:${API_VERSION:-dev}"
-        user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+        # Run as root to access Docker socket (required for Traefik container management)
+        # user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
         depends_on:
             api-db-dev:
+                condition: service_healthy
+            traefik-dev:
                 condition: service_healthy
             # api-cache-dev:
             #     condition: service_healthy
@@ -55,6 +58,10 @@ services:
             - "${API_PORT:-3005}:${API_PORT:-3005}"
             - "${DRIZZLE_STUDIO_PORT:-4983}:4983"
         volumes:
+            # Mount Docker socket for container management
+            - /var/run/docker.sock:/var/run/docker.sock
+            # Mount shared Traefik configuration volume
+            - traefik_configs_dev:/app/traefik-configs
             # Mount source code for hot reloading
             - ./apps/api:/app/apps/api
             # Mount essential configuration files needed for NestJS build
@@ -87,6 +94,7 @@ services:
             # Traefik Configuration
             TRAEFIK_DOMAIN: ${TRAEFIK_DOMAIN:-localhost}
             TRAEFIK_ACME_EMAIL: ${TRAEFIK_ACME_EMAIL:-admin@localhost}
+            TRAEFIK_CONFIG_BASE_PATH: /app/traefik-configs
             # Turbo Remote Cache Configuration
             TURBO_TOKEN: ${TURBO_TOKEN}
             TURBO_TEAM: ${TURBO_TEAM}
@@ -96,6 +104,41 @@ services:
             interval: 15s
             timeout: 15s
             retries: 5
+        networks:
+            - app_network_dev
+
+    # Traefik reverse proxy for development
+    traefik-dev:
+        container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-traefik-dev
+        image: traefik:v3.2
+        restart: unless-stopped
+        ports:
+            - "80:80"   # HTTP (using different port to avoid conflicts)
+            - "443:443"  # HTTPS (using different port to avoid conflicts) 
+            - "8080:8080" # Traefik Dashboard
+        volumes:
+            # Mount Docker socket for auto-discovery
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+            # Mount shared configuration volume
+            - traefik_configs_dev:/etc/traefik/dynamic:ro
+        command:
+            - --api.dashboard=true
+            - --api.insecure=true
+            - --providers.docker=true
+            - --providers.docker.exposedbydefault=false
+            - --providers.file.directory=/etc/traefik/dynamic
+            - --providers.file.watch=true
+            - --entrypoints.web.address=:80
+            - --entrypoints.websecure.address=:443
+            - --log.level=INFO
+        healthcheck:
+            test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/api/rawdata || exit 1"]
+            start_period: 30s
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        labels:
+            - "traefik.enable=false"  # Don't proxy Traefik itself
         networks:
             - app_network_dev
 
@@ -204,6 +247,8 @@ networks:
 volumes:
     api_db_data_dev:
         name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_db_data_dev
+    traefik_configs_dev:
+        name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_traefik_configs_dev
     bun_cache_dev:
         name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_bun_cache_dev
     turbo_cache_dev:

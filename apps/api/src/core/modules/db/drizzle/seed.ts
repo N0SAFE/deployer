@@ -10,7 +10,9 @@ import {
   previewEnvironments,
   traefikInstances,
   domainConfigs,
-  routeConfigs
+  routeConfigs,
+  traefikConfigs,
+  configFiles
 } from './schema';
 import { nanoid } from 'nanoid';
 
@@ -385,6 +387,132 @@ async function seed() {
     await db.insert(routeConfigs).values(routeConfig);
     console.log('✅ Created route configuration');
 
+    // Create test Traefik configuration for test.localhost → google.com
+    const testDomainConfig = {
+      id: nanoid(),
+      traefikInstanceId: 'default',
+      domain: 'localhost',
+      subdomain: 'test',
+      fullDomain: 'test.localhost',
+      sslEnabled: false, // No SSL for localhost testing
+      sslProvider: null,
+      middleware: {
+        redirectToHttps: false,
+        cors: {
+          accessControlAllowOrigin: ['*'],
+          accessControlAllowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+          accessControlAllowHeaders: ['*'],
+        },
+      },
+      dnsStatus: 'valid' as const,
+      dnsRecords: null,
+      dnsLastChecked: new Date(),
+      dnsErrorMessage: null,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const insertedTestDomainConfigs = await db.insert(domainConfigs).values(testDomainConfig).returning();
+    console.log('✅ Created test.localhost domain configuration');
+
+    // Create test route configuration that redirects to google.com
+    const testRouteConfig = {
+      id: nanoid(),
+      domainConfigId: insertedTestDomainConfigs[0].id,
+      deploymentId: null, // No deployment, this is a redirect
+      routeName: 'test-redirect-route',
+      serviceName: 'redirect-to-google',
+      containerName: null,
+      targetPort: 80, // Required field, use port 80 for redirect service
+      pathPrefix: '/',
+      priority: 1,
+      middleware: {
+        redirect: {
+          regex: '^https?://test\\.localhost/(.*)',
+          replacement: 'https://google.com/$1',
+          permanent: false, // Temporary redirect for testing
+        },
+      },
+      healthCheck: null, // No health check for redirect
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    await db.insert(routeConfigs).values(testRouteConfig);
+    console.log('✅ Created test redirect route configuration');
+
+    // Create Traefik configuration file record for test redirect
+    const testTraefikConfigRecord = {
+      id: nanoid(),
+      traefikInstanceId: 'default',
+      configName: 'test-redirect-config',
+      configPath: 'test-redirect.yml',
+      configContent: `# Test redirect configuration for test.localhost -> google.com
+http:
+  services:
+    redirect-service:
+      loadBalancer:
+        servers:
+          - url: "https://google.com"
+
+  routers:
+    test-redirect-router:
+      rule: "Host(\`test.localhost\`)"
+      service: "redirect-service"
+      entryPoints:
+        - "web"
+      middlewares:
+        - "test-redirect-middleware"
+
+  middlewares:
+    test-redirect-middleware:
+      redirectRegex:
+        regex: "^https?://test\\\\.localhost/(.*)"
+        replacement: "https://google.com/$1"
+        permanent: false`,
+      configType: 'dynamic',
+      requiresFile: true,
+      syncStatus: 'pending' as const,
+      lastSyncedAt: null,
+      syncErrorMessage: null,
+      fileChecksum: null,
+      configVersion: 1,
+      metadata: {
+        purpose: 'test-redirect',
+        target: 'google.com',
+      },
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const insertedTestTraefikConfigs = await db.insert(traefikConfigs).values(testTraefikConfigRecord).returning();
+    console.log('✅ Created test Traefik configuration record');
+
+    // Create configuration file record for test redirect
+    const testConfigFileRecord = {
+      id: nanoid(),
+      traefikConfigId: insertedTestTraefikConfigs[0].id,
+      filePath: 'test-redirect.yml',
+      fileSize: Buffer.byteLength(testTraefikConfigRecord.configContent, 'utf8'),
+      checksum: null, // Will be calculated when file is written
+      permissions: '644',
+      owner: 'traefik',
+      exists: false,
+      isWritable: true,
+      lastWriteAttempt: null,
+      writeErrorMessage: null,
+      containerPath: '/etc/traefik/dynamic/test-redirect.yml',
+      mountPoint: './traefik-configs:/etc/traefik/dynamic',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    await db.insert(configFiles).values(testConfigFileRecord);
+    console.log('✅ Created test configuration file record');
+
     console.log('\n🎉 Database seeded successfully with:');
     console.log('  👥 2 sample users');
     console.log('  🏗️  2 sample projects');
@@ -393,9 +521,19 @@ async function seed() {
     console.log('  📋 6 deployment logs');
     console.log('  🔮 1 preview environment');
     console.log('  🔀 1 Traefik instance');
-    console.log('  🌐 1 domain configuration');
-    console.log('  🛣️  1 route configuration');
+    console.log('  🌐 2 domain configurations (1 production + 1 test)');
+    console.log('  🛣️  2 route configurations (1 production + 1 test redirect)');
     console.log('  🤝 1 collaboration');
+    console.log('  📁 1 Traefik config file');
+    console.log('  📄 1 config file record');
+    console.log('\n🧪 Test Configuration Added:');
+    console.log('  🎯 test.localhost → google.com redirect');
+    console.log('  📋 Configurations will be synced automatically on API startup');
+    console.log('\n🔧 To test:');
+    console.log('  1. Start services: bun run dev');
+    console.log('  2. Add to /etc/hosts: 127.0.0.1 test.localhost');
+    console.log('  3. Visit: http://test.localhost');
+    console.log('  4. Should redirect to: https://google.com')
     
   } catch (error) {
     console.error('❌ Seeding failed:', error);
