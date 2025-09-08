@@ -733,6 +733,131 @@ export class DeploymentProcessor {
     }
   }
 
+  @Process('deploy-upload')
+  async handleUploadDeployment(job: Job) {
+    const { uploadId, serviceId, extractPath, projectId, domain } = job.data;
+    
+    try {
+      this.logger.log(`Processing upload deployment: ${uploadId} -> service ${serviceId}`);
+      
+      // Update job status
+      await this.updateJobStatus(job.id.toString(), 'running', 10);
+      
+      // Import FileUploadService to analyze the upload
+      const { FileUploadService } = await import('../../../../modules/storage/services/file-upload.service');
+      const fileUploadService = new FileUploadService(null as any); // We'll only use metadata analysis
+      
+      // Get upload metadata - if not available, use extractPath directly
+      const uploadInfo = await fileUploadService.getUploadedFileInfo(uploadId) || {
+        uploadId,
+        extractedPath: extractPath,
+        metadata: { detectedType: 'static' } // Default fallback
+      };
+      
+      job.progress(20);
+      
+      // Generate deployment configuration based on detected project type
+      const composeConfig = await this.generateComposeConfigFromUpload(uploadInfo, serviceId, projectId, domain);
+      
+      job.progress(40);
+      
+      // Handle static deployments differently (no container needed)
+      if (composeConfig === null && uploadInfo.metadata.detectedType === 'static') {
+        // For static sites, just configure Traefik routing
+        if (domain) {
+          await this.traefikService.generateStaticFileConfig({
+            projectId,
+            serviceId,
+            domain,
+            staticPath: `/app/static/${projectId}/${serviceId}`
+          });
+        }
+        
+        job.progress(100);
+        await this.updateJobStatus(job.id.toString(), 'completed', 100);
+        
+        return { 
+          success: true, 
+          message: `Static site deployed successfully for ${serviceId}`,
+          type: 'static',
+          domain 
+        };
+      }
+      
+      // Create a stack for this deployment (containerized apps only)
+      const stackName = `${projectId}-${serviceId}`;
+      const stackData: any = {
+        name: stackName,
+        projectId,
+        environment: 'production',
+        composeConfig,
+        resourceQuotas: null,
+        domainMappings: domain ? {
+          [serviceId]: {
+            subdomain: domain.split('.')[0],
+            fullDomain: domain,
+            sslEnabled: true,
+            certificateId: undefined
+          }
+        } : null,
+        status: 'creating',
+      };
+      
+      const [stack] = await this.db.insert(orchestrationStacks).values(stackData).returning();
+      
+      job.progress(60);
+      
+      // Deploy to Docker Swarm with Traefik configuration
+      if (domain) {
+        const traefikConfig = await this.traefikService.generateTraefikConfig({
+          projectId,
+          environment: 'production',
+          stackName,
+          services: {
+            [serviceId]: {
+              image: composeConfig.services[serviceId].image,
+              domains: [domain],
+              port: 3000, // Default port, should be configurable
+              healthCheck: '/health',
+            }
+          },
+          sslConfig: {
+            email: 'admin@example.com',
+            provider: 'letsencrypt'
+          }
+        });
+        
+        await this.swarmService.executeSwarmDeploy(stackName, traefikConfig);
+      } else {
+        await this.swarmService.executeSwarmDeploy(stackName, composeConfig);
+      }
+      
+      job.progress(80);
+      
+      // Update stack status
+      await this.updateStackStatus(stack.id, 'running');
+      
+      // Clean up the upload files after successful deployment
+      await fileUploadService.cleanupUpload(uploadId);
+      
+      job.progress(100);
+      await this.updateJobStatus(job.id.toString(), 'completed', 100);
+      
+      return { 
+        success: true, 
+        message: `Upload deployment completed for ${serviceId}`,
+        stackId: stack.id,
+        stackName,
+        domain: domain || null
+      };
+      
+    } catch (error) {
+      this.logger.error(`Upload deployment failed for ${uploadId}:`, error);
+      await this.updateJobStatus(job.id.toString(), 'failed', 0, error instanceof Error ? error.message : String(error));
+      throw error;
+    }
+  }
+
   @Process('send-alert-notification')
   async handleAlertNotification(job: Job) {
     const { alert } = job.data;
@@ -774,6 +899,127 @@ export class DeploymentProcessor {
     } catch (error) {
       this.logger.error(`Alert notification job failed:`, error);
       await this.updateJobStatus(job.id.toString(), 'failed', 0, error instanceof Error ? error.message : String(error));
+      throw error;
+    }
+  }
+
+  /**
+   * Generate Docker Compose configuration from uploaded files
+   */
+  private async generateComposeConfigFromUpload(
+    uploadInfo: any, 
+    serviceId: string, 
+    projectId: string, 
+    domain?: string
+  ): Promise<any> {
+    const { metadata, extractedPath } = uploadInfo;
+    
+    let serviceConfig: any = {
+      image: '',
+      volumes: [`${extractedPath}:/app`],
+      working_dir: '/app',
+      networks: [`${projectId}_network`],
+      deploy: {
+        replicas: 1,
+        update_config: {
+          parallelism: 1,
+          order: 'start-first'
+        },
+        restart_policy: {
+          condition: 'on-failure',
+          delay: '5s',
+          max_attempts: 3
+        }
+      }
+    };
+
+    // Configure based on detected project type
+    switch (metadata.detectedType) {
+      case 'static':
+        // For static sites, copy files to static volume and configure Traefik for direct serving
+        const staticPath = `/app/static/${projectId}/${serviceId}`;
+        
+        // Copy files from extracted path to static volume
+        await this.copyFilesToStaticVolume(extractedPath, staticPath);
+        
+        // No container needed - Traefik will serve directly from volume
+        // Return null to indicate no container deployment needed
+        return null;
+        
+      case 'node':
+        serviceConfig.image = 'node:18-alpine';
+        serviceConfig.command = ['sh', '-c', `${metadata.buildCommand || 'npm ci'} && ${metadata.startCommand || 'npm start'}`];
+        serviceConfig.ports = ['3000:3000'];
+        serviceConfig.environment = {
+          NODE_ENV: 'production',
+          PORT: '3000'
+        };
+        break;
+        
+      case 'docker':
+        // For Docker projects, we'd need to build the image first
+        // This is a simplified version - in practice, you'd want to build the image
+        serviceConfig.build = {
+          context: extractedPath,
+          dockerfile: 'Dockerfile'
+        };
+        serviceConfig.image = `${projectId}-${serviceId}:latest`;
+        serviceConfig.ports = ['3000:3000'];
+        break;
+        
+      default:
+        // Default to static file serving
+        serviceConfig.image = 'nginx:alpine';
+        serviceConfig.volumes = [
+          `${extractedPath}:/usr/share/nginx/html:ro`
+        ];
+        serviceConfig.ports = ['3000:80'];
+    }
+
+    // Add Traefik labels if domain is provided
+    if (domain) {
+      serviceConfig.deploy.labels = [
+        'traefik.enable=true',
+        `traefik.http.routers.${serviceId}.rule=Host(\`${domain}\`)`,
+        `traefik.http.routers.${serviceId}.entrypoints=websecure`,
+        `traefik.http.routers.${serviceId}.tls.certresolver=letsencrypt`,
+        `traefik.http.services.${serviceId}.loadbalancer.server.port=3000`
+      ];
+    }
+
+    return {
+      version: '3.8',
+      services: {
+        [serviceId]: serviceConfig
+      },
+      networks: {
+        [`${projectId}_network`]: {
+          driver: 'overlay',
+          attachable: true
+        }
+      }
+    };
+  }
+
+  /**
+   * Copy files from extracted location to static files volume
+   */
+  private async copyFilesToStaticVolume(sourcePath: string, targetPath: string): Promise<void> {
+    try {
+      const fs = await import('fs-extra');
+      
+      // Ensure target directory exists
+      await fs.ensureDir(targetPath);
+      
+      // Copy all files from source to target
+      await fs.copy(sourcePath, targetPath, {
+        overwrite: true,
+        recursive: true
+      });
+      
+      this.logger.log(`Successfully copied files from ${sourcePath} to ${targetPath}`);
+    } catch (error) {
+      this.logger.error(`Failed to copy files to static volume: ${error}`);
       throw error;
     }
   }

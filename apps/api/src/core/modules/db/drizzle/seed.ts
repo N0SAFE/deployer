@@ -12,14 +12,27 @@ import {
   domainConfigs,
   routeConfigs,
   traefikConfigs,
-  configFiles
+  configFiles,
+  systemStatus
 } from './schema';
 import { nanoid } from 'nanoid';
+import { eq } from 'drizzle-orm';
 
 async function seed() {
-  console.log('🌱 Seeding database...');
+  console.log('🌱 Checking database seeding status...');
 
   try {
+    // Check if database has already been seeded
+    const existingStatus = await db.select().from(systemStatus).where(eq(systemStatus.id, 'system')).limit(1);
+    
+    if (existingStatus.length > 0 && existingStatus[0].isSeeded) {
+      console.log('✅ Database already seeded. Skipping seeding process.');
+      console.log(`📅 Last seeded at: ${existingStatus[0].lastSeededAt}`);
+      console.log(`📦 Seed version: ${existingStatus[0].seedVersion}`);
+      return;
+    }
+
+    console.log('🌱 Database not seeded yet. Starting seeding process...');
     // Create sample users
     const sampleUsers = [
       {
@@ -533,7 +546,27 @@ http:
     console.log('  1. Start services: bun run dev');
     console.log('  2. Add to /etc/hosts: 127.0.0.1 test.localhost');
     console.log('  3. Visit: http://test.localhost');
-    console.log('  4. Should redirect to: https://google.com')
+    console.log('  4. Should redirect to: https://google.com');
+
+    // Mark database as seeded
+    const seedMetadata = {
+      usersCount: insertedUsers.length,
+      projectsCount: insertedProjects.length,
+      servicesCount: insertedServices.length,
+      deploymentsCount: insertedDeployments.length,
+    };
+
+    await db.insert(systemStatus).values({
+      id: 'system',
+      isSeeded: true,
+      seedVersion: '1.0.0',
+      lastSeededAt: new Date(),
+      seedMetadata: seedMetadata,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    console.log('✅ Database marked as seeded - future seeding runs will be skipped');
     
   } catch (error) {
     console.error('❌ Seeding failed:', error);

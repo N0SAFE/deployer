@@ -32,7 +32,7 @@ export interface StaticServingConfig {
 @Injectable()
 export class StaticFileServingService {
   private readonly logger = new Logger(StaticFileServingService.name);
-  private readonly staticFilesDir = '/app/static-files';
+  private readonly staticFilesDir = '/app/static';
   
   constructor(
     @Inject(DATABASE_CONNECTION) private readonly db: Database,

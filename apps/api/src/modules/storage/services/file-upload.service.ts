@@ -3,13 +3,12 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import * as tar from 'tar';
+import * as tar from 'tar-stream';
+import * as yauzl from 'yauzl';
 import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'crypto';
-import { exec } from 'child_process';
+import * as zlib from 'zlib';
 import { promisify } from 'util';
-
-const execAsync = promisify(exec);
 
 export interface UploadedFile {
   fieldname: string;
@@ -148,23 +147,12 @@ export class FileUploadService {
 
     try {
       if (mimeType.includes('zip')) {
-        // Extract ZIP file using system unzip command
-        await execAsync(`unzip -q "${archivePath}" -d "${extractPath}"`);
-        // Count files after extraction
-        const files = await this.getAllFiles(extractPath);
-        fileCount = files.length;
+        // Extract ZIP file using yauzl
+        fileCount = await this.extractZipFile(archivePath, extractPath);
 
       } else if (mimeType.includes('tar') || mimeType.includes('gzip')) {
-        // Extract TAR/TAR.GZ file
-        await tar.extract({
-          file: archivePath,
-          cwd: extractPath,
-          onentry: (entry) => {
-            if (entry.type === 'File') {
-              fileCount++;
-            }
-          }
-        });
+        // Extract TAR/TAR.GZ file using tar-stream
+        fileCount = await this.extractTarFile(archivePath, extractPath, mimeType.includes('gzip'));
 
       } else {
         throw new BadRequestException(`Unsupported archive type: ${mimeType}`);
@@ -178,6 +166,108 @@ export class FileUploadService {
       await fs.remove(extractPath); // Clean up on failure
       throw new BadRequestException('Failed to extract archive. File may be corrupted.');
     }
+  }
+
+  /**
+   * Extract ZIP file using yauzl
+   */
+  private async extractZipFile(archivePath: string, extractPath: string): Promise<number> {
+    return new Promise((resolve, reject) => {
+      let fileCount = 0;
+
+      yauzl.open(archivePath, { lazyEntries: true }, (err, zipfile) => {
+        if (err) return reject(err);
+        if (!zipfile) return reject(new Error('Failed to open ZIP file'));
+
+        zipfile.readEntry();
+
+        zipfile.on('entry', (entry) => {
+          const fullPath = path.join(extractPath, entry.fileName);
+
+          // Skip directories
+          if (/\/$/.test(entry.fileName)) {
+            zipfile.readEntry();
+            return;
+          }
+
+          // Ensure directory exists
+          fs.ensureDirSync(path.dirname(fullPath));
+
+          zipfile.openReadStream(entry, (err, readStream) => {
+            if (err) return reject(err);
+            if (!readStream) return reject(new Error('Failed to create read stream'));
+
+            const writeStream = fs.createWriteStream(fullPath);
+            readStream.pipe(writeStream);
+
+            writeStream.on('close', () => {
+              fileCount++;
+              zipfile.readEntry();
+            });
+
+            writeStream.on('error', reject);
+            readStream.on('error', reject);
+          });
+        });
+
+        zipfile.on('end', () => {
+          resolve(fileCount);
+        });
+
+        zipfile.on('error', reject);
+      });
+    });
+  }
+
+  /**
+   * Extract TAR file using tar-stream
+   */
+  private async extractTarFile(archivePath: string, extractPath: string, isGzipped: boolean): Promise<number> {
+    return new Promise((resolve, reject) => {
+      let fileCount = 0;
+      const extract = tar.extract();
+
+      extract.on('entry', (header, stream, next) => {
+        const fullPath = path.join(extractPath, header.name);
+
+        if (header.type === 'file') {
+          // Ensure directory exists
+          fs.ensureDirSync(path.dirname(fullPath));
+
+          const writeStream = fs.createWriteStream(fullPath);
+          stream.pipe(writeStream);
+
+          writeStream.on('close', () => {
+            fileCount++;
+            next();
+          });
+
+          writeStream.on('error', (err) => {
+            next(err);
+          });
+        } else {
+          stream.on('end', () => {
+            next();
+          });
+          stream.resume();
+        }
+      });
+
+      extract.on('finish', () => {
+        resolve(fileCount);
+      });
+
+      extract.on('error', reject);
+
+      // Create read stream and pipe through decompression if needed
+      const readStream = fs.createReadStream(archivePath);
+      
+      if (isGzipped) {
+        readStream.pipe(zlib.createGunzip()).pipe(extract);
+      } else {
+        readStream.pipe(extract);
+      }
+    });
   }
 
   /**
@@ -377,12 +467,8 @@ export class FileUploadService {
       const extractPath = path.join(this.extractDir, uploadId);
       const bundlePath = path.join(this.uploadsDir, `${uploadId}-bundle.tar.gz`);
 
-      // Create tar.gz bundle
-      await tar.create({
-        gzip: true,
-        file: bundlePath,
-        cwd: extractPath,
-      }, ['.']);
+      // Create tar.gz bundle using tar-stream
+      await this.createTarGzBundle(extractPath, bundlePath);
 
       const bundle = await fs.readFile(bundlePath);
       await fs.remove(bundlePath); // Clean up temporary bundle
@@ -394,5 +480,47 @@ export class FileUploadService {
       this.logger.error(`Failed to create deployment bundle for ${uploadId}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Create TAR.GZ bundle using tar-stream
+   */
+  private async createTarGzBundle(sourcePath: string, outputPath: string): Promise<void> {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const pack = tar.pack();
+        const gzip = zlib.createGzip();
+        const writeStream = fs.createWriteStream(outputPath);
+
+        pack.pipe(gzip).pipe(writeStream);
+
+        const files = await this.getAllFiles(sourcePath);
+        
+        for (const filePath of files) {
+          const relativePath = path.relative(sourcePath, filePath);
+          const stats = await fs.stat(filePath);
+          
+          if (stats.isFile()) {
+            const fileStream = fs.createReadStream(filePath);
+            const entry = pack.entry({ name: relativePath, size: stats.size });
+            
+            fileStream.pipe(entry);
+            
+            await new Promise((resolve, reject) => {
+              entry.on('close', resolve);
+              entry.on('error', reject);
+            });
+          }
+        }
+
+        pack.finalize();
+
+        writeStream.on('close', resolve);
+        writeStream.on('error', reject);
+
+      } catch (error) {
+        reject(error);
+      }
+    });
   }
 }
