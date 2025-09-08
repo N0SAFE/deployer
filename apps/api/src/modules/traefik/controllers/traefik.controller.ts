@@ -160,4 +160,81 @@ export class TraefikController {
       return result;
     });
   }
+
+  // Configuration management endpoints
+  @Implement(traefikContract.getInstanceConfigs)
+  getInstanceConfigs() {
+    return implement(traefikContract.getInstanceConfigs).handler(async ({ input }) => {
+      const { instanceId } = input;
+      const configs = await this.traefikService.getInstanceConfigurations(instanceId);
+      
+      // Transform to match the API contract
+      return configs.map(config => ({
+        id: config.id,
+        configName: config.configName,
+        configType: config.configType,
+        syncStatus: config.syncStatus || undefined,
+        requiresFile: config.requiresFile || undefined,
+        lastSyncedAt: config.lastSyncedAt || undefined,
+        configVersion: config.configVersion || undefined,
+        metadata: config.metadata || undefined,
+        createdAt: config.createdAt,
+        updatedAt: config.updatedAt,
+      }));
+    });
+  }
+
+  @Implement(traefikContract.getConfigSyncStatus)
+  getConfigSyncStatus() {
+    return implement(traefikContract.getConfigSyncStatus).handler(async ({ input }) => {
+      const { instanceId } = input;
+      const status = await this.traefikService.getConfigurationSyncStatus(instanceId);
+      return status;
+    });
+  }
+
+  @Implement(traefikContract.forceSyncConfigs)
+  forceSyncConfigs() {
+    return implement(traefikContract.forceSyncConfigs).handler(async ({ input }) => {
+      const { instanceId } = input;
+      const result = await this.traefikService.forceSyncInstanceConfigurations(instanceId);
+      return result;
+    });
+  }
+
+  @Implement(traefikContract.cleanupOrphanedFiles)
+  cleanupOrphanedFiles() {
+    return implement(traefikContract.cleanupOrphanedFiles).handler(async ({ input }) => {
+      const { instanceId } = input;
+      const cleanedFiles = await this.traefikService.cleanupOrphanedConfigFiles(instanceId);
+      return {
+        cleanedFiles,
+        count: cleanedFiles.length
+      };
+    });
+  }
+
+  @Implement(traefikContract.validateConfigFiles)
+  validateConfigFiles() {
+    return implement(traefikContract.validateConfigFiles).handler(async ({ input }) => {
+      const { instanceId } = input;
+      const result = await this.traefikService.validateInstanceConfigFiles(instanceId);
+      return result;
+    });
+  }
+
+  @Implement(traefikContract.getInstanceStatus)
+  getInstanceStatus() {
+    return implement(traefikContract.getInstanceStatus).handler(async ({ input }) => {
+      const { instanceId } = input;
+      const status = await this.traefikService.getInstanceConfigurationStatus(instanceId);
+      return {
+        ...status,
+        instance: {
+          ...status.instance,
+          status: status.instance.status as "error" | "stopped" | "starting" | "running" | "stopping"
+        }
+      };
+    });
+  }
 }

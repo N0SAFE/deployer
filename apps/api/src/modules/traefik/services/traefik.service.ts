@@ -7,19 +7,17 @@ import { randomUUID } from 'crypto';
 import { DatabaseService } from '../../../core/modules/db/services/database.service';
 import { DockerService } from '../../../core/services/docker.service';
 import { DNSService, DNSCheckResult } from './dns.service';
+import { DatabaseConfigService } from './database-config.service';
+import { ConfigFileSyncService } from './config-file-sync.service';
 import {
   traefikInstances,
   domainConfigs,
   routeConfigs,
-  // traefikConfigs,
+  traefikConfigs,
   type TraefikInstance,
-  // type CreateTraefikInstance,
   type DomainConfig,
-  // type CreateDomainConfig,
   type RouteConfig,
-  // type CreateRouteConfig,
-  // type TraefikConfig,
-  // type CreateTraefikConfig
+  type TraefikConfig,
 } from '../../../core/modules/db/drizzle/schema/traefik';
 
 export interface TraefikInstanceConfig {
@@ -73,6 +71,8 @@ export class TraefikService {
     private readonly databaseService: DatabaseService,
     private readonly docker: DockerService,
     private readonly dnsService: DNSService,
+    private readonly databaseConfigService: DatabaseConfigService,
+    private readonly configFileSyncService: ConfigFileSyncService,
   ) {}
 
   /**
@@ -117,8 +117,42 @@ export class TraefikService {
     }
 
     try {
-      // Generate configuration
-      const configPath = await this.generateTraefikConfig(instance);
+      // Generate static configuration in database
+      await this.databaseConfigService.generateStaticConfigForInstance(instanceId, {
+        dashboardPort: instance.dashboardPort || 8080,
+        httpPort: instance.httpPort || 80,
+        httpsPort: instance.httpsPort || 443,
+        acmeEmail: instance.acmeEmail || undefined,
+        logLevel: instance.logLevel || 'INFO',
+        insecureApi: instance.insecureApi || false,
+      });
+
+      // Generate dynamic configurations from current database state
+      await this.databaseConfigService.generateDynamicConfigFromDatabase(instanceId);
+
+      // Sync all configurations to files
+      const syncResults = await this.configFileSyncService.syncInstanceConfigurations(instanceId, {
+        forceSync: true,
+        createDirectories: true,
+        backupExisting: false
+      });
+
+      // Log sync results
+      const successful = syncResults.filter(r => r.success).length;
+      const failed = syncResults.filter(r => !r.success).length;
+      this.logger.log(`Configuration sync completed: ${successful} successful, ${failed} failed`);
+
+      if (failed > 0) {
+        this.logger.warn(`Some configurations failed to sync, but proceeding with container start`);
+      }
+
+      // Get the static config file path for container startup
+      const staticConfigs = await this.databaseConfigService.getConfigurationsByType(instanceId, 'static');
+      let configPath = this.configBasePath; // Default fallback
+
+      if (staticConfigs.length > 0 && staticConfigs[0].configPath) {
+        configPath = path.dirname(path.resolve(this.configBasePath, staticConfigs[0].configPath));
+      }
       
       // Create and start container
       const container = await this.createTraefikContainer(instance, configPath);
@@ -129,12 +163,16 @@ export class TraefikService {
         .set({ 
           containerId: container.id,
           status: 'running',
-          config: { configPath }
+          config: { 
+            configPath,
+            configCount: syncResults.length,
+            lastConfigSync: new Date().toISOString()
+          }
         })
         .where(eq(traefikInstances.id, instanceId))
         .returning();
 
-      this.logger.log(`Started Traefik instance ${instanceId}`);
+      this.logger.log(`Started Traefik instance ${instanceId} with ${syncResults.length} configurations`);
       return updatedInstance;
       
     } catch (error) {
@@ -298,20 +336,46 @@ export class TraefikService {
    * Update dynamic configuration for a Traefik instance
    */
   async updateDynamicConfig(instanceId: string): Promise<void> {
-    const routes = await this.databaseService.db
-      .select()
-      .from(routeConfigs)
-      .innerJoin(domainConfigs, eq(routeConfigs.domainConfigId, domainConfigs.id))
-      .where(eq(domainConfigs.traefikInstanceId, instanceId));
+    try {
+      // Regenerate all dynamic configurations from database state
+      const result = await this.databaseConfigService.regenerateInstanceConfigurations(instanceId);
+      
+      // Sync the updated configurations to files
+      const syncResults = await this.configFileSyncService.syncInstanceConfigurations(instanceId, {
+        forceSync: false, // Only sync changed configurations
+        createDirectories: true,
+        validateChecksum: true
+      });
 
-    if (routes.length > 0) {
+      const successful = syncResults.filter(r => r.success).length;
+      const failed = syncResults.filter(r => !r.success).length;
+
+      if (failed > 0) {
+        this.logger.warn(`Some configuration files failed to sync: ${failed} failed, ${successful} successful`);
+      }
+
+      // Update instance timestamp to indicate configuration change
       await this.databaseService.db
         .update(traefikInstances)
-        .set({ updatedAt: new Date() })
+        .set({ 
+          updatedAt: new Date(),
+          config: {
+            ...(typeof this.getInstance(instanceId).then(i => i.config) === 'object' ? await this.getInstance(instanceId).then(i => i.config) : {}),
+            lastConfigUpdate: new Date().toISOString(),
+            configCount: result.generated,
+            syncStatus: failed === 0 ? 'synced' : 'partial'
+          }
+        })
         .where(eq(traefikInstances.id, instanceId));
-    }
 
-    this.logger.log(`Updated dynamic config for instance ${instanceId} with ${routes.length} routes`);
+      this.logger.log(
+        `Updated dynamic config for instance ${instanceId}: ` +
+        `${result.deactivated} deactivated, ${result.generated} generated, ${successful} synced`
+      );
+    } catch (error) {
+      this.logger.error(`Failed to update dynamic config for instance ${instanceId}:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -754,5 +818,239 @@ export class TraefikService {
     }
 
     return results;
+  }
+
+  /**
+   * Get all configurations for an instance
+   */
+  async getInstanceConfigurations(instanceId: string): Promise<TraefikConfig[]> {
+    return await this.databaseConfigService.getInstanceConfigurations(instanceId);
+  }
+
+  /**
+   * Get configuration sync status for an instance
+   */
+  async getConfigurationSyncStatus(instanceId: string): Promise<{
+    total: number;
+    synced: number;
+    pending: number;
+    failed: number;
+    outdated: number;
+    configurations: Array<{
+      id: string;
+      name: string;
+      type: string;
+      syncStatus: string;
+      lastSyncedAt?: Date;
+      errorMessage?: string;
+    }>;
+  }> {
+    const configs = await this.getInstanceConfigurations(instanceId);
+    
+    let synced = 0;
+    let pending = 0;
+    let failed = 0;
+    let outdated = 0;
+
+    const configurationDetails = configs.map(config => {
+      switch (config.syncStatus) {
+        case 'synced':
+          synced++;
+          break;
+        case 'pending':
+          pending++;
+          break;
+        case 'failed':
+          failed++;
+          break;
+        case 'outdated':
+          outdated++;
+          break;
+      }
+
+      return {
+        id: config.id,
+        name: config.configName,
+        type: config.configType,
+        syncStatus: config.syncStatus || 'unknown',
+        lastSyncedAt: config.lastSyncedAt || undefined,
+        errorMessage: config.syncErrorMessage || undefined
+      };
+    });
+
+    return {
+      total: configs.length,
+      synced,
+      pending,
+      failed,
+      outdated,
+      configurations: configurationDetails
+    };
+  }
+
+  /**
+   * Force sync all configurations for an instance
+   */
+  async forceSyncInstanceConfigurations(instanceId: string): Promise<{
+    total: number;
+    successful: number;
+    failed: number;
+    results: Array<{
+      configId: string;
+      configName: string;
+      success: boolean;
+      action: string;
+      message?: string;
+    }>;
+  }> {
+    const configs = await this.getInstanceConfigurations(instanceId);
+    const results: Array<{
+      configId: string;
+      configName: string;
+      success: boolean;
+      action: string;
+      message?: string;
+    }> = [];
+
+    let successful = 0;
+    let failed = 0;
+
+    for (const config of configs) {
+      const syncResult = await this.configFileSyncService.syncConfigurationToFile(config.id, {
+        forceSync: true,
+        createDirectories: true,
+        backupExisting: true,
+        validateChecksum: true
+      });
+
+      results.push({
+        configId: config.id,
+        configName: config.configName,
+        success: syncResult.success,
+        action: syncResult.action,
+        message: syncResult.message
+      });
+
+      if (syncResult.success) {
+        successful++;
+      } else {
+        failed++;
+      }
+    }
+
+    return {
+      total: configs.length,
+      successful,
+      failed,
+      results
+    };
+  }
+
+  /**
+   * Clean up orphaned configuration files for an instance
+   */
+  async cleanupOrphanedConfigFiles(instanceId: string): Promise<string[]> {
+    return await this.configFileSyncService.cleanupOrphanedFiles(instanceId);
+  }
+
+  /**
+   * Validate all configuration files for an instance
+   */
+  async validateInstanceConfigFiles(instanceId: string): Promise<{
+    valid: number;
+    invalid: number;
+    configurations: Array<{
+      configId: string;
+      configName: string;
+      isValid: boolean;
+      issues: string[];
+    }>;
+  }> {
+    const configs = await this.getInstanceConfigurations(instanceId);
+    const configurations: Array<{
+      configId: string;
+      configName: string;
+      isValid: boolean;
+      issues: string[];
+    }> = [];
+
+    let valid = 0;
+    let invalid = 0;
+
+    for (const config of configs) {
+      const validation = await this.configFileSyncService.validateSyncStatus(config.id);
+      
+      configurations.push({
+        configId: config.id,
+        configName: config.configName,
+        isValid: validation.isValid,
+        issues: validation.issues
+      });
+
+      if (validation.isValid) {
+        valid++;
+      } else {
+        invalid++;
+      }
+    }
+
+    return {
+      valid,
+      invalid,
+      configurations
+    };
+  }
+
+  /**
+   * Get real-time configuration status for dashboard
+   */
+  async getInstanceConfigurationStatus(instanceId: string): Promise<{
+    instance: TraefikInstance;
+    configurations: {
+      total: number;
+      static: number;
+      dynamic: number;
+      synced: number;
+      pending: number;
+      failed: number;
+    };
+    files: {
+      total: number;
+      exists: number;
+      writable: number;
+      orphaned: number;
+    };
+    lastUpdate: Date;
+  }> {
+    const instance = await this.getInstance(instanceId);
+    const configs = await this.getInstanceConfigurations(instanceId);
+    
+    const staticCount = configs.filter(c => c.configType === 'static').length;
+    const dynamicCount = configs.filter(c => c.configType === 'dynamic').length;
+    const syncedCount = configs.filter(c => c.syncStatus === 'synced').length;
+    const pendingCount = configs.filter(c => c.syncStatus === 'pending').length;
+    const failedCount = configs.filter(c => c.syncStatus === 'failed').length;
+
+    // Get file information (simplified for now)
+    const fileStats = {
+      total: configs.filter(c => c.requiresFile).length,
+      exists: syncedCount, // Approximation
+      writable: syncedCount, // Approximation
+      orphaned: 0 // Would need separate query
+    };
+
+    return {
+      instance,
+      configurations: {
+        total: configs.length,
+        static: staticCount,
+        dynamic: dynamicCount,
+        synced: syncedCount,
+        pending: pendingCount,
+        failed: failedCount
+      },
+      files: fileStats,
+      lastUpdate: instance.updatedAt
+    };
   }
 }

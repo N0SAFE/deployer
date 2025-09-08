@@ -73,10 +73,42 @@ export const traefikConfigs = pgTable('traefik_configs', {
     .references(() => traefikInstances.id, { onDelete: 'cascade' })
     .notNull(),
   configName: text('config_name').notNull(), // e.g., "deployment-123.yml", "global.yml"
-  configPath: text('config_path').notNull(), // File path in container
+  configPath: text('config_path'), // File path in container (nullable for database-only configs)
   configContent: text('config_content').notNull(), // YAML content
   configType: text('config_type').notNull(), // static, dynamic, deployment
+  // File sync fields
+  requiresFile: boolean('requires_file').default(false), // Whether this config needs to be written to a file
+  syncStatus: text('sync_status').default('pending'), // pending, synced, failed, outdated
+  lastSyncedAt: timestamp('last_synced_at'),
+  syncErrorMessage: text('sync_error_message'),
+  fileChecksum: text('file_checksum'), // To detect file changes
+  // Metadata
+  configVersion: integer('config_version').default(1), // For versioning and rollback
+  metadata: jsonb('metadata'), // Additional metadata like dependencies, priority, etc.
   isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Configuration File Tracking (tracks actual files on filesystem)
+export const configFiles = pgTable('config_files', {
+  id: text('id').primaryKey(),
+  traefikConfigId: text('traefik_config_id')
+    .references(() => traefikConfigs.id, { onDelete: 'cascade' })
+    .notNull(),
+  filePath: text('file_path').notNull(), // Absolute path to the file
+  fileSize: integer('file_size'), // File size in bytes
+  checksum: text('checksum'), // File content checksum
+  permissions: text('permissions').default('644'), // File permissions
+  owner: text('owner').default('traefik'), // File owner
+  // File status
+  exists: boolean('exists').default(false), // Whether file exists on filesystem
+  isWritable: boolean('is_writable').default(true), // Whether file can be written
+  lastWriteAttempt: timestamp('last_write_attempt'),
+  writeErrorMessage: text('write_error_message'),
+  // Metadata
+  containerPath: text('container_path'), // Path inside the container if different
+  mountPoint: text('mount_point'), // Docker mount point info
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -154,9 +186,18 @@ export const traefikConfigSchema = z.object({
   id: z.string(),
   traefikInstanceId: z.string(),
   configName: z.string(),
-  configPath: z.string(),
+  configPath: z.string().nullable(),
   configContent: z.string(),
   configType: z.string(),
+  // File sync fields
+  requiresFile: z.boolean().nullable(),
+  syncStatus: z.string().nullable(),
+  lastSyncedAt: z.date().nullable(),
+  syncErrorMessage: z.string().nullable(),
+  fileChecksum: z.string().nullable(),
+  // Metadata
+  configVersion: z.number().nullable(),
+  metadata: z.any().nullable(),
   isActive: z.boolean().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -166,6 +207,31 @@ export const createTraefikConfigSchema = traefikConfigSchema.omit({
   createdAt: true,
   updatedAt: true
 }).partial({ id: true });
+
+export const configFileSchema = z.object({
+  id: z.string(),
+  traefikConfigId: z.string(),
+  filePath: z.string(),
+  fileSize: z.number().nullable(),
+  checksum: z.string().nullable(),
+  permissions: z.string().nullable(),
+  owner: z.string().nullable(),
+  // File status
+  exists: z.boolean().nullable(),
+  isWritable: z.boolean().nullable(),
+  lastWriteAttempt: z.date().nullable(),
+  writeErrorMessage: z.string().nullable(),
+  // Metadata
+  containerPath: z.string().nullable(),
+  mountPoint: z.string().nullable(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export const createConfigFileSchema = configFileSchema.omit({
+  createdAt: true,
+  updatedAt: true
+});
 
 // TypeScript types
 export type TraefikInstance = z.infer<typeof traefikInstanceSchema>;
@@ -179,3 +245,6 @@ export type CreateRouteConfig = z.infer<typeof createRouteConfigSchema>;
 
 export type TraefikConfig = z.infer<typeof traefikConfigSchema>;
 export type CreateTraefikConfig = z.infer<typeof createTraefikConfigSchema>;
+
+export type ConfigFile = z.infer<typeof configFileSchema>;
+export type CreateConfigFile = z.infer<typeof createConfigFileSchema>;

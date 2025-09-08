@@ -28,6 +28,17 @@ import {
   traefikUnregisterDeploymentContract,
 } from './deployment';
 
+import {
+  traefikGetInstanceConfigsContract,
+  traefikGetConfigSyncStatusContract,
+  traefikForceSyncConfigsContract,
+  traefikCleanupOrphanedFilesContract,
+  traefikValidateConfigFilesContract,
+  traefikGetInstanceStatusContract,
+  traefikSyncSingleConfigContract,
+  traefikValidateSingleConfigContract,
+} from './config';
+
 // Combine into main traefik contract
 export const traefikContract = oc.tag("Traefik").prefix("/traefik").router({
   // Instance management
@@ -52,6 +63,16 @@ export const traefikContract = oc.tag("Traefik").prefix("/traefik").router({
   // Deployment registration
   registerDeployment: traefikRegisterDeploymentContract,
   unregisterDeployment: traefikUnregisterDeploymentContract,
+
+  // Configuration management
+  getInstanceConfigs: traefikGetInstanceConfigsContract,
+  getConfigSyncStatus: traefikGetConfigSyncStatusContract,
+  forceSyncConfigs: traefikForceSyncConfigsContract,
+  cleanupOrphanedFiles: traefikCleanupOrphanedFilesContract,
+  validateConfigFiles: traefikValidateConfigFilesContract,
+  getInstanceStatus: traefikGetInstanceStatusContract,
+  syncSingleConfig: traefikSyncSingleConfigContract,
+  validateSingleConfig: traefikValidateSingleConfigContract,
 });
 
 export type TraefikContract = typeof traefikContract;
@@ -62,3 +83,4 @@ export * from './instance';
 export * from './domain';
 export * from './route';
 export * from './deployment';
+export * from './config';
