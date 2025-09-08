@@ -205,7 +205,7 @@ export default function TraefikDashboard() {
     })
   )
 
-  const { data: configRefreshCwStatus, isLoading: syncStatusLoading } = useQuery(
+  const { data: configSyncStatus, isLoading: syncStatusLoading } = useQuery(
     orpc.traefik.getConfigSyncStatus.queryOptions({
       input: { instanceId: configInstanceId },
       enabled: !!configInstanceId,
@@ -720,6 +720,7 @@ export default function TraefikDashboard() {
                 </form>
               </DialogContent>
             </Dialog>
+            </div>
           </div>
 
           <div className="grid gap-4">
@@ -1150,7 +1151,7 @@ export default function TraefikDashboard() {
               </Card>
 
               {/* Configuration RefreshCw Status */}
-              {configRefreshCwStatus && (
+              {configSyncStatus && (
                 <Card>
                   <CardHeader>
                     <h3 className="text-lg font-semibold">RefreshCw Status Summary</h3>
@@ -1158,19 +1159,19 @@ export default function TraefikDashboard() {
                   <CardContent>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-blue-600">{configRefreshCwStatus.total}</div>
+                        <div className="text-2xl font-bold text-blue-600">{configSyncStatus.total}</div>
                         <div className="text-sm text-gray-600">Total</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600">{configRefreshCwStatus.synced}</div>
+                        <div className="text-2xl font-bold text-green-600">{configSyncStatus.synced}</div>
                         <div className="text-sm text-gray-600">RefreshCwed</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-orange-600">{configRefreshCwStatus.pending}</div>
+                        <div className="text-2xl font-bold text-orange-600">{configSyncStatus.pending}</div>
                         <div className="text-sm text-gray-600">Pending</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-2xl font-bold text-red-600">{configRefreshCwStatus.failed}</div>
+                        <div className="text-2xl font-bold text-red-600">{configSyncStatus.failed}</div>
                         <div className="text-sm text-gray-600">Failed</div>
                       </div>
                     </div>
