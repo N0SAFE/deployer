@@ -1,0 +1,30 @@
+CREATE TABLE "traefik_static_configs" (
+	"id" text PRIMARY KEY NOT NULL,
+	"traefik_instance_id" text NOT NULL,
+	"global_config" jsonb,
+	"api_config" jsonb,
+	"entry_points_config" jsonb,
+	"providers_config" jsonb,
+	"log_config" jsonb,
+	"access_log_config" jsonb,
+	"metrics_config" jsonb,
+	"tracing_config" jsonb,
+	"tls_config" jsonb,
+	"certificate_resolvers_config" jsonb,
+	"experimental_config" jsonb,
+	"servers_transport_config" jsonb,
+	"host_resolver_config" jsonb,
+	"cluster_config" jsonb,
+	"full_config" jsonb,
+	"config_version" integer DEFAULT 1,
+	"sync_status" text DEFAULT 'pending',
+	"last_synced_at" timestamp,
+	"sync_error_message" text,
+	"is_valid" boolean DEFAULT true,
+	"validation_errors" jsonb,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "traefik_static_configs_traefik_instance_id_unique" UNIQUE("traefik_instance_id")
+);
+--> statement-breakpoint
+ALTER TABLE "traefik_static_configs" ADD CONSTRAINT "traefik_static_configs_traefik_instance_id_traefik_instances_id_fk" FOREIGN KEY ("traefik_instance_id") REFERENCES "public"."traefik_instances"("id") ON DELETE cascade ON UPDATE no action;

@@ -6,19 +6,18 @@ import * as fs from 'fs/promises';
 import { randomUUID } from 'crypto';
 import { DatabaseService } from '../../../core/modules/db/services/database.service';
 import { DockerService } from '../../../core/services/docker.service';
+import { DNSService, DNSCheckResult } from './dns.service';
+import { DatabaseConfigService } from './database-config.service';
+import { ConfigFileSyncService } from './config-file-sync.service';
+import { TemplateService, TraefikTemplate } from './template.service';
 import {
   traefikInstances,
   domainConfigs,
   routeConfigs,
-  // traefikConfigs,
   type TraefikInstance,
-  // type CreateTraefikInstance,
   type DomainConfig,
-  // type CreateDomainConfig,
   type RouteConfig,
-  // type CreateRouteConfig,
-  // type TraefikConfig,
-  // type CreateTraefikConfig
+  type TraefikConfig,
 } from '../../../core/modules/db/drizzle/schema/traefik';
 
 export interface TraefikInstanceConfig {
@@ -29,6 +28,9 @@ export interface TraefikInstanceConfig {
   acmeEmail?: string;
   logLevel?: 'ERROR' | 'WARN' | 'INFO' | 'DEBUG';
   insecureApi?: boolean;
+  // Template support
+  template?: 'basic' | 'ssl' | 'advanced' | 'microservices' | 'custom';
+  autoConfigureFor?: 'web' | 'api' | 'database' | 'cache' | 'queue' | 'custom';
 }
 
 export interface DomainConfigInput {
@@ -36,6 +38,7 @@ export interface DomainConfigInput {
   subdomain?: string;
   sslEnabled?: boolean;
   sslProvider?: 'letsencrypt' | 'selfsigned' | 'custom';
+  // certificatePath is auto-generated - removed from input
   middleware?: Record<string, any>;
 }
 
@@ -65,32 +68,75 @@ export interface DeploymentRegistrationInput {
 export class TraefikService {
   private readonly logger = new Logger(TraefikService.name);
   private readonly traefikImage = 'traefik:v3.2';
-  private readonly configBasePath = '/tmp/traefik-configs';
+  private readonly configBasePath = './traefik-configs';
   private readonly baseDomain = process.env.TRAEFIK_BASE_DOMAIN || 'localhost';
 
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly docker: DockerService,
+    private readonly dnsService: DNSService,
+    private readonly databaseConfigService: DatabaseConfigService,
+    private readonly configFileSyncService: ConfigFileSyncService,
+    private readonly templateService: TemplateService,
   ) {}
 
   /**
    * Create a new Traefik instance
    */
   async createInstance(config: TraefikInstanceConfig): Promise<TraefikInstance> {
-    // const id = randomUUID();
+    let finalConfig = { ...config };
+
+    // Apply template or auto-configuration if specified
+    if (config.template || config.autoConfigureFor) {
+      let template: TraefikTemplate;
+      
+      if (config.autoConfigureFor) {
+        // Auto-configure based on service type
+        const autoConfig = this.templateService.autoConfigureForService(config.autoConfigureFor, {
+          acmeEmail: config.acmeEmail,
+          logLevel: config.logLevel,
+          dashboardPort: config.dashboardPort,
+          httpPort: config.httpPort,
+          httpsPort: config.httpsPort,
+        });
+        
+        template = autoConfig.template;
+        finalConfig = {
+          ...finalConfig,
+          ...autoConfig.instanceConfig,
+          logLevel: (autoConfig.instanceConfig.logLevel as 'ERROR' | 'WARN' | 'INFO' | 'DEBUG') || 'INFO',
+        };
+        
+        this.logger.log(`Auto-configured instance ${config.name} for ${config.autoConfigureFor} service type using template ${template.id}`);
+      } else if (config.template) {
+        // Use specified template
+        template = this.templateService.getTemplate(config.template) || this.templateService.getDefaultTemplate();
+        
+        // Apply template defaults if not specified
+        finalConfig = {
+          ...finalConfig,
+          dashboardPort: finalConfig.dashboardPort || template.config.ports.dashboard || 8080,
+          httpPort: finalConfig.httpPort || template.config.ports.http || 80,
+          httpsPort: template.config.ssl.enabled ? (finalConfig.httpsPort || template.config.ports.https || 443) : undefined,
+          acmeEmail: template.config.ssl.enabled ? (finalConfig.acmeEmail || template.config.ssl.acmeEmail) : undefined,
+        };
+        
+        this.logger.log(`Created instance ${config.name} using template ${template.id}`);
+      }
+    }
     
     // Create database record
     const instanceData = {
       id: crypto.randomUUID(),
-      name: config.name,
+      name: finalConfig.name,
       status: 'stopped',
       containerId: null,
-      dashboardPort: config.dashboardPort || 8080,
-      httpPort: config.httpPort || 80,
-      httpsPort: config.httpsPort || 443,
-      acmeEmail: config.acmeEmail || null,
-      logLevel: config.logLevel || 'INFO',
-      insecureApi: config.insecureApi ?? true,
+      dashboardPort: finalConfig.dashboardPort || 8080,
+      httpPort: finalConfig.httpPort || 80,
+      httpsPort: finalConfig.httpsPort || 443,
+      acmeEmail: finalConfig.acmeEmail || null,
+      logLevel: finalConfig.logLevel || 'INFO',
+      insecureApi: finalConfig.insecureApi ?? true,
       config: null, // Will be set when configuration is generated
     };
 
@@ -115,24 +161,67 @@ export class TraefikService {
     }
 
     try {
-      // Generate configuration
-      const configPath = await this.generateTraefikConfig(instance);
+      // First update the instance status to 'running'
+      await this.databaseService.db
+        .update(traefikInstances)
+        .set({ status: 'running' })
+        .where(eq(traefikInstances.id, instanceId));
+
+      // Generate static configuration if needed
+      await this.databaseConfigService.generateStaticConfigForInstance(instanceId, {
+        dashboardPort: instance.dashboardPort || 8080,
+        httpPort: instance.httpPort || 80,
+        httpsPort: instance.httpsPort || 443,
+        acmeEmail: instance.acmeEmail || undefined,
+        logLevel: instance.logLevel || 'INFO',
+        insecureApi: instance.insecureApi || false,
+      });
+
+      // Only generate dynamic configurations if none exist
+      // This prevents creating duplicate configurations
+      const existingConfigs = await this.databaseConfigService.getConfigurationsByType(instanceId, 'dynamic');
+      if (existingConfigs.length === 0) {
+        await this.databaseConfigService.generateDynamicConfigFromDatabase(instanceId);
+      }
+
+      // Perform full sync with cleanup - database is source of truth
+      const syncResults = await this.configFileSyncService.fullSyncWithCleanup(instanceId);
+
+      // Log sync results
+      this.logger.log(`Full sync with cleanup completed: ${syncResults.successful} synced, ${syncResults.failed} failed, ${syncResults.removedOrphans.length} orphans removed`);
+
+      if (syncResults.failed > 0) {
+        this.logger.warn(`Some configurations failed to sync, but proceeding with container start`);
+      }
+
+      // Test Docker connection before attempting to work with containers
+      const dockerConnected = await this.docker.testConnection();
+      if (!dockerConnected) {
+        throw new Error('Cannot start Traefik instance: Docker connection failed');
+      }
       
-      // Create and start container
-      const container = await this.createTraefikContainer(instance, configPath);
+      // Find the existing Traefik container
+      const traefikContainer = await this.findTraefikContainer();
+      if (!traefikContainer) {
+        throw new Error('Traefik container not found. Please ensure Traefik is running via docker-compose.');
+      }
       
-      // Update instance with container ID and status
+      // Update instance with container ID and final status
       const [updatedInstance] = await this.databaseService.db
         .update(traefikInstances)
         .set({ 
-          containerId: container.id,
+          containerId: traefikContainer.Id,
           status: 'running',
-          config: { configPath }
+          config: { 
+            configPath: this.configBasePath,
+            configCount: syncResults.total,
+            lastConfigSync: new Date().toISOString()
+          }
         })
         .where(eq(traefikInstances.id, instanceId))
         .returning();
 
-      this.logger.log(`Started Traefik instance ${instanceId}`);
+      this.logger.log(`Started Traefik instance ${instanceId} with ${syncResults.total} configurations`);
       return updatedInstance;
       
     } catch (error) {
@@ -149,29 +238,33 @@ export class TraefikService {
   }
 
   /**
-   * Stop a Traefik instance
+   * Stop a Traefik instance (deactivate configurations and remove files)
    */
   async stopInstance(instanceId: string): Promise<TraefikInstance> {
     const instance = await this.getInstance(instanceId);
     
-    if (!instance.containerId) {
-      this.logger.log(`Instance ${instanceId} has no container to stop`);
-      return instance;
-    }
-
     try {
-      await this.docker.stopContainer(instance.containerId);
-      
+      // First, update the instance status to 'stopped'
       const [updatedInstance] = await this.databaseService.db
         .update(traefikInstances)
         .set({ 
           status: 'stopped',
-          containerId: null 
+          config: { 
+            ...instance.config,
+            lastConfigUpdate: new Date().toISOString()
+          }
         })
         .where(eq(traefikInstances.id, instanceId))
         .returning();
 
-      this.logger.log(`Stopped Traefik instance ${instanceId}`);
+      // Now trigger sync - since instance is stopped, all config files will be removed
+      const syncResults = await this.configFileSyncService.fullSyncWithCleanup(instanceId);
+      
+      this.logger.log(
+        `Stopped Traefik instance ${instanceId}: ${syncResults.total} configurations processed, ` +
+        `${syncResults.removedOrphans.length} files removed`
+      );
+
       return updatedInstance;
       
     } catch (error) {
@@ -187,6 +280,10 @@ export class TraefikService {
     const id = randomUUID();
     const fullDomain = config.subdomain ? `${config.subdomain}.${config.domain}` : config.domain;
 
+    // Auto-generate certificate path based on SSL configuration
+    const certificatePath = config.sslEnabled ? this.generateCertificatePath(fullDomain, config.sslProvider) : null;
+
+    // Initial domain data with pending DNS status
     const domainData = {
       id,
       traefikInstanceId: instanceId,
@@ -195,8 +292,12 @@ export class TraefikService {
       fullDomain,
       sslEnabled: config.sslEnabled || false,
       sslProvider: config.sslProvider || null,
-      certificatePath: null, // Will be set when SSL is configured
+      certificatePath, // Auto-generated based on SSL configuration
       middleware: config.middleware || null,
+      dnsStatus: 'pending' as const,
+      dnsRecords: null,
+      dnsLastChecked: null,
+      dnsErrorMessage: null,
       isActive: true,
     };
 
@@ -205,7 +306,13 @@ export class TraefikService {
       .values(domainData)
       .returning();
 
-    this.logger.log(`Created domain config ${fullDomain} for instance ${instanceId}`);
+    this.logger.log(`Created domain config ${fullDomain} for instance ${instanceId}${certificatePath ? ` with certificate path ${certificatePath}` : ''}`);
+    
+    // Trigger DNS validation in background (don't await to avoid blocking)
+    this.validateDomainDNS(domainConfig.id).catch(error => {
+      this.logger.error(`Background DNS validation failed for ${fullDomain}:`, error);
+    });
+
     return domainConfig;
   }
 
@@ -285,20 +392,43 @@ export class TraefikService {
    * Update dynamic configuration for a Traefik instance
    */
   async updateDynamicConfig(instanceId: string): Promise<void> {
-    const routes = await this.databaseService.db
-      .select()
-      .from(routeConfigs)
-      .innerJoin(domainConfigs, eq(routeConfigs.domainConfigId, domainConfigs.id))
-      .where(eq(domainConfigs.traefikInstanceId, instanceId));
+    try {
+      // Regenerate all dynamic configurations from database state
+      const result = await this.databaseConfigService.regenerateInstanceConfigurations(instanceId);
+      
+      // Perform full sync with cleanup - database is source of truth
+      const syncResults = await this.configFileSyncService.fullSyncWithCleanup(instanceId);
 
-    if (routes.length > 0) {
+      if (syncResults.failed > 0) {
+        this.logger.warn(`Some configuration files failed to sync: ${syncResults.failed} failed, ${syncResults.successful} successful`);
+      }
+
+      if (syncResults.removedOrphans.length > 0) {
+        this.logger.log(`Cleaned up ${syncResults.removedOrphans.length} orphaned configuration files`);
+      }
+
+      // Update instance timestamp to indicate configuration change
       await this.databaseService.db
         .update(traefikInstances)
-        .set({ updatedAt: new Date() })
+        .set({ 
+          updatedAt: new Date(),
+          config: {
+            ...(typeof this.getInstance(instanceId).then(i => i.config) === 'object' ? await this.getInstance(instanceId).then(i => i.config) : {}),
+            lastConfigUpdate: new Date().toISOString(),
+            configCount: result.generated,
+            syncStatus: syncResults.failed === 0 ? 'synced' : 'partial'
+          }
+        })
         .where(eq(traefikInstances.id, instanceId));
-    }
 
-    this.logger.log(`Updated dynamic config for instance ${instanceId} with ${routes.length} routes`);
+      this.logger.log(
+        `Updated dynamic config for instance ${instanceId}: ` +
+        `${result.deactivated} deactivated, ${result.generated} generated, ${syncResults.successful} synced`
+      );
+    } catch (error) {
+      this.logger.error(`Failed to update dynamic config for instance ${instanceId}:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -464,6 +594,36 @@ export class TraefikService {
       .where(eq(domainConfigs.id, domainConfigId));
 
     this.logger.log(`Deleted domain config ${domainConfigId}`);
+  }
+
+  /**
+   * Find the existing Traefik container from docker-compose
+   */
+  private async findTraefikContainer(): Promise<any> {
+    try {
+      const containers = await this.docker.listContainers({
+        all: true,
+        filters: {
+          name: ['traefik-dev', 'traefik']
+        }
+      });
+      
+      // Look for a running Traefik container
+      const traefikContainer = containers.find(container => 
+        container.Names.some(name => name.includes('traefik')) &&
+        container.State === 'running'
+      );
+      
+      if (traefikContainer) {
+        this.logger.log(`Found running Traefik container: ${traefikContainer.Names[0]}`);
+        return traefikContainer;
+      }
+      
+      return null;
+    } catch (error) {
+      this.logger.error('Failed to find Traefik container:', error);
+      return null;
+    }
   }
 
   /**
@@ -653,5 +813,383 @@ export class TraefikService {
       this.logger.error(`Failed to unregister deployment ${deploymentId}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Check DNS records for a domain
+   */
+  async checkDNS(domain: string, recordType: 'A' | 'AAAA' | 'CNAME' | 'MX' | 'TXT' | 'NS' = 'A'): Promise<DNSCheckResult> {
+    return await this.dnsService.checkDNS(domain, recordType);
+  }
+
+  /**
+   * Validate DNS records for a specific domain configuration
+   */
+  async validateDomainDNS(domainConfigId: string): Promise<DomainConfig> {
+    const [domainConfig] = await this.databaseService.db
+      .select()
+      .from(domainConfigs)
+      .where(eq(domainConfigs.id, domainConfigId))
+      .limit(1);
+
+    if (!domainConfig) {
+      throw new Error(`Domain configuration not found: ${domainConfigId}`);
+    }
+
+    this.logger.log(`Validating DNS for domain: ${domainConfig.fullDomain}`);
+
+    try {
+      // Check A records for the full domain
+      const dnsResult = await this.dnsService.checkDNS(domainConfig.fullDomain, 'A');
+      
+      // Update domain config with DNS validation results
+      const [updatedDomainConfig] = await this.databaseService.db
+        .update(domainConfigs)
+        .set({
+          dnsStatus: dnsResult.status,
+          dnsRecords: dnsResult.records,
+          dnsLastChecked: dnsResult.checkedAt,
+          dnsErrorMessage: dnsResult.errorMessage,
+          updatedAt: new Date(),
+        })
+        .where(eq(domainConfigs.id, domainConfigId))
+        .returning();
+
+      this.logger.log(`DNS validation completed for ${domainConfig.fullDomain}: ${dnsResult.status}`);
+      return updatedDomainConfig;
+
+    } catch (error) {
+      this.logger.error(`DNS validation failed for ${domainConfig.fullDomain}:`, error);
+      
+      // Update domain config with error status
+      const [updatedDomainConfig] = await this.databaseService.db
+        .update(domainConfigs)
+        .set({
+          dnsStatus: 'error',
+          dnsErrorMessage: error instanceof Error ? error.message : 'Unknown DNS validation error',
+          dnsLastChecked: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(domainConfigs.id, domainConfigId))
+        .returning();
+
+      return updatedDomainConfig;
+    }
+  }
+
+  /**
+   * Bulk validate DNS for all domain configurations
+   */
+  async validateAllDomainDNS(instanceId?: string): Promise<DomainConfig[]> {
+    const domains = await this.databaseService.db
+      .select()
+      .from(domainConfigs)
+      .where(instanceId ? eq(domainConfigs.traefikInstanceId, instanceId) : undefined);
+
+    const results: DomainConfig[] = [];
+
+    for (const domain of domains) {
+      try {
+        const result = await this.validateDomainDNS(domain.id);
+        results.push(result);
+      } catch (error) {
+        this.logger.error(`Failed to validate DNS for domain ${domain.fullDomain}:`, error);
+        results.push(domain); // Return original domain if validation fails
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Get all configurations for an instance
+   */
+  async getInstanceConfigurations(instanceId: string): Promise<TraefikConfig[]> {
+    return await this.databaseConfigService.getInstanceConfigurations(instanceId);
+  }
+
+  /**
+   * Get configuration sync status for an instance
+   */
+  async getConfigurationSyncStatus(instanceId: string): Promise<{
+    total: number;
+    synced: number;
+    pending: number;
+    failed: number;
+    outdated: number;
+    configurations: Array<{
+      id: string;
+      name: string;
+      type: string;
+      syncStatus: string;
+      lastSyncedAt?: Date;
+      errorMessage?: string;
+    }>;
+  }> {
+    const configs = await this.getInstanceConfigurations(instanceId);
+    
+    let synced = 0;
+    let pending = 0;
+    let failed = 0;
+    let outdated = 0;
+
+    const configurationDetails = configs.map(config => {
+      switch (config.syncStatus) {
+        case 'synced':
+          synced++;
+          break;
+        case 'pending':
+          pending++;
+          break;
+        case 'failed':
+          failed++;
+          break;
+        case 'outdated':
+          outdated++;
+          break;
+      }
+
+      return {
+        id: config.id,
+        name: config.configName,
+        type: config.configType,
+        syncStatus: config.syncStatus || 'unknown',
+        lastSyncedAt: config.lastSyncedAt || undefined,
+        errorMessage: config.syncErrorMessage || undefined
+      };
+    });
+
+    return {
+      total: configs.length,
+      synced,
+      pending,
+      failed,
+      outdated,
+      configurations: configurationDetails
+    };
+  }
+
+  /**
+   * Force sync all configurations for an instance
+   * Uses fullSyncWithCleanup to ensure database is source of truth
+   */
+  async forceSyncInstanceConfigurations(instanceId: string): Promise<{
+    total: number;
+    successful: number;
+    failed: number;
+    removedOrphans: string[];
+    results: Array<{
+      configId: string;
+      configName: string;
+      success: boolean;
+      action: string;
+      message?: string;
+    }>;
+  }> {
+    // Use fullSyncWithCleanup to ensure database is source of truth
+    const syncResults = await this.configFileSyncService.fullSyncWithCleanup(instanceId);
+    
+    // Get config details for detailed results
+    const configs = await this.getInstanceConfigurations(instanceId);
+    const configMap = new Map(configs.map(c => [c.configPath, c]));
+    
+    const results = syncResults.syncResults.map(result => {
+      const relativePath = result.filePath ? path.relative(this.configFileSyncService['basePath'] || '', result.filePath) : '';
+      const config = configMap.get(relativePath);
+      
+      return {
+        configId: config?.id || 'unknown',
+        configName: config?.configName || path.basename(result.filePath || 'unknown', '.yml'),
+        success: result.success,
+        action: result.action,
+        message: result.message
+      };
+    });
+
+    return {
+      total: syncResults.total,
+      successful: syncResults.successful,
+      failed: syncResults.failed,
+      removedOrphans: syncResults.removedOrphans,
+      results
+    };
+  }
+
+  /**
+   * Clean up orphaned configuration files for an instance
+   */
+  async cleanupOrphanedConfigFiles(instanceId: string): Promise<string[]> {
+    return await this.configFileSyncService.cleanupOrphanedFiles(instanceId);
+  }
+
+  /**
+   * Validate all configuration files for an instance
+   */
+  async validateInstanceConfigFiles(instanceId: string): Promise<{
+    valid: number;
+    invalid: number;
+    configurations: Array<{
+      configId: string;
+      configName: string;
+      isValid: boolean;
+      issues: string[];
+    }>;
+  }> {
+    const configs = await this.getInstanceConfigurations(instanceId);
+    const configurations: Array<{
+      configId: string;
+      configName: string;
+      isValid: boolean;
+      issues: string[];
+    }> = [];
+
+    let valid = 0;
+    let invalid = 0;
+
+    for (const config of configs) {
+      const validation = await this.configFileSyncService.validateSyncStatus(config.id);
+      
+      configurations.push({
+        configId: config.id,
+        configName: config.configName,
+        isValid: validation.isValid,
+        issues: validation.issues
+      });
+
+      if (validation.isValid) {
+        valid++;
+      } else {
+        invalid++;
+      }
+    }
+
+    return {
+      valid,
+      invalid,
+      configurations
+    };
+  }
+
+  /**
+   * Get real-time configuration status for dashboard
+   */
+  async getInstanceConfigurationStatus(instanceId: string): Promise<{
+    instance: TraefikInstance;
+    configurations: {
+      total: number;
+      static: number;
+      dynamic: number;
+      synced: number;
+      pending: number;
+      failed: number;
+    };
+    files: {
+      total: number;
+      exists: number;
+      writable: number;
+      orphaned: number;
+    };
+    lastUpdate: Date;
+  }> {
+    const instance = await this.getInstance(instanceId);
+    const configs = await this.getInstanceConfigurations(instanceId);
+    
+    const staticCount = configs.filter(c => c.configType === 'static').length;
+    const dynamicCount = configs.filter(c => c.configType === 'dynamic').length;
+    const syncedCount = configs.filter(c => c.syncStatus === 'synced').length;
+    const pendingCount = configs.filter(c => c.syncStatus === 'pending').length;
+    const failedCount = configs.filter(c => c.syncStatus === 'failed').length;
+
+    // Get file information (simplified for now)
+    const fileStats = {
+      total: configs.filter(c => c.requiresFile).length,
+      exists: syncedCount, // Approximation
+      writable: syncedCount, // Approximation
+      orphaned: 0 // Would need separate query
+    };
+
+    return {
+      instance,
+      configurations: {
+        total: configs.length,
+        static: staticCount,
+        dynamic: dynamicCount,
+        synced: syncedCount,
+        pending: pendingCount,
+        failed: failedCount
+      },
+      files: fileStats,
+      lastUpdate: instance.updatedAt
+    };
+  }
+
+  // ================================
+  // Template Management Methods
+  // ================================
+
+  /**
+   * Get all available Traefik templates
+   */
+  async getTemplates(category?: 'basic' | 'ssl' | 'advanced' | 'microservices'): Promise<TraefikTemplate[]> {
+    return this.templateService.getTemplates(category);
+  }
+
+  /**
+   * Get a specific template by ID
+   */
+  async getTemplate(templateId: string): Promise<TraefikTemplate | null> {
+    return this.templateService.getTemplate(templateId);
+  }
+
+  /**
+   * Create instance from template
+   */
+  async createInstanceFromTemplate(templateId: string, instanceName: string, customConfig?: {
+    dashboardPort?: number;
+    httpPort?: number;
+    httpsPort?: number;
+    acmeEmail?: string;
+    logLevel?: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+  }): Promise<TraefikInstance> {
+    const template = this.templateService.getTemplate(templateId);
+    if (!template) {
+      throw new Error(`Template not found: ${templateId}`);
+    }
+
+    // Create configuration based on template
+    const config: TraefikInstanceConfig = {
+      name: instanceName,
+      dashboardPort: customConfig?.dashboardPort || template.config.ports.dashboard || 8080,
+      httpPort: customConfig?.httpPort || template.config.ports.http || 80,
+      httpsPort: template.config.ssl.enabled ? (customConfig?.httpsPort || template.config.ports.https || 443) : undefined,
+      acmeEmail: template.config.ssl.enabled ? (customConfig?.acmeEmail || template.config.ssl.acmeEmail) : undefined,
+      logLevel: customConfig?.logLevel || 'INFO',
+      insecureApi: true,
+      template: templateId as 'basic' | 'ssl' | 'advanced' | 'microservices' | 'custom',
+    };
+
+    return this.createInstance(config);
+  }
+
+  /**
+   * Auto-generate certificate path for domain
+   */
+  private generateCertificatePath(domain: string, sslProvider?: string): string | null {
+    if (!sslProvider || sslProvider === 'letsencrypt') {
+      // Let's Encrypt certificates are managed automatically by Traefik
+      return null;
+    }
+    
+    if (sslProvider === 'custom') {
+      // Generate a standard path for custom certificates
+      return `/etc/traefik/certs/${domain}.crt`;
+    }
+    
+    if (sslProvider === 'selfsigned') {
+      // Generate a standard path for self-signed certificates
+      return `/etc/traefik/certs/selfsigned/${domain}.crt`;
+    }
+    
+    return null;
   }
 }

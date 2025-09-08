@@ -10,7 +10,6 @@ import {
   decimal,
 } from "drizzle-orm/pg-core";
 import { deployments, projects, services } from "./deployment";
-import { user } from "./auth";
 
 // Enums for orchestration-related types
 export const orchestrationTypeEnum = pgEnum('orchestration_type', [

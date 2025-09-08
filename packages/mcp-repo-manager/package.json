@@ -18,7 +18,6 @@
     "start": "nest start",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/src/main.js",
-    "lint": "eslint \"{src,test}/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -47,8 +46,6 @@
     "@nestjs/testing": "catalog:api:nest",
     "@types/node": "catalog:build",
     "@types/prompts": "catalog:utils",
-    "@types/supertest": "catalog:testing",
-    "supertest": "catalog:testing",
     "typescript": "catalog:build",
     "rimraf": "catalog:build",
     "vitest": "catalog:testing"

@@ -2,6 +2,9 @@ import { pgTable, text, boolean, timestamp, jsonb, integer, uuid } from 'drizzle
 import { z } from 'zod';
 import { deployments } from './deployment';
 
+// Create enum for DNS status
+const dnsStatusEnum = ['pending', 'valid', 'invalid', 'error'] as const;
+
 // Traefik Instance table
 export const traefikInstances = pgTable('traefik_instances', {
   id: text('id').primaryKey(),
@@ -32,6 +35,11 @@ export const domainConfigs = pgTable('domain_configs', {
   sslProvider: text('ssl_provider'), // letsencrypt, selfsigned, custom
   certificatePath: text('certificate_path'),
   middleware: jsonb('middleware'), // CORS, auth, rate limiting, etc.
+  // DNS validation fields
+  dnsStatus: text('dns_status', { enum: dnsStatusEnum }).default('pending'), // pending, valid, invalid, error
+  dnsRecords: jsonb('dns_records'), // Store resolved DNS records
+  dnsLastChecked: timestamp('dns_last_checked'),
+  dnsErrorMessage: text('dns_error_message'),
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -58,6 +66,53 @@ export const routeConfigs = pgTable('route_configs', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+// Traefik Instance Static Configuration (main traefik.yml config)
+export const traefikStaticConfigs = pgTable('traefik_static_configs', {
+  id: text('id').primaryKey(),
+  traefikInstanceId: text('traefik_instance_id')
+    .references(() => traefikInstances.id, { onDelete: 'cascade' })
+    .notNull()
+    .unique(), // One static config per instance
+  
+  // Core configuration sections
+  globalConfig: jsonb('global_config'), // Global settings
+  apiConfig: jsonb('api_config'), // API and dashboard settings
+  entryPointsConfig: jsonb('entry_points_config'), // Entry points configuration
+  providersConfig: jsonb('providers_config'), // Providers (docker, file, etc.)
+  
+  // Observability
+  logConfig: jsonb('log_config'), // Logging configuration
+  accessLogConfig: jsonb('access_log_config'), // Access logs
+  metricsConfig: jsonb('metrics_config'), // Metrics (prometheus, datadog, etc.)
+  tracingConfig: jsonb('tracing_config'), // Tracing (jaeger, zipkin, etc.)
+  
+  // Security and TLS
+  tlsConfig: jsonb('tls_config'), // TLS configuration
+  certificateResolversConfig: jsonb('certificate_resolvers_config'), // ACME and cert resolvers
+  
+  // Advanced features
+  experimentalConfig: jsonb('experimental_config'), // Experimental features and plugins
+  serversTransportConfig: jsonb('servers_transport_config'), // Server transport config
+  hostResolverConfig: jsonb('host_resolver_config'), // Host resolver config
+  clusterConfig: jsonb('cluster_config'), // Cluster configuration
+  
+  // Full configuration cache (generated from individual sections)
+  fullConfig: jsonb('full_config'), // Complete merged configuration
+  configVersion: integer('config_version').default(1), // Version for tracking changes
+  
+  // File sync status
+  syncStatus: text('sync_status').default('pending'), // pending, synced, failed
+  lastSyncedAt: timestamp('last_synced_at'),
+  syncErrorMessage: text('sync_error_message'),
+  
+  // Validation
+  isValid: boolean('is_valid').default(true),
+  validationErrors: jsonb('validation_errors'), // Configuration validation errors
+  
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 // Traefik Configuration Files (dynamic configs)
 export const traefikConfigs = pgTable('traefik_configs', {
   id: text('id').primaryKey(),
@@ -65,10 +120,42 @@ export const traefikConfigs = pgTable('traefik_configs', {
     .references(() => traefikInstances.id, { onDelete: 'cascade' })
     .notNull(),
   configName: text('config_name').notNull(), // e.g., "deployment-123.yml", "global.yml"
-  configPath: text('config_path').notNull(), // File path in container
+  configPath: text('config_path'), // File path in container (nullable for database-only configs)
   configContent: text('config_content').notNull(), // YAML content
   configType: text('config_type').notNull(), // static, dynamic, deployment
+  // File sync fields
+  requiresFile: boolean('requires_file').default(false), // Whether this config needs to be written to a file
+  syncStatus: text('sync_status').default('pending'), // pending, synced, failed, outdated
+  lastSyncedAt: timestamp('last_synced_at'),
+  syncErrorMessage: text('sync_error_message'),
+  fileChecksum: text('file_checksum'), // To detect file changes
+  // Metadata
+  configVersion: integer('config_version').default(1), // For versioning and rollback
+  metadata: jsonb('metadata'), // Additional metadata like dependencies, priority, etc.
   isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Configuration File Tracking (tracks actual files on filesystem)
+export const configFiles = pgTable('config_files', {
+  id: text('id').primaryKey(),
+  traefikConfigId: text('traefik_config_id')
+    .references(() => traefikConfigs.id, { onDelete: 'cascade' })
+    .notNull(),
+  filePath: text('file_path').notNull(), // Absolute path to the file
+  fileSize: integer('file_size'), // File size in bytes
+  checksum: text('checksum'), // File content checksum
+  permissions: text('permissions').default('644'), // File permissions
+  owner: text('owner').default('traefik'), // File owner
+  // File status
+  exists: boolean('exists').default(false), // Whether file exists on filesystem
+  isWritable: boolean('is_writable').default(true), // Whether file can be written
+  lastWriteAttempt: timestamp('last_write_attempt'),
+  writeErrorMessage: text('write_error_message'),
+  // Metadata
+  containerPath: text('container_path'), // Path inside the container if different
+  mountPoint: text('mount_point'), // Docker mount point info
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -95,6 +182,46 @@ export const createTraefikInstanceSchema = traefikInstanceSchema.omit({
   updatedAt: true 
 }).partial({ id: true });
 
+export const traefikStaticConfigSchema = z.object({
+  id: z.string(),
+  traefikInstanceId: z.string(),
+  // Core configuration sections
+  globalConfig: z.any().nullable(),
+  apiConfig: z.any().nullable(),
+  entryPointsConfig: z.any().nullable(),
+  providersConfig: z.any().nullable(),
+  // Observability
+  logConfig: z.any().nullable(),
+  accessLogConfig: z.any().nullable(),
+  metricsConfig: z.any().nullable(),
+  tracingConfig: z.any().nullable(),
+  // Security and TLS
+  tlsConfig: z.any().nullable(),
+  certificateResolversConfig: z.any().nullable(),
+  // Advanced features
+  experimentalConfig: z.any().nullable(),
+  serversTransportConfig: z.any().nullable(),
+  hostResolverConfig: z.any().nullable(),
+  clusterConfig: z.any().nullable(),
+  // Full configuration cache
+  fullConfig: z.any().nullable(),
+  configVersion: z.number().nullable(),
+  // File sync status
+  syncStatus: z.string().nullable(),
+  lastSyncedAt: z.date().nullable(),
+  syncErrorMessage: z.string().nullable(),
+  // Validation
+  isValid: z.boolean().nullable(),
+  validationErrors: z.any().nullable(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export const createTraefikStaticConfigSchema = traefikStaticConfigSchema.omit({
+  createdAt: true,
+  updatedAt: true
+}).partial({ id: true });
+
 export const domainConfigSchema = z.object({
   id: z.string(),
   traefikInstanceId: z.string(),
@@ -105,6 +232,11 @@ export const domainConfigSchema = z.object({
   sslProvider: z.string().nullable(),
   certificatePath: z.string().nullable(),
   middleware: z.any().nullable(),
+  // DNS validation fields
+  dnsStatus: z.enum(['pending', 'valid', 'invalid', 'error']).nullable(),
+  dnsRecords: z.any().nullable(),
+  dnsLastChecked: z.date().nullable(),
+  dnsErrorMessage: z.string().nullable(),
   isActive: z.boolean().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -141,9 +273,18 @@ export const traefikConfigSchema = z.object({
   id: z.string(),
   traefikInstanceId: z.string(),
   configName: z.string(),
-  configPath: z.string(),
+  configPath: z.string().nullable(),
   configContent: z.string(),
   configType: z.string(),
+  // File sync fields
+  requiresFile: z.boolean().nullable(),
+  syncStatus: z.string().nullable(),
+  lastSyncedAt: z.date().nullable(),
+  syncErrorMessage: z.string().nullable(),
+  fileChecksum: z.string().nullable(),
+  // Metadata
+  configVersion: z.number().nullable(),
+  metadata: z.any().nullable(),
   isActive: z.boolean().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -154,9 +295,37 @@ export const createTraefikConfigSchema = traefikConfigSchema.omit({
   updatedAt: true
 }).partial({ id: true });
 
+export const configFileSchema = z.object({
+  id: z.string(),
+  traefikConfigId: z.string(),
+  filePath: z.string(),
+  fileSize: z.number().nullable(),
+  checksum: z.string().nullable(),
+  permissions: z.string().nullable(),
+  owner: z.string().nullable(),
+  // File status
+  exists: z.boolean().nullable(),
+  isWritable: z.boolean().nullable(),
+  lastWriteAttempt: z.date().nullable(),
+  writeErrorMessage: z.string().nullable(),
+  // Metadata
+  containerPath: z.string().nullable(),
+  mountPoint: z.string().nullable(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export const createConfigFileSchema = configFileSchema.omit({
+  createdAt: true,
+  updatedAt: true
+});
+
 // TypeScript types
 export type TraefikInstance = z.infer<typeof traefikInstanceSchema>;
 export type CreateTraefikInstance = z.infer<typeof createTraefikInstanceSchema>;
+
+export type TraefikStaticConfig = z.infer<typeof traefikStaticConfigSchema>;
+export type CreateTraefikStaticConfig = z.infer<typeof createTraefikStaticConfigSchema>;
 
 export type DomainConfig = z.infer<typeof domainConfigSchema>;
 export type CreateDomainConfig = z.infer<typeof createDomainConfigSchema>;
@@ -166,3 +335,6 @@ export type CreateRouteConfig = z.infer<typeof createRouteConfigSchema>;
 
 export type TraefikConfig = z.infer<typeof traefikConfigSchema>;
 export type CreateTraefikConfig = z.infer<typeof createTraefikConfigSchema>;
+
+export type ConfigFile = z.infer<typeof configFileSchema>;
+export type CreateConfigFile = z.infer<typeof createConfigFileSchema>;

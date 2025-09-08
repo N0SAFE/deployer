@@ -18,6 +18,7 @@
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
+      "@repo/eslint-config/*": ["../eslint-config/*"],
       "@repo/vitest-config/*": ["../vitest-config/*"],
     }
   }
