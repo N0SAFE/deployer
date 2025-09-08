@@ -8,6 +8,7 @@ import {
 } from '@repo/ui/components/shadcn/card'
 import { validateEnvSafe } from '#/env'
 import RedirectAfterDelay from './RedirectAfterDelay'
+import { Middlewareerrorenv } from '@/routes'
 
 function renderInvalidType(issue: $ZodIssueInvalidType) {
     return (
@@ -37,7 +38,7 @@ function renderByCode(issue: $ZodIssue) {
     }
 }
 
-export default async function EnvPage(props: {
+export default Middlewareerrorenv.Page(async function EnvPage(props: {
     searchParams: Promise<{ redirect?: string }>
 }) {
     const searchParams = await props.searchParams
@@ -83,4 +84,4 @@ export default async function EnvPage(props: {
             ))}
         </div>
     )
-}
+})

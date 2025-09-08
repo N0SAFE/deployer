@@ -4,30 +4,30 @@ import { createServerORPC } from '@/lib/orpc/server'
 import { Settings } from 'lucide-react'
 import { ConfigurationTabsList } from './ConfigurationTabsList'
 import { ConfigurationActions } from './ConfigurationActions'
+import { DashboardProjectsProjectIdServicesServiceIdTabsConfiguration } from '@/routes/index'
+import { tryCatch } from '@/utils/server'
 
-interface ServiceConfigLayoutProps {
+export default DashboardProjectsProjectIdServicesServiceIdTabsConfiguration.Page<{
     children: React.ReactNode
-    params: Promise<{ projectId: string; serviceId: string }>
-}
-
-export default async function ServiceConfigLayout({
-    children,
-    params,
-}: ServiceConfigLayoutProps) {
+}>(async function ServiceConfigLayout({ children, params }) {
     const { projectId, serviceId } = await params
     const queryClient = getQueryClient()
+
     const orpcServer = await createServerORPC()
 
-    // Prefetch service data for configuration
-    try {
-        await queryClient.fetchQuery(
-            orpcServer.service.getById.queryOptions({
-                input: { id: serviceId },
-            })
-        )
-    } catch (error) {
-        console.error('Failed to prefetch service data:', error)
-    }
+    await tryCatch(
+        () =>
+            queryClient.fetchQuery(
+                orpcServer.service.getById.queryOptions({
+                    input: { id: serviceId },
+                })
+            ),
+        (error) =>
+            console.error(
+                '❌ [ServiceConfig] Failed to prefetch service data:',
+                error
+            )
+    )
 
     const dehydratedState = dehydrate(queryClient)
 
@@ -52,12 +52,15 @@ export default async function ServiceConfigLayout({
                 {/* Layout with Sidebar */}
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
                     {/* Sidebar */}
-                    <ConfigurationTabsList projectId={projectId} serviceId={serviceId} />
-                    
+                    <ConfigurationTabsList
+                        projectId={projectId}
+                        serviceId={serviceId}
+                    />
+
                     {/* Main Content */}
                     <div className="lg:col-span-3">{children}</div>
                 </div>
             </div>
         </HydrationBoundary>
     )
-}
+})

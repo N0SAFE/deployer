@@ -286,8 +286,8 @@ describe('EnvironmentController', () => {
         tags: [],
         protectionRules: undefined,
         createdBy: 'user-1',
-        createdAt: '2023-01-01T00:00:00.000Z',
-        updatedAt: '2023-01-01T00:00:00.000Z',
+        createdAt: new Date('2023-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2023-01-01T00:00:00.000Z'),
       });
     });
 

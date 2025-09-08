@@ -40,12 +40,6 @@ import {
   Download,
 } from 'lucide-react'
 
-interface ProjectEnvironmentConfigPageProps {
-  params: {
-    projectId: string
-  }
-}
-
 type EnvironmentType = 'all' | 'production' | 'staging' | 'development'
 
 interface EnvironmentVariable {
@@ -55,8 +49,7 @@ interface EnvironmentVariable {
   environment: EnvironmentType
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function ProjectEnvironmentConfigPage(_: ProjectEnvironmentConfigPageProps) {
+export default function ProjectEnvironmentConfigPage() {
   const [hasChanges, setHasChanges] = useState(false)
   const [variables, setVariables] = useState<EnvironmentVariable[]>([
     {

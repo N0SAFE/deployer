@@ -27,11 +27,7 @@ import {
 } from '@/routes/index'
 import ServiceTabsList from './ServiceTabsList'
 import ServiceActionsDropdown from './ServiceActionsDropdown'
-
-interface ServiceLayoutProps {
-    children: React.ReactNode
-    params: Promise<{ projectId: string; serviceId: string }>
-}
+import { tryCatchAll } from '@/utils/server'
 
 const getConfigSections = ({
     projectId,
@@ -59,10 +55,12 @@ const getConfigSections = ({
         }) as ReactElement,
     }))
 
-export default async function ServiceLayout({
+export default DashboardProjectsProjectIdServicesServiceIdTabs.Page<{
+    children: React.ReactNode
+}>(async function ServiceLayout({
     children,
     params,
-}: ServiceLayoutProps) {
+}) {
     const { projectId, serviceId } = await params
     const startTime = Date.now()
     const queryClient = getQueryClient()
@@ -73,49 +71,40 @@ export default async function ServiceLayout({
 
     const orpcServer = await createServerORPC()
 
-    // Initialize service and deployments
-    let service: Awaited<ReturnType<typeof orpcServer.service.getById.call>> | null = null
-    let deploymentsData:
-        | Awaited<
-              ReturnType<typeof orpcServer.service.getDeployments.call>
-          >
-        | null = null
-
-    try {
-        const [serviceResult, deploymentsResult] = await Promise.allSettled([
-            queryClient.fetchQuery(
+    // Fetch service and deployments data using tryCatchAll for cleaner error handling
+    const [service, deploymentsData] = await tryCatchAll([
+        async () => {
+            const result = await queryClient.fetchQuery(
                 orpcServer.service.getById.queryOptions({
                     input: { id: serviceId },
                 })
-            ),
-            queryClient.fetchQuery(
+            )
+            // Hydrate the cache
+            queryClient.setQueryData(
+                orpcServer.service.getById.queryKey({ input: { id: serviceId } }),
+                result
+            )
+            return result
+        },
+        async () => {
+            const result = await queryClient.fetchQuery(
                 orpcServer.service.getDeployments.queryOptions({
                     input: { id: serviceId, limit: 50 },
                 })
-            ),
-        ])
-
-        if (serviceResult.status === 'fulfilled') {
-            service = serviceResult.value
-            // Hydrate
-            queryClient.setQueryData(
-                orpcServer.service.getById.queryKey({ input: { id: serviceId } }),
-                serviceResult.value
             )
-        }
-
-        if (deploymentsResult.status === 'fulfilled') {
-            deploymentsData = deploymentsResult.value
+            // Hydrate the cache
             queryClient.setQueryData(
                 orpcServer.service.getDeployments.queryKey({
                     input: { id: serviceId, limit: 50 },
                 }),
-                deploymentsResult.value
+                result
             )
+            return result
         }
-    } catch (error) {
-        console.error('Failed to prefetch service data:', error)
-    }
+    ], (error, index) => {
+        const operation = index === 0 ? 'service data' : 'deployments data'
+        console.error(`❌ [ServiceLayout-${projectId}/${serviceId}] Failed to fetch ${operation}:`, error)
+    })
 
     const endTime = Date.now()
     console.log(
@@ -274,4 +263,4 @@ export default async function ServiceLayout({
             </div>
         </HydrationBoundary>
     )
-}
+})

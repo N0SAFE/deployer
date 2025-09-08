@@ -23,14 +23,11 @@ import {
   Info,
 } from 'lucide-react'
 import React from 'react'
+import { useParams } from '@/routes/hooks'
+import { DashboardProjectsProjectIdTabsConfigurationGeneral } from '@/routes'
 
-interface ProjectGeneralConfigPageProps {
-  params: {
-    projectId: string
-  }
-}
-
-export default function ProjectGeneralConfigPage({ params }: ProjectGeneralConfigPageProps) {
+export default function ProjectGeneralConfigPage() {
+  const params = useParams(DashboardProjectsProjectIdTabsConfigurationGeneral)
   const { data: project } = useProject(params.projectId)
   const [hasChanges, setHasChanges] = useState(false)
   const [formData, setFormData] = useState({

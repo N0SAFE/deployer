@@ -20,12 +20,7 @@ import {
 import ProjectActionsDropdown from './ProjectActionsDropdown'
 import { ReactElement } from 'react'
 import ProjectTabsList from './ProjectTabsList'
-import z from 'zod'
-
-interface ProjectLayoutProps {
-    children: React.ReactNode
-    params: Promise<{ projectId: string }>
-}
+import { tryCatchAll } from '@/utils/server'
 
 const getTabSections = ({ projectId }: { projectId: string }) =>
     Object.entries({
@@ -50,10 +45,9 @@ const getTabSections = ({ projectId }: { projectId: string }) =>
         }) as ReactElement,
     }))
 
-export default async function ProjectLayout({
-    children,
-    params,
-}: ProjectLayoutProps) {
+export default DashboardProjectsProjectIdTabs.Page<{
+    children: React.ReactNode
+}>(async function ProjectLayout({ children, params }) {
     const { projectId } = await params
     const startTime = Date.now()
     const queryClient = getQueryClient()
@@ -62,54 +56,53 @@ export default async function ProjectLayout({
 
     const orpcServer = await createServerORPC()
 
-    // Initialize project with correct types
-    let project: Awaited<ReturnType<typeof orpcServer.project.getById.call>> | null = null
-
-    try {
-        // Prefetch shared data and get results for server rendering
-        const [projectResult, servicesResult] = await Promise.allSettled([
+    // Fetch shared data and get results for server rendering
+    const [project, servicesResult] = await tryCatchAll(
+        [
             // Project data - used by layout header and all child pages
-            queryClient.fetchQuery(
-                orpcServer.project.getById.queryOptions({
-                    input: { id: projectId },
-                })
-            ),
+            async () => {
+                const result = await queryClient.fetchQuery(
+                    orpcServer.project.getById.queryOptions({
+                        input: { id: projectId },
+                    })
+                )
+                // Also set cache for hydration
+                queryClient.setQueryData(
+                    orpcServer.project.getById.queryKey({
+                        input: { id: projectId },
+                    }),
+                    result
+                )
+                return result
+            },
             // Services data - used by services page, deployments page, and overview
-            queryClient.fetchQuery(
-                orpcServer.service.listByProject.queryOptions({
-                    input: {
-                        projectId,
-                        limit: 50,
-                    },
-                })
-            ),
-        ])
-
-        // Extract data for server-side rendering
-        if (projectResult.status === 'fulfilled') {
-            project = projectResult.value
-        }
-
-        // Also prefetch for client hydration
-        if (projectResult.status === 'fulfilled') {
-            queryClient.setQueryData(
-                orpcServer.project.getById.queryKey({
-                    input: { id: projectId },
-                }),
-                projectResult.value
+            async () => {
+                const result = await queryClient.fetchQuery(
+                    orpcServer.service.listByProject.queryOptions({
+                        input: {
+                            projectId,
+                            limit: 50,
+                        },
+                    })
+                )
+                // Also set cache for hydration
+                queryClient.setQueryData(
+                    orpcServer.service.listByProject.queryKey({
+                        input: { projectId, limit: 50 },
+                    }),
+                    result
+                )
+                return result
+            },
+        ],
+        (error, index) => {
+            const operation = index === 0 ? 'project data' : 'services data'
+            console.error(
+                `❌ [ProjectLayout-${projectId}] Failed to fetch ${operation}:`,
+                error
             )
         }
-        if (servicesResult.status === 'fulfilled') {
-            queryClient.setQueryData(
-                orpcServer.service.listByProject.queryKey({
-                    input: { projectId, limit: 50 },
-                }),
-                servicesResult.value
-            )
-        }
-    } catch (error) {
-        console.error('Failed to prefetch project data:', error)
-    }
+    )
 
     const endTime = Date.now()
     console.log(
@@ -160,4 +153,4 @@ export default async function ProjectLayout({
             </div>
         </HydrationBoundary>
     )
-}
+})

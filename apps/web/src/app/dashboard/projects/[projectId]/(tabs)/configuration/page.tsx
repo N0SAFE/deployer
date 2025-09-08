@@ -2,14 +2,11 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useParams } from '@/routes/hooks'
+import { DashboardProjectsProjectIdTabsConfiguration } from '@/routes'
 
-interface ProjectConfigurationPageProps {
-  params: {
-    projectId: string
-  }
-}
-
-export default function ProjectConfigurationPage({ params }: ProjectConfigurationPageProps) {
+export default function ProjectConfigurationPage() {
+  const params = useParams(DashboardProjectsProjectIdTabsConfiguration)
   const router = useRouter()
 
   useEffect(() => {

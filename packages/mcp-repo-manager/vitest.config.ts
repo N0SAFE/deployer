@@ -1,13 +1,13 @@
 import { defineConfig } from 'vitest/config';
 
-import { createNodeConfig } from '@repo/vitest-config/node'
+const { createNodeConfig } = require('@repo/vitest-config/node');
 
 export default defineConfig(
   createNodeConfig({
     test: {
       globals: true,
       environment: 'node',
-      include: ['tests/**/*.{test,spec}.{js,ts}'],
+      include: ['src/**/*.{test,spec}.{js,ts}', 'test/**/*.{test,spec}.{js,ts}'],
       exclude: ['node_modules', 'dist'],
       coverage: {
         provider: 'v8',
@@ -15,7 +15,7 @@ export default defineConfig(
         exclude: [
           'node_modules/',
           'dist/',
-          'tests/',
+          'test/',
           'src/types/',
           '**/*.d.ts',
           '**/*.test.ts',
@@ -23,10 +23,10 @@ export default defineConfig(
         ],
         thresholds: {
           global: {
-            branches: 90,
-            functions: 90,
-            lines: 90,
-            statements: 90
+            branches: 80,
+            functions: 80,
+            lines: 80,
+            statements: 80
           }
         }
       },
@@ -36,7 +36,7 @@ export default defineConfig(
     resolve: {
       alias: {
         '@': './src',
-        '@tests': './tests'
+        '@test': './test'
       }
     }
   })

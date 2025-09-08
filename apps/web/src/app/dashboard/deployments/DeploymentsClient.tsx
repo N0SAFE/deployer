@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { useProjects } from '@/hooks/useProjects'
 import { useDeployments } from '@/hooks/useDeployments'
 import { Card, CardContent } from '@repo/ui/components/shadcn/card'
@@ -22,13 +21,19 @@ import {
 } from 'lucide-react'
 import DeploymentCard from '@/components/deployments/DeploymentCard'
 import { DeploymentListSkeleton, StatsSkeleton } from '@/components/loading/skeletons'
+import { useSearchParamState } from '@/routes/hooks'
+import { GlobalDeployments } from '@/routes'
 
 export function DeploymentsClient() {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [environmentFilter, setEnvironmentFilter] = useState<string>('all')
-  const [projectFilter, setProjectFilter] = useState<string>('all')
-  const [activeTab, setActiveTab] = useState('all')
+  // Use RouteBuilder for search parameter state management
+  const [searchParams, setSearchParams] = useSearchParamState(GlobalDeployments)
+
+  // Extract values from search params with defaults
+  const searchQuery = searchParams.project || ''
+  const statusFilter = searchParams.status || 'all'
+  const environmentFilter = searchParams.environment || 'all'
+  const projectFilter = searchParams.project || 'all'
+  const activeTab = searchParams.tab || 'all'
 
   // Get all projects for filtering
   const { data: projectsData } = useProjects()
@@ -144,7 +149,7 @@ export function DeploymentsClient() {
       )}
 
       {/* Filters and Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(tab) => setSearchParams({ tab: tab as 'all' | 'active' | 'completed' | 'failed' })} className="space-y-4">
         <TabsList>
           <TabsTrigger value="all">All Deployments</TabsTrigger>
           <TabsTrigger value="active" className="relative">
@@ -173,12 +178,12 @@ export function DeploymentsClient() {
             <Input
               placeholder="Search deployments or services..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchParams({ project: e.target.value || undefined })}
               className="pl-9"
             />
           </div>
           
-          <Select value={projectFilter} onValueChange={setProjectFilter}>
+          <Select value={projectFilter} onValueChange={(value) => setSearchParams({ project: value === 'all' ? undefined : value })}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="All Projects" />
             </SelectTrigger>
@@ -192,7 +197,7 @@ export function DeploymentsClient() {
             </SelectContent>
           </Select>
           
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select value={statusFilter} onValueChange={(value) => setSearchParams({ status: value === 'all' ? undefined : value as 'success' | 'failed' | 'pending' | 'building' | 'deploying' | 'cancelled' })}>
             <SelectTrigger className="w-48">
               <Filter className="h-4 w-4 mr-2" />
               <SelectValue />
@@ -208,7 +213,7 @@ export function DeploymentsClient() {
             </SelectContent>
           </Select>
 
-          <Select value={environmentFilter} onValueChange={setEnvironmentFilter}>
+          <Select value={environmentFilter} onValueChange={(value) => setSearchParams({ environment: value === 'all' ? undefined : value as 'production' | 'staging' | 'preview' | 'development' })}>
             <SelectTrigger className="w-48">
               <SelectValue />
             </SelectTrigger>

@@ -22,7 +22,7 @@ import {
 import { useProjects } from '@/hooks/useProjects'
 import { CreateProjectDialog } from '@/components/projects/CreateProjectDialog'
 import Link from 'next/link'
-import { DashboardProjectsProjectIdTabs } from '@/routes'
+import { DashboardProjectsProjectIdTabs, DashboardProjectsProjectIdTabsServices } from '@/routes'
 import { ProjectGridSkeleton } from '@/components/loading/skeletons'
 
 export function ProjectsClient() {
@@ -149,9 +149,9 @@ export function ProjectsClient() {
                           </DashboardProjectsProjectIdTabs.Link>
                         </Button>
                         <Button asChild size="sm" className="flex-1">
-                          <Link href={`/projects/${project.id}/services`}>
+                          <DashboardProjectsProjectIdTabsServices.Link projectId={project.id}>
                             Services
-                          </Link>
+                          </DashboardProjectsProjectIdTabsServices.Link>
                         </Button>
                       </div>
                     </div>

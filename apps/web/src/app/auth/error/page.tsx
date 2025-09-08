@@ -1,6 +1,7 @@
 'use client'
 
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams } from '@/routes/hooks'
+import { Autherror } from '@/routes'
 
 enum Error {
     Configuration = 'Configuration',
@@ -19,8 +20,8 @@ const errorMap = {
 }
 
 export default function AuthErrorPage() {
-    const search = useSearchParams()
-    const error = search.get('error') as Error
+    const searchParams = useSearchParams(Autherror)
+    const error = searchParams.error as Error
 
     return (
         <div className="flex h-screen w-full flex-col items-center justify-center">

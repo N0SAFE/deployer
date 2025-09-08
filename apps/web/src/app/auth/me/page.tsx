@@ -1,4 +1,4 @@
-import { Authsignin, Dashboard } from '@/routes/index'
+import { Authsignin, Dashboard, Authme } from '@/routes/index'
 import { Button } from '@repo/ui/components/shadcn/button'
 import {
     Card,
@@ -20,7 +20,7 @@ import {
 import { getServerSession } from '@/lib/auth/actions'
 import SignOutButton from '../../../components/signout/signoutButton'
 
-export default async function MePage() {
+export default Authme.Page(async function MePage() {
     const headersList = await headers()
     const url = headersList.get('x-pathname')
     const { data: betterAuthSession } = await getServerSession(headersList)
@@ -157,4 +157,4 @@ export default async function MePage() {
             </div>
         </div>
     )
-}
+})

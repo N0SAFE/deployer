@@ -59,12 +59,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@repo/ui/lib/utils'
 import { CreatePreviewEnvironmentDialog } from '@/components/environment/CreatePreviewEnvironmentDialog'
-
-interface EnvironmentsPageProps {
-  params: {
-    projectId: string
-  }
-}
+import { useParams } from '@/routes/hooks'
+import { DashboardProjectsProjectIdTabsConfigurationEnvironments } from '@/routes'
 
 // Mock data - replace with actual API calls
 const mockEnvironments = [
@@ -454,7 +450,8 @@ function EnvironmentCard({ environment }: { environment: Environment }) {
   )
 }
 
-export default function EnvironmentsPage({ params }: EnvironmentsPageProps) {
+export default function EnvironmentsPage() {
+  const params = useParams(DashboardProjectsProjectIdTabsConfigurationEnvironments)
   const [environments] = useState<Environment[]>(mockEnvironments)
   const [filter, setFilter] = useState<'all' | EnvironmentType>('all')
 

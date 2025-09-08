@@ -29,8 +29,8 @@ export class EnvironmentController {
       tags: [], // Default empty array
       protectionRules: undefined, // Map if needed
       createdBy: env.createdBy,
-      createdAt: env.createdAt instanceof Date ? env.createdAt.toISOString() : env.createdAt,
-      updatedAt: env.updatedAt instanceof Date ? env.updatedAt.toISOString() : env.updatedAt,
+      createdAt: env.createdAt instanceof Date ? env.createdAt : new Date(env.createdAt),
+      updatedAt: env.updatedAt instanceof Date ? env.updatedAt : new Date(env.updatedAt),
     };
   }
 
@@ -94,10 +94,19 @@ export class EnvironmentController {
       this.logger.log(`Getting environment: ${input.id}`);
 
       const environment = await this.environmentService.getEnvironment(input.id);
+      
+      if (!environment) {
+        throw new Error(`Environment with id ${input.id} not found`);
+      }
+
+      const transformedEnvironment = this.transformEnvironment(environment);
+      if (!transformedEnvironment) {
+        throw new Error(`Failed to transform environment ${input.id}`);
+      }
 
       return {
         success: true,
-        data: this.transformEnvironment(environment),
+        data: transformedEnvironment,
       };
     });
   }
@@ -124,9 +133,14 @@ export class EnvironmentController {
         'create'
       );
 
+      const transformedEnvironment = this.transformEnvironment(environment);
+      if (!transformedEnvironment) {
+        throw new Error(`Failed to transform created environment ${input.name}`);
+      }
+
       return {
         success: true,
-        data: this.transformEnvironment(environment),
+        data: transformedEnvironment,
       };
     });
   }
@@ -143,9 +157,18 @@ export class EnvironmentController {
 
       // TODO: Get user from session and log access
 
+      if (!environment) {
+        throw new Error(`Environment with id ${input.id} not found for update`);
+      }
+
+      const transformedEnvironment = this.transformEnvironment(environment);
+      if (!transformedEnvironment) {
+        throw new Error(`Failed to transform updated environment ${input.id}`);
+      }
+
       return {
         success: true,
-        data: this.transformEnvironment(environment),
+        data: transformedEnvironment,
       };
     });
   }
@@ -249,9 +272,18 @@ export class EnvironmentController {
 
       // TODO: Get user from session and log access
 
+      if (!environment) {
+        throw new Error(`Environment with id ${input.environmentId} not found for status update`);
+      }
+
+      const transformedEnvironment = this.transformEnvironment(environment);
+      if (!transformedEnvironment) {
+        throw new Error(`Failed to transform environment after status update ${input.environmentId}`);
+      }
+
       return {
         success: true,
-        data: this.transformEnvironment(environment),
+        data: transformedEnvironment,
       };
     });
   }
@@ -282,9 +314,14 @@ export class EnvironmentController {
         'create_preview'
       );
 
+      const transformedEnvironment = this.transformEnvironment(environment);
+      if (!transformedEnvironment) {
+        throw new Error(`Failed to transform created preview environment ${input.name}`);
+      }
+
       return {
         success: true,
-        data: this.transformEnvironment(environment),
+        data: transformedEnvironment,
       };
     });
   }
@@ -464,8 +501,13 @@ export class EnvironmentController {
         'create_preview_for_project'
       );
 
+      const transformedEnvironment = this.transformEnvironment(environment);
+      if (!transformedEnvironment) {
+        throw new Error(`Failed to transform created preview environment for project ${input.projectId}`);
+      }
+
       // Return the direct environment object, not wrapped in { success, data }
-      return this.transformEnvironment(environment);
+      return transformedEnvironment;
     });
   }
 
