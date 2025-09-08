@@ -26,7 +26,11 @@ import {
   Route as RouteIcon,
   Power,
   PowerOff,
-  RefreshCw
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Clock
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { orpc } from '@/lib/orpc'
@@ -157,6 +161,33 @@ export default function TraefikDashboard() {
     })
   )
 
+  // DNS checking mutations
+  const checkDNSMutation = useMutation(
+    orpc.traefik.checkDNS.mutationOptions({
+      onSuccess: (result) => {
+        toast.success(`DNS check completed: ${result.status}`)
+      },
+      onError: (error: Error) => {
+        toast.error(`DNS check failed: ${error.message}`)
+      },
+    })
+  )
+
+  const validateDomainDNSMutation = useMutation(
+    orpc.traefik.validateDomainDNS.mutationOptions({
+      onSuccess: () => {
+        // Invalidate domain configs to refresh DNS status
+        queryClient.invalidateQueries({ 
+          predicate: (query) => query.queryKey[0] === 'traefik' && query.queryKey[1] === 'listDomainConfigs'
+        })
+        toast.success('Domain DNS validation completed')
+      },
+      onError: (error: Error) => {
+        toast.error(`DNS validation failed: ${error.message}`)
+      },
+    })
+  )
+
   const handleCreateInstance = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const formData = new FormData(event.currentTarget)
@@ -207,6 +238,35 @@ export default function TraefikDashboard() {
   const runningInstances = instances.filter(instance => instance.status === 'running')
   const totalDomains = domainConfigs.length
   const activeRoutes = routeConfigs.filter(route => route.isActive === true)
+
+  // DNS status helpers
+  const getDNSStatusIcon = (status: string | null) => {
+    switch (status) {
+      case 'valid':
+        return <CheckCircle className="h-4 w-4 text-green-600" />
+      case 'invalid':
+        return <XCircle className="h-4 w-4 text-red-600" />
+      case 'error':
+        return <AlertCircle className="h-4 w-4 text-orange-600" />
+      case 'pending':
+      default:
+        return <Clock className="h-4 w-4 text-gray-600" />
+    }
+  }
+
+  const getDNSStatusColor = (status: string | null) => {
+    switch (status) {
+      case 'valid':
+        return 'default'
+      case 'invalid':
+        return 'destructive'
+      case 'error':
+        return 'secondary'
+      case 'pending':
+      default:
+        return 'outline'
+    }
+  }
 
   return (
     <div className="container mx-auto py-6 px-4 max-w-7xl">
@@ -286,7 +346,7 @@ export default function TraefikDashboard() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="instances" className="flex items-center gap-2">
             <Server className="h-4 w-4" />
             Instances
@@ -298,6 +358,10 @@ export default function TraefikDashboard() {
           <TabsTrigger value="routes" className="flex items-center gap-2">
             <RouteIcon className="h-4 w-4" />
             Routes
+          </TabsTrigger>
+          <TabsTrigger value="dns" className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4" />
+            DNS Check
           </TabsTrigger>
         </TabsList>
 
@@ -442,6 +506,10 @@ export default function TraefikDashboard() {
                     <Input id="domain" name="domain" placeholder="example.com" required />
                   </div>
                   <div>
+                    <Label htmlFor="subdomain">Subdomain (optional)</Label>
+                    <Input id="subdomain" name="subdomain" placeholder="api, app, www" />
+                  </div>
+                  <div>
                     <Label htmlFor="instanceId">Traefik Instance</Label>
                     <select id="instanceId" name="instanceId" required className="w-full px-3 py-2 border border-gray-200 rounded-md">
                       <option value="">Select an instance</option>
@@ -449,6 +517,15 @@ export default function TraefikDashboard() {
                         <option key={instance.id} value={instance.id}>{instance.name}</option>
                       ))}
                     </select>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input 
+                      type="checkbox" 
+                      id="sslEnabled" 
+                      name="sslEnabled" 
+                      className="h-4 w-4"
+                    />
+                    <Label htmlFor="sslEnabled">Enable SSL/HTTPS</Label>
                   </div>
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" onClick={() => setCreateDomainOpen(false)}>
@@ -486,10 +563,22 @@ export default function TraefikDashboard() {
                       <div className="flex items-center gap-3">
                         <Globe className="h-5 w-5 text-blue-600" />
                         <div>
-                          <h3 className="font-semibold">{domain.domain}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold">{domain.fullDomain}</h3>
+                            {domain.subdomain && (
+                              <Badge variant="outline" className="text-xs">
+                                {domain.subdomain}
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-gray-600">
                             Instance: {instances.find(i => i.id === domain.traefikInstanceId)?.name || domain.traefikInstanceId}
                           </p>
+                          {domain.dnsLastChecked && (
+                            <p className="text-xs text-gray-500">
+                              DNS checked: {new Date(domain.dnsLastChecked).toLocaleString()}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -502,8 +591,51 @@ export default function TraefikDashboard() {
                             SSL
                           </Badge>
                         )}
+                        {/* DNS Status Badge */}
+                        <Badge 
+                          variant={getDNSStatusColor(domain.dnsStatus)} 
+                          className="flex items-center gap-1"
+                        >
+                          {getDNSStatusIcon(domain.dnsStatus)}
+                          DNS: {domain.dnsStatus || 'pending'}
+                        </Badge>
+                        {/* DNS Validation Button */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => validateDomainDNSMutation.mutate({ domainConfigId: domain.id })}
+                          disabled={validateDomainDNSMutation.isPending}
+                        >
+                          <RefreshCw className={`h-3 w-3 mr-1 ${validateDomainDNSMutation.isPending ? 'animate-spin' : ''}`} />
+                          Check DNS
+                        </Button>
                       </div>
                     </div>
+                    {/* DNS Error Message */}
+                    {domain.dnsStatus === 'error' && domain.dnsErrorMessage && (
+                      <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                        <div className="flex items-center gap-1">
+                          <AlertCircle className="h-4 w-4" />
+                          DNS Error: {domain.dnsErrorMessage}
+                        </div>
+                      </div>
+                    )}
+                    {/* DNS Records Display */}
+                    {domain.dnsStatus === 'valid' && domain.dnsRecords && Array.isArray(domain.dnsRecords) && domain.dnsRecords.length > 0 && (
+                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
+                        <div className="flex items-center gap-1 text-green-700 font-medium mb-1">
+                          <CheckCircle className="h-4 w-4" />
+                          DNS Records Found:
+                        </div>
+                        <div className="space-y-1">
+                          {domain.dnsRecords.map((record, index) => (
+                            <div key={index} className="text-green-600 font-mono text-xs">
+                              {record.type}: {record.value}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))
@@ -635,6 +767,164 @@ export default function TraefikDashboard() {
               ))
             )}
           </div>
+        </TabsContent>
+
+        {/* DNS Check Tab */}
+        <TabsContent value="dns" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">DNS Testing & Validation</h2>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <h3 className="text-lg font-semibold">Check DNS Records</h3>
+              <CardDescription>
+                Test DNS resolution for any domain to verify configuration
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const formData = new FormData(e.currentTarget)
+                  checkDNSMutation.mutate({
+                    domain: formData.get('testDomain') as string,
+                    recordType: (formData.get('recordType') as string) as 'A' | 'AAAA' | 'CNAME' | 'MX' | 'TXT' | 'NS'
+                  })
+                }}
+                className="space-y-4"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="testDomain">Domain to Test</Label>
+                    <Input id="testDomain" name="testDomain" placeholder="example.com or subdomain.example.com" required />
+                  </div>
+                  <div>
+                    <Label htmlFor="recordType">Record Type</Label>
+                    <select id="recordType" name="recordType" className="w-full px-3 py-2 border border-gray-200 rounded-md">
+                      <option value="A">A (IPv4)</option>
+                      <option value="AAAA">AAAA (IPv6)</option>
+                      <option value="CNAME">CNAME</option>
+                      <option value="MX">MX (Mail)</option>
+                      <option value="TXT">TXT</option>
+                      <option value="NS">NS (Nameserver)</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <Button type="submit" disabled={checkDNSMutation.isPending} className="w-full">
+                      {checkDNSMutation.isPending ? (
+                        <>
+                          <Clock className="h-4 w-4 mr-2 animate-spin" />
+                          Checking...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Check DNS
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </form>
+
+              {/* DNS Test Results */}
+              {checkDNSMutation.data && (
+                <div className="mt-6 p-4 border rounded-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    {getDNSStatusIcon(checkDNSMutation.data.status)}
+                    <h4 className="font-semibold">
+                      DNS Check Results: {checkDNSMutation.data.domain}
+                    </h4>
+                    <Badge variant={getDNSStatusColor(checkDNSMutation.data.status)}>
+                      {checkDNSMutation.data.status}
+                    </Badge>
+                  </div>
+                  
+                  {checkDNSMutation.data.status === 'valid' && checkDNSMutation.data.records.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-green-700">Records Found:</p>
+                      {checkDNSMutation.data.records.map((record, index) => (
+                        <div key={index} className="bg-green-50 p-2 rounded text-sm font-mono">
+                          <span className="font-bold text-green-800">{record.type}:</span> {record.value}
+                          {record.ttl && <span className="text-green-600 ml-2">(TTL: {record.ttl})</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {checkDNSMutation.data.status === 'error' && checkDNSMutation.data.errorMessage && (
+                    <div className="bg-red-50 p-3 rounded text-sm text-red-700">
+                      <div className="flex items-center gap-1">
+                        <AlertCircle className="h-4 w-4" />
+                        <strong>Error:</strong> {checkDNSMutation.data.errorMessage}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {checkDNSMutation.data.status === 'invalid' && (
+                    <div className="bg-yellow-50 p-3 rounded text-sm text-yellow-700">
+                      <div className="flex items-center gap-1">
+                        <XCircle className="h-4 w-4" />
+                        <strong>No records found</strong> for the specified domain and record type.
+                      </div>
+                    </div>
+                  )}
+                  
+                  <p className="text-xs text-gray-500 mt-2">
+                    Checked at: {new Date(checkDNSMutation.data.checkedAt).toLocaleString()}
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Domain DNS Status Overview */}
+          {domainConfigs.length > 0 && (
+            <Card>
+              <CardHeader>
+                <h3 className="text-lg font-semibold">Domain DNS Status Overview</h3>
+                <CardDescription>
+                  Current DNS validation status for all configured domains
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3">
+                  {domainConfigs.map(domain => (
+                    <div key={domain.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Globe className="h-4 w-4 text-blue-600" />
+                        <div>
+                          <p className="font-medium">{domain.fullDomain}</p>
+                          <p className="text-sm text-gray-600">
+                            {domain.dnsLastChecked 
+                              ? `Last checked: ${new Date(domain.dnsLastChecked).toLocaleString()}`
+                              : 'Never checked'
+                            }
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={getDNSStatusColor(domain.dnsStatus)} className="flex items-center gap-1">
+                          {getDNSStatusIcon(domain.dnsStatus)}
+                          {domain.dnsStatus || 'pending'}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => validateDomainDNSMutation.mutate({ domainConfigId: domain.id })}
+                          disabled={validateDomainDNSMutation.isPending}
+                        >
+                          <RefreshCw className={`h-3 w-3 mr-1 ${validateDomainDNSMutation.isPending ? 'animate-spin' : ''}`} />
+                          Recheck
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>
