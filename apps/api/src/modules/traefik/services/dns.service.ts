@@ -50,7 +50,7 @@ export class DNSService {
             try {
               const result = await this.lookup(domain, { family: 4 });
               records = [{ type: 'A', value: result.address }];
-            } catch (lookupError) {
+            } catch {
               throw error; // Use original error
             }
           }

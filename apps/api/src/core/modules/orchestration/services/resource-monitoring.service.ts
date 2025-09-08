@@ -6,8 +6,7 @@ import { DATABASE_CONNECTION } from '../../db/database-connection';
 import { Database } from '../../db/drizzle/index';
 import { 
   orchestrationStacks,
-  serviceInstances,
-  systemMetrics
+  serviceInstances
 } from '../../db/drizzle/schema/orchestration';
 import {
   stackMetrics,

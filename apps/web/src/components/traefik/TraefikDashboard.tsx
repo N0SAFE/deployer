@@ -1778,7 +1778,7 @@ export default function TraefikDashboard() {
                         <ul className="space-y-1">
                           {(Array.isArray(staticConfigQueries.get.data.validationErrors) ? 
                             staticConfigQueries.get.data.validationErrors : 
-                            [staticConfigQueries.get.data.validationErrors]).map((error: any, index: number) => (
+                            [staticConfigQueries.get.data.validationErrors]).map((error: unknown, index: number) => (
                             <li key={index} className="text-sm text-destructive">• {error}</li>
                           ))}
                         </ul>

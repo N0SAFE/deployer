@@ -1,3 +1,5 @@
+/* eslint @typescript-eslint/no-explicit-any: 0 */
+
 import {
     useQueryStates,
     parseAsString,
@@ -19,7 +21,7 @@ export type QueryStateFromZodOptions = BaseOptions & {
 }
 
 // Helper function to create a debounced callback without external dependency
-function useDebouncedCallback<T extends (...args: any[]) => any>(
+function useDebouncedCallback<T extends (...args: unknown[]) => unknown>(
     callback: T,
     delay: number
 ): T {
