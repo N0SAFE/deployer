@@ -40,6 +40,13 @@ import {
   traefikGetInstanceStatusContract,
   traefikSyncSingleConfigContract,
   traefikValidateSingleConfigContract,
+  // Static configuration contracts
+  traefikGetStaticConfigContract,
+  traefikSaveStaticConfigContract,
+  traefikGetStaticConfigYamlContract,
+  traefikUpdateStaticConfigSectionContract,
+  traefikCreateDefaultStaticConfigContract,
+  traefikValidateStaticConfigContract,
 } from './config';
 
 // Combine into main traefik contract
@@ -81,6 +88,14 @@ export const traefikContract = oc.tag("Traefik").prefix("/traefik").router({
   getInstanceStatus: traefikGetInstanceStatusContract,
   syncSingleConfig: traefikSyncSingleConfigContract,
   validateSingleConfig: traefikValidateSingleConfigContract,
+
+  // Static configuration management
+  getStaticConfig: traefikGetStaticConfigContract,
+  saveStaticConfig: traefikSaveStaticConfigContract,
+  getStaticConfigYaml: traefikGetStaticConfigYamlContract,
+  updateStaticConfigSection: traefikUpdateStaticConfigSectionContract,
+  createDefaultStaticConfig: traefikCreateDefaultStaticConfigContract,
+  validateStaticConfig: traefikValidateStaticConfigContract,
 });
 
 export type TraefikContract = typeof traefikContract;

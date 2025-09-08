@@ -1,11 +1,15 @@
 import { Controller } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { TraefikService } from '../services/traefik.service';
+import { TraefikStaticConfigService } from '../services/traefik-static-config.service';
 import { traefikContract } from '@repo/api-contracts';
 
 @Controller()
 export class TraefikController {
-  constructor(private readonly traefikService: TraefikService) {}
+  constructor(
+    private readonly traefikService: TraefikService,
+    private readonly traefikStaticConfigService: TraefikStaticConfigService
+  ) {}
 
   // Instance management endpoints
   @Implement(traefikContract.createInstance)
@@ -268,6 +272,107 @@ export class TraefikController {
           ...status.instance,
           status: status.instance.status as "error" | "stopped" | "starting" | "running" | "stopping"
         }
+      };
+    });
+  }
+
+  // Static Configuration Management endpoints
+  @Implement(traefikContract.getStaticConfig)
+  getStaticConfig() {
+    return implement(traefikContract.getStaticConfig).handler(async ({ input }) => {
+      const { instanceId } = input;
+      const config = await this.traefikStaticConfigService.getStaticConfig(instanceId);
+      return config;
+    });
+  }
+
+  @Implement(traefikContract.saveStaticConfig)
+  saveStaticConfig() {
+    return implement(traefikContract.saveStaticConfig).handler(async ({ input }) => {
+      const { instanceId, ...configSections } = input;
+      const result = await this.traefikStaticConfigService.saveStaticConfig(instanceId, configSections);
+      return {
+        id: result.id,
+        traefikInstanceId: result.traefikInstanceId,
+        configVersion: result.configVersion,
+        syncStatus: result.syncStatus,
+        isValid: result.isValid,
+        validationErrors: result.validationErrors,
+        createdAt: result.createdAt,
+        updatedAt: result.updatedAt,
+      };
+    });
+  }
+
+  @Implement(traefikContract.getStaticConfigYaml)
+  getStaticConfigYaml() {
+    return implement(traefikContract.getStaticConfigYaml).handler(async ({ input }) => {
+      const { instanceId } = input;
+      const yaml = await this.traefikStaticConfigService.getCompiledYamlConfig(instanceId);
+      const config = await this.traefikStaticConfigService.getStaticConfig(instanceId);
+      
+      return {
+        yaml,
+        configVersion: config?.configVersion || 1,
+        lastUpdated: config?.updatedAt || new Date(),
+      };
+    });
+  }
+
+  @Implement(traefikContract.updateStaticConfigSection)
+  updateStaticConfigSection() {
+    return implement(traefikContract.updateStaticConfigSection).handler(async ({ input }) => {
+      const { instanceId, section, config } = input;
+      const result = await this.traefikStaticConfigService.updateConfigSection(instanceId, section as any, config);
+      
+      return {
+        success: true,
+        configVersion: result.configVersion || 1,
+        validationErrors: result.validationErrors ? 
+          (Array.isArray(result.validationErrors) ? result.validationErrors : []) : 
+          undefined,
+      };
+    });
+  }
+
+  @Implement(traefikContract.createDefaultStaticConfig)
+  createDefaultStaticConfig() {
+    return implement(traefikContract.createDefaultStaticConfig).handler(async ({ input }) => {
+      const { instanceId } = input;
+      const result = await this.traefikStaticConfigService.createDefaultConfig(instanceId);
+      
+      return {
+        id: result.id,
+        traefikInstanceId: result.traefikInstanceId,
+        configVersion: result.configVersion,
+        isValid: result.isValid,
+        validationErrors: result.validationErrors,
+        createdAt: result.createdAt,
+        updatedAt: result.updatedAt,
+      };
+    });
+  }
+
+  @Implement(traefikContract.validateStaticConfig)
+  validateStaticConfig() {
+    return implement(traefikContract.validateStaticConfig).handler(async ({ input }) => {
+      const { instanceId } = input;
+      const config = await this.traefikStaticConfigService.getStaticConfig(instanceId);
+      
+      if (!config) {
+        return {
+          isValid: false,
+          errors: ['No static configuration found for this instance'],
+          warnings: [],
+        };
+      }
+
+      return {
+        isValid: config.isValid || false,
+        errors: config.validationErrors ? 
+          (Array.isArray(config.validationErrors) ? config.validationErrors : []) : 
+          [],
+        warnings: [],
       };
     });
   }

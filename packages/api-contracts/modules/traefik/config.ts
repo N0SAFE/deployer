@@ -183,3 +183,168 @@ export const traefikValidateSingleConfigContract = oc
     issues: z.array(z.string()),
     lastSyncedAt: z.date().optional(),
   }));
+
+// Static Configuration Management Contracts
+
+export const traefikGetStaticConfigContract = oc
+  .route({
+    method: 'GET',
+    path: '/instances/:instanceId/static-config',
+    summary: 'Get static configuration for a Traefik instance',
+  })
+  .input(z.object({
+    instanceId: z.string(),
+  }))
+  .output(z.object({
+    id: z.string(),
+    traefikInstanceId: z.string(),
+    // Core configuration sections
+    globalConfig: z.any().nullable(),
+    apiConfig: z.any().nullable(),
+    entryPointsConfig: z.any().nullable(),
+    providersConfig: z.any().nullable(),
+    // Observability
+    logConfig: z.any().nullable(),
+    accessLogConfig: z.any().nullable(),
+    metricsConfig: z.any().nullable(),
+    tracingConfig: z.any().nullable(),
+    // Security and TLS
+    tlsConfig: z.any().nullable(),
+    certificateResolversConfig: z.any().nullable(),
+    // Advanced features
+    experimentalConfig: z.any().nullable(),
+    serversTransportConfig: z.any().nullable(),
+    hostResolverConfig: z.any().nullable(),
+    clusterConfig: z.any().nullable(),
+    // Full configuration cache
+    fullConfig: z.any().nullable(),
+    configVersion: z.number().nullable(),
+    // File sync status
+    syncStatus: z.string().nullable(),
+    lastSyncedAt: z.date().nullable(),
+    syncErrorMessage: z.string().nullable(),
+    // Validation
+    isValid: z.boolean().nullable(),
+    validationErrors: z.any().nullable(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
+  }).nullable());
+
+export const traefikSaveStaticConfigContract = oc
+  .route({
+    method: 'POST',
+    path: '/instances/:instanceId/static-config',
+    summary: 'Create or update static configuration for a Traefik instance',
+  })
+  .input(z.object({
+    instanceId: z.string(),
+    // Core configuration sections
+    globalConfig: z.any().optional(),
+    apiConfig: z.any().optional(),
+    entryPointsConfig: z.any().optional(),
+    providersConfig: z.any().optional(),
+    // Observability
+    logConfig: z.any().optional(),
+    accessLogConfig: z.any().optional(),
+    metricsConfig: z.any().optional(),
+    tracingConfig: z.any().optional(),
+    // Security and TLS
+    tlsConfig: z.any().optional(),
+    certificateResolversConfig: z.any().optional(),
+    // Advanced features
+    experimentalConfig: z.any().optional(),
+    serversTransportConfig: z.any().optional(),
+    hostResolverConfig: z.any().optional(),
+    clusterConfig: z.any().optional(),
+  }))
+  .output(z.object({
+    id: z.string(),
+    traefikInstanceId: z.string(),
+    configVersion: z.number().nullable(),
+    syncStatus: z.string().nullable(),
+    isValid: z.boolean().nullable(),
+    validationErrors: z.any().nullable(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
+  }));
+
+export const traefikGetStaticConfigYamlContract = oc
+  .route({
+    method: 'GET',
+    path: '/instances/:instanceId/static-config/yaml',
+    summary: 'Get compiled YAML static configuration for a Traefik instance',
+  })
+  .input(z.object({
+    instanceId: z.string(),
+  }))
+  .output(z.object({
+    yaml: z.string(),
+    configVersion: z.number(),
+    lastUpdated: z.date(),
+  }));
+
+export const traefikUpdateStaticConfigSectionContract = oc
+  .route({
+    method: 'PUT',
+    path: '/instances/:instanceId/static-config/:section',
+    summary: 'Update a specific section of static configuration',
+  })
+  .input(z.object({
+    instanceId: z.string(),
+    section: z.enum([
+      'globalConfig',
+      'apiConfig', 
+      'entryPointsConfig',
+      'providersConfig',
+      'logConfig',
+      'accessLogConfig',
+      'metricsConfig',
+      'tracingConfig',
+      'tlsConfig',
+      'certificateResolversConfig',
+      'experimentalConfig',
+      'serversTransportConfig',
+      'hostResolverConfig',
+      'clusterConfig'
+    ]),
+    config: z.any(),
+  }))
+  .output(z.object({
+    success: z.boolean(),
+    configVersion: z.number(),
+    validationErrors: z.array(z.string()).optional(),
+  }));
+
+export const traefikCreateDefaultStaticConfigContract = oc
+  .route({
+    method: 'POST',
+    path: '/instances/:instanceId/static-config/default',
+    summary: 'Create default static configuration for a Traefik instance',
+  })
+  .input(z.object({
+    instanceId: z.string(),
+  }))
+  .output(z.object({
+    id: z.string(),
+    traefikInstanceId: z.string(),
+    configVersion: z.number().nullable(),
+    isValid: z.boolean().nullable(),
+    validationErrors: z.any().nullable(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
+  }));
+
+export const traefikValidateStaticConfigContract = oc
+  .route({
+    method: 'GET',
+    path: '/instances/:instanceId/static-config/validate',
+    summary: 'Validate static configuration for a Traefik instance',
+  })
+  .input(z.object({
+    instanceId: z.string(),
+  }))
+  .output(z.object({
+    isValid: z.boolean(),
+    errors: z.array(z.string()),
+    warnings: z.array(z.string()).optional(),
+  }));
