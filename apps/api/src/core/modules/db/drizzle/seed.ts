@@ -196,6 +196,174 @@ async function seed() {
     const insertedServices = await db.insert(services).values(sampleServices).returning();
     console.log('✅ Created sample services');
 
+    // Create static file service for testing local file deployment
+    const staticFileContent = {
+      'index.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Static Site Demo</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container { 
+            background: rgba(255,255,255,0.1); 
+            padding: 30px; 
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        h1 { color: #fff; text-align: center; }
+        .status { 
+            background: rgba(76, 175, 80, 0.2); 
+            padding: 15px; 
+            border-radius: 5px; 
+            margin: 20px 0;
+            border-left: 4px solid #4CAF50;
+        }
+        .feature { 
+            background: rgba(33, 150, 243, 0.2); 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Static Site Deployment Demo</h1>
+        <div class="status">
+            <h3>✅ Deployment Successful!</h3>
+            <p>This static site was deployed using the local file upload feature.</p>
+        </div>
+        
+        <div class="feature">
+            <h4>📁 File Structure</h4>
+            <p>This site includes multiple files served from Docker volumes.</p>
+        </div>
+        
+        <div class="feature">
+            <h4>🔗 Navigation</h4>
+            <p><a href="/about.html" style="color: #81C784;">Visit About Page</a></p>
+        </div>
+        
+        <div class="feature">
+            <h4>🎯 Features Tested</h4>
+            <ul>
+                <li>Local file upload processing</li>
+                <li>Static file serving via Traefik</li>
+                <li>Docker volume integration</li>
+                <li>Multi-file deployment</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>`,
+      'about.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About - Static Site Demo</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container { 
+            background: rgba(255,255,255,0.1); 
+            padding: 30px; 
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        h1 { color: #fff; text-align: center; }
+        a { color: #FFE082; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📋 About This Demo</h1>
+        <p>This is a demonstration of the static file deployment system.</p>
+        
+        <h3>🔧 Technical Details</h3>
+        <ul>
+            <li><strong>Provider:</strong> Local file upload</li>
+            <li><strong>Storage:</strong> Docker volumes</li>
+            <li><strong>Serving:</strong> Nginx container</li>
+            <li><strong>Proxy:</strong> Traefik reverse proxy</li>
+        </ul>
+        
+        <h3>📊 Deployment Info</h3>
+        <p><strong>Service:</strong> static-demo</p>
+        <p><strong>Domain:</strong> static.localhost</p>
+        <p><strong>Files:</strong> HTML, CSS (inline)</p>
+        
+        <p><a href="/index.html">← Back to Home</a></p>
+    </div>
+</body>
+</html>`,
+      'robots.txt': `User-agent: *
+Allow: /
+
+Sitemap: http://static.localhost/sitemap.xml`,
+      'sitemap.xml': `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>http://static.localhost/</loc>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>http://static.localhost/about.html</loc>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+</urlset>`
+    };
+
+    const staticFileService = {
+      projectId: insertedProjects[0].id,
+      name: 'static-demo',
+      type: 'frontend',
+      provider: 'manual' as const,
+      builder: 'static' as const,
+      providerConfig: {
+        instructions: 'Static file deployment with local content',
+        deploymentScript: JSON.stringify(staticFileContent)
+      },
+      builderConfig: {
+        outputDirectory: '/'
+      },
+      port: 80,
+      healthCheckPath: '/',
+      environmentVariables: {} as Record<string, string>,
+      resourceLimits: {
+        memory: '64m',
+        cpu: '0.1'
+      },
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const insertedStaticService = await db.insert(services).values(staticFileService).returning();
+    console.log('✅ Created static file service with local content');
+
     // Create service dependency (web depends on api)
     const serviceDependency = {
       serviceId: insertedServices[1].id, // web
@@ -529,7 +697,7 @@ http:
     console.log('\n🎉 Database seeded successfully with:');
     console.log('  👥 2 sample users');
     console.log('  🏗️  2 sample projects');
-    console.log('  ⚙️  2 sample services');
+    console.log('  ⚙️  3 sample services (2 GitHub + 1 Static)');
     console.log('  🚀 1 sample deployment');
     console.log('  📋 6 deployment logs');
     console.log('  🔮 1 preview environment');
@@ -541,19 +709,22 @@ http:
     console.log('  📄 1 config file record');
     console.log('\n🧪 Test Configuration Added:');
     console.log('  🎯 test.localhost → google.com redirect');
-    console.log('  📋 Configurations will be synced automatically on API startup');
+    console.log('  � static-demo service with local HTML files');
+    console.log('  �📋 Configurations will be synced automatically on API startup');
     console.log('\n🔧 To test:');
     console.log('  1. Start services: bun run dev');
-    console.log('  2. Add to /etc/hosts: 127.0.0.1 test.localhost');
-    console.log('  3. Visit: http://test.localhost');
-    console.log('  4. Should redirect to: https://google.com');
+    console.log('  2. Add to /etc/hosts: 127.0.0.1 test.localhost static.localhost');
+    console.log('  3. Visit: http://test.localhost (should redirect to Google)');
+    console.log('  4. Deploy static service and visit: http://static.localhost');
+    console.log('  5. Test upload workflow with the static-demo service');
 
     // Mark database as seeded
     const seedMetadata = {
       usersCount: insertedUsers.length,
       projectsCount: insertedProjects.length,
-      servicesCount: insertedServices.length,
+      servicesCount: insertedServices.length + insertedStaticService.length,
       deploymentsCount: insertedDeployments.length,
+      localServicesCreated: [insertedStaticService[0].name]
     };
 
     await db.insert(systemStatus).values({
