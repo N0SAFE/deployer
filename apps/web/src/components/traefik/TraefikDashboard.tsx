@@ -50,6 +50,8 @@ export default function TraefikDashboard() {
   const [selectedInstanceId, setSelectedInstanceId] = useState<string>('')
   const [selectedDomainConfigId] = useState<string>('')
   const [configInstanceId, setConfigInstanceId] = useState<string>('')
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('basic')
+  const [createFromTemplate, setCreateFromTemplate] = useState(false)
   const queryClient = useQueryClient()
 
   // Traefik Instances
@@ -57,6 +59,14 @@ export default function TraefikDashboard() {
     orpc.traefik.listInstances.queryOptions({
       input: {},
       staleTime: 30000, // 30 seconds
+    })
+  )
+
+  // Templates
+  const { data: templates = [], isLoading: templatesLoading } = useQuery(
+    orpc.traefik.listTemplates.queryOptions({
+      input: {},
+      staleTime: 60000, // 1 minute
     })
   )
 
@@ -88,6 +98,20 @@ export default function TraefikDashboard() {
       },
       onError: (error: Error) => {
         toast.error(`Failed to create instance: ${error.message}`)
+      },
+    })
+  )
+
+  // Create Instance from Template Mutation
+  const createInstanceFromTemplateMutation = useMutation(
+    orpc.traefik.createInstanceFromTemplate.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.traefik.listInstances.queryKey({ input: {} }) })
+        toast.success('Traefik instance created from template successfully')
+        setCreateInstanceOpen(false)
+      },
+      onError: (error: Error) => {
+        toast.error(`Failed to create instance from template: ${error.message}`)
       },
     })
   )
@@ -287,15 +311,33 @@ export default function TraefikDashboard() {
     event.preventDefault()
     const formData = new FormData(event.currentTarget)
     
-    createInstanceMutation.mutate({
-      name: formData.get('name') as string,
-      dashboardPort: parseInt(formData.get('dashboardPort') as string) || undefined,
-      httpPort: parseInt(formData.get('httpPort') as string) || undefined,
-      httpsPort: parseInt(formData.get('httpsPort') as string) || undefined,
-      acmeEmail: (formData.get('acmeEmail') as string) || undefined,
-      logLevel: (formData.get('logLevel') as string) as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' || 'INFO',
-      insecureApi: (formData.get('insecureApi') as string) === 'true',
-    })
+    if (createFromTemplate) {
+      // Create instance from template
+      createInstanceFromTemplateMutation.mutate({
+        templateId: formData.get('template') as string,
+        name: formData.get('name') as string,
+        customConfig: {
+          dashboardPort: parseInt(formData.get('dashboardPort') as string) || undefined,
+          httpPort: parseInt(formData.get('httpPort') as string) || undefined,
+          httpsPort: parseInt(formData.get('httpsPort') as string) || undefined,
+          acmeEmail: (formData.get('acmeEmail') as string) || undefined,
+          logLevel: (formData.get('logLevel') as string) as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' || undefined,
+        }
+      })
+    } else {
+      // Create custom instance
+      createInstanceMutation.mutate({
+        name: formData.get('name') as string,
+        dashboardPort: parseInt(formData.get('dashboardPort') as string) || undefined,
+        httpPort: parseInt(formData.get('httpPort') as string) || undefined,
+        httpsPort: parseInt(formData.get('httpsPort') as string) || undefined,
+        acmeEmail: (formData.get('acmeEmail') as string) || undefined,
+        logLevel: (formData.get('logLevel') as string) as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' || 'INFO',
+        insecureApi: (formData.get('insecureApi') as string) === 'true',
+        template: (formData.get('template') as string) as 'basic' | 'ssl' | 'advanced' | 'microservices' | 'custom' || 'basic',
+        autoConfigureFor: (formData.get('autoConfigureFor') as string) as 'web' | 'api' | 'database' | 'cache' | 'queue' | 'custom' || undefined,
+      })
+    }
   }
 
   const handleCreateDomain = (event: React.FormEvent<HTMLFormElement>) => {
@@ -522,7 +564,7 @@ export default function TraefikDashboard() {
                 <DialogHeader>
                   <DialogTitle>Create New Traefik Instance</DialogTitle>
                   <DialogDescription>
-                    Configure a new Traefik instance for load balancing and routing
+                    Create a Traefik instance from a template or with custom configuration. No manual file paths required - the server handles all configuration files automatically.
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleCreateInstance} className="space-y-4">
@@ -530,20 +572,159 @@ export default function TraefikDashboard() {
                     <Label htmlFor="name">Instance Name</Label>
                     <Input id="name" name="name" placeholder="e.g., main-traefik" required />
                   </div>
-                  <div>
-                    <Label htmlFor="configPath">Configuration Path</Label>
-                    <Input id="configPath" name="configPath" placeholder="/etc/traefik/traefik.yml" required />
+                  
+                  {/* Template or Custom Configuration Switch */}
+                  <div className="flex items-center space-x-2">
+                    <input 
+                      type="checkbox" 
+                      id="createFromTemplate" 
+                      checked={createFromTemplate}
+                      onChange={(e) => setCreateFromTemplate(e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    <Label htmlFor="createFromTemplate">Create from template</Label>
                   </div>
-                  <div>
-                    <Label htmlFor="port">Port</Label>
-                    <Input id="port" name="port" type="number" placeholder="8080" required />
-                  </div>
+
+                  {createFromTemplate ? (
+                    /* Template-based creation */
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="template">Select Template</Label>
+                        <select 
+                          id="template" 
+                          name="template" 
+                          value={selectedTemplate}
+                          onChange={(e) => setSelectedTemplate(e.target.value)}
+                          required 
+                          className="w-full px-3 py-2 border border-gray-200 rounded-md"
+                        >
+                          {templatesLoading ? (
+                            <option>Loading templates...</option>
+                          ) : (
+                            templates.map(template => (
+                              <option key={template.id} value={template.id}>
+                                {template.name} - {template.description}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                      </div>
+                      
+                      {/* Optional custom overrides */}
+                      <div className="border-t pt-4">
+                        <h4 className="text-sm font-medium mb-2">Optional Customizations</h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label htmlFor="dashboardPort">Dashboard Port</Label>
+                            <Input id="dashboardPort" name="dashboardPort" type="number" placeholder="8080" />
+                          </div>
+                          <div>
+                            <Label htmlFor="httpPort">HTTP Port</Label>
+                            <Input id="httpPort" name="httpPort" type="number" placeholder="80" />
+                          </div>
+                          <div>
+                            <Label htmlFor="httpsPort">HTTPS Port</Label>
+                            <Input id="httpsPort" name="httpsPort" type="number" placeholder="443" />
+                          </div>
+                          <div>
+                            <Label htmlFor="logLevel">Log Level</Label>
+                            <select id="logLevel" name="logLevel" className="w-full px-3 py-2 border border-gray-200 rounded-md">
+                              <option value="">Default</option>
+                              <option value="DEBUG">Debug</option>
+                              <option value="INFO">Info</option>
+                              <option value="WARN">Warning</option>
+                              <option value="ERROR">Error</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="mt-3">
+                          <Label htmlFor="acmeEmail">ACME Email (for SSL)</Label>
+                          <Input id="acmeEmail" name="acmeEmail" type="email" placeholder="admin@example.com" />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Custom configuration */
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="template">Template Base</Label>
+                        <select id="template" name="template" required className="w-full px-3 py-2 border border-gray-200 rounded-md">
+                          <option value="basic">Basic HTTP</option>
+                          <option value="ssl">SSL/HTTPS</option>
+                          <option value="advanced">Advanced</option>
+                          <option value="microservices">Microservices</option>
+                          <option value="custom">Custom</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="autoConfigureFor">Auto-configure for Service Type</Label>
+                        <select id="autoConfigureFor" name="autoConfigureFor" className="w-full px-3 py-2 border border-gray-200 rounded-md">
+                          <option value="">Manual configuration</option>
+                          <option value="web">Web Application</option>
+                          <option value="api">API Service</option>
+                          <option value="database">Database</option>
+                          <option value="cache">Cache Service</option>
+                          <option value="queue">Queue Service</option>
+                          <option value="custom">Custom</option>
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label htmlFor="dashboardPort">Dashboard Port</Label>
+                          <Input id="dashboardPort" name="dashboardPort" type="number" placeholder="8080" />
+                        </div>
+                        <div>
+                          <Label htmlFor="httpPort">HTTP Port</Label>
+                          <Input id="httpPort" name="httpPort" type="number" placeholder="80" />
+                        </div>
+                        <div>
+                          <Label htmlFor="httpsPort">HTTPS Port</Label>
+                          <Input id="httpsPort" name="httpsPort" type="number" placeholder="443" />
+                        </div>
+                        <div>
+                          <Label htmlFor="logLevel">Log Level</Label>
+                          <select id="logLevel" name="logLevel" className="w-full px-3 py-2 border border-gray-200 rounded-md">
+                            <option value="INFO">Info</option>
+                            <option value="DEBUG">Debug</option>
+                            <option value="WARN">Warning</option>
+                            <option value="ERROR">Error</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="acmeEmail">ACME Email (optional)</Label>
+                        <Input id="acmeEmail" name="acmeEmail" type="email" placeholder="admin@example.com" />
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <input 
+                          type="checkbox" 
+                          id="insecureApi" 
+                          name="insecureApi" 
+                          value="true"
+                          defaultChecked
+                          className="h-4 w-4"
+                        />
+                        <Label htmlFor="insecureApi">Enable insecure API (development)</Label>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" onClick={() => setCreateInstanceOpen(false)}>
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={createInstanceMutation.isPending}>
-                      {createInstanceMutation.isPending ? 'Creating...' : 'Create Instance'}
+                    <Button 
+                      type="submit" 
+                      disabled={createInstanceMutation.isPending || createInstanceFromTemplateMutation.isPending}
+                    >
+                      {(createInstanceMutation.isPending || createInstanceFromTemplateMutation.isPending) 
+                        ? 'Creating...' 
+                        : (createFromTemplate ? 'Create from Template' : 'Create Instance')
+                      }
                     </Button>
                   </div>
                 </form>
