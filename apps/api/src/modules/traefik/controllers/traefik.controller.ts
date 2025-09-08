@@ -78,6 +78,40 @@ export class TraefikController {
     });
   }
 
+  // Template management endpoints
+  @Implement(traefikContract.listTemplates)
+  listTemplates() {
+    return implement(traefikContract.listTemplates).handler(async ({ input }) => {
+      const { category } = input || {};
+      const templates = await this.traefikService.getTemplates(category);
+      return templates;
+    });
+  }
+
+  @Implement(traefikContract.getTemplate)
+  getTemplate() {
+    return implement(traefikContract.getTemplate).handler(async ({ input }) => {
+      const { templateId } = input;
+      const template = await this.traefikService.getTemplate(templateId);
+      if (!template) {
+        throw new Error(`Template not found: ${templateId}`);
+      }
+      return template;
+    });
+  }
+
+  @Implement(traefikContract.createInstanceFromTemplate)
+  createInstanceFromTemplate() {
+    return implement(traefikContract.createInstanceFromTemplate).handler(async ({ input }) => {
+      const { templateId, name, customConfig } = input;
+      const result = await this.traefikService.createInstanceFromTemplate(templateId, name, customConfig);
+      return {
+        ...result,
+        status: result.status as "error" | "stopped" | "starting" | "running" | "stopping"
+      };
+    });
+  }
+
   // Domain management endpoints
   @Implement(traefikContract.createDomainConfig)
   createDomainConfig() {

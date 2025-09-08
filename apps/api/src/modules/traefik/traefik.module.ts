@@ -4,6 +4,7 @@ import { TraefikService } from './services/traefik.service';
 import { DNSService } from './services/dns.service';
 import { DatabaseConfigService } from './services/database-config.service';
 import { ConfigFileSyncService } from './services/config-file-sync.service';
+import { TemplateService } from './services/template.service';
 import { DatabaseModule } from '../../core/modules/db/database.module';
 import { CoreModule } from '../../core/core.module';
 
@@ -17,13 +18,15 @@ import { CoreModule } from '../../core/core.module';
     TraefikService, 
     DNSService,
     DatabaseConfigService,
-    ConfigFileSyncService
+    ConfigFileSyncService,
+    TemplateService
   ],
   exports: [
     TraefikService, 
     DNSService,
     DatabaseConfigService,
-    ConfigFileSyncService
+    ConfigFileSyncService,
+    TemplateService
   ],
 })
 export class TraefikModule {}

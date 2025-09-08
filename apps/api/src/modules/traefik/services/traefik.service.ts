@@ -9,6 +9,7 @@ import { DockerService } from '../../../core/services/docker.service';
 import { DNSService, DNSCheckResult } from './dns.service';
 import { DatabaseConfigService } from './database-config.service';
 import { ConfigFileSyncService } from './config-file-sync.service';
+import { TemplateService, TraefikTemplate } from './template.service';
 import {
   traefikInstances,
   domainConfigs,
@@ -28,6 +29,9 @@ export interface TraefikInstanceConfig {
   acmeEmail?: string;
   logLevel?: 'ERROR' | 'WARN' | 'INFO' | 'DEBUG';
   insecureApi?: boolean;
+  // Template support
+  template?: 'basic' | 'ssl' | 'advanced' | 'microservices' | 'custom';
+  autoConfigureFor?: 'web' | 'api' | 'database' | 'cache' | 'queue' | 'custom';
 }
 
 export interface DomainConfigInput {
@@ -35,6 +39,7 @@ export interface DomainConfigInput {
   subdomain?: string;
   sslEnabled?: boolean;
   sslProvider?: 'letsencrypt' | 'selfsigned' | 'custom';
+  // certificatePath is auto-generated - removed from input
   middleware?: Record<string, any>;
 }
 
@@ -73,26 +78,66 @@ export class TraefikService {
     private readonly dnsService: DNSService,
     private readonly databaseConfigService: DatabaseConfigService,
     private readonly configFileSyncService: ConfigFileSyncService,
+    private readonly templateService: TemplateService,
   ) {}
 
   /**
    * Create a new Traefik instance
    */
   async createInstance(config: TraefikInstanceConfig): Promise<TraefikInstance> {
-    // const id = randomUUID();
+    let finalConfig = { ...config };
+
+    // Apply template or auto-configuration if specified
+    if (config.template || config.autoConfigureFor) {
+      let template: TraefikTemplate;
+      
+      if (config.autoConfigureFor) {
+        // Auto-configure based on service type
+        const autoConfig = this.templateService.autoConfigureForService(config.autoConfigureFor, {
+          acmeEmail: config.acmeEmail,
+          logLevel: config.logLevel,
+          dashboardPort: config.dashboardPort,
+          httpPort: config.httpPort,
+          httpsPort: config.httpsPort,
+        });
+        
+        template = autoConfig.template;
+        finalConfig = {
+          ...finalConfig,
+          ...autoConfig.instanceConfig,
+          logLevel: (autoConfig.instanceConfig.logLevel as 'ERROR' | 'WARN' | 'INFO' | 'DEBUG') || 'INFO',
+        };
+        
+        this.logger.log(`Auto-configured instance ${config.name} for ${config.autoConfigureFor} service type using template ${template.id}`);
+      } else if (config.template) {
+        // Use specified template
+        template = this.templateService.getTemplate(config.template) || this.templateService.getDefaultTemplate();
+        
+        // Apply template defaults if not specified
+        finalConfig = {
+          ...finalConfig,
+          dashboardPort: finalConfig.dashboardPort || template.config.ports.dashboard || 8080,
+          httpPort: finalConfig.httpPort || template.config.ports.http || 80,
+          httpsPort: template.config.ssl.enabled ? (finalConfig.httpsPort || template.config.ports.https || 443) : undefined,
+          acmeEmail: template.config.ssl.enabled ? (finalConfig.acmeEmail || template.config.ssl.acmeEmail) : undefined,
+        };
+        
+        this.logger.log(`Created instance ${config.name} using template ${template.id}`);
+      }
+    }
     
     // Create database record
     const instanceData = {
       id: crypto.randomUUID(),
-      name: config.name,
+      name: finalConfig.name,
       status: 'stopped',
       containerId: null,
-      dashboardPort: config.dashboardPort || 8080,
-      httpPort: config.httpPort || 80,
-      httpsPort: config.httpsPort || 443,
-      acmeEmail: config.acmeEmail || null,
-      logLevel: config.logLevel || 'INFO',
-      insecureApi: config.insecureApi ?? true,
+      dashboardPort: finalConfig.dashboardPort || 8080,
+      httpPort: finalConfig.httpPort || 80,
+      httpsPort: finalConfig.httpsPort || 443,
+      acmeEmail: finalConfig.acmeEmail || null,
+      logLevel: finalConfig.logLevel || 'INFO',
+      insecureApi: finalConfig.insecureApi ?? true,
       config: null, // Will be set when configuration is generated
     };
 
@@ -227,6 +272,9 @@ export class TraefikService {
     const id = randomUUID();
     const fullDomain = config.subdomain ? `${config.subdomain}.${config.domain}` : config.domain;
 
+    // Auto-generate certificate path based on SSL configuration
+    const certificatePath = config.sslEnabled ? this.generateCertificatePath(fullDomain, config.sslProvider) : null;
+
     // Initial domain data with pending DNS status
     const domainData = {
       id,
@@ -236,7 +284,7 @@ export class TraefikService {
       fullDomain,
       sslEnabled: config.sslEnabled || false,
       sslProvider: config.sslProvider || null,
-      certificatePath: null, // Will be set when SSL is configured
+      certificatePath, // Auto-generated based on SSL configuration
       middleware: config.middleware || null,
       dnsStatus: 'pending' as const,
       dnsRecords: null,
@@ -250,7 +298,7 @@ export class TraefikService {
       .values(domainData)
       .returning();
 
-    this.logger.log(`Created domain config ${fullDomain} for instance ${instanceId}`);
+    this.logger.log(`Created domain config ${fullDomain} for instance ${instanceId}${certificatePath ? ` with certificate path ${certificatePath}` : ''}`);
     
     // Trigger DNS validation in background (don't await to avoid blocking)
     this.validateDomainDNS(domainConfig.id).catch(error => {
@@ -1052,5 +1100,75 @@ export class TraefikService {
       files: fileStats,
       lastUpdate: instance.updatedAt
     };
+  }
+
+  // ================================
+  // Template Management Methods
+  // ================================
+
+  /**
+   * Get all available Traefik templates
+   */
+  async getTemplates(category?: 'basic' | 'ssl' | 'advanced' | 'microservices'): Promise<TraefikTemplate[]> {
+    return this.templateService.getTemplates(category);
+  }
+
+  /**
+   * Get a specific template by ID
+   */
+  async getTemplate(templateId: string): Promise<TraefikTemplate | null> {
+    return this.templateService.getTemplate(templateId);
+  }
+
+  /**
+   * Create instance from template
+   */
+  async createInstanceFromTemplate(templateId: string, instanceName: string, customConfig?: {
+    dashboardPort?: number;
+    httpPort?: number;
+    httpsPort?: number;
+    acmeEmail?: string;
+    logLevel?: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+  }): Promise<TraefikInstance> {
+    const template = this.templateService.getTemplate(templateId);
+    if (!template) {
+      throw new Error(`Template not found: ${templateId}`);
+    }
+
+    // Create configuration based on template
+    const config: TraefikInstanceConfig = {
+      name: instanceName,
+      dashboardPort: customConfig?.dashboardPort || template.config.ports.dashboard || 8080,
+      httpPort: customConfig?.httpPort || template.config.ports.http || 80,
+      httpsPort: template.config.ssl.enabled ? (customConfig?.httpsPort || template.config.ports.https || 443) : undefined,
+      acmeEmail: template.config.ssl.enabled ? (customConfig?.acmeEmail || template.config.ssl.acmeEmail) : undefined,
+      logLevel: customConfig?.logLevel || 'INFO',
+      insecureApi: true,
+      template: templateId as 'basic' | 'ssl' | 'advanced' | 'microservices' | 'custom',
+    };
+
+    return this.createInstance(config);
+  }
+
+  /**
+   * Auto-generate certificate path for domain
+   */
+  private generateCertificatePath(domain: string, sslProvider?: string): string | null {
+    if (!sslProvider || sslProvider === 'letsencrypt') {
+      // Let's Encrypt certificates are managed automatically by Traefik
+      return null;
+    }
+    
+    if (sslProvider === 'custom') {
+      // Generate a standard path for custom certificates
+      return `/etc/traefik/certs/${domain}.crt`;
+    }
+    
+    if (sslProvider === 'selfsigned') {
+      // Generate a standard path for self-signed certificates
+      return `/etc/traefik/certs/selfsigned/${domain}.crt`;
+    }
+    
+    return null;
   }
 }

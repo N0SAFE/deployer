@@ -1,13 +1,16 @@
 import { oc } from '@orpc/contract';
 
 // Import all contracts
-import { 
+import {
   traefikCreateInstanceContract,
   traefikListInstancesContract,
   traefikGetInstanceContract,
   traefikStartInstanceContract,
   traefikStopInstanceContract,
   traefikHealthCheckInstanceContract,
+  traefikListTemplatesContract,
+  traefikGetTemplateContract,
+  traefikCreateInstanceFromTemplateContract,
 } from './instance';
 
 import {
@@ -48,6 +51,11 @@ export const traefikContract = oc.tag("Traefik").prefix("/traefik").router({
   startInstance: traefikStartInstanceContract,
   stopInstance: traefikStopInstanceContract,
   healthCheckInstance: traefikHealthCheckInstanceContract,
+  
+  // Template management
+  listTemplates: traefikListTemplatesContract,
+  getTemplate: traefikGetTemplateContract,
+  createInstanceFromTemplate: traefikCreateInstanceFromTemplateContract,
   
   // Domain management
   createDomainConfig: traefikCreateDomainConfigContract,
