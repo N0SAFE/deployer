@@ -30,7 +30,14 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Clock
+  Clock,
+  FileCheck,
+  Trash2,
+  Database,
+  File,
+  CheckCircle2,
+  AlertTriangle,
+  Loader2
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { orpc } from '@/lib/orpc'
@@ -40,8 +47,9 @@ export default function TraefikDashboard() {
   const [createInstanceOpen, setCreateInstanceOpen] = useState(false)
   const [createDomainOpen, setCreateDomainOpen] = useState(false)
   const [createRouteOpen, setCreateRouteOpen] = useState(false)
-  const [selectedInstanceId] = useState<string>('')
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string>('')
   const [selectedDomainConfigId] = useState<string>('')
+  const [configInstanceId, setConfigInstanceId] = useState<string>('')
   const queryClient = useQueryClient()
 
   // Traefik Instances
@@ -188,6 +196,93 @@ export default function TraefikDashboard() {
     })
   )
 
+  // Configuration management queries and mutations
+  const { data: instanceConfigs = [], isLoading: configsLoading } = useQuery(
+    orpc.traefik.getInstanceConfigs.queryOptions({
+      input: { instanceId: configInstanceId },
+      enabled: !!configInstanceId,
+      staleTime: 15000, // 15 seconds
+    })
+  )
+
+  const { data: configRefreshCwStatus, isLoading: syncStatusLoading } = useQuery(
+    orpc.traefik.getConfigSyncStatus.queryOptions({
+      input: { instanceId: configInstanceId },
+      enabled: !!configInstanceId,
+      staleTime: 10000, // 10 seconds
+    })
+  )
+
+  const { data: instanceStatus, isLoading: instanceStatusLoading } = useQuery(
+    orpc.traefik.getInstanceStatus.queryOptions({
+      input: { instanceId: configInstanceId },
+      enabled: !!configInstanceId,
+      staleTime: 15000, // 15 seconds
+    })
+  )
+
+  const forceSyncMutation = useMutation(
+    orpc.traefik.forceSyncConfigs.mutationOptions({
+      onSuccess: (result) => {
+        queryClient.invalidateQueries({ 
+          predicate: (query) => query.queryKey[0] === 'traefik' && query.queryKey[1] === 'getConfigSyncStatus'
+        })
+        queryClient.invalidateQueries({ 
+          predicate: (query) => query.queryKey[0] === 'traefik' && query.queryKey[1] === 'getInstanceConfigs'
+        })
+        toast.success(`Configuration sync completed: ${result.successful}/${result.total} successful`)
+      },
+      onError: (error: Error) => {
+        toast.error(`Configuration sync failed: ${error.message}`)
+      },
+    })
+  )
+
+  const cleanupFilesMutation = useMutation(
+    orpc.traefik.cleanupOrphanedFiles.mutationOptions({
+      onSuccess: (result) => {
+        queryClient.invalidateQueries({ 
+          predicate: (query) => query.queryKey[0] === 'traefik' && query.queryKey[1] === 'getInstanceStatus'
+        })
+        toast.success(`Cleaned up ${result.count} orphaned files`)
+      },
+      onError: (error: Error) => {
+        toast.error(`File cleanup failed: ${error.message}`)
+      },
+    })
+  )
+
+  const validateConfigsMutation = useMutation(
+    orpc.traefik.validateConfigFiles.mutationOptions({
+      onSuccess: (result) => {
+        queryClient.invalidateQueries({ 
+          predicate: (query) => query.queryKey[0] === 'traefik' && query.queryKey[1] === 'getInstanceConfigs'
+        })
+        toast.success(`Configuration validation completed: ${result.valid}/${result.valid + result.invalid} valid`)
+      },
+      onError: (error: Error) => {
+        toast.error(`Configuration validation failed: ${error.message}`)
+      },
+    })
+  )
+
+  const syncSingleConfigMutation = useMutation(
+    orpc.traefik.syncSingleConfig.mutationOptions({
+      onSuccess: (result) => {
+        queryClient.invalidateQueries({ 
+          predicate: (query) => query.queryKey[0] === 'traefik' && query.queryKey[1] === 'getInstanceConfigs'
+        })
+        queryClient.invalidateQueries({ 
+          predicate: (query) => query.queryKey[0] === 'traefik' && query.queryKey[1] === 'getConfigSyncStatus'
+        })
+        toast.success(`Configuration ${result.action}: ${result.filePath}`)
+      },
+      onError: (error: Error) => {
+        toast.error(`Configuration sync failed: ${error.message}`)
+      },
+    })
+  )
+
   const handleCreateInstance = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const formData = new FormData(event.currentTarget)
@@ -268,6 +363,37 @@ export default function TraefikDashboard() {
     }
   }
 
+  // Configuration status helpers
+  const getConfigSyncStatusIcon = (status: string) => {
+    switch (status) {
+      case 'synced':
+        return <CheckCircle2 className="h-4 w-4 text-green-600" />
+      case 'pending':
+        return <Clock className="h-4 w-4 text-orange-600" />
+      case 'failed':
+        return <XCircle className="h-4 w-4 text-red-600" />
+      case 'outdated':
+        return <AlertTriangle className="h-4 w-4 text-yellow-600" />
+      default:
+        return <Clock className="h-4 w-4 text-gray-600" />
+    }
+  }
+
+  const getConfigSyncStatusColor = (status: string) => {
+    switch (status) {
+      case 'synced':
+        return 'default'
+      case 'pending':
+        return 'secondary'
+      case 'failed':
+        return 'destructive'
+      case 'outdated':
+        return 'outline'
+      default:
+        return 'outline'
+    }
+  }
+
   return (
     <div className="container mx-auto py-6 px-4 max-w-7xl">
       {/* Header */}
@@ -293,7 +419,7 @@ export default function TraefikDashboard() {
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-6">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -333,6 +459,18 @@ export default function TraefikDashboard() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
+                <Database className="h-8 w-8 text-indigo-600" />
+                <div>
+                  <p className="text-sm text-gray-600">Configuration Files</p>
+                  <p className="text-2xl font-bold">{configInstanceId && instanceConfigs ? instanceConfigs.length : '—'}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
                 <Activity className="h-8 w-8 text-orange-600" />
                 <div>
                   <p className="text-sm text-gray-600">Total Configs</p>
@@ -346,7 +484,7 @@ export default function TraefikDashboard() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="instances" className="flex items-center gap-2">
             <Server className="h-4 w-4" />
             Instances
@@ -358,6 +496,10 @@ export default function TraefikDashboard() {
           <TabsTrigger value="routes" className="flex items-center gap-2">
             <RouteIcon className="h-4 w-4" />
             Routes
+          </TabsTrigger>
+          <TabsTrigger value="configuration" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Configuration
           </TabsTrigger>
           <TabsTrigger value="dns" className="flex items-center gap-2">
             <CheckCircle className="h-4 w-4" />
@@ -458,6 +600,28 @@ export default function TraefikDashboard() {
                             Start
                           </Button>
                         )}
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => {
+                            setConfigInstanceId(instance.id)
+                            setActiveTab('configuration')
+                          }}
+                        >
+                          <Database className="h-4 w-4 mr-2" />
+                          View Configs
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedInstanceId(instance.id)
+                            setActiveTab('domains')
+                          }}
+                        >
+                          <Globe className="h-4 w-4 mr-2" />
+                          View Domains
+                        </Button>
                         <Button size="sm" variant="outline">
                           <Settings className="h-4 w-4 mr-2" />
                           Configure
@@ -485,15 +649,33 @@ export default function TraefikDashboard() {
         {/* Domains Tab */}
         <TabsContent value="domains" className="space-y-6">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Domain Configurations</h2>
-            <Dialog open={createDomainOpen} onOpenChange={setCreateDomainOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Domain
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
+            <div className="flex items-center gap-4">
+              <h2 className="text-xl font-semibold">Domain Configurations</h2>
+              {selectedInstanceId && (
+                <Badge variant="outline">
+                  Instance: {instances.find(i => i.id === selectedInstanceId)?.name || 'Unknown'}
+                </Badge>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <select 
+                value={selectedInstanceId} 
+                onChange={(e) => setSelectedInstanceId(e.target.value)}
+                className="px-3 py-2 border border-gray-200 rounded-md"
+              >
+                <option value="">All instances</option>
+                {instances.map(instance => (
+                  <option key={instance.id} value={instance.id}>{instance.name}</option>
+                ))}
+              </select>
+              <Dialog open={createDomainOpen} onOpenChange={setCreateDomainOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Domain
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Add Domain Configuration</DialogTitle>
                   <DialogDescription>
@@ -767,6 +949,307 @@ export default function TraefikDashboard() {
               ))
             )}
           </div>
+        </TabsContent>
+
+        {/* Configuration Tab */}
+        <TabsContent value="configuration" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Configuration Management</h2>
+            <div className="flex gap-2">
+              <select 
+                value={configInstanceId} 
+                onChange={(e) => setConfigInstanceId(e.target.value)}
+                className="px-3 py-2 border border-gray-200 rounded-md"
+              >
+                <option value="">Select instance to manage</option>
+                {instances.map(instance => (
+                  <option key={instance.id} value={instance.id}>{instance.name}</option>
+                ))}
+              </select>
+              {configInstanceId && (
+                <Button
+                  onClick={() => window.location.reload()}
+                  variant="outline"
+                  size="sm"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {!configInstanceId ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Settings className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+                <h3 className="text-lg font-semibold mb-2">Select Instance</h3>
+                <p className="text-gray-600">Choose a Traefik instance to manage its configuration</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Instance Status Overview */}
+              {instanceStatus && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <Database className="h-5 w-5 text-blue-600" />
+                        Configurations
+                      </h3>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span>Total:</span>
+                          <span className="font-medium">{instanceStatus.configurations.total}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Static:</span>
+                          <span className="font-medium">{instanceStatus.configurations.static}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Dynamic:</span>
+                          <span className="font-medium">{instanceStatus.configurations.dynamic}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>RefreshCwed:</span>
+                          <span className="font-medium text-green-600">{instanceStatus.configurations.synced}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Pending:</span>
+                          <span className="font-medium text-orange-600">{instanceStatus.configurations.pending}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Failed:</span>
+                          <span className="font-medium text-red-600">{instanceStatus.configurations.failed}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <File className="h-5 w-5 text-green-600" />
+                        Files
+                      </h3>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span>Total:</span>
+                          <span className="font-medium">{instanceStatus.files.total}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Exists:</span>
+                          <span className="font-medium text-green-600">{instanceStatus.files.exists}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Writable:</span>
+                          <span className="font-medium text-blue-600">{instanceStatus.files.writable}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Orphaned:</span>
+                          <span className="font-medium text-orange-600">{instanceStatus.files.orphaned}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <Activity className="h-5 w-5 text-purple-600" />
+                        Instance Status
+                      </h3>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span>Status:</span>
+                          <Badge variant={instanceStatus.instance.status === 'running' ? 'default' : 'secondary'}>
+                            {instanceStatus.instance.status}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Dashboard:</span>
+                          <span className="font-medium">{instanceStatus.instance.dashboardPort || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>HTTP:</span>
+                          <span className="font-medium">{instanceStatus.instance.httpPort || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>HTTPS:</span>
+                          <span className="font-medium">{instanceStatus.instance.httpsPort || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Last Update:</span>
+                          <span className="font-medium text-xs">{new Date(instanceStatus.lastUpdate).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Configuration Actions */}
+              <Card>
+                <CardHeader>
+                  <h3 className="text-lg font-semibold">Configuration Actions</h3>
+                  <CardDescription>
+                    Manage configuration synchronization and validation
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Button
+                      onClick={() => forceSyncMutation.mutate({ instanceId: configInstanceId })}
+                      disabled={forceSyncMutation.isPending}
+                      className="flex items-center gap-2"
+                    >
+                      {forceSyncMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      Force RefreshCw All
+                    </Button>
+                    
+                    <Button
+                      onClick={() => validateConfigsMutation.mutate({ instanceId: configInstanceId })}
+                      disabled={validateConfigsMutation.isPending}
+                      variant="outline"
+                      className="flex items-center gap-2"
+                    >
+                      {validateConfigsMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileCheck className="h-4 w-4" />
+                      )}
+                      Validate All
+                    </Button>
+                    
+                    <Button
+                      onClick={() => cleanupFilesMutation.mutate({ instanceId: configInstanceId })}
+                      disabled={cleanupFilesMutation.isPending}
+                      variant="destructive"
+                      className="flex items-center gap-2"
+                    >
+                      {cleanupFilesMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                      Cleanup Files
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Configuration RefreshCw Status */}
+              {configRefreshCwStatus && (
+                <Card>
+                  <CardHeader>
+                    <h3 className="text-lg font-semibold">RefreshCw Status Summary</h3>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-blue-600">{configRefreshCwStatus.total}</div>
+                        <div className="text-sm text-gray-600">Total</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-600">{configRefreshCwStatus.synced}</div>
+                        <div className="text-sm text-gray-600">RefreshCwed</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-orange-600">{configRefreshCwStatus.pending}</div>
+                        <div className="text-sm text-gray-600">Pending</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-red-600">{configRefreshCwStatus.failed}</div>
+                        <div className="text-sm text-gray-600">Failed</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Individual Configurations */}
+              <Card>
+                <CardHeader>
+                  <h3 className="text-lg font-semibold">Configuration Files</h3>
+                  <CardDescription>
+                    Individual configuration management and sync status
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {configsLoading ? (
+                    <div className="text-center py-8">Loading configurations...</div>
+                  ) : instanceConfigs.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      No configurations found for this instance
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {instanceConfigs.map(config => (
+                        <div key={config.id} className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-2">
+                                {getConfigSyncStatusIcon(config.syncStatus || 'pending')}
+                                <div>
+                                  <h4 className="font-medium">{config.configName}</h4>
+                                  <p className="text-sm text-gray-600">
+                                    Type: {config.configType} • Version: {config.configVersion || 'N/A'}
+                                  </p>
+                                  {config.lastSyncedAt && (
+                                    <p className="text-xs text-gray-500">
+                                      Last synced: {new Date(config.lastSyncedAt).toLocaleString()}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={getConfigSyncStatusColor(config.syncStatus || 'pending')}>
+                                {config.syncStatus || 'pending'}
+                              </Badge>
+                              {config.requiresFile && (
+                                <Badge variant="outline" className="text-xs">
+                                  <File className="h-3 w-3 mr-1" />
+                                  File Required
+                                </Badge>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => syncSingleConfigMutation.mutate({ 
+                                  configId: config.id,
+                                  forceSync: true 
+                                })}
+                                disabled={syncSingleConfigMutation.isPending}
+                              >
+                                {syncSingleConfigMutation.isPending ? (
+                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="h-3 w-3 mr-1" />
+                                )}
+                                RefreshCw
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          )}
         </TabsContent>
 
         {/* DNS Check Tab */}
