@@ -104,7 +104,7 @@ async function seed() {
       {
         name: 'My Blog',
         description: 'Personal blog with Next.js frontend and NestJS API',
-        baseDomain: 'myblog.example.com',
+        baseDomain: 'blog.localhost',
         ownerId: insertedUsers[0].id,
         settings: {
           autoCleanupDays: 7,
@@ -120,7 +120,7 @@ async function seed() {
       {
         name: 'E-commerce Store',
         description: 'Online store with React frontend, Node.js API, and PostgreSQL',
-        baseDomain: 'store.example.com',
+        baseDomain: 'shop.localhost',
         ownerId: insertedUsers[1].id,
         settings: {
           autoCleanupDays: 14,
@@ -413,10 +413,10 @@ Sitemap: http://static.localhost/sitemap.xml`,
       buildCompletedAt: new Date(Date.now() - 240000), // 4 minutes ago
       deployStartedAt: new Date(Date.now() - 240000),
       deployCompletedAt: new Date(Date.now() - 180000), // 3 minutes ago
-      containerName: 'myblog-api-prod',
-      containerImage: 'myblog/api:latest',
-      domainUrl: 'https://api.myblog.example.com',
-      healthCheckUrl: 'https://api.myblog.example.com/health',
+      containerName: 'blog-api-prod',
+      containerImage: 'blog/api:latest',
+      domainUrl: 'https://api.blog.localhost',
+      healthCheckUrl: 'https://api.blog.localhost/health',
       metadata: {
         buildDuration: 60000,
         deployDuration: 60000,
@@ -490,9 +490,9 @@ Sitemap: http://static.localhost/sitemap.xml`,
     // Create preview environment
     const previewEnv = {
       deploymentId: insertedDeployments[0].id,
-      subdomain: 'myblog-pr-123',
-      fullDomain: 'myblog-pr-123.preview.example.com',
-      sslEnabled: true,
+      subdomain: 'blog-pr-123',
+      fullDomain: 'blog-pr-123.preview.localhost',
+      sslEnabled: false, // No SSL for localhost
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
       isActive: true,
       webhookTriggered: true,
@@ -517,14 +517,14 @@ Sitemap: http://static.localhost/sitemap.xml`,
     const domainConfig = {
       id: nanoid(),
       traefikInstanceId: 'default',
-      domain: 'myblog.example.com',
+      domain: 'blog.localhost',
       subdomain: 'api',
-      fullDomain: 'api.myblog.example.com',
-      sslEnabled: true,
-      sslProvider: 'letsencrypt',
+      fullDomain: 'api.blog.localhost',
+      sslEnabled: false, // No SSL for localhost
+      sslProvider: null,
       middleware: {
         cors: {
-          accessControlAllowOrigin: ['https://myblog.example.com'],
+          accessControlAllowOrigin: ['http://blog.localhost', 'http://localhost:3000'],
           accessControlAllowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
           accessControlAllowHeaders: ['Content-Type', 'Authorization']
         }
@@ -542,9 +542,9 @@ Sitemap: http://static.localhost/sitemap.xml`,
       id: nanoid(),
       domainConfigId: insertedDomainConfigs[0].id,
       deploymentId: insertedDeployments[0].id,
-      routeName: 'myblog-api-route',
-      serviceName: 'myblog-api-service',
-      containerName: 'myblog-api-prod',
+      routeName: 'blog-api-route',
+      serviceName: 'blog-api-service',
+      containerName: 'blog-api-prod',
       targetPort: 3001,
       pathPrefix: '/',
       priority: 1,

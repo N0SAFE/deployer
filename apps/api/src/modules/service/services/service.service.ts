@@ -42,28 +42,26 @@ export class ServiceService {
         domain: `${service.name}.${service.projectId}.localhost`,
         subdomain: undefined,
         sslEnabled: false,
-        isActive: true,
       });
 
       this.logger.log(`Domain config created: ${domainConfig.id}`);
 
       // Create route configuration for the service
       if (service.port) {
-        const routeConfig = await this.traefikService.createRouteConfig({
-          domainConfigId: domainConfig.id,
+        const routeConfig = await this.traefikService.createRouteConfig(domainConfig.id, {
           routeName: `${service.name}-route`,
           serviceName: `${service.name}-service`,
           containerName: `${service.name}-container`,
           targetPort: service.port,
           pathPrefix: '/',
           priority: 1,
-          isActive: true,
         });
 
         this.logger.log(`Route config created: ${routeConfig.id}`);
       }
     } catch (error) {
-      this.logger.error(`Error creating Traefik config for service ${service.id}: ${error.message}`, error.stack);
+      const err = error as Error;
+      this.logger.error(`Error creating Traefik config for service ${service.id}: ${err.message}`, err.stack);
       // Don't throw error here to avoid blocking service creation
     }
   }
@@ -97,7 +95,8 @@ export class ServiceService {
       this.logger.log(`Created new Traefik instance: ${traefikInstance.id}`);
       return traefikInstance.id;
     } catch (error) {
-      this.logger.error(`Error ensuring Traefik instance for project ${projectId}: ${error.message}`, error.stack);
+      const err = error as Error;
+      this.logger.error(`Error ensuring Traefik instance for project ${projectId}: ${err.message}`, err.stack);
       throw error;
     }
   }
@@ -148,7 +147,8 @@ export class ServiceService {
       // 3. Sync the changes to Traefik
       this.logger.log(`Traefik config update completed for service: ${service.id}`);
     } catch (error) {
-      this.logger.error(`Error updating Traefik config for service ${service.id}: ${error.message}`, error.stack);
+      const err = error as Error;
+      this.logger.error(`Error updating Traefik config for service ${service.id}: ${err.message}`, err.stack);
     }
   }
 
@@ -179,7 +179,8 @@ export class ServiceService {
       // 3. Cleaning up domain configs if no longer used
       this.logger.log(`Traefik cleanup completed for service: ${service.id}`);
     } catch (error) {
-      this.logger.error(`Error cleaning up Traefik config for service ${service.id}: ${error.message}`, error.stack);
+      const err = error as Error;
+      this.logger.error(`Error cleaning up Traefik config for service ${service.id}: ${err.message}`, err.stack);
     }
   }
 
