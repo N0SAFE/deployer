@@ -18,6 +18,149 @@ import {
 import { nanoid } from 'nanoid';
 import { eq } from 'drizzle-orm';
 
+// Helper function to create service with Traefik configuration
+async function createServiceWithTraefik(serviceData: any, projectId: string, projectDomain: string) {
+  // Create the service in database
+  const [service] = await db.insert(services).values({
+    ...serviceData,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }).returning();
+  
+  console.log(`✅ Created service: ${service.name}`);
+  
+  // Create Traefik configuration for this service
+  if (service.port) {
+    // Create domain configuration
+    const domainConfig = {
+      id: nanoid(),
+      traefikInstanceId: 'default', // Use the default Traefik instance
+      domain: projectDomain,
+      subdomain: service.name,
+      fullDomain: `${service.name}.${projectDomain}`,
+      sslEnabled: false, // No SSL for localhost
+      sslProvider: null,
+      middleware: {
+        cors: {
+          accessControlAllowOrigin: [`http://${projectDomain}`, 'http://localhost:3000'],
+          accessControlAllowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
+          accessControlAllowHeaders: ['Content-Type', 'Authorization']
+        }
+      },
+      dnsStatus: 'valid' as const, // localhost is always valid
+      dnsRecords: null,
+      dnsLastChecked: new Date(),
+      dnsErrorMessage: null,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    const [insertedDomainConfig] = await db.insert(domainConfigs).values(domainConfig).returning();
+    console.log(`✅ Created domain config: ${domainConfig.fullDomain}`);
+    
+    // Create route configuration
+    const routeConfig = {
+      id: nanoid(),
+      domainConfigId: insertedDomainConfig.id,
+      deploymentId: null, // Will be set when deployment is created
+      routeName: `${service.name}-route`,
+      serviceName: `${service.name}-service`,
+      containerName: `${service.name}-container`,
+      targetPort: service.port,
+      pathPrefix: '/',
+      priority: 1,
+      middleware: {
+        rateLimit: {
+          burst: 100,
+          rate: '10/s'
+        }
+      },
+      healthCheck: service.healthCheckPath ? {
+        path: service.healthCheckPath,
+        interval: '30s',
+        timeout: '10s',
+        retries: 3
+      } : null,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    await db.insert(routeConfigs).values(routeConfig);
+    console.log(`✅ Created route config: ${routeConfig.routeName}`);
+    
+    // Create Traefik configuration file for this service
+    const traefikConfigContent = `# Traefik configuration for ${service.name}
+http:
+  services:
+    ${routeConfig.serviceName}:
+      loadBalancer:
+        servers:
+          - url: "http://${routeConfig.containerName}:${routeConfig.targetPort}"
+
+  routers:
+    ${routeConfig.routeName}:
+      rule: "Host(\`${domainConfig.fullDomain}\`)"
+      service: "${routeConfig.serviceName}"
+      entryPoints:
+        - "web"
+      middlewares:
+        - "${service.name}-cors"
+        - "${service.name}-ratelimit"
+
+  middlewares:
+    ${service.name}-cors:
+      headers:
+        accessControlAllowMethods:
+          - "GET"
+          - "POST"
+          - "PUT"
+          - "DELETE"
+          - "OPTIONS"
+        accessControlAllowOriginList:
+          - "http://${projectDomain}"
+          - "http://localhost:3000"
+        accessControlAllowHeaders:
+          - "Content-Type"
+          - "Authorization"
+    ${service.name}-ratelimit:
+      rateLimit:
+        burst: 100
+        period: "1s"
+        average: 10`;
+
+    const traefikConfigRecord = {
+      id: nanoid(),
+      traefikInstanceId: 'default',
+      configName: `${service.name}-config`,
+      configPath: `${service.name}.yml`,
+      configContent: traefikConfigContent,
+      configType: 'dynamic' as const,
+      requiresFile: true,
+      syncStatus: 'pending' as const,
+      lastSyncedAt: null,
+      syncErrorMessage: null,
+      fileChecksum: null,
+      configVersion: 1,
+      metadata: {
+        serviceName: service.name,
+        serviceId: service.id,
+        projectId: projectId,
+      },
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    await db.insert(traefikConfigs).values(traefikConfigRecord);
+    console.log(`✅ Created Traefik config: ${traefikConfigRecord.configName}`);
+  }
+  
+  return service;
+}
+
 async function seed() {
   console.log('🌱 Checking database seeding status...');
 
@@ -33,6 +176,7 @@ async function seed() {
     }
 
     console.log('🌱 Database not seeded yet. Starting seeding process...');
+    
     // Create sample users
     const sampleUsers = [
       {
@@ -134,67 +278,64 @@ async function seed() {
     const insertedProjects = await db.insert(projects).values(sampleProjects).returning();
     console.log('✅ Created sample projects');
 
-    // Create sample services for the first project
-    const sampleServices = [
-      {
-        projectId: insertedProjects[0].id,
-        name: 'api',
-        type: 'backend',
-        provider: 'github' as const,
-        builder: 'dockerfile' as const,
-        providerConfig: {
-          repositoryUrl: 'https://github.com/example/api-service',
-          branch: 'main'
-        },
-        builderConfig: {
-          dockerfilePath: 'apps/api/Dockerfile',
-          buildContext: '.'
-        },
-        port: 3001,
-        healthCheckPath: '/health',
-        environmentVariables: {
-          DATABASE_URL: 'postgresql://user:pass@db:5432/mydb',
-          REDIS_URL: 'redis://redis:6379'
-        } as Record<string, string>,
-        resourceLimits: {
-          memory: '512m',
-          cpu: '0.5'
-        },
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+    // Create sample services for the first project using Traefik integration
+    console.log('🚀 Creating services with Traefik configuration...');
+    
+    // API Service for blog project
+    const apiService = await createServiceWithTraefik({
+      projectId: insertedProjects[0].id,
+      name: 'api',
+      type: 'backend',
+      provider: 'github' as const,
+      builder: 'dockerfile' as const,
+      providerConfig: {
+        repositoryUrl: 'https://github.com/example/api-service',
+        branch: 'main'
       },
-      {
-        projectId: insertedProjects[0].id,
-        name: 'web',
-        type: 'frontend',
-        provider: 'github' as const,
-        builder: 'nixpack' as const,
-        providerConfig: {
-          repositoryUrl: 'https://github.com/example/web-app',
-          branch: 'main'
-        },
-        builderConfig: {
-          buildCommand: 'npm run build',
-          outputDirectory: '.next'
-        },
-        port: 3000,
-        healthCheckPath: '/',
-        environmentVariables: {
-          NEXT_PUBLIC_API_URL: 'http://api:3001'
-        } as Record<string, string>,
-        resourceLimits: {
-          memory: '256m',
-          cpu: '0.3'
-        },
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }
-    ];
+      builderConfig: {
+        dockerfilePath: 'apps/api/Dockerfile',
+        buildContext: '.'
+      },
+      port: 3001,
+      healthCheckPath: '/health',
+      environmentVariables: {
+        DATABASE_URL: 'postgresql://user:pass@db:5432/mydb',
+        REDIS_URL: 'redis://redis:6379'
+      } as Record<string, string>,
+      resourceLimits: {
+        memory: '512m',
+        cpu: '0.5'
+      },
+    }, insertedProjects[0].id, insertedProjects[0].baseDomain || 'localhost');
 
-    const insertedServices = await db.insert(services).values(sampleServices).returning();
-    console.log('✅ Created sample services');
+    // Web Service for blog project  
+    const webService = await createServiceWithTraefik({
+      projectId: insertedProjects[0].id,
+      name: 'web',
+      type: 'frontend',
+      provider: 'github' as const,
+      builder: 'nixpack' as const,
+      providerConfig: {
+        repositoryUrl: 'https://github.com/example/web-app',
+        branch: 'main'
+      },
+      builderConfig: {
+        buildCommand: 'npm run build',
+        outputDirectory: '.next'
+      },
+      port: 3000,
+      healthCheckPath: '/',
+      environmentVariables: {
+        NEXT_PUBLIC_API_URL: 'http://api.blog.localhost'
+      } as Record<string, string>,
+      resourceLimits: {
+        memory: '256m',
+        cpu: '0.3'
+      },
+    }, insertedProjects[0].id, insertedProjects[0].baseDomain || 'localhost');
+
+    const insertedServices = [apiService, webService];
+    console.log('✅ Created sample services with Traefik configuration');
 
     // Create static file service for testing local file deployment
     const staticFileContent = {
@@ -336,7 +477,8 @@ Sitemap: http://static.localhost/sitemap.xml`,
 </urlset>`
     };
 
-    const staticFileService = {
+    // Static Service for testing local file deployment
+    const staticService = await createServiceWithTraefik({
       projectId: insertedProjects[0].id,
       name: 'static-demo',
       type: 'frontend',
@@ -356,13 +498,10 @@ Sitemap: http://static.localhost/sitemap.xml`,
         memory: '64m',
         cpu: '0.1'
       },
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    }, insertedProjects[0].id, insertedProjects[0].baseDomain || 'localhost');
 
-    const insertedStaticService = await db.insert(services).values(staticFileService).returning();
-    console.log('✅ Created static file service with local content');
+    const insertedStaticService = [staticService];
+    console.log('✅ Created static file service with Traefik configuration');
 
     // Create service dependency (web depends on api)
     const serviceDependency = {
@@ -513,61 +652,6 @@ Sitemap: http://static.localhost/sitemap.xml`,
     await db.insert(previewEnvironments).values(previewEnv);
     console.log('✅ Created preview environment');
 
-    // Create domain configuration for Traefik
-    const domainConfig = {
-      id: nanoid(),
-      traefikInstanceId: 'default',
-      domain: 'blog.localhost',
-      subdomain: 'api',
-      fullDomain: 'api.blog.localhost',
-      sslEnabled: false, // No SSL for localhost
-      sslProvider: null,
-      middleware: {
-        cors: {
-          accessControlAllowOrigin: ['http://blog.localhost', 'http://localhost:3000'],
-          accessControlAllowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
-          accessControlAllowHeaders: ['Content-Type', 'Authorization']
-        }
-      },
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    const insertedDomainConfigs = await db.insert(domainConfigs).values(domainConfig).returning();
-    console.log('✅ Created domain configuration');
-
-    // Create route configuration
-    const routeConfig = {
-      id: nanoid(),
-      domainConfigId: insertedDomainConfigs[0].id,
-      deploymentId: insertedDeployments[0].id,
-      routeName: 'blog-api-route',
-      serviceName: 'blog-api-service',
-      containerName: 'blog-api-prod',
-      targetPort: 3001,
-      pathPrefix: '/',
-      priority: 1,
-      middleware: {
-        rateLimit: {
-          burst: 100,
-          rate: '10/s'
-        }
-      },
-      healthCheck: {
-        path: '/health',
-        interval: '30s',
-        timeout: '10s',
-        retries: 3
-      },
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    await db.insert(routeConfigs).values(routeConfig);
-    console.log('✅ Created route configuration');
-
     // Create test Traefik configuration for test.localhost → google.com
     const testDomainConfig = {
       id: nanoid(),
@@ -697,26 +781,34 @@ http:
     console.log('\n🎉 Database seeded successfully with:');
     console.log('  👥 2 sample users');
     console.log('  🏗️  2 sample projects');
-    console.log('  ⚙️  3 sample services (2 GitHub + 1 Static)');
+    console.log('  ⚙️  3 sample services with automatic Traefik configuration');
     console.log('  🚀 1 sample deployment');
     console.log('  📋 6 deployment logs');
     console.log('  🔮 1 preview environment');
     console.log('  🔀 1 Traefik instance');
-    console.log('  🌐 2 domain configurations (1 production + 1 test)');
-    console.log('  🛣️  2 route configurations (1 production + 1 test redirect)');
+    console.log('  🌐 4 domain configurations (3 services + 1 test redirect)');
+    console.log('  🛣️  4 route configurations (3 services + 1 test redirect)');
     console.log('  🤝 1 collaboration');
-    console.log('  📁 1 Traefik config file');
-    console.log('  📄 1 config file record');
-    console.log('\n🧪 Test Configuration Added:');
+    console.log('  📁 4 Traefik config files (3 services + 1 test)');
+    console.log('  📄 Service-specific config file records');
+    console.log('\n🧪 Service Domains Created:');
+    console.log('  🌐 api.blog.localhost → API service');
+    console.log('  🌐 web.blog.localhost → Web service');
+    console.log('  🌐 static-demo.blog.localhost → Static demo service');
     console.log('  🎯 test.localhost → google.com redirect');
-    console.log('  � static-demo service with local HTML files');
-    console.log('  �📋 Configurations will be synced automatically on API startup');
+    console.log('\n✨ Traefik Integration Features:');
+    console.log('  🔄 Automatic Traefik configuration per service');
+    console.log('  🌍 DNS validation for localhost domains');
+    console.log('  📊 Config file sync handling');
+    console.log('  🚦 CORS and rate limiting middleware');
+    console.log('  💉 Health check configuration');
     console.log('\n🔧 To test:');
     console.log('  1. Start services: bun run dev');
-    console.log('  2. Add to /etc/hosts: 127.0.0.1 test.localhost static.localhost');
+    console.log('  2. Add to /etc/hosts: 127.0.0.1 api.blog.localhost web.blog.localhost static-demo.blog.localhost test.localhost');
     console.log('  3. Visit: http://test.localhost (should redirect to Google)');
-    console.log('  4. Deploy static service and visit: http://static.localhost');
-    console.log('  5. Test upload workflow with the static-demo service');
+    console.log('  4. Visit: http://api.blog.localhost (API service)');
+    console.log('  5. Visit: http://web.blog.localhost (Web service)');
+    console.log('  6. Deploy services and test Traefik routing');
 
     // Mark database as seeded
     const seedMetadata = {
