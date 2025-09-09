@@ -24,7 +24,8 @@ export class ServiceService {
 
       return service;
     } catch (error) {
-      this.logger.error(`Error creating service: ${error.message}`, error.stack);
+      const err = error as Error;
+      this.logger.error(`Error creating service: ${err.message}`, err.stack);
       throw error;
     }
   }
@@ -37,12 +38,10 @@ export class ServiceService {
       const traefikInstanceId = await this.ensureTraefikInstanceForProject(service.projectId);
       
       // Create domain configuration for the service
-      const domainConfig = await this.traefikService.createDomainConfig({
-        traefikInstanceId,
-        domain: `${service.name}.${service.projectId}.localhost`, // Default local domain
-        subdomain: null,
-        fullDomain: `${service.name}.${service.projectId}.localhost`,
-        sslEnabled: false, // Default to false for local development
+      const domainConfig = await this.traefikService.createDomainConfig(traefikInstanceId, {
+        domain: `${service.name}.${service.projectId}.localhost`,
+        subdomain: undefined,
+        sslEnabled: false,
         isActive: true,
       });
 

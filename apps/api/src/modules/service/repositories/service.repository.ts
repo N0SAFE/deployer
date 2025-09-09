@@ -132,7 +132,7 @@ export class ServiceRepository {
       .where(
         and(
           eq(deployments.serviceId, serviceId),
-          inArray(deployments.status, ['running', 'success', 'building', 'deploying'])
+          inArray(deployments.status, ['success', 'building', 'deploying'])
         )
       )
       .orderBy(desc(deployments.createdAt));
@@ -146,41 +146,29 @@ export class ServiceRepository {
   ) {
     this.logger.log(`Finding deployment logs for: ${deploymentId}`);
     
-    let query = this.databaseService.db
+    // Build the WHERE conditions
+    const conditions = [eq(deploymentLogs.deploymentId, deploymentId)];
+    
+    if (filter.level) {
+      conditions.push(eq(deploymentLogs.level, filter.level as any));
+    }
+    
+    if (filter.phase) {
+      conditions.push(eq(deploymentLogs.phase, filter.phase));
+    }
+    
+    if (filter.service) {
+      conditions.push(eq(deploymentLogs.service, filter.service));
+    }
+    
+    if (filter.search) {
+      conditions.push(like(deploymentLogs.message, `%${filter.search}%`));
+    }
+
+    const logs = await this.databaseService.db
       .select()
       .from(deploymentLogs)
-      .where(eq(deploymentLogs.deploymentId, deploymentId));
-
-    // Apply filters
-    if (filter.level) {
-      query = query.where(and(
-        eq(deploymentLogs.deploymentId, deploymentId),
-        eq(deploymentLogs.level, filter.level)
-      ));
-    }
-
-    if (filter.phase) {
-      query = query.where(and(
-        eq(deploymentLogs.deploymentId, deploymentId),
-        eq(deploymentLogs.phase, filter.phase)
-      ));
-    }
-
-    if (filter.service) {
-      query = query.where(and(
-        eq(deploymentLogs.deploymentId, deploymentId),
-        eq(deploymentLogs.service, filter.service)
-      ));
-    }
-
-    if (filter.search) {
-      query = query.where(and(
-        eq(deploymentLogs.deploymentId, deploymentId),
-        like(deploymentLogs.message, `%${filter.search}%`)
-      ));
-    }
-
-    const logs = await query
+      .where(and(...conditions))
       .orderBy(desc(deploymentLogs.timestamp))
       .limit(limit)
       .offset(offset);
@@ -272,7 +260,14 @@ export class ServiceRepository {
   async findServicesByProject(projectId: string, activeOnly = false) {
     this.logger.log(`Finding services for project: ${projectId}, activeOnly: ${activeOnly}`);
     
-    let query = this.databaseService.db
+    // Build the WHERE conditions
+    const conditions = [eq(services.projectId, projectId)];
+    
+    if (activeOnly) {
+      conditions.push(eq(services.isActive, true));
+    }
+
+    const query = this.databaseService.db
       .select({
         id: services.id,
         name: services.name,
@@ -290,16 +285,7 @@ export class ServiceRepository {
       })
       .from(services)
       .innerJoin(projects, eq(services.projectId, projects.id))
-      .where(eq(services.projectId, projectId));
-
-    if (activeOnly) {
-      query = query.where(
-        and(
-          eq(services.projectId, projectId),
-          eq(services.isActive, true)
-        )
-      );
-    }
+      .where(and(...conditions));
 
     return await query.orderBy(desc(services.createdAt));
   }
