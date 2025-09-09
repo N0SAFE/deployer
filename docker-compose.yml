@@ -120,7 +120,7 @@ services:
         ports:
             - "80:80"   # HTTP (using different port to avoid conflicts)
             - "443:443"  # HTTPS (using different port to avoid conflicts) 
-            - "8080:8080" # Traefik Dashboard
+            - "8095:8080" # Traefik Dashboard
         volumes:
             # Mount Docker socket for auto-discovery
             - /var/run/docker.sock:/var/run/docker.sock:ro
