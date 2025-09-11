@@ -222,4 +222,79 @@ export class ServiceRepository {
             .where(and(...conditions));
         return await query.orderBy(desc(services.createdAt));
     }
+
+    async getProjectDependencyGraph(projectId: string) {
+        this.logger.log(`Getting dependency graph for project: ${projectId}`);
+        
+        // Get all services for the project
+        const projectServices = await this.databaseService.db
+            .select({
+                id: services.id,
+                name: services.name,
+                type: services.type,
+                port: services.port,
+                isActive: services.isActive,
+                projectId: services.projectId,
+            })
+            .from(services)
+            .where(eq(services.projectId, projectId));
+
+        // Get all dependencies between these services
+        const serviceIds = projectServices.map(s => s.id);
+        const dependencies = serviceIds.length > 0 ? await this.databaseService.db
+            .select({
+                id: serviceDependencies.id,
+                serviceId: serviceDependencies.serviceId,
+                dependsOnServiceId: serviceDependencies.dependsOnServiceId,
+                isRequired: serviceDependencies.isRequired,
+                createdAt: serviceDependencies.createdAt,
+            })
+            .from(serviceDependencies)
+            .where(
+                and(
+                    inArray(serviceDependencies.serviceId, serviceIds),
+                    inArray(serviceDependencies.dependsOnServiceId, serviceIds)
+                )
+            ) : [];
+
+        // Get project info
+        const project = await this.databaseService.db
+            .select({
+                id: projects.id,
+                name: projects.name,
+                baseDomain: projects.baseDomain,
+            })
+            .from(projects)
+            .where(eq(projects.id, projectId))
+            .limit(1);
+
+        // Get latest deployment for each service (for status)
+        const latestDeployments = serviceIds.length > 0 ? await this.databaseService.db
+            .select({
+                id: deployments.id,
+                serviceId: deployments.serviceId,
+                status: deployments.status,
+                environment: deployments.environment,
+                createdAt: deployments.createdAt,
+                domainUrl: deployments.domainUrl,
+            })
+            .from(deployments)
+            .where(inArray(deployments.serviceId, serviceIds))
+            .orderBy(desc(deployments.createdAt)) : [];
+
+        // Group deployments by service and get the latest one for each
+        const latestDeploymentByService = latestDeployments.reduce((acc, deployment) => {
+            if (!acc[deployment.serviceId]) {
+                acc[deployment.serviceId] = deployment;
+            }
+            return acc;
+        }, {} as Record<string, typeof latestDeployments[0]>);
+
+        return {
+            services: projectServices,
+            dependencies,
+            project: project[0] || null,
+            latestDeployments: latestDeploymentByService,
+        };
+    }
 }

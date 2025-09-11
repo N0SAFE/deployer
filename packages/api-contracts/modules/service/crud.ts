@@ -1,6 +1,18 @@
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
-import { serviceWithStatsSchema, createServiceSchema, updateServiceSchema, serviceSchema, createServiceDependencySchema, serviceDependencySchema, deploymentSummarySchema, addServiceLogInput, addServiceLogOutput, } from './schemas';
+import { 
+    serviceWithStatsSchema, 
+    createServiceSchema, 
+    updateServiceSchema, 
+    serviceSchema, 
+    createServiceDependencySchema, 
+    serviceDependencySchema, 
+    deploymentSummarySchema, 
+    addServiceLogInput, 
+    addServiceLogOutput,
+    getProjectDependencyGraphInput,
+    getProjectDependencyGraphOutput
+} from './schemas';
 export const serviceListByProjectInput = z.object({
     projectId: z.string().uuid(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -240,3 +252,13 @@ export const serviceSyncTraefikConfigContract = oc
     syncedAt: z.string(),
     filePath: z.string().optional(),
 }));
+
+// Get project dependency graph
+export const serviceGetProjectDependencyGraphContract = oc
+    .route({
+    method: "GET",
+    path: "/projects/:projectId/dependencies-graph",
+    summary: "Get project service dependency graph",
+})
+    .input(getProjectDependencyGraphInput)
+    .output(getProjectDependencyGraphOutput);

@@ -239,4 +239,81 @@ export class ServiceService {
             timestamp: new Date(),
         };
     }
+
+    async getProjectDependencyGraph(projectId: string) {
+        this.logger.log(`Getting dependency graph for project: ${projectId}`);
+        
+        const graphData = await this.serviceRepository.getProjectDependencyGraph(projectId);
+        
+        if (!graphData.project) {
+            throw new NotFoundException(`Project not found: ${projectId}`);
+        }
+
+        // Transform services into graph nodes
+        const nodes = graphData.services.map(service => {
+            const latestDeployment = graphData.latestDeployments[service.id];
+            
+            // Determine service status based on latest deployment and active state
+            let status: 'healthy' | 'unhealthy' | 'unknown' | 'starting' | 'deploying' | 'failed';
+            
+            if (!service.isActive) {
+                status = 'unhealthy';
+            } else if (latestDeployment) {
+                switch (latestDeployment.status) {
+                    case 'success':
+                        status = 'healthy';
+                        break;
+                    case 'building':
+                    case 'deploying':
+                    case 'queued':
+                    case 'pending':
+                        status = 'deploying';
+                        break;
+                    case 'failed':
+                    case 'cancelled':
+                        status = 'failed';
+                        break;
+                    default:
+                        status = 'unknown';
+                }
+            } else {
+                status = 'unknown';
+            }
+
+            return {
+                id: service.id,
+                name: service.name,
+                type: service.type,
+                status,
+                isActive: service.isActive,
+                port: service.port,
+                latestDeployment: latestDeployment ? {
+                    id: latestDeployment.id,
+                    status: latestDeployment.status as any,
+                    environment: latestDeployment.environment as any,
+                    createdAt: latestDeployment.createdAt,
+                    domainUrl: latestDeployment.domainUrl,
+                } : null,
+            };
+        });
+
+        // Transform dependencies into graph edges
+        const edges = graphData.dependencies.map(dep => ({
+            id: dep.id,
+            sourceId: dep.serviceId,
+            targetId: dep.dependsOnServiceId,
+            isRequired: dep.isRequired,
+            createdAt: dep.createdAt,
+        }));
+
+        return {
+            nodes,
+            edges,
+            project: {
+                id: graphData.project.id,
+                name: graphData.project.name,
+                baseDomain: graphData.project.baseDomain,
+            },
+        };
+    }
 }

@@ -92,6 +92,7 @@ import {
   serviceGetTraefikConfigContract,
   serviceUpdateTraefikConfigContract,
   serviceSyncTraefikConfigContract,
+  serviceGetProjectDependencyGraphContract,
 } from './crud';
 
 // Import additional service contracts
@@ -118,6 +119,7 @@ export const serviceContract = oc.tag("Service").prefix("/services").router({
   getTraefikConfig: serviceGetTraefikConfigContract,
   updateTraefikConfig: serviceUpdateTraefikConfigContract,
   syncTraefikConfig: serviceSyncTraefikConfigContract,
+  getProjectDependencyGraph: serviceGetProjectDependencyGraphContract,
 });
 
 export type ServiceContract = typeof serviceContract;

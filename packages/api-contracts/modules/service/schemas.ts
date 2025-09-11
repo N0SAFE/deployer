@@ -355,6 +355,45 @@ export const serviceHealthEventSchema = z.object({
     })),
     containerStatus: z.enum(['running', 'stopped', 'restarting', 'paused', 'exited']).optional(),
 });
+// Dependency graph schemas
+export const dependencyGraphNodeSchema = z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    type: z.string(),
+    status: z.enum(['healthy', 'unhealthy', 'unknown', 'starting', 'deploying', 'failed']),
+    isActive: z.boolean(),
+    port: z.number().nullable(),
+    latestDeployment: z.object({
+        id: z.string(),
+        status: z.enum(['pending', 'queued', 'building', 'deploying', 'success', 'failed', 'cancelled']),
+        environment: z.enum(['production', 'staging', 'preview', 'development']),
+        createdAt: z.date(),
+        domainUrl: z.string().nullable(),
+    }).nullable(),
+});
+
+export const dependencyGraphEdgeSchema = z.object({
+    id: z.string().uuid(),
+    sourceId: z.string().uuid(),
+    targetId: z.string().uuid(),
+    isRequired: z.boolean(),
+    createdAt: z.date(),
+});
+
+export const getProjectDependencyGraphInput = z.object({
+    projectId: z.string().uuid(),
+});
+
+export const getProjectDependencyGraphOutput = z.object({
+    nodes: z.array(dependencyGraphNodeSchema),
+    edges: z.array(dependencyGraphEdgeSchema),
+    project: z.object({
+        id: z.string().uuid(),
+        name: z.string(),
+        baseDomain: z.string().nullable(),
+    }),
+});
+
 // Input/Output schemas for additional service endpoints
 // Get service logs
 export const getServiceLogsInput = z.object({
