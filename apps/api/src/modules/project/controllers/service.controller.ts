@@ -2,13 +2,17 @@ import { Controller, Logger, NotFoundException, BadRequestException } from '@nes
 import { Implement, implement } from '@orpc/nest';
 import { serviceContract } from '@repo/api-contracts';
 import { DatabaseService } from '../../../core/modules/db/services/database.service';
+import { ServiceService } from '../../service/services/service.service';
 import { services, serviceDependencies, projects, serviceHealthConfigs, traefikServiceConfigs } from '../../../core/modules/db/drizzle/schema';
 import { eq, desc, count, ilike, and, or } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 @Controller()
 export class ServiceController {
     private readonly logger = new Logger(ServiceController.name);
-    constructor(private readonly databaseService: DatabaseService) { }
+    constructor(
+        private readonly databaseService: DatabaseService,
+        private readonly serviceService: ServiceService
+    ) { }
     @Implement(serviceContract.listByProject)
     listByProject() {
         return implement(serviceContract.listByProject).handler(async ({ input }) => {
@@ -834,6 +838,25 @@ export class ServiceController {
                 syncedAt: syncedAt.toISOString(),
                 filePath,
             };
+        });
+    }
+
+    @Implement(serviceContract.getProjectDependencyGraph)
+    getProjectDependencyGraph() {
+        return implement(serviceContract.getProjectDependencyGraph).handler(async ({ input }) => {
+            this.logger.log(`Getting dependency graph for project: ${input.projectId}`);
+            
+            try {
+                const dependencyGraph = await this.serviceService.getProjectDependencyGraph(input.projectId);
+                
+                this.logger.log(`Successfully retrieved dependency graph for project ${input.projectId} with ${dependencyGraph.nodes.length} nodes and ${dependencyGraph.edges.length} edges`);
+                
+                return dependencyGraph;
+            } catch (error) {
+                const err = error as Error;
+                this.logger.error(`Error getting dependency graph for project ${input.projectId}: ${err.message}`);
+                throw error;
+            }
         });
     }
 }
