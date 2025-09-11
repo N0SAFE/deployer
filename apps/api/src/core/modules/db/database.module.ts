@@ -4,7 +4,6 @@ import { DATABASE_CONNECTION } from "./database-connection";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "./drizzle/schema";
-
 @Global()
 @Module({
     providers: [
@@ -23,4 +22,5 @@ import * as schema from "./drizzle/schema";
     ],
     exports: [DatabaseService, DATABASE_CONNECTION]
 })
-export class DatabaseModule {}
+export class DatabaseModule {
+}

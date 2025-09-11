@@ -13,6 +13,7 @@ import {
 } from '@repo/ui/components/shadcn/card'
 import {
     Activity,
+    ArrowLeft,
     BarChart3,
     Container,
 } from 'lucide-react'
@@ -160,10 +161,10 @@ export default DashboardProjectsProjectIdServicesServiceIdTabs.Page<{
                 <div className="flex items-start justify-between">
                     <div className="space-y-1">
                         <div className="flex items-center space-x-2">
-                            <Button asChild variant="ghost" size="sm">
-                                <Link href={DashboardProjectsProjectIdTabs({ projectId })}>
-                                    {/* Using a simple unicode arrow to avoid client-only icon here */}
-                                    ← Back to Project
+                            <Button asChild variant="ghost" size="sm" className="hover:bg-accent hover:text-accent-foreground">
+                                <Link href={DashboardProjectsProjectIdTabs({ projectId })} className="flex items-center space-x-2">
+                                    <ArrowLeft className="h-4 w-4" />
+                                    <span>Back to Project</span>
                                 </Link>
                             </Button>
                         </div>
@@ -254,12 +255,6 @@ export default DashboardProjectsProjectIdServicesServiceIdTabs.Page<{
                 <ServiceTabsList tabSections={tabSections} />
 
                 {children}
-
-                {children ? null : (
-                    <div className="text-muted-foreground py-6 text-center">
-                        Select a tab to view content
-                    </div>
-                )}
             </div>
         </HydrationBoundary>
     )

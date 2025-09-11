@@ -74,65 +74,95 @@ export function ResourceMonitoringDashboard({ projectId }: { projectId: string }
     input: { projectId }
   }))
 
-  // Mock data for development - replace with real ORPC calls when available
-  const mockResourceData: StackResourceData[] = useMemo(() => {
-    if (!stacks?.data) return []
+  // Fetch system metrics using the real API
+  const { data: systemMetrics, isLoading: metricsLoading, refetch: refetchMetrics } = useQuery(orpc.orchestration.getSystemMetrics.queryOptions({
+    input: { 
+      timeRange: selectedTimeRange,
+      resolution: selectedTimeRange === '1h' ? '1m' : selectedTimeRange === '6h' ? '5m' : '15m',
+      includeProjection: true
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+  }))
+
+  // Transform API data to component format
+  const resourceData: StackResourceData[] = useMemo(() => {
+    if (!stacks?.data || !systemMetrics?.data) return []
     
-    return stacks.data.map((stack: Stack) => ({
-      stackId: stack.id,
-      stackName: stack.name,
-      cpuMetrics: Array.from({ length: 20 }, (_, i) => ({
+    const metrics = systemMetrics.data.metrics || []
+    
+    return stacks.data.map((stack: Stack) => {
+      // For now, use system-wide metrics for each stack
+      // Later this can be enhanced to filter per-stack metrics
+      const cpuMetrics = metrics.map((metric, i) => ({
         id: `cpu-${stack.id}-${i}`,
         stackId: stack.id,
         metricType: 'cpu' as const,
-        value: Math.random() * 80 + 10,
+        value: metric.cpu.usage,
         unit: '%',
-        timestamp: new Date(Date.now() - (19 - i) * 5 * 60 * 1000),
-      })),
-      memoryMetrics: Array.from({ length: 20 }, (_, i) => ({
+        timestamp: metric.timestamp,
+        threshold: 80
+      }))
+
+      const memoryMetrics = metrics.map((metric, i) => ({
         id: `memory-${stack.id}-${i}`,
         stackId: stack.id,
         metricType: 'memory' as const,
-        value: Math.random() * 85 + 10,
+        value: metric.memory.usage,
         unit: '%',
-        timestamp: new Date(Date.now() - (19 - i) * 5 * 60 * 1000),
-      })),
-      diskMetrics: Array.from({ length: 20 }, (_, i) => ({
+        timestamp: metric.timestamp,
+        threshold: 85
+      }))
+
+      const diskMetrics = metrics.map((metric, i) => ({
         id: `disk-${stack.id}-${i}`,
         stackId: stack.id,
         metricType: 'disk' as const,
-        value: Math.random() * 70 + 20,
+        value: metric.disk.usage,
         unit: '%',
-        timestamp: new Date(Date.now() - (19 - i) * 5 * 60 * 1000),
-      })),
-      networkInMetrics: Array.from({ length: 20 }, (_, i) => ({
+        timestamp: metric.timestamp,
+        threshold: 90
+      }))
+
+      const networkInMetrics = metrics.map((metric, i) => ({
         id: `network_in-${stack.id}-${i}`,
         stackId: stack.id,
         metricType: 'network_in' as const,
-        value: Math.random() * 100 * 1024 * 1024, // MB/s in bytes
+        value: metric.network.bytesIn,
         unit: 'B/s',
-        timestamp: new Date(Date.now() - (19 - i) * 5 * 60 * 1000),
-      })),
-      networkOutMetrics: Array.from({ length: 20 }, (_, i) => ({
+        timestamp: metric.timestamp,
+      }))
+
+      const networkOutMetrics = metrics.map((metric, i) => ({
         id: `network_out-${stack.id}-${i}`,
         stackId: stack.id,
         metricType: 'network_out' as const,
-        value: Math.random() * 50 * 1024 * 1024, // MB/s in bytes
+        value: metric.network.bytesOut,
         unit: 'B/s',
-        timestamp: new Date(Date.now() - (19 - i) * 5 * 60 * 1000),
-      })),
-      cpuQuota: 100,
-      memoryQuota: 100,
-      diskQuota: 100
-    }))
-  }, [stacks])
+        timestamp: metric.timestamp,
+      }))
+
+      return {
+        stackId: stack.id,
+        stackName: stack.name,
+        cpuMetrics,
+        memoryMetrics,
+        diskMetrics,
+        networkInMetrics,
+        networkOutMetrics,
+        cpuQuota: 100, // These could be enhanced to come from stack configuration
+        memoryQuota: 100,
+        diskQuota: 100
+      }
+    })
+  }, [stacks, systemMetrics])
 
   const filteredResourceData = selectedStack === 'all' 
-    ? mockResourceData 
-    : mockResourceData.filter(data => data.stackId === selectedStack)
+    ? resourceData 
+    : resourceData.filter(data => data.stackId === selectedStack)
 
   const handleRefresh = () => {
     refetchSummary()
+    refetchMetrics()
   }
 
   const getSeverityColor = (severity: string) => {
@@ -162,9 +192,9 @@ export function ResourceMonitoringDashboard({ projectId }: { projectId: string }
             variant="outline"
             size="sm"
             onClick={handleRefresh}
-            disabled={summaryLoading}
+            disabled={summaryLoading || metricsLoading}
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${summaryLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 mr-2 ${summaryLoading || metricsLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
           <Button

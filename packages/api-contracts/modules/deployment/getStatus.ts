@@ -1,35 +1,31 @@
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
-
 // Deployment status types
 export const deploymentStatusSchema = z.enum([
-  'pending',
-  'queued', 
-  'building',
-  'deploying',
-  'success',
-  'failed',
-  'cancelled'
+    'pending',
+    'queued',
+    'building',
+    'deploying',
+    'success',
+    'failed',
+    'cancelled'
 ]);
-
 export const deploymentGetStatusInput = z.object({
-  deploymentId: z.string(),
+    deploymentId: z.string(),
 });
-
 export const deploymentGetStatusOutput = z.object({
-  deploymentId: z.string(),
-  status: deploymentStatusSchema,
-  stage: z.string().optional(),
-  progress: z.number().min(0).max(100).optional(),
-  startedAt: z.date(),
-  completedAt: z.date().optional(),
+    deploymentId: z.string(),
+    status: deploymentStatusSchema,
+    stage: z.string().optional(),
+    progress: z.number().min(0).max(100).optional(),
+    startedAt: z.date(),
+    completedAt: z.date().optional(),
 });
-
 export const deploymentGetStatusContract = oc
-  .route({
+    .route({
     method: "GET",
     path: "/status/:deploymentId",
     summary: "Get deployment status",
-  })
-  .input(deploymentGetStatusInput)
-  .output(deploymentGetStatusOutput);
+})
+    .input(deploymentGetStatusInput)
+    .output(deploymentGetStatusOutput);

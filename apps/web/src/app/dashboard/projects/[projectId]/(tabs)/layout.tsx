@@ -3,8 +3,9 @@ import { createServerORPC } from '@/lib/orpc/server'
 import getQueryClient from '@/lib/getQueryClient'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
-import { Settings } from 'lucide-react'
+import { Settings, ArrowLeft } from 'lucide-react'
 import {
+    DashboardProjects,
     DashboardProjectsProjectIdTabs,
     DashboardProjectsProjectIdTabsActivity,
     DashboardProjectsProjectIdTabsConfiguration,
@@ -57,7 +58,7 @@ export default DashboardProjectsProjectIdTabs.Page<{
     const orpcServer = await createServerORPC()
 
     // Fetch shared data and get results for server rendering
-    const [project, servicesResult] = await tryCatchAll(
+    const [project] = await tryCatchAll(
         [
             // Project data - used by layout header and all child pages
             async () => {
@@ -121,13 +122,26 @@ export default DashboardProjectsProjectIdTabs.Page<{
                 {/* Server-rendered Project Header */}
                 <div className="flex items-start justify-between">
                     <div className="space-y-1">
-                        <div className="flex items-center space-x-2">
-                            <h1 className="text-3xl font-bold tracking-tight">
-                                {project?.name || 'Loading...'}
-                            </h1>
-                            <Badge variant="default">Active</Badge>
+                        <div className="flex items-center space-x-3">
+                            <Button 
+                                asChild 
+                                variant="ghost" 
+                                size="sm" 
+                                className="p-2 hover:bg-muted/50" 
+                                title="Back to Projects"
+                            >
+                                <DashboardProjects.Link>
+                                    <ArrowLeft className="h-4 w-4" />
+                                </DashboardProjects.Link>
+                            </Button>
+                            <div className="flex items-center space-x-2">
+                                <h1 className="text-3xl font-bold tracking-tight">
+                                    {project?.name || 'Loading...'}
+                                </h1>
+                                <Badge variant="default">Active</Badge>
+                            </div>
                         </div>
-                        <p className="text-muted-foreground">
+                        <p className="text-muted-foreground ml-12">
                             {project?.description || 'No description provided'}
                         </p>
                     </div>

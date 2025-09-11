@@ -21,17 +21,12 @@
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-  "noEmit": false,
+    "noEmit": false,
+    "verbatimModuleSyntax": true,
     "paths": {
-      "@/*": [
-        "./src/*"
-      ],
-      "@repo/database": [
-        "../../packages/database/src"
-      ],
-      "@repo/database/*": [
-        "../../packages/database/src/*"
-      ]
+      "@/*": ["./src/*"],
+      "@repo/database": ["../../packages/database/src"],
+      "@repo/database/*": ["../../packages/database/src/*"]
     }
   }
 }

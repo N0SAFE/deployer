@@ -2,8 +2,8 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { passkey } from "better-auth/plugins/passkey";
 import { organization } from "better-auth/plugins/organization";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Auth } from "better-auth";
 export const betterAuthFactory = (database: unknown) => {
     return {
         auth: betterAuth({
@@ -36,8 +36,7 @@ export const betterAuthFactory = (database: unknown) => {
                     }
                 })
             ]
-        }) as unknown as import("better-auth").Auth
+        }) as unknown as Auth
     };
 };
-
 export const { auth } = betterAuthFactory(null);

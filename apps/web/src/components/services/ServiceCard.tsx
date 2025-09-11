@@ -40,7 +40,13 @@ import {
   Network,
   ChevronRight
 } from 'lucide-react'
-import { useServiceDependencies, useToggleServiceActive, useDeleteService } from '@/hooks/useServices'
+import { 
+  useServiceDependencies, 
+  useToggleServiceActive, 
+  useDeleteService, 
+  useServiceHealth 
+} from '@/hooks/useServices'
+import { ServiceStatusIndicator } from './ServiceStatusIndicator'
 import ServiceDependencyView from './ServiceDependencyView'
 import { DashboardProjectsProjectIdServicesServiceIdTabs } from '@/routes'
 
@@ -116,6 +122,7 @@ export default function ServiceCard({ service }: ServiceCardProps) {
   const [showDependencies, setShowDependencies] = useState(false)
   
   const { data: dependenciesData } = useServiceDependencies(service.id)
+  const { data: healthData } = useServiceHealth(service.id)
   const toggleActive = useToggleServiceActive()
   const deleteService = useDeleteService()
   
@@ -146,19 +153,7 @@ export default function ServiceCard({ service }: ServiceCardProps) {
     return labels[builder as keyof typeof labels] || builder
   }
   
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      pending: { variant: 'secondary' as const, label: 'Pending' },
-      queued: { variant: 'secondary' as const, label: 'Queued' },
-      building: { variant: 'default' as const, label: 'Building' },
-      deploying: { variant: 'default' as const, label: 'Deploying' },
-      success: { variant: 'default' as const, label: 'Success' },
-      failed: { variant: 'destructive' as const, label: 'Failed' },
-      cancelled: { variant: 'secondary' as const, label: 'Cancelled' },
-    }
-    
-    return statusConfig[status as keyof typeof statusConfig] || statusConfig.pending
-  }
+
   
   const handleToggleActive = async () => {
     try {
@@ -269,26 +264,29 @@ export default function ServiceCard({ service }: ServiceCardProps) {
         </CardHeader>
 
         <CardContent className="pt-0 space-y-4">
-          {/* Latest Deployment Status */}
-          {service.latestDeployment && (
-            <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-              <div className="flex items-center space-x-2">
-                <Activity className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Latest Deploy</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Badge 
-                  variant={getStatusBadge(service.latestDeployment.status).variant}
-                  className="text-xs"
-                >
-                  {getStatusBadge(service.latestDeployment.status).label}
-                </Badge>
+          {/* Service Status */}
+          <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <Activity className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Service Status</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <ServiceStatusIndicator
+                isActive={service.isActive}
+                deploymentStatus={service.latestDeployment?.status}
+                healthStatus={healthData?.status}
+                containerStatus={healthData?.containerStatus}
+                variant="badge"
+                showText={true}
+                size="sm"
+              />
+              {service.latestDeployment && (
                 <span className="text-xs text-muted-foreground">
                   {service.latestDeployment.environment}
                 </span>
-              </div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Service Stats */}
           <div className="flex items-center justify-between text-sm">
@@ -332,16 +330,14 @@ export default function ServiceCard({ service }: ServiceCardProps) {
 
           {/* Status Indicator */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className={`h-2 w-2 rounded-full ${
-                service.isActive 
-                  ? 'bg-green-500' 
-                  : 'bg-gray-400'
-              }`} />
-              <span className="text-sm text-muted-foreground">
-                {service.isActive ? 'Active' : 'Inactive'}
-              </span>
-            </div>
+            <ServiceStatusIndicator
+              isActive={service.isActive}
+              deploymentStatus={service.latestDeployment?.status}
+              healthStatus={healthData?.status}
+              containerStatus={healthData?.containerStatus}
+              variant="detailed"
+              size="sm"
+            />
             <Button asChild size="sm" variant="outline">
               <DashboardProjectsProjectIdServicesServiceIdTabs.Link 
                 projectId={service.projectId} 

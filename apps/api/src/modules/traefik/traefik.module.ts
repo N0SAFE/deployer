@@ -1,37 +1,31 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { DatabaseModule } from '@/core/modules/db/database.module';
+import { CoreModule } from '@/core/core.module';
+
 import { TraefikController } from './controllers/traefik.controller';
 import { TraefikService } from './services/traefik.service';
-import { DNSService } from './services/dns.service';
-import { DatabaseConfigService } from './services/database-config.service';
-import { ConfigFileSyncService } from './services/config-file-sync.service';
-import { TemplateService } from './services/template.service';
-import { TraefikStartupService } from './services/startup.service';
-import { TraefikStaticConfigService } from './services/traefik-static-config.service';
-import { DatabaseModule } from '../../core/modules/db/database.module';
-import { CoreModule } from '../../core/core.module';
+import { TraefikSyncService } from './services/traefik-sync.service';
+import { TraefikFileSystemService } from './services/traefik-file-system.service';
+import { TraefikStartupService } from './services/traefik-startup.service';
+import { TraefikRepository } from './repositories/traefik.repository';
 
 @Module({
-  imports: [
-    DatabaseModule,
-    CoreModule,
-  ],
+  imports: [ConfigModule, DatabaseModule, CoreModule],
   controllers: [TraefikController],
   providers: [
-    TraefikService, 
-    DNSService,
-    DatabaseConfigService,
-    ConfigFileSyncService,
-    TemplateService,
+    TraefikService,
+    TraefikSyncService,
+    TraefikFileSystemService,
     TraefikStartupService,
-    TraefikStaticConfigService
+    TraefikRepository,
   ],
   exports: [
-    TraefikService, 
-    DNSService,
-    DatabaseConfigService,
-    ConfigFileSyncService,
-    TemplateService,
-    TraefikStaticConfigService
+    TraefikService,
+    TraefikSyncService,
+    TraefikFileSystemService,
+    TraefikStartupService,
+    TraefikRepository,
   ],
 })
 export class TraefikModule {}

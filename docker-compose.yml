@@ -1,4 +1,50 @@
 services:
+    # Initialize Traefik configuration directory structure
+    traefik-init:
+        container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-traefik-init
+        image: alpine:latest
+        restart: "no"  # Run once and exit
+        volumes:
+            - traefik_configs_dev:/etc/traefik
+        command: |
+            sh -c "
+            echo 'Initializing Traefik configuration directory structure...'
+            mkdir -p /etc/traefik/dynamic
+            mkdir -p /etc/traefik/certs
+            mkdir -p /etc/traefik/logs
+            mkdir -p /etc/traefik/plugins
+            echo 'Creating base traefik.yml configuration...'
+            cat > /etc/traefik/traefik.yml << 'EOF'
+            # Traefik v3 Configuration
+            api:
+              dashboard: true
+              insecure: true
+
+            providers:
+              docker:
+                exposedByDefault: false
+              file:
+                directory: /etc/traefik/dynamic
+                watch: true
+
+            entryPoints:
+              web:
+                address: ':80'
+              websecure:
+                address: ':443'
+
+            log:
+              level: INFO
+              filePath: /etc/traefik/logs/traefik.log
+
+            accessLog:
+              filePath: /etc/traefik/logs/access.log
+            EOF
+            echo 'Traefik configuration initialized successfully!'
+            "
+        networks:
+            - app_network_dev
+
     # Database for development
     api-db-dev:
         container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-db-dev
@@ -60,7 +106,7 @@ services:
         volumes:
             # Mount Docker socket for container management
             - /var/run/docker.sock:/var/run/docker.sock
-            # Mount shared Traefik configuration volume
+            # Mount entire Traefik configuration directory
             - traefik_configs_dev:/app/traefik-configs
             # Mount file upload and extraction storage
             - file_uploads_dev:/app/uploads
@@ -117,6 +163,9 @@ services:
         container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-traefik-dev
         image: traefik:v3.2
         restart: unless-stopped
+        depends_on:
+            traefik-init:
+                condition: service_completed_successfully
         ports:
             - "80:80"   # HTTP (using different port to avoid conflicts)
             - "443:443"  # HTTPS (using different port to avoid conflicts) 
@@ -124,20 +173,12 @@ services:
         volumes:
             # Mount Docker socket for auto-discovery
             - /var/run/docker.sock:/var/run/docker.sock:ro
-            # Mount shared configuration volume
-            - traefik_configs_dev:/etc/traefik/dynamic:ro
+            # Mount entire Traefik configuration directory
+            - traefik_configs_dev:/etc/traefik
             # Mount static files for serving deployed applications
             - static_files_dev:/app/static:ro
         command:
-            - --api.dashboard=true
-            - --api.insecure=true
-            - --providers.docker=true
-            - --providers.docker.exposedbydefault=false
-            - --providers.file.directory=/etc/traefik/dynamic
-            - --providers.file.watch=true
-            - --entrypoints.web.address=:80
-            - --entrypoints.websecure.address=:443
-            - --log.level=INFO
+            - --configfile=/etc/traefik/traefik.yml
         healthcheck:
             test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/api/rawdata || exit 1"]
             start_period: 30s

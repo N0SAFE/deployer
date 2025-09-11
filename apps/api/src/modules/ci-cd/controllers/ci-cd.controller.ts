@@ -2,11 +2,9 @@ import { Controller } from "@nestjs/common";
 import { Implement, implement } from "@orpc/nest";
 import { ciCdContract } from "@repo/api-contracts";
 import { CiCdService } from "../services/ci-cd.service";
-
 @Controller("ci-cd")
 export class CiCdController {
-    constructor(private readonly ciCdService: CiCdService) {}
-
+    constructor(private readonly ciCdService: CiCdService) { }
     // Pipeline Management
     @Implement(ciCdContract.pipeline.createPipeline)
     createPipeline() {
@@ -14,7 +12,6 @@ export class CiCdController {
             return await this.ciCdService.createPipeline(input);
         });
     }
-
     @Implement(ciCdContract.pipeline.getPipeline)
     getPipeline() {
         return implement(ciCdContract.pipeline.getPipeline).handler(async ({ input }) => {
@@ -22,7 +19,6 @@ export class CiCdController {
             return await this.ciCdService.getPipeline(id);
         });
     }
-
     @Implement(ciCdContract.pipeline.updatePipeline)
     updatePipeline() {
         return implement(ciCdContract.pipeline.updatePipeline).handler(async ({ input }) => {
@@ -30,7 +26,6 @@ export class CiCdController {
             return await this.ciCdService.updatePipeline(id, data);
         });
     }
-
     @Implement(ciCdContract.pipeline.deletePipeline)
     deletePipeline() {
         return implement(ciCdContract.pipeline.deletePipeline).handler(async ({ input }) => {
@@ -38,14 +33,12 @@ export class CiCdController {
             return await this.ciCdService.deletePipeline(id);
         });
     }
-
     @Implement(ciCdContract.pipeline.listPipelines)
     listPipelines() {
         return implement(ciCdContract.pipeline.listPipelines).handler(async ({ input: query }) => {
             return await this.ciCdService.listPipelines(query);
         });
     }
-
     @Implement(ciCdContract.pipeline.triggerPipeline)
     triggerPipeline() {
         return implement(ciCdContract.pipeline.triggerPipeline).handler(async ({ input }) => {
@@ -53,7 +46,6 @@ export class CiCdController {
             return await this.ciCdService.triggerPipeline(id, options);
         });
     }
-
     @Implement(ciCdContract.pipeline.cancelPipeline)
     cancelPipeline() {
         return implement(ciCdContract.pipeline.cancelPipeline).handler(async ({ input }) => {
@@ -61,7 +53,6 @@ export class CiCdController {
             return await this.ciCdService.cancelPipeline(pipelineId, runId);
         });
     }
-
     @Implement(ciCdContract.pipeline.getPipelineStatus)
     getPipelineStatus() {
         return implement(ciCdContract.pipeline.getPipelineStatus).handler(async ({ input }) => {
@@ -69,7 +60,6 @@ export class CiCdController {
             return await this.ciCdService.getPipelineStatus(id);
         });
     }
-
     @Implement(ciCdContract.pipeline.createPipelineFromTemplate)
     createPipelineFromTemplate() {
         return implement(ciCdContract.pipeline.createPipelineFromTemplate).handler(async ({ input }) => {
@@ -80,11 +70,11 @@ export class CiCdController {
                 isActive: true,
                 branch: "main",
                 stages: [{
-                    name: "build",
-                    script: "echo 'Building...'",
-                    retryCount: 0,
-                    continueOnError: false
-                }],
+                        name: "build",
+                        script: "echo 'Building...'",
+                        retryCount: 0,
+                        continueOnError: false
+                    }],
                 triggers: {
                     manual: true,
                     webhook: false,
@@ -94,7 +84,6 @@ export class CiCdController {
             return await this.ciCdService.createPipeline(pipelineData);
         });
     }
-
     @Implement(ciCdContract.pipeline.listPipelineTemplates)
     listPipelineTemplates() {
         return implement(ciCdContract.pipeline.listPipelineTemplates).handler(async ({ input: _input }) => {
@@ -123,7 +112,6 @@ export class CiCdController {
             };
         });
     }
-
     @Implement(ciCdContract.pipeline.getPipelineStats)
     getPipelineStats() {
         return implement(ciCdContract.pipeline.getPipelineStats).handler(async ({}) => {
@@ -138,14 +126,20 @@ export class CiCdController {
             };
         });
     }
-
     @Implement(ciCdContract.pipeline.validatePipelineConfig)
     validatePipelineConfig() {
         return implement(ciCdContract.pipeline.validatePipelineConfig).handler(async ({ input }) => {
             // Mock validation - in real implementation would validate against schema and business rules
-            const errors: { field: string; message: string; severity: "error" | "warning" }[] = [];
-            const warnings: { field: string; message: string; suggestion: string }[] = [];
-
+            const errors: {
+                field: string;
+                message: string;
+                severity: "error" | "warning";
+            }[] = [];
+            const warnings: {
+                field: string;
+                message: string;
+                suggestion: string;
+            }[] = [];
             if (!input.name || input.name.length < 3) {
                 errors.push({
                     field: "name",
@@ -153,7 +147,6 @@ export class CiCdController {
                     severity: "error" as const,
                 });
             }
-
             if (input.stages.length === 0) {
                 errors.push({
                     field: "stages",
@@ -161,7 +154,6 @@ export class CiCdController {
                     severity: "error" as const,
                 });
             }
-
             if (!input.triggers?.webhook && !input.triggers?.manual) {
                 warnings.push({
                     field: "triggers",
@@ -169,7 +161,6 @@ export class CiCdController {
                     suggestion: "Enable at least one trigger type",
                 });
             }
-
             return {
                 valid: errors.length === 0,
                 errors,
@@ -177,7 +168,6 @@ export class CiCdController {
             };
         });
     }
-
     // Build Management
     @Implement(ciCdContract.build.createBuild)
     createBuild() {
@@ -185,35 +175,30 @@ export class CiCdController {
             return this.ciCdService.createBuild(input);
         });
     }
-
     @Implement(ciCdContract.build.getBuild)
     getBuild() {
         return implement(ciCdContract.build.getBuild).handler(async ({ input: { id } }) => {
             return await this.ciCdService.getBuild(id);
         });
     }
-
     @Implement(ciCdContract.build.listBuilds)
     listBuilds() {
         return implement(ciCdContract.build.listBuilds).handler(async ({ input: query }) => {
             return await this.ciCdService.listBuilds(query);
         });
     }
-
     @Implement(ciCdContract.build.cancelBuild)
     cancelBuild() {
         return implement(ciCdContract.build.cancelBuild).handler(async ({}) => {
             return { success: true };
         });
     }
-
     @Implement(ciCdContract.build.retryBuild)
     retryBuild() {
         return implement(ciCdContract.build.retryBuild).handler(async ({ input: { id } }) => {
             return await this.ciCdService.retryBuild(id);
         });
     }
-
     @Implement(ciCdContract.build.getBuildLogs)
     getBuildLogs() {
         return implement(ciCdContract.build.getBuildLogs).handler(async ({ input }) => {
@@ -221,26 +206,23 @@ export class CiCdController {
             return await this.ciCdService.getBuildLogs(id, options);
         });
     }
-
     @Implement(ciCdContract.build.getBuildArtifacts)
     getBuildArtifacts() {
         return implement(ciCdContract.build.getBuildArtifacts).handler(async ({ input: { id } }) => {
             const build = await this.ciCdService.getBuild(id);
             return {
-                artifacts:
-                    build.artifacts?.map((artifact) => ({
-                        id: `artifact-${Date.now()}`,
-                        name: artifact.name,
-                        path: artifact.path,
-                        size: artifact.size,
-                        type: artifact.type,
-                        downloadUrl: artifact.downloadUrl || `/api/builds/${id}/artifacts/${artifact.name}`,
-                        createdAt: new Date(),
-                    })) || [],
+                artifacts: build.artifacts?.map((artifact) => ({
+                    id: `artifact-${Date.now()}`,
+                    name: artifact.name,
+                    path: artifact.path,
+                    size: artifact.size,
+                    type: artifact.type,
+                    downloadUrl: artifact.downloadUrl || `/api/builds/${id}/artifacts/${artifact.name}`,
+                    createdAt: new Date(),
+                })) || [],
             };
         });
     }
-
     @Implement(ciCdContract.build.downloadArtifact)
     downloadArtifact() {
         return implement(ciCdContract.build.downloadArtifact).handler(async ({ input: { buildId, artifactId } }) => {
@@ -250,7 +232,6 @@ export class CiCdController {
             };
         });
     }
-
     @Implement(ciCdContract.build.getBuildConfig)
     getBuildConfig() {
         return implement(ciCdContract.build.getBuildConfig).handler(async ({ input: { pipelineId } }) => {
@@ -280,7 +261,6 @@ export class CiCdController {
             };
         });
     }
-
     @Implement(ciCdContract.build.updateBuildConfig)
     updateBuildConfig() {
         return implement(ciCdContract.build.updateBuildConfig).handler(async ({ input: _input }) => {
@@ -288,7 +268,6 @@ export class CiCdController {
             return { success: true };
         });
     }
-
     @Implement(ciCdContract.build.getBuildQueue)
     getBuildQueue() {
         return implement(ciCdContract.build.getBuildQueue).handler(async ({ input }) => {
@@ -310,7 +289,6 @@ export class CiCdController {
             };
         });
     }
-
     @Implement(ciCdContract.build.updateBuildPriority)
     updateBuildPriority() {
         return implement(ciCdContract.build.updateBuildPriority).handler(async ({ input: _input }) => {
@@ -318,7 +296,6 @@ export class CiCdController {
             return { success: true };
         });
     }
-
     @Implement(ciCdContract.build.getBuildStats)
     getBuildStats() {
         return implement(ciCdContract.build.getBuildStats).handler(async ({ input: _input }) => {
@@ -334,7 +311,6 @@ export class CiCdController {
             };
         });
     }
-
     @Implement(ciCdContract.build.listBuildEnvironments)
     listBuildEnvironments() {
         return implement(ciCdContract.build.listBuildEnvironments).handler(async ({ input: _input }) => {
@@ -372,7 +348,6 @@ export class CiCdController {
             };
         });
     }
-
     // Webhook Management
     @Implement(ciCdContract.webhook.createWebhook)
     createWebhook() {
@@ -380,42 +355,36 @@ export class CiCdController {
             return await this.ciCdService.createWebhook(input);
         });
     }
-
     @Implement(ciCdContract.webhook.getWebhook)
     getWebhook() {
         return implement(ciCdContract.webhook.getWebhook).handler(async ({ input }) => {
             return await this.ciCdService.getWebhook(input.id);
         });
     }
-
     @Implement(ciCdContract.webhook.updateWebhook)
     updateWebhook() {
         return implement(ciCdContract.webhook.updateWebhook).handler(async ({ input }) => {
             return await this.ciCdService.updateWebhook(input.id, input.data);
         });
     }
-
     @Implement(ciCdContract.webhook.deleteWebhook)
     deleteWebhook() {
         return implement(ciCdContract.webhook.deleteWebhook).handler(async ({ input }) => {
             return await this.ciCdService.deleteWebhook(input.id);
         });
     }
-
     @Implement(ciCdContract.webhook.listWebhooks)
     listWebhooks() {
         return implement(ciCdContract.webhook.listWebhooks).handler(async ({ input }) => {
             return await this.ciCdService.listWebhooks(input);
         });
     }
-
     @Implement(ciCdContract.webhook.testWebhook)
     testWebhook() {
         return implement(ciCdContract.webhook.testWebhook).handler(async ({ input }) => {
             return await this.ciCdService.testWebhook(input.id, input.event, input.payload);
         });
     }
-
     @Implement(ciCdContract.webhook.validateWebhookUrl)
     validateWebhookUrl() {
         return implement(ciCdContract.webhook.validateWebhookUrl).handler(async ({ input }) => {
@@ -427,7 +396,8 @@ export class CiCdController {
                     reachable: true,
                     responseTime: Math.floor(Math.random() * 500) + 100,
                 };
-            } catch {
+            }
+            catch {
                 return {
                     valid: false,
                     reachable: false,
@@ -436,7 +406,6 @@ export class CiCdController {
             }
         });
     }
-
     @Implement(ciCdContract.webhook.listWebhookDeliveries)
     listWebhookDeliveries() {
         return implement(ciCdContract.webhook.listWebhookDeliveries).handler(async ({ input }) => {
@@ -456,7 +425,6 @@ export class CiCdController {
                     updatedAt: new Date(Date.now() - 3600000),
                 },
             ];
-
             return {
                 deliveries,
                 total: deliveries.length,
@@ -465,7 +433,6 @@ export class CiCdController {
             };
         });
     }
-
     @Implement(ciCdContract.webhook.getWebhookDelivery)
     getWebhookDelivery() {
         return implement(ciCdContract.webhook.getWebhookDelivery).handler(async ({ input }) => {
@@ -485,7 +452,6 @@ export class CiCdController {
             };
         });
     }
-
     @Implement(ciCdContract.webhook.retryWebhookDelivery)
     retryWebhookDelivery() {
         return implement(ciCdContract.webhook.retryWebhookDelivery).handler(async ({}) => {
@@ -495,7 +461,6 @@ export class CiCdController {
             };
         });
     }
-
     @Implement(ciCdContract.webhook.listWebhookEvents)
     listWebhookEvents() {
         return implement(ciCdContract.webhook.listWebhookEvents).handler(async ({}) => {
@@ -553,7 +518,6 @@ export class CiCdController {
             };
         });
     }
-
     @Implement(ciCdContract.webhook.generateWebhookSecret)
     generateWebhookSecret() {
         return implement(ciCdContract.webhook.generateWebhookSecret).handler(async ({ input }) => {
@@ -562,14 +526,12 @@ export class CiCdController {
             for (let i = 0; i < input.length; i++) {
                 secret += chars.charAt(Math.floor(Math.random() * chars.length));
             }
-
             return {
                 secret,
                 algorithm: "sha256",
             };
         });
     }
-
     @Implement(ciCdContract.webhook.verifyWebhookSignature)
     async verifyWebhookSignature() {
         return implement(ciCdContract.webhook.verifyWebhookSignature).handler(({ input: { payload: _payload, signature: _signature, secret: _secret, algorithm: _algorithm } }) => {
@@ -578,7 +540,6 @@ export class CiCdController {
             };
         });
     }
-
     @Implement(ciCdContract.webhook.getWebhookStats)
     async getWebhookStats() {
         return implement(ciCdContract.webhook.getWebhookStats).handler(({}) => {
@@ -608,7 +569,6 @@ export class CiCdController {
             };
         });
     }
-
     @Implement(ciCdContract.webhook.listWebhookTemplates)
     async listWebhookTemplates() {
         return implement(ciCdContract.webhook.listWebhookTemplates).handler(({}) => {
@@ -639,7 +599,6 @@ export class CiCdController {
             };
         });
     }
-
     @Implement(ciCdContract.webhook.createWebhookFromTemplate)
     createWebhookFromTemplate() {
         return implement(ciCdContract.webhook.createWebhookFromTemplate).handler(({ input }) => {
@@ -661,7 +620,6 @@ export class CiCdController {
             };
         });
     }
-
     @Implement(ciCdContract.webhook.getWebhookHealth)
     async getWebhookHealth() {
         return implement(ciCdContract.webhook.getWebhookHealth).handler(async ({ input: { id } }) => {
@@ -679,7 +637,6 @@ export class CiCdController {
             };
         });
     }
-
     // Overview
     @Implement(ciCdContract.getOverview)
     async getOverview() {

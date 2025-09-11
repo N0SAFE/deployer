@@ -3,9 +3,10 @@ import { CoreModule } from '../../core/core.module';
 import { OrchestrationController } from './controllers/orchestration.controller';
 
 @Module({
-  imports: [CoreModule],
-  controllers: [OrchestrationController],
-  providers: [],
-  exports: [],
+    imports: [CoreModule],
+    controllers: [OrchestrationController],
+    providers: [],
+    exports: [],
 })
-export class OrchestrationModule {}
+export class OrchestrationControllerModule {
+}

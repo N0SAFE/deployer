@@ -20,10 +20,37 @@ import {
   ExternalLink
 } from 'lucide-react'
 import { useProjects } from '@/hooks/useProjects'
+import { useServices } from '@/hooks/useServices'
 import { CreateProjectDialog } from '@/components/projects/CreateProjectDialog'
 import Link from 'next/link'
 import { DashboardProjectsProjectIdTabs, DashboardProjectsProjectIdTabsServices } from '@/routes'
 import { ProjectGridSkeleton } from '@/components/loading/skeletons'
+import { ProjectStatusIndicator } from '@/components/services/ServiceStatusIndicator'
+
+// Simple component to show project health status
+function ProjectHealthStatus({ projectId }: { projectId: string }) {
+  const { data: servicesResponse, isLoading } = useServices(projectId, { isActive: true })
+  
+  if (isLoading || !servicesResponse?.services) {
+    return <ProjectStatusIndicator services={[]} variant="dot" />
+  }
+  
+  // Transform services data to match ProjectStatusIndicator interface
+  const servicesForIndicator = servicesResponse.services.map((service) => ({
+    isActive: service.isActive,
+    latestDeployment: service.latestDeployment ? {
+      status: service.latestDeployment.status
+    } : null
+  }))
+  
+  return (
+    <ProjectStatusIndicator 
+      services={servicesForIndicator}
+      variant="dot"
+      size="sm"
+    />
+  )
+}
 
 export function ProjectsClient() {
   const { data: projectsResponse, isLoading, error } = useProjects()
@@ -118,9 +145,12 @@ export function ProjectsClient() {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Services</span>
-                        <Badge variant="outline">
-                          {project._count?.services || 0}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">
+                            {project._count?.services || 0}
+                          </Badge>
+                          <ProjectHealthStatus projectId={project.id} />
+                        </div>
                       </div>
                       
                       <div className="flex items-center justify-between text-sm">

@@ -1,5 +1,4 @@
 import { oc } from "@orpc/contract";
-
 // Import all individual contracts
 import { createStackContract } from './createStack';
 import { getStackContract } from './getStack';
@@ -28,51 +27,43 @@ import { getResourceAllocationContract } from './getResourceAllocation';
 import { getSystemResourceSummaryContract } from './getSystemResourceSummary';
 import { getResourceAlertsContract } from './getResourceAlerts';
 import { generateTraefikPreviewContract } from './generateTraefikPreview';
-
 // Combine into main orchestration contract
 export const orchestrationContract = oc.tag("Orchestration").prefix("/orchestration").router({
-  // Stack management
-  createStack: createStackContract,
-  getStack: getStackContract,
-  listStacks: listStacksContract,
-  updateStack: updateStackContract,
-  removeStack: removeStackContract,
-  scaleServices: scaleServicesContract,
-
-  // Domain and SSL management
-  getDomainMappings: getDomainMappingsContract,
-  updateDomainMappings: updateDomainMappingsContract,
-  listCertificates: listCertificatesContract,
-  getCertificateStatus: getCertificateStatusContract,
-  renewCertificate: renewCertificateContract,
-
-  // Resource management
-  setResourceQuotas: setResourceQuotasContract,
-  getResourceAllocation: getResourceAllocationContract,
-  getSystemResourceSummary: getSystemResourceSummaryContract,
-  getResourceAlerts: getResourceAlertsContract,
-
-  // Traefik configuration
-  generateTraefikPreview: generateTraefikPreviewContract,
-
-  // Job management
-  listJobs: listJobsContract,
-  getJob: getJobContract,
-  getJobQueueStats: getJobQueueStatsContract,
-  retryJobs: retryJobsContract,
-  getJobHistory: getJobHistoryContract,
-  cancelJob: cancelJobContract,
-
-  // Health monitoring
-  getSystemHealth: getSystemHealthContract,
-  getServiceHealth: getServiceHealthContract,
-  getSystemMetrics: getSystemMetricsContract,
-  getHealthHistory: getHealthHistoryContract,
-  runHealthCheck: runHealthCheckContract,
+    // Stack management
+    createStack: createStackContract,
+    getStack: getStackContract,
+    listStacks: listStacksContract,
+    updateStack: updateStackContract,
+    removeStack: removeStackContract,
+    scaleServices: scaleServicesContract,
+    // Domain and SSL management
+    getDomainMappings: getDomainMappingsContract,
+    updateDomainMappings: updateDomainMappingsContract,
+    listCertificates: listCertificatesContract,
+    getCertificateStatus: getCertificateStatusContract,
+    renewCertificate: renewCertificateContract,
+    // Resource management
+    setResourceQuotas: setResourceQuotasContract,
+    getResourceAllocation: getResourceAllocationContract,
+    getSystemResourceSummary: getSystemResourceSummaryContract,
+    getResourceAlerts: getResourceAlertsContract,
+    // Traefik configuration
+    generateTraefikPreview: generateTraefikPreviewContract,
+    // Job management
+    listJobs: listJobsContract,
+    getJob: getJobContract,
+    getJobQueueStats: getJobQueueStatsContract,
+    retryJobs: retryJobsContract,
+    getJobHistory: getJobHistoryContract,
+    cancelJob: cancelJobContract,
+    // Health monitoring
+    getSystemHealth: getSystemHealthContract,
+    getServiceHealth: getServiceHealthContract,
+    getSystemMetrics: getSystemMetricsContract,
+    getHealthHistory: getHealthHistoryContract,
+    runHealthCheck: runHealthCheckContract,
 });
-
 export type OrchestrationContract = typeof orchestrationContract;
-
 // Re-export all individual contracts and schemas
 export * from './createStack';
 export * from './getStack';

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
 import { Label } from '@repo/ui/components/shadcn/label'
@@ -27,9 +28,11 @@ import {
   GitBranch,
   Plus,
   AlertCircle,
-  CheckCircle,
   Clock,
+  Loader2,
 } from 'lucide-react'
+import { toast } from 'sonner'
+import { orpc } from '@/lib/orpc'
 
 interface PreviewEnvironmentData {
   name: string
@@ -53,24 +56,29 @@ export function CreatePreviewEnvironmentDialog({
   triggerButton 
 }: CreatePreviewEnvironmentDialogProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [isCreating, setIsCreating] = useState(false)
   const [formData, setFormData] = useState<PreviewEnvironmentData>({
     name: '',
     branch: '',
     pullRequestId: '',
     description: '',
     autoDeleteAfterDays: 7,
-    inheritFromEnvironment: 'staging',
+    inheritFromEnvironment: '', // Will be set to first available environment
     variableOverrides: {},
     enableCustomDomain: false,
     customDomain: '',
   })
 
-  // Mock existing environments
-  const existingEnvironments = [
-    { id: '1', name: 'Production', type: 'production' },
-    { id: '2', name: 'Staging', type: 'staging' },
-  ]
+  const queryClient = useQueryClient()
+
+  // Load existing environments for the project
+  const { data: environmentsData } = useQuery(
+    orpc.project.listEnvironments.queryOptions({
+      input: { id: projectId },
+      staleTime: 60000, // 1 minute
+    })
+  )
+
+  const existingEnvironments = environmentsData?.environments || []
 
   // Auto-generate environment name from branch
   const handleBranchChange = (branch: string) => {
@@ -83,36 +91,56 @@ export function CreatePreviewEnvironmentDialog({
     }))
   }
 
+  // Create preview environment mutation
+  const createPreviewMutation = useMutation(
+    orpc.environment.createPreviewForProject.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ 
+          queryKey: orpc.environment.listPreviewEnvironments.queryKey({ 
+            input: { projectId } 
+          }) 
+        })
+        toast.success('Preview environment created successfully')
+        setIsOpen(false)
+        
+        // Reset form
+        setFormData({
+          name: '',
+          branch: '',
+          pullRequestId: '',
+          description: '',
+          autoDeleteAfterDays: 7,
+          inheritFromEnvironment: 'staging',
+          variableOverrides: {},
+          enableCustomDomain: false,
+          customDomain: '',
+        })
+      },
+      onError: (error: Error) => {
+        toast.error(`Failed to create preview environment: ${error.message}`)
+      },
+    })
+  )
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsCreating(true)
     
-    try {
-      // TODO: Implement API call to create preview environment
-      console.log('Creating preview environment:', { projectId, ...formData })
-      
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      setIsOpen(false)
-      
-      // Reset form
-      setFormData({
-        name: '',
-        branch: '',
-        pullRequestId: '',
-        description: '',
-        autoDeleteAfterDays: 7,
-        inheritFromEnvironment: 'staging',
-        variableOverrides: {},
-        enableCustomDomain: false,
-        customDomain: '',
-      })
-    } catch (error) {
-      console.error('Failed to create preview environment:', error)
-    } finally {
-      setIsCreating(false)
-    }
+    createPreviewMutation.mutate({
+      projectId,
+      name: formData.name,
+      branch: formData.branch,
+      pullRequestId: formData.pullRequestId || undefined,
+      config: {
+        autoDeleteAfterDays: formData.autoDeleteAfterDays,
+        inheritFromEnvironment: formData.inheritFromEnvironment || undefined,
+        requirePullRequest: false, // Allow manual preview creation
+      },
+      variables: [], // Can be extended to support variable overrides
+      metadata: {
+        description: formData.description,
+        customDomain: formData.enableCustomDomain ? formData.customDomain : undefined,
+      },
+    })
   }
 
   const DefaultTrigger = () => (
@@ -211,7 +239,7 @@ export function CreatePreviewEnvironmentDialog({
                   onValueChange={(value) => setFormData(prev => ({ ...prev, inheritFromEnvironment: value }))}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select environment to inherit from" />
                   </SelectTrigger>
                   <SelectContent>
                     {existingEnvironments.map(env => (
@@ -311,9 +339,11 @@ export function CreatePreviewEnvironmentDialog({
               <div>
                 <span className="text-muted-foreground text-sm">Variable inheritance:</span>
                 <div className="flex items-center gap-2 mt-1">
-                  <Badge variant="secondary" className="text-xs">
-                    Inherits from {existingEnvironments.find(e => e.id === formData.inheritFromEnvironment)?.name}
-                  </Badge>
+                  {formData.inheritFromEnvironment && (
+                    <Badge variant="secondary" className="text-xs">
+                      Inherits from {existingEnvironments.find(e => e.id === formData.inheritFromEnvironment)?.name || 'Unknown'}
+                    </Badge>
+                  )}
                   {formData.pullRequestId && (
                     <Badge variant="outline" className="text-xs">
                       PR #{formData.pullRequestId}
@@ -347,12 +377,12 @@ export function CreatePreviewEnvironmentDialog({
             </Button>
             <Button 
               type="submit" 
-              disabled={isCreating || !formData.name || !formData.branch}
+              disabled={createPreviewMutation.isPending || !formData.name || !formData.branch}
               className="bg-blue-600 hover:bg-blue-700"
             >
-              {isCreating ? (
+              {createPreviewMutation.isPending ? (
                 <>
-                  <CheckCircle className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Creating...
                 </>
               ) : (

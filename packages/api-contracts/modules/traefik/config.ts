@@ -1,21 +1,18 @@
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
-
 // Configuration management contracts
-
 export const traefikGetInstanceConfigsContract = oc
-  .route({
+    .route({
     method: 'GET',
     path: '/instances/:instanceId/configs',
     summary: 'Get all configurations for a Traefik instance',
-  })
-  .input(z.object({
+})
+    .input(z.object({
     instanceId: z.string(),
-  }))
-  .output(z.array(z.object({
+}))
+    .output(z.array(z.object({
     id: z.string(),
     configName: z.string(),
-    configType: z.string(),
     syncStatus: z.string().optional(),
     requiresFile: z.boolean().optional(),
     lastSyncedAt: z.date().optional(),
@@ -23,179 +20,170 @@ export const traefikGetInstanceConfigsContract = oc
     metadata: z.any().optional(),
     createdAt: z.date(),
     updatedAt: z.date(),
-  })));
-
+})));
 export const traefikGetConfigSyncStatusContract = oc
-  .route({
+    .route({
     method: 'GET',
     path: '/instances/:instanceId/config-status',
     summary: 'Get configuration sync status for a Traefik instance',
-  })
-  .input(z.object({
+})
+    .input(z.object({
     instanceId: z.string(),
-  }))
-  .output(z.object({
+}))
+    .output(z.object({
     total: z.number(),
     synced: z.number(),
     pending: z.number(),
     failed: z.number(),
     outdated: z.number(),
     configurations: z.array(z.object({
-      id: z.string(),
-      name: z.string(),
-      type: z.string(),
-      syncStatus: z.string(),
-      lastSyncedAt: z.date().optional(),
-      errorMessage: z.string().optional(),
+        id: z.string(),
+        name: z.string(),
+        type: z.string(),
+        syncStatus: z.string(),
+        lastSyncedAt: z.date().optional(),
+        errorMessage: z.string().optional(),
     })),
-  }));
-
+}));
 export const traefikForceSyncConfigsContract = oc
-  .route({
+    .route({
     method: 'POST',
     path: '/instances/:instanceId/force-sync',
     summary: 'Force sync all configurations for a Traefik instance',
-  })
-  .input(z.object({
+})
+    .input(z.object({
     instanceId: z.string(),
-  }))
-  .output(z.object({
+}))
+    .output(z.object({
     total: z.number(),
     successful: z.number(),
     failed: z.number(),
     results: z.array(z.object({
-      configId: z.string(),
-      configName: z.string(),
-      success: z.boolean(),
-      action: z.string(),
-      message: z.string().optional(),
+        configId: z.string(),
+        configName: z.string(),
+        success: z.boolean(),
+        action: z.string(),
+        message: z.string().optional(),
     })),
-  }));
-
+}));
 export const traefikCleanupOrphanedFilesContract = oc
-  .route({
+    .route({
     method: 'POST',
     path: '/instances/:instanceId/cleanup',
     summary: 'Clean up orphaned configuration files',
-  })
-  .input(z.object({
+})
+    .input(z.object({
     instanceId: z.string(),
-  }))
-  .output(z.object({
+}))
+    .output(z.object({
     cleanedFiles: z.array(z.string()),
     count: z.number(),
-  }));
-
+}));
 export const traefikValidateConfigFilesContract = oc
-  .route({
+    .route({
     method: 'GET',
     path: '/instances/:instanceId/validate',
     summary: 'Validate all configuration files for an instance',
-  })
-  .input(z.object({
+})
+    .input(z.object({
     instanceId: z.string(),
-  }))
-  .output(z.object({
+}))
+    .output(z.object({
     valid: z.number(),
     invalid: z.number(),
     configurations: z.array(z.object({
-      configId: z.string(),
-      configName: z.string(),
-      isValid: z.boolean(),
-      issues: z.array(z.string()),
+        configId: z.string(),
+        configName: z.string(),
+        isValid: z.boolean(),
+        issues: z.array(z.string()),
     })),
-  }));
-
+}));
 export const traefikGetInstanceStatusContract = oc
-  .route({
+    .route({
     method: 'GET',
     path: '/instances/:instanceId/status',
     summary: 'Get comprehensive status for a Traefik instance',
-  })
-  .input(z.object({
+})
+    .input(z.object({
     instanceId: z.string(),
-  }))
-  .output(z.object({
+}))
+    .output(z.object({
     instance: z.object({
-      id: z.string(),
-      name: z.string(),
-      status: z.enum(['error', 'stopped', 'starting', 'running', 'stopping']),
-      containerId: z.string().nullable(),
-      dashboardPort: z.number().nullable(),
-      httpPort: z.number().nullable(),
-      httpsPort: z.number().nullable(),
-      acmeEmail: z.string().nullable(),
-      logLevel: z.string().nullable(),
-      insecureApi: z.boolean().nullable(),
-      config: z.any().nullable(),
-      createdAt: z.date(),
-      updatedAt: z.date(),
+        id: z.string(),
+        name: z.string(),
+        status: z.enum(['error', 'stopped', 'starting', 'running', 'stopping']),
+        containerId: z.string().nullable(),
+        dashboardPort: z.number().nullable(),
+        httpPort: z.number().nullable(),
+        httpsPort: z.number().nullable(),
+        acmeEmail: z.string().nullable(),
+        logLevel: z.string().nullable(),
+        insecureApi: z.boolean().nullable(),
+        config: z.any().nullable(),
+        createdAt: z.date(),
+        updatedAt: z.date(),
     }),
     configurations: z.object({
-      total: z.number(),
-      static: z.number(),
-      dynamic: z.number(),
-      synced: z.number(),
-      pending: z.number(),
-      failed: z.number(),
+        total: z.number(),
+        static: z.number(),
+        dynamic: z.number(),
+        synced: z.number(),
+        pending: z.number(),
+        failed: z.number(),
     }),
     files: z.object({
-      total: z.number(),
-      exists: z.number(),
-      writable: z.number(),
-      orphaned: z.number(),
+        total: z.number(),
+        exists: z.number(),
+        writable: z.number(),
+        orphaned: z.number(),
     }),
     lastUpdate: z.date(),
-  }));
-
+}));
 export const traefikSyncSingleConfigContract = oc
-  .route({
+    .route({
     method: 'POST',
     path: '/configs/:configId/sync',
     summary: 'Sync a specific configuration to file',
-  })
-  .input(z.object({
+})
+    .input(z.object({
     configId: z.string(),
     forceSync: z.boolean().optional(),
     createDirectories: z.boolean().optional(),
     backupExisting: z.boolean().optional(),
-  }))
-  .output(z.object({
+}))
+    .output(z.object({
     success: z.boolean(),
     filePath: z.string(),
     action: z.enum(['created', 'updated', 'skipped', 'error']),
     message: z.string().optional(),
     checksum: z.string().optional(),
     fileSize: z.number().optional(),
-  }));
-
+}));
 export const traefikValidateSingleConfigContract = oc
-  .route({
+    .route({
     method: 'GET',
     path: '/configs/:configId/validate',
     summary: 'Validate a specific configuration',
-  })
-  .input(z.object({
+})
+    .input(z.object({
     configId: z.string(),
-  }))
-  .output(z.object({
+}))
+    .output(z.object({
     isValid: z.boolean(),
     issues: z.array(z.string()),
     lastSyncedAt: z.date().optional(),
-  }));
-
+}));
 // Static Configuration Management Contracts
-
 export const traefikGetStaticConfigContract = oc
-  .route({
+    .route({
     method: 'GET',
     path: '/instances/:instanceId/static-config',
     summary: 'Get static configuration for a Traefik instance',
-  })
-  .input(z.object({
+})
+    .input(z.object({
     instanceId: z.string(),
-  }))
-  .output(z.object({
+}))
+    .output(z.object({
     id: z.string(),
     traefikInstanceId: z.string(),
     // Core configuration sections
@@ -228,15 +216,14 @@ export const traefikGetStaticConfigContract = oc
     validationErrors: z.any().nullable(),
     createdAt: z.date(),
     updatedAt: z.date(),
-  }).nullable());
-
+}).nullable());
 export const traefikSaveStaticConfigContract = oc
-  .route({
+    .route({
     method: 'POST',
     path: '/instances/:instanceId/static-config',
     summary: 'Create or update static configuration for a Traefik instance',
-  })
-  .input(z.object({
+})
+    .input(z.object({
     instanceId: z.string(),
     // Core configuration sections
     globalConfig: z.any().optional(),
@@ -256,8 +243,8 @@ export const traefikSaveStaticConfigContract = oc
     serversTransportConfig: z.any().optional(),
     hostResolverConfig: z.any().optional(),
     clusterConfig: z.any().optional(),
-  }))
-  .output(z.object({
+}))
+    .output(z.object({
     id: z.string(),
     traefikInstanceId: z.string(),
     configVersion: z.number().nullable(),
@@ -266,65 +253,62 @@ export const traefikSaveStaticConfigContract = oc
     validationErrors: z.any().nullable(),
     createdAt: z.date(),
     updatedAt: z.date(),
-  }));
-
+}));
 export const traefikGetStaticConfigYamlContract = oc
-  .route({
+    .route({
     method: 'GET',
     path: '/instances/:instanceId/static-config/yaml',
     summary: 'Get compiled YAML static configuration for a Traefik instance',
-  })
-  .input(z.object({
+})
+    .input(z.object({
     instanceId: z.string(),
-  }))
-  .output(z.object({
+}))
+    .output(z.object({
     yaml: z.string(),
     configVersion: z.number(),
     lastUpdated: z.date(),
-  }));
-
+}));
 export const traefikUpdateStaticConfigSectionContract = oc
-  .route({
+    .route({
     method: 'PUT',
     path: '/instances/:instanceId/static-config/:section',
     summary: 'Update a specific section of static configuration',
-  })
-  .input(z.object({
+})
+    .input(z.object({
     instanceId: z.string(),
     section: z.enum([
-      'globalConfig',
-      'apiConfig', 
-      'entryPointsConfig',
-      'providersConfig',
-      'logConfig',
-      'accessLogConfig',
-      'metricsConfig',
-      'tracingConfig',
-      'tlsConfig',
-      'certificateResolversConfig',
-      'experimentalConfig',
-      'serversTransportConfig',
-      'hostResolverConfig',
-      'clusterConfig'
+        'globalConfig',
+        'apiConfig',
+        'entryPointsConfig',
+        'providersConfig',
+        'logConfig',
+        'accessLogConfig',
+        'metricsConfig',
+        'tracingConfig',
+        'tlsConfig',
+        'certificateResolversConfig',
+        'experimentalConfig',
+        'serversTransportConfig',
+        'hostResolverConfig',
+        'clusterConfig'
     ]),
     config: z.any(),
-  }))
-  .output(z.object({
+}))
+    .output(z.object({
     success: z.boolean(),
     configVersion: z.number(),
     validationErrors: z.array(z.string()).optional(),
-  }));
-
+}));
 export const traefikCreateDefaultStaticConfigContract = oc
-  .route({
+    .route({
     method: 'POST',
     path: '/instances/:instanceId/static-config/default',
     summary: 'Create default static configuration for a Traefik instance',
-  })
-  .input(z.object({
+})
+    .input(z.object({
     instanceId: z.string(),
-  }))
-  .output(z.object({
+}))
+    .output(z.object({
     id: z.string(),
     traefikInstanceId: z.string(),
     configVersion: z.number().nullable(),
@@ -332,19 +316,146 @@ export const traefikCreateDefaultStaticConfigContract = oc
     validationErrors: z.any().nullable(),
     createdAt: z.date(),
     updatedAt: z.date(),
-  }));
-
+}));
 export const traefikValidateStaticConfigContract = oc
-  .route({
+    .route({
     method: 'GET',
     path: '/instances/:instanceId/static-config/validate',
     summary: 'Validate static configuration for a Traefik instance',
-  })
-  .input(z.object({
+})
+    .input(z.object({
     instanceId: z.string(),
-  }))
-  .output(z.object({
+}))
+    .output(z.object({
     isValid: z.boolean(),
     errors: z.array(z.string()),
     warnings: z.array(z.string()).optional(),
-  }));
+}));
+
+// File System Management Contracts
+export const traefikGetFileSystemContract = oc
+    .route({
+    method: 'GET',
+    path: '/filesystem',
+    summary: 'Get complete Traefik file system structure',
+})
+    .input(z.object({
+    path: z.string().optional(), // Optional path to browse specific directory
+}))
+    .output(z.object({
+    name: z.string(),
+    path: z.string(),
+    files: z.array(z.object({
+        name: z.string(),
+        path: z.string(),
+        type: z.enum(['file', 'directory']),
+        size: z.number().optional(),
+        lastModified: z.string().optional(),
+        extension: z.string().optional(),
+        permissions: z.string().optional(),
+        isReadable: z.boolean().optional(),
+        isWritable: z.boolean().optional(),
+    })),
+    subdirectories: z.array(z.object({
+        name: z.string(),
+        path: z.string(),
+        files: z.array(z.object({
+            name: z.string(),
+            path: z.string(),
+            type: z.enum(['file', 'directory']),
+            size: z.number().optional(),
+            lastModified: z.string().optional(),
+            extension: z.string().optional(),
+            permissions: z.string().optional(),
+            isReadable: z.boolean().optional(),
+            isWritable: z.boolean().optional(),
+        })),
+        subdirectories: z.array(z.any()), // Recursive structure
+    })),
+}));
+
+export const traefikGetProjectFileSystemContract = oc
+    .route({
+    method: 'GET',
+    path: '/filesystem/project/:projectName',
+    summary: 'Get file system structure for a specific project',
+})
+    .input(z.object({
+    projectName: z.string(),
+}))
+    .output(z.object({
+    name: z.string(),
+    path: z.string(),
+    files: z.array(z.object({
+        name: z.string(),
+        path: z.string(),
+        type: z.enum(['file', 'directory']),
+        size: z.number().optional(),
+        lastModified: z.string().optional(),
+        extension: z.string().optional(),
+        permissions: z.string().optional(),
+        isReadable: z.boolean().optional(),
+        isWritable: z.boolean().optional(),
+    })),
+    subdirectories: z.array(z.object({
+        name: z.string(),
+        path: z.string(),
+        files: z.array(z.object({
+            name: z.string(),
+            path: z.string(),
+            type: z.enum(['file', 'directory']),
+            size: z.number().optional(),
+            lastModified: z.string().optional(),
+            extension: z.string().optional(),
+            permissions: z.string().optional(),
+            isReadable: z.boolean().optional(),
+            isWritable: z.boolean().optional(),
+        })),
+        subdirectories: z.array(z.any()), // Recursive structure
+    })),
+}));
+
+export const traefikGetFileContentContract = oc
+    .route({
+    method: 'GET',
+    path: '/filesystem/file',
+    summary: 'Get content of a specific file',
+})
+    .input(z.object({
+    filePath: z.string(),
+    encoding: z.enum(['utf8', 'base64']).optional().default('utf8'),
+}))
+    .output(z.object({
+    content: z.string(),
+    size: z.number(),
+    mimeType: z.string(),
+}));
+
+export const traefikDownloadFileContract = oc
+    .route({
+    method: 'GET',
+    path: '/filesystem/download',
+    summary: 'Download a specific file from the Traefik file system',
+})
+    .input(z.object({
+    filePath: z.string(),
+}))
+    .output(z.object({
+    filename: z.string(),
+    content: z.string(), // Base64 encoded for binary files
+    mimeType: z.string(),
+    size: z.number(),
+}));
+
+export const traefikListProjectsContract = oc
+    .route({
+    method: 'GET',
+    path: '/filesystem/projects',
+    summary: 'List all projects in the Traefik dynamic configuration',
+})
+    .input(z.object({}))
+    .output(z.array(z.object({
+    name: z.string(),
+    path: z.string(),
+    fileCount: z.number().optional(),
+})));

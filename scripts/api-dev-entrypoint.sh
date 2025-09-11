@@ -1,6 +1,15 @@
 #!/bin/sh
 set -e
 
+# Ensure Traefik configuration directory structure exists
+echo 'Creating Traefik configuration directory structure...'
+TRAEFIK_BASE_PATH="${TRAEFIK_CONFIG_BASE_PATH:-/app/traefik-configs}"
+mkdir -p "${TRAEFIK_BASE_PATH}/dynamic"
+mkdir -p "${TRAEFIK_BASE_PATH}/certs"
+mkdir -p "${TRAEFIK_BASE_PATH}/logs"
+mkdir -p "${TRAEFIK_BASE_PATH}/plugins"
+echo 'Traefik directory structure created'
+
 if [ -z "$SKIP_MIGRATIONS" ]; then
   if [ -f apps/api/package.json ]; then
     echo 'Found apps/api/package.json - running migrations'

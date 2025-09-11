@@ -32,7 +32,7 @@ export default function DashboardLayout({
         <AppSidebar />
         <SidebarInset className="min-h-screen">
           <Header />
-          <main className="flex flex-1 flex-col gap-4 p-4 pt-0">
+          <main className="flex flex-1 flex-col gap-4 p-4 pt-6">
             {children}
           </main>
         </SidebarInset>
