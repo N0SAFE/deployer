@@ -186,34 +186,59 @@ export class ProjectController {
     getById() {
         return implement(projectContract.getById).handler(async ({ input }) => {
             this.logger.log(`Getting project by id: ${input.id}`);
-            // Get database connection
-            const db = this.databaseService.db;
-            // Find the project
-            const projectResult = await db
-                .select()
-                .from(projects)
-                .where(eq(projects.id, input.id))
-                .limit(1);
-            if (projectResult.length === 0) {
-                throw new Error('Project not found');
+            
+            try {
+                // Get database connection
+                const db = this.databaseService.db;
+                
+                // Find the project
+                const projectResult = await db
+                    .select()
+                    .from(projects)
+                    .where(eq(projects.id, input.id))
+                    .limit(1);
+                
+                if (projectResult.length === 0) {
+                    throw new Error('Project not found');
+                }
+                
+                const project = projectResult[0];
+                
+                // Safely handle the settings field
+                let safeSettings: any = null;
+                try {
+                    if (project.settings) {
+                        // Ensure settings is properly serializable
+                        safeSettings = typeof project.settings === 'object' 
+                            ? project.settings 
+                            : JSON.parse(project.settings as string);
+                    }
+                } catch (settingsError) {
+                    this.logger.warn(`Failed to parse project settings for ${input.id}:`, settingsError);
+                    safeSettings = null;
+                }
+                
+                return {
+                    id: project.id,
+                    name: project.name,
+                    description: project.description,
+                    baseDomain: project.baseDomain,
+                    ownerId: project.ownerId,
+                    settings: safeSettings,
+                    createdAt: project.createdAt,
+                    updatedAt: project.updatedAt,
+                    _count: {
+                        services: 0, // TODO: Implement service count
+                        deployments: 0, // TODO: Implement deployment count  
+                        collaborators: 0, // TODO: Implement collaborator count
+                    },
+                    latestDeployment: null, // TODO: Implement latest deployment
+                };
+            } catch (error) {
+                this.logger.error(`Error getting project by id ${input.id}:`, error);
+                // Ensure we throw a serializable error
+                throw new Error(error instanceof Error ? error.message : 'Failed to get project');
             }
-            const project = projectResult[0];
-            return {
-                id: project.id,
-                name: project.name,
-                description: project.description,
-                baseDomain: project.baseDomain,
-                ownerId: project.ownerId,
-                settings: project.settings,
-                createdAt: project.createdAt,
-                updatedAt: project.updatedAt,
-                _count: {
-                    services: 0, // TODO: Implement service count
-                    deployments: 0, // TODO: Implement deployment count  
-                    collaborators: 0, // TODO: Implement collaborator count
-                },
-                latestDeployment: null, // TODO: Implement latest deployment
-            };
         });
     }
     @Implement(projectContract.create)

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DockerService } from '../services/docker.service';
-import { TraefikService } from '../modules/orchestration/services/traefik.service';
+import { TraefikService } from '../../modules/traefik/services/traefik.service';
 export interface StaticFileDeploymentOptions {
     serviceName: string;
     deploymentId: string;

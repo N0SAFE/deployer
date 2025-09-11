@@ -2,10 +2,16 @@ import { Controller, Logger } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { environmentContract } from '@repo/api-contracts';
 import { EnvironmentService } from '../services/environment.service';
+import { DatabaseService } from '../../../core/modules/db/services/database.service';
+import { projects } from '../../../core/modules/db/drizzle/schema';
+import { eq } from 'drizzle-orm';
 @Controller()
 export class EnvironmentController {
     private readonly logger = new Logger(EnvironmentController.name);
-    constructor(private readonly environmentService: EnvironmentService) { }
+    constructor(
+        private readonly environmentService: EnvironmentService,
+        private readonly databaseService: DatabaseService
+    ) { }
     // Helper to transform database environment to contract format
     private transformEnvironment(env: any) {
         if (!env) {
@@ -55,6 +61,51 @@ export class EnvironmentController {
             references: variable.references || [],
         };
     }
+
+    /**
+     * Resolves an environment identifier to a UUID
+     * @param environmentId - Can be either a UUID or an environment slug/name
+     * @returns The environment UUID
+     * @throws Error if environment not found
+     */
+    private async resolveEnvironmentId(environmentId: string): Promise<string> {
+        // Check if it's already a UUID (basic format check)
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        
+        if (uuidRegex.test(environmentId)) {
+            // It's already a UUID, return as-is
+            return environmentId;
+        }
+        
+        // It's a slug/name, resolve to UUID
+        const environment = await this.environmentService.getEnvironmentBySlug(environmentId);
+        if (!environment) {
+            throw new Error(`Environment not found: ${environmentId}`);
+        }
+        
+        return environment.id;
+    }
+
+    private async resolveProjectId(projectId: string): Promise<string> {
+        // Check if it's already a UUID (basic format check)
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        
+        if (uuidRegex.test(projectId)) {
+            // It's already a UUID, return as-is
+            return projectId;
+        }
+        
+        // It's a slug/name, resolve to UUID
+        const db = this.databaseService.db;
+        const project = await db.select().from(projects).where(eq(projects.name, projectId)).limit(1);
+        
+        if (!project || project.length === 0) {
+            throw new Error(`Project not found: ${projectId}`);
+        }
+        
+        return project[0].id;
+    }
+
     @Implement(environmentContract.list)
     list() {
         return implement(environmentContract.list).handler(async ({ input }) => {
@@ -162,7 +213,8 @@ export class EnvironmentController {
     getVariables() {
         return implement(environmentContract.getVariables).handler(async ({ input }) => {
             this.logger.log(`Getting variables for environment: ${input.environmentId}`);
-            const variables = await this.environmentService.getEnvironmentVariables(input.environmentId);
+            const resolvedEnvironmentId = await this.resolveEnvironmentId(input.environmentId);
+            const variables = await this.environmentService.getEnvironmentVariables(resolvedEnvironmentId);
             return {
                 success: true,
                 data: variables.map(variable => this.transformVariable(variable)),
@@ -173,8 +225,9 @@ export class EnvironmentController {
     updateVariables() {
         return implement(environmentContract.updateVariables).handler(async ({ input }) => {
             this.logger.log(`Updating variables for environment: ${input.environmentId}`);
+            const resolvedEnvironmentId = await this.resolveEnvironmentId(input.environmentId);
             const userId = '00000000-0000-0000-0000-000000000000'; // TODO: Get from session
-            const variables = await this.environmentService.updateEnvironmentVariables(input.environmentId, input.variables.map(v => ({
+            const variables = await this.environmentService.updateEnvironmentVariables(resolvedEnvironmentId, input.variables.map(v => ({
                 key: v.key,
                 value: v.value,
                 isSecret: v.isSecret,
@@ -183,7 +236,7 @@ export class EnvironmentController {
                 template: v.template,
             })), userId);
             // Log access
-            await this.environmentService.logAccess(input.environmentId, userId, 'update_variables');
+            await this.environmentService.logAccess(resolvedEnvironmentId, userId, 'update_variables');
             return {
                 success: true,
                 data: variables.map(variable => this.transformVariable(variable)),
@@ -194,9 +247,10 @@ export class EnvironmentController {
     resolveVariables() {
         return implement(environmentContract.resolveVariables).handler(async ({ input }) => {
             this.logger.log(`Resolving variables for environment: ${input.environmentId}`);
-            await this.environmentService.resolveEnvironmentVariables(input.environmentId);
+            const resolvedEnvironmentId = await this.resolveEnvironmentId(input.environmentId);
+            await this.environmentService.resolveEnvironmentVariables(resolvedEnvironmentId);
             // Get updated variables
-            const variables = await this.environmentService.getEnvironmentVariables(input.environmentId);
+            const variables = await this.environmentService.getEnvironmentVariables(resolvedEnvironmentId);
             // TODO: Get user from session and log access
             return {
                 success: true,
@@ -381,10 +435,11 @@ export class EnvironmentController {
     createPreviewForProject() {
         return implement(environmentContract.createPreviewForProject).handler(async ({ input }) => {
             this.logger.log(`Creating preview environment for project: ${input.projectId}`);
+            const resolvedProjectId = await this.resolveProjectId(input.projectId);
             const userId = '00000000-0000-0000-0000-000000000000'; // TODO: Get from session
             const environment = await this.environmentService.createPreviewEnvironment({
                 name: input.name,
-                projectId: input.projectId,
+                projectId: resolvedProjectId,
                 sourceBranch: input.branch,
                 sourcePR: input.pullRequestId ? parseInt(input.pullRequestId) : undefined,
                 sourceCommit: input.metadata?.sourceCommit,
@@ -396,7 +451,7 @@ export class EnvironmentController {
             await this.environmentService.logAccess(environment.id, userId, 'create_preview_for_project');
             const transformedEnvironment = this.transformEnvironment(environment);
             if (!transformedEnvironment) {
-                throw new Error(`Failed to transform created preview environment for project ${input.projectId}`);
+                throw new Error(`Failed to transform created preview environment for project ${resolvedProjectId}`);
             }
             // Return the direct environment object, not wrapped in { success, data }
             return transformedEnvironment;
@@ -405,8 +460,9 @@ export class EnvironmentController {
     @Implement(environmentContract.listPreviewEnvironments)
     listPreviewEnvironments() {
         return implement(environmentContract.listPreviewEnvironments).handler(async ({ input }) => {
-            this.logger.log(`Listing preview environments for project: ${input?.projectId || 'all'}`);
-            const environments = await this.environmentService.listPreviewEnvironments(input?.projectId);
+            this.logger.log(`Listing preview environments for project: ${input.projectId}`);
+            const resolvedProjectId = await this.resolveProjectId(input.projectId);
+            const environments = await this.environmentService.listPreviewEnvironments(resolvedProjectId);
             // Return direct object matching contract schema: { environments, total, hasMore }
             return {
                 environments: environments.map(env => this.transformEnvironment(env)),
@@ -419,8 +475,9 @@ export class EnvironmentController {
     cleanupPreviewEnvironments() {
         return implement(environmentContract.cleanupPreviewEnvironments).handler(async ({ input }) => {
             this.logger.log(`Cleaning up preview environments for project: ${input.projectId}, dry run: ${input.dryRun}`);
+            const resolvedProjectId = await this.resolveProjectId(input.projectId);
             // Simple implementation - in a real application, this would clean up expired/unused preview environments
-            const environments = await this.environmentService.listPreviewEnvironments(input.projectId);
+            const environments = await this.environmentService.listPreviewEnvironments(resolvedProjectId);
             const cleanedUpIds: string[] = [];
             const skippedIds: string[] = [];
             // Mock cleanup logic - mark some as cleaned, some as skipped

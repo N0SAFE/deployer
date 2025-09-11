@@ -7,17 +7,27 @@ import { deployments, deploymentLogs, deploymentStatusEnum, projects, services }
 import { TraefikService } from '../../traefik/services/traefik.service';
 import { DockerService } from '../../../core/services/docker.service';
 import { GitService } from '../../../core/services/git.service';
+import { DeploymentService } from '../../../core/services/deployment.service';
 import { FileUploadService } from '../../storage/services/file-upload.service';
 import { StaticFileServingService } from '../../storage/services/static-file-serving.service';
 import type { DeploymentJobData, DeploymentJobResult } from '../types/deployment-job.types';
 @Processor('deployment')
 export class DeploymentProcessor {
     private readonly logger = new Logger(DeploymentProcessor.name);
-    constructor(private readonly databaseService: DatabaseService, private readonly dockerService: DockerService, private readonly gitService: GitService, private readonly traefikService: TraefikService, private readonly fileUploadService: FileUploadService, private readonly staticFileServingService: StaticFileServingService) { }
+    constructor(
+        private readonly databaseService: DatabaseService, 
+        private readonly dockerService: DockerService, 
+        private readonly gitService: GitService, 
+        private readonly traefikService: TraefikService, 
+        private readonly fileUploadService: FileUploadService, 
+        private readonly staticFileServingService: StaticFileServingService,
+        private readonly deploymentService: DeploymentService
+    ) { }
     @Process('deploy')
     async handleDeployment(job: Job<DeploymentJobData>): Promise<DeploymentJobResult> {
         const { deploymentId, projectId, serviceId, sourceConfig } = job.data;
         this.logger.log(`Starting deployment job for deployment ${deploymentId}`);
+        
         try {
             // Update deployment status to building
             await this.updateDeploymentStatus(deploymentId, 'building');
@@ -25,34 +35,112 @@ export class DeploymentProcessor {
                 projectId,
                 serviceId
             });
-            // Step 1: Clone/prepare source code
+
+            // Get service information to determine build type
+            const serviceInfo = await this.databaseService.db.select({
+                service: services,
+                project: projects,
+            })
+            .from(services)
+            .innerJoin(projects, eq(services.projectId, projects.id))
+            .where(eq(services.id, serviceId))
+            .limit(1);
+
+            if (!serviceInfo.length) {
+                throw new Error(`Service ${serviceId} not found`);
+            }
+
+            const { service } = serviceInfo[0];
+            const buildType = service.builder;
+
+            this.logger.log(`Deploying service with build type: ${buildType}`);
+
+            // Step 1: Prepare source code
             await this.logDeployment(deploymentId, 'info', 'Preparing source code');
             const sourcePath = await this.prepareSourceCode(sourceConfig, deploymentId);
-            // Step 2: Build container image
-            await this.logDeployment(deploymentId, 'info', 'Building container image');
-            const imageTag = await this.buildContainerImage(sourcePath, deploymentId);
-            // Step 3: Deploy container
-            await this.logDeployment(deploymentId, 'info', 'Deploying container');
-            const containerInfo = await this.deployContainer(imageTag, deploymentId);
-            // Step 4: Register domain with Traefik
+
+            // Step 2: Deploy using the enhanced DeploymentService based on build type
+            let deploymentResult;
+            
+            if (buildType === 'static') {
+                await this.logDeployment(deploymentId, 'info', 'Deploying as static site');
+                deploymentResult = await this.deploymentService.deployStaticSite({
+                    deploymentId,
+                    serviceName: service.name,
+                    sourcePath,
+                    environmentVariables: service.environmentVariables || {},
+                    healthCheckPath: service.healthCheckPath || '/health',
+                    resourceLimits: service.resourceLimits || undefined,
+                });
+            } else if (buildType === 'dockerfile') {
+                await this.logDeployment(deploymentId, 'info', 'Deploying using Dockerfile');
+                deploymentResult = await this.deploymentService.deployDockerService({
+                    deploymentId,
+                    serviceName: service.name,
+                    sourcePath,
+                    dockerfilePath: service.builderConfig?.dockerfilePath || './Dockerfile',
+                    buildArgs: service.builderConfig?.buildArgs || {},
+                    environmentVariables: service.environmentVariables || {},
+                    port: service.port || 3000,
+                    healthCheckPath: service.healthCheckPath || '/health',
+                    resourceLimits: service.resourceLimits || undefined,
+                });
+            } else if (buildType === 'nixpack' || buildType === 'buildpack') {
+                await this.logDeployment(deploymentId, 'info', `Deploying using ${buildType} (Node.js)`);
+                deploymentResult = await this.deploymentService.deployNodejsService({
+                    deploymentId,
+                    serviceName: service.name,
+                    sourcePath,
+                    buildCommand: service.builderConfig?.buildCommand,
+                    startCommand: service.builderConfig?.startCommand || 'npm start',
+                    installCommand: service.builderConfig?.installCommand || 'npm install',
+                    environmentVariables: service.environmentVariables || {},
+                    port: service.port || 3000,
+                    healthCheckPath: service.healthCheckPath || '/health',
+                    resourceLimits: service.resourceLimits || undefined,
+                });
+            } else {
+                // Fallback to the old deployment method for unsupported build types
+                await this.logDeployment(deploymentId, 'info', `Using legacy deployment for build type: ${buildType}`);
+                
+                // Step 2: Build container image  
+                await this.logDeployment(deploymentId, 'info', 'Building container image');
+                const imageTag = await this.buildContainerImage(sourcePath, deploymentId);
+                
+                // Step 3: Deploy container
+                await this.logDeployment(deploymentId, 'info', 'Deploying container');
+                const containerInfo = await this.deployContainer(imageTag, deploymentId);
+                
+                deploymentResult = {
+                    success: true,
+                    containers: [containerInfo.containerId],
+                    imageTag,
+                };
+            }
+
+            // Step 3: Register domain with Traefik
             await this.logDeployment(deploymentId, 'info', 'Registering domain with Traefik');
-            const domainUrl = await this.registerDomain(deploymentId, containerInfo.containerId);
-            // Step 5: Health check
+            const domainUrl = await this.registerDomain(deploymentId, deploymentResult.containers[0]);
+
+            // Step 4: Health check
             await this.logDeployment(deploymentId, 'info', 'Performing health checks');
-            await this.performHealthCheck(containerInfo.containerId);
+            await this.performHealthCheck(deploymentResult.containers[0]);
+
             // Success - update status
             await this.updateDeploymentStatus(deploymentId, 'success');
             await this.logDeployment(deploymentId, 'info', 'Deployment completed successfully', {
-                containerId: containerInfo.containerId,
-                imageTag,
+                containerId: deploymentResult.containers[0],
+                imageTag: deploymentResult.imageTag,
                 sourcePath,
-                domainUrl
+                domainUrl,
+                buildType
             });
+
             return {
                 success: true,
                 deploymentId,
-                containerId: containerInfo.containerId,
-                imageTag,
+                containerId: deploymentResult.containers[0],
+                imageTag: deploymentResult.imageTag,
                 domainUrl,
                 message: 'Deployment completed successfully'
             };
@@ -60,12 +148,14 @@ export class DeploymentProcessor {
         catch (error) {
             const err = error as Error;
             this.logger.error(`Deployment job failed for deployment ${deploymentId}:`, err);
+            
             // Update status to failed
             await this.updateDeploymentStatus(deploymentId, 'failed');
             await this.logDeployment(deploymentId, 'error', `Deployment failed: ${err.message}`, {
                 error: err.stack,
                 step: this.getCurrentStep(err)
             });
+            
             return {
                 success: false,
                 deploymentId,

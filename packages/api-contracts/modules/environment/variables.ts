@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { environmentVariableExtendedSchema, environmentVariableSchema } from './schemas';
 // Get Variables
 export const environmentGetVariablesInput = z.object({
-    environmentId: z.string().uuid(),
+    environmentId: z.string().min(1), // Accept both UUID and slug
 });
 export const environmentGetVariablesOutput = z.object({
     success: z.boolean(),
@@ -19,7 +19,7 @@ export const environmentGetVariablesContract = oc
     .output(environmentGetVariablesOutput);
 // Update Variables
 export const environmentUpdateVariablesInput = z.object({
-    environmentId: z.string().uuid(),
+    environmentId: z.string().min(1), // Accept both UUID and slug
     variables: z.array(environmentVariableSchema.extend({
         isDynamic: z.boolean().default(false),
         template: z.string().optional(),
@@ -39,7 +39,7 @@ export const environmentUpdateVariablesContract = oc
     .output(environmentUpdateVariablesOutput);
 // Resolve Variables
 export const environmentResolveVariablesInput = z.object({
-    environmentId: z.string().uuid(),
+    environmentId: z.string().min(1), // Accept both UUID and slug
 });
 export const environmentResolveVariablesOutput = z.object({
     success: z.boolean(),

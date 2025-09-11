@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from '@/core/modules/db/database.module';
-import { CoreModule } from '@/core/core.module';
 
 import { TraefikController } from './controllers/traefik.controller';
 import { TraefikService } from './services/traefik.service';
@@ -11,7 +10,7 @@ import { TraefikStartupService } from './services/traefik-startup.service';
 import { TraefikRepository } from './repositories/traefik.repository';
 
 @Module({
-  imports: [ConfigModule, DatabaseModule, CoreModule],
+  imports: [ConfigModule, DatabaseModule],
   controllers: [TraefikController],
   providers: [
     TraefikService,

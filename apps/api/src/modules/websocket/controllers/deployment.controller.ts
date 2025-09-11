@@ -1,9 +1,11 @@
 import { Controller, Logger } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { deploymentContract } from '@repo/api-contracts';
+import type { ContainerInfo } from '@repo/api-contracts/modules/deployment/listContainers';
 import { DeploymentQueueService } from '../../jobs/services/deployment-queue.service';
 import { WebSocketEventService } from '../services/websocket-event.service';
 import { DockerService } from '../../../core/services/docker.service';
+import { DeploymentService } from '../../../core/services/deployment.service';
 import { db } from '../../../core/modules/db/drizzle/index';
 import { deployments, services, projects, deploymentLogs } from '../../../core/modules/db/drizzle/schema/deployment';
 import { eq, desc, count, and } from 'drizzle-orm';
@@ -11,7 +13,12 @@ import { randomUUID } from 'crypto';
 @Controller()
 export class DeploymentController {
     private readonly logger = new Logger(DeploymentController.name);
-    constructor(private readonly queueService: DeploymentQueueService, private readonly websocketService: WebSocketEventService, private readonly dockerService: DockerService) { }
+    constructor(
+        private readonly queueService: DeploymentQueueService, 
+        private readonly websocketService: WebSocketEventService, 
+        private readonly dockerService: DockerService,
+        private readonly deploymentService: DeploymentService
+    ) { }
     @Implement(deploymentContract.getStatus)
     getDeploymentStatus() {
         return implement(deploymentContract.getStatus).handler(async ({ input }) => {
@@ -75,12 +82,14 @@ export class DeploymentController {
     triggerDeployment() {
         return implement(deploymentContract.trigger).handler(async ({ input }) => {
             const { serviceId, environment, sourceType, sourceConfig } = input;
-            this.logger.log(`Triggering deployment for service ${serviceId}`);
+            this.logger.log(`Triggering deployment for service ${serviceId}, environment: ${environment}`);
+            
             // Test Docker connection first
             const dockerConnected = await this.dockerService.testConnection();
             if (!dockerConnected) {
                 throw new Error('Docker service is not available. Please ensure Docker is running and accessible.');
             }
+
             // Get service and project information
             const service = await db.select({
                 service: services,
@@ -90,10 +99,35 @@ export class DeploymentController {
                 .innerJoin(projects, eq(services.projectId, projects.id))
                 .where(eq(services.id, serviceId))
                 .limit(1);
+
             if (!service.length) {
                 throw new Error(`Service ${serviceId} not found`);
             }
+
             const { project: projectData } = service[0];
+
+            // Stop previous deployments before creating new one
+            this.logger.log(`Checking for existing deployments to stop for service ${serviceId}`);
+            
+            const triggerInfo = {
+                branchName: sourceConfig.branch,
+                pullRequestNumber: sourceConfig.pullRequestNumber,
+            };
+
+            const stopResult = await this.deploymentService.stopPreviousDeployments(
+                serviceId,
+                environment,
+                environment === 'preview' ? triggerInfo : undefined
+            );
+
+            if (stopResult.stoppedDeployments.length > 0) {
+                this.logger.log(`Stopped ${stopResult.stoppedDeployments.length} previous deployments: ${stopResult.stoppedDeployments.join(', ')}`);
+            }
+
+            if (stopResult.errors.length > 0) {
+                this.logger.warn(`Errors stopping previous deployments: ${stopResult.errors.join('; ')}`);
+            }
+
             // Create deployment record
             const deploymentId = randomUUID();
             await db.insert(deployments).values({
@@ -107,15 +141,28 @@ export class DeploymentController {
                 createdAt: new Date(),
                 updatedAt: new Date(),
             });
-            // Log deployment initiation
-            await this.addDeploymentLog(deploymentId, 'info', 'Deployment initiated - Docker connection verified', {
+
+            // Log deployment initiation with cleanup info
+            const cleanupMessage = stopResult.stoppedDeployments.length > 0 
+                ? `Deployment initiated - Stopped ${stopResult.stoppedDeployments.length} previous deployments - Docker connection verified`
+                : 'Deployment initiated - No previous deployments to stop - Docker connection verified';
+
+            await this.addDeploymentLog(deploymentId, 'info', cleanupMessage, {
                 phase: 'initialization',
-                step: 'docker-connection-check',
+                step: 'deployment-uniqueness-check',
                 service: 'deployment-service',
                 stage: 'setup',
+                metadata: {
+                    stoppedDeployments: stopResult.stoppedDeployments,
+                    stopErrors: stopResult.errors,
+                    environment,
+                    triggerInfo: environment === 'preview' ? triggerInfo : undefined,
+                },
             });
+
             // Map sourceType for job queue (filter out unsupported types)
             const jobSourceType = sourceType === 'custom' ? 'upload' : sourceType as 'github' | 'gitlab' | 'git' | 'upload';
+
             // Queue the deployment job
             const jobId = await this.queueService.addDeploymentJob({
                 deploymentId,
@@ -129,13 +176,21 @@ export class DeploymentController {
                     filePath: sourceConfig.fileName,
                 },
             });
+
             // Emit WebSocket event
             this.websocketService.emitDeploymentStarted(deploymentId, projectData.id, serviceId);
+
             return {
                 deploymentId,
                 jobId,
                 status: 'queued',
-                message: 'Deployment has been queued and will start shortly',
+                message: stopResult.stoppedDeployments.length > 0 
+                    ? `Deployment has been queued and will start shortly. Stopped ${stopResult.stoppedDeployments.length} previous deployments.`
+                    : 'Deployment has been queued and will start shortly',
+                metadata: {
+                    stoppedPreviousDeployments: stopResult.stoppedDeployments.length,
+                    cleanupErrors: stopResult.errors.length,
+                },
             };
         });
     }
@@ -529,6 +584,288 @@ export class DeploymentController {
             };
         }
     }
+
+    @Implement(deploymentContract.health)
+    health() {
+        return implement(deploymentContract.health).handler(async ({ input }) => {
+            this.logger.log(`Getting health status for deployment: ${input.deploymentId}`);
+            
+            try {
+                const healthStatus = await this.deploymentService.monitorDeploymentHealth(input.deploymentId);
+                return healthStatus;
+            }
+            catch (error) {
+                this.logger.error(`Error getting health status for deployment ${input.deploymentId}:`, error);
+                throw error;
+            }
+        });
+    }
+
+    @Implement(deploymentContract.detailedStatus)
+    detailedStatus() {
+        return implement(deploymentContract.detailedStatus).handler(async ({ input }) => {
+            this.logger.log(`Getting detailed status for deployment: ${input.deploymentId}`);
+            
+            try {
+                const deploymentStatus = await this.deploymentService.getDeploymentStatus(input.deploymentId);
+                return deploymentStatus;
+            }
+            catch (error) {
+                this.logger.error(`Error getting detailed status for deployment ${input.deploymentId}:`, error);
+                throw error;
+            }
+        });
+    }
+
+    @Implement(deploymentContract.restartUnhealthy)
+    restartUnhealthy() {
+        return implement(deploymentContract.restartUnhealthy).handler(async ({ input }) => {
+            this.logger.log(`Restarting unhealthy containers for deployment: ${input.deploymentId}`);
+            
+            try {
+                const restartResult = await this.deploymentService.restartUnhealthyContainers(input.deploymentId);
+                return restartResult;
+            }
+            catch (error) {
+                this.logger.error(`Error restarting unhealthy containers for deployment ${input.deploymentId}:`, error);
+                throw error;
+            }
+        });
+    }
+
+    @Implement(deploymentContract.listContainers)
+    listContainers() {
+        return implement(deploymentContract.listContainers).handler(async ({ input }) => {
+            this.logger.log(`Listing containers with filters:`, input);
+            
+            try {
+                // Get all deployments with their associated containers
+                const query = db
+                    .select({
+                        deployment: deployments,
+                        service: services,
+                        project: projects
+                    })
+                    .from(deployments)
+                    .leftJoin(services, eq(deployments.serviceId, services.id))
+                    .leftJoin(projects, eq(services.projectId, projects.id))
+                    .where(and(
+                        input.status && input.status !== 'all' ? eq(deployments.status, input.status as any) : undefined,
+                        input.service ? eq(services.name, input.service) : undefined,
+                        input.project ? eq(projects.name, input.project) : undefined,
+                        input.environment ? eq(deployments.environment, input.environment) : undefined
+                    ))
+                    .orderBy(desc(deployments.createdAt));
+
+                const results = await query.limit(input.limit || 50).offset(input.offset || 0);
+                
+                // Get container information for each deployment
+                const containers: ContainerInfo[] = [];
+                const containerStats = { running: 0, stopped: 0, failed: 0, healthy: 0 };
+                
+                for (const result of results) {
+                    const deployment = result.deployment;
+                    const service = result.service;
+                    const project = result.project;
+                    
+                    if (!service || !project || !deployment.containerName) continue;
+                    
+                    try {
+                        // Get Docker container info
+                        const containerInfo = await this.dockerService.getContainerInfo(deployment.containerName);
+                        
+                        // Simple health status based on container state
+                        const isHealthy = containerInfo.State.Running && containerInfo.State.Health?.Status === 'healthy';
+                        const healthStatus = {
+                            isHealthy,
+                            status: containerInfo.State.Health?.Status || (containerInfo.State.Running ? 'running' : 'stopped'),
+                            uptime: containerInfo.State.Running ? Math.floor((new Date().getTime() - new Date(containerInfo.State.StartedAt).getTime()) / 1000) : 0,
+                            resources: {
+                                cpuUsage: undefined,
+                                memoryUsage: undefined,
+                                memoryLimit: undefined,
+                            },
+                        };
+                        
+                        // Determine container status
+                        let status: 'running' | 'stopped' | 'failed' | 'starting' | 'stopping' = 'stopped';
+                        if (containerInfo.State.Running) {
+                            status = 'running';
+                            containerStats.running++;
+                        } else if (containerInfo.State.ExitCode !== 0) {
+                            status = 'failed';
+                            containerStats.failed++;
+                        } else {
+                            status = 'stopped';
+                            containerStats.stopped++;
+                        }
+                        
+                        if (healthStatus.isHealthy) {
+                            containerStats.healthy++;
+                        }
+                        
+                        containers.push({
+                            containerId: containerInfo.Id,
+                            containerName: deployment.containerName,
+                            deploymentId: deployment.id,
+                            serviceId: service.id,
+                            serviceName: service.name,
+                            projectId: project.id,
+                            projectName: project.name,
+                            environment: deployment.environment,
+                            status,
+                            health: {
+                                isHealthy: healthStatus.isHealthy,
+                                status: healthStatus.status,
+                                uptime: healthStatus.uptime,
+                                restartCount: containerInfo.RestartCount || 0,
+                                lastStarted: containerInfo.State.StartedAt ? new Date(containerInfo.State.StartedAt) : null,
+                                resources: {
+                                    cpuUsage: healthStatus.resources?.cpuUsage,
+                                    memoryUsage: healthStatus.resources?.memoryUsage,
+                                    memoryLimit: healthStatus.resources?.memoryLimit,
+                                },
+                            },
+                            metadata: {
+                                imageTag: deployment.containerImage || undefined,
+                                ports: undefined, // Port info not stored in deployment table
+                                createdAt: deployment.createdAt,
+                                triggeredBy: deployment.triggeredBy || undefined,
+                                triggerType: (deployment.sourceConfig as any)?.triggerType || 'manual',
+                                triggerSource: (deployment.sourceConfig as any)?.repositoryUrl || undefined,
+                            },
+                        });
+                    } catch (containerError) {
+                        this.logger.warn(`Failed to get info for container ${deployment.containerName}:`, containerError);
+                        // Add container with failed status if Docker container doesn't exist
+                        containers.push({
+                            containerId: deployment.containerName || 'unknown',
+                            containerName: deployment.containerName || 'unknown',
+                            deploymentId: deployment.id,
+                            serviceId: service.id,
+                            serviceName: service.name,
+                            projectId: project.id,
+                            projectName: project.name,
+                            environment: deployment.environment,
+                            status: 'failed' as const,
+                            health: {
+                                isHealthy: false,
+                                status: 'container not found',
+                                uptime: 0,
+                                restartCount: 0,
+                                lastStarted: null,
+                                resources: {},
+                            },
+                            metadata: {
+                                imageTag: deployment.containerImage || undefined,
+                                ports: undefined, // Port info not stored in deployment table
+                                createdAt: deployment.createdAt,
+                                triggeredBy: deployment.triggeredBy || undefined,
+                                triggerType: (deployment.sourceConfig as any)?.triggerType || 'manual',
+                                triggerSource: (deployment.sourceConfig as any)?.repositoryUrl || undefined,
+                            },
+                        });
+                        containerStats.failed++;
+                    }
+                }
+                
+                // Get total count for pagination
+                const totalQuery = db
+                    .select({ count: count() })
+                    .from(deployments)
+                    .leftJoin(services, eq(deployments.serviceId, services.id))
+                    .leftJoin(projects, eq(services.projectId, projects.id))
+                    .where(and(
+                        input.status && input.status !== 'all' ? eq(deployments.status, input.status as any) : undefined,
+                        input.service ? eq(services.name, input.service) : undefined,
+                        input.project ? eq(projects.name, input.project) : undefined,
+                        input.environment ? eq(deployments.environment, input.environment) : undefined
+                    ));
+                
+                const [totalResult] = await totalQuery;
+                const total = totalResult?.count || 0;
+                
+                return {
+                    containers,
+                    pagination: {
+                        total,
+                        limit: input.limit || 50,
+                        offset: input.offset || 0,
+                        hasMore: (input.offset || 0) + containers.length < total,
+                    },
+                    summary: {
+                        totalContainers: containers.length,
+                        runningContainers: containerStats.running,
+                        stoppedContainers: containerStats.stopped,
+                        failedContainers: containerStats.failed,
+                        healthyContainers: containerStats.healthy,
+                    },
+                };
+            } catch (error) {
+                this.logger.error('Error listing containers:', error);
+                throw error;
+            }
+        });
+    }
+
+    @Implement(deploymentContract.containerAction)
+    containerAction() {
+        return implement(deploymentContract.containerAction).handler(async ({ input }) => {
+            const { containerId, action } = input;
+            this.logger.log(`Performing action ${action} on container ${containerId}`);
+            
+            try {
+                let success = false;
+                let message = '';
+                
+                // Get container instance from Docker
+                const container = (this.dockerService as any).docker.getContainer(containerId);
+                
+                switch (action) {
+                    case 'start':
+                        await container.start();
+                        success = true;
+                        message = 'Container started successfully';
+                        break;
+                    case 'stop':
+                        await container.stop();
+                        success = true;
+                        message = 'Container stopped successfully';
+                        break;
+                    case 'restart':
+                        await container.restart();
+                        success = true;
+                        message = 'Container restarted successfully';
+                        break;
+                    case 'remove':
+                        await container.remove({ force: true });
+                        success = true;
+                        message = 'Container removed successfully';
+                        break;
+                    default:
+                        throw new Error(`Unknown action: ${action}`);
+                }
+                
+                return {
+                    containerId,
+                    action,
+                    success,
+                    message,
+                    timestamp: new Date(),
+                };
+            } catch (error) {
+                this.logger.error(`Error performing action ${action} on container ${containerId}:`, error);
+                return {
+                    containerId,
+                    action,
+                    success: false,
+                    message: error instanceof Error ? error.message : 'Unknown error',
+                    timestamp: new Date(),
+                };
+            }
+        });
+    }
+
     /**
      * Helper method to add deployment logs with consistent structure
      */

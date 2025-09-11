@@ -59,6 +59,8 @@ export function createORPCClientWithCookies(serverCookies?: string) {
             // Redirect to login page
             window.location.href = loginUrl
           }
+
+          throw error; // Re-throw to allow further handling if needed
         }
       })
     ],

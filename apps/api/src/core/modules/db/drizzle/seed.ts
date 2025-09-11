@@ -1,5 +1,5 @@
 import { db } from './index';
-import { user, projects, services, serviceDependencies, projectCollaborators, deployments, deploymentLogs, previewEnvironments, systemStatus, traefikServiceConfigs, traefikDomainRoutes, traefikServiceTargets, traefikMiddlewares, traefikConfigFiles, domainConfigs, routeConfigs, traefikConfigs, configFiles, traefikStaticConfigs, traefikMiddleware, traefikPlugins, traefikStaticFiles, traefikBackups, type CreateTraefikMiddleware, type CreateTraefikPlugin, type CreateTraefikStaticFile } from './schema';
+import { user, projects, services, serviceDependencies, projectCollaborators, deployments, deploymentLogs, previewEnvironments, systemStatus, traefikServiceConfigs, traefikDomainRoutes, traefikServiceTargets, traefikMiddlewares, traefikConfigFiles, domainConfigs, routeConfigs, traefikConfigs, configFiles, traefikStaticConfigs, traefikMiddleware, traefikPlugins, traefikStaticFiles, traefikBackups, environments, type CreateTraefikMiddleware, type CreateTraefikPlugin, type CreateTraefikStaticFile } from './schema';
 import { randomUUID } from 'crypto';
 import { eq } from 'drizzle-orm';
 
@@ -253,6 +253,118 @@ async function seed() {
         ];
         const insertedProjects = await db.insert(projects).values(sampleProjects).returning();
         console.log('✅ Created sample projects');
+
+        // Create sample environments for the projects
+        console.log('🌍 Creating sample environments...');
+        const sampleEnvironments = [
+            {
+                name: 'Production',
+                slug: 'production',
+                description: 'Production environment for live applications',
+                type: 'production' as const,
+                status: 'healthy' as const,
+                projectId: insertedProjects[0].id, // Associate with blog project
+                domainConfig: {
+                    baseDomain: 'example.com',
+                    sslEnabled: true
+                },
+                networkConfig: {
+                    corsOrigins: ['https://example.com'],
+                    rateLimit: 1000
+                },
+                deploymentConfig: {
+                    autoDeployEnabled: true,
+                    deploymentStrategy: 'rolling' as const
+                },
+                resourceLimits: {
+                    memory: '2GB',
+                    cpu: '1000m'
+                },
+                metadata: {
+                    serviceCount: 0,
+                    deploymentCount: 0,
+                    accessCount: 0,
+                    tags: ['production', 'live']
+                },
+                isActive: true,
+                createdBy: insertedUsers[0].id,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            },
+            {
+                name: 'Staging',
+                slug: 'staging',
+                description: 'Staging environment for testing',
+                type: 'staging' as const,
+                status: 'healthy' as const,
+                projectId: insertedProjects[0].id,
+                domainConfig: {
+                    baseDomain: 'staging.example.com',
+                    sslEnabled: true
+                },
+                networkConfig: {
+                    corsOrigins: ['https://staging.example.com'],
+                    rateLimit: 500
+                },
+                deploymentConfig: {
+                    autoDeployEnabled: true,
+                    deploymentStrategy: 'recreate' as const
+                },
+                resourceLimits: {
+                    memory: '1GB',
+                    cpu: '500m'
+                },
+                metadata: {
+                    serviceCount: 0,
+                    deploymentCount: 0,
+                    accessCount: 0,
+                    tags: ['staging', 'testing']
+                },
+                isActive: true,
+                createdBy: insertedUsers[0].id,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            },
+            {
+                name: 'Development',
+                slug: 'development',
+                description: 'Development environment for local testing',
+                type: 'development' as const,
+                status: 'healthy' as const,
+                projectId: insertedProjects[1].id, // Associate with portfolio project
+                domainConfig: {
+                    baseDomain: 'dev.example.com',
+                    sslEnabled: false
+                },
+                networkConfig: {
+                    corsOrigins: ['http://localhost:3000'],
+                    rateLimit: 100
+                },
+                deploymentConfig: {
+                    autoDeployEnabled: false,
+                    deploymentStrategy: 'recreate' as const
+                },
+                resourceLimits: {
+                    memory: '512MB',
+                    cpu: '250m'
+                },
+                metadata: {
+                    serviceCount: 0,
+                    deploymentCount: 0,
+                    accessCount: 0,
+                    tags: ['development', 'local']
+                },
+                isActive: true,
+                createdBy: insertedUsers[0].id,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            }
+        ];
+
+        const insertedEnvironments = await db.insert(environments).values(sampleEnvironments).returning();
+        console.log('✅ Created sample environments');
+        console.log('📋 Environments created:', insertedEnvironments.map(env => `${env.name} (${env.slug})`).join(', '));
+
         // Create sample services for the first project using Traefik integration
         console.log('🚀 Creating services with Traefik configuration...');
         // API Service for blog project
@@ -1480,6 +1592,7 @@ http:
         console.log('\n🎉 Database seeded successfully with:');
         console.log('  👥 2 sample users');
         console.log('  🏗️  2 sample projects');
+        console.log('  🌍 3 sample environments (production, staging, development)');
         console.log('  ⚙️  3 sample services with automatic Traefik configuration');
         console.log('  🚀 2 sample deployments (API + Static)');
         console.log('  📋 10 deployment logs (6 API + 4 static)');

@@ -31,6 +31,7 @@ import {
     HardDrive,
     Variable,
     GitBranch,
+    Container,
 } from 'lucide-react'
 import {
     Tooltip,
@@ -57,7 +58,7 @@ import {
 } from '@/hooks/useTeams'
 import CreateOrganizationDialog from '@/components/organization/CreateOrganizationDialog'
 import { UserProfileFooter } from './UserProfileFooter'
-import { Dashboard, DashboardProjects } from '@/routes'
+import { Dashboard, DashboardProjects, DashboardContainers } from '@/routes'
 
 const navigationItems = [
     {
@@ -74,6 +75,11 @@ const navigationItems = [
         title: 'Deployments',
         url: '/dashboard/deployments',
         icon: Zap,
+    },
+    {
+        title: 'Containers',
+        url: DashboardContainers(),
+        icon: Container,
     },
     {
         title: 'Orchestration',

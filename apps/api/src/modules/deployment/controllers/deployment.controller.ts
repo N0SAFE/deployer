@@ -6,12 +6,13 @@ import { DockerService } from '../../../core/services/docker.service';
 import { ServiceRepository } from '../../service/repositories/service.repository';
 import { ServiceService } from '../../service/services/service.service';
 import { DatabaseService } from '../../../core/modules/db/services/database.service';
+import { DeploymentService } from '../../../core/services/deployment.service';
 import { deployments, deploymentLogs } from '../../../core/modules/db/drizzle/schema';
 import { eq, desc } from 'drizzle-orm';
 @Controller()
 export class DeploymentController {
     private readonly logger = new Logger(DeploymentController.name);
-    constructor(private readonly deploymentQueueService: DeploymentQueueService, private readonly dockerService: DockerService, private readonly serviceRepository: ServiceRepository, private readonly serviceService: ServiceService, private readonly databaseService: DatabaseService) { }
+    constructor(private readonly deploymentQueueService: DeploymentQueueService, private readonly dockerService: DockerService, private readonly serviceRepository: ServiceRepository, private readonly serviceService: ServiceService, private readonly databaseService: DatabaseService, private readonly deploymentService: DeploymentService) { }
     @Implement(deploymentContract.jobStatus)
     jobStatus() {
         return implement(deploymentContract.jobStatus).handler(async ({ input }) => {
@@ -93,6 +94,7 @@ export class DeploymentController {
                 if (!dockerConnected) {
                     throw new Error('Docker service is not available. Cannot trigger deployment.');
                 }
+                
                 // Get service details
                 const service = await this.serviceRepository.findById(input.serviceId);
                 if (!service) {
@@ -101,6 +103,20 @@ export class DeploymentController {
                 if (!service.isActive) {
                     throw new Error(`Service ${input.serviceId} is not active`);
                 }
+                
+                // Safely handle provider config to ensure it's serializable
+                let safeProviderConfig: any = {};
+                try {
+                    if (service.providerConfig) {
+                        safeProviderConfig = typeof service.providerConfig === 'object' 
+                            ? JSON.parse(JSON.stringify(service.providerConfig))
+                            : JSON.parse(service.providerConfig as string);
+                    }
+                } catch (configError) {
+                    this.logger.warn(`Failed to parse provider config for service ${input.serviceId}:`, configError);
+                    safeProviderConfig = {};
+                }
+                
                 // Create deployment record
                 const [deployment] = await this.databaseService.db
                     .insert(deployments)
@@ -110,7 +126,7 @@ export class DeploymentController {
                     status: 'queued',
                     environment: 'production',
                     sourceType: this.mapServiceProviderToSourceType(service.provider),
-                    sourceConfig: service.providerConfig,
+                    sourceConfig: safeProviderConfig,
                     metadata: {
                         stage: 'queued',
                         progress: 0,
@@ -120,6 +136,7 @@ export class DeploymentController {
                 })
                     .returning();
                 this.logger.log(`Created deployment record: ${deployment.id}`);
+                
                 // Add deployment log
                 await this.serviceRepository.createDeploymentLog({
                     deploymentId: deployment.id,
@@ -136,6 +153,20 @@ export class DeploymentController {
                         builder: service.builder,
                     },
                 });
+                
+                // Safely handle environment variables
+                let safeEnvironmentVariables: Record<string, string> = {};
+                try {
+                    if (service.environmentVariables) {
+                        safeEnvironmentVariables = typeof service.environmentVariables === 'object'
+                            ? JSON.parse(JSON.stringify(service.environmentVariables))
+                            : JSON.parse(service.environmentVariables as string);
+                    }
+                } catch (envError) {
+                    this.logger.warn(`Failed to parse environment variables for service ${input.serviceId}:`, envError);
+                    safeEnvironmentVariables = {};
+                }
+                
                 // Queue deployment job
                 const jobId = await this.deploymentQueueService.addDeploymentJob({
                     deploymentId: deployment.id,
@@ -143,8 +174,8 @@ export class DeploymentController {
                     projectId: service.projectId,
                     sourceConfig: {
                         type: this.mapServiceProviderToSourceType(service.provider),
-                        ...service.providerConfig,
-                        envVars: service.environmentVariables || {},
+                        ...safeProviderConfig,
+                        envVars: safeEnvironmentVariables,
                     },
                 });
                 this.logger.log(`Queued deployment job: ${jobId} for deployment: ${deployment.id}`);
@@ -411,6 +442,55 @@ export class DeploymentController {
             }
         });
     }
+
+    @Implement(deploymentContract.health)
+    health() {
+        return implement(deploymentContract.health).handler(async ({ input }) => {
+            this.logger.log(`Getting health status for deployment: ${input.deploymentId}`);
+            
+            try {
+                const healthStatus = await this.deploymentService.monitorDeploymentHealth(input.deploymentId);
+                return healthStatus;
+            }
+            catch (error) {
+                this.logger.error(`Error getting health status for deployment ${input.deploymentId}:`, error);
+                throw error;
+            }
+        });
+    }
+
+    @Implement(deploymentContract.detailedStatus)
+    detailedStatus() {
+        return implement(deploymentContract.detailedStatus).handler(async ({ input }) => {
+            this.logger.log(`Getting detailed status for deployment: ${input.deploymentId}`);
+            
+            try {
+                const deploymentStatus = await this.deploymentService.getDeploymentStatus(input.deploymentId);
+                return deploymentStatus;
+            }
+            catch (error) {
+                this.logger.error(`Error getting detailed status for deployment ${input.deploymentId}:`, error);
+                throw error;
+            }
+        });
+    }
+
+    @Implement(deploymentContract.restartUnhealthy)
+    restartUnhealthy() {
+        return implement(deploymentContract.restartUnhealthy).handler(async ({ input }) => {
+            this.logger.log(`Restarting unhealthy containers for deployment: ${input.deploymentId}`);
+            
+            try {
+                const restartResult = await this.deploymentService.restartUnhealthyContainers(input.deploymentId);
+                return restartResult;
+            }
+            catch (error) {
+                this.logger.error(`Error restarting unhealthy containers for deployment ${input.deploymentId}:`, error);
+                throw error;
+            }
+        });
+    }
+
     /**
      * Helper method to map deployment status to stage
      */
@@ -455,5 +535,205 @@ export class DeploymentController {
                 return 'upload';
             default: return 'git';
         }
+    }
+
+    @Implement(deploymentContract.listContainers)
+    listContainers() {
+        return implement(deploymentContract.listContainers).handler(async ({ input }) => {
+            const { status, service, project, environment, limit = 50, offset = 0 } = input;
+
+            // Get all deployments - we'll need to enhance this to get relations
+            const allDeployments = await this.databaseService.db
+                .select()
+                .from(deployments)
+                .orderBy(desc(deployments.createdAt));
+
+            // Get containers from Docker
+            const dockerContainers = await this.dockerService.listContainers({
+                all: status === 'all',
+            });
+
+            // Combine deployment data with Docker container info
+            const containers: Array<{
+                containerId: string;
+                containerName: string;
+                deploymentId: string;
+                serviceId: string;
+                serviceName: string;
+                projectId: string;
+                projectName: string;
+                environment: 'production' | 'staging' | 'preview' | 'development';
+                status: 'running' | 'stopped' | 'failed' | 'starting' | 'stopping';
+                health: {
+                    isHealthy: boolean;
+                    status: string;
+                    uptime: number;
+                    restartCount: number;
+                    lastStarted: Date | null;
+                    resources: {
+                        cpuUsage?: number;
+                        memoryUsage?: number;
+                        memoryLimit?: number;
+                    };
+                };
+                metadata: {
+                    imageTag?: string;
+                    ports?: Record<string, string>;
+                    createdAt: Date;
+                    triggeredBy?: string;
+                    triggerType?: 'webhook' | 'manual' | 'api' | 'github' | 'gitlab';
+                    triggerSource?: string;
+                };
+            }> = [];
+            
+            for (const deployment of allDeployments) {
+                if (!deployment.containerName) continue;
+                
+                // Filter by service if specified
+                if (service && deployment.serviceId !== service) continue;
+                
+                // Filter by environment if specified
+                if (environment && deployment.environment !== environment) continue;
+                
+                const dockerContainer = dockerContainers.find(
+                    (c) => c.Names[0] === `/${deployment.containerName}`
+                );
+
+                // Skip if status filter doesn't match
+                if (status && status !== 'all') {
+                    const containerState = dockerContainer?.State?.toLowerCase() || 'stopped';
+                    if (status === 'running' && containerState !== 'running') continue;
+                    if (status === 'stopped' && containerState !== 'exited') continue;
+                    if (status === 'failed' && !containerState.includes('dead')) continue;
+                }
+
+                let containerHealth;
+                try {
+                    containerHealth = await this.dockerService.performHealthCheck(
+                        deployment.containerName,
+                        deployment.healthCheckUrl || undefined
+                    );
+                } catch (error) {
+                    this.logger.error(`Health check failed for ${deployment.containerName}:`, error);
+                    containerHealth = {
+                        isHealthy: false,
+                        containerHealth: {
+                            isHealthy: false,
+                            status: 'unhealthy',
+                            uptime: 0,
+                            restartCount: 0,
+                            lastStarted: null,
+                            resources: {
+                                cpuUsage: 0,
+                                memoryUsage: 0,
+                                memoryLimit: 0,
+                            },
+                        },
+                    };
+                }
+
+                containers.push({
+                    containerId: dockerContainer?.Id || deployment.containerName,
+                    containerName: deployment.containerName,
+                    deploymentId: deployment.id,
+                    serviceId: deployment.serviceId,
+                    serviceName: 'Unknown', // Will be fetched separately if needed
+                    projectId: project || '',
+                    projectName: 'Unknown', // Will be fetched separately if needed
+                    environment: deployment.environment,
+                    status: dockerContainer?.State === 'running' ? 'running' : 
+                           dockerContainer?.State === 'exited' ? 'stopped' : 'failed',
+                    health: {
+                        isHealthy: containerHealth.isHealthy,
+                        status: containerHealth.containerHealth.status,
+                        uptime: containerHealth.containerHealth.uptime || 0,
+                        restartCount: containerHealth.containerHealth.restartCount || 0,
+                        lastStarted: containerHealth.containerHealth.lastStarted || null,
+                        resources: {
+                            cpuUsage: containerHealth.containerHealth.resources?.cpuUsage,
+                            memoryUsage: containerHealth.containerHealth.resources?.memoryUsage,
+                            memoryLimit: containerHealth.containerHealth.resources?.memoryLimit,
+                        },
+                    },
+                    metadata: {
+                        imageTag: deployment.containerImage || undefined,
+                        ports: undefined, // Will be filled from docker container ports
+                        createdAt: deployment.createdAt,
+                        triggeredBy: deployment.triggeredBy || undefined,
+                        triggerType: deployment.sourceConfig?.pullRequestNumber ? 'github' : 'webhook',
+                        triggerSource: deployment.sourceConfig?.branch || 
+                                      deployment.sourceConfig?.repositoryUrl || undefined,
+                    },
+                });
+            }
+
+            // Apply pagination
+            const paginatedContainers = containers.slice(offset, offset + limit);
+
+            // Calculate summary stats
+            const summary = {
+                totalContainers: containers.length,
+                runningContainers: containers.filter(c => c.status === 'running').length,
+                stoppedContainers: containers.filter(c => c.status === 'stopped').length,
+                failedContainers: containers.filter(c => c.status === 'failed').length,
+                healthyContainers: containers.filter(c => c.health.isHealthy).length,
+            };
+
+            return {
+                containers: paginatedContainers,
+                pagination: {
+                    total: containers.length,
+                    limit,
+                    offset,
+                    hasMore: offset + limit < containers.length,
+                },
+                summary,
+            };
+        });
+    }
+
+    @Implement(deploymentContract.containerAction)
+    containerAction() {
+        return implement(deploymentContract.containerAction).handler(async ({ input }) => {
+            const { containerId, action } = input;
+
+            try {
+                switch (action) {
+                    case 'start':
+                        // Use docker.getContainer().start() directly since there's no startContainer method
+                        const startContainer = this.dockerService.getDockerClient().getContainer(containerId);
+                        await startContainer.start();
+                        break;
+                    case 'stop':
+                        await this.dockerService.stopContainer(containerId);
+                        break;
+                    case 'restart':
+                        await this.dockerService.restartContainer(containerId);
+                        break;
+                    case 'remove':
+                        await this.dockerService.removeContainer(containerId);
+                        break;
+                    default:
+                        throw new Error(`Unknown action: ${action}`);
+                }
+
+                return {
+                    containerId,
+                    action,
+                    success: true,
+                    message: `Container ${action} completed successfully`,
+                    timestamp: new Date(),
+                };
+            } catch (error) {
+                this.logger.error(`Container action failed:`, error);
+                return {
+                    containerId,
+                    action,
+                    success: false,
+                    message: error instanceof Error ? error.message : 'Unknown error',
+                    timestamp: new Date(),
+                };
+            }
+        });
     }
 }

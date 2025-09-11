@@ -189,6 +189,205 @@ CMD ["npm", "start"]
             return false;
         }
     }
+
+    async getDetailedContainerHealth(containerId: string): Promise<{
+        isHealthy: boolean;
+        status: string;
+        uptime: number;
+        restartCount: number;
+        lastStarted: Date | null;
+        healthChecks?: {
+            status: string;
+            failingStreak: number;
+            log: Array<{
+                start: string;
+                end: string;
+                exitCode: number;
+                output: string;
+            }>;
+        };
+        resources: {
+            cpuUsage?: number;
+            memoryUsage?: number;
+            memoryLimit?: number;
+        };
+    }> {
+        try {
+            const container = this.docker.getContainer(containerId);
+            const containerInfo = await container.inspect();
+            
+            // Get container stats for resource usage
+            let resources: any = {};
+            try {
+                const stats = await container.stats({ stream: false });
+                const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
+                const systemDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage;
+                const cpuUsage = cpuDelta > 0 && systemDelta > 0 ? (cpuDelta / systemDelta) * 100 : 0;
+                
+                resources = {
+                    cpuUsage: Math.round(cpuUsage * 100) / 100,
+                    memoryUsage: stats.memory_stats.usage,
+                    memoryLimit: stats.memory_stats.limit,
+                };
+            } catch (statsError) {
+                this.logger.warn(`Could not get stats for container ${containerId}:`, statsError);
+            }
+
+            const uptime = containerInfo.State.StartedAt 
+                ? Date.now() - new Date(containerInfo.State.StartedAt).getTime()
+                : 0;
+
+            const result = {
+                isHealthy: containerInfo.State.Status === 'running',
+                status: containerInfo.State.Status,
+                uptime: Math.floor(uptime / 1000), // in seconds
+                restartCount: containerInfo.RestartCount || 0,
+                lastStarted: containerInfo.State.StartedAt ? new Date(containerInfo.State.StartedAt) : null,
+                resources,
+            };
+
+            // Add health check details if available
+            if (containerInfo.State.Health) {
+                (result as any).healthChecks = {
+                    status: containerInfo.State.Health.Status,
+                    failingStreak: containerInfo.State.Health.FailingStreak || 0,
+                    log: containerInfo.State.Health.Log?.slice(-5) || [], // Last 5 health check logs
+                };
+            }
+
+            return result;
+        }
+        catch (error) {
+            this.logger.error(`Failed to get detailed health for container ${containerId}:`, error);
+            return {
+                isHealthy: false,
+                status: 'unknown',
+                uptime: 0,
+                restartCount: 0,
+                lastStarted: null,
+                resources: {},
+            };
+        }
+    }
+
+    async monitorContainersByDeployment(deploymentId: string): Promise<Array<{
+        containerId: string;
+        containerName: string;
+        health: Awaited<ReturnType<DockerService['getDetailedContainerHealth']>>;
+    }>> {
+        try {
+            const containers = await this.listContainersByDeployment(deploymentId);
+            const results: Array<{
+                containerId: string;
+                containerName: string;
+                health: Awaited<ReturnType<DockerService['getDetailedContainerHealth']>>;
+            }> = [];
+
+            for (const container of containers) {
+                const health = await this.getDetailedContainerHealth(container.id);
+                results.push({
+                    containerId: container.id,
+                    containerName: container.name,
+                    health,
+                });
+            }
+
+            return results;
+        }
+        catch (error) {
+            this.logger.error(`Failed to monitor containers for deployment ${deploymentId}:`, error);
+            return [];
+        }
+    }
+
+    async performHealthCheck(containerId: string, healthCheckUrl?: string, timeout: number = 30000): Promise<{
+        isHealthy: boolean;
+        httpStatus?: number;
+        responseTime?: number;
+        error?: string;
+        containerHealth: Awaited<ReturnType<DockerService['getDetailedContainerHealth']>>;
+    }> {
+        const containerHealth = await this.getDetailedContainerHealth(containerId);
+        
+        const result = {
+            isHealthy: containerHealth.isHealthy,
+            containerHealth,
+        };
+
+        // If HTTP health check URL is provided, test it
+        if (healthCheckUrl && containerHealth.isHealthy) {
+            try {
+                const startTime = Date.now();
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+                const response = await fetch(healthCheckUrl, {
+                    signal: controller.signal,
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'Deployer-HealthCheck/1.0',
+                    },
+                });
+
+                clearTimeout(timeoutId);
+                const responseTime = Date.now() - startTime;
+
+                return {
+                    ...result,
+                    isHealthy: response.ok && containerHealth.isHealthy,
+                    httpStatus: response.status,
+                    responseTime,
+                };
+            }
+            catch (error) {
+                return {
+                    ...result,
+                    isHealthy: false,
+                    error: error instanceof Error ? error.message : 'Unknown error',
+                };
+            }
+        }
+
+        return result;
+    }
+
+    async waitForContainerHealth(
+        containerId: string, 
+        maxRetries: number = 30, 
+        retryInterval: number = 2000,
+        healthCheckUrl?: string
+    ): Promise<boolean> {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            this.logger.debug(`Health check attempt ${attempt}/${maxRetries} for container ${containerId}`);
+            
+            const healthResult = await this.performHealthCheck(containerId, healthCheckUrl);
+            
+            if (healthResult.isHealthy) {
+                this.logger.log(`Container ${containerId} is healthy after ${attempt} attempts`);
+                return true;
+            }
+
+            if (attempt < maxRetries) {
+                this.logger.debug(`Container ${containerId} not healthy yet, waiting ${retryInterval}ms...`);
+                await new Promise(resolve => setTimeout(resolve, retryInterval));
+            }
+        }
+
+        this.logger.error(`Container ${containerId} failed health check after ${maxRetries} attempts`);
+        return false;
+    }
+
+    async restartContainer(containerId: string): Promise<void> {
+        try {
+            const container = this.docker.getContainer(containerId);
+            await container.restart();
+            this.logger.log(`Container ${containerId} restarted successfully`);
+        }
+        catch (error) {
+            this.logger.error(`Failed to restart container ${containerId}:`, error);
+            throw error;
+        }
+    }
     async removeContainer(containerId: string): Promise<void> {
         try {
             const container = this.docker.getContainer(containerId);

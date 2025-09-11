@@ -1,0 +1,1 @@
+ALTER TABLE "traefik_configs" DROP COLUMN "config_path";

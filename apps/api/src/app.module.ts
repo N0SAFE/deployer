@@ -1,8 +1,10 @@
 import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
+import { ScheduleModule } from '@nestjs/schedule';
 import { DatabaseModule } from './core/modules/db/database.module';
 import { CoreModule } from './core/core.module';
 import { HealthModule } from './modules/health/health.module';
+import { HealthMonitorModule } from './modules/health-monitor/health-monitor.module';
 import { UserModule } from './modules/user/user.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { WebSocketModule } from './modules/websocket/websocket.module';
@@ -25,6 +27,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { AuthGuard } from './modules/auth/guards/auth.guard';
 @Module({
     imports: [
+        // Enable scheduled tasks
+        ScheduleModule.forRoot(),
         // Redis/Bull Queue configuration
         BullModule.forRoot({
             redis: {
@@ -36,6 +40,7 @@ import { AuthGuard } from './modules/auth/guards/auth.guard';
         DatabaseModule,
         CoreModule,
         HealthModule,
+        HealthMonitorModule,
         UserModule,
         JobsModule,
         WebSocketModule,
@@ -63,18 +68,18 @@ import { AuthGuard } from './modules/auth/guards/auth.guard';
                             return JSON.stringify(obj);
                         } catch {
                             // Handle circular reference by using a replacer function
+                            const circularSeen = new WeakSet();
                             return JSON.stringify(obj, (key, value) => {
                                 if (typeof value === 'object' && value !== null) {
-                                    if (seen.has(value)) {
+                                    if (circularSeen.has(value)) {
                                         return '[Circular]';
                                     }
-                                    seen.add(value);
+                                    circularSeen.add(value);
                                 }
                                 return value;
                             });
                         }
                     };
-                    const seen = new WeakSet();
                     console.error('oRPC Error:', safeStringify(error), safeStringify(ctx));
                 }),
             ],

@@ -34,7 +34,7 @@ export const environmentCreatePreviewContract = oc
     .output(environmentCreatePreviewOutput);
 // Create Preview Environment for Project
 export const environmentCreatePreviewForProjectInput = z.object({
-    projectId: z.string().uuid(),
+    projectId: z.string().min(1), // Accept both UUIDs and project slugs
 }).merge(createPreviewEnvironmentSchema);
 export const environmentCreatePreviewForProjectOutput = deploymentEnvironmentSchema;
 export const environmentCreatePreviewForProjectContract = oc
@@ -63,7 +63,7 @@ export const environmentListPreviewsContract = oc
     .output(environmentListPreviewsOutput);
 // List Preview Environments with Filters
 export const environmentListPreviewEnvironmentsInput = z.object({
-    projectId: z.string().uuid(),
+    projectId: z.string().min(1), // Accept both UUIDs and project slugs
     branch: z.string().optional(),
     status: z.enum(['active', 'expired', 'all']).default('active'),
     limit: z.number().min(1).max(100).default(20),
@@ -101,7 +101,7 @@ export const environmentCleanupExpiredPreviewsContract = oc
     .output(environmentCleanupExpiredPreviewsOutput);
 // Cleanup Preview Environments for Project
 export const environmentCleanupPreviewEnvironmentsInput = z.object({
-    projectId: z.string().uuid(),
+    projectId: z.string().min(1), // Accept both UUIDs and project slugs
     dryRun: z.boolean().default(false),
 });
 export const environmentCleanupPreviewEnvironmentsOutput = z.object({

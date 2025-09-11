@@ -30,7 +30,12 @@ export function useDeployments(options?: {
   offset?: number;
   status?: DeploymentStatus;
 }) {
-  const params: any = {
+  const params: {
+    limit: number;
+    offset: number;
+    serviceId?: string;
+    status?: DeploymentStatus;
+  } = {
     limit: options?.limit || 20,
     offset: options?.offset || 0,
     ...(options?.status && { status: options.status })
@@ -161,9 +166,9 @@ export function useDeploymentActions() {
   const rollbackDeployment = useRollbackDeployment();
 
   return {
-    triggerDeployment: triggerDeployment.mutate,
-    cancelDeployment: cancelDeployment.mutate,
-    rollbackDeployment: rollbackDeployment.mutate,
+    triggerDeployment: triggerDeployment.mutateAsync,
+    cancelDeployment: cancelDeployment.mutateAsync,
+    rollbackDeployment: rollbackDeployment.mutateAsync,
     isLoading: {
       trigger: triggerDeployment.isPending,
       cancel: cancelDeployment.isPending,
