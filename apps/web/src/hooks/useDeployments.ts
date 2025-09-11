@@ -30,12 +30,19 @@ export function useDeployments(options?: {
   offset?: number;
   status?: DeploymentStatus;
 }) {
-  const params = {
-    serviceId: options?.serviceId || '',
+  const params: any = {
     limit: options?.limit || 20,
     offset: options?.offset || 0,
     ...(options?.status && { status: options.status })
   };
+
+  // Only include serviceId if it's a valid UUID
+  if (options?.serviceId && options.serviceId.trim() !== '') {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(options.serviceId)) {
+      params.serviceId = options.serviceId;
+    }
+  }
 
   return useQuery(orpc.deployment.list.queryOptions({
     input: params,
@@ -113,8 +120,11 @@ export function useCancelDeployment() {
       queryClient.invalidateQueries({
         queryKey: orpc.deployment.getStatus.queryKey({ input: { deploymentId: variables.deploymentId } })
       });
+      // Invalidate all deployment lists
       queryClient.invalidateQueries({
-        queryKey: orpc.deployment.list.queryKey({ input: { serviceId: '' } })
+        predicate: (query) => {
+          return query.queryKey[0] === 'deployment' && query.queryKey[1] === 'list';
+        }
       });
     },
     onError: (error: Error) => {
@@ -131,9 +141,11 @@ export function useRollbackDeployment() {
     onSuccess: () => {
       toast.success('Rollback initiated successfully');
       
-      // Invalidate deployment queries
+      // Invalidate all deployment lists
       queryClient.invalidateQueries({
-        queryKey: orpc.deployment.list.queryKey({ input: { serviceId: '' } })
+        predicate: (query) => {
+          return query.queryKey[0] === 'deployment' && query.queryKey[1] === 'list';
+        }
       });
     },
     onError: (error: Error) => {

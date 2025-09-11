@@ -6,7 +6,7 @@ import { WebSocketEventService } from '../services/websocket-event.service';
 import { DockerService } from '../../../core/services/docker.service';
 import { db } from '../../../core/modules/db/drizzle/index';
 import { deployments, services, projects, deploymentLogs } from '../../../core/modules/db/drizzle/schema/deployment';
-import { eq, desc, count } from 'drizzle-orm';
+import { eq, desc, count, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 @Controller()
 export class DeploymentController {
@@ -401,25 +401,69 @@ export class DeploymentController {
     listDeployments() {
         return implement(deploymentContract.list).handler(async ({ input }) => {
             const { serviceId, limit, offset, status } = input;
-            this.logger.log(`Listing deployments for service ${serviceId}`);
-            // Build query conditions
-            const conditions = [eq(deployments.serviceId, serviceId)];
-            if (status) {
-                conditions.push(eq(deployments.status, status));
+            this.logger.log(`Listing deployments${serviceId ? ` for service ${serviceId}` : ''}`);
+            
+            // Get deployments from database
+            let deploymentList;
+            let totalResult;
+            
+            if (serviceId && serviceId.trim() !== '') {
+                // Validate UUID format before querying
+                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+                if (!uuidRegex.test(serviceId)) {
+                    throw new Error(`Invalid service ID format: ${serviceId}`);
+                }
+                
+                if (status) {
+                    deploymentList = await db.select()
+                        .from(deployments)
+                        .where(and(eq(deployments.serviceId, serviceId), eq(deployments.status, status)))
+                        .orderBy(desc(deployments.createdAt))
+                        .limit(limit)
+                        .offset(offset);
+                    
+                    totalResult = await db.select({ count: count() })
+                        .from(deployments)
+                        .where(and(eq(deployments.serviceId, serviceId), eq(deployments.status, status)));
+                } else {
+                    deploymentList = await db.select()
+                        .from(deployments)
+                        .where(eq(deployments.serviceId, serviceId))
+                        .orderBy(desc(deployments.createdAt))
+                        .limit(limit)
+                        .offset(offset);
+                    
+                    totalResult = await db.select({ count: count() })
+                        .from(deployments)
+                        .where(eq(deployments.serviceId, serviceId));
+                }
+            } else {
+                if (status) {
+                    deploymentList = await db.select()
+                        .from(deployments)
+                        .where(eq(deployments.status, status))
+                        .orderBy(desc(deployments.createdAt))
+                        .limit(limit)
+                        .offset(offset);
+                    
+                    totalResult = await db.select({ count: count() })
+                        .from(deployments)
+                        .where(eq(deployments.status, status));
+                } else {
+                    deploymentList = await db.select()
+                        .from(deployments)
+                        .orderBy(desc(deployments.createdAt))
+                        .limit(limit)
+                        .offset(offset);
+                    
+                    totalResult = await db.select({ count: count() })
+                        .from(deployments);
+                }
             }
-            // Get deployments
-            const deploymentList = await db.select()
-                .from(deployments)
-                .where(eq(deployments.serviceId, serviceId))
-                .orderBy(desc(deployments.createdAt))
-                .limit(limit)
-                .offset(offset);
-            // Get total count
-            const totalResult = await db.select({ count: count() })
-                .from(deployments)
-                .where(eq(deployments.serviceId, serviceId));
+            
             const total = totalResult[0]?.count || 0;
             const hasMore = offset + limit < total;
+            
             return {
                 deployments: deploymentList.map(deployment => ({
                     id: deployment.id,

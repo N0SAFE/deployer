@@ -355,7 +355,13 @@ export class DeploymentController {
             try {
                 // Get deployments from database
                 let allDeployments;
-                if (input.serviceId) {
+                if (input.serviceId && input.serviceId.trim() !== '') {
+                    // Validate UUID format before querying
+                    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+                    if (!uuidRegex.test(input.serviceId)) {
+                        throw new Error(`Invalid service ID format: ${input.serviceId}`);
+                    }
+                    
                     allDeployments = await this.databaseService.db
                         .select()
                         .from(deployments)

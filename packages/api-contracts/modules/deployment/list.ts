@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { deploymentStatusSchema } from './getStatus';
 import { environmentSchema } from './trigger';
 export const deploymentListInput = z.object({
-    serviceId: z.string(),
+    serviceId: z.string().uuid().optional(),
     limit: z.coerce.number().min(1).max(100).default(20),
     offset: z.coerce.number().min(0).default(0),
     status: deploymentStatusSchema.optional(),
