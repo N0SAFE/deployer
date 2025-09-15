@@ -9,7 +9,7 @@ import { DatabaseService } from '../../../core/modules/db/services/database.serv
 import { DeploymentService } from '../../../core/services/deployment.service';
 import { deployments, deploymentLogs } from '../../../core/modules/db/drizzle/schema';
 import { eq, desc } from 'drizzle-orm';
-@Controller()
+@Controller("other")
 export class DeploymentController {
     private readonly logger = new Logger(DeploymentController.name);
     constructor(private readonly deploymentQueueService: DeploymentQueueService, private readonly dockerService: DockerService, private readonly serviceRepository: ServiceRepository, private readonly serviceService: ServiceService, private readonly databaseService: DatabaseService, private readonly deploymentService: DeploymentService) { }
@@ -47,6 +47,7 @@ export class DeploymentController {
             }
         });
     }
+
     @Implement(deploymentContract.getStatus)
     getStatus() {
         return implement(deploymentContract.getStatus).handler(async ({ input }) => {
@@ -108,9 +109,35 @@ export class DeploymentController {
                 let safeProviderConfig: any = {};
                 try {
                     if (service.providerConfig) {
-                        safeProviderConfig = typeof service.providerConfig === 'object' 
-                            ? JSON.parse(JSON.stringify(service.providerConfig))
+                        // Create a clean object with only serializable properties
+                        const config = typeof service.providerConfig === 'object' 
+                            ? service.providerConfig
                             : JSON.parse(service.providerConfig as string);
+                        
+                        // Manually copy only safe properties to avoid serialization issues
+                        safeProviderConfig = {};
+                        for (const [key, value] of Object.entries(config)) {
+                            if (value !== null && value !== undefined) {
+                                // Only include primitive values and plain objects
+                                if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+                                    safeProviderConfig[key] = value;
+                                } else if (typeof value === 'object' && !Array.isArray(value)) {
+                                    // For objects, try to JSON stringify/parse to ensure serializability
+                                    try {
+                                        safeProviderConfig[key] = JSON.parse(JSON.stringify(value));
+                                    } catch (jsonError) {
+                                        this.logger.warn(`Skipping non-serializable property ${key} in provider config`);
+                                    }
+                                } else if (Array.isArray(value)) {
+                                    // For arrays, only include if all elements are serializable
+                                    try {
+                                        safeProviderConfig[key] = JSON.parse(JSON.stringify(value));
+                                    } catch (jsonError) {
+                                        this.logger.warn(`Skipping non-serializable array property ${key} in provider config`);
+                                    }
+                                }
+                            }
+                        }
                     }
                 } catch (configError) {
                     this.logger.warn(`Failed to parse provider config for service ${input.serviceId}:`, configError);
@@ -158,17 +185,26 @@ export class DeploymentController {
                 let safeEnvironmentVariables: Record<string, string> = {};
                 try {
                     if (service.environmentVariables) {
-                        safeEnvironmentVariables = typeof service.environmentVariables === 'object'
-                            ? JSON.parse(JSON.stringify(service.environmentVariables))
+                        const envVars = typeof service.environmentVariables === 'object'
+                            ? service.environmentVariables
                             : JSON.parse(service.environmentVariables as string);
+                        
+                        // Ensure all environment variables are strings
+                        safeEnvironmentVariables = {};
+                        for (const [key, value] of Object.entries(envVars)) {
+                            if (value !== null && value !== undefined) {
+                                // Convert all values to strings for environment variables
+                                safeEnvironmentVariables[key] = String(value);
+                            }
+                        }
                     }
                 } catch (envError) {
                     this.logger.warn(`Failed to parse environment variables for service ${input.serviceId}:`, envError);
                     safeEnvironmentVariables = {};
                 }
                 
-                // Queue deployment job
-                const jobId = await this.deploymentQueueService.addDeploymentJob({
+                // Queue deployment job with sanitized data
+                const jobData = {
                     deploymentId: deployment.id,
                     serviceId: input.serviceId,
                     projectId: service.projectId,
@@ -177,7 +213,17 @@ export class DeploymentController {
                         ...safeProviderConfig,
                         envVars: safeEnvironmentVariables,
                     },
-                });
+                };
+                
+                // Verify job data is serializable before queuing
+                try {
+                    JSON.stringify(jobData);
+                } catch (serializationError) {
+                    this.logger.error(`Job data is not serializable:`, serializationError);
+                    throw new Error('Failed to prepare deployment job data - contains non-serializable properties');
+                }
+                
+                const jobId = await this.deploymentQueueService.addDeploymentJob(jobData);
                 this.logger.log(`Queued deployment job: ${jobId} for deployment: ${deployment.id}`);
                 return {
                     deploymentId: deployment.id,

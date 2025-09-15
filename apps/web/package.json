@@ -50,6 +50,7 @@
         "@tanstack/react-query": "catalog:query",
         "@tanstack/react-query-devtools": "catalog:query",
         "@types/circular-json": "^0.4.0",
+        "@xyflow/react": "^12.8.4",
         "babel-plugin-react-compiler": "catalog:react-compiler",
         "better-auth": "catalog:auth",
         "circular-json": "^0.5.9",

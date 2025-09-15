@@ -14,6 +14,7 @@ import { ServiceModule } from './modules/service/service.module';
 import { EnvironmentModule } from './modules/environment/environment.module';
 import { DeploymentModule } from './modules/deployment/deployment.module';
 import { OrchestrationControllerModule } from './modules/orchestration/orchestration.module';
+import { OrchestrationModule } from './core/modules/orchestration/orchestration.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { StaticFileModule } from './modules/static-file/static-file.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
@@ -32,9 +33,14 @@ import { AuthGuard } from './modules/auth/guards/auth.guard';
         // Redis/Bull Queue configuration
         BullModule.forRoot({
             redis: {
-                host: process.env.REDIS_HOST || 'localhost',
-                port: parseInt(process.env.REDIS_PORT || '6379'),
-                password: process.env.REDIS_PASSWORD,
+                host: 'api-cache-dev',
+                port: 6379,
+                enableReadyCheck: false,
+                lazyConnect: false,
+            },
+            defaultJobOptions: {
+                removeOnComplete: 10,
+                removeOnFail: 25,
             },
         }),
         DatabaseModule,
@@ -50,6 +56,7 @@ import { AuthGuard } from './modules/auth/guards/auth.guard';
         EnvironmentModule,
         DeploymentModule,
         OrchestrationControllerModule,
+        OrchestrationModule,  // Core orchestration with Bull queue and processors
         StorageModule,
         StaticFileModule,
         AnalyticsModule,

@@ -1,29 +1,26 @@
 import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bull';
 import { CoreModule } from '../../core/core.module';
+import { OrchestrationModule } from '../../core/modules/orchestration/orchestration.module';  // Import for DeploymentQueueService
 // Services
 import { WebSocketEventService } from './services/websocket-event.service';
-import { DeploymentQueueService } from '../jobs/services/deployment-queue.service';
+// import { DeploymentQueueService } from '../jobs/services/deployment-queue.service';  // Now in OrchestrationModule
 // Gateways
 import { DeploymentWebSocketGateway } from './gateways/deployment.gateway';
 @Module({
     imports: [
         CoreModule, // Import CoreModule to provide DockerService
-        // Bull Queue for deployment jobs
-        BullModule.registerQueue({
-            name: 'deployment',
-        }),
+        OrchestrationModule,  // Import OrchestrationModule to provide DeploymentQueueService
     ],
     controllers: [],
     providers: [
         DeploymentWebSocketGateway,
         WebSocketEventService,
-        DeploymentQueueService,
+        // DeploymentQueueService,  // Now provided by OrchestrationModule
     ],
     exports: [
         DeploymentWebSocketGateway,
         WebSocketEventService,
-        DeploymentQueueService,
+        // DeploymentQueueService,  // Now exported by OrchestrationModule
     ],
 })
 export class WebSocketModule {

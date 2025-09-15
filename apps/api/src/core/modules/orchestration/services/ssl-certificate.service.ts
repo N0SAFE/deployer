@@ -28,7 +28,7 @@ export class SslCertificateService {
     constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: Database, 
-    @InjectQueue('deployment-queue')
+    @InjectQueue('deployment')
     private deploymentQueue: Queue) { }
     /**
      * Monitor certificate expiry every day at 2 AM

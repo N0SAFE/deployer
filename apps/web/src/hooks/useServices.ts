@@ -476,3 +476,15 @@ export function useServiceHealthStream(
         } | null,
     }
 }
+
+// Project dependency graph hook
+export function useProjectDependencyGraph(projectId: string) {
+    return useQuery(
+        orpc.service.getProjectDependencyGraph.queryOptions({
+            input: { projectId },
+            enabled: !!projectId,
+            staleTime: 1000 * 60, // 1 minute
+            refetchInterval: 30000, // Auto-refresh every 30 seconds
+        })
+    )
+}

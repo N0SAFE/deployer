@@ -5,6 +5,7 @@ import { ContractRouterClient } from '@orpc/contract'
 import { validateEnvPath } from '#/env';
 import { Authsignin } from '@/routes/index';
 import { toAbsoluteUrl } from '@/lib/utils';
+import redirect from '@/actions/redirect';
 
 const APP_URL = validateEnvPath(process.env.NEXT_PUBLIC_APP_URL!, 'NEXT_PUBLIC_APP_URL')
 
@@ -58,6 +59,7 @@ export function createORPCClientWithCookies(serverCookies?: string) {
             
             // Redirect to login page
             window.location.href = loginUrl
+            redirect(loginUrl)
           }
 
           throw error; // Re-throw to allow further handling if needed

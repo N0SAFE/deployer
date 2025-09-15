@@ -10,19 +10,40 @@ export class DeploymentQueueService {
     private deploymentQueue: Queue) { }
     async addDeploymentJob(jobData: DeploymentJobData, priority: number = 0): Promise<string> {
         this.logger.log(`Adding deployment job for deployment ${jobData.deploymentId}`);
-        const job = await this.deploymentQueue.add('deploy', jobData, {
-            priority,
-            attempts: 3,
-            backoff: {
-                type: 'exponential',
-                delay: 5000, // 5 seconds
-            },
-            removeOnComplete: 10, // Keep last 10 completed jobs
-            removeOnFail: 25, // Keep last 25 failed jobs
-        });
-        this.logger.log(`Deployment job ${job.id} added to queue`);
-        return job.id.toString();
+        
+        try {
+            // Verify job data is serializable before adding to queue
+            JSON.stringify(jobData);
+            
+            const job = await this.deploymentQueue.add('deploy', jobData, {
+                priority,
+                attempts: 3,
+                backoff: {
+                    type: 'exponential',
+                    delay: 5000, // 5 seconds
+                },
+                removeOnComplete: 10, // Keep last 10 completed jobs
+                removeOnFail: 25, // Keep last 25 failed jobs
+            });
+            
+            this.logger.log(`Deployment job ${job.id} added to queue`);
+            return job.id.toString();
+        } catch (error) {
+            this.logger.error(`Failed to add deployment job for deployment ${jobData.deploymentId}:`, error);
+            
+            // Create a serializable error
+            const serializableError = new Error(
+                error instanceof Error 
+                    ? `Job queue error: ${error.message}` 
+                    : 'Failed to add job to queue'
+            );
+            throw serializableError;
+        }
     }
+    test() {
+        this.deploymentQueue.add("test", { foo: 'bar' })
+    }
+
     async addRollbackJob(jobData: RollbackJobData, priority: number = 10): Promise<string> {
         this.logger.log(`Adding rollback job from ${jobData.deploymentId} to ${jobData.targetDeploymentId}`);
         const job = await this.deploymentQueue.add('rollback', jobData, {

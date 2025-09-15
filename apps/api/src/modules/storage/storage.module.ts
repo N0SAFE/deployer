@@ -6,11 +6,7 @@ import { StorageService } from './services/storage.service';
 import { FileUploadService } from './services/file-upload.service';
 import { StaticFileServingService } from './services/static-file-serving.service';
 @Module({
-    imports: [
-        BullModule.registerQueue({
-            name: 'deployment',
-        }),
-    ],
+    imports: [],
     controllers: [StorageController, UploadController],
     providers: [StorageService, FileUploadService, StaticFileServingService],
     exports: [StorageService, FileUploadService, StaticFileServingService],

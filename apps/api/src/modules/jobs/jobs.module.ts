@@ -1,38 +1,33 @@
 import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bull';
-import { DeploymentProcessor } from './processors/deployment.processor';
-import { DeploymentQueueService } from './services/deployment-queue.service';
+// DeploymentQueueService moved to OrchestrationModule to be with Bull queue
+// import { DeploymentQueueService } from './services/deployment-queue.service';
+// Remove the duplicate deployment processor - now unified in OrchestrationModule
+// import { DeploymentProcessor } from './processors/deployment.processor';
 import { DatabaseModule } from '../../core/modules/db/database.module';
 import { TraefikModule } from '../traefik/traefik.module';
-import { CoreModule } from '../../core/core.module';
 import { StorageModule } from '../storage/storage.module';
 import { WebSocketModule } from '../websocket/websocket.module';
+// Import needed core services directly
+import { DockerService } from '../../core/services/docker.service';
+import { GitService } from '../../core/services/git.service';
+import { DeploymentService } from '../../core/services/deployment.service';
+import { StaticFileService } from '../../core/services/static-file.service';
 @Module({
     imports: [
-        BullModule.registerQueue({
-            name: 'deployment',
-            defaultJobOptions: {
-                removeOnComplete: 10,
-                removeOnFail: 25,
-                attempts: 3,
-                backoff: {
-                    type: 'exponential',
-                    delay: 2000,
-                },
-            },
-        }),
         DatabaseModule,
         TraefikModule,
-        CoreModule,
         StorageModule,
         WebSocketModule,
     ],
     providers: [
-        DeploymentProcessor,
-        DeploymentQueueService,
+        // DeploymentQueueService moved to OrchestrationModule to be with Bull queue
+        DockerService,
+        GitService,
+        DeploymentService,
+        StaticFileService,
     ],
     exports: [
-        DeploymentQueueService,
+        // DeploymentQueueService moved to OrchestrationModule - import OrchestrationModule instead
     ],
 })
 export class JobsModule {

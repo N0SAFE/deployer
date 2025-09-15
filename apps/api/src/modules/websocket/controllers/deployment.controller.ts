@@ -1,4 +1,4 @@
-import { Controller, Logger } from '@nestjs/common';
+import { Controller, Get, Logger } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { deploymentContract } from '@repo/api-contracts';
 import type { ContainerInfo } from '@repo/api-contracts/modules/deployment/listContainers';
@@ -10,6 +10,7 @@ import { db } from '../../../core/modules/db/drizzle/index';
 import { deployments, services, projects, deploymentLogs } from '../../../core/modules/db/drizzle/schema/deployment';
 import { eq, desc, count, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
+import { Public } from '@/modules/auth/decorators/decorators';
 @Controller()
 export class DeploymentController {
     private readonly logger = new Logger(DeploymentController.name);
@@ -19,6 +20,13 @@ export class DeploymentController {
         private readonly dockerService: DockerService,
         private readonly deploymentService: DeploymentService
     ) { }
+
+    @Public()
+    @Get('test')
+    test () {
+        console.log('get for route test')
+        this.queueService.test();
+    }
     @Implement(deploymentContract.getStatus)
     getDeploymentStatus() {
         return implement(deploymentContract.getStatus).handler(async ({ input }) => {

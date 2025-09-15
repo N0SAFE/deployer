@@ -50,7 +50,7 @@ export class JobTrackingService {
     constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: Database, 
-    @InjectQueue('deployment-queue')
+    @InjectQueue('deployment')
     private readonly deploymentQueue: Queue) { }
     /**
      * Get real-time job statistics from Bull queue

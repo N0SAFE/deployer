@@ -22,6 +22,7 @@ import ProjectActionsDropdown from './ProjectActionsDropdown'
 import { ReactElement } from 'react'
 import ProjectTabsList from './ProjectTabsList'
 import { tryCatchAll } from '@/utils/server'
+import redirect from '@/actions/redirect'
 
 const getTabSections = ({ projectId }: { projectId: string }) =>
     Object.entries({
@@ -104,6 +105,12 @@ export default DashboardProjectsProjectIdTabs.Page<{
             )
         }
     )
+
+    // Guard: Redirect to projects list if project doesn't exist
+    if (!project) {
+        console.log(`🔄 [ProjectLayout-${projectId}] Project not found, redirecting to projects list`)
+        redirect(DashboardProjects())
+    }
 
     const endTime = Date.now()
     console.log(

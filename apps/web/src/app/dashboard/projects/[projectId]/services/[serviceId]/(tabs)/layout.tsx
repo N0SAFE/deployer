@@ -25,10 +25,12 @@ import {
     DashboardProjectsProjectIdServicesServiceIdTabsLogs,
     DashboardProjectsProjectIdServicesServiceIdTabsMonitoring,
     DashboardProjectsProjectIdServicesServiceIdTabsPreviews,
+    DashboardProjectsProjectIdTabsServices,
 } from '@/routes/index'
 import ServiceTabsList from './ServiceTabsList'
 import ServiceActionsDropdown from './ServiceActionsDropdown'
 import { tryCatchAll } from '@/utils/server'
+import redirect from '@/actions/redirect'
 
 const getConfigSections = ({
     projectId,
@@ -106,6 +108,12 @@ export default DashboardProjectsProjectIdServicesServiceIdTabs.Page<{
         const operation = index === 0 ? 'service data' : 'deployments data'
         console.error(`❌ [ServiceLayout-${projectId}/${serviceId}] Failed to fetch ${operation}:`, error)
     })
+
+    // Guard: Redirect to project services tab if service doesn't exist
+    if (!service) {
+        console.log(`🔄 [ServiceLayout-${projectId}/${serviceId}] Service not found, redirecting to project services tab`)
+        redirect(DashboardProjectsProjectIdTabsServices({ projectId }))
+    }
 
     const endTime = Date.now()
     console.log(

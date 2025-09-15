@@ -43,7 +43,7 @@ export class TraefikService implements OnModuleInit {
     constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: Database, 
-    @InjectQueue('deployment-queue')
+    @InjectQueue('deployment')
     private deploymentQueue: Queue,
     private readonly dockerService: DockerService) { }
     async onModuleInit() {

@@ -18,7 +18,7 @@ export class SwarmOrchestrationService implements OnModuleInit {
     constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: Database, 
-    @InjectQueue('deployment-queue')
+    @InjectQueue('deployment')
     private readonly deploymentQueue: Queue,
     private readonly dockerService: DockerService) {
         // Ensure stacks directory exists
