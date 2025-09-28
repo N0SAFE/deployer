@@ -140,7 +140,11 @@ export const staticFileInfoSchema = z.object({
 });
 export const setupStaticServingSchema = z.object({
     deploymentId: z.string().uuid(),
+    serviceId: z.string().uuid().optional(),
+    projectId: z.string().uuid().optional(),
     sourcePath: z.string(),
+    domain: z.string().optional(),
+    subdomain: z.string().optional(),
     indexFiles: z.array(z.string()).default(['index.html', 'index.htm']),
     compressionEnabled: z.boolean().default(true),
     cachingEnabled: z.boolean().default(true),

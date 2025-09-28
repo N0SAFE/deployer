@@ -1,14 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DockerService } from '../services/docker.service';
-import { TraefikService } from '../../modules/traefik/services/traefik.service';
+import { TraefikService } from '../modules/orchestration/services/traefik.service';
+import { ProjectServerService } from './project-server.service';
 export interface StaticFileDeploymentOptions {
     serviceName: string;
     deploymentId: string;
+    projectId?: string;
     domain: string;
     subdomain?: string;
-    filesPath: string; // Path within the static_files volume
-    customNginxConfig?: string;
-    sslEnabled?: boolean;
+    // sourcePath is an optional host path to copy files from (temporary extract directory)
+    sourcePath?: string;
 }
 export interface NginxContainerInfo {
     containerId: string;
@@ -20,329 +21,217 @@ export interface NginxContainerInfo {
 @Injectable()
 export class StaticFileService {
     private readonly logger = new Logger(StaticFileService.name);
-    constructor(private readonly dockerService: DockerService, private readonly traefikService: TraefikService) { }
+    constructor(
+        private readonly dockerService: DockerService,
+        private readonly traefikService: TraefikService,
+        private readonly projectServerService: ProjectServerService,
+    ) { }
     /**
      * Deploy static files by creating an nginx container and configuring Traefik routing
      */
-    async deployStaticFiles(options: StaticFileDeploymentOptions): Promise<NginxContainerInfo> {
-        const { serviceName, deploymentId, domain, subdomain, filesPath, customNginxConfig, sslEnabled = false } = options;
-        this.logger.log(`Deploying static files for service ${serviceName} at ${domain}`);
-        // Generate container name
-        const containerName = `${serviceName}-nginx-${deploymentId.substring(0, 8)}`;
-        // Generate nginx configuration
-        const nginxConfig = customNginxConfig || this.generateDefaultNginxConfig(filesPath);
-        try {
-            // Create nginx container
-            const containerId = await this.createNginxContainer(containerName, filesPath, nginxConfig, deploymentId);
-            // Configure Traefik routing
-            await this.configureTraefikRouting(serviceName, containerName, domain, subdomain, sslEnabled);
-            this.logger.log(`Static file deployment successful: ${containerName} serving ${domain}`);
+    async deployStaticFiles(options: StaticFileDeploymentOptions & { image?: string; imagePullPolicy?: 'IfNotPresent' | 'Always' | 'Never'; registryAuth?: any }): Promise<NginxContainerInfo & { imageUsed?: string }> {
+        const { serviceName, deploymentId, domain, subdomain, projectId, sourcePath } = options;
+        const effectiveProjectId = projectId || process.env.COMPOSE_PROJECT_NAME || 'project';
+        this.logger.log(`Deploying static files for service ${serviceName} at ${domain} (project=${effectiveProjectId})`);
+        // Always use project-level HTTP server model
+        {
+             // Ensure project http server exists
+             const projectServer = await this.projectServerService.ensureProjectServer(effectiveProjectId, domain);
+             const projectContainerName = projectServer.containerName;
+
+            // Copy files from provided sourcePath into project volume under /srv/static/<service>/<deploymentId>
+            if (sourcePath) {
+                await this.copyFilesIntoProjectVolume(effectiveProjectId, sourcePath, serviceName, deploymentId);
+            } else {
+                // Legacy path: if filesPath points at a known shared volume path, attempt to move/copy from there
+                this.logger.debug('No sourcePath provided - attempting to copy from legacy filesPath location if available');
+                // No-op here: legacy callers should provide filesPath that references a mounted volume already
+            }
+
+            // Atomically switch current symlink inside project server
+            try {
+                await this.setProjectServiceCurrent(effectiveProjectId, projectContainerName, serviceName, deploymentId);
+            }
+            catch (symlinkErr) {
+                this.logger.error(`Failed to set current symlink for ${serviceName}/${deploymentId}:`, symlinkErr);
+                throw symlinkErr;
+            }
+
+            // Prune older deployments for this service
+            try {
+                await this.pruneOldDeployments(effectiveProjectId, projectContainerName, serviceName, 5);
+            }
+            catch (pruneErr) {
+                this.logger.warn(`Prune operation failed for ${serviceName}: ${(pruneErr as any)?.message || String(pruneErr)}`);
+            }
+
+            // Reload project server if necessary
+            try {
+                await this.projectServerService.reloadProjectServer(effectiveProjectId);
+            }
+            catch (reloadErr) {
+                this.logger.warn(`Failed to reload project server ${projectContainerName}: ${(reloadErr as any)?.message || String(reloadErr)}`);
+            }
+
+            // Configure Traefik routing at project-level if necessary (project server already has labels)
+            try {
+                await this.traefikService.configureStaticFileServing({
+                    serviceId: serviceName,
+                    projectId: effectiveProjectId,
+                    domain: subdomain ? `${subdomain}.${domain}` : domain,
+                    staticPath: `/srv/static/${serviceName}/current`,
+                    backendTarget: projectContainerName,
+                } as any);
+            }
+            catch (traefikErr) {
+                this.logger.warn(`Failed to call Traefik config for project server backing ${serviceName}: ${(traefikErr as any)?.message || String(traefikErr)}`);
+            }
+
+            this.logger.log(`Static file deployment successful: project server ${projectContainerName} serving ${domain} (service=${serviceName})`);
             return {
-                containerId,
-                containerName,
+                containerId: projectServer.containerId,
+                containerName: projectServer.containerName,
                 domain: subdomain ? `${subdomain}.${domain}` : domain,
                 isRunning: true,
-                createdAt: new Date(),
-            };
+                createdAt: new Date(projectServer.createdAt),
+                imageUsed: projectServer.image || 'rtsp/lighttpd'
+            } as any;
         }
-        catch (error) {
-            this.logger.error(`Failed to deploy static files for ${serviceName}:`, error);
-            throw new Error(`Static file deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
+         // Project-level flow executed above; legacy per-deployment containers removed.
+         // This code path should never be reached.
+         throw new Error('Legacy per-deployment nginx container creation removed in favor of project-level server');
     }
     /**
      * Update static files in an existing nginx container
      */
-    async updateStaticFiles(containerName: string, filesPath: string, customNginxConfig?: string): Promise<void> {
-        this.logger.log(`Updating static files in container ${containerName}`);
-        try {
-            // Check if container exists and is running
-            const containerInfo = await this.dockerService.getContainerInfo(containerName);
-            if (containerInfo.State.Status !== 'running') {
-                throw new Error(`Container ${containerName} is not running`);
-            }
-            // Update nginx config if provided
-            if (customNginxConfig) {
-                await this.updateNginxConfig(containerName, customNginxConfig);
-            }
-            // Reload nginx to pick up any file changes
-            await this.reloadNginx(containerName);
-            this.logger.log(`Successfully updated static files in ${containerName}`);
+    async updateStaticFiles(projectId: string, serviceName: string, deploymentId: string, sourcePath?: string): Promise<void> {
+        this.logger.log(`Updating static files for ${serviceName} in project ${projectId} (deployment=${deploymentId})`);
+        const projectServer = await this.projectServerService.ensureProjectServer(projectId, 'localhost');
+        if (sourcePath) {
+            await this.copyFilesIntoProjectVolume(projectId, sourcePath, serviceName, deploymentId);
         }
-        catch (error) {
-            this.logger.error(`Failed to update static files in ${containerName}:`, error);
-            throw error;
-        }
+        await this.setProjectServiceCurrent(projectId, projectServer.containerName, serviceName, deploymentId);
+        await this.pruneOldDeployments(projectId, projectServer.containerName, serviceName, 5);
+        await this.projectServerService.reloadProjectServer(projectId);
+        this.logger.log(`Updated static files for ${serviceName} in project ${projectId}`);
     }
     /**
      * Remove static file deployment (stop container and remove Traefik config)
      */
-    async removeStaticFileDeployment(serviceName: string, containerName: string): Promise<void> {
-        this.logger.log(`Removing static file deployment for ${serviceName}`);
-        try {
-            // Stop and remove container
-            await this.dockerService.stopContainer(containerName);
-            await this.dockerService.removeContainer(containerName);
-            // Remove Traefik configuration by deleting config file
-            await this.removeTraefikConfig(serviceName);
-            this.logger.log(`Successfully removed static file deployment: ${containerName}`);
+    async removeStaticFileDeployment(projectId: string, serviceName: string, deploymentId?: string): Promise<void> {
+        this.logger.log(`Removing static file deployment for ${serviceName} in project ${projectId} deployment=${deploymentId || 'ALL'}`);
+        const projectServer = await this.projectServerService.getProjectServerStatus(projectId) as any;
+        if (!projectServer) {
+            this.logger.warn(`Project server for ${projectId} not found - nothing to remove`);
+            return;
         }
-        catch (error) {
-            this.logger.error(`Failed to remove static file deployment ${containerName}:`, error);
-            throw error;
+        const containerName = projectServer.containerName;
+        const baseDir = `/srv/static/${serviceName}`;
+        if (deploymentId) {
+            const cmd = ['sh', '-c', `rm -rf ${baseDir}/${deploymentId}`];
+            await this.dockerService.execInContainer(containerName, cmd);
+            // If current points to removed deployment, unset or point to next available
+            const fixCmd = ['sh', '-c', `if [ -L ${baseDir}/current ]; then target=$(readlink ${baseDir}/current); if [ "$target" = "./${deploymentId}" ]; then next=$(ls -1dt ${baseDir}/*/ 2>/dev/null | sed 's#/##' | head -n1 || true); if [ -n "$next" ]; then ln -sfn ./$next ${baseDir}/current; else rm -f ${baseDir}/current; fi; fi; fi`];
+            await this.dockerService.execInContainer(containerName, fixCmd);
+        } else {
+            // Remove entire service directory
+            const cmd = ['sh', '-c', `rm -rf ${baseDir}`];
+            await this.dockerService.execInContainer(containerName, cmd);
         }
+        await this.projectServerService.reloadProjectServer(projectId);
+        this.logger.log(`Removed static file deployment for ${serviceName} in project ${projectId}`);
     }
     /**
      * List all nginx containers managed by this service
      */
-    async listStaticFileDeployments(): Promise<NginxContainerInfo[]> {
+    async listStaticFileDeployments(projectId: string): Promise<Array<{ serviceName: string; deployments: string[]; current?: string }>> {
+        const projectServer = await this.projectServerService.getProjectServerStatus(projectId) as any;
+        if (!projectServer) return [];
+        const containerName = projectServer.containerName;
+        const cmd = ['sh', '-c', "ls -1 /srv/static 2>/dev/null || true"];
         try {
-            const containers = await this.dockerService.listContainers({
-                all: true,
-                filters: {
-                    label: ['deployer.nginx.static=true']
+            const { output } = await this.dockerService.execInContainer(containerName, cmd);
+            const services = (output || '').split('\n').map(s => s.trim()).filter(Boolean);
+            const result: Array<{ serviceName: string; deployments: string[]; current?: string }> = [];
+            for (const svc of services) {
+                const listCmd = ['sh', '-c', `ls -1dt /srv/static/${svc}/*/ 2>/dev/null | sed 's#/##' || true`];
+                try {
+                    const { output: out2 } = await this.dockerService.execInContainer(containerName, listCmd);
+                    const deployments = (out2 || '').split('\n').map(s => s.trim()).filter(Boolean);
+                    const curCmd = ['sh', '-c', `readlink /srv/static/${svc}/current 2>/dev/null || true`];
+                    const { output: curOut } = await this.dockerService.execInContainer(containerName, curCmd);
+                    const current = (curOut || '').trim().replace(/^\.\//, '') || undefined;
+                    result.push({ serviceName: svc, deployments, current });
                 }
-            });
-            return containers.map(container => ({
-                containerId: container.Id,
-                containerName: container.Names[0]?.replace('/', '') || 'unknown',
-                domain: container.Labels['deployer.nginx.domain'] || 'unknown',
-                isRunning: container.State === 'running',
-                createdAt: new Date(container.Created * 1000),
-            }));
+                catch (inner) {
+                    this.logger.warn(`Failed to list deployments for ${svc}: ${(inner as any)?.message || String(inner)}`);
+                }
+            }
+            return result;
         }
         catch (error) {
-            this.logger.error('Failed to list static file deployments:', error);
+            this.logger.error('Failed to list project-level static deployments:', error);
             return [];
         }
     }
     /**
-     * Create nginx container with proper configuration
+     * Copy files from a host-local sourcePath into the project volume using a temporary helper container.
      */
-    private async createNginxContainer(containerName: string, filesPath: string, nginxConfig: string, deploymentId: string): Promise<string> {
-        // Get the current Docker network from environment
-        const networkName = process.env.COMPOSE_PROJECT_NAME
-            ? `${process.env.COMPOSE_PROJECT_NAME}_app_network_dev`
-            : 'deployer_app_network_dev';
-        const container = await this.dockerService.createContainer({
-            Image: 'nginx:alpine',
+    private async copyFilesIntoProjectVolume(projectId: string, sourcePath: string, serviceName: string, deploymentId: string): Promise<void> {
+        // Create target path inside the volume
+        const volumeName = `project-${projectId}-static`;
+        const containerName = `project-filecopy-${serviceName}-${deploymentId}`;
+        const targetDir = `/srv/static/${serviceName}/${deploymentId}`;
+        // Use an alpine helper container that mounts both sourcePath (host) and target volume
+        const binds = [
+            `${sourcePath}:/src:ro`,
+            `${volumeName}:/target`
+        ];
+        const copyCmd = ['sh', '-c', `mkdir -p ${targetDir} && cp -a /src/. ${targetDir}/ && chown -R 1000:1000 ${targetDir}`];
+        this.logger.log(`Copying files from host ${sourcePath} into project volume ${volumeName}:${targetDir}`);
+        const tempContainer = await this.dockerService.createContainer({
+            Image: 'alpine:latest',
             name: containerName,
-            Labels: {
-                'deployer.deployment_id': deploymentId,
-                'deployer.managed': 'true',
-                'deployer.nginx.static': 'true',
-                'deployer.nginx.files_path': filesPath,
-            },
-            ExposedPorts: {
-                '80/tcp': {},
-            },
+            Cmd: copyCmd,
             HostConfig: {
-                RestartPolicy: {
-                    Name: 'unless-stopped'
-                },
-                Binds: [
-                    // Mount the static files volume
-                    `${process.env.COMPOSE_PROJECT_NAME || 'deployer'}_static_files_dev:/usr/share/nginx/html:ro`,
-                ],
-                NetworkMode: networkName,
+                Binds: binds,
+                AutoRemove: true,
             },
-            Healthcheck: {
-                Test: ['CMD-SHELL', 'wget --no-verbose --tries=1 --spider http://127.0.0.1 || exit 1'],
-                Interval: 30000000000, // 30s in nanoseconds
-                Timeout: 5000000000, // 5s in nanoseconds
-                Retries: 3,
-                StartPeriod: 10000000000, // 10s in nanoseconds
-            }
         });
-        // Start the container
-        await container.start();
-        // Apply nginx configuration
-        await this.updateNginxConfig(containerName, nginxConfig);
-        return container.id;
-    }
-    /**
-     * Generate default nginx configuration for serving static files
-     */
-    private generateDefaultNginxConfig(filesPath: string): string {
-        return `
-server {
-    listen 80;
-    server_name _;
-    
-    root /usr/share/nginx/html/${filesPath};
-    index index.html index.htm;
-    
-    # Enable gzip compression
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
-    
-    # Security headers
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    
-    # Main location block
-    location / {
-        try_files \\$uri \\$uri/ =404;
-        
-        # Cache static assets
-        location ~* \\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
-        }
-        
-        # Cache HTML files for shorter time
-        location ~* \\.(html|htm)$ {
-            expires 1h;
-            add_header Cache-Control "public";
-        }
-    }
-    
-    # Health check endpoint
-    location /health {
-        access_log off;
-        return 200 "healthy\\n";
-        add_header Content-Type text/plain;
-    }
-    
-    # Disable access to hidden files
-    location ~ /\\. {
-        deny all;
-    }
-    
-    # Disable access to sensitive files
-    location ~* \\.(conf|env|htaccess|htpasswd)$ {
-        deny all;
-    }
-}
-    `.trim();
-    }
-    /**
-     * Update nginx configuration in container
-     */
-    private async updateNginxConfig(containerName: string, config: string): Promise<void> {
-        // Create config file in container using docker exec
-        const configScript = `cat > /etc/nginx/conf.d/default.conf << 'EOF'\n${config}\nEOF`;
         try {
-            // Use a simple approach to write the config file
-            await this.execInContainer(containerName, ['sh', '-c', configScript]);
-            // Reload nginx
-            await this.reloadNginx(containerName);
+            await tempContainer.start();
+            // Wait for completion by using wait()
+            await tempContainer.wait();
+            this.logger.log(`Copied files into ${targetDir} for service ${serviceName}`);
         }
-        catch (error) {
-            this.logger.error(`Failed to update nginx config in ${containerName}:`, error);
-            throw error;
-        }
-    }
-    /**
-     * Reload nginx configuration
-     */
-    private async reloadNginx(containerName: string): Promise<void> {
-        try {
-            await this.execInContainer(containerName, ['nginx', '-s', 'reload']);
-        }
-        catch (error) {
-            this.logger.error(`Failed to reload nginx in ${containerName}:`, error);
-            throw error;
-        }
-    }
-    /**
-     * Configure Traefik routing for the nginx container
-     */
-    private async configureTraefikRouting(serviceName: string, containerName: string, domain: string, subdomain?: string, sslEnabled = false): Promise<void> {
-        const fullDomain = subdomain ? `${subdomain}.${domain}` : domain;
-        const traefikConfig = {
-            http: {
-                routers: {
-                    [`${serviceName}-router`]: {
-                        rule: `Host(\`${fullDomain}\`)`,
-                        service: `${serviceName}-service`,
-                        middlewares: [`${serviceName}-headers`],
-                        ...(sslEnabled && { tls: {} }),
-                    }
-                },
-                services: {
-                    [`${serviceName}-service`]: {
-                        loadBalancer: {
-                            servers: [
-                                { url: `http://${containerName}:80` }
-                            ]
-                        }
-                    }
-                },
-                middlewares: {
-                    [`${serviceName}-headers`]: {
-                        headers: {
-                            customRequestHeaders: {
-                                'X-Forwarded-Proto': sslEnabled ? 'https' : 'http'
-                            },
-                            customResponseHeaders: {
-                                'Cache-Control': 'public, max-age=3600'
-                            }
-                        }
-                    }
-                }
+        finally {
+            try {
+                await tempContainer.remove({ force: true });
             }
-        };
-        // Write Traefik configuration
-        await this.writeTraefikConfig(serviceName, traefikConfig);
+            catch { }
+        }
     }
     /**
-     * Execute command in container using Docker API
+     * Atomically set the 'current' symlink for a service inside the project server container
      */
-    private async execInContainer(containerName: string, cmd: string[]): Promise<void> {
-        // For now, we'll use a simple approach - the DockerService should expose this method
-        // This is a temporary implementation
-        const { spawn } = require('child_process');
-        return new Promise((resolve, reject) => {
-            const dockerExec = spawn('docker', ['exec', containerName, ...cmd]);
-            dockerExec.on('close', (code) => {
-                if (code === 0) {
-                    resolve();
-                }
-                else {
-                    reject(new Error(`Docker exec exited with code ${code}`));
-                }
-            });
-            dockerExec.on('error', (error) => {
-                reject(error);
-            });
-        });
+    private async setProjectServiceCurrent(projectId: string, projectContainerName: string, serviceName: string, deploymentId: string): Promise<void> {
+        const linkDir = `/srv/static/${serviceName}`;
+        const target = `./${deploymentId}`;
+        const cmd = ['sh', '-c', `mkdir -p ${linkDir} && ln -sfn ${target} ${linkDir}/current && echo '{"id":"${deploymentId}","updatedAt":"$(date -Iseconds)"}' > ${linkDir}/${deploymentId}/.deployer-meta.json`];
+        await this.dockerService.execInContainer(projectContainerName, cmd);
     }
     /**
-     * Write Traefik configuration file
+     * Prune older deployments inside the project server volume for a given service, keeping `keep` latest directories
      */
-    private async writeTraefikConfig(serviceName: string, config: any): Promise<void> {
-        const fs = require('fs').promises;
-        const yaml = require('yaml');
-        const configPath = `/app/traefik-configs/${serviceName}.yml`;
-        const configContent = yaml.stringify(config);
+    private async pruneOldDeployments(projectId: string, projectContainerName: string, serviceName: string, keep = 5): Promise<void> {
+        const serviceDir = `/srv/static/${serviceName}`;
+        const cmd = ['sh', '-c', `cd ${serviceDir} && ls -1dt */ 2>/dev/null | sed 's#/##' | tail -n +${keep + 1} | xargs -r rm -rf`];
         try {
-            await fs.writeFile(configPath, configContent, 'utf8');
-            this.logger.log(`Wrote Traefik config for ${serviceName} to ${configPath}`);
+            await this.dockerService.execInContainer(projectContainerName, cmd);
+            this.logger.log(`Pruned older deployments for ${serviceName}, keeping ${keep}`);
         }
         catch (error) {
-            this.logger.error(`Failed to write Traefik config for ${serviceName}:`, error);
-            throw error;
-        }
-    }
-    /**
-     * Remove Traefik configuration file
-     */
-    private async removeTraefikConfig(serviceName: string): Promise<void> {
-        const fs = require('fs').promises;
-        const configPath = `/app/traefik-configs/${serviceName}.yml`;
-        try {
-            await fs.unlink(configPath);
-            this.logger.log(`Removed Traefik config for ${serviceName}`);
-        }
-        catch (error) {
-            // Ignore if file doesn't exist
-            if ((error as any).code !== 'ENOENT') {
-                this.logger.error(`Failed to remove Traefik config for ${serviceName}:`, error);
-                throw error;
-            }
+            this.logger.warn(`Failed to prune deployments for ${serviceName}: ${(error as any)?.message || String(error)}`);
         }
     }
 }

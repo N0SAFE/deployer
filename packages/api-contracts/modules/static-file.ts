@@ -21,13 +21,12 @@ import { oc } from '@orpc/contract';
 import { z } from 'zod';
 // Input/Output Schemas
 export const staticFileDeploymentOptionsSchema = z.object({
-    serviceName: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/, 'Service name must be lowercase alphanumeric with hyphens'),
+    serviceId: z.string().uuid(),
     deploymentId: z.string().uuid(),
-    domain: z.string().min(1),
+    projectId: z.string().uuid().optional(),
+    domain: z.string().optional(),
     subdomain: z.string().optional(),
-    filesPath: z.string().min(1),
-    customNginxConfig: z.string().optional(),
-    sslEnabled: z.boolean().default(false),
+    sourcePath: z.string().optional(),
 });
 export const nginxContainerInfoSchema = z.object({
     containerId: z.string(),
@@ -37,9 +36,10 @@ export const nginxContainerInfoSchema = z.object({
     createdAt: z.date(),
 });
 export const updateStaticFilesSchema = z.object({
-    containerName: z.string().min(1),
-    filesPath: z.string().min(1),
-    customNginxConfig: z.string().optional(),
+    projectId: z.string().uuid().optional(),
+    serviceId: z.string().uuid(),
+    deploymentId: z.string().uuid(),
+    sourcePath: z.string().optional(),
 });
 // ORPC Contract Definitions
 export const staticFileDeployContract = oc
@@ -57,12 +57,10 @@ export const staticFileDeployContract = oc
 export const staticFileUpdateContract = oc
     .route({
     method: "PUT",
-    path: "/:serviceName",
+    path: "/update",
     summary: "Update existing static file deployment",
 })
-    .input(z.object({
-    serviceName: z.string().min(1),
-}).merge(updateStaticFilesSchema))
+    .input(updateStaticFilesSchema)
     .output(z.object({
     success: z.boolean(),
     error: z.string().optional(),
@@ -70,12 +68,13 @@ export const staticFileUpdateContract = oc
 export const staticFileRemoveContract = oc
     .route({
     method: "DELETE",
-    path: "/:serviceName/:containerName",
+    path: "/remove",
     summary: "Remove static file deployment",
 })
     .input(z.object({
-    serviceName: z.string().min(1),
-    containerName: z.string().min(1),
+    projectId: z.string().uuid().optional(),
+    serviceId: z.string().uuid(),
+    deploymentId: z.string().uuid().optional(),
 }))
     .output(z.object({
     success: z.boolean(),

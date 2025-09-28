@@ -84,9 +84,11 @@ CMD ["npm", "start"]
         deploymentId: string;
         envVars?: Record<string, string>;
         ports?: Record<string, string>;
+        imagePullPolicy?: 'IfNotPresent' | 'Always' | 'Never';
+        registryAuth?: any;
     }): Promise<string> {
-        const { image, name, deploymentId, envVars = {}, ports = {} } = options;
-        this.logger.log(`Creating container ${name} from image ${image}`);
+        const { image, name, deploymentId, envVars = {}, ports = {}, imagePullPolicy = 'IfNotPresent', registryAuth } = options;
+        this.logger.log(`Creating container ${name} from image ${image} (policy=${imagePullPolicy})`);
         // Convert environment variables to Docker format
         const env = Object.entries(envVars).map(([key, value]) => `${key}=${value}`);
         // Convert port mappings
@@ -98,26 +100,89 @@ CMD ["npm", "start"]
             exposedPorts[`${containerPort}/tcp`] = {};
             portBindings[`${containerPort}/tcp`] = [{ HostPort: hostPort }];
         });
-        const container = await this.docker.createContainer({
-            Image: image,
-            name,
-            Env: env,
-            ExposedPorts: exposedPorts,
-            HostConfig: {
-                PortBindings: portBindings,
-                RestartPolicy: {
-                    Name: 'unless-stopped'
+
+        // Helper to attempt container creation
+        const attemptCreate = async (imgToUse: string) => {
+            const container = await this.docker.createContainer({
+                Image: imgToUse,
+                name,
+                Env: env,
+                ExposedPorts: exposedPorts,
+                HostConfig: {
+                    PortBindings: portBindings,
+                    RestartPolicy: {
+                        Name: 'unless-stopped'
+                    }
+                },
+                Labels: {
+                    'deployer.deployment_id': deploymentId,
+                    'deployer.managed': 'true'
                 }
-            },
-            Labels: {
-                'deployer.deployment_id': deploymentId,
-                'deployer.managed': 'true'
+            });
+            await container.start();
+            const containerInfo = await container.inspect();
+            return containerInfo.Id;
+        };
+
+        // Pre-pull or inspect based on policy
+        const shouldAttemptPull = async (img: string): Promise<boolean> => {
+            if ((imagePullPolicy as any) === 'Always') return true;
+            if ((imagePullPolicy as any) === 'Never') return false;
+            // IfNotPresent -> check local presence
+            try {
+                const existing = this.docker.getImage(img);
+                await existing.inspect();
+                this.logger.log(`Image ${img} already present locally`);
+                return false;
+            } catch {
+                return true;
             }
-        });
-        await container.start();
-        const containerInfo = await container.inspect();
-        this.logger.log(`Container ${name} started with ID ${containerInfo.Id}`);
-        return containerInfo.Id;
+        };
+
+        try {
+            // If policy says we should pull (Always) or image absent (IfNotPresent), try pulling first
+            if (await shouldAttemptPull(image)) {
+                try {
+                    await this.pullImage(image, registryAuth);
+                } catch (pullErr) {
+                    this.logger.warn(`Initial pull failed for ${image}: ${(pullErr as any)?.message || String(pullErr)}`);
+                    // If pull fails and policy is Never, rethrow. If policy allowed, we'll attempt fallbacks below.
+                }
+            }
+            return await attemptCreate(image);
+        } catch (error: any) {
+            const errMsg = (error && (error.json && error.json.message || error.message || String(error))).toLowerCase();
+            if (errMsg.includes('no such image') || errMsg.includes('not found') || errMsg.includes('manifest unknown')) {
+                this.logger.warn(`Image ${image} not found locally after pre-pull. Attempting fallback pulls...`);
+                const imagesToTry = [image];
+                if (image === 'nginx:alpine') {
+                    imagesToTry.push('nginx:latest', 'nginx:stable-alpine');
+                }
+                let lastPullError: any = null;
+                for (const img of imagesToTry) {
+                    try {
+                        // Only attempt pull if policy permits
+                        if ((imagePullPolicy as any) !== 'Never') {
+                            await this.pullImage(img, registryAuth);
+                        } else {
+                            this.logger.warn(`ImagePullPolicy set to 'Never' - skipping pull for ${img}`);
+                            continue;
+                        }
+                        this.logger.log(`Successfully pulled image ${img}. Retrying container creation...`);
+                        return await attemptCreate(img);
+                    } catch (pullErr) {
+                        lastPullError = pullErr;
+                        this.logger.warn(`Pulling image ${img} failed: ${(pullErr as any)?.message || String(pullErr)}`);
+                    }
+                }
+                this.logger.error(`All attempts to pull image ${image} and fallbacks failed`);
+                throw new Error(`Failed to pull image ${image}: ${lastPullError instanceof Error ? lastPullError.message : String(lastPullError)}`);
+            }
+
+            // Unknown error - rethrow
+            this.logger.error(`Failed to create container ${name}:`, error);
+            throw error;
+        }
     }
     async stopContainersByDeployment(deploymentId: string): Promise<void> {
         this.logger.log(`Stopping containers for deployment ${deploymentId}`);
@@ -415,62 +480,136 @@ CMD ["npm", "start"]
         }
     }
     async createContainer(options: any): Promise<any> {
+        const requestedImage = options?.Image || options?.image || '';
+        const imagePullPolicy: 'IfNotPresent' | 'Always' | 'Never' = options?.imagePullPolicy || 'IfNotPresent';
+        const registryAuth = options?.registryAuth;
+        // Ensure image exists locally; if not attempt pull first depending on policy
+        if (requestedImage) {
+            try {
+                const img = this.docker.getImage(requestedImage);
+                await img.inspect();
+                this.logger.log(`Image ${requestedImage} exists locally`);
+            } catch (inspectErr) {
+                this.logger.debug(`Image inspect failed for ${requestedImage}: ${(inspectErr as any)?.message || String(inspectErr)}`);
+                if (imagePullPolicy === 'Never') {
+                    this.logger.warn(`Image ${requestedImage} not present locally and policy is 'Never' - refusing to pull`);
+                    throw new Error(`Image ${requestedImage} not present locally and imagePullPolicy is 'Never'`);
+                }
+                this.logger.warn(`Image ${requestedImage} not present locally. Will attempt to pull before creating container (policy=${imagePullPolicy}).`);
+                const imagesToTry = [requestedImage];
+                if (requestedImage === 'nginx:alpine') {
+                    imagesToTry.push('nginx:latest', 'nginx:stable-alpine');
+                }
+                let pulled = false;
+                let lastErr: any = null;
+                for (const imgName of imagesToTry) {
+                    try {
+                        this.logger.log(`Pulling image prior to create: ${imgName}`);
+                        await this.pullImage(imgName, registryAuth);
+                        pulled = true;
+                        if (imgName !== requestedImage) {
+                            options.Image = imgName;
+                        }
+                        break;
+                    } catch (pullErr) {
+                        lastErr = pullErr;
+                        this.logger.warn(`Pull attempt failed for ${imgName}: ${(pullErr as any)?.message || String(pullErr)}`);
+                    }
+                }
+                if (!pulled) {
+                    this.logger.error(`Failed to pull requested image ${requestedImage} and fallbacks. Last error: ${(lastErr as any)?.message || String(lastErr)}`);
+                    throw new Error(`Image ${requestedImage} missing and pull failed: ${(lastErr as any)?.message || String(lastErr)}`);
+                }
+            }
+        }
+
         try {
             const container = await this.docker.createContainer(options);
             this.logger.log(`Created container ${container.id}`);
             return container;
         }
-        catch (error) {
+        catch (error: any) {
             this.logger.error('Failed to create container:', error);
+            // Detect image-not-found errors and attempt pull+retry
+            const errMsg = (error && (error.json && error.json.message || error.message || String(error))).toLowerCase();
+            if (errMsg.includes('no such image') || errMsg.includes('not found') || errMsg.includes('manifest unknown')) {
+                const imagesToTry = [requestedImage];
+                if (requestedImage === 'nginx:alpine') {
+                    imagesToTry.push('nginx:latest', 'nginx:stable-alpine');
+                }
+                let lastErr: any = null;
+                for (const img of imagesToTry) {
+                    try {
+                        this.logger.log(`Pulling image for container creation (retry path): ${img}`);
+                        if ((imagePullPolicy as any) !== 'Never') {
+                            await this.pullImage(img, registryAuth);
+                        } else {
+                            this.logger.warn(`ImagePullPolicy set to 'Never' - skipping pull for ${img}`);
+                            continue;
+                        }
+                        this.logger.log(`Retrying container create after pulling ${img}...`);
+                        const retryOptions = { ...options, Image: img };
+                        const container = await this.docker.createContainer(retryOptions);
+                        this.logger.log(`Created container ${container.id} with image ${img}`);
+                        return container;
+                    } catch (pullErr) {
+                        lastErr = pullErr;
+                        this.logger.warn(`Pull or retry create failed for ${img}: ${(pullErr as any)?.message || String(pullErr)}`);
+                    }
+                }
+                this.logger.error(`Failed to pull any images for container creation. Last error: ${(lastErr as any)?.message || String(lastErr)}`);
+                throw new Error(`Failed to create container: image ${requestedImage} not available and pull attempts failed. Last error: ${(lastErr as any)?.message || String(lastErr)}`);
+            }
             throw error;
         }
     }
-    async stopContainer(containerId: string): Promise<void> {
-        try {
-            const container = this.docker.getContainer(containerId);
-            await container.stop({ t: 10 });
-            this.logger.log(`Stopped container ${containerId}`);
+
+    /**
+     * Pull an image from a registry with optional auth and retry/backoff.
+     */
+    async pullImage(image: string, registryAuth?: any, retries = 3, backoffMs = 2000): Promise<void> {
+        this.logger.log(`Attempting to pull image ${image} (retries=${retries})`);
+        let lastErr: any = null;
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            try {
+                const pullOpts: any = {};
+                if (registryAuth) {
+                    pullOpts.authconfig = registryAuth;
+                }
+                const stream: NodeJS.ReadableStream = await (this.docker.pull as any)(image, pullOpts);
+                await this.followStream(stream);
+                // Successful pull
+                this.logger.log(`Successfully pulled ${image} on attempt ${attempt}`);
+                return;
+            } catch (err) {
+                lastErr = err;
+                this.logger.warn(`Pull attempt ${attempt} failed for ${image}: ${(err as any)?.message || String(err)}`);
+                if (attempt < retries) {
+                    this.logger.log(`Waiting ${backoffMs}ms before next pull attempt...`);
+                    await new Promise((r) => setTimeout(r, backoffMs));
+                    backoffMs *= 2; // exponential backoff
+                }
+            }
         }
-        catch (error) {
-            this.logger.error(`Failed to stop container ${containerId}:`, error);
-            throw error;
-        }
+        this.logger.error(`All pull attempts failed for image ${image}`);
+        throw new Error(`Failed to pull image ${image}: ${(lastErr as any)?.message || String(lastErr)}`);
     }
-    async getContainerInfo(containerId: string): Promise<any> {
-        try {
-            const container = this.docker.getContainer(containerId);
-            const info = await container.inspect();
-            return info;
-        }
-        catch (error) {
-            this.logger.error(`Failed to get container info for ${containerId}:`, error);
-            throw error;
-        }
-    }
-    async listContainers(options: any = {}): Promise<any[]> {
-        try {
-            // Force the typing since TypeScript is having issues with dockerode
-            const dockerInstance = this.docker as any;
-            const containers = await dockerInstance.listContainers(options);
-            return containers || [];
-        }
-        catch (error) {
-            this.logger.error('Failed to list containers:', error);
-            return [];
-        }
-    }
+
     private async followStream(stream: NodeJS.ReadableStream): Promise<void> {
         return new Promise((resolve, reject) => {
-            this.docker.modem.followProgress(stream, (err) => {
+            this.docker.modem.followProgress(stream, (err: any) => {
                 if (err) {
                     reject(err);
                 }
                 else {
                     resolve();
                 }
-            }, (event) => {
+            }, (event: any) => {
                 if (event.stream) {
                     this.logger.debug(event.stream.trim());
+                }
+                if (event.status) {
+                    this.logger.debug(event.status);
                 }
                 if (event.error) {
                     this.logger.error(event.error);
@@ -479,22 +618,221 @@ CMD ["npm", "start"]
         });
     }
 
+    /**
+     * Expose raw Docker client for advanced operations
+     */
+    getDockerClient(): Docker {
+        return this.docker;
+    }
+
+    /**
+     * Get container information (inspect) by id or name
+     */
+    async getContainerInfo(containerIdOrName: string): Promise<any> {
+        try {
+            const container = this.docker.getContainer(containerIdOrName);
+            const info = await container.inspect();
+            return info;
+        } catch (error) {
+            this.logger.error(`Failed to get container info for ${containerIdOrName}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Stop a container by id or name
+     */
+    async stopContainer(containerIdOrName: string): Promise<void> {
+        try {
+            const container = this.docker.getContainer(containerIdOrName);
+            await container.stop({ t: 10 });
+            this.logger.log(`Stopped container ${containerIdOrName}`);
+        } catch (error) {
+            this.logger.error(`Failed to stop container ${containerIdOrName}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * List containers using dockerode listContainers
+     */
+    async listContainers(options: any = {}): Promise<any[]> {
+        try {
+            const list = await (this.docker as any).listContainers(options);
+            return list || [];
+        } catch (error) {
+            this.logger.error('Failed to list containers:', error);
+            return [];
+        }
+    }
+
     async getContainerStats(containerId: string): Promise<any> {
         try {
             const container = this.docker.getContainer(containerId);
             const stats = await container.stats({ stream: false });
             return stats;
-        }
-        catch (error) {
+        } catch (error) {
             this.logger.error(`Failed to get container stats for ${containerId}:`, error);
             throw error;
         }
     }
 
     /**
-     * Get the Docker client instance for advanced usage
+     * Execute a command inside a running container using the Docker API (no host 'docker' CLI required).
+     * Supports providing input that will be written to the command's stdin.
      */
-    getDockerClient(): Docker {
-        return this.docker;
+    async execInContainer(containerIdOrName: string, cmd: string[], input?: string): Promise<{ exitCode: number; output: string }> {
+        try {
+            const container = this.docker.getContainer(containerIdOrName);
+            // Create exec instance
+            const exec = await container.exec({ Cmd: cmd, AttachStdout: true, AttachStderr: true, AttachStdin: !!input });
+
+            // Start exec and attach streams
+            const stream = await exec.start({ hijack: true, stdin: !!input }) as NodeJS.ReadWriteStream;
+
+            // Collect stdout/stderr using demux if available
+            const { PassThrough } = await import('stream');
+            const stdoutStream = new PassThrough();
+            const stderrStream = new PassThrough();
+
+            if (this.docker.modem && typeof (this.docker.modem as any).demuxStream === 'function') {
+                try {
+                    (this.docker.modem as any).demuxStream(stream, stdoutStream, stderrStream);
+                }
+                catch (demuxErr) {
+                    // Fallback: if demux fails, still attach to raw stream
+                    this.logger.warn('demuxStream failed, attaching to raw stream as fallback', demuxErr);
+                    stream.on && stream.on('data', (chunk: Buffer) => stdoutStream.write(chunk));
+                }
+            }
+            else {
+                // Older dockerode - fallback to raw stream
+                stream.on && stream.on('data', (chunk: Buffer) => stdoutStream.write(chunk));
+            }
+
+            let output = '';
+            stdoutStream.on('data', (c: Buffer) => { try { output += c.toString('utf8'); } catch { } });
+            stderrStream.on('data', (c: Buffer) => { try { output += c.toString('utf8'); } catch { } });
+
+            // If input supplied, write to stdin
+            if (input) {
+                try {
+                    stream.write(input);
+                }
+                catch (writeErr) {
+                    this.logger.warn('Failed to write to exec stdin:', writeErr);
+                }
+                try {
+                    stream.end();
+                }
+                catch { }
+            }
+
+            // Wait for end
+            await new Promise<void>((resolve, reject) => {
+                stream.on && stream.on('end', () => resolve());
+                stream.on && stream.on('close', () => resolve());
+                stream.on && stream.on('error', (err: any) => reject(err));
+            });
+
+            // Inspect exec to obtain exit code
+            const execInspect = await exec.inspect();
+            const exitCode = typeof execInspect.ExitCode === 'number' ? execInspect.ExitCode : -1;
+            if (exitCode !== 0) {
+                this.logger.error(`Exec in container ${containerIdOrName} failed (exitCode=${exitCode}): ${output}`);
+                throw new Error(`Command ${cmd.join(' ')} failed with exit code ${exitCode} - output: ${output}`);
+            }
+
+            return { exitCode, output };
+        }
+        catch (error: any) {
+            // Improve error message for socket closure to provide actionable hint
+            const msg = error && (error.message || String(error));
+            if (msg && msg.includes('socket connection was closed unexpectedly')) {
+                this.logger.error(`Failed to exec command in container ${containerIdOrName}: ${msg}. Consider retrying after container startup or using smaller payloads. To get more details, run with verbose fetch (docker-modem).`);
+            }
+            else {
+                this.logger.error(`Failed to exec command in container ${containerIdOrName}:`, error);
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Connect a container to a docker network by name or id.
+     */
+    async connectContainerToNetwork(containerIdOrName: string, networkNameOrId: string): Promise<void> {
+        try {
+            // First, ensure the container is not already attached to the target network
+            try {
+                const container = this.docker.getContainer(containerIdOrName);
+                const info = await container.inspect();
+                const networks = info?.NetworkSettings?.Networks || {};
+                if (networks[networkNameOrId] || Object.keys(networks).some(n => n === networkNameOrId)) {
+                    this.logger.debug(`Container ${containerIdOrName} is already connected to network ${networkNameOrId}`);
+                    return;
+                }
+            }
+            catch (inspectErr) {
+                this.logger.debug(`Could not inspect container ${containerIdOrName} before network connect: ${(inspectErr as any)?.message || String(inspectErr)}`);
+            }
+
+            const networks = await this.docker.listNetworks({});
+            const target = networks.find(n => n.Name === networkNameOrId || n.Id === networkNameOrId);
+            if (!target) {
+                this.logger.warn(`Network ${networkNameOrId} not found - cannot connect container ${containerIdOrName}`);
+                return;
+            }
+            const network = this.docker.getNetwork(target.Id);
+            await network.connect({ Container: containerIdOrName });
+            this.logger.log(`Connected container ${containerIdOrName} to network ${target.Name} (${target.Id})`);
+        } catch (error: any) {
+            // If the endpoint already exists, treat as a no-op (container already connected).
+            const message = (error && (error.message || String(error))).toLowerCase();
+            if (message.includes('endpoint with name') && message.includes('already exists')) {
+                this.logger.debug(`Endpoint already exists when connecting ${containerIdOrName} to ${networkNameOrId} - treating as already connected`);
+                return;
+            }
+            this.logger.error(`Failed to connect container ${containerIdOrName} to network ${networkNameOrId}:`, error);
+            throw error;
+        }
+    }
+
+    async getNetworkInfo(networkNameOrId: string): Promise<any> {
+        try {
+            const networks = await this.docker.listNetworks({ filters: { name: [networkNameOrId] } });
+            if (!networks || networks.length === 0) {
+                throw new Error(`Network ${networkNameOrId} not found`);
+            }
+            const network = this.docker.getNetwork(networks[0].Id);
+            const info = await network.inspect();
+            return info;
+        } catch (error) {
+            this.logger.error(`Failed to get network info for ${networkNameOrId}:`, error);
+            throw error;
+        }
+    }
+
+    async getContainerLogs(containerIdOrName: string, options: { stdout?: boolean; stderr?: boolean; tail?: number } = { stdout: true, stderr: true, tail: 200 }): Promise<string> {
+        try {
+            const container = this.docker.getContainer(containerIdOrName);
+            const opts: any = {
+                stdout: options.stdout !== false,
+                stderr: options.stderr !== false,
+                tail: options.tail || 200
+            };
+            const stream = (await container.logs(opts)) as unknown as NodeJS.ReadableStream;
+            let logs = '';
+            stream.on && stream.on('data', (chunk: Buffer) => { try { logs += chunk.toString('utf8'); } catch { } });
+            await new Promise<void>((resolve, reject) => {
+                stream.on && stream.on('end', () => resolve());
+                stream.on && stream.on('close', () => resolve());
+                stream.on && stream.on('error', (err: any) => reject(err));
+            });
+            return logs;
+        } catch (error) {
+            this.logger.error(`Failed to fetch logs for container ${containerIdOrName}:`, error);
+            throw error;
+        }
     }
 }

@@ -98,22 +98,23 @@ export class DeploymentProcessor {
     }
   }
 
-  // Standard deployment handler (from jobs module)
-  async handleStandardDeployment(
-    job: Job<DeploymentJobData>
-  ): Promise<DeploymentJobResult> {
-    const { deploymentId, projectId, serviceId, sourceConfig } = job.data;
-    this.logger.log(`Starting deployment job for deployment ${deploymentId}`);
+    // Standard deployment handler (from jobs module)
+    async handleStandardDeployment(
+        job: Job<DeploymentJobData>
+    ): Promise<DeploymentJobResult> {
+        const { deploymentId, projectId, serviceId, sourceConfig } = job.data;
+        this.logger.log(`Starting deployment job for deployment ${deploymentId}`);
 
-    try {
-      // Update deployment status to building
-      await this.updateDeploymentStatus(deploymentId, "building");
-      await this.logDeployment(deploymentId, "info", "Deployment started", {
-        projectId,
-        serviceId,
-      });
+        try {
+            // Log sourceConfig for debugging
+            this.logger.log(`Source config for deployment ${deploymentId}:`, JSON.stringify(sourceConfig, null, 2));
 
-      // Get service information to determine build type
+            // Update deployment status to building
+            await this.updateDeploymentStatus(deploymentId, "building");
+            await this.logDeployment(deploymentId, "info", "Deployment started", {
+                projectId,
+                serviceId,
+            });      // Get service information to determine build type
       const serviceInfo = await this.db
         .select({
           service: services,
@@ -128,7 +129,7 @@ export class DeploymentProcessor {
         throw new Error(`Service ${serviceId} not found`);
       }
 
-      const { service } = serviceInfo[0];
+      const { service, project } = serviceInfo[0];
       const buildType = service.builder;
 
       this.logger.log(`Deploying service with build type: ${buildType}`);
@@ -149,6 +150,12 @@ export class DeploymentProcessor {
           "info",
           "Deploying as static site"
         );
+        // Extract optional image/pull settings from service config
+        const svcProviderConfig: any = service.providerConfig || {};
+        const svcBuilderConfig: any = service.builderConfig || {};
+        const imageOverride = svcProviderConfig.staticImage || svcProviderConfig.image || svcBuilderConfig.staticImage || svcBuilderConfig.image || undefined;
+        const imagePullPolicy = svcProviderConfig.imagePullPolicy || svcBuilderConfig.imagePullPolicy || 'IfNotPresent';
+        const registryAuth = svcProviderConfig.registryAuth || svcBuilderConfig.registryAuth || undefined;
         deploymentResult = await this.deploymentService.deployStaticSite({
           deploymentId,
           serviceName: service.name,
@@ -156,8 +163,16 @@ export class DeploymentProcessor {
           environmentVariables: service.environmentVariables || {},
           healthCheckPath: service.healthCheckPath || "/health",
           resourceLimits: service.resourceLimits || undefined,
-        });
-      } else if (buildType === "dockerfile") {
+          // Pass image override and pull options through
+          sourceConfig: {
+            ...(sourceConfig || {}),
+            image: imageOverride,
+            imagePullPolicy,
+            registryAuth,
+          },
+          projectId: project.id,
+         });
+       } else if (buildType === "dockerfile") {
         await this.logDeployment(
           deploymentId,
           "info",
@@ -1488,11 +1503,20 @@ export class DeploymentProcessor {
     sourceConfig: any,
     deploymentId: string
   ): Promise<string> {
+    // Handle different source types based on provider configuration
     if (
       sourceConfig.type === "github" ||
       sourceConfig.type === "gitlab" ||
       sourceConfig.type === "git"
     ) {
+      // Git-based sources need repository URL
+      if (!sourceConfig.repositoryUrl) {
+        throw new Error(
+          `Repository URL is required for source type: ${sourceConfig.type}. ` +
+          `Please ensure the service has a valid repository URL configured in its provider settings.`
+        );
+      }
+
       return await this.gitService.cloneRepository({
         url: sourceConfig.repositoryUrl,
         branch: sourceConfig.branch || "main",
@@ -1500,10 +1524,59 @@ export class DeploymentProcessor {
         deploymentId,
       });
     } else if (sourceConfig.type === "upload") {
-      return await this.gitService.extractUploadedFile({
-        filePath: sourceConfig.filePath,
-        deploymentId,
-      });
+      // Upload sources can be from file uploads, S3, Docker registry, etc.
+      if (sourceConfig.filePath) {
+        // Direct file upload
+        return await this.gitService.extractUploadedFile({
+          filePath: sourceConfig.filePath,
+          deploymentId,
+        });
+      } else if (sourceConfig.bucketName && sourceConfig.objectKey) {
+        // S3 bucket source
+        return await this.downloadFromS3({
+          bucketName: sourceConfig.bucketName,
+          objectKey: sourceConfig.objectKey,
+          region: sourceConfig.region,
+          accessKeyId: sourceConfig.accessKeyId,
+          secretAccessKey: sourceConfig.secretAccessKey,
+          deploymentId,
+        });
+      } else if (sourceConfig.registryUrl && sourceConfig.imageName) {
+        // Docker registry source - handle differently
+        throw new Error(
+          "Docker registry deployments should be handled through the container deployment flow, not source code preparation."
+        );
+      } else if (sourceConfig.customData && sourceConfig.customData.embeddedContent) {
+        // Embedded static content provided in customData (from seeded demo or manual)
+        const embedded = sourceConfig.customData.embeddedContent;
+        const staticContent = typeof embedded === 'string' ? embedded : JSON.stringify(embedded);
+        return await this.createStaticContentFromEmbedded({
+          staticContent,
+          deploymentId,
+        });
+      } else if (sourceConfig.customData && sourceConfig.customData.type === 'static-content' && sourceConfig.customData.content) {
+        // Legacy seeded static content format used in seed.ts
+        const content = sourceConfig.customData.content;
+        const staticContent = typeof content === 'string' ? content : JSON.stringify(content);
+        return await this.createStaticContentFromEmbedded({
+          staticContent,
+          deploymentId,
+        });
+      } else if (sourceConfig.staticContent && sourceConfig.contentType === 'embedded') {
+        // Embedded static content (like seeded demo content)
+        return await this.createStaticContentFromEmbedded({
+          staticContent: sourceConfig.staticContent,
+          deploymentId,
+        });
+      } else {
+        // No file source specified - this might be a static service that needs file upload
+        throw new Error(
+          `This service appears to be configured for file upload deployment, but no files have been uploaded yet. ` +
+          `Please use the file upload feature in the dashboard to upload your static files, ` +
+          `or change the service provider to a git-based provider (github, gitlab, etc.) ` +
+          `and configure a repository URL if you want to deploy from a git repository.`
+        );
+      }
     } else {
       throw new Error(`Unsupported source type: ${sourceConfig.type}`);
     }
@@ -1677,28 +1750,11 @@ export class DeploymentProcessor {
     deploymentType: "static";
   }> {
     await this.logDeployment(deploymentId, "info", "Deploying static files");
-    // Setup static file serving
-    await this.staticFileServingService.setupStaticServing(
-      deploymentId,
-      extractPath
-    );
     // Generate domain URL
-    const subdomain = this.generateSubdomain(
-      project.name,
-      service.name,
-      "production"
-    );
+    const subdomain = this.generateSubdomain(project.name, service.name, "production");
     const domainUrl = `https://${subdomain}.${project.baseDomain || "localhost"}`;
-    // Configure Traefik for static file serving
-    const traefikService = this.traefikService as any; // Type assertion for new methods
-    if (traefikService.configureStaticFileServing) {
-      await traefikService.configureStaticFileServing({
-        serviceId: service.id,
-        projectId: project.id,
-        domain: domainUrl,
-        staticPath: `/app/static-files/${deploymentId}`,
-      });
-    }
+    // Setup static file serving (project-level) and inform Traefik
+    await this.staticFileServingService.setupStaticServing(deploymentId, extractPath, service.id, project.id, domainUrl);
     await this.logDeployment(
       deploymentId,
       "info",
@@ -1846,5 +1902,85 @@ CMD ["sh", "-c", "${startCommand}"]
     `.trim();
     await fs.writeFile(dockerfilePath, dockerfileContent);
     return dockerfilePath;
+  }
+
+  /**
+   * Download source code from S3 bucket
+   */
+  private async downloadFromS3(options: {
+    bucketName: string;
+    objectKey: string;
+    region: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    deploymentId: string;
+  }): Promise<string> {
+    const { bucketName, objectKey } = options;
+    
+    try {
+      // Import AWS SDK dynamically (if available)
+      // Note: In a real implementation, you would install @aws-sdk/client-s3
+      this.logger.log(`Downloading from S3: s3://${bucketName}/${objectKey}`);
+      
+      // For now, throw an error indicating S3 support needs to be implemented
+      throw new Error(
+        `S3 downloads are not yet implemented. ` +
+        `To deploy from S3, please download the file manually and use the upload deployment method.`
+      );
+      
+    } catch (error) {
+      this.logger.error(`Failed to download from S3:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create static content from embedded data (for seeded demo content)
+   */
+  private async createStaticContentFromEmbedded(options: {
+    staticContent: string;
+    deploymentId: string;
+  }): Promise<string> {
+    const { staticContent, deploymentId } = options;
+    const fs = require('fs-extra');
+    const path = require('path');
+    
+    // Create workspace directory
+    const workspaceDir = process.env.WORKSPACE_DIR || '/tmp/deployer-workspace';
+    const extractPath = path.join(workspaceDir, `deployment-${deploymentId}`);
+    
+    try {
+      this.logger.log(`Creating static content from embedded data for deployment ${deploymentId}`);
+      
+      // Ensure directory exists
+      await fs.ensureDir(extractPath);
+      
+      // Parse the static content (it should be JSON string containing file contents)
+      let fileContents: Record<string, string>;
+      try {
+        fileContents = JSON.parse(staticContent);
+      } catch (parseError) {
+        this.logger.error(`Failed to parse embedded static content:`, parseError);
+        throw new Error(`Invalid embedded static content format - expected JSON object with filename->content mapping`);
+      }
+      
+      // Write each file to the extract path
+      for (const [filename, content] of Object.entries(fileContents)) {
+        const filePath = path.join(extractPath, filename);
+        await fs.writeFile(filePath, content, 'utf8');
+        this.logger.log(`Created static file: ${filename}`);
+      }
+      
+      this.logger.log(`Successfully created ${Object.keys(fileContents).length} static files in ${extractPath}`);
+      return extractPath;
+      
+    } catch (error) {
+      this.logger.error(`Failed to create static content from embedded data:`, error);
+      // Clean up on failure
+      if (await fs.pathExists(extractPath)) {
+        await fs.remove(extractPath);
+      }
+      throw error;
+    }
   }
 }

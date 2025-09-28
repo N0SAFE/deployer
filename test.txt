@@ -1,0 +1,760 @@
+=== All running containers ===
+ID=6f9682af1d99	NAME=static-demo-nginx-49dbbfb0	IMAGE=nginx:alpine	STATUS=Up 39 seconds (healthy)	LABELS=deployer.deployment_id=49dbbfb0-3f3b-4da3-84d9-6fac4d726685,deployer.managed=true,deployer.nginx.files_path=static-demo,deployer.nginx.static=true,maintainer=NGINX Docker Maintainers <docker-maint@nginx.com>,traefik.docker.network=deployer_app_network_dev,traefik.enable=true,traefik.http.routers.static-demo-49dbbfb0.entrypoints=web,traefik.http.routers.static-demo-49dbbfb0.rule=Host(`localhost`),traefik.http.routers.static-demo-49dbbfb0.service=static-demo-49dbbfb0-svc,traefik.http.services.static-demo-49dbbfb0-svc.loadbalancer.server.port=80
+ID=7c823ded7c23	NAME=deployer-web-dev	IMAGE=deployer-web-dev	STATUS=Up 3 minutes	LABELS=com.docker.compose.config-hash=960972e58f83ce4f49b789efc1c7db8fdc4a44ffb1ff8ff03c6e539803c860d4,com.docker.compose.container-number=1,com.docker.compose.depends_on=api-dev:service_healthy:false,com.docker.compose.image=sha256:8ab8487447a743afbe081645120f5da7db64718e49d71b02cbfc154909be5e5c,com.docker.compose.oneoff=False,com.docker.compose.project.config_files=/home/n0safe/Bureau/projects/dev/template/deployer/docker-compose.yml,com.docker.compose.project.working_dir=/home/n0safe/Bureau/projects/dev/template/deployer,com.docker.compose.project=deployer,com.docker.compose.service=web-dev,com.docker.compose.version=2.39.4,org.opencontainers.image.created=2025-08-25T11:53:22.069Z,org.opencontainers.image.description=Incredibly fast JavaScript runtime, bundler, test runner, and package manager – all in one,org.opencontainers.image.licenses=NOASSERTION,org.opencontainers.image.revision=7c45ed97def1264717a1b55ab0f789f2ea58f986,org.opencontainers.image.source=https://github.com/oven-sh/bun,org.opencontainers.image.title=bun,org.opencontainers.image.url=https://github.com/oven-sh/bun,org.opencontainers.image.version=1.2.21-alpine
+ID=687609f10516	NAME=deployer-api-dev	IMAGE=deployer-api-dev	STATUS=Up 4 minutes (healthy)	LABELS=com.docker.compose.config-hash=3b476558c1a1439906c605caa7a2794d86301b17898871ab1467c8e0a2a766d9,com.docker.compose.container-number=1,com.docker.compose.depends_on=traefik-dev:service_healthy:false,api-cache-dev:service_healthy:false,api-db-dev:service_healthy:false,com.docker.compose.image=sha256:46432c234b86e75bdb64e589ad75e716bfdbe3e4f53ed0e7b8f82eb4c875fbdd,com.docker.compose.oneoff=False,com.docker.compose.project.config_files=/home/n0safe/Bureau/projects/dev/template/deployer/docker-compose.yml,com.docker.compose.project.working_dir=/home/n0safe/Bureau/projects/dev/template/deployer,com.docker.compose.project=deployer,com.docker.compose.service=api-dev,com.docker.compose.version=2.39.4,org.opencontainers.image.created=2025-08-25T11:53:22.069Z,org.opencontainers.image.description=Incredibly fast JavaScript runtime, bundler, test runner, and package manager – all in one,org.opencontainers.image.licenses=NOASSERTION,org.opencontainers.image.revision=7c45ed97def1264717a1b55ab0f789f2ea58f986,org.opencontainers.image.source=https://github.com/oven-sh/bun,org.opencontainers.image.title=bun,org.opencontainers.image.url=https://github.com/oven-sh/bun,org.opencontainers.image.version=1.2.21-alpine
+ID=4f2d5c5248d7	NAME=deployer-traefik-dev	IMAGE=traefik:v3.2	STATUS=Up 4 minutes (healthy)	LABELS=com.docker.compose.config-hash=b621fc066f221550964b386a7a71672bcaa5cca5e0e763b0bfbe5843015fa0a8,com.docker.compose.container-number=1,com.docker.compose.depends_on=traefik-init:service_completed_successfully:false,com.docker.compose.image=sha256:3fe0092f8292c75f32db74577cf3eaef046263f75d395777d5ff3bdf9d4dbd23,com.docker.compose.oneoff=False,com.docker.compose.project.config_files=/home/n0safe/Bureau/projects/dev/template/deployer/docker-compose.yml,com.docker.compose.project.working_dir=/home/n0safe/Bureau/projects/dev/template/deployer,com.docker.compose.project=deployer,com.docker.compose.service=traefik-dev,com.docker.compose.version=2.39.4,org.opencontainers.image.description=A modern reverse-proxy,org.opencontainers.image.documentation=https://docs.traefik.io,org.opencontainers.image.source=https://github.com/traefik/traefik,org.opencontainers.image.title=Traefik,org.opencontainers.image.url=https://traefik.io,org.opencontainers.image.vendor=Traefik Labs,org.opencontainers.image.version=v3.2.5,traefik.enable=false
+ID=62bb957cf241	NAME=deployer-api-cache-dev	IMAGE=redis:8-alpine	STATUS=Up 4 minutes (healthy)	LABELS=com.docker.compose.config-hash=dec6e75146e4657ecd797c642e3624c5f332e0283aa895aecbb8af04553c93b8,com.docker.compose.container-number=1,com.docker.compose.depends_on=,com.docker.compose.image=sha256:6f5542508b8b0f789f6d337b5eb48f86af82ef31df2f831d9e4748ed8a986bbd,com.docker.compose.oneoff=False,com.docker.compose.project.config_files=/home/n0safe/Bureau/projects/dev/template/deployer/docker-compose.yml,com.docker.compose.project.working_dir=/home/n0safe/Bureau/projects/dev/template/deployer,com.docker.compose.project=deployer,com.docker.compose.service=api-cache-dev,com.docker.compose.version=2.39.4
+ID=704ef9679bbd	NAME=deployer-api-db-dev	IMAGE=postgres:16-alpine	STATUS=Up 4 minutes (healthy)	LABELS=com.docker.compose.config-hash=9f3d030b9bfd1240b6e3806796edd6978cbe77ebfcc2b818fb8ab00edfc0c0fd,com.docker.compose.container-number=1,com.docker.compose.depends_on=,com.docker.compose.image=sha256:03b5a062f98ede3a4966e79bad265a90ce72ed7db185602db9ef80521ce03446,com.docker.compose.oneoff=False,com.docker.compose.project.config_files=/home/n0safe/Bureau/projects/dev/template/deployer/docker-compose.yml,com.docker.compose.project.working_dir=/home/n0safe/Bureau/projects/dev/template/deployer,com.docker.compose.project=deployer,com.docker.compose.service=api-db-dev,com.docker.compose.version=2.39.4
+
+=== Detected containers ===
+NGINX: static-demo-nginx-49dbbfb0 (6f9682af1d99)
+TRAEFIK: deployer-traefik-dev (4f2d5c5248d7)
+API: deployer-api-dev (687609f10516)
+
+--- nginx: inspect networks and labels ---
+{
+  "deployer_app_network_dev": {
+    "IPAMConfig": null,
+    "Links": null,
+    "Aliases": null,
+    "MacAddress": "26:6a:6c:5b:cb:d1",
+    "DriverOpts": null,
+    "GwPriority": 0,
+    "NetworkID": "d86e5b5072689204e2b7741052c5f60e9faf7e7456cb1fabe6ea29e62fae6c21",
+    "EndpointID": "1414944d204faf34de002dff726e48e4c1eab2bff77c9fc6a1cdc7e9612c2d40",
+    "Gateway": "172.18.0.1",
+    "IPAddress": "172.18.0.7",
+    "IPPrefixLen": 16,
+    "IPv6Gateway": "",
+    "GlobalIPv6Address": "",
+    "GlobalIPv6PrefixLen": 0,
+    "DNSNames": [
+      "static-demo-nginx-49dbbfb0",
+      "6f9682af1d99"
+    ]
+  }
+}
+
+-- labels --
+{
+  "deployer.deployment_id": "49dbbfb0-3f3b-4da3-84d9-6fac4d726685",
+  "deployer.managed": "true",
+  "deployer.nginx.files_path": "static-demo",
+  "deployer.nginx.static": "true",
+  "maintainer": "NGINX Docker Maintainers <docker-maint@nginx.com>",
+  "traefik.docker.network": "deployer_app_network_dev",
+  "traefik.enable": "true",
+  "traefik.http.routers.static-demo-49dbbfb0.entrypoints": "web",
+  "traefik.http.routers.static-demo-49dbbfb0.rule": "Host(`localhost`)",
+  "traefik.http.routers.static-demo-49dbbfb0.service": "static-demo-49dbbfb0-svc",
+  "traefik.http.services.static-demo-49dbbfb0-svc.loadbalancer.server.port": "80"
+}
+
+-- tail nginx logs (last 500 lines) --
+/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+/docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf
+/docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+/docker-entrypoint.sh: Configuration complete; ready for start up
+127.0.0.1 - - [26/Sep/2025:22:49:25 +0000] "GET / HTTP/1.1" 200 615 "-" "Wget" "-"
+127.0.0.1 - - [26/Sep/2025:22:49:55 +0000] "GET / HTTP/1.1" 200 615 "-" "Wget" "-"
+
+-- list mounted web files --
+total 16
+drwxr-xr-x    2 root     root          4096 Sep 26 22:49 .
+drwxr-xr-x    3 root     root          4096 Aug 13 18:52 ..
+-rw-r--r--    1 root     root           497 Aug 13 15:10 50x.html
+-rw-r--r--    1 root     root           615 Aug 13 15:10 index.html
+
+--- traefik: inspect networks and labels ---
+{
+  "deployer_app_network_dev": {
+    "IPAMConfig": null,
+    "Links": null,
+    "Aliases": [
+      "deployer-traefik-dev",
+      "traefik-dev"
+    ],
+    "MacAddress": "82:fd:98:67:a7:ad",
+    "DriverOpts": null,
+    "GwPriority": 0,
+    "NetworkID": "d86e5b5072689204e2b7741052c5f60e9faf7e7456cb1fabe6ea29e62fae6c21",
+    "EndpointID": "78438248e566656fa8c74df2cdc35cf875d4072072a34281ffef81a6a7f3dc0e",
+    "Gateway": "172.18.0.1",
+    "IPAddress": "172.18.0.4",
+    "IPPrefixLen": 16,
+    "IPv6Gateway": "",
+    "GlobalIPv6Address": "",
+    "GlobalIPv6PrefixLen": 0,
+    "DNSNames": [
+      "deployer-traefik-dev",
+      "traefik-dev",
+      "4f2d5c5248d7"
+    ]
+  }
+}
+
+-- traefik logs (last 500 lines) --
+
+-- traefik dynamic files referencing static-demo --
+total 16
+drwxr-xr-x    4 root     root          4096 Sep 26 22:46 .
+drwxr-xr-x    6 root     root          4096 Sep 26 22:45 ..
+drwxr-xr-x    3 root     root          4096 Sep 26 22:46 projects
+drwxr-xr-x    2 root     root          4096 Sep 26 22:46 standalone
+/etc/traefik/dynamic/projects/My Blog/dynamic-a2a146ae-e3cb-4ce8-a6b2-c844a7199659.yaml:1:# Traefik configuration for static-demo
+/etc/traefik/dynamic/projects/My Blog/dynamic-a2a146ae-e3cb-4ce8-a6b2-c844a7199659.yaml:4:    static-demo-service:
+/etc/traefik/dynamic/projects/My Blog/dynamic-a2a146ae-e3cb-4ce8-a6b2-c844a7199659.yaml:7:          - url: "http://static-demo-container:80"
+/etc/traefik/dynamic/projects/My Blog/dynamic-a2a146ae-e3cb-4ce8-a6b2-c844a7199659.yaml:10:    static-demo-route:
+/etc/traefik/dynamic/projects/My Blog/dynamic-a2a146ae-e3cb-4ce8-a6b2-c844a7199659.yaml:11:      rule: "Host(`static-demo.blog.localhost`)"
+/etc/traefik/dynamic/projects/My Blog/dynamic-a2a146ae-e3cb-4ce8-a6b2-c844a7199659.yaml:12:      service: "static-demo-service"
+/etc/traefik/dynamic/projects/My Blog/dynamic-a2a146ae-e3cb-4ce8-a6b2-c844a7199659.yaml:16:        - "static-demo-cors"
+/etc/traefik/dynamic/projects/My Blog/dynamic-a2a146ae-e3cb-4ce8-a6b2-c844a7199659.yaml:17:        - "static-demo-ratelimit"
+/etc/traefik/dynamic/projects/My Blog/dynamic-a2a146ae-e3cb-4ce8-a6b2-c844a7199659.yaml:20:    static-demo-cors:
+/etc/traefik/dynamic/projects/My Blog/dynamic-a2a146ae-e3cb-4ce8-a6b2-c844a7199659.yaml:34:    static-demo-ratelimit:
+
+-- traefik access log tail (if exists) --
+172.18.0.1 - - [26/Sep/2025:22:46:53 +0000] "GET / HTTP/1.1" 502 11 "-" "-" 1 "static-demo-route@file" "http://static-demo-container:80" 10ms
+172.18.0.1 - - [26/Sep/2025:22:46:54 +0000] "GET /favicon.ico HTTP/1.1" 502 11 "-" "-" 2 "static-demo-route@file" "http://static-demo-container:80" 13ms
+172.18.0.1 - - [26/Sep/2025:22:49:18 +0000] "GET / HTTP/1.1" 502 11 "-" "-" 3 "static-demo-route@file" "http://static-demo-container:80" 35ms
+172.18.0.1 - - [26/Sep/2025:22:49:19 +0000] "GET /favicon.ico HTTP/1.1" 502 11 "-" "-" 4 "static-demo-route@file" "http://static-demo-container:80" 8ms
+172.18.0.1 - - [26/Sep/2025:22:49:31 +0000] "GET / HTTP/1.1" 502 11 "-" "-" 5 "static-demo-route@file" "http://static-demo-container:80" 8ms
+172.18.0.1 - - [26/Sep/2025:22:49:32 +0000] "GET /favicon.ico HTTP/1.1" 502 11 "-" "-" 6 "static-demo-route@file" "http://static-demo-container:80" 25ms
+172.18.0.1 - - [26/Sep/2025:22:49:36 +0000] "GET / HTTP/1.1" 502 11 "-" "-" 7 "static-demo-route@file" "http://static-demo-container:80" 32ms
+172.18.0.1 - - [26/Sep/2025:22:49:36 +0000] "GET /favicon.ico HTTP/1.1" 502 11 "-" "-" 8 "static-demo-route@file" "http://static-demo-container:80" 26ms
+172.18.0.1 - - [26/Sep/2025:22:49:44 +0000] "GET / HTTP/1.1" 502 11 "-" "-" 9 "static-demo-route@file" "http://static-demo-container:80" 11ms
+172.18.0.1 - - [26/Sep/2025:22:49:45 +0000] "GET /favicon.ico HTTP/1.1" 502 11 "-" "-" 10 "static-demo-route@file" "http://static-demo-container:80" 9ms
+172.18.0.1 - - [26/Sep/2025:22:49:45 +0000] "GET / HTTP/1.1" 502 11 "-" "-" 11 "static-demo-route@file" "http://static-demo-container:80" 11ms
+172.18.0.1 - - [26/Sep/2025:22:49:46 +0000] "GET /favicon.ico HTTP/1.1" 502 11 "-" "-" 12 "static-demo-route@file" "http://static-demo-container:80" 10ms
+
+--- API server: inspect networks and labels ---
+{
+  "deployer_app_network_dev": {
+    "IPAMConfig": null,
+    "Links": null,
+    "Aliases": [
+      "deployer-api-dev",
+      "api-dev"
+    ],
+    "MacAddress": "72:73:01:fc:e0:73",
+    "DriverOpts": null,
+    "GwPriority": 0,
+    "NetworkID": "d86e5b5072689204e2b7741052c5f60e9faf7e7456cb1fabe6ea29e62fae6c21",
+    "EndpointID": "18348032483beb844c015f592888f750888237712c98603d4e2a0dc736e0af7d",
+    "Gateway": "172.18.0.1",
+    "IPAddress": "172.18.0.5",
+    "IPPrefixLen": 16,
+    "IPv6Gateway": "",
+    "GlobalIPv6Address": "",
+    "GlobalIPv6PrefixLen": 0,
+    "DNSNames": [
+      "deployer-api-dev",
+      "api-dev",
+      "687609f10516"
+    ]
+  }
+}
+
+-- API logs (last 500 lines) --
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/orchestration/certificates/:domain, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/orchestration/certificates/:domain/renew, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/orchestration/resources/:projectId/:environment, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/orchestration/resources/system/summary, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/orchestration/resources/alerts, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/orchestration/traefik/preview, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/orchestration/jobs, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/orchestration/jobs/:jobId, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/orchestration/jobs/queue-stats, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/orchestration/jobs/retry, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/orchestration/jobs/:jobId/history, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/orchestration/jobs/:jobId, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/orchestration/health/system, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/orchestration/health/services, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/orchestration/health/metrics, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/orchestration/health/history, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mStaticFileController {/}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/static-file/deploy, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/static-file/:serviceName, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/static-file/:serviceName/:containerName, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mAnalyticsController {/}:[39m[38;5;3m +1ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/metrics/resources, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/metrics/application, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/metrics/database, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/metrics/deployments, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/metrics/health, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/metrics/realtime, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/usage/resources, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/usage/activity, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/usage/activity/summary, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/usage/api, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/usage/deployments, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/usage/storage, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/reports/generate, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/reports/:reportId, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/reports, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/reports/:reportId, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/reports/:reportId/download, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/reports/configurations, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/reports/configurations, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/reports/configurations/:configId, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/analytics/reports/configurations/:configId, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mCiCdController {/ci-cd}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/pipelines, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/pipelines/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/pipelines/:id, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/pipelines/:id, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/pipelines, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/pipelines/:id/trigger, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/pipelines/:pipelineId/cancel, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/pipelines/:id/status, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/pipelines/from-template, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/pipeline-templates, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/pipelines/stats, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/pipelines/validate, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/builds, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/builds/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/builds, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/builds/:id/cancel, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/builds/:id/retry, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/builds/:id/logs, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/builds/:id/artifacts, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/builds/:buildId/artifacts/:artifactId/download, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/pipelines/:pipelineId/build-config, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/pipelines/:pipelineId/build-config, PUT} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/build-queue, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/builds/:id/priority, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/builds/stats, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/build-environments, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhooks, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhooks/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhooks/:id, PUT} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhooks/:id, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhooks, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhooks/:id/test, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhooks/validate, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhook-deliveries, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhook-deliveries/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhook-deliveries/:id/retry, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhook-events, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhooks/generate-secret, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhooks/verify-signature, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhooks/stats, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhook-templates, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhooks/from-template, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/webhooks/:id/health, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/ci-cd/overview, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mAuthController {/api/auth}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/auth/*, ALL} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[StaticFileServingService] [39m[32mStatic file serving service initialized[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[FileUploadService] [39m[32mFile upload service initialized[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[TraefikService] [39m[32mDocker client initialized for Traefik service[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [95m  DEBUG[39m [38;5;3m[SwarmOrchestrationService] [39m[95mDocker Swarm is already active[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[DeploymentHealthMonitorService] [39m[32mDeployment Health Monitor Service starting...[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[TraefikStartupService] [39m[32mStarting Traefik initialization on application startup...[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[TraefikStartupService] [39m[32mInitializing Traefik filesystem structure...[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[TraefikFileSystemService] [39m[32mVirtual Traefik filesystem structure initialized (database-driven)[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[TraefikStartupService] [39m[32mTraefik filesystem structure initialized[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[TraefikStartupService] [39m[32mPerforming initial Traefik configuration sync...[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[TraefikSyncService] [39m[32mStarting optimized sync of Traefik configurations that need syncing[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [95m  DEBUG[39m [38;5;3m[TraefikSyncService] [39m[95mFound 4 configurations that need syncing[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [95m  DEBUG[39m [38;5;3m[TraefikSyncService] [39m[95mSyncing Traefik configuration 1bf89318-4857-4f04-81c8-71536d0770b2[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [95m  DEBUG[39m [38;5;3m[TraefikSyncService] [39m[95mSuccessfully wrote real file: /app/traefik-configs/dynamic/standalone/dynamic-1bf89318-4857-4f04-81c8-71536d0770b2.yaml[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [95m  DEBUG[39m [38;5;3m[TraefikSyncService] [39m[95mSyncing Traefik configuration a2a146ae-e3cb-4ce8-a6b2-c844a7199659[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [95m  DEBUG[39m [38;5;3m[TraefikSyncService] [39m[95mSuccessfully wrote real file: /app/traefik-configs/dynamic/projects/My Blog/dynamic-a2a146ae-e3cb-4ce8-a6b2-c844a7199659.yaml[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [95m  DEBUG[39m [38;5;3m[TraefikSyncService] [39m[95mSyncing Traefik configuration 2f379d83-8e5c-4ea0-87d7-f177e4d1bc35[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [95m  DEBUG[39m [38;5;3m[TraefikSyncService] [39m[95mSuccessfully wrote real file: /app/traefik-configs/dynamic/projects/My Blog/dynamic-2f379d83-8e5c-4ea0-87d7-f177e4d1bc35.yaml[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [95m  DEBUG[39m [38;5;3m[TraefikSyncService] [39m[95mSyncing Traefik configuration 72fc8d00-3e9a-47b8-8583-48d6097942fa[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [95m  DEBUG[39m [38;5;3m[TraefikSyncService] [39m[95mSuccessfully wrote real file: /app/traefik-configs/dynamic/projects/My Blog/dynamic-72fc8d00-3e9a-47b8-8583-48d6097942fa.yaml[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[TraefikSyncService] [39m[32mOptimized sync completed: 4/4 successful[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[TraefikStartupService] [39m[32mInitial sync completed: 4/4 configurations synced successfully[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[TraefikStartupService] [39m[32mStartup cleanup is disabled (recommended to prevent virtual file deletion)[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[TraefikStartupService] [39m[32mTraefik initialization completed successfully[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:09 PM [32m    LOG[39m [38;5;3m[NestApplication] [39m[32mNest application successfully started[39m[38;5;3m +1ms[39m
+🚀 NestJS API with oRPC running on port 3005
+[95m[Nest] 151  - [39m09/26/2025, 10:46:22 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "HEAD /health" 200 OK undefined "" "Wget/1.24.5" "::ffff:127.0.0.1"[39m
+response:  200 OK undefined  Wget/1.24.5 ::ffff:127.0.0.1
+[32m[Nest] 151  - [39m09/26/2025, 10:46:30 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mStarting health checks[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:30 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mHealth checks completed. Total: 0, Healthy: 0, Unhealthy: 0[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:46:37 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "HEAD /health" 200 OK undefined "" "Wget/1.24.5" "::ffff:127.0.0.1"[39m
+response:  200 OK undefined  Wget/1.24.5 ::ffff:127.0.0.1
+[32m[Nest] 151  - [39m09/26/2025, 10:46:39 PM [32m    LOG[39m [38;5;3m[DeploymentHealthMonitorService] [39m[32mStarting periodic health check...[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:39 PM [32m    LOG[39m [38;5;3m[DeploymentHealthMonitorService] [39m[32mMonitoring 2 active deployments[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:39 PM [32m    LOG[39m [38;5;3m[DockerService] [39m[32mListing containers for deployment c30cfa29-f40a-48fd-a2c9-7473d612cf91[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:39 PM [32m    LOG[39m [38;5;3m[DeploymentHealthMonitorService] [39m[32mAttempting to restart unhealthy containers for deployment c30cfa29-f40a-48fd-a2c9-7473d612cf91[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:39 PM [32m    LOG[39m [38;5;3m[DockerService] [39m[32mListing containers for deployment c30cfa29-f40a-48fd-a2c9-7473d612cf91[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:39 PM [32m    LOG[39m [38;5;3m[DockerService] [39m[32mListing containers for deployment 34dbfa9f-ff64-4388-9dc4-9518c37236b4[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:46:40 PM [32m    LOG[39m [38;5;3m[DeploymentHealthMonitorService] [39m[32mAttempting to restart unhealthy containers for deployment 34dbfa9f-ff64-4388-9dc4-9518c37236b4[39m
+[33m[Nest] 151  - [39m09/26/2025, 10:46:40 PM [33m   WARN[39m [38;5;3m[DeploymentHealthMonitorService] [39m[33mFailed to restart containers for deployment c30cfa29-f40a-48fd-a2c9-7473d612cf91:[39m
+[33m[Nest] 151  - [39m09/26/2025, 10:46:40 PM [33m   WARN[39m [38;5;3m[DeploymentHealthMonitorService] [39m[33mObject:[39m
+[]
+
+[32m[Nest] 151  - [39m09/26/2025, 10:46:40 PM [32m    LOG[39m [38;5;3m[DockerService] [39m[32mListing containers for deployment 34dbfa9f-ff64-4388-9dc4-9518c37236b4[39m
+[33m[Nest] 151  - [39m09/26/2025, 10:46:40 PM [33m   WARN[39m [38;5;3m[DeploymentHealthMonitorService] [39m[33mFailed to restart containers for deployment 34dbfa9f-ff64-4388-9dc4-9518c37236b4:[39m
+[33m[Nest] 151  - [39m09/26/2025, 10:46:40 PM [33m   WARN[39m [38;5;3m[DeploymentHealthMonitorService] [39m[33mObject:[39m
+[]
+
+[32m[Nest] 151  - [39m09/26/2025, 10:46:40 PM [32m    LOG[39m [38;5;3m[DeploymentHealthMonitorService] [39m[32mHealth check completed in 169ms - 0 healthy, 0 degraded, 2 unhealthy, 0 containers restarted, 0 errors[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:46:52 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "HEAD /health" 200 OK undefined "" "Wget/1.24.5" "::ffff:127.0.0.1"[39m
+response:  200 OK undefined  Wget/1.24.5 ::ffff:127.0.0.1
+[95m[Nest] 151  - [39m09/26/2025, 10:46:54 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /deployment/list?limit=20&offset=0&serviceId=9ad39c76-d4fd-464f-ad1a-ca8862124bd4" 401 undefined 43 "http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  401 undefined 43 http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:46:54 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id/dependencies?id=9ad39c76-d4fd-464f-ad1a-ca8862124bd4" 401 undefined 43 "http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  401 undefined 43 http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:46:54 PM [95m  DEBUG[39m [38;5;3m[AuthController] [39m[95mHandling auth request: GET /api/auth/organization/list[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:46:54 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /api/auth/organization/list" 401 Unauthorized undefined "http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  401 Unauthorized undefined http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:46:55 PM [95m  DEBUG[39m [38;5;3m[AuthController] [39m[95mHandling auth request: GET /api/auth/organization/list[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:46:55 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /api/auth/organization/list" 401 Unauthorized undefined "http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  401 Unauthorized undefined http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:46:57 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id/dependencies?id=9ad39c76-d4fd-464f-ad1a-ca8862124bd4" 401 undefined 43 "http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  401 undefined 43 http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:46:57 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /deployment/list?limit=20&offset=0&serviceId=9ad39c76-d4fd-464f-ad1a-ca8862124bd4" 401 undefined 43 "http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  401 undefined 43 http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:46:58 PM [95m  DEBUG[39m [38;5;3m[AuthController] [39m[95mHandling auth request: GET /api/auth/organization/list[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:46:58 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /api/auth/organization/list" 401 Unauthorized undefined "http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  401 Unauthorized undefined http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:47:00 PM [95m  DEBUG[39m [38;5;3m[SwarmOrchestrationService] [39m[95mRunning stack monitoring...[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:47:00 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mStarting health checks[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:47:00 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mHealth checks completed. Total: 0, Healthy: 0, Unhealthy: 0[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:47:02 PM [95m  DEBUG[39m [38;5;3m[AuthController] [39m[95mHandling auth request: GET /api/auth/organization/list[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:47:02 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /api/auth/organization/list" 401 Unauthorized undefined "http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  401 Unauthorized undefined http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:47:07 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "HEAD /health" 200 OK undefined "" "Wget/1.24.5" "::ffff:127.0.0.1"[39m
+response:  200 OK undefined  Wget/1.24.5 ::ffff:127.0.0.1
+[95m[Nest] 151  - [39m09/26/2025, 10:47:21 PM [95m  DEBUG[39m [38;5;3m[AuthController] [39m[95mHandling auth request: POST /api/auth/passkey/generate-authenticate-options[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:47:21 PM [95m  DEBUG[39m [38;5;3m[AuthController] [39m[95mHandling auth request: POST /api/auth/passkey/generate-authenticate-options[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:47:21 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "POST /api/auth/passkey/generate-authenticate-options" 200 OK undefined "http://localhost:3050/auth/signin?callbackUrl=%2Fdashboard%2Fprojects%2F77d52f95-6a3c-487f-a17e-e84f3797c89a%2Fservices%2F9ad39c76-d4fd-464f-ad1a-ca8862124bd4%2Fdeployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/auth/signin?callbackUrl=%2Fdashboard%2Fprojects%2F77d52f95-6a3c-487f-a17e-e84f3797c89a%2Fservices%2F9ad39c76-d4fd-464f-ad1a-ca8862124bd4%2Fdeployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:47:21 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "POST /api/auth/passkey/generate-authenticate-options" 200 OK undefined "http://localhost:3050/auth/signin?callbackUrl=%2Fdashboard%2Fprojects%2F77d52f95-6a3c-487f-a17e-e84f3797c89a%2Fservices%2F9ad39c76-d4fd-464f-ad1a-ca8862124bd4%2Fdeployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/auth/signin?callbackUrl=%2Fdashboard%2Fprojects%2F77d52f95-6a3c-487f-a17e-e84f3797c89a%2Fservices%2F9ad39c76-d4fd-464f-ad1a-ca8862124bd4%2Fdeployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:47:22 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "HEAD /health" 200 OK undefined "" "Wget/1.24.5" "::ffff:127.0.0.1"[39m
+response:  200 OK undefined  Wget/1.24.5 ::ffff:127.0.0.1
+[95m[Nest] 151  - [39m09/26/2025, 10:47:23 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id?id=9ad39c76-d4fd-464f-ad1a-ca8862124bd4" 401 undefined 43 "" "Bun/1.2.21" "::ffff:172.18.0.6"[39m
+response:  401 undefined 43  Bun/1.2.21 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:47:23 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id/deployments?id=9ad39c76-d4fd-464f-ad1a-ca8862124bd4&limit=50" 401 undefined 43 "" "Bun/1.2.21" "::ffff:172.18.0.6"[39m
+response:  401 undefined 43  Bun/1.2.21 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:47:23 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id?id=9ad39c76-d4fd-464f-ad1a-ca8862124bd4" 401 undefined 43 "" "Bun/1.2.21" "::ffff:172.18.0.6"[39m
+response:  401 undefined 43  Bun/1.2.21 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:47:23 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id/deployments?id=9ad39c76-d4fd-464f-ad1a-ca8862124bd4&limit=50" 401 undefined 43 "" "Bun/1.2.21" "::ffff:172.18.0.6"[39m
+response:  401 undefined 43  Bun/1.2.21 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:47:23 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /deployment/list?serviceId=9ad39c76-d4fd-464f-ad1a-ca8862124bd4&limit=50" 401 undefined 43 "" "Bun/1.2.21" "::ffff:172.18.0.6"[39m
+response:  401 undefined 43  Bun/1.2.21 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:47:23 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /deployment/list?serviceId=9ad39c76-d4fd-464f-ad1a-ca8862124bd4&limit=50" 401 undefined 43 "" "Bun/1.2.21" "::ffff:172.18.0.6"[39m
+response:  401 undefined 43  Bun/1.2.21 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:47:30 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mStarting health checks[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:47:30 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mHealth checks completed. Total: 0, Healthy: 0, Unhealthy: 0[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:47:37 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "HEAD /health" 200 OK undefined "" "Wget/1.24.5" "::ffff:127.0.0.1"[39m
+response:  200 OK undefined  Wget/1.24.5 ::ffff:127.0.0.1
+[95m[Nest] 151  - [39m09/26/2025, 10:47:52 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "HEAD /health" 200 OK undefined "" "Wget/1.24.5" "::ffff:127.0.0.1"[39m
+response:  200 OK undefined  Wget/1.24.5 ::ffff:127.0.0.1
+[32m[Nest] 151  - [39m09/26/2025, 10:48:00 PM [32m    LOG[39m [38;5;3m[DeploymentHealthMonitorService] [39m[32mStarting periodic health check...[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:48:00 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mStarting health checks[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:48:00 PM [32m    LOG[39m [38;5;3m[ResourceMonitoringService] [39m[32mStarting resource metrics collection[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:00 PM [95m  DEBUG[39m [38;5;3m[SwarmOrchestrationService] [39m[95mRunning stack monitoring...[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:48:00 PM [32m    LOG[39m [38;5;3m[ResourceMonitoringService] [39m[32mResource metrics collection completed. Collected 0 metrics[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:48:00 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mHealth checks completed. Total: 0, Healthy: 0, Unhealthy: 0[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:48:00 PM [32m    LOG[39m [38;5;3m[DeploymentHealthMonitorService] [39m[32mNo active deployments to monitor[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:03 PM [95m  DEBUG[39m [38;5;3m[AuthController] [39m[95mHandling auth request: POST /api/auth/sign-up/email[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:03 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "POST /api/auth/sign-up/email" 200 OK undefined "http://localhost:3050/auth/signup?callbackUrl=%2Fdashboard%2Fprojects%2F77d52f95-6a3c-487f-a17e-e84f3797c89a%2Fservices%2F9ad39c76-d4fd-464f-ad1a-ca8862124bd4%2Fdeployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/auth/signup?callbackUrl=%2Fdashboard%2Fprojects%2F77d52f95-6a3c-487f-a17e-e84f3797c89a%2Fservices%2F9ad39c76-d4fd-464f-ad1a-ca8862124bd4%2Fdeployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:06 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mGetting service deployments (not implemented)[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:06 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id/deployments?id=9ad39c76-d4fd-464f-ad1a-ca8862124bd4&limit=50" 200 OK undefined "" "Bun/1.2.21" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined  Bun/1.2.21 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:06 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mGetting service by id: 9ad39c76-d4fd-464f-ad1a-ca8862124bd4[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:48:06 PM [32m    LOG[39m [38;5;3m[DeploymentController] [39m[32mListing deployments for service 9ad39c76-d4fd-464f-ad1a-ca8862124bd4[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:06 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id?id=9ad39c76-d4fd-464f-ad1a-ca8862124bd4" 500 Internal Server Error undefined "" "Bun/1.2.21" "::ffff:172.18.0.6"[39m
+response:  500 Internal Server Error undefined  Bun/1.2.21 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:48:06 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /deployment/list?serviceId=9ad39c76-d4fd-464f-ad1a-ca8862124bd4&limit=50" 200 OK undefined "" "Bun/1.2.21" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined  Bun/1.2.21 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:48:07 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "HEAD /health" 200 OK undefined "" "Wget/1.24.5" "::ffff:127.0.0.1"[39m
+response:  200 OK undefined  Wget/1.24.5 ::ffff:127.0.0.1
+[95m[Nest] 151  - [39m09/26/2025, 10:48:13 PM [95m  DEBUG[39m [38;5;3m[AuthController] [39m[95mHandling auth request: GET /api/auth/organization/get-full-organization[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:13 PM [95m  DEBUG[39m [38;5;3m[AuthController] [39m[95mHandling auth request: GET /api/auth/get-session[39m
+[2m2025-09-26T22:48:13.672Z[0m [34mINFO[0m [1m[Better Auth]:[0m No active organization found, returning null
+[95m[Nest] 151  - [39m09/26/2025, 10:48:13 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /api/auth/organization/get-full-organization" 200 OK undefined "http://localhost:3050/auth/signup?callbackUrl=%2Fdashboard%2Fprojects%2F77d52f95-6a3c-487f-a17e-e84f3797c89a%2Fservices%2F9ad39c76-d4fd-464f-ad1a-ca8862124bd4%2Fdeployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/auth/signup?callbackUrl=%2Fdashboard%2Fprojects%2F77d52f95-6a3c-487f-a17e-e84f3797c89a%2Fservices%2F9ad39c76-d4fd-464f-ad1a-ca8862124bd4%2Fdeployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:48:13 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /api/auth/get-session" 200 OK undefined "http://localhost:3050/auth/signup?callbackUrl=%2Fdashboard%2Fprojects%2F77d52f95-6a3c-487f-a17e-e84f3797c89a%2Fservices%2F9ad39c76-d4fd-464f-ad1a-ca8862124bd4%2Fdeployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/auth/signup?callbackUrl=%2Fdashboard%2Fprojects%2F77d52f95-6a3c-487f-a17e-e84f3797c89a%2Fservices%2F9ad39c76-d4fd-464f-ad1a-ca8862124bd4%2Fdeployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:48:14 PM [95m  DEBUG[39m [38;5;3m[AuthController] [39m[95mHandling auth request: GET /api/auth/get-session[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:14 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /api/auth/get-session" 200 OK undefined "http://localhost:3050/auth/signup?callbackUrl=%2Fdashboard%2Fprojects%2F77d52f95-6a3c-487f-a17e-e84f3797c89a%2Fservices%2F9ad39c76-d4fd-464f-ad1a-ca8862124bd4%2Fdeployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/auth/signup?callbackUrl=%2Fdashboard%2Fprojects%2F77d52f95-6a3c-487f-a17e-e84f3797c89a%2Fservices%2F9ad39c76-d4fd-464f-ad1a-ca8862124bd4%2Fdeployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:14 PM [32m    LOG[39m [38;5;3m[DeploymentController] [39m[32mListing deployments for service 9ad39c76-d4fd-464f-ad1a-ca8862124bd4[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:14 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /deployment/list?serviceId=9ad39c76-d4fd-464f-ad1a-ca8862124bd4&limit=50" 200 OK undefined "" "Bun/1.2.21" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined  Bun/1.2.21 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:14 PM [32m    LOG[39m [38;5;3m[DeploymentWebSocketGateway] [39m[32mClient connected: 3jpcQnp7C0QOqQNRAAAC[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:14 PM [95m  DEBUG[39m [38;5;3m[AuthController] [39m[95mHandling auth request: GET /api/auth/organization/list[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:14 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /api/auth/organization/list" 200 OK undefined "http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:15 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mGetting dependencies for service: 9ad39c76-d4fd-464f-ad1a-ca8862124bd4[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:15 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id/dependencies?id=9ad39c76-d4fd-464f-ad1a-ca8862124bd4" 200 OK undefined "http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:15 PM [32m    LOG[39m [38;5;3m[DeploymentController] [39m[32mListing deployments for service 9ad39c76-d4fd-464f-ad1a-ca8862124bd4[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:15 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /deployment/list?limit=20&offset=0&serviceId=9ad39c76-d4fd-464f-ad1a-ca8862124bd4" 200 OK undefined "http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:48:15 PM [95m  DEBUG[39m [38;5;3m[AuthController] [39m[95mHandling auth request: GET /api/auth/organization/get-full-organization[39m
+[2m2025-09-26T22:48:15.733Z[0m [34mINFO[0m [1m[Better Auth]:[0m No active organization found, returning null
+[95m[Nest] 151  - [39m09/26/2025, 10:48:15 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /api/auth/organization/get-full-organization" 200 OK undefined "http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects/77d52f95-6a3c-487f-a17e-e84f3797c89a/services/9ad39c76-d4fd-464f-ad1a-ca8862124bd4/deployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:48:22 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "HEAD /health" 200 OK undefined "" "Wget/1.24.5" "::ffff:127.0.0.1"[39m
+response:  200 OK undefined  Wget/1.24.5 ::ffff:127.0.0.1
+[32m[Nest] 151  - [39m09/26/2025, 10:48:26 PM [32m    LOG[39m [38;5;3m[ProjectController] [39m[32mListing projects[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:26 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /projects" 200 OK undefined "" "Bun/1.2.21" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined  Bun/1.2.21 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:26 PM [32m    LOG[39m [38;5;3m[ProjectController] [39m[32mListing projects[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:26 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /projects" 200 OK undefined "http://localhost:3050/dashboard/projects" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:27 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mListing services for project: ff4509bf-4a48-4d87-bd01-406a5de0491a[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:27 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/projects/:projectId/services?projectId=ff4509bf-4a48-4d87-bd01-406a5de0491a&limit=20&offset=0&isActive=true" 200 OK undefined "http://localhost:3050/dashboard/projects" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:27 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mListing services for project: 3016ac43-3364-4ae0-8185-e8e1ddb1b96b[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:27 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/projects/:projectId/services?projectId=3016ac43-3364-4ae0-8185-e8e1ddb1b96b&limit=20&offset=0&isActive=true" 200 OK undefined "http://localhost:3050/dashboard/projects" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:30 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mStarting health checks[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:48:30 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mHealth checks completed. Total: 0, Healthy: 0, Unhealthy: 0[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:37 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "HEAD /health" 200 OK undefined "" "Wget/1.24.5" "::ffff:127.0.0.1"[39m
+response:  200 OK undefined  Wget/1.24.5 ::ffff:127.0.0.1
+[32m[Nest] 151  - [39m09/26/2025, 10:48:39 PM [32m    LOG[39m [38;5;3m[ProjectController] [39m[32mGetting project by id: 3016ac43-3364-4ae0-8185-e8e1ddb1b96b[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:39 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /projects/:id?id=3016ac43-3364-4ae0-8185-e8e1ddb1b96b" 200 OK undefined "" "Bun/1.2.21" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined  Bun/1.2.21 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:39 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mListing services for project: 3016ac43-3364-4ae0-8185-e8e1ddb1b96b[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:39 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/projects/:projectId/services?projectId=3016ac43-3364-4ae0-8185-e8e1ddb1b96b&limit=50" 200 OK undefined "" "Bun/1.2.21" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined  Bun/1.2.21 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:40 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mListing services for project: 3016ac43-3364-4ae0-8185-e8e1ddb1b96b[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:40 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/projects/:projectId/services?projectId=3016ac43-3364-4ae0-8185-e8e1ddb1b96b&limit=50&offset=0" 200 OK undefined "http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:40 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mGetting dependencies for service: f42645d4-e243-4996-9444-61c3c0355b9c[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:48:40 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mGetting health status for service: f42645d4-e243-4996-9444-61c3c0355b9c[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:40 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id/health?id=f42645d4-e243-4996-9444-61c3c0355b9c" 200 OK undefined "http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:48:40 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id/dependencies?id=f42645d4-e243-4996-9444-61c3c0355b9c" 200 OK undefined "http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:40 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mGetting health status for service: 8d3a6082-af68-470c-9c8f-ae527829c7bd[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:40 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id/health?id=8d3a6082-af68-470c-9c8f-ae527829c7bd" 200 OK undefined "http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:40 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mGetting dependencies for service: 35cba5d6-a45e-4d5e-90ee-b7235369a341[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:48:40 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mGetting dependencies for service: 8d3a6082-af68-470c-9c8f-ae527829c7bd[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:40 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id/dependencies?id=35cba5d6-a45e-4d5e-90ee-b7235369a341" 200 OK undefined "http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:48:40 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id/dependencies?id=8d3a6082-af68-470c-9c8f-ae527829c7bd" 200 OK undefined "http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:40 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mGetting health status for service: 35cba5d6-a45e-4d5e-90ee-b7235369a341[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:40 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id/health?id=35cba5d6-a45e-4d5e-90ee-b7235369a341" 200 OK undefined "http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:49 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mGetting service deployments (not implemented)[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:49 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id/deployments?id=f42645d4-e243-4996-9444-61c3c0355b9c&limit=50" 200 OK undefined "" "Bun/1.2.21" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined  Bun/1.2.21 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:49 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mGetting service by id: f42645d4-e243-4996-9444-61c3c0355b9c[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:49 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id?id=f42645d4-e243-4996-9444-61c3c0355b9c" 200 OK undefined "" "Bun/1.2.21" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined  Bun/1.2.21 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:49 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mGetting logs for service: f42645d4-e243-4996-9444-61c3c0355b9c[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:49 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id/logs?id=f42645d4-e243-4996-9444-61c3c0355b9c&limit=100&offset=0" 200 OK undefined "http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services/f42645d4-e243-4996-9444-61c3c0355b9c" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services/f42645d4-e243-4996-9444-61c3c0355b9c Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:48:49 PM [32m    LOG[39m [38;5;3m[ServiceController] [39m[32mGetting service deployments (not implemented)[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:48:49 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /services/:id/deployments?id=f42645d4-e243-4996-9444-61c3c0355b9c&limit=20&offset=0" 200 OK undefined "http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services/f42645d4-e243-4996-9444-61c3c0355b9c" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services/f42645d4-e243-4996-9444-61c3c0355b9c Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:48:53 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "HEAD /health" 200 OK undefined "" "Wget/1.24.5" "::ffff:127.0.0.1"[39m
+response:  200 OK undefined  Wget/1.24.5 ::ffff:127.0.0.1
+[32m[Nest] 151  - [39m09/26/2025, 10:49:00 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mStarting health checks[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:00 PM [95m  DEBUG[39m [38;5;3m[SwarmOrchestrationService] [39m[95mRunning stack monitoring...[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:00 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mHealth checks completed. Total: 0, Healthy: 0, Unhealthy: 0[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:00 PM [32m    LOG[39m [38;5;3m[DeploymentController] [39m[32mListing deployments for service f42645d4-e243-4996-9444-61c3c0355b9c[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:00 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /deployment/list?serviceId=f42645d4-e243-4996-9444-61c3c0355b9c&limit=50" 200 OK undefined "" "Bun/1.2.21" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined  Bun/1.2.21 ::ffff:172.18.0.6
+[32m[Nest] 151  - [39m09/26/2025, 10:49:00 PM [32m    LOG[39m [38;5;3m[DeploymentController] [39m[32mListing deployments for service f42645d4-e243-4996-9444-61c3c0355b9c[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:00 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /deployment/list?limit=20&offset=0&serviceId=f42645d4-e243-4996-9444-61c3c0355b9c" 200 OK undefined "http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services/f42645d4-e243-4996-9444-61c3c0355b9c/deployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services/f42645d4-e243-4996-9444-61c3c0355b9c/deployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:49:08 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "HEAD /health" 200 OK undefined "" "Wget/1.24.5" "::ffff:127.0.0.1"[39m
+response:  200 OK undefined  Wget/1.24.5 ::ffff:127.0.0.1
+🔥🔥🔥 WEBSOCKET CONTROLLER - TRIGGER INPUT: {
+  "serviceId": "f42645d4-e243-4996-9444-61c3c0355b9c",
+  "environment": "production"
+}
+🔥🔥🔥 WEBSOCKET CONTROLLER - Extracted values: {
+  serviceId: "f42645d4-e243-4996-9444-61c3c0355b9c",
+  environment: "production",
+  sourceType: undefined,
+  sourceConfig: undefined,
+}
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentController] [39m[32mTriggering deployment for service f42645d4-e243-4996-9444-61c3c0355b9c, environment: production[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DockerService] [39m[32mDocker connection successful[39m
+🔥🔥🔥 WEBSOCKET CONTROLLER - Determining source config from service: {
+  provider: "manual",
+  builder: "static",
+  providerConfig: {
+    instructions: "Static file deployment with local content",
+    deploymentScript: "{\"index.html\":\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n    <meta charset=\\\"UTF-8\\\">\\n    <meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1.0\\\">\\n    <title>Static Site Demo</title>\\n    <style>\\n        body { \\n            font-family: Arial, sans-serif; \\n            max-width: 800px; \\n            margin: 0 auto; \\n            padding: 20px;\\n            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\\n            color: white;\\n            min-height: 100vh;\\n        }\\n        .container { \\n            background: rgba(255,255,255,0.1); \\n            padding: 30px; \\n            border-radius: 10px;\\n            backdrop-filter: blur(10px);\\n        }\\n        h1 { color: #fff; text-align: center; }\\n        .status { \\n            background: rgba(76, 175, 80, 0.2); \\n            padding: 15px; \\n            border-radius: 5px; \\n            margin: 20px 0;\\n            border-left: 4px solid #4CAF50;\\n        }\\n        .feature { \\n            background: rgba(33, 150, 243, 0.2); \\n            padding: 10px; \\n            margin: 10px 0; \\n            border-radius: 5px;\\n        }\\n    </style>\\n</head>\\n<body>\\n    <div class=\\\"container\\\">\\n        <h1>🚀 Static Site Deployment Demo</h1>\\n        <div class=\\\"status\\\">\\n            <h3>✅ Deployment Successful!</h3>\\n            <p>This static site was deployed using the local file upload feature.</p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>📁 File Structure</h4>\\n            <p>This site includes multiple files served from Docker volumes.</p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>🔗 Navigation</h4>\\n            <p><a href=\\\"/about.html\\\" style=\\\"color: #81C784;\\\">Visit About Page</a></p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>🎯 Features Tested</h4>\\n            <ul>\\n                <li>Local file upload processing</li>\\n                <li>Static file serving via Traefik</li>\\n                <li>Docker volume integration</li>\\n                <li>Multi-file deployment</li>\\n            </ul>\\n        </div>\\n    </div>\\n</body>\\n</html>\",\"about.html\":\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n    <meta charset=\\\"UTF-8\\\">\\n    <meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1.0\\\">\\n    <title>About - Static Site Demo</title>\\n    <style>\\n        body { \\n            font-family: Arial, sans-serif; \\n            max-width: 800px; \\n            margin: 0 auto; \\n            padding: 20px;\\n            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);\\n            color: white;\\n            min-height: 100vh;\\n        }\\n        .container { \\n            background: rgba(255,255,255,0.1); \\n            padding: 30px; \\n            border-radius: 10px;\\n            backdrop-filter: blur(10px);\\n        }\\n        h1 { color: #fff; text-align: center; }\\n        a { color: #FFE082; text-decoration: none; }\\n        a:hover { text-decoration: underline; }\\n    </style>\\n</head>\\n<body>\\n    <div class=\\\"container\\\">\\n        <h1>📋 About This Demo</h1>\\n        <p>This is a demonstration of the static file deployment system.</p>\\n        \\n        <h3>🔧 Technical Details</h3>\\n        <ul>\\n            <li><strong>Provider:</strong> Local file upload</li>\\n            <li><strong>Storage:</strong> Docker volumes</li>\\n            <li><strong>Serving:</strong> Nginx container</li>\\n            <li><strong>Proxy:</strong> Traefik reverse proxy</li>\\n        </ul>\\n        \\n        <h3>📊 Deployment Info</h3>\\n        <p><strong>Service:</strong> static-demo</p>\\n        <p><strong>Domain:</strong> static.localhost</p>\\n        <p><strong>Files:</strong> HTML, CSS (inline)</p>\\n        \\n        <p><a href=\\\"/index.html\\\">← Back to Home</a></p>\\n    </div>\\n</body>\\n</html>\",\"robots.txt\":\"User-agent: *\\nAllow: /\\n\\nSitemap: http://static.localhost/sitemap.xml\",\"sitemap.xml\":\"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?>\\n<urlset xmlns=\\\"http://www.sitemaps.org/schemas/sitemap/0.9\\\">\\n  <url>\\n    <loc>http://static.localhost/</loc>\\n    <lastmod>2025-09-26</lastmod>\\n    <changefreq>monthly</changefreq>\\n    <priority>1.0</priority>\\n  </url>\\n  <url>\\n    <loc>http://static.localhost/about.html</loc>\\n    <lastmod>2025-09-26</lastmod>\\n    <changefreq>monthly</changefreq>\\n    <priority>0.8</priority>\\n  </url>\\n</urlset>\"}",
+  },
+}
+🔥🔥🔥 WEBSOCKET CONTROLLER - Determined source config: {
+  sourceType: "upload",
+  sourceConfig: {
+    customData: {
+      embeddedContent: "{\"index.html\":\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n    <meta charset=\\\"UTF-8\\\">\\n    <meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1.0\\\">\\n    <title>Static Site Demo</title>\\n    <style>\\n        body { \\n            font-family: Arial, sans-serif; \\n            max-width: 800px; \\n            margin: 0 auto; \\n            padding: 20px;\\n            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\\n            color: white;\\n            min-height: 100vh;\\n        }\\n        .container { \\n            background: rgba(255,255,255,0.1); \\n            padding: 30px; \\n            border-radius: 10px;\\n            backdrop-filter: blur(10px);\\n        }\\n        h1 { color: #fff; text-align: center; }\\n        .status { \\n            background: rgba(76, 175, 80, 0.2); \\n            padding: 15px; \\n            border-radius: 5px; \\n            margin: 20px 0;\\n            border-left: 4px solid #4CAF50;\\n        }\\n        .feature { \\n            background: rgba(33, 150, 243, 0.2); \\n            padding: 10px; \\n            margin: 10px 0; \\n            border-radius: 5px;\\n        }\\n    </style>\\n</head>\\n<body>\\n    <div class=\\\"container\\\">\\n        <h1>🚀 Static Site Deployment Demo</h1>\\n        <div class=\\\"status\\\">\\n            <h3>✅ Deployment Successful!</h3>\\n            <p>This static site was deployed using the local file upload feature.</p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>📁 File Structure</h4>\\n            <p>This site includes multiple files served from Docker volumes.</p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>🔗 Navigation</h4>\\n            <p><a href=\\\"/about.html\\\" style=\\\"color: #81C784;\\\">Visit About Page</a></p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>🎯 Features Tested</h4>\\n            <ul>\\n                <li>Local file upload processing</li>\\n                <li>Static file serving via Traefik</li>\\n                <li>Docker volume integration</li>\\n                <li>Multi-file deployment</li>\\n            </ul>\\n        </div>\\n    </div>\\n</body>\\n</html>\",\"about.html\":\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n    <meta charset=\\\"UTF-8\\\">\\n    <meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1.0\\\">\\n    <title>About - Static Site Demo</title>\\n    <style>\\n        body { \\n            font-family: Arial, sans-serif; \\n            max-width: 800px; \\n            margin: 0 auto; \\n            padding: 20px;\\n            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);\\n            color: white;\\n            min-height: 100vh;\\n        }\\n        .container { \\n            background: rgba(255,255,255,0.1); \\n            padding: 30px; \\n            border-radius: 10px;\\n            backdrop-filter: blur(10px);\\n        }\\n        h1 { color: #fff; text-align: center; }\\n        a { color: #FFE082; text-decoration: none; }\\n        a:hover { text-decoration: underline; }\\n    </style>\\n</head>\\n<body>\\n    <div class=\\\"container\\\">\\n        <h1>📋 About This Demo</h1>\\n        <p>This is a demonstration of the static file deployment system.</p>\\n        \\n        <h3>🔧 Technical Details</h3>\\n        <ul>\\n            <li><strong>Provider:</strong> Local file upload</li>\\n            <li><strong>Storage:</strong> Docker volumes</li>\\n            <li><strong>Serving:</strong> Nginx container</li>\\n            <li><strong>Proxy:</strong> Traefik reverse proxy</li>\\n        </ul>\\n        \\n        <h3>📊 Deployment Info</h3>\\n        <p><strong>Service:</strong> static-demo</p>\\n        <p><strong>Domain:</strong> static.localhost</p>\\n        <p><strong>Files:</strong> HTML, CSS (inline)</p>\\n        \\n        <p><a href=\\\"/index.html\\\">← Back to Home</a></p>\\n    </div>\\n</body>\\n</html>\",\"robots.txt\":\"User-agent: *\\nAllow: /\\n\\nSitemap: http://static.localhost/sitemap.xml\",\"sitemap.xml\":\"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?>\\n<urlset xmlns=\\\"http://www.sitemaps.org/schemas/sitemap/0.9\\\">\\n  <url>\\n    <loc>http://static.localhost/</loc>\\n    <lastmod>2025-09-26</lastmod>\\n    <changefreq>monthly</changefreq>\\n    <priority>1.0</priority>\\n  </url>\\n  <url>\\n    <loc>http://static.localhost/about.html</loc>\\n    <lastmod>2025-09-26</lastmod>\\n    <changefreq>monthly</changefreq>\\n    <priority>0.8</priority>\\n  </url>\\n</urlset>\"}",
+    },
+  },
+}
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentController] [39m[32mChecking for existing deployments to stop for service f42645d4-e243-4996-9444-61c3c0355b9c[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentService] [39m[32mStopping previous deployment c30cfa29-f40a-48fd-a2c9-7473d612cf91 for service f42645d4-e243-4996-9444-61c3c0355b9c[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentService] [39m[32mStopping deployment c30cfa29-f40a-48fd-a2c9-7473d612cf91[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DockerService] [39m[32mStopping containers for deployment c30cfa29-f40a-48fd-a2c9-7473d612cf91[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentService] [39m[32mUpdating deployment c30cfa29-f40a-48fd-a2c9-7473d612cf91 status to cancelled[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentService] [39m[32mSuccessfully stopped deployment c30cfa29-f40a-48fd-a2c9-7473d612cf91[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentController] [39m[32mStopped 1 previous deployments: c30cfa29-f40a-48fd-a2c9-7473d612cf91[39m
+🔥🔥🔥 WEBSOCKET CONTROLLER - Source type mapping: {
+  originalSourceType: "upload",
+  jobSourceType: "upload",
+  sourceConfig: {
+    customData: {
+      embeddedContent: "{\"index.html\":\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n    <meta charset=\\\"UTF-8\\\">\\n    <meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1.0\\\">\\n    <title>Static Site Demo</title>\\n    <style>\\n        body { \\n            font-family: Arial, sans-serif; \\n            max-width: 800px; \\n            margin: 0 auto; \\n            padding: 20px;\\n            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\\n            color: white;\\n            min-height: 100vh;\\n        }\\n        .container { \\n            background: rgba(255,255,255,0.1); \\n            padding: 30px; \\n            border-radius: 10px;\\n            backdrop-filter: blur(10px);\\n        }\\n        h1 { color: #fff; text-align: center; }\\n        .status { \\n            background: rgba(76, 175, 80, 0.2); \\n            padding: 15px; \\n            border-radius: 5px; \\n            margin: 20px 0;\\n            border-left: 4px solid #4CAF50;\\n        }\\n        .feature { \\n            background: rgba(33, 150, 243, 0.2); \\n            padding: 10px; \\n            margin: 10px 0; \\n            border-radius: 5px;\\n        }\\n    </style>\\n</head>\\n<body>\\n    <div class=\\\"container\\\">\\n        <h1>🚀 Static Site Deployment Demo</h1>\\n        <div class=\\\"status\\\">\\n            <h3>✅ Deployment Successful!</h3>\\n            <p>This static site was deployed using the local file upload feature.</p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>📁 File Structure</h4>\\n            <p>This site includes multiple files served from Docker volumes.</p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>🔗 Navigation</h4>\\n            <p><a href=\\\"/about.html\\\" style=\\\"color: #81C784;\\\">Visit About Page</a></p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>🎯 Features Tested</h4>\\n            <ul>\\n                <li>Local file upload processing</li>\\n                <li>Static file serving via Traefik</li>\\n                <li>Docker volume integration</li>\\n                <li>Multi-file deployment</li>\\n            </ul>\\n        </div>\\n    </div>\\n</body>\\n</html>\",\"about.html\":\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n    <meta charset=\\\"UTF-8\\\">\\n    <meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1.0\\\">\\n    <title>About - Static Site Demo</title>\\n    <style>\\n        body { \\n            font-family: Arial, sans-serif; \\n            max-width: 800px; \\n            margin: 0 auto; \\n            padding: 20px;\\n            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);\\n            color: white;\\n            min-height: 100vh;\\n        }\\n        .container { \\n            background: rgba(255,255,255,0.1); \\n            padding: 30px; \\n            border-radius: 10px;\\n            backdrop-filter: blur(10px);\\n        }\\n        h1 { color: #fff; text-align: center; }\\n        a { color: #FFE082; text-decoration: none; }\\n        a:hover { text-decoration: underline; }\\n    </style>\\n</head>\\n<body>\\n    <div class=\\\"container\\\">\\n        <h1>📋 About This Demo</h1>\\n        <p>This is a demonstration of the static file deployment system.</p>\\n        \\n        <h3>🔧 Technical Details</h3>\\n        <ul>\\n            <li><strong>Provider:</strong> Local file upload</li>\\n            <li><strong>Storage:</strong> Docker volumes</li>\\n            <li><strong>Serving:</strong> Nginx container</li>\\n            <li><strong>Proxy:</strong> Traefik reverse proxy</li>\\n        </ul>\\n        \\n        <h3>📊 Deployment Info</h3>\\n        <p><strong>Service:</strong> static-demo</p>\\n        <p><strong>Domain:</strong> static.localhost</p>\\n        <p><strong>Files:</strong> HTML, CSS (inline)</p>\\n        \\n        <p><a href=\\\"/index.html\\\">← Back to Home</a></p>\\n    </div>\\n</body>\\n</html>\",\"robots.txt\":\"User-agent: *\\nAllow: /\\n\\nSitemap: http://static.localhost/sitemap.xml\",\"sitemap.xml\":\"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?>\\n<urlset xmlns=\\\"http://www.sitemaps.org/schemas/sitemap/0.9\\\">\\n  <url>\\n    <loc>http://static.localhost/</loc>\\n    <lastmod>2025-09-26</lastmod>\\n    <changefreq>monthly</changefreq>\\n    <priority>1.0</priority>\\n  </url>\\n  <url>\\n    <loc>http://static.localhost/about.html</loc>\\n    <lastmod>2025-09-26</lastmod>\\n    <changefreq>monthly</changefreq>\\n    <priority>0.8</priority>\\n  </url>\\n</urlset>\"}",
+    },
+  },
+}
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentQueueService] [39m[32mAdding deployment job for deployment 49dbbfb0-3f3b-4da3-84d9-6fac4d726685[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentQueueService] [39m[32mDeployment job 1 added to queue[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [95m  DEBUG[39m [38;5;3m[DeploymentWebSocketGateway] [39m[95mBroadcasted deployment event: deployment_started for deployment 49dbbfb0-3f3b-4da3-84d9-6fac4d726685[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[WebSocketEventService] [39m[32mEmitted deployment started event for deployment 49dbbfb0-3f3b-4da3-84d9-6fac4d726685[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "POST /deployment/trigger" 200 OK undefined "http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services/f42645d4-e243-4996-9444-61c3c0355b9c/deployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services/f42645d4-e243-4996-9444-61c3c0355b9c/deployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+🔥🔥🔥 DEPLOY HANDLER CALLED WITH JOB ID: 1
+🔥🔥🔥 JOB DATA: {
+  "deploymentId": "49dbbfb0-3f3b-4da3-84d9-6fac4d726685",
+  "projectId": "3016ac43-3364-4ae0-8185-e8e1ddb1b96b",
+  "serviceId": "f42645d4-e243-4996-9444-61c3c0355b9c",
+  "sourceConfig": {
+    "type": "upload",
+    "customData": {
+      "embeddedContent": "{\"index.html\":\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n    <meta charset=\\\"UTF-8\\\">\\n    <meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1.0\\\">\\n    <title>Static Site Demo</title>\\n    <style>\\n        body { \\n            font-family: Arial, sans-serif; \\n            max-width: 800px; \\n            margin: 0 auto; \\n            padding: 20px;\\n            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\\n            color: white;\\n            min-height: 100vh;\\n        }\\n        .container { \\n            background: rgba(255,255,255,0.1); \\n            padding: 30px; \\n            border-radius: 10px;\\n            backdrop-filter: blur(10px);\\n        }\\n        h1 { color: #fff; text-align: center; }\\n        .status { \\n            background: rgba(76, 175, 80, 0.2); \\n            padding: 15px; \\n            border-radius: 5px; \\n            margin: 20px 0;\\n            border-left: 4px solid #4CAF50;\\n        }\\n        .feature { \\n            background: rgba(33, 150, 243, 0.2); \\n            padding: 10px; \\n            margin: 10px 0; \\n            border-radius: 5px;\\n        }\\n    </style>\\n</head>\\n<body>\\n    <div class=\\\"container\\\">\\n        <h1>🚀 Static Site Deployment Demo</h1>\\n        <div class=\\\"status\\\">\\n            <h3>✅ Deployment Successful!</h3>\\n            <p>This static site was deployed using the local file upload feature.</p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>📁 File Structure</h4>\\n            <p>This site includes multiple files served from Docker volumes.</p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>🔗 Navigation</h4>\\n            <p><a href=\\\"/about.html\\\" style=\\\"color: #81C784;\\\">Visit About Page</a></p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>🎯 Features Tested</h4>\\n            <ul>\\n                <li>Local file upload processing</li>\\n                <li>Static file serving via Traefik</li>\\n                <li>Docker volume integration</li>\\n                <li>Multi-file deployment</li>\\n            </ul>\\n        </div>\\n    </div>\\n</body>\\n</html>\",\"about.html\":\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n    <meta charset=\\\"UTF-8\\\">\\n    <meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1.0\\\">\\n    <title>About - Static Site Demo</title>\\n    <style>\\n        body { \\n            font-family: Arial, sans-serif; \\n            max-width: 800px; \\n            margin: 0 auto; \\n            padding: 20px;\\n            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);\\n            color: white;\\n            min-height: 100vh;\\n        }\\n        .container { \\n            background: rgba(255,255,255,0.1); \\n            padding: 30px; \\n            border-radius: 10px;\\n            backdrop-filter: blur(10px);\\n        }\\n        h1 { color: #fff; text-align: center; }\\n        a { color: #FFE082; text-decoration: none; }\\n        a:hover { text-decoration: underline; }\\n    </style>\\n</head>\\n<body>\\n    <div class=\\\"container\\\">\\n        <h1>📋 About This Demo</h1>\\n        <p>This is a demonstration of the static file deployment system.</p>\\n        \\n        <h3>🔧 Technical Details</h3>\\n        <ul>\\n            <li><strong>Provider:</strong> Local file upload</li>\\n            <li><strong>Storage:</strong> Docker volumes</li>\\n            <li><strong>Serving:</strong> Nginx container</li>\\n            <li><strong>Proxy:</strong> Traefik reverse proxy</li>\\n        </ul>\\n        \\n        <h3>📊 Deployment Info</h3>\\n        <p><strong>Service:</strong> static-demo</p>\\n        <p><strong>Domain:</strong> static.localhost</p>\\n        <p><strong>Files:</strong> HTML, CSS (inline)</p>\\n        \\n        <p><a href=\\\"/index.html\\\">← Back to Home</a></p>\\n    </div>\\n</body>\\n</html>\",\"robots.txt\":\"User-agent: *\\nAllow: /\\n\\nSitemap: http://static.localhost/sitemap.xml\",\"sitemap.xml\":\"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?>\\n<urlset xmlns=\\\"http://www.sitemaps.org/schemas/sitemap/0.9\\\">\\n  <url>\\n    <loc>http://static.localhost/</loc>\\n    <lastmod>2025-09-26</lastmod>\\n    <changefreq>monthly</changefreq>\\n    <priority>1.0</priority>\\n  </url>\\n  <url>\\n    <loc>http://static.localhost/about.html</loc>\\n    <lastmod>2025-09-26</lastmod>\\n    <changefreq>monthly</changefreq>\\n    <priority>0.8</priority>\\n  </url>\\n</urlset>\"}"
+    }
+  }
+}
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentProcessor] [39m[32m🚀 DeploymentProcessor: Starting to process deploy job 1 with data:[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentProcessor] [39m[32m{
+  "deploymentId": "49dbbfb0-3f3b-4da3-84d9-6fac4d726685",
+  "projectId": "3016ac43-3364-4ae0-8185-e8e1ddb1b96b",
+  "serviceId": "f42645d4-e243-4996-9444-61c3c0355b9c",
+  "sourceConfig": {
+    "type": "upload",
+    "customData": {
+      "embeddedContent": "{\"index.html\":\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n    <meta charset=\\\"UTF-8\\\">\\n    <meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1.0\\\">\\n    <title>Static Site Demo</title>\\n    <style>\\n        body { \\n            font-family: Arial, sans-serif; \\n            max-width: 800px; \\n            margin: 0 auto; \\n            padding: 20px;\\n            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\\n            color: white;\\n            min-height: 100vh;\\n        }\\n        .container { \\n            background: rgba(255,255,255,0.1); \\n            padding: 30px; \\n            border-radius: 10px;\\n            backdrop-filter: blur(10px);\\n        }\\n        h1 { color: #fff; text-align: center; }\\n        .status { \\n            background: rgba(76, 175, 80, 0.2); \\n            padding: 15px; \\n            border-radius: 5px; \\n            margin: 20px 0;\\n            border-left: 4px solid #4CAF50;\\n        }\\n        .feature { \\n            background: rgba(33, 150, 243, 0.2); \\n            padding: 10px; \\n            margin: 10px 0; \\n            border-radius: 5px;\\n        }\\n    </style>\\n</head>\\n<body>\\n    <div class=\\\"container\\\">\\n        <h1>🚀 Static Site Deployment Demo</h1>\\n        <div class=\\\"status\\\">\\n            <h3>✅ Deployment Successful!</h3>\\n            <p>This static site was deployed using the local file upload feature.</p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>📁 File Structure</h4>\\n            <p>This site includes multiple files served from Docker volumes.</p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>🔗 Navigation</h4>\\n            <p><a href=\\\"/about.html\\\" style=\\\"color: #81C784;\\\">Visit About Page</a></p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>🎯 Features Tested</h4>\\n            <ul>\\n                <li>Local file upload processing</li>\\n                <li>Static file serving via Traefik</li>\\n                <li>Docker volume integration</li>\\n                <li>Multi-file deployment</li>\\n            </ul>\\n        </div>\\n    </div>\\n</body>\\n</html>\",\"about.html\":\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n    <meta charset=\\\"UTF-8\\\">\\n    <meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1.0\\\">\\n    <title>About - Static Site Demo</title>\\n    <style>\\n        body { \\n            font-family: Arial, sans-serif; \\n            max-width: 800px; \\n            margin: 0 auto; \\n            padding: 20px;\\n            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);\\n            color: white;\\n            min-height: 100vh;\\n        }\\n        .container { \\n            background: rgba(255,255,255,0.1); \\n            padding: 30px; \\n            border-radius: 10px;\\n            backdrop-filter: blur(10px);\\n        }\\n        h1 { color: #fff; text-align: center; }\\n        a { color: #FFE082; text-decoration: none; }\\n        a:hover { text-decoration: underline; }\\n    </style>\\n</head>\\n<body>\\n    <div class=\\\"container\\\">\\n        <h1>📋 About This Demo</h1>\\n        <p>This is a demonstration of the static file deployment system.</p>\\n        \\n        <h3>🔧 Technical Details</h3>\\n        <ul>\\n            <li><strong>Provider:</strong> Local file upload</li>\\n            <li><strong>Storage:</strong> Docker volumes</li>\\n            <li><strong>Serving:</strong> Nginx container</li>\\n            <li><strong>Proxy:</strong> Traefik reverse proxy</li>\\n        </ul>\\n        \\n        <h3>📊 Deployment Info</h3>\\n        <p><strong>Service:</strong> static-demo</p>\\n        <p><strong>Domain:</strong> static.localhost</p>\\n        <p><strong>Files:</strong> HTML, CSS (inline)</p>\\n        \\n        <p><a href=\\\"/index.html\\\">← Back to Home</a></p>\\n    </div>\\n</body>\\n</html>\",\"robots.txt\":\"User-agent: *\\nAllow: /\\n\\nSitemap: http://static.localhost/sitemap.xml\",\"sitemap.xml\":\"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?>\\n<urlset xmlns=\\\"http://www.sitemaps.org/schemas/sitemap/0.9\\\">\\n  <url>\\n    <loc>http://static.localhost/</loc>\\n    <lastmod>2025-09-26</lastmod>\\n    <changefreq>monthly</changefreq>\\n    <priority>1.0</priority>\\n  </url>\\n  <url>\\n    <loc>http://static.localhost/about.html</loc>\\n    <lastmod>2025-09-26</lastmod>\\n    <changefreq>monthly</changefreq>\\n    <priority>0.8</priority>\\n  </url>\\n</urlset>\"}"
+    }
+  }
+}[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentProcessor] [39m[32mStarting deployment job for deployment 49dbbfb0-3f3b-4da3-84d9-6fac4d726685[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentProcessor] [39m[32mSource config for deployment 49dbbfb0-3f3b-4da3-84d9-6fac4d726685:[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentProcessor] [39m[32m{
+  "type": "upload",
+  "customData": {
+    "embeddedContent": "{\"index.html\":\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n    <meta charset=\\\"UTF-8\\\">\\n    <meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1.0\\\">\\n    <title>Static Site Demo</title>\\n    <style>\\n        body { \\n            font-family: Arial, sans-serif; \\n            max-width: 800px; \\n            margin: 0 auto; \\n            padding: 20px;\\n            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\\n            color: white;\\n            min-height: 100vh;\\n        }\\n        .container { \\n            background: rgba(255,255,255,0.1); \\n            padding: 30px; \\n            border-radius: 10px;\\n            backdrop-filter: blur(10px);\\n        }\\n        h1 { color: #fff; text-align: center; }\\n        .status { \\n            background: rgba(76, 175, 80, 0.2); \\n            padding: 15px; \\n            border-radius: 5px; \\n            margin: 20px 0;\\n            border-left: 4px solid #4CAF50;\\n        }\\n        .feature { \\n            background: rgba(33, 150, 243, 0.2); \\n            padding: 10px; \\n            margin: 10px 0; \\n            border-radius: 5px;\\n        }\\n    </style>\\n</head>\\n<body>\\n    <div class=\\\"container\\\">\\n        <h1>🚀 Static Site Deployment Demo</h1>\\n        <div class=\\\"status\\\">\\n            <h3>✅ Deployment Successful!</h3>\\n            <p>This static site was deployed using the local file upload feature.</p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>📁 File Structure</h4>\\n            <p>This site includes multiple files served from Docker volumes.</p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>🔗 Navigation</h4>\\n            <p><a href=\\\"/about.html\\\" style=\\\"color: #81C784;\\\">Visit About Page</a></p>\\n        </div>\\n        \\n        <div class=\\\"feature\\\">\\n            <h4>🎯 Features Tested</h4>\\n            <ul>\\n                <li>Local file upload processing</li>\\n                <li>Static file serving via Traefik</li>\\n                <li>Docker volume integration</li>\\n                <li>Multi-file deployment</li>\\n            </ul>\\n        </div>\\n    </div>\\n</body>\\n</html>\",\"about.html\":\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n    <meta charset=\\\"UTF-8\\\">\\n    <meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1.0\\\">\\n    <title>About - Static Site Demo</title>\\n    <style>\\n        body { \\n            font-family: Arial, sans-serif; \\n            max-width: 800px; \\n            margin: 0 auto; \\n            padding: 20px;\\n            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);\\n            color: white;\\n            min-height: 100vh;\\n        }\\n        .container { \\n            background: rgba(255,255,255,0.1); \\n            padding: 30px; \\n            border-radius: 10px;\\n            backdrop-filter: blur(10px);\\n        }\\n        h1 { color: #fff; text-align: center; }\\n        a { color: #FFE082; text-decoration: none; }\\n        a:hover { text-decoration: underline; }\\n    </style>\\n</head>\\n<body>\\n    <div class=\\\"container\\\">\\n        <h1>📋 About This Demo</h1>\\n        <p>This is a demonstration of the static file deployment system.</p>\\n        \\n        <h3>🔧 Technical Details</h3>\\n        <ul>\\n            <li><strong>Provider:</strong> Local file upload</li>\\n            <li><strong>Storage:</strong> Docker volumes</li>\\n            <li><strong>Serving:</strong> Nginx container</li>\\n            <li><strong>Proxy:</strong> Traefik reverse proxy</li>\\n        </ul>\\n        \\n        <h3>📊 Deployment Info</h3>\\n        <p><strong>Service:</strong> static-demo</p>\\n        <p><strong>Domain:</strong> static.localhost</p>\\n        <p><strong>Files:</strong> HTML, CSS (inline)</p>\\n        \\n        <p><a href=\\\"/index.html\\\">← Back to Home</a></p>\\n    </div>\\n</body>\\n</html>\",\"robots.txt\":\"User-agent: *\\nAllow: /\\n\\nSitemap: http://static.localhost/sitemap.xml\",\"sitemap.xml\":\"<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?>\\n<urlset xmlns=\\\"http://www.sitemaps.org/schemas/sitemap/0.9\\\">\\n  <url>\\n    <loc>http://static.localhost/</loc>\\n    <lastmod>2025-09-26</lastmod>\\n    <changefreq>monthly</changefreq>\\n    <priority>1.0</priority>\\n  </url>\\n  <url>\\n    <loc>http://static.localhost/about.html</loc>\\n    <lastmod>2025-09-26</lastmod>\\n    <changefreq>monthly</changefreq>\\n    <priority>0.8</priority>\\n  </url>\\n</urlset>\"}"
+  }
+}[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentProcessor] [39m[32mDeploying service with build type: static[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentProcessor] [39m[32mCreating static content from embedded data for deployment 49dbbfb0-3f3b-4da3-84d9-6fac4d726685[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentProcessor] [39m[32mCreated static file: index.html[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentProcessor] [39m[32mCreated static file: about.html[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentProcessor] [39m[32mCreated static file: robots.txt[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentProcessor] [39m[32mCreated static file: sitemap.xml[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentProcessor] [39m[32mSuccessfully created 4 static files in /tmp/deployer-workspace/deployment-49dbbfb0-3f3b-4da3-84d9-6fac4d726685[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[StaticFileService] [39m[32mDeploying static files for service static-demo at localhost[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [95m  DEBUG[39m [38;5;3m[StaticFileService] [39m[95mCreating nginx container with Traefik router=static-demo-49dbbfb0 domain=localhost[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mImage inspect failed for nginx:alpine: (HTTP code 404) no such image - No such image: nginx:alpine [39m
+[33m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [33m   WARN[39m [38;5;3m[DockerService] [39m[33mImage nginx:alpine not present locally. Will attempt to pull before creating container (policy=IfNotPresent).[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DockerService] [39m[32mPulling image prior to create: nginx:alpine[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DockerService] [39m[32mAttempting to pull image nginx:alpine (retries=3)[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [32m    LOG[39m [38;5;3m[DeploymentController] [39m[32mListing deployments for service f42645d4-e243-4996-9444-61c3c0355b9c[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:15 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "GET /deployment/list?limit=20&offset=0&serviceId=f42645d4-e243-4996-9444-61c3c0355b9c" 200 OK undefined "http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services/f42645d4-e243-4996-9444-61c3c0355b9c/deployments" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" "::ffff:172.18.0.6"[39m
+response:  200 OK undefined http://localhost:3050/dashboard/projects/3016ac43-3364-4ae0-8185-e8e1ddb1b96b/services/f42645d4-e243-4996-9444-61c3c0355b9c/deployments Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 ::ffff:172.18.0.6
+[95m[Nest] 151  - [39m09/26/2025, 10:49:16 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mPulling from library/nginx[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mAlready exists[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mPulling fs layer[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mPulling fs layer[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mPulling fs layer[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mPulling fs layer[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mPulling fs layer[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mPulling fs layer[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mPulling fs layer[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mWaiting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mWaiting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mWaiting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mWaiting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownloading[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mVerifying Checksum[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownload complete[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownloading[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownloading[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mVerifying Checksum[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownload complete[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownload complete[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:17 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mPull complete[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mPull complete[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownload complete[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mPull complete[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownloading[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownloading[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mVerifying Checksum[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownload complete[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mPull complete[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mPull complete[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownloading[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownload complete[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mPull complete[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownloading[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownloading[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownloading[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:18 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownloading[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:19 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mVerifying Checksum[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:19 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDownload complete[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:19 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:19 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:19 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:19 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:19 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:19 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mExtracting[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:19 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mPull complete[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:19 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mDigest: sha256:42a516af16b852e33b7682d5ef8acbd5d13fe08fecadc7ed98605ba5e3b26ab8[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:19 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mStatus: Downloaded newer image for nginx:alpine[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:19 PM [32m    LOG[39m [38;5;3m[DockerService] [39m[32mSuccessfully pulled nginx:alpine on attempt 1[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:20 PM [32m    LOG[39m [38;5;3m[DockerService] [39m[32mCreated container 6f9682af1d9907e0591d3964a822f7cceccd971028cfcd952a0dad9247e5486b[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:20 PM [95m  DEBUG[39m [38;5;3m[DockerService] [39m[95mContainer 6f9682af1d9907e0591d3964a822f7cceccd971028cfcd952a0dad9247e5486b is already connected to network deployer_app_network_dev[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:20 PM [32m    LOG[39m [38;5;3m[StaticFileService] [39m[32mConnected static-demo-nginx-49dbbfb0 to Traefik networks: deployer_app_network_dev[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:21 PM [95m  DEBUG[39m [38;5;3m[StaticFileService] [39m[95mContainer static-demo-nginx-49dbbfb0 health: {"isHealthy":true,"status":"running","uptime":1,"restartCount":0,"lastStarted":"2025-09-26T22:49:20.048Z","resources":{"cpuUsage":0.39,"memoryUsage":14467072,"memoryLimit":16134610944},"healthChecks":{"status":"starting","failingStreak":0,"log":[]}}[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:21 PM [95m  DEBUG[39m [38;5;3m[StaticFileService] [39m[95mTail of Traefik access log (first 5000 chars):
+172.18.0.1 - - [26/Sep/2025:22:46:53 +0000] "GET / HTTP/1.1" 502 11 "-" "-" 1 "static-demo-route@file" "http://static-demo-container:80" 10ms
+172.18.0.1 - - [26/Sep/2025:22:46:54 +0000] "GET /favicon.ico HTTP/1.1" 502 11 "-" "-" 2 "static-demo-route@file" "http://static-demo-container:80" 13ms
+172.18.0.1 - - [26/Sep/2025:22:49:18 +0000] "GET / HTTP/1.1" 502 11 "-" "-" 3 "static-demo-route@file" "http://static-demo-container:80" 35ms
+172.18.0.1 - - [26/Sep/2025:22:49:19 +0000] "GET /favicon.ico HTTP/1.1" 502 11 "-" "-" 4 "static-demo-route@file" "http://static-demo-container:80" 8ms
+[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:23 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "HEAD /health" 200 OK undefined "" "Wget/1.24.5" "::ffff:127.0.0.1"[39m
+response:  200 OK undefined  Wget/1.24.5 ::ffff:127.0.0.1
+[32m[Nest] 151  - [39m09/26/2025, 10:49:30 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mStarting health checks[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:49:30 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mHealth checks completed. Total: 0, Healthy: 0, Unhealthy: 0[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:49:38 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "HEAD /health" 200 OK undefined "" "Wget/1.24.5" "::ffff:127.0.0.1"[39m
+response:  200 OK undefined  Wget/1.24.5 ::ffff:127.0.0.1
+[95m[Nest] 151  - [39m09/26/2025, 10:49:53 PM [95m  DEBUG[39m [38;5;3m[LoggerMiddleware] [39m[95m[687609f10516] "HEAD /health" 200 OK undefined "" "Wget/1.24.5" "::ffff:127.0.0.1"[39m
+response:  200 OK undefined  Wget/1.24.5 ::ffff:127.0.0.1
+[32m[Nest] 151  - [39m09/26/2025, 10:50:00 PM [32m    LOG[39m [38;5;3m[ResourceMonitoringService] [39m[32mStarting resource metrics collection[39m
+[95m[Nest] 151  - [39m09/26/2025, 10:50:00 PM [95m  DEBUG[39m [38;5;3m[SwarmOrchestrationService] [39m[95mRunning stack monitoring...[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:50:00 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mChecking for recovered services to resolve health alerts[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:50:00 PM [32m    LOG[39m [38;5;3m[DeploymentHealthMonitorService] [39m[32mStarting periodic health check...[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:50:00 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mStarting health checks[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:50:00 PM [32m    LOG[39m [38;5;3m[ResourceMonitoringService] [39m[32mResource metrics collection completed. Collected 0 metrics[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:50:00 PM [32m    LOG[39m [38;5;3m[HealthCheckService] [39m[32mHealth checks completed. Total: 0, Healthy: 0, Unhealthy: 0[39m
+[32m[Nest] 151  - [39m09/26/2025, 10:50:00 PM [32m    LOG[39m [38;5;3m[DeploymentHealthMonitorService] [39m[32mNo active deployments to monitor[39m
+
+--- In-container (Traefik) fetch to nginx by name and by IP ---
+Connecting to static-demo-nginx-49dbbfb0 (172.18.0.7:80)
+  HTTP/1.1 200 OK
+  Server: nginx/1.29.1
+  Date: Fri, 26 Sep 2025 22:50:01 GMT
+  Content-Type: text/html
+  Content-Length: 615
+  Last-Modified: Wed, 13 Aug 2025 15:10:23 GMT
+  Connection: close
+  ETag: "689caadf-267"
+  Accept-Ranges: bytes
+  
+writing to stdout
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+-                    100% |********************************|   615  0:00:00 ETA
+written to stdout
+
+-- In-container fetch to nginx by IP (172.18.0.7) --
+Connecting to 172.18.0.7 (172.18.0.7:80)
+  HTTP/1.1 200 OK
+  Server: nginx/1.29.1
+  Date: Fri, 26 Sep 2025 22:50:01 GMT
+  Content-Type: text/html
+  Content-Length: 615
+  Last-Modified: Wed, 13 Aug 2025 15:10:23 GMT
+  Connection: close
+  ETag: "689caadf-267"
+  Accept-Ranges: bytes
+  
+writing to stdout
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+-                    100% |********************************|   615  0:00:00 ETA
+written to stdout
+
+--- Host curl to http://static-demo.blog.localhost/ ---
+* Host static-demo.blog.localhost:80 was resolved.
+* IPv6: ::1
+* IPv4: 127.0.0.1
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying [::1]:80...
+* connect to ::1 port 80 from ::1 port 56012 failed: Connexion refusée
+*   Trying 127.0.0.1:80...
+* Connected to static-demo.blog.localhost (127.0.0.1) port 80
+> GET / HTTP/1.1
+> Host: static-demo.blog.localhost
+> User-Agent: curl/8.5.0
+> Accept: */*
+> 
+< HTTP/1.1 502 Bad Gateway
+< Date: Fri, 26 Sep 2025 22:50:01 GMT
+< Content-Length: 11
+< 
+{ [11 bytes data]
+100    11  100    11    0     0    969      0 --:--:-- --:--:-- --:--:--  1000
+* Connection #0 to host static-demo.blog.localhost left intact
+Bad Gateway
+--- Recent docker events (last 2 minutes) filtered by "nginx" or "traefik" or "deployer" ---

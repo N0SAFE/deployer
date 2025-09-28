@@ -5,6 +5,7 @@ import { StaticFileService } from './services/static-file.service';
 import { DeploymentService } from './services/deployment.service';
 import { DeploymentHealthMonitorService } from './services/deployment-health-monitor.service';
 import { TraefikModule } from '../modules/traefik/traefik.module';
+import { ProjectServerService } from './services/project-server.service';
 
 @Module({
     imports: [TraefikModule],
@@ -12,6 +13,8 @@ import { TraefikModule } from '../modules/traefik/traefik.module';
         DockerService,
         GitService,
         StaticFileService,
+        // Project server service for per-project HTTP servers
+        ProjectServerService,
         DeploymentService,
         DeploymentHealthMonitorService,
     ],
@@ -19,6 +22,7 @@ import { TraefikModule } from '../modules/traefik/traefik.module';
         DockerService,
         GitService,
         StaticFileService,
+        ProjectServerService,
         DeploymentService,
         DeploymentHealthMonitorService,
     ],

@@ -241,9 +241,10 @@ export class FileUploadService {
             detectedType: 'unknown',
         };
         try {
-            const files = await this.getAllFiles(extractPath);
-            // Check for specific files
-            for (const file of files) {
+            // Stream file discovery to avoid building a large in-memory list
+            let fileCount = 0;
+            for await (const file of this.walkFiles(extractPath)) {
+                fileCount++;
                 const filename = path.basename(file).toLowerCase();
                 if (filename === 'dockerfile') {
                     metadata.hasDockerfile = true;
@@ -289,7 +290,7 @@ export class FileUploadService {
                     metadata.startCommand = 'npm start';
                 }
             }
-            this.logger.log(`File analysis complete: type=${metadata.detectedType}, files=${files.length}`);
+            this.logger.log(`File analysis complete: type=${metadata.detectedType}, files=${fileCount}`);
             return metadata;
         }
         catch (error) {
@@ -298,22 +299,20 @@ export class FileUploadService {
         }
     }
     /**
-     * Recursively get all files in a directory
+     * Async generator to walk files under a directory and yield file paths one by one
      */
-    private async getAllFiles(dir: string): Promise<string[]> {
-        const files: string[] = [];
+    private async *walkFiles(dir: string): AsyncGenerator<string> {
         const items = await fs.readdir(dir);
         for (const item of items) {
             const fullPath = path.join(dir, item);
             const stat = await fs.stat(fullPath);
             if (stat.isDirectory()) {
-                files.push(...await this.getAllFiles(fullPath));
+                yield* this.walkFiles(fullPath);
             }
             else {
-                files.push(fullPath);
+                yield fullPath;
             }
         }
-        return files;
     }
     /**
      * Get uploaded file info
@@ -431,17 +430,21 @@ export class FileUploadService {
                 const gzip = zlib.createGzip();
                 const writeStream = fs.createWriteStream(outputPath);
                 pack.pipe(gzip).pipe(writeStream);
-                const files = await this.getAllFiles(sourcePath);
-                for (const filePath of files) {
+                // Stream files using the async generator to avoid building large in-memory lists
+                for await (const filePath of this.walkFiles(sourcePath)) {
                     const relativePath = path.relative(sourcePath, filePath);
                     const stats = await fs.stat(filePath);
                     if (stats.isFile()) {
                         const fileStream = fs.createReadStream(filePath);
                         const entry = pack.entry({ name: relativePath, size: stats.size });
-                        fileStream.pipe(entry);
-                        await new Promise((resolve, reject) => {
-                            entry.on('close', resolve);
-                            entry.on('error', reject);
+                        // Pipe file into tar entry and wait for the entry to finish
+                        await new Promise<void>((resolve, reject) => {
+                            fileStream.pipe(entry);
+                            const onClose = () => resolve();
+                            const onError = (err: any) => reject(err);
+                            entry.on('close', onClose);
+                            entry.on('error', onError);
+                            fileStream.on('error', onError);
                         });
                     }
                 }

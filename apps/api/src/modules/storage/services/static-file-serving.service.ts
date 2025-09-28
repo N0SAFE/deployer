@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { StaticFileService } from '../../../core/services/static-file.service';
 import type { Database } from '../../../core/modules/db/drizzle/index';
 import { Inject } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../../../core/modules/db/database-connection';
@@ -32,7 +33,7 @@ export class StaticFileServingService {
     private readonly staticFilesDir = '/app/static';
     constructor(
     @Inject(DATABASE_CONNECTION)
-    private readonly db: Database) { }
+    private readonly db: Database, private readonly staticFileService: StaticFileService) { }
     async onModuleInit() {
         // Ensure static files directory exists
         await fs.ensureDir(this.staticFilesDir);
@@ -80,15 +81,27 @@ export class StaticFileServingService {
     /**
      * Setup static file serving for a deployment
      */
-    async setupStaticServing(deploymentId: string, sourcePath: string): Promise<void> {
+    async setupStaticServing(deploymentId: string, sourcePath: string, serviceId?: string, projectId?: string, domain?: string): Promise<void> {
         try {
-            const staticDir = path.join(this.staticFilesDir, deploymentId);
-            // Create deployment-specific static directory
-            await fs.ensureDir(staticDir);
-            // Copy files from source to static directory
-            await this.copyStaticFiles(sourcePath, staticDir);
-            // Generate manifest file
-            await this.generateManifest(deploymentId, staticDir);
+            // If serviceId not provided, attempt to lookup from deployments table
+            let svcId = serviceId;
+            if (!svcId) {
+                const row = await this.db.select({ id: deployments.id, serviceId: deployments.serviceId }).from(deployments).where(eq(deployments.id, deploymentId)).limit(1);
+                if (row && row.length) {
+                    svcId = row[0].serviceId;
+                }
+            }
+            if (!svcId) {
+                throw new NotFoundException('Service ID could not be determined for deployment');
+            }
+            // Delegate to core StaticFileService which implements project server flow
+            await this.staticFileService.deployStaticFiles({
+                serviceName: svcId,
+                deploymentId,
+                projectId,
+                domain: domain || 'localhost',
+                sourcePath,
+            } as any);
             this.logger.log(`Static serving setup complete for deployment: ${deploymentId}`);
         }
         catch (error) {

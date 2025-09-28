@@ -54,6 +54,7 @@ interface DeploymentConfig {
     };
     // Static site specific
     outputDirectory?: string;
+    projectId?: string;
     domain?: string;
     subdomain?: string;
     sslEnabled?: boolean;
@@ -200,7 +201,7 @@ export class DeploymentService {
      * Deploy static files (HTML, CSS, JS, etc.)
      */
     public async deployStaticSite(config: DeploymentConfig): Promise<DeploymentResult> {
-        const { deploymentId, serviceName, domain, subdomain, sslEnabled } = config;
+        const { deploymentId, serviceName, domain, subdomain } = config;
         
         await this.addDeploymentLog(deploymentId, {
             level: 'info',
@@ -211,28 +212,24 @@ export class DeploymentService {
             timestamp: new Date()
         });
 
-        // Determine files path based on source
-        let filesPath = serviceName;
-        if (config.sourceConfig?.filePath) {
-            filesPath = path.join(serviceName, config.sourceConfig.filePath);
-        }
-
-        // Deploy using static file service
+        // Determine sourcePath for static files (extracted files path)
+        const sourcePath = config.sourceConfig?.filePath || config.sourcePath || undefined;
+        // Deploy using project-level static file service
         const nginxInfo = await this.staticFileService.deployStaticFiles({
             serviceName,
             deploymentId,
+            projectId: config.projectId,
             domain: domain || 'localhost',
             subdomain,
-            filesPath,
-            sslEnabled
-        });
+            sourcePath,
+        } as any);
 
-        // Update deployment record with container info
-        await this.updateDeploymentContainer(deploymentId, nginxInfo.containerName, `nginx:alpine`);
+        // Update deployment record with project server container info
+        await this.updateDeploymentContainer(deploymentId, nginxInfo.containerName, nginxInfo.imageUsed || `lighttpd:alpine`);
 
         const healthCheckUrl = `http://${nginxInfo.domain}/health`;
         
-        // Verify deployment is healthy
+        // Verify deployment is healthy by checking the project server container and health endpoint
         const isHealthy = await this.verifyContainerHealth(nginxInfo.containerId, healthCheckUrl);
         
         return {
@@ -244,7 +241,7 @@ export class DeploymentService {
             message: isHealthy ? 'Static site deployed successfully' : 'Static site deployed but health check failed',
             metadata: {
                 containerName: nginxInfo.containerName,
-                nginxConfig: 'default',
+                serverImage: nginxInfo.imageUsed || 'rtsp/lighttpd',
             }
         };
     }

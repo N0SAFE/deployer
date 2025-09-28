@@ -57,7 +57,7 @@ export class TraefikService implements OnModuleInit {
         try {
             this.logger.log(`Generating Traefik config for stack: ${stackName}`);
             // Create network for the stack
-            const networkName = `${stackName}_network`;
+            const networkName = this.getDefaultProviderNetwork(stackName);
             await this.createOrUpdateNetwork(projectId, environment, networkName);
             // Generate Traefik service configuration
             const traefikService = {
@@ -67,6 +67,7 @@ export class TraefikService implements OnModuleInit {
                     '--api.insecure=false',
                     '--providers.docker=true',
                     '--providers.docker.swarmMode=true',
+                    '--log.level=DEBUG',
                     '--providers.docker.exposedByDefault=false',
                     '--providers.docker.network=' + networkName,
                     '--entrypoints.web.address=:80',
@@ -512,6 +513,7 @@ export class TraefikService implements OnModuleInit {
                     '--api.insecure=false',
                     '--providers.docker=true',
                     '--providers.docker.swarmMode=true',
+                    '--log.level=DEBUG',
                     '--providers.docker.exposedByDefault=false',
                     `--providers.docker.network=${networkName}`,
                     '--entrypoints.web.address=:80',
@@ -764,9 +766,10 @@ http {
         domain: string;
         staticPath: string;
         environment?: string;
+        backendTarget?: string; // container name or ip:port
     }): Promise<void> {
         try {
-            const { serviceId, projectId, domain, staticPath } = config;
+            const { serviceId, projectId, domain, staticPath, backendTarget } = config;
             this.logger.log(`Configuring static file serving for service: ${serviceId}`);
             // Generate static file configuration
             const staticConfig = await this.generateStaticFileConfig({
@@ -781,7 +784,66 @@ http {
             const configPath = `/app/nginx-configs/${serviceId}.conf`;
             await fs.ensureDir(path.dirname(configPath));
             await fs.writeFile(configPath, staticConfig.nginxConfig);
-            // Update Docker Compose configuration for the service
+
+            // If a backendTarget (container name) is provided we prefer Traefik's Docker provider using labels
+            // and therefore skip writing a file-provider dynamic YAML to avoid stale upstream entries.
+            const dynamicDir = path.join(this.traefikConfigDir, 'dynamic', projectId ? String(projectId) : 'projects');
+            await fs.ensureDir(dynamicDir);
+            const serviceName = `${projectId || 'project'}-${serviceId}`;
+            const backend = backendTarget || serviceName;
+            const dynamicPath = path.join(dynamicDir, `${serviceId}-static.yml`);
+            if (backendTarget) {
+                // When backendTarget is explicitly provided, assume the container will include Traefik labels
+                // and remove any previously generated dynamic YAML that references this service to avoid routing to stale IPs.
+                try {
+                    const files = await fs.readdir(dynamicDir);
+                    for (const f of files) {
+                        const p = path.join(dynamicDir, f);
+                        try {
+                            const stat = await fs.stat(p);
+                            if (!stat.isFile()) continue;
+                            const content = await fs.readFile(p, 'utf8');
+                            if (content.includes(serviceId) || content.includes(`${serviceId}-service`) || content.includes(`${projectId || 'project'}-${serviceId}`)) {
+                                await fs.unlink(p);
+                                this.logger.log(`Removed stale dynamic Traefik config at ${p} because backendTarget is provided`);
+                            }
+                        }
+                        catch (innerErr) {
+                            this.logger.warn(`Failed to inspect/remove candidate dynamic file ${p}: ${(innerErr as any)?.message || String(innerErr)}`);
+                        }
+                    }
+                }
+                catch (rmErr) {
+                    this.logger.warn(`Failed to clean dynamic Traefik configs in ${dynamicDir}: ${(rmErr as any)?.message || String(rmErr)}`);
+                }
+            }
+            else {
+                // Write dynamic Traefik configuration that points to the actual backend target
+                const dynamicObj: any = {
+                    http: {
+                        routers: {
+                            [`${serviceName}-router`]: {
+                                rule: `Host(` + "`" + `${domain}` + "`" + `)`,
+                                service: serviceName,
+                                entrypoints: ['web']
+                            }
+                        },
+                        services: {
+                            [serviceName]: {
+                                loadBalancer: {
+                                    servers: [
+                                        { url: `http://${backend}:80` }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                };
+                await fs.writeFile(dynamicPath, require('yaml').stringify(dynamicObj), 'utf8');
+                this.logger.log(`Wrote dynamic Traefik config at ${dynamicPath}`);
+            }
+
+            // Update Docker Compose configuration for the service (existing behavior)
             const composeConfig = {
                 version: '3.8',
                 services: {
@@ -827,9 +889,9 @@ http {
                 const updatedConfig = { ...stack.composeConfig, staticConfig: config };
                 await this.db.update(orchestrationStacks)
                     .set({
-                    composeConfig: updatedConfig,
-                    updatedAt: new Date()
-                })
+                        composeConfig: updatedConfig,
+                        updatedAt: new Date()
+                    })
                     .where(eq(orchestrationStacks.id, stack.id));
             }
             this.logger.log(`Updated stack configuration for service: ${serviceId}`);
@@ -840,28 +902,13 @@ http {
         }
     }
     /**
-     * Remove Traefik container for a stack
+     * Compute the default network name Traefik should use for the given stack.
+     * In development we prefer the compose project network when COMPOSE_PROJECT_NAME is set to keep Traefik reachable to containers created by the API.
      */
-    async removeTraefikContainer(stackName: string): Promise<void> {
-        try {
-            const containerName = `traefik_${stackName}`;
-            const containers = await this.dockerService.getDockerClient().listContainers({
-                all: true,
-                filters: { name: [containerName] }
-            });
-            if (containers.length > 0) {
-                const container = this.dockerService.getDockerClient().getContainer(containers[0].Id);
-                if (containers[0].State === 'running') {
-                    await container.stop();
-                    this.logger.log(`Stopped Traefik container: ${containerName}`);
-                }
-                await container.remove();
-                this.logger.log(`Removed Traefik container: ${containerName}`);
-            }
+    private getDefaultProviderNetwork(stackName: string): string {
+        if (process.env.COMPOSE_PROJECT_NAME) {
+            return `${process.env.COMPOSE_PROJECT_NAME}_app_network_dev`;
         }
-        catch (error) {
-            this.logger.error(`Failed to remove Traefik container for stack ${stackName}:`, error);
-            throw error;
-        }
+        return `${stackName}_network`;
     }
 }

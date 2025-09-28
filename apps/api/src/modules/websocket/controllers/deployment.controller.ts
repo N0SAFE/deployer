@@ -89,7 +89,12 @@ export class DeploymentController {
     @Implement(deploymentContract.trigger)
     triggerDeployment() {
         return implement(deploymentContract.trigger).handler(async ({ input }) => {
-            const { serviceId, environment, sourceType, sourceConfig } = input;
+            console.log(`🔥🔥🔥 WEBSOCKET CONTROLLER - TRIGGER INPUT:`, JSON.stringify(input, null, 2));
+            const { serviceId, environment, environmentVariables } = input;
+            // sourceType and sourceConfig will be determined from the service's database configuration
+            let { sourceType, sourceConfig } = input;
+            
+            console.log(`🔥🔥🔥 WEBSOCKET CONTROLLER - Extracted values:`, { serviceId, environment, sourceType, sourceConfig });
             this.logger.log(`Triggering deployment for service ${serviceId}, environment: ${environment}`);
             
             // Test Docker connection first
@@ -112,14 +117,56 @@ export class DeploymentController {
                 throw new Error(`Service ${serviceId} not found`);
             }
 
-            const { project: projectData } = service[0];
+            const { service: serviceData, project: projectData } = service[0];
+
+            // Determine sourceType and sourceConfig from service configuration if not provided
+            if (!sourceType || !sourceConfig) {
+                console.log(`🔥🔥🔥 WEBSOCKET CONTROLLER - Determining source config from service:`, {
+                    provider: serviceData.provider,
+                    builder: serviceData.builder,
+                    providerConfig: serviceData.providerConfig
+                });
+
+                // Map service provider/builder to deployment source type
+                if (serviceData.provider === 'manual' && serviceData.builder === 'static') {
+                    // Static files with manual upload
+                    sourceType = 'upload';
+                    // Put the embedded content into customData so it conforms to the allowed sourceConfig shape
+                    sourceConfig = {
+                        customData: {
+                            embeddedContent: serviceData.providerConfig?.deploymentScript || undefined,
+                        },
+                    };
+                } else if (serviceData.provider === 'github') {
+                    sourceType = 'github';
+                    sourceConfig = {
+                        repositoryUrl: serviceData.providerConfig?.repositoryUrl || '',
+                        branch: serviceData.providerConfig?.branch || 'main'
+                    };
+                } else if (serviceData.provider === 'gitlab') {
+                    sourceType = 'gitlab';
+                    sourceConfig = {
+                        repositoryUrl: serviceData.providerConfig?.repositoryUrl || '',
+                        branch: serviceData.providerConfig?.branch || 'main'
+                    };
+                } else {
+                    // Default fallback - this handles git provider or other cases
+                    sourceType = 'git';
+                    sourceConfig = {
+                        repositoryUrl: serviceData.providerConfig?.repositoryUrl || '',
+                        branch: serviceData.providerConfig?.branch || 'main'
+                    };
+                }
+
+                console.log(`🔥🔥🔥 WEBSOCKET CONTROLLER - Determined source config:`, { sourceType, sourceConfig });
+            }
 
             // Stop previous deployments before creating new one
             this.logger.log(`Checking for existing deployments to stop for service ${serviceId}`);
             
             const triggerInfo = {
-                branchName: sourceConfig.branch,
-                pullRequestNumber: sourceConfig.pullRequestNumber,
+                branchName: sourceConfig?.branch || 'main',
+                pullRequestNumber: sourceConfig?.pullRequestNumber || undefined,
             };
 
             const stopResult = await this.deploymentService.stopPreviousDeployments(
@@ -144,7 +191,7 @@ export class DeploymentController {
                 triggeredBy: null, // Will be set to authenticated user ID in production
                 status: 'pending',
                 environment,
-                sourceType,
+                sourceType: sourceType!, // sourceType is guaranteed to be set at this point
                 sourceConfig,
                 createdAt: new Date(),
                 updatedAt: new Date(),
@@ -170,6 +217,15 @@ export class DeploymentController {
 
             // Map sourceType for job queue (filter out unsupported types)
             const jobSourceType = sourceType === 'custom' ? 'upload' : sourceType as 'github' | 'gitlab' | 'git' | 'upload';
+            console.log(`🔥🔥🔥 WEBSOCKET CONTROLLER - Source type mapping:`, { 
+                originalSourceType: sourceType, 
+                jobSourceType,
+                sourceConfig: sourceConfig 
+            });
+
+            // Build job-level sourceConfig including image/pull settings from provider/builder config
+            const svcProviderCfg: any = serviceData.providerConfig || {};
+            const svcBuilderCfg: any = serviceData.builderConfig || {};
 
             // Queue the deployment job
             const jobId = await this.queueService.addDeploymentJob({
@@ -178,10 +234,19 @@ export class DeploymentController {
                 serviceId,
                 sourceConfig: {
                     type: jobSourceType,
-                    repositoryUrl: sourceConfig.repositoryUrl,
-                    branch: sourceConfig.branch,
-                    commitSha: sourceConfig.commitSha,
-                    filePath: sourceConfig.fileName,
+                    repositoryUrl: sourceConfig?.repositoryUrl,
+                    branch: sourceConfig?.branch,
+                    commitSha: sourceConfig?.commitSha,
+                    filePath: sourceConfig?.fileName,
+                    fileName: sourceConfig?.fileName,
+                    fileSize: sourceConfig?.fileSize,
+                    // Pass through customData (contains embeddedContent for seeded static sites)
+                    customData: sourceConfig?.customData,
+                    envVars: environmentVariables || sourceConfig?.customData?.envVars || undefined,
+                    // Image and pull policy options (optional)
+                    image: svcProviderCfg.staticImage || svcProviderCfg.image || svcBuilderCfg.staticImage || svcBuilderCfg.image || undefined,
+                    imagePullPolicy: svcProviderCfg.imagePullPolicy || svcBuilderCfg.imagePullPolicy || undefined,
+                    registryAuth: svcProviderCfg.registryAuth || svcBuilderCfg.registryAuth || undefined,
                 },
             });
 

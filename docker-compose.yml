@@ -98,8 +98,6 @@ services:
             api-cache-dev:
                 condition: service_healthy
         restart: unless-stopped
-        mem_limit: 2g
-        memswap_limit: 2g
         ports:
             - "${API_PORT:-3005}:${API_PORT:-3005}"
             - "${DRIZZLE_STUDIO_PORT:-4983}:4983"
@@ -149,12 +147,21 @@ services:
             # Turbo Remote Cache Configuration
             TURBO_TOKEN: ${TURBO_TOKEN}
             TURBO_TEAM: ${TURBO_TEAM}
+            # Increase Node.js heap for heavy dev tasks (use hyphenated flag)
+            # Set to 7000 MB; adjust based on host resources
+            NODE_OPTIONS: "--max-old-space-size=7000"
         healthcheck:
             test: wget --no-verbose --tries=1 --spider http://127.0.0.1:${API_PORT:-3005}/health || exit 1
             start_period: 15s
             interval: 15s
             timeout: 15s
             retries: 5
+        # Memory limits to avoid host swap storms and make failures deterministic
+        mem_limit: 8g
+        memswap_limit: 8g
+        ulimits:
+            nproc: 65535
+            nofile: 65535
         networks:
             - app_network_dev
 

@@ -8,9 +8,25 @@ export interface DeploymentJobData {
         branch?: string;
         commitSha?: string;
         filePath?: string;
+        fileName?: string;
+        fileSize?: number;
         buildCommand?: string;
         startCommand?: string;
         envVars?: Record<string, string>;
+        // Custom data for uploads or embedded content (e.g. seeded static files)
+        customData?: Record<string, any>;
+        // Optional image override to use when creating runtime containers (e.g. for static sites)
+        image?: string;
+        // Image pull policy controls whether to always pull, only if not present, or never pull
+        imagePullPolicy?: 'IfNotPresent' | 'Always' | 'Never';
+        // Optional registry authentication to use when pulling private images
+        registryAuth?: {
+            username?: string;
+            password?: string;
+            serveraddress?: string;
+            identity?: string;
+            registrytoken?: string;
+        };
     };
 }
 export interface DeploymentJobResult {

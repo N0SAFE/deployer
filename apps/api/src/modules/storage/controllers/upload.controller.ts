@@ -3,13 +3,13 @@ import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
 import { Implement, implement } from '@orpc/nest';
 import { uploadFileContract, deployUploadContract, getUploadInfoContract, deleteUploadContract, getStaticFileContract, listStaticFilesContract, setupStaticServingContract, getStaticServingStatsContract, cleanupOldUploadsContract, getUploadStatsContract } from '@repo/api-contracts';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { FileUploadService, type UploadedFile } from '../services/file-upload.service';
 import { StaticFileServingService } from '../services/static-file-serving.service';
+import { StaticFileService } from '../../../core/services/static-file.service';
 @Controller()
 export class UploadController {
     private readonly logger = new Logger(UploadController.name);
-    constructor(private readonly fileUploadService: FileUploadService, private readonly staticFileServingService: StaticFileServingService, 
+    constructor(private readonly fileUploadService: FileUploadService, private readonly staticFileServingService: StaticFileServingService, private readonly staticFileService: StaticFileService,
     @InjectQueue('deployment')
     private readonly deploymentQueue: Queue) { }
     @Implement(uploadFileContract)
@@ -136,13 +136,24 @@ export class UploadController {
     setupStaticServing() {
         return implement(setupStaticServingContract).handler(async ({ input }) => {
             this.logger.log(`Setting up static serving for deployment: ${input.deploymentId}`);
-            await this.staticFileServingService.setupStaticServing(input.deploymentId, input.sourcePath);
-            // TODO: Get actual metrics from the service
+            // Require serviceId (or derive it from deployment in a later migration)
+            if (!input.serviceId) {
+                throw new BadRequestException('serviceId is required for project-level static serving');
+            }
+            const domain = input.domain || 'localhost';
+            await this.staticFileService.deployStaticFiles({
+                 serviceName: input.serviceId,
+                 deploymentId: input.deploymentId,
+                 projectId: input.projectId,
+                 domain,
+                 sourcePath: input.sourcePath,
+             } as any);
+            // Return a simplified response consistent with contract
             return {
                 deploymentId: input.deploymentId,
-                staticPath: `/static/${input.deploymentId}`,
-                manifestFile: `${input.deploymentId}/manifest.json`,
-                fileCount: 0, // TODO: Get from service
+                staticPath: `/s/${input.serviceId}/`,
+                manifestFile: `${input.deploymentId}/.manifest.json`,
+                fileCount: 0,
             };
         });
     }

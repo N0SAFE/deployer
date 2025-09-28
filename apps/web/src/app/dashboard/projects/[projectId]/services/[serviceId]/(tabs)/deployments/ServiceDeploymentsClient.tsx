@@ -24,8 +24,8 @@ export default function ServiceDeploymentsClient() {
       await triggerDeployment({
         serviceId: params.serviceId,
         environment: 'production',
-        sourceType: 'git',
-        sourceConfig: {},
+        // Let the API determine sourceType and sourceConfig from the service's database configuration
+        // No need to specify these - they should come from the service's provider/builder settings
       })
     } catch (error) {
       console.error('Failed to trigger deployment:', error)

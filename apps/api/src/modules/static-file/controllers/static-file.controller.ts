@@ -7,15 +7,22 @@ export class StaticFileController {
     private readonly logger = new Logger(StaticFileController.name);
     constructor(private readonly staticFileService: StaticFileService) { }
     /**
-     * Deploy static files with nginx container
+     * Deploy static files using project-level HTTP server
      * POST /static-file/deploy
      */
     @Implement(staticFileContract.deploy)
     async deployStaticFiles() {
         return implement(staticFileContract.deploy).handler(async ({ input }) => {
             try {
-                this.logger.log(`Deploying static files for service: ${input.serviceName}`);
-                const containerInfo = await this.staticFileService.deployStaticFiles(input);
+                this.logger.log(`Deploying static files for serviceId: ${input.serviceId}`);
+                const containerInfo = await this.staticFileService.deployStaticFiles({
+                    serviceName: input.serviceId,
+                    deploymentId: input.deploymentId,
+                    projectId: input.projectId,
+                    domain: input.domain || 'localhost',
+                    subdomain: input.subdomain,
+                    sourcePath: input.sourcePath,
+                } as any);
                 return {
                     success: true,
                     containerInfo,
@@ -32,20 +39,21 @@ export class StaticFileController {
     }
     /**
      * Update existing static file deployment
-     * PUT /static-file/:serviceName
+     * PUT /static-file/update
      */
     @Implement(staticFileContract.update)
     async updateStaticFiles() {
         return implement(staticFileContract.update).handler(async ({ input }) => {
             try {
-                this.logger.log(`Updating static files for service: ${input.serviceName}`);
-                await this.staticFileService.updateStaticFiles(input.containerName, input.filesPath, input.customNginxConfig);
+                this.logger.log(`Updating static files for serviceId: ${input.serviceId}`);
+                const projectId = input.projectId || process.env.COMPOSE_PROJECT_NAME || 'project';
+                await this.staticFileService.updateStaticFiles(projectId, input.serviceId, input.deploymentId, input.sourcePath);
                 return {
                     success: true,
                 };
             }
             catch (error) {
-                this.logger.error(`Failed to update static files for ${input.serviceName}:`, error);
+                this.logger.error(`Failed to update static files for ${input.serviceId}:`, error);
                 return {
                     success: false,
                     error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -55,20 +63,21 @@ export class StaticFileController {
     }
     /**
      * Remove static file deployment
-     * DELETE /static-file/:serviceName/:containerName
+     * DELETE /static-file/remove
      */
     @Implement(staticFileContract.remove)
     async removeStaticFileDeployment() {
         return implement(staticFileContract.remove).handler(async ({ input }) => {
             try {
-                this.logger.log(`Removing static file deployment for service: ${input.serviceName}`);
-                await this.staticFileService.removeStaticFileDeployment(input.serviceName, input.containerName);
+                this.logger.log(`Removing static file deployment for serviceId: ${input.serviceId}`);
+                const projectId = input.projectId || process.env.COMPOSE_PROJECT_NAME || 'project';
+                await this.staticFileService.removeStaticFileDeployment(projectId, input.serviceId, input.deploymentId || undefined);
                 return {
                     success: true,
                 };
             }
             catch (error) {
-                this.logger.error(`Failed to remove static file deployment for ${input.serviceName}:`, error);
+                this.logger.error(`Failed to remove static file deployment for ${input.serviceId}:`, error);
                 return {
                     success: false,
                     error: error instanceof Error ? error.message : 'Unknown error occurred',

@@ -88,22 +88,55 @@ export class DeploymentController {
     @Implement(deploymentContract.trigger)
     trigger() {
         return implement(deploymentContract.trigger).handler(async ({ input }) => {
+            console.log(`🚀🚀🚀 TRIGGER START - Service ID: ${input.serviceId}`);
             this.logger.log(`Triggering deployment for service: ${input.serviceId}`);
             try {
+                console.log(`🔍 Step 1: Testing Docker connection`);
                 // Verify Docker connection first
                 const dockerConnected = await this.dockerService.testConnection();
                 if (!dockerConnected) {
                     throw new Error('Docker service is not available. Cannot trigger deployment.');
                 }
+                this.logger.log(`Docker connection successful`);
                 
+                console.log(`🔍 Step 2: Looking up service`);
                 // Get service details
+                this.logger.log(`Looking up service: ${input.serviceId}`);
                 const service = await this.serviceRepository.findById(input.serviceId);
+                console.log(`🔍 Step 3: Service lookup result - found: ${!!service}`);
+                this.logger.log(`Service lookup result:`, { 
+                    found: !!service, 
+                    serviceId: service?.id, 
+                    isActive: service?.isActive 
+                });
+                
                 if (!service) {
                     throw new Error(`Service ${input.serviceId} not found`);
                 }
                 if (!service.isActive) {
                     throw new Error(`Service ${input.serviceId} is not active`);
                 }
+                
+                console.log(`🔍 Step 4: About to log service config`);
+                // Log service configuration for debugging - using console.log to ensure it shows up
+                console.log(`=== SERVICE CONFIGURATION DEBUG ===`);
+                console.log(`Service ID: ${input.serviceId}`);
+                console.log(`Provider: ${service.provider}`);
+                console.log(`Builder: ${service.builder}`);
+                console.log(`Provider Config:`, service.providerConfig);
+                console.log(`=== END SERVICE DEBUG ===`);
+                
+                // Also use logger
+                this.logger.log(`Service configuration for ${input.serviceId}:`, {
+                    provider: service.provider,
+                    builder: service.builder,
+                    providerConfig: service.providerConfig,
+                });
+                
+                console.log(`=== SIMPLE SERVICE DEBUG ===`);
+                console.log(`Provider: ${service.provider}`);
+                console.log(`Builder: ${service.builder}`);
+                console.log(`=== END SIMPLE DEBUG ===`);
                 
                 // Safely handle provider config to ensure it's serializable
                 let safeProviderConfig: any = {};
@@ -113,6 +146,8 @@ export class DeploymentController {
                         const config = typeof service.providerConfig === 'object' 
                             ? service.providerConfig
                             : JSON.parse(service.providerConfig as string);
+                        
+                        this.logger.log(`Parsed provider config:`, config);
                         
                         // Manually copy only safe properties to avoid serialization issues
                         safeProviderConfig = {};
@@ -125,19 +160,24 @@ export class DeploymentController {
                                     // For objects, try to JSON stringify/parse to ensure serializability
                                     try {
                                         safeProviderConfig[key] = JSON.parse(JSON.stringify(value));
-                                    } catch (jsonError) {
+                                    } catch {
                                         this.logger.warn(`Skipping non-serializable property ${key} in provider config`);
                                     }
                                 } else if (Array.isArray(value)) {
                                     // For arrays, only include if all elements are serializable
                                     try {
                                         safeProviderConfig[key] = JSON.parse(JSON.stringify(value));
-                                    } catch (jsonError) {
+                                    } catch {
                                         this.logger.warn(`Skipping non-serializable array property ${key} in provider config`);
                                     }
                                 }
                             }
                         }
+                        
+                        this.logger.log(`Safe provider config:`, safeProviderConfig);
+                    } else {
+                        this.logger.warn(`Service ${input.serviceId} has no provider config`);
+                        console.log(`WARNING: Service ${input.serviceId} has no provider config`);
                     }
                 } catch (configError) {
                     this.logger.warn(`Failed to parse provider config for service ${input.serviceId}:`, configError);
@@ -204,15 +244,67 @@ export class DeploymentController {
                 }
                 
                 // Queue deployment job with sanitized data
+                const sourceType = this.mapServiceProviderToSourceType(service.provider);
+                let sourceConfig = {
+                    type: sourceType,
+                    ...safeProviderConfig,
+                    envVars: safeEnvironmentVariables,
+                };
+
+                // Auto-fix common misconfiguration: git provider with static builder but no repository URL
+                // OR manual provider that's incorrectly mapped to git type
+                if (((sourceType === 'git' || sourceType === 'github' || sourceType === 'gitlab') && 
+                     service.builder === 'static' && 
+                     !sourceConfig.repositoryUrl) ||
+                    (service.provider === 'manual' && sourceType === 'git')) {
+                    
+                    this.logger.warn(`Service ${input.serviceId} has provider '${service.provider}' with builder '${service.builder}' ` +
+                                   `but sourceType is '${sourceType}'. Auto-converting to upload type for static file deployment.`);
+                    
+                    sourceConfig = {
+                        type: 'upload',
+                        envVars: safeEnvironmentVariables,
+                        // For seeded static demo service, check if deploymentScript contains static files
+                        ...(safeProviderConfig.deploymentScript ? {
+                            staticContent: safeProviderConfig.deploymentScript,
+                            contentType: 'embedded'
+                        } : {}),
+                        // Keep other provider config that might be useful
+                        instructions: safeProviderConfig.instructions,
+                    };
+                }
+
+                this.logger.log(`Final source config for deployment:`, sourceConfig);
+                console.log(`=== FINAL SOURCE CONFIG ===`);
+                console.log(JSON.stringify(sourceConfig, null, 2));
+                console.log(`=== END SOURCE CONFIG ===`);
+
+                // Validate required configuration based on provider type
+                try {
+                    this.validateProviderConfiguration(service.provider, service.builder, sourceConfig);
+                } catch (validationError) {
+                    this.logger.error(`Validation failed for service ${input.serviceId}:`, validationError);
+                    
+                    // If it's a git provider without repository URL, suggest changing to manual
+                    if (validationError instanceof Error && validationError.message.includes('Repository URL is required')) {
+                        const helpfulError = new Error(
+                            `${validationError.message}\n\n` +
+                            `💡 If you want to deploy static files without a git repository:\n` +
+                            `   1. Change the service provider from '${service.provider}' to 'manual'\n` +
+                            `   2. Use the file upload feature in the dashboard\n` +
+                            `   3. The static builder works great with manual file uploads\n\n` +
+                            `Or configure a repository URL in the service settings for git-based deployment.`
+                        );
+                        throw helpfulError;
+                    }
+                    throw validationError;
+                }
+
                 const jobData = {
                     deploymentId: deployment.id,
                     serviceId: input.serviceId,
                     projectId: service.projectId,
-                    sourceConfig: {
-                        type: this.mapServiceProviderToSourceType(service.provider),
-                        ...safeProviderConfig,
-                        envVars: safeEnvironmentVariables,
-                    },
+                    sourceConfig,
                 };
                 
                 // Verify job data is serializable before queuing
@@ -569,17 +661,137 @@ export class DeploymentController {
      * Helper method to map service provider to source type for deployments
      */
     private mapServiceProviderToSourceType(provider: string): 'github' | 'gitlab' | 'git' | 'upload' {
+        console.log(`=== MAPPING PROVIDER TO SOURCE TYPE ===`);
+        console.log(`Input provider: "${provider}"`);
+        
+        let result: 'github' | 'gitlab' | 'git' | 'upload';
+        
         switch (provider) {
-            case 'github': return 'github';
-            case 'gitlab': return 'gitlab';
+            case 'github': 
+                result = 'github';
+                break;
+            case 'gitlab': 
+                result = 'gitlab';
+                break;
             case 'bitbucket':
             case 'gitea':
-                return 'git'; // Treat these as generic git
+                result = 'git'; // Treat these as generic git
+                break;
             case 'manual':
+                result = 'upload'; // Manual always uses upload workflow
+                break;
             case 's3_bucket':
+                result = 'upload'; // S3 bucket uses upload workflow with S3 download
+                break;
             case 'docker_registry':
-                return 'upload';
-            default: return 'git';
+                result = 'upload'; // Docker registry should be handled separately
+                break;
+            default: 
+                result = 'git'; // Default fallback
+                break;
+        }
+        
+        console.log(`Mapped to source type: "${result}"`);
+        console.log(`=== END MAPPING ===`);
+        
+        return result;
+    }
+
+    /**
+     * Validate provider configuration based on provider and builder types
+     */
+    private validateProviderConfiguration(provider: string, builder: string, sourceConfig: any): void {
+        switch (provider) {
+            case 'github':
+            case 'gitlab':
+            case 'bitbucket':
+            case 'gitea':
+                // Git-based providers always need repository URL
+                if (!sourceConfig.repositoryUrl) {
+                    // Provide specific guidance based on the builder type
+                    if (builder === 'static') {
+                        throw new Error(
+                            `Repository URL is required for ${provider} deployments, even with static builder. ` +
+                            `If you want to deploy static files without a git repository, please change the provider to 'manual' ` +
+                            `and use the file upload workflow instead.`
+                        );
+                    } else {
+                        throw new Error(
+                            `Repository URL is required for ${provider} deployments. ` +
+                            `Please update the service configuration to include a valid repository URL, ` +
+                            `or change the provider to 'manual' if you want to upload files directly.`
+                        );
+                    }
+                }
+                break;
+
+            case 'docker_registry':
+                // Docker registry needs registry URL, image name, and tag
+                if (!sourceConfig.registryUrl) {
+                    throw new Error(`Registry URL is required for Docker registry deployments.`);
+                }
+                if (!sourceConfig.imageName) {
+                    throw new Error(`Image name is required for Docker registry deployments.`);
+                }
+                if (!sourceConfig.tag) {
+                    throw new Error(`Image tag is required for Docker registry deployments.`);
+                }
+                break;
+
+            case 's3_bucket':
+                // S3 bucket needs bucket name, region, and credentials
+                if (!sourceConfig.bucketName) {
+                    throw new Error(`Bucket name is required for S3 bucket deployments.`);
+                }
+                if (!sourceConfig.region) {
+                    throw new Error(`Region is required for S3 bucket deployments.`);
+                }
+                if (!sourceConfig.accessKeyId || !sourceConfig.secretAccessKey) {
+                    throw new Error(`AWS credentials (accessKeyId and secretAccessKey) are required for S3 bucket deployments.`);
+                }
+                break;
+
+            case 'manual':
+                // Manual deployments don't need repository URL - they use uploaded files
+                // The actual file upload should be handled through a separate upload workflow
+                this.logger.log(`Manual deployment detected for ${builder} builder - expecting file upload workflow`);
+                break;
+
+            default:
+                throw new Error(`Unknown provider type: ${provider}`);
+        }
+
+        // Validate builder-specific configuration
+        this.validateBuilderConfiguration(builder, sourceConfig);
+    }
+
+    /**
+     * Validate builder configuration
+     */
+    private validateBuilderConfiguration(builder: string, _sourceConfig: any): void {
+        switch (builder) {
+            case 'static':
+                // Static sites don't need specific build configuration
+                // Can work with uploads or simple git repos
+                break;
+
+            case 'dockerfile':
+                // Dockerfile builder should have dockerfile path in builderConfig (not sourceConfig)
+                // This validation might be handled elsewhere
+                break;
+
+            case 'nixpack':
+            case 'railpack':
+            case 'buildpack':
+                // These builders might need build/start commands but they have defaults
+                break;
+
+            case 'docker_compose':
+                // Docker compose might need compose file path
+                break;
+
+            default:
+                throw new Error(`Unknown builder type: ${builder}`);
         }
     }
 

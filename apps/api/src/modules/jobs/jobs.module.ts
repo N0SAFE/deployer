@@ -7,25 +7,17 @@ import { DatabaseModule } from '../../core/modules/db/database.module';
 import { TraefikModule } from '../traefik/traefik.module';
 import { StorageModule } from '../storage/storage.module';
 import { WebSocketModule } from '../websocket/websocket.module';
-// Import needed core services directly
-import { DockerService } from '../../core/services/docker.service';
-import { GitService } from '../../core/services/git.service';
-import { DeploymentService } from '../../core/services/deployment.service';
-import { StaticFileService } from '../../core/services/static-file.service';
+import { CoreModule } from '../../core/core.module';
 @Module({
     imports: [
         DatabaseModule,
         TraefikModule,
         StorageModule,
         WebSocketModule,
+        CoreModule,
     ],
-    providers: [
-        // DeploymentQueueService moved to OrchestrationModule to be with Bull queue
-        DockerService,
-        GitService,
-        DeploymentService,
-        StaticFileService,
-    ],
+    // Core services are provided and exported by CoreModule — do not redeclare them here
+    providers: [],
     exports: [
         // DeploymentQueueService moved to OrchestrationModule - import OrchestrationModule instead
     ],

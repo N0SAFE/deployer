@@ -18,8 +18,10 @@ export const sourceConfigSchema = z.object({
 export const deploymentTriggerInput = z.object({
     serviceId: z.string(),
     environment: environmentSchema,
-    sourceType: sourceTypeSchema,
-    sourceConfig: sourceConfigSchema,
+    // sourceType and sourceConfig are now optional - they will be determined by the API
+    // based on the service's provider and builder configuration in the database
+    sourceType: sourceTypeSchema.optional(),
+    sourceConfig: sourceConfigSchema.optional(),
     environmentVariables: z.record(z.string(), z.string()).optional(),
 });
 export const deploymentTriggerOutput = z.object({
