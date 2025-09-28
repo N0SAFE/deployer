@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@orpc/contract": "catalog:orpc",
+    "@repo/types": "*",
     "zod": "catalog:utils"
   },
   "devDependencies": {

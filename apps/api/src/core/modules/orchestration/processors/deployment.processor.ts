@@ -1,6 +1,7 @@
 import { Processor, Process } from "@nestjs/bull";
 import { Logger, Inject } from "@nestjs/common";
 import type { Job } from "bull";
+import type { SourceConfig, DeploymentStatus, DeploymentConfig, BuildConfig } from '@repo/types';
 import { SwarmOrchestrationService } from "../services/swarm-orchestration.service";
 import { TraefikService } from "../services/traefik.service";
 import { ResourceAllocationService } from "../services/resource-allocation.service";

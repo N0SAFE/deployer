@@ -1,4 +1,12 @@
 import { z } from 'zod';
+import {
+  resourceLimitsSchema as sharedResourceLimitsSchema,
+  healthCheckConfigSchema as sharedHealthCheckConfigSchema,
+  environmentVariableSchema,
+  buildConfigSchema,
+  serviceTypeSchema,
+  deploymentStatusSchema
+} from '../../common/deployment-config';
 // Traefik configuration schemas
 export const traefikMiddlewareSchema = z.object({
     type: z.enum(['compress', 'headers', 'ratelimit', 'auth', 'cors', 'redirect']),
@@ -91,12 +99,8 @@ export const healthCheckResultSchema = z.object({
     checkedAt: z.date(),
     createdAt: z.date(),
 });
-// Resource schemas
-export const resourceLimitsSchema = z.object({
-    memory: z.string().optional(), // e.g., "512m"
-    cpu: z.string().optional(), // e.g., "0.5"
-    storage: z.string().optional(), // e.g., "1g" 
-});
+// Use shared resource limits schema from deployment-config
+export const resourceLimitsSchema = sharedResourceLimitsSchema;
 // Service provider and builder enums
 export const serviceProviderEnum = z.enum([
     'github',

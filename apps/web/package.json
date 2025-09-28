@@ -45,6 +45,7 @@
         "@radix-ui/react-avatar": "^1.1.10",
         "@radix-ui/react-navigation-menu": "^1.2.14",
         "@repo/api-contracts": "*",
+        "@repo/types": "*",
         "@repo/ui": "*",
         "@tanstack/react-devtools": "catalog:query",
         "@tanstack/react-query": "catalog:query",

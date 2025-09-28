@@ -1,26 +1,31 @@
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
-import { deploymentStatusSchema } from './getStatus';
-import { environmentSchema } from './trigger';
+import {
+  deploymentStatusSchema,
+  environmentSchema,
+  sourceTypeSchema,
+  deploymentSummarySchema
+} from '../../common/deployment-config';
 export const deploymentListInput = z.object({
     serviceId: z.string().uuid().optional(),
+    projectId: z.string().uuid().optional(),
+    environment: environmentSchema.optional(),
+    status: deploymentStatusSchema.optional(),
+    sourceType: sourceTypeSchema.optional(),
     limit: z.coerce.number().min(1).max(100).default(20),
     offset: z.coerce.number().min(0).default(0),
-    status: deploymentStatusSchema.optional(),
+    sortBy: z.enum(['createdAt', 'updatedAt', 'status']).default('createdAt'),
+    sortOrder: z.enum(['asc', 'desc']).default('desc')
 });
 export const deploymentListOutput = z.object({
-    deployments: z.array(z.object({
-        id: z.string(),
-        serviceId: z.string(),
-        status: deploymentStatusSchema,
-        environment: environmentSchema,
-        triggeredBy: z.string().nullable(),
-        createdAt: z.date(),
-        updatedAt: z.date(),
-        metadata: z.record(z.string(), z.any()).optional(),
-    })),
+    deployments: z.array(deploymentSummarySchema),
     total: z.number(),
     hasMore: z.boolean(),
+    filters: z.object({
+        environment: environmentSchema.optional(),
+        status: deploymentStatusSchema.optional(),
+        sourceType: sourceTypeSchema.optional()
+    })
 });
 export const deploymentListContract = oc
     .route({
