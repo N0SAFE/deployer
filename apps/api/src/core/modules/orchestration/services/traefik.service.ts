@@ -9,6 +9,7 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as forge from 'node-forge';
 import { DockerService } from '../../../services/docker.service';
+import * as net from 'net';
 export interface TraefikConfig {
     projectId: string;
     environment: string;
@@ -38,7 +39,8 @@ export interface DomainMapping {
 @Injectable()
 export class TraefikService implements OnModuleInit {
     private readonly logger = new Logger(TraefikService.name);
-    private readonly traefikConfigDir = '/app/traefik';
+    // Honor environment configuration used by docker-compose (TRAEFIK_CONFIG_BASE_PATH)
+    private readonly traefikConfigDir = process.env.TRAEFIK_CONFIG_BASE_PATH || '/app/traefik-configs';
     private readonly certificatesDir = '/app/certificates';
     constructor(
     @Inject(DATABASE_CONNECTION)
@@ -446,7 +448,7 @@ export class TraefikService implements OnModuleInit {
     /**
      * Generate middleware configuration
      */
-    generateMiddleware(name: string, config: any): string[] {
+    generateMiddleware(name: string, config: Record<string, unknown>): string[] {
         const labels: string[] = [];
         switch (config.type) {
             case 'auth':
@@ -803,7 +805,7 @@ http {
                             const stat = await fs.stat(p);
                             if (!stat.isFile()) continue;
                             const content = await fs.readFile(p, 'utf8');
-                            if (content.includes(serviceId) || content.includes(`${serviceId}-service`) || content.includes(`${projectId || 'project'}-${serviceId}`)) {
+                            if (content.includes(serviceId) || content.includes(`${serviceId}-service`) || content.includes(`${projectId || 'project'}-${serviceId}`) || content.includes(domain)) {
                                 await fs.unlink(p);
                                 this.logger.log(`Removed stale dynamic Traefik config at ${p} because backendTarget is provided`);
                             }
@@ -816,12 +818,69 @@ http {
                 catch (rmErr) {
                     this.logger.warn(`Failed to clean dynamic Traefik configs in ${dynamicDir}: ${(rmErr as any)?.message || String(rmErr)}`);
                 }
+
+                // Verify the backendTarget container exists and has proper labels for the requested domain.
+                try {
+                    const containerInfo = await this.dockerService.getContainerInfo(backendTarget);
+                    const labels = (containerInfo.Config && containerInfo.Config.Labels) || {};
+                    const labelValues = Object.values(labels).map(v => String(v));
+                    const hasDomainLabel = labelValues.some(v => v.includes(domain));
+                    if (hasDomainLabel) {
+                        this.logger.log(`Backend container ${backendTarget} has Traefik labels for ${domain}; relying on Docker provider.`);
+                        return; // done - docker provider will handle routing
+                    }
+
+                    // No matching label found; create a fallback dynamic entry that points to the container's IP
+                    const networks = containerInfo.NetworkSettings?.Networks || {};
+                    const nets = Object.keys(networks);
+                    let ipAddress: string | undefined = undefined;
+                    if (nets.length > 0) {
+                        // pick first network's IP for fallback
+                        ipAddress = networks[nets[0]]?.IPAddress || networks[nets[0]]?.GlobalIPv6Address;
+                    }
+                    if (!ipAddress) {
+                        this.logger.warn(`Could not determine IP address for backend ${backendTarget}; not writing fallback dynamic config.`);
+                        return;
+                    }
+
+                    const fallbackDynamic: Record<string, unknown> = {
+                        http: {
+                            routers: {
+                                [
+                                    `${serviceName}-router`
+                                ]: {
+                                    rule: `Host(` + "`" + `${domain}` + "`" + `)`,
+                                    service: serviceName,
+                                    entrypoints: ['web']
+                                }
+                            },
+                            services: {
+                                [serviceName]: {
+                                    loadBalancer: {
+                                        servers: [
+                                            { url: `http://${ipAddress}:80` }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    };
+                    const fallbackPath = path.join(dynamicDir, `${serviceId}-static-fallback.yml`);
+                    await fs.writeFile(fallbackPath, require('yaml').stringify(fallbackDynamic), 'utf8');
+                    this.logger.log(`Wrote fallback dynamic Traefik config at ${fallbackPath} pointing ${domain} -> ${ipAddress}`);
+                    return;
+                }
+                catch (inspectErr) {
+                    // Backend container doesn't exist - allow calling code to handle further (we don't write a bad config)
+                    this.logger.warn(`Backend target ${backendTarget} could not be inspected: ${(inspectErr as any)?.message || String(inspectErr)}. Skipping dynamic file creation.`);
+                    return;
+                }
             }
             else {
                 // Write dynamic Traefik configuration that points to the actual backend target
-                const dynamicObj: any = {
-                    http: {
-                        routers: {
+                const dynamicObj: Record<string, unknown> = {
+                     http: {
+                         routers: {
                             [`${serviceName}-router`]: {
                                 rule: `Host(` + "`" + `${domain}` + "`" + `)`,
                                 service: serviceName,
@@ -839,35 +898,45 @@ http {
                         }
                     }
                 };
-                await fs.writeFile(dynamicPath, require('yaml').stringify(dynamicObj), 'utf8');
-                this.logger.log(`Wrote dynamic Traefik config at ${dynamicPath}`);
-            }
 
-            // Update Docker Compose configuration for the service (existing behavior)
-            const composeConfig = {
-                version: '3.8',
-                services: {
-                    [`${projectId}-${serviceId}`]: {
-                        ...staticConfig.service,
-                        volumes: [
-                            `${staticPath}:/usr/share/nginx/html:ro`,
-                            `${configPath}:/etc/nginx/nginx.conf:ro`
-                        ]
+                // Validate backend reachability before writing the dynamic file. If backend is a container/service name
+                // try to resolve it via Docker; otherwise attempt a TCP probe to port 80 on the host.
+                const backendIsReachable = await (async () => {
+                    // Try Docker-based resolution
+                    try {
+                        const ci = await this.dockerService.getContainerInfo(backend);
+                        // If container exists and has at least one network IP, consider it reachable for routing
+                        const nets = ci.NetworkSettings?.Networks || {};
+                        const hasIp = Object.keys(nets).some(k => !!nets[k]?.IPAddress || !!nets[k]?.GlobalIPv6Address);
+                        if (hasIp) return true;
                     }
+                    catch { /* not a container name */ }
+                    // Fallback to TCP connect
+                    const host = backend.split(':')[0];
+                    const port = Number((backend.split(':')[1]) || 80);
+                    try {
+                        return await new Promise<boolean>((resolve) => {
+                            const sock = net.createConnection({ host, port, timeout: 1500 }, () => {
+                                sock.destroy();
+                                resolve(true);
+                            });
+                            sock.on('error', () => { try { sock.destroy(); } catch {} ; resolve(false); });
+                            sock.on('timeout', () => { try { sock.destroy(); } catch {} ; resolve(false); });
+                        });
+                    }
+                    catch {
+                        return false;
+                    }
+                })();
+
+                if (!backendIsReachable) {
+                    this.logger.warn(`Not writing dynamic Traefik config at ${dynamicPath} because backend ${backend} does not appear reachable`);
                 }
-            };
-            // Save compose configuration
-            const composeConfigPath = `/app/compose-configs/${serviceId}-static.yml`;
-            await fs.ensureDir(path.dirname(composeConfigPath));
-            await fs.writeFile(composeConfigPath, require('yaml').stringify(composeConfig));
-            // Update orchestration stack record
-            await this.updateStackConfiguration(serviceId, {
-                staticServingEnabled: true,
-                staticPath,
-                domain,
-                middlewares: Object.keys(staticConfig.middlewares)
-            });
-            this.logger.log(`Static file serving configured for service: ${serviceId}`);
+                else {
+                    await fs.writeFile(dynamicPath, require('yaml').stringify(dynamicObj), 'utf8');
+                    this.logger.log(`Wrote dynamic Traefik config at ${dynamicPath}`);
+                }
+            }
         }
         catch (error) {
             this.logger.error(`Failed to configure static file serving for service ${config.serviceId}:`, error);
@@ -877,30 +946,50 @@ http {
     /**
      * Update stack configuration in database
      */
-    private async updateStackConfiguration(serviceId: string, config: any): Promise<void> {
+    private async updateStackConfiguration(serviceId: string, config: { staticServingEnabled?: boolean; staticPath?: string; domain?: string; middlewares?: string[] }): Promise<void> {
         try {
-            // Find existing stack
-            const [stack] = await this.db.select()
-                .from(orchestrationStacks)
-                .where(eq(orchestrationStacks.projectId, serviceId))
-                .limit(1);
-            if (stack) {
-                // Update existing stack
-                const updatedConfig = { ...stack.composeConfig, staticConfig: config };
-                await this.db.update(orchestrationStacks)
-                    .set({
-                        composeConfig: updatedConfig,
-                        updatedAt: new Date()
-                    })
-                    .where(eq(orchestrationStacks.id, stack.id));
+            type StackRow = typeof orchestrationStacks.$inferSelect;
+
+            let stack: StackRow | undefined = undefined;
+
+            // Try find by stack name first
+            try {
+                const [foundByName] = await this.db.select().from(orchestrationStacks).where(eq(orchestrationStacks.name, serviceId)).limit(1);
+                if (foundByName) stack = foundByName as StackRow;
             }
+            catch (lookupErr) {
+                this.logger.debug(`Name-based stack lookup failed for ${serviceId}:`, (lookupErr as any)?.message || String(lookupErr));
+            }
+
+            // If not found by name and the provided identifier looks like a UUID, try matching projectId
+            if (!stack) {
+                const uuidLike = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(serviceId);
+                if (uuidLike) {
+                    try {
+                        const [foundByProject] = await this.db.select().from(orchestrationStacks).where(eq(orchestrationStacks.projectId, serviceId)).limit(1);
+                        if (foundByProject) stack = foundByProject as StackRow;
+                    }
+                    catch (lookupErr) {
+                        this.logger.debug(`ProjectId-based stack lookup failed for ${serviceId}:`, (lookupErr as any)?.message || String(lookupErr));
+                    }
+                }
+            }
+
+            if (!stack) {
+                this.logger.warn(`No orchestration stack found matching service/stack identifier: ${serviceId} - skipping update`);
+                return;
+            }
+
+            // Update existing stack compose config with static config
+            const updatedConfig = { ...stack.composeConfig, staticConfig: config } as any;
+            await this.db.update(orchestrationStacks).set({ composeConfig: updatedConfig, updatedAt: new Date() }).where(eq(orchestrationStacks.id, stack.id));
             this.logger.log(`Updated stack configuration for service: ${serviceId}`);
         }
         catch (error) {
-            this.logger.error(`Failed to update stack configuration for service ${serviceId}:`, error);
-            throw error;
-        }
-    }
+             this.logger.error(`Failed to update stack configuration for service ${serviceId}:`, error);
+             throw error;
+         }
+     }
     /**
      * Compute the default network name Traefik should use for the given stack.
      * In development we prefer the compose project network when COMPOSE_PROJECT_NAME is set to keep Traefik reachable to containers created by the API.

@@ -85,7 +85,7 @@ CMD ["npm", "start"]
         envVars?: Record<string, string>;
         ports?: Record<string, string>;
         imagePullPolicy?: 'IfNotPresent' | 'Always' | 'Never';
-        registryAuth?: any;
+        registryAuth?: Docker.AuthConfig;
     }): Promise<string> {
         const { image, name, deploymentId, envVars = {}, ports = {}, imagePullPolicy = 'IfNotPresent', registryAuth } = options;
         this.logger.log(`Creating container ${name} from image ${image} (policy=${imagePullPolicy})`);
@@ -126,8 +126,8 @@ CMD ["npm", "start"]
 
         // Pre-pull or inspect based on policy
         const shouldAttemptPull = async (img: string): Promise<boolean> => {
-            if ((imagePullPolicy as any) === 'Always') return true;
-            if ((imagePullPolicy as any) === 'Never') return false;
+            if (imagePullPolicy === 'Always') return true;
+            if (imagePullPolicy === 'Never') return false;
             // IfNotPresent -> check local presence
             try {
                 const existing = this.docker.getImage(img);
@@ -145,7 +145,7 @@ CMD ["npm", "start"]
                 try {
                     await this.pullImage(image, registryAuth);
                 } catch (pullErr) {
-                    this.logger.warn(`Initial pull failed for ${image}: ${(pullErr as any)?.message || String(pullErr)}`);
+                    this.logger.warn(`Initial pull failed for ${image}: ${(pullErr as Error)?.message || String(pullErr)}`);
                     // If pull fails and policy is Never, rethrow. If policy allowed, we'll attempt fallbacks below.
                 }
             }
@@ -162,7 +162,7 @@ CMD ["npm", "start"]
                 for (const img of imagesToTry) {
                     try {
                         // Only attempt pull if policy permits
-                        if ((imagePullPolicy as any) !== 'Never') {
+                        if (imagePullPolicy !== 'Never') {
                             await this.pullImage(img, registryAuth);
                         } else {
                             this.logger.warn(`ImagePullPolicy set to 'Never' - skipping pull for ${img}`);
@@ -172,7 +172,7 @@ CMD ["npm", "start"]
                         return await attemptCreate(img);
                     } catch (pullErr) {
                         lastPullError = pullErr;
-                        this.logger.warn(`Pulling image ${img} failed: ${(pullErr as any)?.message || String(pullErr)}`);
+                        this.logger.warn(`Pulling image ${img} failed: ${(pullErr as Error)?.message || String(pullErr)}`);
                     }
                 }
                 this.logger.error(`All attempts to pull image ${image} and fallbacks failed`);
@@ -282,7 +282,7 @@ CMD ["npm", "start"]
             const containerInfo = await container.inspect();
             
             // Get container stats for resource usage
-            let resources: any = {};
+            let resources: { cpuUsage?: number; memoryUsage?: number; memoryLimit?: number } = {};
             try {
                 const stats = await container.stats({ stream: false });
                 const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
@@ -302,7 +302,22 @@ CMD ["npm", "start"]
                 ? Date.now() - new Date(containerInfo.State.StartedAt).getTime()
                 : 0;
 
-            const result = {
+            type HealthCheckLogEntry = { start: string; end: string; exitCode: number; output: string };
+            type DetailedHealth = {
+                isHealthy: boolean;
+                status: string;
+                uptime: number;
+                restartCount: number;
+                lastStarted: Date | null;
+                resources: { cpuUsage?: number; memoryUsage?: number; memoryLimit?: number };
+                healthChecks?: {
+                    status: string;
+                    failingStreak: number;
+                    log: HealthCheckLogEntry[];
+                };
+            };
+
+            const result: DetailedHealth = {
                 isHealthy: containerInfo.State.Status === 'running',
                 status: containerInfo.State.Status,
                 uptime: Math.floor(uptime / 1000), // in seconds
@@ -313,12 +328,21 @@ CMD ["npm", "start"]
 
             // Add health check details if available
             if (containerInfo.State.Health) {
-                (result as any).healthChecks = {
+                // Docker's health log entries use capitalized keys (Start, End, ExitCode, Output)
+                // Normalize them to the shape our callers expect: { start, end, exitCode, output }
+                const rawLog = (containerInfo.State.Health.Log || []) as Array<Record<string, any>>;
+                const normalizedLog: HealthCheckLogEntry[] = rawLog.slice(-5).map((entry) => ({
+                    start: String(entry.Start ?? entry.start ?? ''),
+                    end: String(entry.End ?? entry.end ?? ''),
+                    exitCode: Number(entry.ExitCode ?? entry.exitCode ?? 0),
+                    output: String(entry.Output ?? entry.output ?? ''),
+                }));
+                result.healthChecks = {
                     status: containerInfo.State.Health.Status,
                     failingStreak: containerInfo.State.Health.FailingStreak || 0,
-                    log: containerInfo.State.Health.Log?.slice(-5) || [], // Last 5 health check logs
+                    log: normalizedLog,
                 };
-            }
+             }
 
             return result;
         }
@@ -479,7 +503,7 @@ CMD ["npm", "start"]
             this.logger.error(`Failed to remove image ${imageTag}:`, error);
         }
     }
-    async createContainer(options: any): Promise<any> {
+    async createContainer(options: CreateContainerOptions): Promise<Docker.Container> {
         const requestedImage = options?.Image || options?.image || '';
         const imagePullPolicy: 'IfNotPresent' | 'Always' | 'Never' = options?.imagePullPolicy || 'IfNotPresent';
         const registryAuth = options?.registryAuth;
@@ -501,7 +525,7 @@ CMD ["npm", "start"]
                     imagesToTry.push('nginx:latest', 'nginx:stable-alpine');
                 }
                 let pulled = false;
-                let lastErr: any = null;
+                let lastErr: Error | null = null;
                 for (const imgName of imagesToTry) {
                     try {
                         this.logger.log(`Pulling image prior to create: ${imgName}`);
@@ -512,8 +536,8 @@ CMD ["npm", "start"]
                         }
                         break;
                     } catch (pullErr) {
-                        lastErr = pullErr;
-                        this.logger.warn(`Pull attempt failed for ${imgName}: ${(pullErr as any)?.message || String(pullErr)}`);
+                        lastErr = pullErr as Error;
+                        this.logger.warn(`Pulling image ${imgName} failed: ${(pullErr as any)?.message || String(pullErr)}`);
                     }
                 }
                 if (!pulled) {
@@ -528,20 +552,21 @@ CMD ["npm", "start"]
             this.logger.log(`Created container ${container.id}`);
             return container;
         }
-        catch (error: any) {
-            this.logger.error('Failed to create container:', error);
+        catch (error: unknown) {
+            const errMsg = (error && (error as any).message) || String(error);
+            this.logger.error('Failed to create container:', errMsg);
             // Detect image-not-found errors and attempt pull+retry
-            const errMsg = (error && (error.json && error.json.message || error.message || String(error))).toLowerCase();
-            if (errMsg.includes('no such image') || errMsg.includes('not found') || errMsg.includes('manifest unknown')) {
+            const errMsgLower = String(errMsg).toLowerCase();
+            if (errMsgLower.includes('no such image') || errMsgLower.includes('not found') || errMsgLower.includes('manifest unknown')) {
                 const imagesToTry = [requestedImage];
                 if (requestedImage === 'nginx:alpine') {
                     imagesToTry.push('nginx:latest', 'nginx:stable-alpine');
                 }
-                let lastErr: any = null;
+                let lastErr: Error | null = null;
                 for (const img of imagesToTry) {
                     try {
                         this.logger.log(`Pulling image for container creation (retry path): ${img}`);
-                        if ((imagePullPolicy as any) !== 'Never') {
+                        if (imagePullPolicy !== 'Never') {
                             await this.pullImage(img, registryAuth);
                         } else {
                             this.logger.warn(`ImagePullPolicy set to 'Never' - skipping pull for ${img}`);
@@ -553,7 +578,7 @@ CMD ["npm", "start"]
                         this.logger.log(`Created container ${container.id} with image ${img}`);
                         return container;
                     } catch (pullErr) {
-                        lastErr = pullErr;
+                        lastErr = pullErr as Error;
                         this.logger.warn(`Pull or retry create failed for ${img}: ${(pullErr as any)?.message || String(pullErr)}`);
                     }
                 }
@@ -567,12 +592,12 @@ CMD ["npm", "start"]
     /**
      * Pull an image from a registry with optional auth and retry/backoff.
      */
-    async pullImage(image: string, registryAuth?: any, retries = 3, backoffMs = 2000): Promise<void> {
+    async pullImage(image: string, registryAuth?: Docker.AuthConfig, retries = 3, backoffMs = 2000): Promise<void> {
         this.logger.log(`Attempting to pull image ${image} (retries=${retries})`);
-        let lastErr: any = null;
+        let lastErr: Error | null = null;
         for (let attempt = 1; attempt <= retries; attempt++) {
             try {
-                const pullOpts: any = {};
+                const pullOpts: Record<string, unknown> = {};
                 if (registryAuth) {
                     pullOpts.authconfig = registryAuth;
                 }
@@ -582,8 +607,8 @@ CMD ["npm", "start"]
                 this.logger.log(`Successfully pulled ${image} on attempt ${attempt}`);
                 return;
             } catch (err) {
-                lastErr = err;
-                this.logger.warn(`Pull attempt ${attempt} failed for ${image}: ${(err as any)?.message || String(err)}`);
+                lastErr = err as Error;
+                this.logger.warn(`Pull attempt ${attempt} failed for ${image}: ${(err as Error)?.message || String(err)}`);
                 if (attempt < retries) {
                     this.logger.log(`Waiting ${backoffMs}ms before next pull attempt...`);
                     await new Promise((r) => setTimeout(r, backoffMs));
@@ -592,31 +617,31 @@ CMD ["npm", "start"]
             }
         }
         this.logger.error(`All pull attempts failed for image ${image}`);
-        throw new Error(`Failed to pull image ${image}: ${(lastErr as any)?.message || String(lastErr)}`);
+        throw new Error(`Failed to pull image ${image}: ${(lastErr as Error)?.message || String(lastErr)}`);
     }
 
     private async followStream(stream: NodeJS.ReadableStream): Promise<void> {
         return new Promise((resolve, reject) => {
-            this.docker.modem.followProgress(stream, (err: any) => {
-                if (err) {
-                    reject(err);
-                }
-                else {
-                    resolve();
-                }
-            }, (event: any) => {
-                if (event.stream) {
+            this.docker.modem.followProgress(stream, (err: Error | null) => {
+                 if (err) {
+                     reject(err);
+                 }
+                 else {
+                     resolve();
+                 }
+            }, (event: Record<string, unknown>) => {
+                if (typeof event.stream === 'string') {
                     this.logger.debug(event.stream.trim());
                 }
-                if (event.status) {
+                if (typeof event.status === 'string') {
                     this.logger.debug(event.status);
                 }
                 if (event.error) {
-                    this.logger.error(event.error);
+                    this.logger.error(String(event.error));
                 }
-            });
-        });
-    }
+             });
+         });
+     }
 
     /**
      * Expose raw Docker client for advanced operations
@@ -628,7 +653,7 @@ CMD ["npm", "start"]
     /**
      * Get container information (inspect) by id or name
      */
-    async getContainerInfo(containerIdOrName: string): Promise<any> {
+    async getContainerInfo(containerIdOrName: string): Promise<Docker.ContainerInspectInfo> {
         try {
             const container = this.docker.getContainer(containerIdOrName);
             const info = await container.inspect();
@@ -656,9 +681,9 @@ CMD ["npm", "start"]
     /**
      * List containers using dockerode listContainers
      */
-    async listContainers(options: any = {}): Promise<any[]> {
+    async listContainers(options: Docker.ContainerListOptions = {}): Promise<Docker.ContainerInfo[]> {
         try {
-            const list = await (this.docker as any).listContainers(options);
+            const list = await this.docker.listContainers(options) as Docker.ContainerInfo[];
             return list || [];
         } catch (error) {
             this.logger.error('Failed to list containers:', error);
@@ -666,7 +691,7 @@ CMD ["npm", "start"]
         }
     }
 
-    async getContainerStats(containerId: string): Promise<any> {
+    async getContainerStats(containerId: string): Promise<Record<string, any>> {
         try {
             const container = this.docker.getContainer(containerId);
             const stats = await container.stats({ stream: false });
@@ -675,7 +700,7 @@ CMD ["npm", "start"]
             this.logger.error(`Failed to get container stats for ${containerId}:`, error);
             throw error;
         }
-    }
+     }
 
     /**
      * Execute a command inside a running container using the Docker API (no host 'docker' CLI required).
@@ -723,15 +748,12 @@ CMD ["npm", "start"]
             if (input) {
                 try {
                     this.logger.debug(`Writing to exec stdin for container ${containerIdOrName}: ${input}`);
-                    stream.write(input);
+                    (stream as NodeJS.WritableStream).write(input);
                 }
                 catch (writeErr) {
                     this.logger.warn('Failed to write to exec stdin:', writeErr);
                 }
-                try {
-                    stream.end();
-                }
-                catch { }
+                try { (stream as NodeJS.WritableStream).end(); } catch { }
             }
 
             // Wait for end
@@ -756,6 +778,94 @@ CMD ["npm", "start"]
         catch (error: any) {
             // Improve error message for socket closure to provide actionable hint
             const msg = error && (error.message || String(error));
+
+            // If Docker returns HTTP 101 (protocol upgrade) in environments where hijack/attach flows
+            // are not supported or proxied, fall back to running the same command in a temporary
+            // helper container which mounts the target container's volumes. This covers cases
+            // where exec.start() fails with a modem upgrade error like "(HTTP code 101) unexpected -".
+            if (msg && /http code\s*101|\(http code 101\)/i.test(msg)) {
+                this.logger.warn(`Exec start returned HTTP 101 for container ${containerIdOrName} - attempting helper container fallback`);
+
+                // First try an intermediate retry using a non-hijacked start. Some environments
+                // (proxies or transports) don't support hijack/attach upgrades but will still
+                // stream stdout/stderr when exec.start is called without hijack.
+                try {
+                    this.logger.debug(`Attempting non-hijack exec.start retry for container ${containerIdOrName}`);
+                    const container = this.docker.getContainer(containerIdOrName);
+                    const execRetry = await container.exec({ Cmd: cmd, AttachStdout: true, AttachStderr: true, AttachStdin: !!input });
+                    this.logger.debug(`Created exec instance (retry non-hijack) in container ${containerIdOrName} with ID ${execRetry.id}`);
+
+                    const streamRetry = await execRetry.start({ hijack: false, stdin: !!input }) as NodeJS.ReadWriteStream;
+                    this.logger.debug(`Started exec retry in container ${containerIdOrName} (non-hijack, stream attached)`);
+
+                    // Collect output similarly to the normal path
+                    const { PassThrough } = await import('stream');
+                    const stdoutRetry = new PassThrough();
+                    const stderrRetry = new PassThrough();
+
+                    if (this.docker.modem && typeof this.docker.modem.demuxStream === 'function') {
+                        try {
+                            this.docker.modem.demuxStream(streamRetry, stdoutRetry, stderrRetry);
+                        }
+                        catch (demuxErr) {
+                            this.logger.warn('demuxStream failed on non-hijack retry - attaching raw stream', demuxErr);
+                            streamRetry.on && streamRetry.on('data', (chunk: Buffer) => stdoutRetry.write(chunk));
+                        }
+                    }
+                    else {
+                        streamRetry.on && streamRetry.on('data', (chunk: Buffer) => stdoutRetry.write(chunk));
+                    }
+
+                    let retryOutput = '';
+                    stdoutRetry.on('data', (c: Buffer) => { try { retryOutput += c.toString('utf8'); } catch { } });
+                    stderrRetry.on('data', (c: Buffer) => { try { retryOutput += c.toString('utf8'); } catch { } });
+
+                    if (input) {
+                        try { (streamRetry as NodeJS.WritableStream).write(input); } catch (w) { this.logger.warn('Failed to write input to retry exec stdin', w); }
+                        try { (streamRetry as NodeJS.WritableStream).end(); } catch { }
+                    }
+
+                    await new Promise<void>((resolve, reject) => {
+                        streamRetry.on && streamRetry.on('end', () => resolve());
+                        streamRetry.on && streamRetry.on('close', () => resolve());
+                        streamRetry.on && streamRetry.on('error', (err: any) => reject(err));
+                    });
+
+                    const retryInspect = await execRetry.inspect();
+                    const retryExit = typeof retryInspect.ExitCode === 'number' ? retryInspect.ExitCode : -1;
+                    if (retryExit === 0) {
+                        this.logger.log(`Non-hijack exec retry succeeded in container ${containerIdOrName}`);
+                        this.logger.debug(`Non-hijack exec output (truncated): ${retryOutput.slice(0, 2000)}`);
+                        return { exitCode: retryExit, output: retryOutput };
+                    }
+
+                    this.logger.warn(`Non-hijack exec retry returned non-zero exit code ${retryExit} - falling back to helper container`);
+                }
+                catch (retryErr) {
+                    this.logger.warn(`Non-hijack exec retry failed for container ${containerIdOrName}:`, retryErr);
+                    // fall through to helper container fallback
+                }
+
+                // If the non-hijack retry didn't succeed, proceed to helper container fallback
+                try {
+                    const fallbackResult = await this.runCommandInHelperContainer(containerIdOrName, cmd.join(' '), input);
+                    this.logger.log(`Helper container fallback succeeded for container ${containerIdOrName} (exitCode=${fallbackResult.exitCode})`);
+                    // Include helper container logs in API logs (truncate to avoid huge outputs)
+                    if (fallbackResult.output && fallbackResult.output.length > 0) {
+                        const truncated = fallbackResult.output.length > 5000 ? `${fallbackResult.output.slice(0, 5000)}\n...truncated...` : fallbackResult.output;
+                        this.logger.debug(`Helper container logs (truncated):\n${truncated}`);
+                    }
+                    if (fallbackResult.exitCode !== 0) {
+                        throw new Error(`Helper container command failed with exit code ${fallbackResult.exitCode}: ${fallbackResult.output}`);
+                    }
+                    return fallbackResult;
+                }
+                catch (helperErr) {
+                    this.logger.error(`Helper container fallback failed for container ${containerIdOrName}:`, helperErr);
+                    throw helperErr;
+                }
+            }
+
             if (msg && msg.includes('socket connection was closed unexpectedly')) {
                 this.logger.error(`Failed to exec command in container ${containerIdOrName}: ${msg}. Consider retrying after container startup or using smaller payloads. To get more details, run with verbose fetch (docker-modem).`);
             }
@@ -767,80 +877,141 @@ CMD ["npm", "start"]
     }
 
     /**
-     * Connect a container to a docker network by name or id.
+     * Run a command in a short-lived helper container that mounts the same volumes as the
+     * target container. This is used as a fallback when exec/start over the Docker API
+     * fails due to protocol upgrade issues (HTTP 101) or other attach-related problems.
      */
-    async connectContainerToNetwork(containerIdOrName: string, networkNameOrId: string): Promise<void> {
+    async runCommandInHelperContainer(containerIdOrName: string, command: string, _input?: string): Promise<{ exitCode: number; output: string }> {
+        this.logger.debug(`Starting helper container to run command for ${containerIdOrName}: ${command}`);
+        // Inspect target container to discover mounts
+        let containerInfo: Docker.ContainerInspectInfo;
         try {
-            // First, ensure the container is not already attached to the target network
-            try {
-                const container = this.docker.getContainer(containerIdOrName);
-                const info = await container.inspect();
-                const networks = info?.NetworkSettings?.Networks || {};
-                if (networks[networkNameOrId] || Object.keys(networks).some(n => n === networkNameOrId)) {
-                    this.logger.debug(`Container ${containerIdOrName} is already connected to network ${networkNameOrId}`);
-                    return;
+            containerInfo = await this.getContainerInfo(containerIdOrName);
+        }
+        catch (err) {
+            this.logger.error(`Failed to inspect container ${containerIdOrName} while preparing helper container:`, err);
+            throw err;
+        }
+
+        const binds: string[] = [];
+        try {
+            const mounts = containerInfo?.Mounts || [];
+            for (const m of mounts) {
+                // For named volumes use the Name; for bind mounts use the host Source path
+                if (m.Type === 'volume' && m.Name) {
+                    binds.push(`${m.Name}:${m.Destination}`);
+                }
+                else if ((m.Type === 'bind' || m.Type === 'volume') && m.Source) {
+                    binds.push(`${m.Source}:${m.Destination}`);
                 }
             }
-            catch (inspectErr) {
-                this.logger.debug(`Could not inspect container ${containerIdOrName} before network connect: ${(inspectErr as any)?.message || String(inspectErr)}`);
+        }
+        catch (err) {
+            this.logger.warn(`Failed to build binds from mounts for container ${containerIdOrName}:`, err);
+        }
+
+        // If input was provided to the original exec call, note it here. We do not forward
+        // stdin into the helper container for now (commands used in fallbacks are usually
+        // non-interactive), but log its presence for diagnostics and to satisfy linting.
+        if (typeof _input !== 'undefined') {
+            this.logger.debug(`Helper fallback invoked with input length ${String(_input)?.length || 0} - input will not be forwarded to helper container.`);
+        }
+
+        // Ensure a small helper image is available
+        const helperImage = 'alpine:latest';
+        try {
+            await this.pullImage(helperImage);
+        }
+        catch (pullErr) {
+            this.logger.warn(`Could not pull helper image ${helperImage}, will still attempt to create container and rely on local image:`, pullErr);
+        }
+
+        // Create helper container
+        const helperName = `deployer-helper-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        const createOpts: Docker.ContainerCreateOptions = {
+            Image: helperImage,
+            Cmd: ['sh', '-c', command],
+            name: helperName,
+            HostConfig: {
+                Binds: binds,
+                AutoRemove: false,
+            },
+            Tty: false,
+        };
+
+        let helperContainer: Docker.Container | null = null;
+        try {
+            helperContainer = await this.docker.createContainer(createOpts);
+            await helperContainer.start();
+            this.logger.debug(`Started helper container ${helperName} (id=${helperContainer.id}) to run fallback command`);
+
+            // Wait for completion
+            const waitResult = await helperContainer.wait() as { StatusCode?: number } | undefined;
+            const statusCode = typeof waitResult?.StatusCode === 'number' ? waitResult.StatusCode : -1;
+
+            // Fetch logs
+            let logs = '';
+            try {
+                logs = await this.getContainerLogs(helperContainer.id, { stdout: true, stderr: true, tail: 1000 });
+            }
+            catch (logErr) {
+                this.logger.warn(`Failed to read logs from helper container ${helperName}:`, (logErr as Error)?.message || String(logErr));
             }
 
-            const networks = await this.docker.listNetworks({});
-            const target = networks.find(n => n.Name === networkNameOrId || n.Id === networkNameOrId);
-            if (!target) {
-                this.logger.warn(`Network ${networkNameOrId} not found - cannot connect container ${containerIdOrName}`);
-                return;
+            // Clean up helper container
+            try {
+                await helperContainer.remove({ force: true });
             }
-            const network = this.docker.getNetwork(target.Id);
-            await network.connect({ Container: containerIdOrName });
-            this.logger.log(`Connected container ${containerIdOrName} to network ${target.Name} (${target.Id})`);
-        } catch (error: any) {
-            // If the endpoint already exists, treat as a no-op (container already connected).
-            const message = (error && (error.message || String(error))).toLowerCase();
-            if (message.includes('endpoint with name') && message.includes('already exists')) {
-                this.logger.debug(`Endpoint already exists when connecting ${containerIdOrName} to ${networkNameOrId} - treating as already connected`);
-                return;
+            catch (remErr) {
+                this.logger.warn(`Failed to remove helper container ${helperName}:`, (remErr as Error)?.message || String(remErr));
             }
-            this.logger.error(`Failed to connect container ${containerIdOrName} to network ${networkNameOrId}:`, error);
-            throw error;
+
+            if (statusCode !== 0) {
+                this.logger.error(`Helper container ${helperName} exited with code ${statusCode}: ${logs}`);
+                return { exitCode: statusCode, output: logs };
+            }
+
+            this.logger.debug(`Helper container ${helperName} completed successfully`);
+            return { exitCode: 0, output: logs };
+        }
+        catch (err) {
+            this.logger.error(`Helper container execution failed for ${containerIdOrName}:`, (err as any)?.message || String(err));
+            // Attempt to clean up if container was created but not removed
+            if (helperContainer) {
+                try { await helperContainer.remove({ force: true }); } catch { }
+            }
+            throw err;
         }
     }
 
-    async getNetworkInfo(networkNameOrId: string): Promise<any> {
-        try {
-            const networks = await this.docker.listNetworks({ filters: { name: [networkNameOrId] } });
-            if (!networks || networks.length === 0) {
-                throw new Error(`Network ${networkNameOrId} not found`);
-            }
-            const network = this.docker.getNetwork(networks[0].Id);
-            const info = await network.inspect();
-            return info;
-        } catch (error) {
-            this.logger.error(`Failed to get network info for ${networkNameOrId}:`, error);
-            throw error;
-        }
-    }
-
-    async getContainerLogs(containerIdOrName: string, options: { stdout?: boolean; stderr?: boolean; tail?: number } = { stdout: true, stderr: true, tail: 200 }): Promise<string> {
-        try {
-            const container = this.docker.getContainer(containerIdOrName);
-            const opts: any = {
+    async getContainerLogs(containerIdOrName: string, options: Docker.ContainerLogsOptions = { stdout: true, stderr: true, tail: 200 }): Promise<string> {
+         try {
+             const container = this.docker.getContainer(containerIdOrName);
+             const opts = {
                 stdout: options.stdout !== false,
                 stderr: options.stderr !== false,
                 tail: options.tail || 200
-            };
-            const stream = (await container.logs(opts)) as unknown as NodeJS.ReadableStream;
-            let logs = '';
-            stream.on && stream.on('data', (chunk: Buffer) => { try { logs += chunk.toString('utf8'); } catch { } });
-            await new Promise<void>((resolve, reject) => {
-                stream.on && stream.on('end', () => resolve());
-                stream.on && stream.on('close', () => resolve());
-                stream.on && stream.on('error', (err: any) => reject(err));
-            });
-            return logs;
-        } catch (error) {
-            this.logger.error(`Failed to fetch logs for container ${containerIdOrName}:`, error);
-            throw error;
-        }
-    }
+             };
+             const stream = (await container.logs(opts)) as unknown as NodeJS.ReadableStream;
+             let logs = '';
+             stream.on && stream.on('data', (chunk: Buffer) => { try { logs += chunk.toString('utf8'); } catch { } });
+             await new Promise<void>((resolve, reject) => {
+                 stream.on && stream.on('end', () => resolve());
+                 stream.on && stream.on('close', () => resolve());
+                 stream.on && stream.on('error', (err: any) => reject(err));
+             });
+             return logs;
+         } catch (error: unknown) {
+             this.logger.error(`Failed to fetch logs for container ${containerIdOrName}:`, (error as Error)?.message || String(error));
+             throw error;
+         }
+     }
+}
+
+// Stronger create container options combining dockerode types with our custom fields
+export interface CreateContainerOptions extends Docker.ContainerCreateOptions {
+    // backward compatibility: allow lowercase 'image' property
+    image?: string;
+    imagePullPolicy?: 'IfNotPresent' | 'Always' | 'Never';
+    registryAuth?: Docker.AuthConfig;
 }

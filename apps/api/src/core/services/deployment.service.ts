@@ -81,6 +81,7 @@ interface DeploymentConfig {
 export interface DeploymentResult {
     deploymentId: string;
     containerIds: string[];
+    containers?: string[]; // backward-compatible alias (some callers expect `containers`)
     status: 'success' | 'failed' | 'partial';
     domain?: string;
     healthCheckUrl?: string;
@@ -216,12 +217,12 @@ export class DeploymentService {
         const sourcePath = config.sourceConfig?.filePath || config.sourcePath || undefined;
         // Deploy using project-level static file service
         const nginxInfo = await this.staticFileService.deployStaticFiles({
-            serviceName,
-            deploymentId,
-            projectId: config.projectId,
-            domain: domain || 'localhost',
-            subdomain,
-            sourcePath,
+             serviceName,
+             deploymentId,
+             projectId: config.projectId,
+             domain: domain || 'localhost',
+             subdomain,
+             sourcePath,
         } as any);
 
         // Update deployment record with project server container info
@@ -235,6 +236,7 @@ export class DeploymentService {
         return {
             deploymentId,
             containerIds: [nginxInfo.containerId],
+            containers: [nginxInfo.containerId],
             status: isHealthy ? 'success' : 'partial',
             domain: nginxInfo.domain,
             healthCheckUrl,
@@ -242,7 +244,7 @@ export class DeploymentService {
             metadata: {
                 containerName: nginxInfo.containerName,
                 serverImage: nginxInfo.imageUsed || 'rtsp/lighttpd',
-            }
+            } as Record<string, unknown>
         };
     }
 
@@ -302,6 +304,7 @@ export class DeploymentService {
         return {
             deploymentId,
             containerIds: [containerId],
+            containers: [containerId],
             status: isHealthy ? 'success' : 'partial',
             healthCheckUrl,
             message: isHealthy ? 'Docker service deployed successfully' : 'Docker service deployed but health check failed',
@@ -1134,7 +1137,7 @@ CMD ["sh", "-c", "${startCommand}"]
     async getPreviewDeploymentsByTrigger(
         branchName?: string, 
         pullRequestNumber?: number
-    ): Promise<Array<SelectDeployment & { previewEnvironment?: any }>> {
+    ): Promise<Array<SelectDeployment & { previewEnvironment?: Record<string, unknown> | null }>> {
         if (!branchName && !pullRequestNumber) {
             return [];
         }

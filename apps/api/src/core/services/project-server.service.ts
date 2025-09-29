@@ -1,16 +1,29 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DockerService } from './docker.service';
+import type { CreateContainerOptions } from './docker.service';
 
 @Injectable()
 export class ProjectServerService {
   private readonly logger = new Logger(ProjectServerService.name);
   constructor(private readonly dockerService: DockerService) {}
 
+  private sanitizeHost(maybeUrl: string): string {
+    try {
+      // If input is a URL, extract hostname; otherwise return input trimmed
+      const parsed = new URL(maybeUrl);
+      return parsed.hostname || maybeUrl;
+    } catch {
+      // Not a valid URL, remove scheme if present and trim path
+      return maybeUrl.replace(/^https?:\/\//, '').split('/')[0];
+    }
+  }
+
   /**
    * Ensure a project-level HTTP server exists for the given projectId and domain.
    * Returns minimal metadata about the server (containerId, containerName, image, createdAt)
    */
   async ensureProjectServer(projectId: string, domain: string) {
+    const sanitizedDomain = this.sanitizeHost(domain || 'localhost');
     const containerName = `project-http-${projectId}`;
     const volumeName = `project-${projectId}-static`;
     const networkName = process.env.COMPOSE_PROJECT_NAME
@@ -20,6 +33,23 @@ export class ProjectServerService {
     try {
       const info = await this.dockerService.getContainerInfo(containerName);
       this.logger.log(`Project server ${containerName} already exists`);
+      // If container exists but is not running, attempt to start it
+      const state = info.State?.Status || '';
+      if (state !== 'running') {
+        this.logger.log(`Project server ${containerName} exists but is '${state}' - attempting to start`);
+        const container = this.dockerService.getDockerClient().getContainer(info.Id);
+        try {
+          await container.start();
+          this.logger.log(`Started existing project server ${containerName}`);
+        } catch (startErr) {
+          this.logger.warn(`Failed to start existing project server ${containerName}:`, (startErr as Error)?.message || String(startErr));
+        }
+      }
+      // Check and warn about mismatched image/labels (do not recreate automatically)
+      const currentImage = info.Config?.Image;
+      if (currentImage && currentImage !== (process.env.PROJECT_SERVER_IMAGE || 'rtsp/lighttpd')) {
+        this.logger.warn(`Existing project server ${containerName} uses image ${currentImage} which differs from current configured image ${(process.env.PROJECT_SERVER_IMAGE || 'rtsp/lighttpd')}`);
+      }
       return {
         containerId: info.Id,
         containerName,
@@ -54,11 +84,12 @@ export class ProjectServerService {
       'deployer.project_server': projectId,
       'traefik.enable': 'true',
       'traefik.docker.network': networkName,
-      [`traefik.http.routers.project-${projectId}.rule`]: `Host(\`${domain}\`)`,
+      // Router rule must use sanitized host only (no scheme/path)
+      [`traefik.http.routers.project-${projectId}.rule`]: `Host(\`${sanitizedDomain}\`)`,
       [`traefik.http.services.project-${projectId}.loadbalancer.server.port`]: '80',
     };
 
-    const options: any = {
+    const options: CreateContainerOptions = {
       Image: image,
       name: containerName,
       Labels: labels,

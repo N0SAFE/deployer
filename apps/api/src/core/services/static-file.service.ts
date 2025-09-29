@@ -35,8 +35,9 @@ export class StaticFileService {
         this.logger.log(`Deploying static files for service ${serviceName} at ${domain} (project=${effectiveProjectId})`);
         // Always use project-level HTTP server model
         {
-             // Ensure project http server exists
-             const projectServer = await this.projectServerService.ensureProjectServer(effectiveProjectId, domain);
+             // Ensure project http server exists. Provide the full hostname (include subdomain if present)
+             const host = subdomain ? `${subdomain}.${domain}` : domain;
+             const projectServer = await this.projectServerService.ensureProjectServer(effectiveProjectId, host);
              const projectContainerName = projectServer.containerName;
 
             // Copy files from provided sourcePath into project volume under /srv/static/<service>/<deploymentId>
