@@ -8,6 +8,7 @@ import { ServiceService } from '../../service/services/service.service';
 import { DatabaseService } from '../../../core/modules/db/services/database.service';
 import { DeploymentService } from '../../../core/services/deployment.service';
 import { deployments, deploymentLogs } from '../../../core/modules/db/drizzle/schema';
+import type { DeploymentJobData } from '../../jobs/types/deployment-job.types';
 import { eq, desc } from 'drizzle-orm';
 @Controller("other")
 export class DeploymentController {
@@ -28,6 +29,11 @@ export class DeploymentController {
                     delayed: 'delayed',
                 };
                 const mappedStatus = statusMap[job.status] || 'waiting';
+                // Normalize date-like fields to Date objects for contract compatibility
+                const processedOn = job.data?.processedOn ? new Date(job.data.processedOn) : undefined;
+                const finishedOn = job.data?.finishedOn ? new Date(job.data.finishedOn) : undefined;
+                const timestamp = job.data?.timestamp ? new Date(job.data.timestamp) : new Date();
+
                 return {
                     id: job.id,
                     status: mappedStatus,
@@ -35,10 +41,10 @@ export class DeploymentController {
                     data: job.data ?? {},
                     result: job.result ?? {},
                     failedReason: typeof job.error === 'string' ? job.error : undefined,
-                    processedOn: job.data?.processedOn ?? undefined,
-                    finishedOn: job.data?.finishedOn ?? undefined,
+                    processedOn,
+                    finishedOn,
                     delay: job.data?.delay ?? undefined,
-                    timestamp: job.data?.timestamp ?? new Date().toISOString(),
+                    timestamp,
                 };
             }
             catch (error) {
@@ -70,14 +76,37 @@ export class DeploymentController {
                         containerHealthy = await this.dockerService.checkContainerHealth(containers[0].id);
                     }
                 }
-                return {
+
+                // Build enriched status response matching the contract schema
+                const response = {
                     deploymentId: input.deploymentId,
+                    serviceId: deployment.serviceId,
                     status: deployment.status as 'queued' | 'building' | 'deploying' | 'success' | 'failed' | 'cancelled',
                     stage: this.mapStatusToStage(deployment.status),
                     progress: this.calculateProgress(deployment.status, containerHealthy),
                     startedAt: deployment.buildStartedAt || deployment.createdAt,
                     completedAt: deployment.deployCompletedAt || undefined,
-                };
+
+                    // Container and network information
+                    containerId: deployment.containerName || undefined,
+                    url: deployment.domainUrl || undefined,
+                    internalUrl: undefined,
+
+                    // Build information
+                    buildDuration: deployment.metadata?.buildDuration ?? undefined,
+                    deploymentSize: deployment.metadata?.deployDuration ?? undefined,
+
+                    // Health information
+                    healthStatus: containerHealthy ? 'healthy' : (deployment.status === 'success' ? 'unhealthy' : undefined),
+                    lastHealthCheck: deployment.updatedAt || undefined,
+
+                    // Metadata
+                    deployedBy: deployment.triggeredBy || 'system',
+                    environment: deployment.environment,
+                    sourceType: deployment.sourceType,
+                } as const;
+
+                return response;
             }
             catch (error) {
                 this.logger.error(`Error getting deployment status: ${error}`);
@@ -244,11 +273,20 @@ export class DeploymentController {
                 }
                 
                 // Queue deployment job with sanitized data
-                const sourceType = this.mapServiceProviderToSourceType(service.provider);
-                let sourceConfig = {
-                    type: sourceType,
-                    ...safeProviderConfig,
-                    envVars: safeEnvironmentVariables,
+                // Prefer explicit values from the request when provided; otherwise infer from service provider
+                const sourceType = input.sourceType ?? this.mapServiceProviderToSourceType(service.provider);
+                const requestSourceConfig = (input as any).sourceConfig as Record<string, any> | undefined;
+                let sourceConfig = requestSourceConfig
+                    ? ({ ...requestSourceConfig } as Record<string, any>)
+                    : ({ type: sourceType, ...safeProviderConfig } as Record<string, any>);
+                // Ensure the type field is always present
+                if (!sourceConfig.type) {
+                    sourceConfig.type = sourceType;
+                }
+                // Merge sanitized envVars into the sourceConfig (request values are kept when present)
+                sourceConfig.envVars = {
+                    ...(safeEnvironmentVariables || {}),
+                    ...(sourceConfig.envVars || {}),
                 };
 
                 // Auto-fix common misconfiguration: git provider with static builder but no repository URL
@@ -274,7 +312,7 @@ export class DeploymentController {
                     };
                 }
 
-                this.logger.log(`Final source config for deployment:`, sourceConfig);
+                 this.logger.log(`Final source config for deployment:`, sourceConfig);
                 console.log(`=== FINAL SOURCE CONFIG ===`);
                 console.log(JSON.stringify(sourceConfig, null, 2));
                 console.log(`=== END SOURCE CONFIG ===`);
@@ -300,11 +338,11 @@ export class DeploymentController {
                     throw validationError;
                 }
 
-                const jobData = {
+                const jobData: DeploymentJobData = {
                     deploymentId: deployment.id,
                     serviceId: input.serviceId,
                     projectId: service.projectId,
-                    sourceConfig,
+                    sourceConfig: sourceConfig as unknown as any,
                 };
                 
                 // Verify job data is serializable before queuing
@@ -355,6 +393,7 @@ export class DeploymentController {
                         success: true,
                         message: 'Deployment was already cancelled',
                         deploymentId: input.deploymentId,
+                        cancelledAt: (deployment.metadata as any)?.cancelledAt || deployment.updatedAt || new Date(),
                     };
                 }
                 if (deployment.status === 'success' || deployment.status === 'failed') {
@@ -385,7 +424,7 @@ export class DeploymentController {
                     metadata: {
                         ...deployment.metadata as any,
                         cancelReason: 'user_requested',
-                        cancelledAt: new Date().toISOString(),
+                        cancelledAt: new Date(),
                     },
                     updatedAt: new Date(),
                 })
@@ -400,13 +439,14 @@ export class DeploymentController {
                     stage: 'cancelled',
                     metadata: {
                         cancelReason: 'user_requested',
-                        cancelledAt: new Date().toISOString(),
+                        cancelledAt: new Date(),
                     },
                 });
                 return {
                     success: true,
                     message: 'Deployment cancelled successfully',
                     deploymentId: input.deploymentId,
+                    cancelledAt: new Date(),
                 };
             }
             catch (error) {
@@ -443,14 +483,35 @@ export class DeploymentController {
                 if (targetDeployment.status !== 'success') {
                     throw new Error(`Target deployment status is ${targetDeployment.status}, must be 'success'`);
                 }
-                // Queue rollback job
+
+                // Create a rollback deployment record so we have an auditable rollback instance
+                const [rollbackDeployment] = await this.databaseService.db
+                    .insert(deployments)
+                    .values({
+                        serviceId: currentDeployment.serviceId,
+                        triggeredBy: 'system',
+                        status: 'queued',
+                        environment: currentDeployment.environment,
+                        sourceType: currentDeployment.sourceType,
+                        sourceConfig: targetDeployment.sourceConfig,
+                        metadata: ({
+                            stage: 'rollback_queued',
+                            targetDeploymentId: input.targetDeploymentId,
+                            rollbackFrom: input.deploymentId,
+                        } as any),
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    })
+                    .returning();
+
+                // Queue rollback job referencing the rollback deployment
                 const rollbackJobId = await this.deploymentQueueService.addRollbackJob({
-                    deploymentId: input.deploymentId,
+                    deploymentId: rollbackDeployment.id,
                     targetDeploymentId: input.targetDeploymentId,
                 });
-                // Add rollback initiation log
+                // Add rollback initiation log against rollback deployment
                 await this.serviceRepository.createDeploymentLog({
-                    deploymentId: input.deploymentId,
+                    deploymentId: rollbackDeployment.id,
                     level: 'info',
                     message: `Rollback initiated to deployment ${input.targetDeploymentId}`,
                     phase: 'rollback',
@@ -465,6 +526,7 @@ export class DeploymentController {
                 this.logger.log(`Rollback job queued: ${rollbackJobId}`);
                 return {
                     rollbackJobId,
+                    rollbackDeploymentId: rollbackDeployment.id,
                     message: 'Rollback has been initiated successfully',
                 };
             }
@@ -555,10 +617,11 @@ export class DeploymentController {
                 const paginatedDeployments = filteredDeployments.slice(offset, offset + limit);
                 // Format deployments for response
                 const formattedDeployments = paginatedDeployments.map(deployment => ({
-                    id: deployment.id,
+                    deploymentId: deployment.id,
                     serviceId: deployment.serviceId,
                     status: deployment.status as 'queued' | 'building' | 'deploying' | 'success' | 'failed' | 'cancelled',
                     environment: deployment.environment as 'production' | 'staging' | 'preview' | 'development',
+                    sourceType: deployment.sourceType as any,
                     triggeredBy: deployment.triggeredBy || 'system',
                     createdAt: deployment.createdAt,
                     updatedAt: deployment.updatedAt,
@@ -567,11 +630,17 @@ export class DeploymentController {
                         commitSha: 'unknown',
                         branch: 'main',
                     },
+                    deployedBy: deployment.triggeredBy || 'system'
                 }));
                 return {
                     deployments: formattedDeployments,
                     total,
                     hasMore: offset + limit < total,
+                    filters: {
+                        environment: input.environment,
+                        status: input.status,
+                        sourceType: input.sourceType
+                    }
                 };
             }
             catch (error) {

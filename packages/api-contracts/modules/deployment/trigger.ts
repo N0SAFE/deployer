@@ -12,6 +12,9 @@ import {
   resourceLimitsSchema
 } from '../../common/deployment-config';
 export const deploymentTriggerInput = createDeploymentInputSchema.extend({
+    // Allow trigger to omit sourceType/sourceConfig so server can infer defaults
+    sourceType: sourceTypeSchema.optional(),
+    sourceConfig: sourceConfigSchema.optional(),
     buildStrategy: z.enum(['build-time', 'runtime']).optional(),
     resourceLimits: resourceLimitsSchema.optional()
 });

@@ -217,7 +217,9 @@ export class StaticFileService {
     private async setProjectServiceCurrent(projectId: string, projectContainerName: string, serviceName: string, deploymentId: string): Promise<void> {
         const linkDir = `/srv/static/${serviceName}`;
         const target = `./${deploymentId}`;
-        const cmd = ['sh', '-c', `mkdir -p ${linkDir} && ln -sfn ${target} ${linkDir}/current && echo '{"id":"${deploymentId}","updatedAt":"$(date -Iseconds)"}' > ${linkDir}/${deploymentId}/.deployer-meta.json`];
+        // Ensure the per-deployment directory exists, then atomically switch 'current' and write metadata
+        const cmd = ['sh', '-c', `mkdir -p ${linkDir}/${deploymentId} && ln -sfn ${target} ${linkDir}/current && printf '{"id":"%s","updatedAt":"%s"}' '${deploymentId}' "$(date -Iseconds)" > ${linkDir}/${deploymentId}/.deployer-meta.json`];
+        this.logger.debug(`Setting current symlink for ${serviceName} to ${deploymentId}`);
         await this.dockerService.execInContainer(projectContainerName, cmd);
     }
     /**

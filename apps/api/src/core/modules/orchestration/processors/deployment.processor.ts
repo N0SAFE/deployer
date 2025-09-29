@@ -1,7 +1,6 @@
 import { Processor, Process } from "@nestjs/bull";
 import { Logger, Inject } from "@nestjs/common";
 import type { Job } from "bull";
-import type { SourceConfig, DeploymentStatus, DeploymentConfig, BuildConfig } from '@repo/types';
 import { SwarmOrchestrationService } from "../services/swarm-orchestration.service";
 import { TraefikService } from "../services/traefik.service";
 import { ResourceAllocationService } from "../services/resource-allocation.service";
@@ -1643,11 +1642,22 @@ export class DeploymentProcessor {
     message: string,
     metadata?: Record<string, any>
   ): Promise<void> {
+    // Sanitize message and metadata to prevent invalid byte sequences (NUL bytes) from causing DB errors
+    const safeMessage = String(message || '').replace(/\u0000/g, '');
+    let safeMetadata: Record<string, any> = {};
+    try {
+      const serialized = metadata ? JSON.stringify(metadata) : '{}';
+      const sanitized = serialized.replace(/\u0000/g, '');
+      safeMetadata = sanitized && sanitized !== '{}' ? JSON.parse(sanitized) : {};
+    } catch {
+      // If metadata can't be stringified/parsing fails, fall back to empty object
+      safeMetadata = {};
+    }
     await this.db.insert(deploymentLogs).values({
       deploymentId,
       level,
-      message,
-      metadata: metadata || {},
+      message: safeMessage,
+      metadata: safeMetadata,
       timestamp: new Date(),
     });
   }

@@ -10,10 +10,10 @@ export const deploymentJobStatusOutput = z.object({
     data: z.record(z.string(), z.any()),
     result: z.record(z.string(), z.any()).optional(),
     failedReason: z.string().optional(),
-    processedOn: z.string().optional(),
-    finishedOn: z.string().optional(),
+    processedOn: z.date().optional(),
+    finishedOn: z.date().optional(),
     delay: z.number().optional(),
-    timestamp: z.string(),
+    timestamp: z.date(),
 });
 export const deploymentJobStatusContract = oc
     .route({

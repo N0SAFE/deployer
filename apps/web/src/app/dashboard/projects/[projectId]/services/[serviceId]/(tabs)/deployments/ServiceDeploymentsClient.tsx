@@ -1,6 +1,7 @@
 'use client'
 
 import { useDeployments, useDeploymentActions } from '@/hooks/useDeployments'
+import { useService } from '@/hooks/useServices'
 import { Card, CardContent } from '@repo/ui/components/shadcn/card'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Container, Zap, Loader2 } from 'lucide-react'
@@ -15,17 +16,61 @@ export default function ServiceDeploymentsClient() {
   const { data: deploymentsData, isLoading } = useDeployments({
     serviceId: params.serviceId,
   })
+  const { data: service } = useService(params.serviceId)
+
+  // Local (narrow) view of service fields required for deriving a source payload
+  type ServiceConfig = {
+    provider?: string
+    builder?: string
+    providerConfig?: Record<string, unknown>
+  }
+
   const deployments = deploymentsData?.deployments || []
   const { triggerDeployment, isLoading: deploymentLoading } =
     useDeploymentActions()
 
   const handleTriggerDeployment = async () => {
     try {
+      // Build an explicit source payload derived from the service configuration so the API receives a complete input
+      const derivedSource = (() => {
+        if (!service) return undefined
+        const svc = service as unknown as ServiceConfig
+        const provider = svc.provider
+        const builder = svc.builder
+        const providerConfig = svc.providerConfig || {}
+
+        if (provider === 'manual' && builder === 'static') {
+          return {
+            sourceType: 'upload' as const,
+            sourceConfig: {
+              type: 'upload' as const,
+              customData: { embeddedContent: String(providerConfig?.deploymentScript || '') || undefined },
+            },
+          }
+        }
+        if (provider === 'github') {
+          return {
+            sourceType: 'github' as const,
+            sourceConfig: { type: 'github' as const, repositoryUrl: String(providerConfig?.repositoryUrl || ''), branch: String(providerConfig?.branch || 'main') },
+          }
+        }
+        if (provider === 'gitlab') {
+          return {
+            sourceType: 'gitlab' as const,
+            sourceConfig: { type: 'gitlab' as const, repositoryUrl: String(providerConfig?.repositoryUrl || ''), branch: String(providerConfig?.branch || 'main') },
+          }
+        }
+        // Default fallback
+        return {
+          sourceType: 'git' as const,
+          sourceConfig: { type: 'git' as const, repositoryUrl: String(providerConfig?.repositoryUrl || ''), branch: String(providerConfig?.branch || 'main') },
+        }
+      })()
+
       await triggerDeployment({
         serviceId: params.serviceId,
         environment: 'production',
-        // Let the API determine sourceType and sourceConfig from the service's database configuration
-        // No need to specify these - they should come from the service's provider/builder settings
+        ...(derivedSource || {}),
       })
     } catch (error) {
       console.error('Failed to trigger deployment:', error)
@@ -105,7 +150,7 @@ export default function ServiceDeploymentsClient() {
           <div className="space-y-3">
             {deployments.map((deployment, idx) => (
               <DeploymentCard
-                key={deployment.id}
+                key={deployment.deploymentId}
                 deployment={deployment}
                 projectId={params.projectId}
                 serviceId={params.serviceId}
@@ -115,7 +160,7 @@ export default function ServiceDeploymentsClient() {
                     .slice(0, idx)
                     .reverse()
                     .find((d) => d.status === 'success')
-                  return prev?.id
+                  return prev?.deploymentId
                 })()}
               />
             ))}

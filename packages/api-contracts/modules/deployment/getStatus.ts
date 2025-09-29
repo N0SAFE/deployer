@@ -1,9 +1,11 @@
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
-import { deploymentStatusSchema } from '../../common/deployment-config';
+import { deploymentStatusSchema, environmentSchema, sourceTypeSchema } from '../../common/deployment-config';
+
 export const deploymentGetStatusInput = z.object({
     deploymentId: z.string().uuid(),
 });
+
 export const deploymentGetStatusOutput = z.object({
     deploymentId: z.string().uuid(),
     serviceId: z.string().uuid(),
@@ -30,9 +32,10 @@ export const deploymentGetStatusOutput = z.object({
     
     // Metadata
     deployedBy: z.string(),
-    environment: z.string(),
-    sourceType: z.string()
+    environment: environmentSchema,
+    sourceType: sourceTypeSchema
 });
+
 export const deploymentGetStatusContract = oc
     .route({
     method: "GET",

@@ -9,7 +9,6 @@ import { DeploymentService } from '../../../core/services/deployment.service';
 import { db } from '../../../core/modules/db/drizzle/index';
 import { deployments, services, projects, deploymentLogs } from '../../../core/modules/db/drizzle/schema/deployment';
 import { eq, desc, count, and } from 'drizzle-orm';
-import { randomUUID } from 'crypto';
 import { Public } from '@/modules/auth/decorators/decorators';
 @Controller()
 export class DeploymentController {
@@ -32,57 +31,51 @@ export class DeploymentController {
         return implement(deploymentContract.getStatus).handler(async ({ input }) => {
             const { deploymentId } = input;
             this.logger.log(`Getting status for deployment ${deploymentId}`);
-            const deployment = await db.select()
+            const deploymentRows = await db.select()
                 .from(deployments)
                 .where(eq(deployments.id, deploymentId))
                 .limit(1);
-            if (!deployment.length) {
+            if (!deploymentRows.length) {
                 throw new Error(`Deployment ${deploymentId} not found`);
             }
-            const deploymentData = deployment[0];
-            // If deployment is successful, verify containers are still running
-            if (deploymentData.status === 'success') {
+            const deploymentData = deploymentRows[0];
+
+            // Check container health when applicable
+            let containerHealthy = false;
+            if (deploymentData.status === 'success' && deploymentData.containerName) {
                 try {
                     const containers = await this.dockerService.listContainersByDeployment(deploymentId);
-                    let runningContainers = 0;
-                    let healthyContainers = 0;
-                    for (const container of containers) {
-                        if (container.status === 'running') {
-                            runningContainers++;
-                            const isHealthy = await this.dockerService.checkContainerHealth(container.id);
-                            if (isHealthy) {
-                                healthyContainers++;
-                            }
-                        }
+                    if (containers.length > 0) {
+                        containerHealthy = await this.dockerService.checkContainerHealth(containers[0].id);
                     }
-                    // If no containers are running for a successful deployment, mark as degraded
-                    if (containers.length > 0 && runningContainers === 0) {
-                        this.logger.warn(`Deployment ${deploymentId} marked as success but no containers are running`);
-                        // Log this discovery
-                        await db.insert(deploymentLogs).values({
-                            deploymentId,
-                            level: 'warn',
-                            message: 'Deployment marked as success but no containers are running - potential system issue',
-                            phase: 'monitoring',
-                            step: 'health-check',
-                            service: 'docker-service',
-                            stage: 'validation',
-                            timestamp: new Date(),
-                        });
-                    }
-                    this.logger.debug(`Deployment ${deploymentId}: ${runningContainers}/${containers.length} running, ${healthyContainers}/${containers.length} healthy`);
-                }
-                catch (error) {
-                    this.logger.warn(`Failed to check container status for deployment ${deploymentId}: ${error}`);
+                } catch (e) {
+                    this.logger.warn(`Failed to check container health for ${deploymentId}: ${e}`);
                 }
             }
+
+            // Return full contract-compatible shape
             return {
                 deploymentId: deploymentData.id,
+                serviceId: deploymentData.serviceId,
                 status: deploymentData.status,
                 stage: deploymentData.metadata?.stage || undefined,
-                progress: deploymentData.metadata?.progress || undefined,
+                progress: deploymentData.metadata?.progress ?? undefined,
                 startedAt: deploymentData.createdAt,
-                completedAt: deploymentData.updatedAt,
+                completedAt: deploymentData.deployCompletedAt || deploymentData.updatedAt || undefined,
+
+                containerId: deploymentData.containerName || undefined,
+                url: deploymentData.domainUrl || undefined,
+                internalUrl: undefined,
+
+                buildDuration: deploymentData.metadata?.buildDuration ?? undefined,
+                deploymentSize: deploymentData.metadata?.deployDuration ?? undefined,
+
+                healthStatus: containerHealthy ? 'healthy' : (deploymentData.status === 'success' ? 'unhealthy' : undefined),
+                lastHealthCheck: deploymentData.updatedAt || undefined,
+
+                deployedBy: deploymentData.triggeredBy || 'system',
+                environment: deploymentData.environment,
+                sourceType: deploymentData.sourceType as any,
             };
         });
     }
@@ -90,180 +83,139 @@ export class DeploymentController {
     triggerDeployment() {
         return implement(deploymentContract.trigger).handler(async ({ input }) => {
             console.log(`🔥🔥🔥 WEBSOCKET CONTROLLER - TRIGGER INPUT:`, JSON.stringify(input, null, 2));
-            const { serviceId, environment, environmentVariables } = input;
-            // sourceType and sourceConfig will be determined from the service's database configuration
-            let { sourceType, sourceConfig } = input;
-            
-            console.log(`🔥🔥🔥 WEBSOCKET CONTROLLER - Extracted values:`, { serviceId, environment, sourceType, sourceConfig });
-            this.logger.log(`Triggering deployment for service ${serviceId}, environment: ${environment}`);
-            
-            // Test Docker connection first
-            const dockerConnected = await this.dockerService.testConnection();
-            if (!dockerConnected) {
-                throw new Error('Docker service is not available. Please ensure Docker is running and accessible.');
-            }
+            const { serviceId, environment } = input;
+            let { sourceType, sourceConfig, environmentVariables } = input as any;
 
-            // Get service and project information
-            const service = await db.select({
-                service: services,
-                project: projects,
-            })
+            // Normalize environment variables into Record<string,string> if provided
+            const normalizeEnvVars = (env: any): Record<string, string> | undefined => {
+                if (!env) return undefined;
+                if (Array.isArray(env)) {
+                    try {
+                        return env.reduce((acc: Record<string, string>, item: any) => {
+                            if (item?.key) acc[item.key] = String(item.value ?? '');
+                            return acc;
+                        }, {});
+                    } catch {
+                        return undefined;
+                    }
+                }
+                if (typeof env === 'object') {
+                    const out: Record<string, string> = {};
+                    for (const [k, v] of Object.entries(env)) out[k] = String(v ?? '');
+                    return out;
+                }
+                return undefined;
+            };
+
+            const normalizedEnvVars = normalizeEnvVars(environmentVariables) || undefined;
+
+            // Test Docker connection
+            const dockerConnected = await this.dockerService.testConnection();
+            if (!dockerConnected) throw new Error('Docker service is not available.');
+
+            // Fetch service
+            const svcRows = await db.select({ service: services, project: projects })
                 .from(services)
                 .innerJoin(projects, eq(services.projectId, projects.id))
                 .where(eq(services.id, serviceId))
                 .limit(1);
+            if (!svcRows.length) throw new Error(`Service ${serviceId} not found`);
+            const { service: serviceData, project: projectData } = svcRows[0];
 
-            if (!service.length) {
-                throw new Error(`Service ${serviceId} not found`);
-            }
-
-            const { service: serviceData, project: projectData } = service[0];
-
-            // Determine sourceType and sourceConfig from service configuration if not provided
+            // If sourceType/sourceConfig not provided, infer from service
             if (!sourceType || !sourceConfig) {
-                console.log(`🔥🔥🔥 WEBSOCKET CONTROLLER - Determining source config from service:`, {
-                    provider: serviceData.provider,
-                    builder: serviceData.builder,
-                    providerConfig: serviceData.providerConfig
-                });
-
-                // Map service provider/builder to deployment source type
                 if (serviceData.provider === 'manual' && serviceData.builder === 'static') {
-                    // Static files with manual upload
                     sourceType = 'upload';
-                    // Put the embedded content into customData so it conforms to the allowed sourceConfig shape
                     sourceConfig = {
+                        type: 'upload',
                         customData: {
                             embeddedContent: serviceData.providerConfig?.deploymentScript || undefined,
                         },
                     };
                 } else if (serviceData.provider === 'github') {
                     sourceType = 'github';
-                    sourceConfig = {
-                        repositoryUrl: serviceData.providerConfig?.repositoryUrl || '',
-                        branch: serviceData.providerConfig?.branch || 'main'
-                    };
+                    sourceConfig = { type: 'github', repositoryUrl: serviceData.providerConfig?.repositoryUrl || '', branch: serviceData.providerConfig?.branch || 'main' };
                 } else if (serviceData.provider === 'gitlab') {
                     sourceType = 'gitlab';
-                    sourceConfig = {
-                        repositoryUrl: serviceData.providerConfig?.repositoryUrl || '',
-                        branch: serviceData.providerConfig?.branch || 'main'
-                    };
+                    sourceConfig = { type: 'gitlab', repositoryUrl: serviceData.providerConfig?.repositoryUrl || '', branch: serviceData.providerConfig?.branch || 'main' };
                 } else {
-                    // Default fallback - this handles git provider or other cases
+                    // Default fallback
                     sourceType = 'git';
-                    sourceConfig = {
-                        repositoryUrl: serviceData.providerConfig?.repositoryUrl || '',
-                        branch: serviceData.providerConfig?.branch || 'main'
-                    };
+                    sourceConfig = { type: 'git', repositoryUrl: serviceData.providerConfig?.repositoryUrl || '', branch: serviceData.providerConfig?.branch || 'main' };
                 }
-
-                console.log(`🔥🔥🔥 WEBSOCKET CONTROLLER - Determined source config:`, { sourceType, sourceConfig });
+            } else {
+                // Ensure provided sourceConfig contains a type
+                sourceConfig = { ...(sourceConfig || {}), type: sourceConfig?.type || sourceType };
             }
 
-            // Stop previous deployments before creating new one
-            this.logger.log(`Checking for existing deployments to stop for service ${serviceId}`);
-            
+            // Ensure we always have a concrete sourceConfig with a type (helps TypeScript and contracts)
+            const ensuredSourceConfig: any = { ...(sourceConfig || {}), type: (sourceConfig?.type ?? sourceType) };
+
+            // Stop previous deployments if needed
             const triggerInfo = {
-                branchName: sourceConfig?.branch || 'main',
-                pullRequestNumber: sourceConfig?.pullRequestNumber || undefined,
+                branchName: ensuredSourceConfig?.branch || 'main',
+                pullRequestNumber: ensuredSourceConfig?.pullRequestNumber || undefined,
             };
+            // Map 'docker-image' to a DB-allowed sourceType (drizzle enum doesn't include 'docker-image')
+            const dbSourceType: any = (sourceType === 'docker-image') ? 'custom' : sourceType;
 
-            const stopResult = await this.deploymentService.stopPreviousDeployments(
-                serviceId,
-                environment,
-                environment === 'preview' ? triggerInfo : undefined
-            );
+            // Stop previous deployments if needed
+            const stopResult = await this.deploymentService.stopPreviousDeployments(serviceId, environment, environment === 'preview' ? triggerInfo : undefined);
 
-            if (stopResult.stoppedDeployments.length > 0) {
-                this.logger.log(`Stopped ${stopResult.stoppedDeployments.length} previous deployments: ${stopResult.stoppedDeployments.join(', ')}`);
-            }
-
-            if (stopResult.errors.length > 0) {
-                this.logger.warn(`Errors stopping previous deployments: ${stopResult.errors.join('; ')}`);
-            }
-
-            // Create deployment record
-            const deploymentId = randomUUID();
-            await db.insert(deployments).values({
-                id: deploymentId,
+            // Insert deployment and get returned id from DB (avoid explicit id insertion to match Drizzle types)
+            const [createdDeployment] = await db.insert(deployments).values({
                 serviceId,
                 triggeredBy: null, // Will be set to authenticated user ID in production
                 status: 'pending',
                 environment,
-                sourceType: sourceType!, // sourceType is guaranteed to be set at this point
-                sourceConfig,
+                sourceType: dbSourceType,
+                sourceConfig: ensuredSourceConfig,
                 createdAt: new Date(),
                 updatedAt: new Date(),
-            });
+            }).returning();
+            const deploymentId = createdDeployment.id;
 
-            // Log deployment initiation with cleanup info
-            const cleanupMessage = stopResult.stoppedDeployments.length > 0 
-                ? `Deployment initiated - Stopped ${stopResult.stoppedDeployments.length} previous deployments - Docker connection verified`
-                : 'Deployment initiated - No previous deployments to stop - Docker connection verified';
+            await this.addDeploymentLog(deploymentId, 'info', stopResult.stoppedDeployments.length > 0 ?
+                `Deployment initiated - Stopped ${stopResult.stoppedDeployments.length} previous deployments - Docker connection verified` : 'Deployment initiated - No previous deployments to stop',
+                { phase: 'initialization', step: 'deployment-uniqueness-check', service: 'deployment-service', stage: 'setup', metadata: { stoppedDeployments: stopResult.stoppedDeployments, stopErrors: stopResult.errors, environment, triggerInfo: environment === 'preview' ? triggerInfo : undefined } }
+            );
 
-            await this.addDeploymentLog(deploymentId, 'info', cleanupMessage, {
-                phase: 'initialization',
-                step: 'deployment-uniqueness-check',
-                service: 'deployment-service',
-                stage: 'setup',
-                metadata: {
-                    stoppedDeployments: stopResult.stoppedDeployments,
-                    stopErrors: stopResult.errors,
-                    environment,
-                    triggerInfo: environment === 'preview' ? triggerInfo : undefined,
-                },
-            });
+            // Prepare job-level sourceConfig (normalize type / fields)
+            const jobSourceType = sourceType === 'custom' ? 'upload' : (sourceType === 'docker-image' ? 'upload' : sourceType as any);
 
-            // Map sourceType for job queue (filter out unsupported types)
-            const jobSourceType = sourceType === 'custom' ? 'upload' : sourceType as 'github' | 'gitlab' | 'git' | 'upload';
-            console.log(`🔥🔥🔥 WEBSOCKET CONTROLLER - Source type mapping:`, { 
-                originalSourceType: sourceType, 
-                jobSourceType,
-                sourceConfig: sourceConfig 
-            });
-
-            // Build job-level sourceConfig including image/pull settings from provider/builder config
             const svcProviderCfg: any = serviceData.providerConfig || {};
             const svcBuilderCfg: any = serviceData.builderConfig || {};
 
-            // Queue the deployment job
+            const jobSourceConfig: any = {
+                type: jobSourceType,
+                repositoryUrl: ensuredSourceConfig?.repositoryUrl,
+                branch: ensuredSourceConfig?.branch,
+                commitSha: ensuredSourceConfig?.commitSha,
+                filePath: ensuredSourceConfig?.filePath || undefined,
+                fileName: ensuredSourceConfig?.fileName || undefined,
+                fileSize: ensuredSourceConfig?.fileSize || undefined,
+                customData: ensuredSourceConfig?.customData || undefined,
+                envVars: normalizedEnvVars || ensuredSourceConfig?.customData?.envVars || undefined,
+                image: svcProviderCfg.staticImage || svcProviderCfg.image || svcBuilderCfg.staticImage || svcBuilderCfg.image || undefined,
+                imagePullPolicy: svcProviderCfg.imagePullPolicy || svcBuilderCfg.imagePullPolicy || undefined,
+                registryAuth: svcProviderCfg.registryAuth || svcBuilderCfg.registryAuth || undefined,
+            };
+
             const jobId = await this.queueService.addDeploymentJob({
                 deploymentId,
                 projectId: projectData.id,
                 serviceId,
-                sourceConfig: {
-                    type: jobSourceType,
-                    repositoryUrl: sourceConfig?.repositoryUrl,
-                    branch: sourceConfig?.branch,
-                    commitSha: sourceConfig?.commitSha,
-                    filePath: sourceConfig?.fileName,
-                    fileName: sourceConfig?.fileName,
-                    fileSize: sourceConfig?.fileSize,
-                    // Pass through customData (contains embeddedContent for seeded static sites)
-                    customData: sourceConfig?.customData,
-                    envVars: environmentVariables || sourceConfig?.customData?.envVars || undefined,
-                    // Image and pull policy options (optional)
-                    image: svcProviderCfg.staticImage || svcProviderCfg.image || svcBuilderCfg.staticImage || svcBuilderCfg.image || undefined,
-                    imagePullPolicy: svcProviderCfg.imagePullPolicy || svcBuilderCfg.imagePullPolicy || undefined,
-                    registryAuth: svcProviderCfg.registryAuth || svcBuilderCfg.registryAuth || undefined,
-                },
-            });
+                sourceConfig: jobSourceConfig,
+            } as any);
 
-            // Emit WebSocket event
             this.websocketService.emitDeploymentStarted(deploymentId, projectData.id, serviceId);
 
             return {
                 deploymentId,
                 jobId,
                 status: 'queued',
-                message: stopResult.stoppedDeployments.length > 0 
-                    ? `Deployment has been queued and will start shortly. Stopped ${stopResult.stoppedDeployments.length} previous deployments.`
-                    : 'Deployment has been queued and will start shortly',
-                metadata: {
-                    stoppedPreviousDeployments: stopResult.stoppedDeployments.length,
-                    cleanupErrors: stopResult.errors.length,
-                },
+                message: stopResult.stoppedDeployments.length > 0 ? `Deployment queued; stopped ${stopResult.stoppedDeployments.length} previous deployments` : 'Deployment queued',
+                metadata: { stoppedPreviousDeployments: stopResult.stoppedDeployments.length, cleanupErrors: stopResult.errors.length }
             };
         });
     }
@@ -341,10 +293,13 @@ export class DeploymentController {
                 timestamp: new Date(),
             });
             // Emit WebSocket event
+            const cancelledAt = new Date();
             this.websocketService.emitDeploymentCancelled(deploymentId, project.id, serviceData.id, reason);
             return {
                 success: true,
                 message: 'Deployment cancelled successfully',
+                deploymentId,
+                cancelledAt,
             };
         });
     }
@@ -453,13 +408,24 @@ export class DeploymentController {
                     updatedAt: new Date(),
                 })
                     .where(eq(deployments.id, targetDeploymentId));
-                // Queue rollback job for any additional orchestration
+                // Create rollback deployment record for audit & tracking
+                const [rollbackDep] = await db.insert(deployments).values({
+                    serviceId: currentDeployment.serviceId,
+                    triggeredBy: null,
+                    status: 'queued',
+                    environment: currentDeployment.environment,
+                    sourceType: currentDeployment.sourceType,
+                    sourceConfig: targetDeployment.sourceConfig,
+                    metadata: { stage: 'rollback_queued', rollbackFrom: deploymentId, targetDeploymentId } as any,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                }).returning();
                 const rollbackJobId = await this.queueService.addRollbackJob({
-                    deploymentId,
+                    deploymentId: rollbackDep.id,
                     targetDeploymentId,
                 });
                 await db.insert(deploymentLogs).values({
-                    deploymentId,
+                    deploymentId: rollbackDep.id,
                     level: 'info',
                     message: `Rollback completed successfully - Job ${rollbackJobId} queued for final orchestration`,
                     phase: 'rollback',
@@ -470,6 +436,7 @@ export class DeploymentController {
                 });
                 return {
                     rollbackJobId,
+                    rollbackDeploymentId: rollbackDep.id,
                     message: 'Rollback completed successfully',
                 };
             }
@@ -594,17 +561,23 @@ export class DeploymentController {
             
             return {
                 deployments: deploymentList.map(deployment => ({
-                    id: deployment.id,
+                    deploymentId: deployment.id,
                     serviceId: deployment.serviceId,
                     status: deployment.status,
                     environment: deployment.environment,
-                    triggeredBy: deployment.triggeredBy,
+                    sourceType: deployment.sourceType as any,
+                    deployedBy: deployment.triggeredBy || 'system',
+                    url: deployment.domainUrl || undefined,
                     createdAt: deployment.createdAt,
-                    updatedAt: deployment.updatedAt,
                     metadata: deployment.metadata ?? undefined,
                 })),
                 total,
                 hasMore,
+                filters: {
+                    environment: input.environment,
+                    status: input.status,
+                    sourceType: (input as any).sourceType,
+                }
             };
         });
     }

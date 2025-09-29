@@ -47,9 +47,10 @@ export function DeploymentsClient() {
 
   // Filter deployments based on search and filters
   const filteredDeployments = allDeployments.filter((deployment) => {
+    const id = getDeploymentId(deployment)
     const matchesSearch = searchQuery === '' || 
-      deployment.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      deployment.serviceId.toLowerCase().includes(searchQuery.toLowerCase())
+      (id && id.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (typeof deployment.serviceId === 'string' && deployment.serviceId.toLowerCase().includes(searchQuery.toLowerCase()))
 
     const matchesStatus = statusFilter === 'all' || deployment.status === statusFilter
     const matchesEnvironment = environmentFilter === 'all' || deployment.environment === environmentFilter
@@ -271,15 +272,16 @@ export function DeploymentsClient() {
               
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 {filteredDeployments.map((deployment) => {
+                  const id = getDeploymentId(deployment)
                   return (
                     <DeploymentCard 
-                      key={deployment.id} 
+                      key={id || JSON.stringify(deployment)} 
                       deployment={deployment}
-                      // If you can resolve projectId/serviceId from serviceId mapping, pass them here.
-                      // Left undefined to disable navigation in this global view for now.
-                    />
-                  )
-                })}
+                       // If you can resolve projectId/serviceId from serviceId mapping, pass them here.
+                       // Left undefined to disable navigation in this global view for now.
+                     />
+                   )
+                 })}
               </div>
             </>
           )}
@@ -288,4 +290,14 @@ export function DeploymentsClient() {
       </Tabs>
     </div>
   )
+  
+  // Helper to extract deployment id (new contract key `deploymentId` or legacy `id`)
+  function getDeploymentId(dep: unknown): string {
+    const d = dep as Record<string, unknown>
+    const depId = d['deploymentId']
+    if (typeof depId === 'string') return depId
+    const legacy = d['id']
+    if (typeof legacy === 'string') return legacy
+    return ''
+  }
 }

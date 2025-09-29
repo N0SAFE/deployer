@@ -24,6 +24,13 @@
     // Some stricter flags (disabled by default)
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
+    "noPropertyAccessFromIndexSignature": false,
+
+    // Module resolution helper for monorepo local packages
+    "baseUrl": ".",
+    "paths": {
+      "@repo/types": ["packages/types/src"],
+      "@repo/types/*": ["packages/types/src/*"]
+    }
   }
 }

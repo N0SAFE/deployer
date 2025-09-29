@@ -88,6 +88,15 @@ export default function ProjectDetailPage({ projectId }: ProjectDetailPageProps)
   const collaborators = collaboratorsData?.collaborators || []
   const deployments = deploymentsData?.deployments || []
 
+  const getDeploymentId = (dep: unknown): string => {
+    const d = dep as Record<string, unknown>
+    const depId = d['deploymentId']
+    if (typeof depId === 'string') return depId
+    const legacy = d['id']
+    if (typeof legacy === 'string') return legacy
+    return ''
+  }
+
   // Type adapter function to convert API service data to ServiceCard expected format
   const adaptServiceForCard = (apiService: typeof services[0]) => {
     // Flatten the builderConfig to match what ServiceCard expects
@@ -204,11 +213,11 @@ export default function ProjectDetailPage({ projectId }: ProjectDetailPageProps)
             <div className="grid gap-4">
               {deployments.slice(0, 3).map((deployment) => (
                 <DeploymentCard 
-                  key={deployment.id} 
+                  key={getDeploymentId(deployment) || JSON.stringify(deployment)} 
                   deployment={deployment} 
-                  // We don't have a specific service context here; logs button will be disabled
-                />
-              ))}
+                   // We don't have a specific service context here; logs button will be disabled
+                 />
+               ))}
               {deployments.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   No deployments found
@@ -251,11 +260,11 @@ export default function ProjectDetailPage({ projectId }: ProjectDetailPageProps)
           <div className="grid gap-4">
             {deployments.map((deployment) => (
               <DeploymentCard 
-                key={deployment.id} 
+                key={getDeploymentId(deployment) || JSON.stringify(deployment)} 
                 deployment={deployment} 
-                // No explicit params; navigation to logs disabled in this context
-              />
-            ))}
+                 // No explicit params; navigation to logs disabled in this context
+               />
+             ))}
             {deployments.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
                 No deployments found

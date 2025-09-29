@@ -20,6 +20,16 @@ export default function ServiceOverviewPage() {
   const { data: logsData } = useServiceLogs(params.serviceId)
 
   const deployments = deploymentsData?.deployments || []
+  
+  const getDeploymentId = (dep: unknown): string => {
+    const d = dep as Record<string, unknown>
+    const depId = d['deploymentId']
+    if (typeof depId === 'string') return depId
+    const legacy = d['id']
+    if (typeof legacy === 'string') return legacy
+    return ''
+  }
+
   const recentLogs = logsData?.logs?.slice(0, 5) || []
   const latestDeployment = deployments[0]
 
@@ -191,7 +201,7 @@ export default function ServiceOverviewPage() {
             <div className="space-y-3">
               {deployments.slice(0, 3).map((deployment) => (
                 <div
-                  key={deployment.id}
+                  key={getDeploymentId(deployment) || JSON.stringify(deployment)}
                   className="flex items-center justify-between p-3 border rounded-lg"
                 >
                   <div className="flex items-center gap-3">
@@ -199,7 +209,7 @@ export default function ServiceOverviewPage() {
                       {deployment.status}
                     </Badge>
                     <div>
-                      <p className="text-sm font-medium">Deployment {deployment.id.slice(0, 7)}</p>
+                      <p className="text-sm font-medium">Deployment {getDeploymentId(deployment) ? getDeploymentId(deployment).slice(0, 7) : 'unknown'}</p>
                       <p className="text-xs text-muted-foreground">
                         {new Date(deployment.createdAt).toLocaleString()}
                       </p>

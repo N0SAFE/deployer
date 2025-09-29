@@ -1,9 +1,9 @@
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
-import { deploymentStatusSchema } from './getStatus';
+import { deploymentStatusSchema } from '../../common/deployment-config';
 // WebSocket event schemas
 export const deploymentStatusEventSchema = z.object({
-    deploymentId: z.string(),
+    deploymentId: z.string().uuid(),
     status: deploymentStatusSchema,
     stage: z.string().optional(),
     progress: z.number().min(0).max(100).optional(),
@@ -12,18 +12,18 @@ export const deploymentStatusEventSchema = z.object({
     error: z.string().optional(),
 });
 export const deploymentLogEventSchema = z.object({
-    deploymentId: z.string(),
-    timestamp: z.string(),
+    deploymentId: z.string().uuid(),
+    timestamp: z.date(),
     level: z.enum(['info', 'warn', 'error', 'debug']),
     message: z.string(),
-    service: z.string().optional(),
+    service: z.string().uuid().optional(),
     stage: z.string().optional(),
 });
 // Subscribe to deployment events
 export const deploymentSubscribeInput = z.object({
-    deploymentId: z.string().optional(),
-    projectId: z.string().optional(),
-    serviceId: z.string().optional(),
+    deploymentId: z.string().uuid().optional(),
+    projectId: z.string().uuid().optional(),
+    serviceId: z.string().uuid().optional(),
 });
 export const deploymentSubscribeOutput = z.void();
 export const deploymentSubscribeContract = oc
@@ -31,9 +31,9 @@ export const deploymentSubscribeContract = oc
     .output(deploymentSubscribeOutput);
 // Unsubscribe from deployment events
 export const deploymentUnsubscribeInput = z.object({
-    deploymentId: z.string().optional(),
-    projectId: z.string().optional(),
-    serviceId: z.string().optional(),
+    deploymentId: z.string().uuid().optional(),
+    projectId: z.string().uuid().optional(),
+    serviceId: z.string().uuid().optional(),
 });
 export const deploymentUnsubscribeOutput = z.void();
 export const deploymentUnsubscribeContract = oc

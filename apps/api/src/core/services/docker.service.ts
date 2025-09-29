@@ -685,11 +685,14 @@ CMD ["npm", "start"]
         try {
             const container = this.docker.getContainer(containerIdOrName);
             // Create exec instance
+            this.logger.debug(`Executing in container ${containerIdOrName}: ${cmd.join(' ')}${input ? ' (with input)' : ''}`);
             const exec = await container.exec({ Cmd: cmd, AttachStdout: true, AttachStderr: true, AttachStdin: !!input });
 
+            this.logger.debug(`Created exec instance in container ${containerIdOrName} with ID ${exec.id}`);
             // Start exec and attach streams
             const stream = await exec.start({ hijack: true, stdin: !!input }) as NodeJS.ReadWriteStream;
 
+            this.logger.debug(`Started exec instance in container ${containerIdOrName} (stream attached)`);
             // Collect stdout/stderr using demux if available
             const { PassThrough } = await import('stream');
             const stdoutStream = new PassThrough();
@@ -697,6 +700,7 @@ CMD ["npm", "start"]
 
             if (this.docker.modem && typeof (this.docker.modem as any).demuxStream === 'function') {
                 try {
+                    this.logger.debug('Using demuxStream to separate stdout and stderr');
                     (this.docker.modem as any).demuxStream(stream, stdoutStream, stderrStream);
                 }
                 catch (demuxErr) {
@@ -706,6 +710,7 @@ CMD ["npm", "start"]
                 }
             }
             else {
+                this.logger.debug('demuxStream not available - attaching to raw stream');
                 // Older dockerode - fallback to raw stream
                 stream.on && stream.on('data', (chunk: Buffer) => stdoutStream.write(chunk));
             }
@@ -717,6 +722,7 @@ CMD ["npm", "start"]
             // If input supplied, write to stdin
             if (input) {
                 try {
+                    this.logger.debug(`Writing to exec stdin for container ${containerIdOrName}: ${input}`);
                     stream.write(input);
                 }
                 catch (writeErr) {
@@ -742,6 +748,8 @@ CMD ["npm", "start"]
                 this.logger.error(`Exec in container ${containerIdOrName} failed (exitCode=${exitCode}): ${output}`);
                 throw new Error(`Command ${cmd.join(' ')} failed with exit code ${exitCode} - output: ${output}`);
             }
+
+            this.logger.debug(`Exec in container ${containerIdOrName} completed (exitCode=${exitCode})`);
 
             return { exitCode, output };
         }

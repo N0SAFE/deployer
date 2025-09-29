@@ -59,8 +59,7 @@ export const deploymentStatusSchema = z.enum([
   'deploying',
   'success',
   'failed',
-  'cancelled',
-  'rollback'
+  'cancelled'
 ]);
 
 // Resource limits schema

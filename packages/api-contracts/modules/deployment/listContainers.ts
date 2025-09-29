@@ -1,5 +1,6 @@
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
+import { environmentSchema } from '../../common/deployment-config';
 
 /**
  * Container Listing and Management Contract
@@ -13,9 +14,9 @@ import { z } from 'zod';
 // Input schemas
 const listContainersSchema = z.object({
     status: z.enum(['all', 'running', 'stopped', 'failed']).optional(),
-    service: z.string().optional(),
-    project: z.string().optional(),
-    environment: z.enum(['production', 'staging', 'preview', 'development']).optional(),
+    service: z.string().uuid().optional(),
+    project: z.string().uuid().optional(),
+    environment: environmentSchema.optional(),
     limit: z.number().min(1).max(100).default(50).optional(),
     offset: z.number().min(0).default(0).optional(),
 });
@@ -29,12 +30,12 @@ const containerActionSchema = z.object({
 const containerInfoSchema = z.object({
     containerId: z.string(),
     containerName: z.string(),
-    deploymentId: z.string(),
-    serviceId: z.string(),
+    deploymentId: z.string().uuid(),
+    serviceId: z.string().uuid(),
     serviceName: z.string(),
-    projectId: z.string(),
+    projectId: z.string().uuid(),
     projectName: z.string(),
-    environment: z.enum(['production', 'staging', 'preview', 'development']),
+    environment: environmentSchema,
     status: z.enum(['running', 'stopped', 'failed', 'starting', 'stopping']),
     health: z.object({
         isHealthy: z.boolean(),

@@ -1,7 +1,7 @@
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
 export const deploymentGetLogsInput = z.object({
-    deploymentId: z.string(),
+    deploymentId: z.string().uuid(),
     limit: z.coerce.number().min(1).max(1000).default(100),
     offset: z.coerce.number().min(0).default(0),
 });
@@ -11,7 +11,7 @@ export const deploymentGetLogsOutput = z.object({
         timestamp: z.date(),
         level: z.enum(['info', 'warn', 'error', 'debug']),
         message: z.string(),
-        service: z.string().optional(),
+        service: z.string().uuid().optional(),
         stage: z.string().optional(),
     })),
     total: z.number(),

@@ -17,6 +17,8 @@ import {
 import { useProjects } from '@/hooks/useProjects'
 import { useDeployments } from '@/hooks/useDeployments'
 import { useSystemHealthOverview } from '@/hooks/useHealth'
+import { deploymentListOutput } from '@repo/api-contracts'
+import { z } from 'zod'
 
 export default function DashboardClient() {
   const { data: projectsResponse } = useProjects()
@@ -41,6 +43,54 @@ export default function DashboardClient() {
   const systemHealthData = healthOverview.detailed || {
     status: 'unknown',
     database: { status: 'unknown' },
+  }
+
+  // Render helpers to avoid large inline map callbacks inside JSX
+  type DeploymentSummary = z.infer<typeof deploymentListOutput>['deployments'][0]
+  const renderRecentDeployment = (deployment: DeploymentSummary) => {
+    const _d = deployment as unknown as Record<string, unknown>
+    const id = typeof _d['deploymentId'] === 'string' ? (_d['deploymentId'] as string) : (typeof _d['id'] === 'string' ? (_d['id'] as string) : '')
+    return (
+      <div key={id || JSON.stringify(deployment)} className="flex items-center space-x-4">
+        <div className="flex-shrink-0">
+          {deployment.status === 'success' ? (
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+          ) : deployment.status === 'failed' ? (
+            <XCircle className="h-4 w-4 text-red-600" />
+          ) : deployment.status === 'pending' || deployment.status === 'building' || deployment.status === 'deploying' ? (
+            <Clock className="h-4 w-4 text-yellow-600 animate-pulse" />
+          ) : (
+            <Clock className="h-4 w-4 text-gray-400" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">Deployment {id ? id.slice(0, 8) : 'unknown'}</p>
+          <p className="text-sm text-muted-foreground">{deployment.environment} • {new Date(deployment.createdAt).toLocaleString()}</p>
+        </div>
+        <div className="flex-shrink-0">
+          <Badge variant={deployment.status === 'success' ? 'default' : deployment.status === 'failed' ? 'destructive' : 'secondary'}>{deployment.status}</Badge>
+        </div>
+      </div>
+    )
+  }
+
+  const renderActiveDeployment = (deployment: DeploymentSummary) => {
+    const _d = deployment as unknown as Record<string, unknown>
+    const id = typeof _d['deploymentId'] === 'string' ? (_d['deploymentId'] as string) : (typeof _d['id'] === 'string' ? (_d['id'] as string) : '')
+    return (
+      <div key={id || JSON.stringify(deployment)} className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Deployment {id ? id.slice(0, 8) : 'unknown'} ({deployment.environment})</p>
+            <p className="text-xs text-muted-foreground">{deployment.status}</p>
+          </div>
+          <Badge variant="outline">{deployment.status}</Badge>
+        </div>
+        {['pending', 'building', 'deploying'].includes(deployment.status) && (
+          <Progress value={50} className="h-2" />
+        )}
+      </div>
+    )
   }
 
   return (
@@ -119,40 +169,7 @@ export default function DashboardClient() {
           </CardHeader>
           <CardContent className="space-y-4">
             {recentDeployments.length > 0 ? (
-              recentDeployments.map((deployment) => (
-                <div key={deployment.id} className="flex items-center space-x-4">
-                  <div className="flex-shrink-0">
-                    {deployment.status === 'success' ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    ) : deployment.status === 'failed' ? (
-                      <XCircle className="h-4 w-4 text-red-600" />
-                    ) : deployment.status === 'pending' || deployment.status === 'building' || deployment.status === 'deploying' ? (
-                      <Clock className="h-4 w-4 text-yellow-600 animate-pulse" />
-                    ) : (
-                      <Clock className="h-4 w-4 text-gray-400" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      Deployment {deployment.id.slice(0, 8)}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {deployment.environment} • {new Date(deployment.createdAt).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="flex-shrink-0">
-                    <Badge 
-                      variant={
-                        deployment.status === 'success' ? 'default' :
-                        deployment.status === 'failed' ? 'destructive' :
-                        'secondary'
-                      }
-                    >
-                      {deployment.status}
-                    </Badge>
-                  </div>
-                </div>
-              ))
+              recentDeployments.map(renderRecentDeployment)
             ) : (
               <div className="text-center py-6">
                 <p className="text-sm text-muted-foreground">No deployments yet</p>
@@ -262,26 +279,7 @@ export default function DashboardClient() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {activeDeployments.map((deployment) => (
-              <div key={deployment.id} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">
-                      Deployment {deployment.id.slice(0, 8)} ({deployment.environment})
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {deployment.status}
-                    </p>
-                  </div>
-                  <Badge variant="outline">
-                    {deployment.status}
-                  </Badge>
-                </div>
-                {['pending', 'building', 'deploying'].includes(deployment.status) && (
-                  <Progress value={50} className="h-2" />
-                )}
-              </div>
-            ))}
+            {activeDeployments.map(renderActiveDeployment)}
           </CardContent>
         </Card>
       )}

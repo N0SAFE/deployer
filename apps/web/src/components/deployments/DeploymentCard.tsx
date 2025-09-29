@@ -104,6 +104,11 @@ export default function DeploymentCard({ deployment, projectId, serviceId, rollb
 
   const isActive = ['pending', 'building', 'deploying'].includes(deployment.status)
 
+  // Some APIs historically used `id` while the new contracts use `deploymentId`.
+  // Provide a safe accessor to support both shapes during migration.
+  const _d = deployment as unknown as Record<string, unknown>
+  const id = (typeof _d['deploymentId'] === 'string' ? (_d['deploymentId'] as string) : (typeof _d['id'] === 'string' ? (_d['id'] as string) : ''))
+
   const handleViewLogs = () => {
     // Requires explicit projectId and serviceId to build a typed route
     if (!projectId || !serviceId) {
@@ -112,7 +117,7 @@ export default function DeploymentCard({ deployment, projectId, serviceId, rollb
     }
     const href = ServiceLogsRoute(
       { projectId, serviceId },
-      { deploymentId: deployment.id }
+      { deploymentId: deployment.deploymentId }
     )
     if (typeof window !== 'undefined') {
       window.location.href = href
@@ -120,7 +125,11 @@ export default function DeploymentCard({ deployment, projectId, serviceId, rollb
   }
 
   const handleCancel = () => {
-    cancelDeployment({ deploymentId: deployment.id })
+    if (!id) {
+      console.warn('Cannot cancel deployment: unknown id')
+      return
+    }
+    cancelDeployment({ deploymentId: id })
   }
 
   const handleRollback = () => {
@@ -128,7 +137,7 @@ export default function DeploymentCard({ deployment, projectId, serviceId, rollb
       console.warn('Cannot rollback: missing targetDeploymentId')
       return
     }
-    rollbackDeployment({ deploymentId: deployment.id, targetDeploymentId: rollbackTargetId })
+    rollbackDeployment({ deploymentId: id, targetDeploymentId: rollbackTargetId })
   }
 
   return (
@@ -139,7 +148,7 @@ export default function DeploymentCard({ deployment, projectId, serviceId, rollb
             <div className="flex items-center space-x-2">
               {getStatusIcon()}
               <CardTitle className="text-base">
-                Deployment {deployment.id.slice(0, 8)}
+                Deployment {id ? id.slice(0, 8) : 'unknown'}
               </CardTitle>
               <Badge variant={getStatusColor() as "default" | "destructive" | "outline" | "secondary"}>
                 {deployment.status}
