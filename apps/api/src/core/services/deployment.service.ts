@@ -1,9 +1,10 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { eq, desc, and, count } from 'drizzle-orm';
-import { db } from '../modules/db/drizzle/index';
-import { deployments, deploymentLogs, deploymentStatusEnum, logLevelEnum, previewEnvironments } from '../modules/db/drizzle/schema/deployment';
+import { deployments, deploymentLogs, deploymentStatusEnum, logLevelEnum, previewEnvironments, services, projects } from '@/config/drizzle/schema';
 import { DockerService } from './docker.service';
 import { StaticFileService } from './static-file.service';
+import { DeploymentPhase, type PhaseMetadata } from '../types/deployment-phase';
+import { DatabaseService } from '../modules/database/services/database.service'
 import * as fs from 'fs/promises';
 import * as path from 'path';
 // Type aliases based on the actual schema
@@ -103,7 +104,8 @@ export class DeploymentService {
 
     constructor(
         private readonly dockerService: DockerService,
-        private readonly staticFileService: StaticFileService
+        private readonly staticFileService: StaticFileService,
+        private readonly databaseService: DatabaseService
     ) {}
 
     /**
@@ -202,7 +204,15 @@ export class DeploymentService {
      * Deploy static files (HTML, CSS, JS, etc.)
      */
     public async deployStaticSite(config: DeploymentConfig): Promise<DeploymentResult> {
-        const { deploymentId, serviceName, domain, subdomain } = config;
+         const { deploymentId, serviceName, domain, subdomain } = config;
+        
+        // Phase: COPYING_FILES - Static file deployment
+        await this.updateDeploymentPhase(
+            deploymentId,
+            DeploymentPhase.COPYING_FILES,
+            30,
+            { deploymentType: 'static', filePreparation: 'starting' }
+        );
         
         await this.addDeploymentLog(deploymentId, {
             level: 'info',
@@ -215,23 +225,109 @@ export class DeploymentService {
 
         // Determine sourcePath for static files (extracted files path)
         const sourcePath = config.sourceConfig?.filePath || config.sourcePath || undefined;
-        // Deploy using project-level static file service
+        // Compute final domain/subdomain used for routing. If not provided, try to generate
+        // a stable subdomain from the service + project name and use TRAEFIK_DOMAIN or localhost
+        const finalDomain = domain || process.env.TRAEFIK_DOMAIN || 'localhost';
+        let finalSubdomain = subdomain;
+        if (!finalSubdomain) {
+            // Try to resolve project name from DB using serviceName (best-effort)
+            try {
+                // Import types locally to avoid circulars
+                // Access the DB via the shared `this.databaseService.db` import at top of file
+                const row = await this.databaseService.db.select({ svc: services, proj: projects })
+                    .from(services)
+                    .innerJoin(projects, eq(services.projectId, projects.id))
+                    .where(eq(services.name, serviceName))
+                    .limit(1);
+                if (row && row.length) {
+                    const projectName = (row[0].proj && (row[0].proj as any).name) || '';
+                    finalSubdomain = `${DeploymentService.sanitizeForSubdomain(serviceName)}-${DeploymentService.sanitizeForSubdomain(projectName || 'project')}`;
+                }
+            }
+            catch {
+                // Best-effort only — fall back to service-based name
+                finalSubdomain = DeploymentService.sanitizeForSubdomain(serviceName);
+            }
+            // Ensure we always have something
+            finalSubdomain = finalSubdomain || DeploymentService.sanitizeForSubdomain(serviceName);
+        }
+
+        // Phase: CREATING_SYMLINKS - Project server setup
+        await this.updateDeploymentPhase(
+            deploymentId,
+            DeploymentPhase.CREATING_SYMLINKS,
+            60,
+            { 
+                finalDomain, 
+                finalSubdomain,
+                serverSetup: 'configuring'
+            }
+        );
+
+        // Deploy using project-level static file service — pass explicit domain and subdomain
         const nginxInfo = await this.staticFileService.deployStaticFiles({
              serviceName,
              deploymentId,
              projectId: config.projectId,
-             domain: domain || 'localhost',
-             subdomain,
+             domain: finalDomain,
+             subdomain: finalSubdomain,
              sourcePath,
         } as any);
+
+        // Phase: UPDATING_ROUTES - Server configured, setting up routing
+        await this.updateDeploymentPhase(
+            deploymentId,
+            DeploymentPhase.UPDATING_ROUTES,
+            80,
+            { 
+                containerName: nginxInfo.containerName,
+                domain: nginxInfo.domain,
+                routeConfiguration: 'active'
+            }
+        );
 
         // Update deployment record with project server container info
         await this.updateDeploymentContainer(deploymentId, nginxInfo.containerName, nginxInfo.imageUsed || `lighttpd:alpine`);
 
         const healthCheckUrl = `http://${nginxInfo.domain}/health`;
         
+        // Phase: HEALTH_CHECK - Verify deployment
+        await this.updateDeploymentPhase(
+            deploymentId,
+            DeploymentPhase.HEALTH_CHECK,
+            90,
+            { healthCheckUrl, verification: 'starting' }
+        );
+        
         // Verify deployment is healthy by checking the project server container and health endpoint
         const isHealthy = await this.verifyContainerHealth(nginxInfo.containerId, healthCheckUrl);
+        
+        // Phase: ACTIVE or FAILED based on health check
+        if (isHealthy) {
+            await this.updateDeploymentPhase(
+                deploymentId,
+                DeploymentPhase.ACTIVE,
+                100,
+                { 
+                    containerName: nginxInfo.containerName,
+                    domain: nginxInfo.domain,
+                    healthCheckUrl,
+                    serverImage: nginxInfo.imageUsed || 'rtsp/lighttpd',
+                    deploymentCompletedAt: new Date().toISOString()
+                }
+            );
+        } else {
+            await this.updateDeploymentPhase(
+                deploymentId,
+                DeploymentPhase.FAILED,
+                0,
+                { 
+                    error: 'Health check failed',
+                    healthCheckUrl,
+                    containerName: nginxInfo.containerName
+                }
+            );
+        }
         
         return {
             deploymentId,
@@ -254,6 +350,14 @@ export class DeploymentService {
     public async deployDockerService(config: DeploymentConfig): Promise<DeploymentResult> {
         const { deploymentId, serviceName, sourcePath, environmentVariables } = config;
         
+        // Phase: BUILDING - Docker image build
+        await this.updateDeploymentPhase(
+            deploymentId,
+            DeploymentPhase.BUILDING,
+            20,
+            { buildType: 'docker', sourcePath }
+        );
+        
         await this.addDeploymentLog(deploymentId, {
             level: 'info',
             message: 'Building Docker image',
@@ -268,6 +372,14 @@ export class DeploymentService {
         
         // Use the sourcePath provided by prepareSourceCode (contains cloned repo or extracted files)
         await this.dockerService.buildImage(sourcePath, imageTag);
+
+        // Phase: COPYING_FILES - Container creation
+        await this.updateDeploymentPhase(
+            deploymentId,
+            DeploymentPhase.COPYING_FILES,
+            50,
+            { imageTag, containerSetup: 'starting' }
+        );
 
         await this.addDeploymentLog(deploymentId, {
             level: 'info',
@@ -290,8 +402,24 @@ export class DeploymentService {
             ports
         });
 
+        // Phase: UPDATING_ROUTES - Container started, preparing networking
+        await this.updateDeploymentPhase(
+            deploymentId,
+            DeploymentPhase.UPDATING_ROUTES,
+            75,
+            { containerId, containerName, routeSetup: 'configuring' }
+        );
+
         // Update deployment record
         await this.updateDeploymentContainer(deploymentId, containerName, imageTag);
+
+        // Phase: HEALTH_CHECK - Verify container health
+        await this.updateDeploymentPhase(
+            deploymentId,
+            DeploymentPhase.HEALTH_CHECK,
+            90,
+            { healthCheckStarted: true }
+        );
 
         // Verify container health
         const healthCheckPath = config.healthCheckPath || '/health';
@@ -300,6 +428,34 @@ export class DeploymentService {
             `http://${containerName}${healthCheckPath}`;
         
         const isHealthy = await this.verifyContainerHealth(containerId, healthCheckUrl);
+
+        // Phase: ACTIVE or FAILED based on health check
+        if (isHealthy) {
+            await this.updateDeploymentPhase(
+                deploymentId,
+                DeploymentPhase.ACTIVE,
+                100,
+                { 
+                    containerName, 
+                    imageTag, 
+                    port: config.port,
+                    healthCheckUrl,
+                    deploymentCompletedAt: new Date().toISOString()
+                }
+            );
+        } else {
+            await this.updateDeploymentPhase(
+                deploymentId,
+                DeploymentPhase.FAILED,
+                0,
+                { 
+                    error: 'Health check failed',
+                    containerName,
+                    imageTag,
+                    healthCheckUrl
+                }
+            );
+        }
 
         return {
             deploymentId,
@@ -322,6 +478,14 @@ export class DeploymentService {
     public async deployNodejsService(config: DeploymentConfig): Promise<DeploymentResult> {
         const { deploymentId, buildConfig } = config;
         
+        // Phase: BUILDING - Dockerfile generation for Node.js
+        await this.updateDeploymentPhase(
+            deploymentId,
+            DeploymentPhase.BUILDING,
+            15,
+            { buildType: 'nodejs', dockerfileGeneration: 'starting' }
+        );
+        
         await this.addDeploymentLog(deploymentId, {
             level: 'info',
             message: 'Generating Node.js Dockerfile',
@@ -338,7 +502,19 @@ export class DeploymentService {
         // Write Dockerfile to build context
         await fs.writeFile(path.join(buildContext, 'Dockerfile'), dockerfile);
 
-        // Continue with Docker deployment
+        // Update phase to indicate Dockerfile is ready
+        await this.updateDeploymentPhase(
+            deploymentId,
+            DeploymentPhase.BUILDING,
+            25,
+            { 
+                buildType: 'nodejs', 
+                dockerfileGeneration: 'completed',
+                dockerfileContent: dockerfile.length > 0 ? 'generated' : 'empty'
+            }
+        );
+
+        // Continue with Docker deployment (which will handle remaining phases)
         return this.deployDockerService({
             ...config,
             buildType: 'dockerfile',
@@ -478,7 +654,7 @@ export class DeploymentService {
         }
 
         // Remove deployment from database (logs will be cascade deleted)
-        await db.delete(deployments).where(eq(deployments.id, deploymentId));
+        await this.databaseService.db.delete(deployments).where(eq(deployments.id, deploymentId));
         
         this.logger.log(`Deployment ${deploymentId} removed successfully`);
     }
@@ -602,7 +778,7 @@ CMD ["sh", "-c", "${startCommand}"]
         containerName: string,
         containerImage: string
     ): Promise<void> {
-        await db.update(deployments)
+        await this.databaseService.db.update(deployments)
             .set({
                 containerName,
                 containerImage,
@@ -623,7 +799,7 @@ CMD ["sh", "-c", "${startCommand}"]
             createdAt: new Date(),
             updatedAt: new Date(),
         };
-        const result = await db.insert(deployments).values(insertData).returning({ id: deployments.id });
+        const result = await this.databaseService.db.insert(deployments).values(insertData).returning({ id: deployments.id });
         const deploymentId = result[0].id;
         // Add initial log
         await this.addDeploymentLog(deploymentId, {
@@ -637,7 +813,7 @@ CMD ["sh", "-c", "${startCommand}"]
         return deploymentId;
     }
     async getDeployment(deploymentId: string): Promise<SelectDeployment> {
-        const result = await db
+        const result = await this.databaseService.db
             .select()
             .from(deployments)
             .where(eq(deployments.id, deploymentId))
@@ -663,7 +839,7 @@ CMD ["sh", "-c", "${startCommand}"]
         else if (status === 'success') {
             updateData.deployCompletedAt = new Date();
         }
-        await db
+        await this.databaseService.db
             .update(deployments)
             .set(updateData)
             .where(eq(deployments.id, deploymentId));
@@ -671,7 +847,7 @@ CMD ["sh", "-c", "${startCommand}"]
     async updateDeploymentMetadata(deploymentId: string, metadata: Record<string, any>): Promise<void> {
         const deployment = await this.getDeployment(deploymentId);
         const updatedMetadata = { ...deployment.metadata, ...metadata };
-        await db
+        await this.databaseService.db
             .update(deployments)
             .set({
             metadata: updatedMetadata,
@@ -679,6 +855,40 @@ CMD ["sh", "-c", "${startCommand}"]
         })
             .where(eq(deployments.id, deploymentId));
     }
+
+    /**
+     * Update deployment phase tracking for reconciliation
+     * Tracks progress through deployment lifecycle
+     */
+    async updateDeploymentPhase(
+        deploymentId: string,
+        phase: DeploymentPhase,
+        progress: number = 0,
+        metadata: PhaseMetadata = {}
+    ): Promise<void> {
+        this.logger.log(`Updating deployment ${deploymentId} phase to ${phase} (${progress}%)`);
+        
+        await this.databaseService.db
+            .update(deployments)
+            .set({
+                phase,
+                phaseProgress: progress,
+                phaseMetadata: metadata,
+                phaseUpdatedAt: new Date(),
+                updatedAt: new Date(),
+            })
+            .where(eq(deployments.id, deploymentId));
+        
+        // Log phase transition
+        await this.addDeploymentLog(deploymentId, {
+            level: 'info',
+            message: `Phase transition: ${phase} (${progress}%)`,
+            phase,
+            timestamp: new Date(),
+            metadata,
+        });
+    }
+
     async addDeploymentLog(deploymentId: string, logData: DeploymentLogData): Promise<void> {
         const insertData: InsertDeploymentLog = {
             deploymentId,
@@ -691,7 +901,7 @@ CMD ["sh", "-c", "${startCommand}"]
             timestamp: logData.timestamp,
             metadata: logData.metadata || {},
         };
-        await db.insert(deploymentLogs).values(insertData);
+        await this.databaseService.db.insert(deploymentLogs).values(insertData);
     }
     async getDeploymentLogs(deploymentId: string, options?: {
         limit?: number;
@@ -700,7 +910,7 @@ CMD ["sh", "-c", "${startCommand}"]
         phase?: string;
         service?: string;
     }): Promise<SelectDeploymentLog[]> {
-        const query = db
+        const query = this.databaseService.db
             .select()
             .from(deploymentLogs)
             .where(eq(deploymentLogs.deploymentId, deploymentId))
@@ -716,7 +926,7 @@ CMD ["sh", "-c", "${startCommand}"]
         status?: DeploymentStatus;
         environment?: string;
     }): Promise<SelectDeployment[]> {
-        const query = db
+        const query = this.databaseService.db
             .select()
             .from(deployments)
             .where(eq(deployments.serviceId, serviceId))
@@ -728,7 +938,7 @@ CMD ["sh", "-c", "${startCommand}"]
     }
     async getActiveDeployments(serviceId?: string): Promise<SelectDeployment[]> {
         const activeStatuses: DeploymentStatus[] = ['pending', 'queued', 'building', 'deploying'];
-        const baseQuery = db
+        const baseQuery = this.databaseService.db
             .select()
             .from(deployments);
         const query = serviceId
@@ -738,7 +948,7 @@ CMD ["sh", "-c", "${startCommand}"]
         return results.filter(deployment => activeStatuses.includes(deployment.status));
     }
     async getLastSuccessfulDeployment(serviceId: string): Promise<SelectDeployment | null> {
-        const result = await db
+        const result = await this.databaseService.db
             .select()
             .from(deployments)
             .where(and(eq(deployments.serviceId, serviceId), eq(deployments.status, 'success')))
@@ -753,10 +963,10 @@ CMD ["sh", "-c", "${startCommand}"]
         active: number;
     }> {
         const [totalResult, successResult, failedResult, activeResult] = await Promise.all([
-            db.select({ count: count() }).from(deployments).where(eq(deployments.serviceId, serviceId)),
-            db.select({ count: count() }).from(deployments).where(and(eq(deployments.serviceId, serviceId), eq(deployments.status, 'success'))),
-            db.select({ count: count() }).from(deployments).where(and(eq(deployments.serviceId, serviceId), eq(deployments.status, 'failed'))),
-            db.select({ count: count() }).from(deployments).where(and(eq(deployments.serviceId, serviceId), eq(deployments.status, 'building'))),
+            this.databaseService.db.select({ count: count() }).from(deployments).where(eq(deployments.serviceId, serviceId)),
+            this.databaseService.db.select({ count: count() }).from(deployments).where(and(eq(deployments.serviceId, serviceId), eq(deployments.status, 'success'))),
+            this.databaseService.db.select({ count: count() }).from(deployments).where(and(eq(deployments.serviceId, serviceId), eq(deployments.status, 'failed'))),
+            this.databaseService.db.select({ count: count() }).from(deployments).where(and(eq(deployments.serviceId, serviceId), eq(deployments.status, 'building'))),
         ]);
         return {
             total: totalResult[0].count,
@@ -783,7 +993,7 @@ CMD ["sh", "-c", "${startCommand}"]
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
         // First, get deployments to cleanup (completed statuses only)
-        const results = await db
+        const results = await this.databaseService.db
             .select()
             .from(deployments);
         const deploymentsToCleanup = results.filter(deployment => ['success', 'failed', 'cancelled'].includes(deployment.status) &&
@@ -793,11 +1003,11 @@ CMD ["sh", "-c", "${startCommand}"]
         }
         // Delete deployment logs first (foreign key constraint)
         for (const deployment of deploymentsToCleanup) {
-            await db.delete(deploymentLogs).where(eq(deploymentLogs.deploymentId, deployment.id));
+            await this.databaseService.db.delete(deploymentLogs).where(eq(deploymentLogs.deploymentId, deployment.id));
         }
         // Delete deployments
         for (const deployment of deploymentsToCleanup) {
-            await db.delete(deployments).where(eq(deployments.id, deployment.id));
+            await this.databaseService.db.delete(deployments).where(eq(deployments.id, deployment.id));
         }
         const deletedCount = deploymentsToCleanup.length;
         this.logger.log(`Cleaned up ${deletedCount} old deployments`);
@@ -846,7 +1056,7 @@ CMD ["sh", "-c", "${startCommand}"]
     }> {
         try {
             // Get deployment info
-            const [deployment] = await db
+            const [deployment] = await this.databaseService.db
                 .select()
                 .from(deployments)
                 .where(eq(deployments.id, deploymentId))
@@ -957,7 +1167,7 @@ CMD ["sh", "-c", "${startCommand}"]
             }
 
             // Update deployment status
-            await db
+            await this.databaseService.db
                 .update(deployments)
                 .set({
                     status: deploymentStatus,
@@ -966,7 +1176,7 @@ CMD ["sh", "-c", "${startCommand}"]
                 .where(eq(deployments.id, deploymentId));
 
             // Log deployment status change
-            await db.insert(deploymentLogs).values({
+            await this.databaseService.db.insert(deploymentLogs).values({
                 id: crypto.randomUUID(),
                 deploymentId,
                 level: 'info',
@@ -1008,7 +1218,7 @@ CMD ["sh", "-c", "${startCommand}"]
     } | null> {
         try {
             // Get deployment info
-            const [deployment] = await db
+            const [deployment] = await this.databaseService.db
                 .select()
                 .from(deployments)
                 .where(eq(deployments.id, deploymentId))
@@ -1022,7 +1232,7 @@ CMD ["sh", "-c", "${startCommand}"]
             const health = await this.monitorDeploymentHealth(deploymentId);
 
             // Get recent logs (last 10)
-            const recentLogs = await db
+            const recentLogs = await this.databaseService.db
                 .select()
                 .from(deploymentLogs)
                 .where(eq(deploymentLogs.deploymentId, deploymentId))
@@ -1062,7 +1272,7 @@ CMD ["sh", "-c", "${startCommand}"]
                     restartedContainers.push(container.containerId);
                     
                     // Log restart action
-                    await db.insert(deploymentLogs).values({
+                    await this.databaseService.db.insert(deploymentLogs).values({
                         id: crypto.randomUUID(),
                         deploymentId,
                         level: 'info',
@@ -1083,7 +1293,7 @@ CMD ["sh", "-c", "${startCommand}"]
                     errors.push({ containerId: container.containerId, error: errorMessage });
                     
                     // Log restart failure
-                    await db.insert(deploymentLogs).values({
+                    await this.databaseService.db.insert(deploymentLogs).values({
                         id: crypto.randomUUID(),
                         deploymentId,
                         level: 'error',
@@ -1122,7 +1332,7 @@ CMD ["sh", "-c", "${startCommand}"]
     async getRunningDeploymentsByService(serviceId: string): Promise<SelectDeployment[]> {
         const runningStatuses: DeploymentStatus[] = ['success', 'pending', 'queued', 'building', 'deploying'];
         
-        const results = await db
+        const results = await this.databaseService.db
             .select()
             .from(deployments)
             .where(eq(deployments.serviceId, serviceId))
@@ -1143,7 +1353,7 @@ CMD ["sh", "-c", "${startCommand}"]
         }
 
         // Query deployments with preview environment data
-        const query = db
+        const query = this.databaseService.db
             .select({
                 deployment: deployments,
                 preview: previewEnvironments,
@@ -1247,5 +1457,16 @@ CMD ["sh", "-c", "${startCommand}"]
             this.logger.error('Failed to query previous deployments:', error);
             return { stoppedDeployments, errors };
         }
+    }
+    // Helper to create safe DNS-friendly subdomain segments
+    // Keep this minimal and predictable so generated hostnames are stable.
+    private static sanitizeForSubdomain(str: string): string {
+        return (str || '')
+            .toString()
+            .toLowerCase()
+            .replace(/[^a-z0-9-]/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/(^-|-$)/g, '')
+            .slice(0, 63) || 'site';
     }
 }

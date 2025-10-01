@@ -1,13 +1,12 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { DATABASE_CONNECTION } from '../../db/database-connection';
-import type { Database } from '../../db/drizzle/index';
-import { orchestrationStacks, serviceInstances } from '../../db/drizzle/schema/orchestration';
-import { stackMetrics, resourceAlerts } from '../../db/drizzle/schema/resource-monitoring';
+import { orchestrationStacks, serviceInstances } from '@/config/drizzle/schema/orchestration';
+import { stackMetrics, resourceAlerts } from '@/config/drizzle/schema/resource-monitoring';
 import { eq, and, desc, gte, lt } from 'drizzle-orm';
 import { DockerService } from '../../../services/docker.service';
+import { DatabaseService } from '../../database/services/database.service';
 export interface ResourceMetrics {
     stackId: string;
     serviceId?: string;
@@ -59,8 +58,7 @@ export class ResourceMonitoringService {
         }
     };
     constructor(
-    @Inject(DATABASE_CONNECTION)
-    private readonly db: Database, 
+    private readonly databaseService: DatabaseService, 
     @InjectQueue('deployment')
     private deploymentQueue: Queue,
     private readonly dockerService: DockerService) {
@@ -73,7 +71,7 @@ export class ResourceMonitoringService {
         try {
             this.logger.log('Starting resource metrics collection');
             // Get all active stacks
-            const activeStacks = await this.db.select({
+            const activeStacks = await this.databaseService.db.select({
                 id: orchestrationStacks.id,
                 name: orchestrationStacks.name,
                 projectId: orchestrationStacks.projectId
@@ -93,7 +91,7 @@ export class ResourceMonitoringService {
             for (const stack of activeStacks) {
                 try {
                     // Get stack services
-                    const stackServices = await this.db.select()
+                    const stackServices = await this.databaseService.db.select()
                         .from(serviceInstances)
                         .where(eq(serviceInstances.stackId, stack.id));
                     totalSystemMetrics.activeServices += stackServices.length;
@@ -222,7 +220,7 @@ export class ResourceMonitoringService {
                     containerCount: 1
                 }
             }));
-            await this.db.insert(stackMetrics).values(dbMetrics);
+            await this.databaseService.db.insert(stackMetrics).values(dbMetrics);
             this.logger.log(`Stored ${dbMetrics.length} metrics in database`);
         }
         catch (error) {
@@ -235,7 +233,7 @@ export class ResourceMonitoringService {
     private async storeSystemMetrics(systemMetrics: SystemMetrics): Promise<void> {
         try {
             // Store system metrics as a special stack metric with stackId 'system'
-            await this.db.insert(stackMetrics).values({
+            await this.databaseService.db.insert(stackMetrics).values({
                 stackId: 'system',
                 timestamp: systemMetrics.timestamp,
                 cpuUsage: systemMetrics.totalCpuUsage.toString(),
@@ -356,7 +354,7 @@ export class ResourceMonitoringService {
                     timestamp: alert.timestamp.toISOString()
                 }
             }));
-            await this.db.insert(resourceAlerts).values(dbAlerts);
+            await this.databaseService.db.insert(resourceAlerts).values(dbAlerts);
             this.logger.log(`Stored ${dbAlerts.length} resource alerts`);
         }
         catch (error) {
@@ -398,11 +396,11 @@ export class ResourceMonitoringService {
             this.logger.log('Starting metrics cleanup');
             const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
             // Delete metrics older than 30 days
-            await this.db.delete(stackMetrics)
+            await this.databaseService.db.delete(stackMetrics)
                 .where(lt(stackMetrics.timestamp, thirtyDaysAgo));
             // Delete resolved alerts older than 7 days
             const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-            await this.db.delete(resourceAlerts)
+            await this.databaseService.db.delete(resourceAlerts)
                 .where(and(eq(resourceAlerts.isResolved, true), lt(resourceAlerts.createdAt, sevenDaysAgo)));
             this.logger.log(`Metrics cleanup completed. Deleted old metrics and resolved alerts`);
         }
@@ -416,7 +414,7 @@ export class ResourceMonitoringService {
     async getStackMetrics(stackId: string, hours: number = 24): Promise<any[]> {
         try {
             const since = new Date(Date.now() - hours * 60 * 60 * 1000);
-            const metrics = await this.db.select()
+            const metrics = await this.databaseService.db.select()
                 .from(stackMetrics)
                 .where(and(eq(stackMetrics.stackId, stackId), gte(stackMetrics.timestamp, since)))
                 .orderBy(desc(stackMetrics.timestamp));
@@ -433,7 +431,7 @@ export class ResourceMonitoringService {
     async getSystemMetrics(hours: number = 24): Promise<any[]> {
         try {
             const since = new Date(Date.now() - hours * 60 * 60 * 1000);
-            const metrics = await this.db.select()
+            const metrics = await this.databaseService.db.select()
                 .from(stackMetrics)
                 .where(and(eq(stackMetrics.stackId, 'system'), gte(stackMetrics.timestamp, since)))
                 .orderBy(desc(stackMetrics.timestamp));
@@ -450,14 +448,14 @@ export class ResourceMonitoringService {
     async getActiveAlerts(stackId?: string): Promise<any[]> {
         try {
             if (stackId) {
-                const alerts = await this.db.select()
+                const alerts = await this.databaseService.db.select()
                     .from(resourceAlerts)
                     .where(and(eq(resourceAlerts.isResolved, false), eq(resourceAlerts.stackId, stackId)))
                     .orderBy(desc(resourceAlerts.createdAt));
                 return alerts;
             }
             else {
-                const alerts = await this.db.select()
+                const alerts = await this.databaseService.db.select()
                     .from(resourceAlerts)
                     .where(eq(resourceAlerts.isResolved, false))
                     .orderBy(desc(resourceAlerts.createdAt));
@@ -474,7 +472,7 @@ export class ResourceMonitoringService {
      */
     async resolveAlert(alertId: string): Promise<void> {
         try {
-            await this.db.update(resourceAlerts)
+            await this.databaseService.db.update(resourceAlerts)
                 .set({
                 isResolved: true,
                 resolvedAt: new Date(),
@@ -494,7 +492,7 @@ export class ResourceMonitoringService {
     async getStackResourceSummary(stackId: string): Promise<any> {
         try {
             // Get latest metrics for the stack
-            const [latestMetrics] = await this.db.select()
+            const [latestMetrics] = await this.databaseService.db.select()
                 .from(stackMetrics)
                 .where(eq(stackMetrics.stackId, stackId))
                 .orderBy(desc(stackMetrics.timestamp))

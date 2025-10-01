@@ -1,13 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { eq, and, desc, asc, isNotNull, inArray, or, isNull, gt } from "drizzle-orm";
-import { DatabaseService } from "@/core/modules/db/services/database.service";
+import { DatabaseService } from "@/core/modules/database/services/database.service";
 import {
   traefikServiceConfigs,
   traefikDomainRoutes,
   traefikServiceTargets,
   traefikConfigFiles,
   traefikMiddlewares,
-} from "@/core/modules/db/drizzle/schema/traefik-service";
+} from "@/config/drizzle/schema/traefik-service";
 import {
   traefikSslCertificates,
   traefikMiddleware,
@@ -21,11 +21,11 @@ import {
   type CreateTraefikPlugin,
   type CreateTraefikStaticFile,
   type CreateTraefikBackup,
-} from "@/core/modules/db/drizzle/schema/traefik";
+} from "@/config/drizzle/schema/traefik";
 import {
   services,
   projects,
-} from "@/core/modules/db/drizzle/schema/deployment";
+} from "@/config/drizzle/schema/deployment";
 
 export interface CreateServiceConfigInput {
   serviceId: string;

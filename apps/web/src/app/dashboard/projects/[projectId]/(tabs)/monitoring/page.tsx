@@ -1,9 +1,9 @@
 import { HydrationBoundary, dehydrate } from '@tanstack/react-query'
 import getQueryClient from '@/lib/getQueryClient'
-import { createServerORPC } from '@/lib/orpc/server'
 import ProjectMonitoringPageClient from './ProjectMonitoringPageClient'
 import { DashboardProjectsProjectIdTabsMonitoring } from '@/routes'
 import { tryCatch } from '@/utils/server'
+import { orpc } from '@/lib/orpc'
 
 export default DashboardProjectsProjectIdTabsMonitoring.Page(
     async function ProjectMonitoringPage({ params }) {
@@ -16,8 +16,6 @@ export default DashboardProjectsProjectIdTabsMonitoring.Page(
                 console.log(
                     `🔄 [Monitoring-${projectId}] Starting server prefetch...`
                 )
-
-                const orpc = await createServerORPC()
 
                 // Prefetch monitoring data in parallel
                 await Promise.all([

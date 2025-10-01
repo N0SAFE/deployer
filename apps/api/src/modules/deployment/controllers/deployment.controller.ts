@@ -5,9 +5,9 @@ import { DeploymentQueueService } from '../../jobs/services/deployment-queue.ser
 import { DockerService } from '../../../core/services/docker.service';
 import { ServiceRepository } from '../../service/repositories/service.repository';
 import { ServiceService } from '../../service/services/service.service';
-import { DatabaseService } from '../../../core/modules/db/services/database.service';
+import { DatabaseService } from '../../../core/modules/database/services/database.service';
 import { DeploymentService } from '../../../core/services/deployment.service';
-import { deployments, deploymentLogs } from '../../../core/modules/db/drizzle/schema';
+import { deployments, deploymentLogs } from '../../../config/drizzle/schema';
 import type { DeploymentJobData } from '../../jobs/types/deployment-job.types';
 import { eq, desc } from 'drizzle-orm';
 @Controller("other")

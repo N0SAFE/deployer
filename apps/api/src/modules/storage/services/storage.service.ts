@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '../../../core/modules/db/services/database.service';
+import { DatabaseService } from '../../../core/modules/database/services/database.service';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as crypto from 'crypto';

@@ -1,15 +1,14 @@
-import { Injectable, Logger, Inject, type OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
-import { DATABASE_CONNECTION } from '../../db/database-connection';
-import type { Database } from '../../db/drizzle/index';
-import { sslCertificates, orchestrationStacks, networkAssignments } from '../../db/drizzle/schema/orchestration';
+import { sslCertificates, orchestrationStacks, networkAssignments } from '@/config/drizzle/schema/orchestration';
 import { eq, and } from 'drizzle-orm';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as forge from 'node-forge';
 import { DockerService } from '../../../services/docker.service';
 import * as net from 'net';
+import { DatabaseService } from '../../database/services/database.service';
 export interface TraefikConfig {
     projectId: string;
     environment: string;
@@ -36,6 +35,7 @@ export interface DomainMapping {
     path?: string;
     middleware?: string[];
 }
+
 @Injectable()
 export class TraefikService implements OnModuleInit {
     private readonly logger = new Logger(TraefikService.name);
@@ -43,8 +43,7 @@ export class TraefikService implements OnModuleInit {
     private readonly traefikConfigDir = process.env.TRAEFIK_CONFIG_BASE_PATH || '/app/traefik-configs';
     private readonly certificatesDir = '/app/certificates';
     constructor(
-    @Inject(DATABASE_CONNECTION)
-    private readonly db: Database, 
+    private readonly databaseService: DatabaseService, 
     @InjectQueue('deployment')
     private deploymentQueue: Queue,
     private readonly dockerService: DockerService) { }
@@ -201,7 +200,7 @@ export class TraefikService implements OnModuleInit {
     private async createOrUpdateNetwork(projectId: string, environment: string, networkName: string): Promise<void> {
         try {
             // Check if network assignment exists
-            const existing = await this.db.select()
+            const existing = await this.databaseService.db.select()
                 .from(networkAssignments)
                 .where(and(eq(networkAssignments.projectId, projectId), eq(networkAssignments.environment, environment), eq(networkAssignments.networkName, networkName)))
                 .limit(1);
@@ -243,7 +242,7 @@ export class TraefikService implements OnModuleInit {
             }
             if (existing.length === 0) {
                 // Create new network assignment
-                await this.db.insert(networkAssignments).values({
+                await this.databaseService.db.insert(networkAssignments).values({
                     projectId,
                     networkName,
                     networkId: dockerNetworkId,
@@ -264,7 +263,7 @@ export class TraefikService implements OnModuleInit {
             }
             else {
                 // Update existing assignment with Docker network ID
-                await this.db.update(networkAssignments)
+                await this.databaseService.db.update(networkAssignments)
                     .set({
                     networkId: dockerNetworkId,
                     updatedAt: new Date()
@@ -289,13 +288,13 @@ export class TraefikService implements OnModuleInit {
     }): Promise<void> {
         try {
             // Check if certificate record exists
-            const existing = await this.db.select()
+            const existing = await this.databaseService.db.select()
                 .from(sslCertificates)
                 .where(eq(sslCertificates.domain, config.domain))
                 .limit(1);
             if (existing.length === 0) {
                 // Create new certificate record
-                await this.db.insert(sslCertificates).values({
+                await this.databaseService.db.insert(sslCertificates).values({
                     domain: config.domain,
                     projectId: config.projectId,
                     issuer: config.issuer,
@@ -324,7 +323,7 @@ export class TraefikService implements OnModuleInit {
      */
     async updateDomainMappings(stackId: string, mappings: DomainMapping[]): Promise<void> {
         try {
-            const [stack] = await this.db.select()
+            const [stack] = await this.databaseService.db.select()
                 .from(orchestrationStacks)
                 .where(eq(orchestrationStacks.id, stackId))
                 .limit(1);
@@ -345,7 +344,7 @@ export class TraefikService implements OnModuleInit {
                 });
                 return acc;
             }, {} as any);
-            await this.db.update(orchestrationStacks)
+            await this.databaseService.db.update(orchestrationStacks)
                 .set({
                 domainMappings: domainConfig,
                 updatedAt: new Date()
@@ -371,7 +370,7 @@ export class TraefikService implements OnModuleInit {
      */
     async getCertificateStatus(domain: string): Promise<any> {
         try {
-            const [certificate] = await this.db.select()
+            const [certificate] = await this.databaseService.db.select()
                 .from(sslCertificates)
                 .where(eq(sslCertificates.domain, domain))
                 .limit(1);
@@ -418,7 +417,7 @@ export class TraefikService implements OnModuleInit {
         try {
             this.logger.log(`Initiating certificate renewal for: ${domain}`);
             // Update certificate record
-            await this.db.update(sslCertificates)
+            await this.databaseService.db.update(sslCertificates)
                 .set({
                 lastRenewalAttempt: new Date(),
                 renewalStatus: 'in-progress',
@@ -954,7 +953,7 @@ http {
 
             // Try find by stack name first
             try {
-                const [foundByName] = await this.db.select().from(orchestrationStacks).where(eq(orchestrationStacks.name, serviceId)).limit(1);
+                const [foundByName] = await this.databaseService.db.select().from(orchestrationStacks).where(eq(orchestrationStacks.name, serviceId)).limit(1);
                 if (foundByName) stack = foundByName as StackRow;
             }
             catch (lookupErr) {
@@ -966,7 +965,7 @@ http {
                 const uuidLike = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(serviceId);
                 if (uuidLike) {
                     try {
-                        const [foundByProject] = await this.db.select().from(orchestrationStacks).where(eq(orchestrationStacks.projectId, serviceId)).limit(1);
+                        const [foundByProject] = await this.databaseService.db.select().from(orchestrationStacks).where(eq(orchestrationStacks.projectId, serviceId)).limit(1);
                         if (foundByProject) stack = foundByProject as StackRow;
                     }
                     catch (lookupErr) {
@@ -982,7 +981,7 @@ http {
 
             // Update existing stack compose config with static config
             const updatedConfig = { ...stack.composeConfig, staticConfig: config } as any;
-            await this.db.update(orchestrationStacks).set({ composeConfig: updatedConfig, updatedAt: new Date() }).where(eq(orchestrationStacks.id, stack.id));
+            await this.databaseService.db.update(orchestrationStacks).set({ composeConfig: updatedConfig, updatedAt: new Date() }).where(eq(orchestrationStacks.id, stack.id));
             this.logger.log(`Updated stack configuration for service: ${serviceId}`);
         }
         catch (error) {

@@ -1,16 +1,15 @@
-import { createServerORPC } from '@/lib/orpc/server'
 import getQueryClient from '@/lib/getQueryClient'
 import { HydrationBoundary, dehydrate } from '@tanstack/react-query'
 import { ServicePreviewsClient } from './ServicePreviewsClient'
 import { DashboardProjectsProjectIdServicesServiceIdTabsPreviews } from '@/routes'
 import { tryCatch } from '@/utils/server'
+import { orpc } from '@/lib/orpc'
 
 export default DashboardProjectsProjectIdServicesServiceIdTabsPreviews.Page(
     async function ServicePreviewDeploymentsPage({ params }) {
         const { projectId } = await params
 
         const queryClient = getQueryClient()
-        const orpc = await createServerORPC()
 
         tryCatch(
             async () => {

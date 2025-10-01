@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '../../../core/modules/db/services/database.service';
-import { services, deployments, deploymentLogs, projects, serviceDependencies } from '../../../core/modules/db/drizzle/schema';
+import { DatabaseService } from '../../../core/modules/database/services/database.service';
+import { services, deployments, deploymentLogs, projects, serviceDependencies } from '../../../config/drizzle/schema';
 import { eq, and, desc, like, inArray } from 'drizzle-orm';
 // Types for service operations
 export interface CreateServiceData {

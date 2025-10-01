@@ -1,9 +1,9 @@
 import { HydrationBoundary, dehydrate } from '@tanstack/react-query'
 import getQueryClient from '@/lib/getQueryClient'
-import { createServerORPC } from '@/lib/orpc/server'
 import OrchestrationDashboard from '@/components/orchestration/OrchestrationDashboard'
 import { DashboardProjectsProjectIdTabsOrchestration } from '@/routes'
 import { tryCatchAll } from '@/utils/server'
+import { orpc } from '@/lib/orpc'
 
 export default DashboardProjectsProjectIdTabsOrchestration.Page(
     async function ProjectOrchestrationPage({ params }) {
@@ -14,8 +14,6 @@ export default DashboardProjectsProjectIdTabsOrchestration.Page(
         console.log(
             `🔄 [Orchestration-${projectId}] Starting server prefetch...`
         )
-
-        const orpc = await createServerORPC()
 
         // Prefetch orchestration data in parallel using tryCatchAll
         await tryCatchAll(

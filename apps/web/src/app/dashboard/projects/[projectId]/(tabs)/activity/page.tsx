@@ -1,9 +1,9 @@
 import { HydrationBoundary, dehydrate } from '@tanstack/react-query'
 import getQueryClient from '@/lib/getQueryClient'
-import { createServerORPC } from '@/lib/orpc/server'
 import ActivityFeed from '@/components/activity/ActivityFeed'
 import { DashboardProjectsProjectIdTabsActivity } from '@/routes'
 import { tryCatch } from '@/utils/server'
+import { orpc } from '@/lib/orpc'
 
 export default DashboardProjectsProjectIdTabsActivity.Page(
     async function ProjectActivityPage({ params }) {
@@ -12,8 +12,6 @@ export default DashboardProjectsProjectIdTabsActivity.Page(
         const queryClient = getQueryClient()
 
         console.log(`🔄 [Activity-${projectId}] Starting server prefetch...`)
-
-        const orpc = await createServerORPC()
 
         await tryCatch(
             () =>

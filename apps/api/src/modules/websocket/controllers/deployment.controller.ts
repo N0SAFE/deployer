@@ -6,10 +6,10 @@ import { DeploymentQueueService } from '../../jobs/services/deployment-queue.ser
 import { WebSocketEventService } from '../services/websocket-event.service';
 import { DockerService } from '../../../core/services/docker.service';
 import { DeploymentService } from '../../../core/services/deployment.service';
-import { db } from '../../../core/modules/db/drizzle/index';
-import { deployments, services, projects, deploymentLogs } from '../../../core/modules/db/drizzle/schema/deployment';
+import { deployments, services, projects, deploymentLogs } from '@/config/drizzle/schema/deployment';
 import { eq, desc, count, and } from 'drizzle-orm';
-import { Public } from '@/modules/auth/decorators/decorators';
+import { Public } from '@/core/modules/auth/decorators/decorators';
+import { DatabaseService } from '@/core/modules/database/services/database.service';
 @Controller()
 export class DeploymentController {
     private readonly logger = new Logger(DeploymentController.name);
@@ -17,7 +17,8 @@ export class DeploymentController {
         private readonly queueService: DeploymentQueueService, 
         private readonly websocketService: WebSocketEventService, 
         private readonly dockerService: DockerService,
-        private readonly deploymentService: DeploymentService
+        private readonly deploymentService: DeploymentService,
+        private readonly databaseService: DatabaseService
     ) { }
 
     @Public()
@@ -31,7 +32,7 @@ export class DeploymentController {
         return implement(deploymentContract.getStatus).handler(async ({ input }) => {
             const { deploymentId } = input;
             this.logger.log(`Getting status for deployment ${deploymentId}`);
-            const deploymentRows = await db.select()
+            const deploymentRows = await this.databaseService.db.select()
                 .from(deployments)
                 .where(eq(deployments.id, deploymentId))
                 .limit(1);
@@ -114,7 +115,7 @@ export class DeploymentController {
             if (!dockerConnected) throw new Error('Docker service is not available.');
 
             // Fetch service
-            const svcRows = await db.select({ service: services, project: projects })
+            const svcRows = await this.databaseService.db.select({ service: services, project: projects })
                 .from(services)
                 .innerJoin(projects, eq(services.projectId, projects.id))
                 .where(eq(services.id, serviceId))
@@ -163,7 +164,7 @@ export class DeploymentController {
             const stopResult = await this.deploymentService.stopPreviousDeployments(serviceId, environment, environment === 'preview' ? triggerInfo : undefined);
 
             // Insert deployment and get returned id from DB (avoid explicit id insertion to match Drizzle types)
-            const [createdDeployment] = await db.insert(deployments).values({
+            const [createdDeployment] = await this.databaseService.db.insert(deployments).values({
                 serviceId,
                 triggeredBy: null, // Will be set to authenticated user ID in production
                 status: 'pending',
@@ -225,7 +226,7 @@ export class DeploymentController {
             const { deploymentId, reason } = input;
             this.logger.log(`Cancelling deployment ${deploymentId}`);
             // Get deployment info before cancellation
-            const deployment = await db.select({
+            const deployment = await this.databaseService.db.select({
                 deployment: deployments,
                 service: services,
                 project: projects,
@@ -244,7 +245,7 @@ export class DeploymentController {
                 await this.dockerService.stopContainersByDeployment(deploymentId);
                 this.logger.log(`Stopped containers for deployment ${deploymentId}`);
                 // Log the container stop action
-                await db.insert(deploymentLogs).values({
+                await this.databaseService.db.insert(deploymentLogs).values({
                     deploymentId,
                     level: 'info',
                     message: 'Containers stopped during deployment cancellation',
@@ -258,7 +259,7 @@ export class DeploymentController {
             catch (error) {
                 this.logger.warn(`Failed to stop containers for deployment ${deploymentId}: ${error}`);
                 // Log the error but don't fail the cancellation
-                await db.insert(deploymentLogs).values({
+                await this.databaseService.db.insert(deploymentLogs).values({
                     deploymentId,
                     level: 'warn',
                     message: `Warning: Could not stop containers during cancellation: ${error}`,
@@ -270,7 +271,7 @@ export class DeploymentController {
                 });
             }
             // Update deployment status
-            await db.update(deployments)
+            await this.databaseService.db.update(deployments)
                 .set({
                 status: 'cancelled',
                 metadata: {
@@ -282,7 +283,7 @@ export class DeploymentController {
             })
                 .where(eq(deployments.id, deploymentId));
             // Log cancellation completion
-            await db.insert(deploymentLogs).values({
+            await this.databaseService.db.insert(deploymentLogs).values({
                 deploymentId,
                 level: 'info',
                 message: `Deployment cancelled: ${reason || 'No reason provided'}`,
@@ -309,10 +310,10 @@ export class DeploymentController {
             const { deploymentId, targetDeploymentId } = input;
             this.logger.log(`Rolling back deployment ${deploymentId} to ${targetDeploymentId}`);
             // Validate both deployments exist and are for the same service
-            const deploymentsQuery = await db.select()
+            const deploymentsQuery = await this.databaseService.db.select()
                 .from(deployments)
                 .where(eq(deployments.id, deploymentId));
-            const targetDeploymentQuery = await db.select()
+            const targetDeploymentQuery = await this.databaseService.db.select()
                 .from(deployments)
                 .where(eq(deployments.id, targetDeploymentId));
             if (!deploymentsQuery.length) {
@@ -330,7 +331,7 @@ export class DeploymentController {
                 throw new Error('Target deployment must have successful status');
             }
             // Log rollback initiation
-            await db.insert(deploymentLogs).values({
+            await this.databaseService.db.insert(deploymentLogs).values({
                 deploymentId,
                 level: 'info',
                 message: `Starting rollback from deployment ${deploymentId} to ${targetDeploymentId}`,
@@ -343,7 +344,7 @@ export class DeploymentController {
             try {
                 // Stop current deployment containers
                 await this.dockerService.stopContainersByDeployment(deploymentId);
-                await db.insert(deploymentLogs).values({
+                await this.databaseService.db.insert(deploymentLogs).values({
                     deploymentId,
                     level: 'info',
                     message: 'Stopped current deployment containers',
@@ -355,7 +356,7 @@ export class DeploymentController {
                 });
                 // Start target deployment containers
                 await this.dockerService.startContainersByDeployment(targetDeploymentId);
-                await db.insert(deploymentLogs).values({
+                await this.databaseService.db.insert(deploymentLogs).values({
                     deploymentId,
                     level: 'info',
                     message: `Started target deployment containers (${targetDeploymentId})`,
@@ -374,7 +375,7 @@ export class DeploymentController {
                         healthyContainers++;
                     }
                 }
-                await db.insert(deploymentLogs).values({
+                await this.databaseService.db.insert(deploymentLogs).values({
                     deploymentId,
                     level: 'info',
                     message: `Health check completed: ${healthyContainers}/${containers.length} containers healthy`,
@@ -385,7 +386,7 @@ export class DeploymentController {
                     timestamp: new Date(),
                 });
                 // Update deployment statuses
-                await db.update(deployments)
+                await this.databaseService.db.update(deployments)
                     .set({
                     status: 'cancelled',
                     metadata: {
@@ -397,7 +398,7 @@ export class DeploymentController {
                     updatedAt: new Date(),
                 })
                     .where(eq(deployments.id, deploymentId));
-                await db.update(deployments)
+                await this.databaseService.db.update(deployments)
                     .set({
                     status: 'success',
                     metadata: {
@@ -409,7 +410,7 @@ export class DeploymentController {
                 })
                     .where(eq(deployments.id, targetDeploymentId));
                 // Create rollback deployment record for audit & tracking
-                const [rollbackDep] = await db.insert(deployments).values({
+                const [rollbackDep] = await this.databaseService.db.insert(deployments).values({
                     serviceId: currentDeployment.serviceId,
                     triggeredBy: null,
                     status: 'queued',
@@ -424,7 +425,7 @@ export class DeploymentController {
                     deploymentId: rollbackDep.id,
                     targetDeploymentId,
                 });
-                await db.insert(deploymentLogs).values({
+                await this.databaseService.db.insert(deploymentLogs).values({
                     deploymentId: rollbackDep.id,
                     level: 'info',
                     message: `Rollback completed successfully - Job ${rollbackJobId} queued for final orchestration`,
@@ -443,7 +444,7 @@ export class DeploymentController {
             catch (error) {
                 const err = error as Error;
                 this.logger.error(`Rollback failed: ${err.message}`, err);
-                await db.insert(deploymentLogs).values({
+                await this.databaseService.db.insert(deploymentLogs).values({
                     deploymentId,
                     level: 'error',
                     message: `Rollback failed: ${err.message}`,
@@ -466,14 +467,14 @@ export class DeploymentController {
             const { deploymentId, limit, offset } = input;
             this.logger.log(`Getting logs for deployment ${deploymentId}`);
             // Get logs from deploymentLogs table
-            const logs = await db.select()
+            const logs = await this.databaseService.db.select()
                 .from(deploymentLogs)
                 .where(eq(deploymentLogs.deploymentId, deploymentId))
                 .orderBy(desc(deploymentLogs.timestamp))
                 .limit(limit)
                 .offset(offset);
             // Get total count
-            const totalResult = await db.select({ count: count() })
+            const totalResult = await this.databaseService.db.select({ count: count() })
                 .from(deploymentLogs)
                 .where(eq(deploymentLogs.deploymentId, deploymentId));
             const total = totalResult[0]?.count || 0;
@@ -510,48 +511,48 @@ export class DeploymentController {
                 }
                 
                 if (status) {
-                    deploymentList = await db.select()
+                    deploymentList = await this.databaseService.db.select()
                         .from(deployments)
                         .where(and(eq(deployments.serviceId, serviceId), eq(deployments.status, status)))
                         .orderBy(desc(deployments.createdAt))
                         .limit(limit)
                         .offset(offset);
                     
-                    totalResult = await db.select({ count: count() })
+                    totalResult = await this.databaseService.db.select({ count: count() })
                         .from(deployments)
                         .where(and(eq(deployments.serviceId, serviceId), eq(deployments.status, status)));
                 } else {
-                    deploymentList = await db.select()
+                    deploymentList = await this.databaseService.db.select()
                         .from(deployments)
                         .where(eq(deployments.serviceId, serviceId))
                         .orderBy(desc(deployments.createdAt))
                         .limit(limit)
                         .offset(offset);
                     
-                    totalResult = await db.select({ count: count() })
+                    totalResult = await this.databaseService.db.select({ count: count() })
                         .from(deployments)
                         .where(eq(deployments.serviceId, serviceId));
                 }
             } else {
                 if (status) {
-                    deploymentList = await db.select()
+                    deploymentList = await this.databaseService.db.select()
                         .from(deployments)
                         .where(eq(deployments.status, status))
                         .orderBy(desc(deployments.createdAt))
                         .limit(limit)
                         .offset(offset);
                     
-                    totalResult = await db.select({ count: count() })
+                    totalResult = await this.databaseService.db.select({ count: count() })
                         .from(deployments)
                         .where(eq(deployments.status, status));
                 } else {
-                    deploymentList = await db.select()
+                    deploymentList = await this.databaseService.db.select()
                         .from(deployments)
                         .orderBy(desc(deployments.createdAt))
                         .limit(limit)
                         .offset(offset);
                     
-                    totalResult = await db.select({ count: count() })
+                    totalResult = await this.databaseService.db.select({ count: count() })
                         .from(deployments);
                 }
             }
@@ -686,7 +687,7 @@ export class DeploymentController {
             
             try {
                 // Get all deployments with their associated containers
-                const query = db
+                const query = this.databaseService.db
                     .select({
                         deployment: deployments,
                         service: services,
@@ -816,7 +817,7 @@ export class DeploymentController {
                 }
                 
                 // Get total count for pagination
-                const totalQuery = db
+                const totalQuery = this.databaseService.db
                     .select({ count: count() })
                     .from(deployments)
                     .leftJoin(services, eq(deployments.serviceId, services.id))
@@ -922,7 +923,7 @@ export class DeploymentController {
         stage?: string;
         metadata?: Record<string, any>;
     } = {}): Promise<void> {
-        await db.insert(deploymentLogs).values({
+        await this.databaseService.db.insert(deploymentLogs).values({
             deploymentId,
             level,
             message,

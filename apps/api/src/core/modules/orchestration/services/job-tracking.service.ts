@@ -1,11 +1,10 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue, Job, JobStatus } from 'bull';
 import { Cron } from '@nestjs/schedule';
-import { DATABASE_CONNECTION } from '../../db/database-connection';
-import type { Database } from '../../db/drizzle/index';
-import { jobTracking } from '../../db/drizzle/schema/orchestration';
+import { jobTracking } from '@/config/drizzle/schema/orchestration';
 import { eq, desc, and, gte, lte, inArray } from 'drizzle-orm';
+import { DatabaseService } from '../../database/services/database.service';
 export interface JobTrackingInfo {
     id: string;
     type: string;
@@ -48,8 +47,7 @@ export class JobTrackingService {
     private readonly JOB_RETENTION_DAYS = 30;
     private readonly MAX_LOGS_PER_JOB = 1000;
     constructor(
-    @Inject(DATABASE_CONNECTION)
-    private readonly db: Database, 
+    private readonly databaseService: DatabaseService, 
     @InjectQueue('deployment')
     private readonly deploymentQueue: Queue) { }
     /**
@@ -84,7 +82,7 @@ export class JobTrackingService {
                 return this.mapBullJobToTrackingInfo(bullJob);
             }
             // If not in queue, check database for completed/failed jobs
-            const [dbJob] = await this.db
+            const [dbJob] = await this.databaseService.db
                 .select()
                 .from(jobTracking)
                 .where(eq(jobTracking.id, jobId))
@@ -132,13 +130,13 @@ export class JobTrackingService {
                 ? and(...whereConditions)
                 : undefined;
             // Get total count
-            const totalResult = await this.db
+            const totalResult = await this.databaseService.db
                 .select({ count: jobTracking.id })
                 .from(jobTracking)
                 .where(whereClause);
             const total = totalResult.length;
             // Get paginated results
-            const dbJobs = await this.db
+            const dbJobs = await this.databaseService.db
                 .select()
                 .from(jobTracking)
                 .where(whereClause)
@@ -271,7 +269,7 @@ export class JobTrackingService {
                     attempts: job.attemptsMade
                 }
             };
-            await this.db
+            await this.databaseService.db
                 .insert(jobTracking)
                 .values(jobData)
                 .onConflictDoUpdate({
@@ -303,7 +301,7 @@ export class JobTrackingService {
         try {
             const cutoffDate = new Date();
             cutoffDate.setDate(cutoffDate.getDate() - this.JOB_RETENTION_DAYS);
-            await this.db
+            await this.databaseService.db
                 .delete(jobTracking)
                 .where(lte(jobTracking.createdAt, cutoffDate));
             this.logger.log(`Cleaned up job tracking records older than ${this.JOB_RETENTION_DAYS} days`);
@@ -323,7 +321,7 @@ export class JobTrackingService {
         recentJobs: JobTrackingInfo[];
     }> {
         try {
-            const jobs = await this.db
+            const jobs = await this.databaseService.db
                 .select()
                 .from(jobTracking)
                 .where(eq(jobTracking.stackId, stackId))

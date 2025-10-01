@@ -37,7 +37,7 @@ Simplifies async try-catch blocks with automatic null return on error.
 **Example:**
 ```typescript
 const orpc = await tryCatch(
-  () => createServerORPC(),
+  async () => await fetch(),
   (error) => console.error('Failed to create ORPC client:', error)
 )
 
@@ -100,25 +100,24 @@ await prefetchWithFallback(
 export default async function ServiceLayout({ params }) {
   const { projectId, serviceId } = await params
   const queryClient = getQueryClient()
-  const orpcServer = await createServerORPC()
 
   let service: ServiceType | null = null
   let deploymentsData: DeploymentsType | null = null
 
   try {
     const [serviceResult, deploymentsResult] = await Promise.allSettled([
-      queryClient.fetchQuery(orpcServer.service.getById.queryOptions({ input: { id: serviceId } })),
-      queryClient.fetchQuery(orpcServer.service.getDeployments.queryOptions({ input: { id: serviceId, limit: 50 } }))
+      queryClient.fetchQuery(orpc.service.getById.queryOptions({ input: { id: serviceId } })),
+      queryClient.fetchQuery(orpc.service.getDeployments.queryOptions({ input: { id: serviceId, limit: 50 } }))
     ])
 
     if (serviceResult.status === 'fulfilled') {
       service = serviceResult.value
-      queryClient.setQueryData(orpcServer.service.getById.queryKey({ input: { id: serviceId } }), serviceResult.value)
+      queryClient.setQueryData(orpc.service.getById.queryKey({ input: { id: serviceId } }), serviceResult.value)
     }
 
     if (deploymentsResult.status === 'fulfilled') {
       deploymentsData = deploymentsResult.value
-      queryClient.setQueryData(orpcServer.service.getDeployments.queryKey({ input: { id: serviceId, limit: 50 } }), deploymentsResult.value)
+      queryClient.setQueryData(orpc.service.getDeployments.queryKey({ input: { id: serviceId, limit: 50 } }), deploymentsResult.value)
     }
   } catch (error) {
     console.error('Failed to prefetch service data:', error)
@@ -135,17 +134,16 @@ import { tryCatchAll } from '@/utils/server'
 export default async function ServiceLayout({ params }) {
   const { projectId, serviceId } = await params
   const queryClient = getQueryClient()
-  const orpcServer = await createServerORPC()
 
   const [service, deploymentsData] = await tryCatchAll([
     async () => {
-      const result = await queryClient.fetchQuery(orpcServer.service.getById.queryOptions({ input: { id: serviceId } }))
-      queryClient.setQueryData(orpcServer.service.getById.queryKey({ input: { id: serviceId } }), result)
+      const result = await queryClient.fetchQuery(orpc.service.getById.queryOptions({ input: { id: serviceId } }))
+      queryClient.setQueryData(orpc.service.getById.queryKey({ input: { id: serviceId } }), result)
       return result
     },
     async () => {
-      const result = await queryClient.fetchQuery(orpcServer.service.getDeployments.queryOptions({ input: { id: serviceId, limit: 50 } }))
-      queryClient.setQueryData(orpcServer.service.getDeployments.queryKey({ input: { id: serviceId, limit: 50 } }), result)
+      const result = await queryClient.fetchQuery(orpc.service.getDeployments.queryOptions({ input: { id: serviceId, limit: 50 } }))
+      queryClient.setQueryData(orpc.service.getDeployments.queryKey({ input: { id: serviceId, limit: 50 } }), result)
       return result
     }
   ], (error, index) => {
@@ -168,7 +166,7 @@ export default async function ComplexServerComponent({ params }) {
   
   // Step 1: Create ORPC client with error handling
   const orpc = await tryCatch(
-    () => createServerORPC(),
+    async () => await fetch(),
     (error) => console.error('Failed to create ORPC client:', error)
   )
   

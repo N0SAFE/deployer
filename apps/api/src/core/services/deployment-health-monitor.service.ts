@@ -3,9 +3,10 @@ import type { OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/comm
 import { Cron } from '@nestjs/schedule';
 import { DeploymentService } from './deployment.service';
 import { DockerService } from './docker.service';
-import { db } from '../modules/db/drizzle/index';
-import { deployments, deploymentLogs } from '../modules/db/drizzle/schema';
-import { inArray } from 'drizzle-orm';
+import { deployments, deploymentLogs } from '@/config/drizzle/schema';
+import { inArray, and, lt, sql } from 'drizzle-orm';
+import { DeploymentPhase } from '../types/deployment-phase';
+import { DatabaseService } from '../modules/database/services/database.service';
 
 /**
  * Deployment Health Monitor Service
@@ -13,6 +14,7 @@ import { inArray } from 'drizzle-orm';
  * Continuously monitors the health of all active deployments and updates their status.
  * Features:
  * - Periodic health checks every 2 minutes
+ * - Stuck deployment detection (phase hasn't updated in 5+ minutes)
  * - Automatic restart of unhealthy containers
  * - Database status updates
  * - Comprehensive logging
@@ -24,6 +26,7 @@ interface MonitoringStats {
     healthyDeployments: number;
     degradedDeployments: number;
     unhealthyDeployments: number;
+    stuckDeployments: number;
     restartedContainers: number;
     errors: number;
 }
@@ -37,12 +40,14 @@ export class DeploymentHealthMonitorService implements OnApplicationBootstrap, O
         healthyDeployments: 0,
         degradedDeployments: 0,
         unhealthyDeployments: 0,
+        stuckDeployments: 0,
         restartedContainers: 0,
         errors: 0,
     };
 
     constructor(
         private readonly deploymentService: DeploymentService,
+        private readonly databaseService: DatabaseService,
         private readonly dockerService: DockerService,
     ) {}
 
@@ -82,12 +87,16 @@ export class DeploymentHealthMonitorService implements OnApplicationBootstrap, O
                 healthyDeployments: 0,
                 degradedDeployments: 0,
                 unhealthyDeployments: 0,
+                stuckDeployments: 0,
                 restartedContainers: 0,
                 errors: 0,
             };
 
+            // Check for stuck deployments first (phase hasn't updated in 5+ minutes)
+            await this.checkStuckDeployments();
+
             // Get all active deployments (successful or deployed)
-            const activeDeployments = await db
+            const activeDeployments = await this.databaseService.db
                 .select()
                 .from(deployments)
                 .where(inArray(deployments.status, ['success', 'deploying']));
@@ -114,17 +123,69 @@ export class DeploymentHealthMonitorService implements OnApplicationBootstrap, O
                 `${this.stats.healthyDeployments} healthy, ` +
                 `${this.stats.degradedDeployments} degraded, ` +
                 `${this.stats.unhealthyDeployments} unhealthy, ` +
+                `${this.stats.stuckDeployments} stuck (marked failed), ` +
                 `${this.stats.restartedContainers} containers restarted, ` +
                 `${this.stats.errors} errors`
             );
 
             // Log summary if there are issues
-            if (this.stats.degradedDeployments > 0 || this.stats.unhealthyDeployments > 0) {
+            if (this.stats.degradedDeployments > 0 || this.stats.unhealthyDeployments > 0 || this.stats.stuckDeployments > 0) {
                 await this.logMonitoringSummary();
             }
 
         } catch (error) {
             this.logger.error('Health check failed:', error);
+            this.stats.errors++;
+        }
+    }
+
+    /**
+     * Check for stuck deployments (phase hasn't updated in 5+ minutes)
+     */
+    private async checkStuckDeployments(): Promise<void> {
+        try {
+            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+            
+            const stuckDeployments = await this.databaseService.db
+                .select()
+                .from(deployments)
+                .where(
+                    and(
+                        inArray(deployments.status, ['building', 'deploying']),
+                        lt(deployments.phaseUpdatedAt, fiveMinutesAgo),
+                        sql`${deployments.phase} != ${DeploymentPhase.ACTIVE}`,
+                        sql`${deployments.phase} != ${DeploymentPhase.FAILED}`
+                    )
+                );
+
+            this.stats.stuckDeployments = stuckDeployments.length;
+
+            if (stuckDeployments.length > 0) {
+                this.logger.warn(`Found ${stuckDeployments.length} stuck deployments`);
+                
+                for (const deployment of stuckDeployments) {
+                    this.logger.warn(
+                        `Deployment ${deployment.id} stuck in phase ${deployment.phase} ` +
+                        `(last update: ${deployment.phaseUpdatedAt})`
+                    );
+                    
+                    // Mark as failed after being stuck
+                    await this.deploymentService.updateDeploymentPhase(
+                        deployment.id,
+                        DeploymentPhase.FAILED,
+                        0,
+                        {
+                            error: 'Deployment stuck - no progress for 5+ minutes',
+                            stuckPhase: deployment.phase,
+                            stuckAt: deployment.phaseUpdatedAt?.toISOString(),
+                        }
+                    );
+                    
+                    await this.deploymentService.updateDeploymentStatus(deployment.id, 'failed');
+                }
+            }
+        } catch (error) {
+            this.logger.error('Error checking stuck deployments:', error);
             this.stats.errors++;
         }
     }
@@ -195,7 +256,7 @@ export class DeploymentHealthMonitorService implements OnApplicationBootstrap, O
      */
     private async logRestartAction(deploymentId: string, restartResult: any): Promise<void> {
         try {
-            await db.insert(deploymentLogs).values({
+            await this.databaseService.db.insert(deploymentLogs).values({
                 deploymentId,
                 level: 'info',
                 message: `Automatic restart: ${restartResult.restartedContainers.length} containers restarted`,
@@ -221,17 +282,17 @@ export class DeploymentHealthMonitorService implements OnApplicationBootstrap, O
     private async logMonitoringSummary(): Promise<void> {
         try {
             // Log a summary to the most recent deployment if there are issues
-            const recentDeployments = await db
+            const recentDeployments = await this.databaseService.db
                 .select()
                 .from(deployments)
                 .where(inArray(deployments.status, ['success', 'deploying']))
                 .limit(1);
 
             if (recentDeployments.length > 0) {
-                await db.insert(deploymentLogs).values({
+                await this.databaseService.db.insert(deploymentLogs).values({
                     deploymentId: recentDeployments[0].id,
                     level: 'warn',
-                    message: `Health monitoring summary: ${this.stats.degradedDeployments} degraded, ${this.stats.unhealthyDeployments} unhealthy deployments detected`,
+                    message: `Health monitoring summary: ${this.stats.degradedDeployments} degraded, ${this.stats.unhealthyDeployments} unhealthy, ${this.stats.stuckDeployments} stuck deployments detected`,
                     service: 'health-monitor',
                     stage: 'monitoring',
                     metadata: {
@@ -240,6 +301,7 @@ export class DeploymentHealthMonitorService implements OnApplicationBootstrap, O
                             healthyDeployments: this.stats.healthyDeployments,
                             degradedDeployments: this.stats.degradedDeployments,
                             unhealthyDeployments: this.stats.unhealthyDeployments,
+                            stuckDeployments: this.stats.stuckDeployments,
                             restartedContainers: this.stats.restartedContainers,
                             errors: this.stats.errors,
                         }),

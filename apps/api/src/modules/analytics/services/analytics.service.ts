@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '@/core/modules/db/services/database.service';
+import { DatabaseService } from '@/core/modules/database/services/database.service';
 import * as os from 'os';
 @Injectable()
 export class AnalyticsService {

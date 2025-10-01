@@ -843,27 +843,13 @@ CMD ["npm", "start"]
                 }
                 catch (retryErr) {
                     this.logger.warn(`Non-hijack exec retry failed for container ${containerIdOrName}:`, retryErr);
-                    // fall through to helper container fallback
+                    // Helper container fallback is disabled - throw the original error
+                    throw error;
                 }
 
-                // If the non-hijack retry didn't succeed, proceed to helper container fallback
-                try {
-                    const fallbackResult = await this.runCommandInHelperContainer(containerIdOrName, cmd.join(' '), input);
-                    this.logger.log(`Helper container fallback succeeded for container ${containerIdOrName} (exitCode=${fallbackResult.exitCode})`);
-                    // Include helper container logs in API logs (truncate to avoid huge outputs)
-                    if (fallbackResult.output && fallbackResult.output.length > 0) {
-                        const truncated = fallbackResult.output.length > 5000 ? `${fallbackResult.output.slice(0, 5000)}\n...truncated...` : fallbackResult.output;
-                        this.logger.debug(`Helper container logs (truncated):\n${truncated}`);
-                    }
-                    if (fallbackResult.exitCode !== 0) {
-                        throw new Error(`Helper container command failed with exit code ${fallbackResult.exitCode}: ${fallbackResult.output}`);
-                    }
-                    return fallbackResult;
-                }
-                catch (helperErr) {
-                    this.logger.error(`Helper container fallback failed for container ${containerIdOrName}:`, helperErr);
-                    throw helperErr;
-                }
+                // Helper container fallback has been disabled
+                this.logger.error(`Both hijack and non-hijack exec attempts failed for container ${containerIdOrName}`);
+                throw error;
             }
 
             if (msg && msg.includes('socket connection was closed unexpectedly')) {
@@ -934,7 +920,6 @@ CMD ["npm", "start"]
             name: helperName,
             HostConfig: {
                 Binds: binds,
-                AutoRemove: false,
             },
             Tty: false,
         };
@@ -1006,6 +991,574 @@ CMD ["npm", "start"]
              throw error;
          }
      }
+
+    /**
+     * Attempt to detect the container id for the current process. Tries /proc/self/cgroup then falls back to hostname.
+     */
+    getSelfContainerId(): string | null {
+        try {
+            const cgroup = fs.readFileSync('/proc/self/cgroup', 'utf8');
+            const lines = cgroup.split('\n');
+            for (const line of lines) {
+                // Docker cgroup lines often end with container id
+                const parts = line.split(':');
+                const candidate = parts[parts.length - 1] || '';
+                if (candidate && candidate.length >= 12) {
+                    // strip possible prefix like /docker/ or /kubepods/.../docker-<id>.scope
+                    const m = candidate.match(/[0-9a-f]{12,64}/i);
+                    if (m) return m[0];
+                }
+            }
+        } catch { /* ignore */ }
+        try {
+            const hostname = fs.readFileSync('/etc/hostname', 'utf8').trim();
+            if (hostname && hostname.length >= 12) return hostname;
+        } catch { /* ignore */ }
+        return null;
+    }
+
+    /**
+     * Write a string as a file into a named volume at the given path.
+     * Uses base64 to avoid shell quoting issues.
+     */
+    async putStringIntoVolume(volumeName: string, destPathInVolume: string, filename: string, content: string, retries = 3, backoffMs = 1000): Promise<void> {
+        const helperImage = 'alpine:latest';
+        try { await this.pullImage(helperImage); } catch { this.logger.debug(`Could not pull helper image ${helperImage} - proceeding if local image exists`); }
+
+        const b64 = Buffer.from(content).toString('base64');
+        const safeDest = destPathInVolume || '/';
+
+        let lastErr: Error | null = null;
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            const helperName = `deployer-putstr-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+            const cmd = ['sh', '-c', `mkdir -p /target${safeDest} && printf '%s' '${b64}' | base64 -d > /target${safeDest}/${filename} && chown -R 1000:1000 /target${safeDest}/${filename}`];
+            const createOpts: Docker.ContainerCreateOptions = {
+                Image: helperImage,
+                name: helperName,
+                HostConfig: { Binds: [`${volumeName}:/target`] },
+                Cmd: cmd,
+                Tty: false,
+            };
+
+            let helperContainer: Docker.Container | null = null;
+            try {
+                helperContainer = await this.docker.createContainer(createOpts);
+                await helperContainer.start();
+                const waitRes = await helperContainer.wait();
+                const status = (waitRes && (waitRes as any).StatusCode) || 0;
+                const logs = await this.getContainerLogs(helperContainer.id, { stdout: true, stderr: true, tail: 200 });
+                if (status !== 0) {
+                    lastErr = new Error(`Helper putString exited ${status} - logs: ${logs}`);
+                    this.logger.warn(`putString attempt ${attempt} failed for ${volumeName}${safeDest}/${filename}: ${lastErr.message}`);
+                } else {
+                    this.logger.log(`Wrote file ${filename} into volume ${volumeName} at ${safeDest} (attempt ${attempt})`);
+                    try { await helperContainer.remove({ force: true }); } catch { }
+                    return;
+                }
+            }
+            catch (err) {
+                lastErr = err as Error;
+                this.logger.warn(`putString attempt ${attempt} failed for ${volumeName}${safeDest}/${filename}: ${lastErr.message}`);
+                if (helperContainer) {
+                    try { await helperContainer.remove({ force: true }); } catch { }
+                }
+            }
+
+            if (attempt < retries) {
+                this.logger.debug(`Retrying putString in ${backoffMs}ms (attempt ${attempt + 1}/${retries})`);
+                await new Promise(r => setTimeout(r, backoffMs));
+                backoffMs *= 2;
+            }
+        }
+
+        throw new Error(`Failed to write file ${filename} into volume ${volumeName} after ${retries} attempts: ${(lastErr as Error)?.message || String(lastErr)}`);
+    }
+
+    /**
+     * Copy files from a container to a Docker volume using native Dockerode operations.
+     * This method creates a temporary container with the volume mounted, extracts files from source,
+     * and puts them into the volume - all without needing a persistent helper container.
+     */
+    async copyFromContainerToVolume(
+        sourceContainerIdOrName: string,
+        sourcePath: string,
+        volumeName: string,
+        destPathInVolume: string
+    ): Promise<void> {
+        this.logger.log(`Copying from container ${sourceContainerIdOrName}:${sourcePath} into volume ${volumeName}:${destPathInVolume}`);
+        
+        const sourceContainer = this.docker.getContainer(sourceContainerIdOrName);
+        
+        // Create a one-shot container to receive the archive
+        // This container will mount the volume, receive the tar stream, extract it, and exit
+        const helperImage = 'alpine:latest';
+        try { 
+            await this.pullImage(helperImage); 
+        } catch { 
+            this.logger.debug('Could not pull helper image - will use local copy if available'); 
+        }
+        
+        const helperName = `deployer-copy-${Date.now()}-${Math.floor(Math.random()*10000)}`;
+        const createOpts: Docker.ContainerCreateOptions = {
+            Image: helperImage,
+            name: helperName,
+            HostConfig: {
+                Binds: [`${volumeName}:/target`],
+                AutoRemove: false, // We'll remove manually after verification
+            },
+            // Use a sleep command to keep container alive for our operations
+            Cmd: ['sh', '-c', 'sleep 60'],
+            Tty: false,
+        };
+        
+        let helperContainer: Docker.Container | null = null;
+        try {
+            this.logger.debug(`Creating helper container ${helperName} for volume copy`);
+            helperContainer = await this.docker.createContainer(createOpts);
+            
+            // Start container to create directory structure first
+            await helperContainer.start();
+            
+            // Create the parent directory structure
+            const parentDir = destPathInVolume.substring(0, destPathInVolume.lastIndexOf('/')) || destPathInVolume;
+            this.logger.debug(`Creating directory structure: /target${parentDir}`);
+            try {
+                const mkdirExec = await helperContainer.exec({ 
+                    Cmd: ['sh', '-c', `mkdir -p /target${parentDir} && chmod 755 /target${parentDir}`], 
+                    AttachStdout: true, 
+                    AttachStderr: true 
+                });
+                const mkdirStream = await mkdirExec.start({ hijack: false, stdin: false });
+                await this.waitForStreamEnd(mkdirStream as NodeJS.ReadableStream, 2000);
+            } catch (mkdirErr) {
+                this.logger.warn(`Failed to create parent directory (continuing anyway): ${(mkdirErr as Error)?.message || String(mkdirErr)}`);
+            }
+            
+            // Get archive stream from source container and save to temp file
+            // Using a temp file avoids Docker API's chunked encoding issues with putArchive
+            this.logger.debug(`Getting archive from ${sourceContainerIdOrName}:${sourcePath}`);
+            const archiveStream = await sourceContainer.getArchive({ path: sourcePath }) as NodeJS.ReadableStream;
+            
+            // Write archive to temporary file
+            const { createWriteStream } = await import('fs');
+            const { unlink } = await import('fs/promises');
+            const tempTarPath = `/tmp/deployer-archive-${Date.now()}-${Math.floor(Math.random()*10000)}.tar`;
+            this.logger.debug(`Writing archive to temp file: ${tempTarPath}`);
+            
+            const writeStream = createWriteStream(tempTarPath);
+            archiveStream.pipe(writeStream);
+            
+            await new Promise<void>((resolve, reject) => {
+                writeStream.on('finish', () => resolve());
+                writeStream.on('error', (err) => reject(err));
+                archiveStream.on('error', (err) => reject(err));
+            });
+            
+            const { statSync, readFileSync } = await import('fs');
+            const tarSize = statSync(tempTarPath).size;
+            this.logger.debug(`Wrote ${tarSize} bytes to temp tar file`);
+            
+            // Since putArchive has issues with chunked encoding even from files,
+            // use docker cp via exec to extract the tar directly
+            const extractPath = `/target${parentDir}`;
+            this.logger.debug(`Extracting tar using exec in ${helperName} at ${extractPath}`);
+            
+            try {
+                // Read tar file as base64 to safely transfer via exec
+                const tarBuffer = readFileSync(tempTarPath);
+                const tarBase64 = tarBuffer.toString('base64');
+                
+                // Create the exact destination directory first
+                const finalDestPath = `/target${destPathInVolume}`;
+                const mkdirFinalExec = await helperContainer.exec({
+                    Cmd: ['sh', '-c', `mkdir -p ${finalDestPath}`],
+                    AttachStdout: true,
+                    AttachStderr: true
+                });
+                const mkdirFinalStream = await mkdirFinalExec.start({ hijack: false, stdin: false });
+                await this.waitForStreamEnd(mkdirFinalStream as NodeJS.ReadableStream, 2000);
+                
+                // The tar archive from getArchive contains the directory itself as the first entry,
+                // so we use --strip-components=1 to remove it and extract files directly
+                const extractCmd = `echo '${tarBase64}' | base64 -d | tar -xf - -C ${finalDestPath} --strip-components=1`;
+                const extractExec = await helperContainer.exec({ 
+                    Cmd: ['sh', '-c', extractCmd], 
+                    AttachStdout: true, 
+                    AttachStderr: true 
+                });
+                const extractStream = await extractExec.start({ hijack: false, stdin: false });
+                const extractOutput = await this.captureStreamOutput(extractStream as NodeJS.ReadableStream, 5000);
+                
+                const extractInspect = await extractExec.inspect();
+                if (extractInspect.ExitCode !== 0) {
+                    throw new Error(`Tar extraction failed with exit code ${extractInspect.ExitCode}: ${extractOutput}`);
+                }
+                
+                this.logger.debug(`Successfully extracted tar to ${finalDestPath} with strip-components=1`);
+            } finally {
+                // Clean up temp file
+                try {
+                    await unlink(tempTarPath);
+                    this.logger.debug(`Deleted temp tar file ${tempTarPath}`);
+                } catch (unlinkErr) {
+                    this.logger.warn(`Failed to delete temp tar file (non-fatal): ${(unlinkErr as Error)?.message}`);
+                }
+            }
+            
+            this.logger.log(`Successfully copied archive into volume ${volumeName}${destPathInVolume}`);
+            
+            // Container is already running, now run verification and permission fixes
+            this.logger.debug(`Running post-copy operations on ${helperName}`);
+            
+            // Fix permissions (set to lighttpd user 100:101)
+            try {
+                const chownCmd = `chown -R 100:101 /target${destPathInVolume} 2>/dev/null || true`;
+                const chownExec = await helperContainer.exec({ 
+                    Cmd: ['sh', '-c', chownCmd], 
+                    AttachStdout: true, 
+                    AttachStderr: true 
+                });
+                const chownStream = await chownExec.start({ hijack: false, stdin: false });
+                await this.waitForStreamEnd(chownStream as NodeJS.ReadableStream, 3000);
+                this.logger.debug('Set ownership to 100:101 for lighttpd');
+            } catch (chownErr) {
+                this.logger.warn(`Failed to set ownership (non-fatal): ${(chownErr as Error)?.message || String(chownErr)}`);
+            }
+            
+            // Set file permissions
+            try {
+                const chmodCmd = `find /target${destPathInVolume} -type f -exec chmod 644 {} \\; && find /target${destPathInVolume} -type d -exec chmod 755 {} \\;`;
+                const chmodExec = await helperContainer.exec({ 
+                    Cmd: ['sh', '-c', chmodCmd], 
+                    AttachStdout: true, 
+                    AttachStderr: true 
+                });
+                const chmodStream = await chmodExec.start({ hijack: false, stdin: false });
+                await this.waitForStreamEnd(chmodStream as NodeJS.ReadableStream, 3000);
+                this.logger.debug('Set permissions: 644 for files, 755 for directories');
+            } catch (chmodErr) {
+                this.logger.warn(`Failed to set permissions (non-fatal): ${(chmodErr as Error)?.message || String(chmodErr)}`);
+            }
+            
+            // Verify files were copied
+            // Add sync command to ensure files are flushed to disk before verification
+            try {
+                const verifyCmd = `sync && sleep 0.5 && ls -la /target${destPathInVolume} && find /target${destPathInVolume} -type f | wc -l`;
+                const verifyExec = await helperContainer.exec({ 
+                    Cmd: ['sh', '-c', verifyCmd], 
+                    AttachStdout: true, 
+                    AttachStderr: true 
+                });
+                const verifyStream = await verifyExec.start({ hijack: false, stdin: false });
+                const output = await this.captureStreamOutput(verifyStream as NodeJS.ReadableStream, 3000);
+                
+                // Debug: log the raw output
+                this.logger.debug(`Verification raw output: ${JSON.stringify(output)}`);
+                
+                const lines = output.split('\n');
+                this.logger.debug(`Verification lines: ${JSON.stringify(lines)}`);
+                
+                const lastLine = lines[lines.length - 1]?.trim() || lines[lines.length - 2]?.trim();
+                const filesCount = Number(lastLine) || 0;
+                
+                this.logger.log(`Verification: ${filesCount} files found in ${volumeName}${destPathInVolume} (last line: "${lastLine}")`);
+
+                
+                if (filesCount === 0) {
+                    throw new Error('Archive extracted but no files found in destination');
+                }
+            } catch (verifyErr) {
+                this.logger.error(`Post-copy verification failed: ${(verifyErr as Error)?.message || String(verifyErr)}`);
+                throw verifyErr;
+            }
+            
+            // Clean up helper container
+            try { 
+                await helperContainer.stop({ t: 1 }); 
+            } catch {
+                // Container might have already exited
+                this.logger.debug('Container already stopped');
+            }
+            
+            try { 
+                await helperContainer.remove({ force: true }); 
+                this.logger.debug(`Removed helper container ${helperName}`);
+            } catch (removeErr) {
+                this.logger.warn(`Failed to remove helper container: ${(removeErr as Error)?.message || String(removeErr)}`);
+            }
+            
+        } catch (err) {
+            this.logger.error(`Failed to copy from ${sourceContainerIdOrName}:${sourcePath} to volume ${volumeName}:${destPathInVolume}:`, (err as Error)?.message || String(err));
+            
+            // Clean up on error
+            if (helperContainer) {
+                try { 
+                    await helperContainer.remove({ force: true }); 
+                } catch (cleanupErr) {
+                    this.logger.debug('Failed to cleanup helper container:', (cleanupErr as Error)?.message);
+                }
+            }
+            
+            throw err;
+        }
+    }
+    
+    /**
+     * Helper method to wait for a stream to end with timeout
+     */
+    private async waitForStreamEnd(stream: NodeJS.ReadableStream, timeoutMs: number = 5000): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                resolve(); // Don't reject on timeout, just continue
+            }, timeoutMs);
+            
+            stream.on('end', () => {
+                clearTimeout(timeout);
+                resolve();
+            });
+            
+            stream.on('error', (err) => {
+                clearTimeout(timeout);
+                reject(err);
+            });
+            
+            // Start reading the stream
+            stream.resume();
+        });
+    }
+    
+    /**
+     * Helper method to capture stream output with timeout
+     */
+    private async captureStreamOutput(stream: NodeJS.ReadableStream, timeoutMs: number = 5000): Promise<string> {
+        return new Promise((resolve, reject) => {
+            let output = '';
+            const timeout = setTimeout(() => {
+                resolve(output); // Return what we have so far
+            }, timeoutMs);
+            
+            stream.on('data', (chunk) => {
+                // Docker exec streams are multiplexed with 8-byte headers
+                // Format: [stream_type, 0, 0, 0, size_bytes(4)]
+                // We need to strip these headers to get clean output
+                let data = chunk.toString();
+                
+                // Remove Docker stream headers (8 bytes at start of each chunk)
+                // Header format: 1 byte type, 3 bytes padding, 4 bytes size
+                if (Buffer.isBuffer(chunk) && chunk.length > 8) {
+                    // Check if this looks like a Docker stream header
+                    const streamType = chunk[0];
+                    if (streamType === 1 || streamType === 2) { // stdout or stderr
+                        // Skip the 8-byte header
+                        data = chunk.slice(8).toString();
+                    }
+                }
+                
+                output += data;
+            });
+            
+            stream.on('end', () => {
+                clearTimeout(timeout);
+                resolve(output);
+            });
+            
+            stream.on('error', (err) => {
+                clearTimeout(timeout);
+                reject(err);
+            });
+        });
+    }
+
+    /**
+     * Run a command in a temporary helper container that mounts a named volume at /target.
+     * Returns { exitCode, output } where output is combined stdout/stderr.
+     */
+    async runCommandInVolume(volumeName: string, command: string, _input?: string): Promise<{ exitCode: number; output: string }> {
+        this.logger.debug(`Running command in volume ${volumeName}: ${command}`);
+        const helperImage = 'alpine:latest';
+        try {
+            await this.pullImage(helperImage);
+        }
+        catch (pullErr) {
+            this.logger.warn(`Could not pull helper image ${helperImage}, proceeding with local image if available:`, pullErr);
+        }
+
+        const helperName = `deployer-vol-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        const createOpts: Docker.ContainerCreateOptions = {
+            Image: helperImage,
+            Cmd: ['sh', '-c', command],
+            name: helperName,
+            HostConfig: {
+                Binds: [`${volumeName}:/target`],
+            },
+            Tty: false,
+        };
+
+        let helperContainer: Docker.Container | null = null;
+        try {
+            helperContainer = await this.docker.createContainer(createOpts);
+            await helperContainer.start();
+            this.logger.log(`Started helper container ${helperName} (id=${helperContainer.id}) for command execution`);
+
+            // Wait for completion with timeout
+            const waitPromise = helperContainer.wait() as Promise<{ StatusCode?: number } | undefined>;
+            const timeoutPromise = new Promise<never>((_, reject) => {
+                setTimeout(() => reject(new Error('Container wait timeout after 120 seconds')), 120000);
+            });
+            
+            const waitResult = await Promise.race([waitPromise, timeoutPromise]);
+            const statusCode = typeof waitResult?.StatusCode === 'number' ? waitResult.StatusCode : -1;
+
+            // Fetch logs
+            let logs = '';
+            try {
+                logs = await this.getContainerLogs(helperContainer.id, { stdout: true, stderr: true, tail: 1000 });
+            }
+            catch (logErr) {
+                this.logger.warn(`Failed to read logs from helper container ${helperName}:`, (logErr as Error)?.message || String(logErr));
+            }
+
+            // Clean up helper container
+            try {
+                await helperContainer.remove({ force: true });
+            }
+            catch (remErr) {
+                this.logger.warn(`Failed to remove helper container ${helperName}:`, (remErr as Error)?.message || String(remErr));
+            }
+
+            if (statusCode !== 0) {
+                this.logger.error(`Helper container ${helperName} exited with code ${statusCode}: ${logs}`);
+                return { exitCode: statusCode, output: logs };
+            }
+
+            this.logger.debug(`Helper container ${helperName} completed successfully`);
+            return { exitCode: 0, output: logs };
+        }
+        catch (err) {
+            const errorMessage = (err as any)?.message || String(err);
+            this.logger.error(`Helper container execution failed for volume ${volumeName}: ${errorMessage}`);
+            
+            // Attempt to clean up if container was created but not removed
+            if (helperContainer) {
+                try { 
+                    await helperContainer.remove({ force: true }); 
+                    this.logger.debug(`Cleaned up helper container ${helperName} after error`);
+                } catch (removeErr) {
+                    this.logger.warn(`Failed to clean up helper container ${helperName}: ${(removeErr as any)?.message}`);
+                }
+            }
+            
+            // If it was a timeout, return a specific error response instead of throwing
+            if (errorMessage.includes('timeout')) {
+                this.logger.warn(`Helper container ${helperName} timed out, returning failure result`);
+                return { exitCode: 124, output: `Command timed out after 120 seconds: ${command}` };
+            }
+            
+            throw err;
+        }
+    }
+
+    /**
+     * Find a container that contains the specified path in its filesystem.
+     * Searches through running containers and checks if the path exists.
+     * Returns the container ID if found, null otherwise.
+     */
+    async findContainerWithPath(searchPath: string): Promise<string | null> {
+        this.logger.debug(`Searching for container containing path: ${searchPath}`);
+        
+        try {
+            // List all running containers
+            const containers = await this.docker.listContainers({ all: false });
+            
+            if (!containers || containers.length === 0) {
+                this.logger.debug('No running containers found to search');
+                return null;
+            }
+
+            this.logger.debug(`Searching through ${containers.length} running containers for path ${searchPath}`);
+
+            // Check each container for the path
+            for (const containerInfo of containers) {
+                const containerId = containerInfo.Id;
+                const containerName = containerInfo.Names?.[0] || containerId;
+
+                try {
+                    // Try to check if path exists in this container
+                    const checkCmd = ['sh', '-c', `test -e "${searchPath}" && echo "EXISTS" || echo "NOT_FOUND"`];
+                    
+                    // Use a simpler approach - try to inspect the path via container exec
+                    const container = this.docker.getContainer(containerId);
+                    const exec = await container.exec({
+                        Cmd: checkCmd,
+                        AttachStdout: true,
+                        AttachStderr: true,
+                    });
+
+                    const stream = await exec.start({ hijack: false, stdin: false }) as NodeJS.ReadableStream;
+                    
+                    let output = '';
+                    stream.on && stream.on('data', (chunk: Buffer) => {
+                        try { output += chunk.toString('utf8'); } catch { }
+                    });
+
+                    await new Promise<void>((resolve) => {
+                        stream.on && stream.on('end', () => resolve());
+                        stream.on && stream.on('close', () => resolve());
+                        // Timeout after 2 seconds
+                        setTimeout(() => resolve(), 2000);
+                    });
+
+                    const execInspect = await exec.inspect();
+                    const exitCode = typeof execInspect.ExitCode === 'number' ? execInspect.ExitCode : -1;
+
+                    if (exitCode === 0 && output.includes('EXISTS')) {
+                        this.logger.log(`Found path ${searchPath} in container ${containerName} (${containerId})`);
+                        return containerId;
+                    }
+
+                    this.logger.debug(`Path ${searchPath} not found in container ${containerName} (exit=${exitCode}, output=${output.trim()})`);
+                } catch (execErr) {
+                    // If exec fails (e.g., no sh available), try alternative approach or skip
+                    this.logger.debug(`Could not check path in container ${containerName}: ${(execErr as Error)?.message || String(execErr)}`);
+                    
+                    // Try alternative: check using stat or ls
+                    try {
+                        const altCmd = ['test', '-e', searchPath];
+                        const container = this.docker.getContainer(containerId);
+                        const altExec = await container.exec({
+                            Cmd: altCmd,
+                            AttachStdout: true,
+                            AttachStderr: true,
+                        });
+
+                        const altStream = await altExec.start({ hijack: false, stdin: false }) as NodeJS.ReadableStream;
+                        
+                        await new Promise<void>((resolve) => {
+                            altStream.on && altStream.on('end', () => resolve());
+                            altStream.on && altStream.on('close', () => resolve());
+                            setTimeout(() => resolve(), 2000);
+                        });
+
+                        const altInspect = await altExec.inspect();
+                        const altExitCode = typeof altInspect.ExitCode === 'number' ? altInspect.ExitCode : -1;
+
+                        if (altExitCode === 0) {
+                            this.logger.log(`Found path ${searchPath} in container ${containerName} (${containerId}) using test command`);
+                            return containerId;
+                        }
+                    } catch (altErr) {
+                        this.logger.debug(`Alternative check also failed for ${containerName}: ${(altErr as Error)?.message || String(altErr)}`);
+                    }
+                }
+            }
+
+            this.logger.debug(`Path ${searchPath} not found in any running container`);
+            return null;
+        } catch (error) {
+            this.logger.error(`Error while searching for container with path ${searchPath}:`, error);
+            return null;
+        }
+    }
 }
 
 // Stronger create container options combining dockerode types with our custom fields

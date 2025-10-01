@@ -1,7 +1,7 @@
 import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
 import { ScheduleModule } from '@nestjs/schedule';
-import { DatabaseModule } from './core/modules/db/database.module';
+import { DatabaseModule } from './core/modules/database/database.module';
 import { CoreModule } from './core/core.module';
 import { HealthModule } from './modules/health/health.module';
 import { HealthMonitorModule } from './modules/health-monitor/health-monitor.module';
@@ -20,12 +20,14 @@ import { StaticFileModule } from './modules/static-file/static-file.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { CiCdModule } from './modules/ci-cd/ci-cd.module';
 import { onError, ORPCModule } from '@orpc/nest';
-import { DATABASE_CONNECTION } from './core/modules/db/database-connection';
-import { AuthModule } from './modules/auth/auth.module';
-import { betterAuthFactory } from './auth';
+import { DATABASE_CONNECTION } from './core/modules/database/tokens/database-connection';
+import { AuthModule } from './core/modules/auth/auth.module';
 import { LoggerMiddleware } from './core/middlewares/logger.middleware';
 import { APP_GUARD } from '@nestjs/core';
-import { AuthGuard } from './modules/auth/guards/auth.guard';
+import { AuthGuard } from './core/modules/auth/guards/auth.guard';
+import { betterAuthFactory } from './config/auth/auth';
+import { EnvService } from './config/env/env.service';
+import { EnvModule } from './config/env/env.module';
 @Module({
     imports: [
         // Enable scheduled tasks
@@ -62,9 +64,9 @@ import { AuthGuard } from './modules/auth/guards/auth.guard';
         AnalyticsModule,
         CiCdModule,
         AuthModule.forRootAsync({
-            imports: [DatabaseModule],
+            imports: [DatabaseModule, EnvModule],
             useFactory: betterAuthFactory,
-            inject: [DATABASE_CONNECTION],
+            inject: [DATABASE_CONNECTION, EnvService],
         }),
         ORPCModule.forRoot({
             interceptors: [

@@ -1,23 +1,21 @@
-import { Injectable, Logger, Inject, type OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { DATABASE_CONNECTION } from '../../db/database-connection';
-import type { Database } from '../../db/drizzle/index';
-import { orchestrationStacks } from '../../db/drizzle/schema';
+import { orchestrationStacks } from '@/config/drizzle/schema';
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import * as yaml from 'js-yaml';
 import { eq } from 'drizzle-orm';
 import { DockerService } from '../../../services/docker.service';
 import type { SwarmStackConfig, StackStatus } from '@repo/api-contracts/modules/orchestration';
+import { DatabaseService } from '../../database/services/database.service';
 @Injectable()
 export class SwarmOrchestrationService implements OnModuleInit {
     private readonly logger = new Logger(SwarmOrchestrationService.name);
     private readonly stacksDir = './docker-stacks';
     constructor(
-    @Inject(DATABASE_CONNECTION)
-    private readonly db: Database, 
+    private readonly databaseService: DatabaseService, 
     @InjectQueue('deployment')
     private readonly deploymentQueue: Queue,
     private readonly dockerService: DockerService) {
@@ -31,7 +29,7 @@ export class SwarmOrchestrationService implements OnModuleInit {
     async monitorStacks() {
         this.logger.debug('Running stack monitoring...');
         try {
-            const activeStacks = await this.db
+            const activeStacks = await this.databaseService.db
                 .select()
                 .from(orchestrationStacks)
                 .where(eq(orchestrationStacks.status, 'running'));
@@ -39,7 +37,7 @@ export class SwarmOrchestrationService implements OnModuleInit {
                 const status = await this.getStackStatus(stack.id);
                 if (status) {
                     // Update stack status in database
-                    await this.db
+                    await this.databaseService.db
                         .update(orchestrationStacks)
                         .set({
                         status: status.status as any,
@@ -66,7 +64,7 @@ export class SwarmOrchestrationService implements OnModuleInit {
                 domainMappings: stackConfig.domain ? { [stackName]: [stackConfig.domain] } : null,
                 status: 'creating' as any,
             };
-            const [stack] = await this.db.insert(orchestrationStacks).values(insertData as any).returning();
+            const [stack] = await this.databaseService.db.insert(orchestrationStacks).values(insertData as any).returning();
             // Queue deployment job
             await this.deploymentQueue.add('deploy-stack', {
                 stackId: stack.id,
@@ -85,7 +83,7 @@ export class SwarmOrchestrationService implements OnModuleInit {
         try {
             this.logger.log(`Deploying stack: ${stackName}`);
             // Update status to deploying
-            await this.db
+            await this.databaseService.db
                 .update(orchestrationStacks)
                 .set({ status: 'updating', updatedAt: new Date() })
                 .where(eq(orchestrationStacks.id, stackId));
@@ -95,7 +93,7 @@ export class SwarmOrchestrationService implements OnModuleInit {
             // Deploy to Docker Swarm using Docker API
             await this.deployStackToSwarm(stackName, composeConfig);
             // Update status to running
-            await this.db
+            await this.databaseService.db
                 .update(orchestrationStacks)
                 .set({ status: 'running', updatedAt: new Date() })
                 .where(eq(orchestrationStacks.id, stackId));
@@ -104,7 +102,7 @@ export class SwarmOrchestrationService implements OnModuleInit {
         catch (error) {
             this.logger.error(`Failed to deploy stack ${stackName}:`, error);
             // Update status to error
-            await this.db
+            await this.databaseService.db
                 .update(orchestrationStacks)
                 .set({ status: 'failed', updatedAt: new Date() })
                 .where(eq(orchestrationStacks.id, stackId));
@@ -114,7 +112,7 @@ export class SwarmOrchestrationService implements OnModuleInit {
     async removeStack(stackId: string): Promise<void> {
         try {
             // Get stack from database
-            const [stack] = await this.db
+            const [stack] = await this.databaseService.db
                 .select()
                 .from(orchestrationStacks)
                 .where(eq(orchestrationStacks.id, stackId))
@@ -125,14 +123,14 @@ export class SwarmOrchestrationService implements OnModuleInit {
             const stackName = stack.name;
             this.logger.log(`Removing stack: ${stackName}`);
             // Update status
-            await this.db
+            await this.databaseService.db
                 .update(orchestrationStacks)
                 .set({ status: 'removing', updatedAt: new Date() })
                 .where(eq(orchestrationStacks.id, stackId));
             // Remove from Docker Swarm
             await this.removeStackFromSwarm(stackName);
             // Remove from database
-            await this.db
+            await this.databaseService.db
                 .delete(orchestrationStacks)
                 .where(eq(orchestrationStacks.id, stackId));
             this.logger.log(`Stack ${stackName} removed successfully`);
@@ -145,7 +143,7 @@ export class SwarmOrchestrationService implements OnModuleInit {
     async updateStack(stackId: string, request: any): Promise<void> {
         try {
             // Find the stack in database
-            const [stack] = await this.db
+            const [stack] = await this.databaseService.db
                 .select()
                 .from(orchestrationStacks)
                 .where(eq(orchestrationStacks.id, stackId))
@@ -158,14 +156,14 @@ export class SwarmOrchestrationService implements OnModuleInit {
             if (request.composeConfig) {
                 this.logger.log(`Updating stack: ${stackName}`);
                 // Update status
-                await this.db
+                await this.databaseService.db
                     .update(orchestrationStacks)
                     .set({ status: 'updating', updatedAt: new Date() })
                     .where(eq(orchestrationStacks.id, stackId));
                 // Deploy updated stack
                 await this.deployStackToSwarm(stackName, request.composeConfig);
                 // Update database
-                await this.db
+                await this.databaseService.db
                     .update(orchestrationStacks)
                     .set({
                     composeConfig: request.composeConfig,
@@ -178,7 +176,7 @@ export class SwarmOrchestrationService implements OnModuleInit {
         catch (error) {
             this.logger.error(`Failed to update stack:`, error);
             // Update status to error
-            await this.db
+            await this.databaseService.db
                 .update(orchestrationStacks)
                 .set({ status: 'failed', updatedAt: new Date() })
                 .where(eq(orchestrationStacks.id, stackId));
@@ -188,7 +186,7 @@ export class SwarmOrchestrationService implements OnModuleInit {
     async scaleServices(stackId: string, request: any): Promise<void> {
         try {
             // Find the stack
-            const [stack] = await this.db
+            const [stack] = await this.databaseService.db
                 .select()
                 .from(orchestrationStacks)
                 .where(eq(orchestrationStacks.id, stackId))
@@ -234,7 +232,7 @@ export class SwarmOrchestrationService implements OnModuleInit {
     async getStackStatus(stackId: string): Promise<StackStatus | null> {
         try {
             // Get stack from database
-            const [stack] = await this.db
+            const [stack] = await this.databaseService.db
                 .select()
                 .from(orchestrationStacks)
                 .where(eq(orchestrationStacks.id, stackId))
@@ -303,7 +301,7 @@ export class SwarmOrchestrationService implements OnModuleInit {
         this.logger.debug(`Listing stacks for project: ${projectId}`);
         try {
             // Get all stacks for the project from database
-            const stacks = await this.db
+            const stacks = await this.databaseService.db
                 .select()
                 .from(orchestrationStacks)
                 .where(eq(orchestrationStacks.projectId, projectId));

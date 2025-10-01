@@ -6,11 +6,12 @@
   "compilerOptions": {
     "deleteOutDir": false
   },
+  "entryFile": "apps/api/src/main.js",
   "projects": {
     "api": {
       "type": "application",
       "entryFile": "main",
-      "sourceRoot": "apps/api/src"
+      "sourceRoot": "src"
     },
     "api-contracts": {
       "type": "library",

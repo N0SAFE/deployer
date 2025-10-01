@@ -1,13 +1,13 @@
 import { Controller, Logger } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { projectContract } from '@repo/api-contracts';
-import { DatabaseService } from '../../../core/modules/db/services/database.service';
+import { DatabaseService } from '../../../core/modules/database/services/database.service';
 import { ProjectService } from '../services/project.service';
-import { projects, projectCollaborators, environments, variableTemplates } from '../../../core/modules/db/drizzle/schema';
+import { projects, projectCollaborators, environments, variableTemplates } from '../../../config/drizzle/schema';
 import { eq, desc, count, ilike, asc, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { Session } from '@/modules/auth/decorators/decorators';
-import type { UserSession } from '@/modules/auth/guards/auth.guard';
+import { Session } from '@/core/modules/auth/decorators/decorators';
+import type { UserSession } from '@/core/modules/auth/guards/auth.guard';
 // Define the database environment type from Drizzle schema
 type DatabaseEnvironment = typeof environments.$inferSelect;
 type DatabaseVariableTemplate = typeof variableTemplates.$inferSelect;

@@ -1,12 +1,10 @@
 import { Processor, Process } from "@nestjs/bull";
-import { Logger, Inject } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
 import type { Job } from "bull";
 import { SwarmOrchestrationService } from "../services/swarm-orchestration.service";
 import { TraefikService } from "../services/traefik.service";
 import { ResourceAllocationService } from "../services/resource-allocation.service";
 import { SslCertificateService } from "../services/ssl-certificate.service";
-import { DATABASE_CONNECTION } from "../../db/database-connection";
-import type { Database } from "../../db/drizzle/index";
 import {
   deploymentJobs,
   orchestrationStacks,
@@ -16,8 +14,9 @@ import {
   deploymentStatusEnum,
   projects,
   services,
-} from "../../db/drizzle/schema";
+} from "@/config/drizzle/schema";
 import { eq } from "drizzle-orm";
+import { DeploymentPhase } from "../../../types/deployment-phase";
 // Import services needed for standard deployments
 import { DockerService } from "../../../services/docker.service";
 import { GitService } from "../../../services/git.service";
@@ -28,6 +27,7 @@ import type {
   DeploymentJobData,
   DeploymentJobResult,
 } from "../../../../modules/jobs/types/deployment-job.types";
+import { DatabaseService } from "../../database/services/database.service";
 @Processor("deployment")
 export class DeploymentProcessor {
   private readonly logger = new Logger(DeploymentProcessor.name);
@@ -36,8 +36,7 @@ export class DeploymentProcessor {
     private readonly traefikService: TraefikService,
     private readonly resourceService: ResourceAllocationService,
     private readonly sslService: SslCertificateService,
-    @Inject(DATABASE_CONNECTION)
-    private readonly db: Database,
+    private readonly databaseService: DatabaseService,
     // Services needed for standard deployments
     private readonly dockerService: DockerService,
     private readonly gitService: GitService,
@@ -98,24 +97,27 @@ export class DeploymentProcessor {
     }
   }
 
-    // Standard deployment handler (from jobs module)
-    async handleStandardDeployment(
-        job: Job<DeploymentJobData>
-    ): Promise<DeploymentJobResult> {
-        const { deploymentId, projectId, serviceId, sourceConfig } = job.data;
-        this.logger.log(`Starting deployment job for deployment ${deploymentId}`);
+  // Standard deployment handler (from jobs module)
+  async handleStandardDeployment(
+    job: Job<DeploymentJobData>
+  ): Promise<DeploymentJobResult> {
+    const { deploymentId, projectId, serviceId, sourceConfig } = job.data;
+    this.logger.log(`Starting deployment job for deployment ${deploymentId}`);
 
-        try {
-            // Log sourceConfig for debugging
-            this.logger.log(`Source config for deployment ${deploymentId}:`, JSON.stringify(sourceConfig, null, 2));
+    try {
+      // Log sourceConfig for debugging
+      this.logger.log(
+        `Source config for deployment ${deploymentId}:`,
+        JSON.stringify(sourceConfig, null, 2)
+      );
 
-            // Update deployment status to building
-            await this.updateDeploymentStatus(deploymentId, "building");
-            await this.logDeployment(deploymentId, "info", "Deployment started", {
-                projectId,
-                serviceId,
-            });      // Get service information to determine build type
-      const serviceInfo = await this.db
+      // Update deployment status to building
+      await this.updateDeploymentStatus(deploymentId, "building");
+      await this.logDeployment(deploymentId, "info", "Deployment started", {
+        projectId,
+        serviceId,
+      }); // Get service information to determine build type
+      const serviceInfo = await this.databaseService.db
         .select({
           service: services,
           project: projects,
@@ -153,9 +155,20 @@ export class DeploymentProcessor {
         // Extract optional image/pull settings from service config
         const svcProviderConfig: any = service.providerConfig || {};
         const svcBuilderConfig: any = service.builderConfig || {};
-        const imageOverride = svcProviderConfig.staticImage || svcProviderConfig.image || svcBuilderConfig.staticImage || svcBuilderConfig.image || undefined;
-        const imagePullPolicy = svcProviderConfig.imagePullPolicy || svcBuilderConfig.imagePullPolicy || 'IfNotPresent';
-        const registryAuth = svcProviderConfig.registryAuth || svcBuilderConfig.registryAuth || undefined;
+        const imageOverride =
+          svcProviderConfig.staticImage ||
+          svcProviderConfig.image ||
+          svcBuilderConfig.staticImage ||
+          svcBuilderConfig.image ||
+          undefined;
+        const imagePullPolicy =
+          svcProviderConfig.imagePullPolicy ||
+          svcBuilderConfig.imagePullPolicy ||
+          "IfNotPresent";
+        const registryAuth =
+          svcProviderConfig.registryAuth ||
+          svcBuilderConfig.registryAuth ||
+          undefined;
         deploymentResult = await this.deploymentService.deployStaticSite({
           deploymentId,
           serviceName: service.name,
@@ -171,8 +184,8 @@ export class DeploymentProcessor {
             registryAuth,
           },
           projectId: project.id,
-         });
-       } else if (buildType === "dockerfile") {
+        });
+      } else if (buildType === "dockerfile") {
         await this.logDeployment(
           deploymentId,
           "info",
@@ -443,7 +456,7 @@ export class DeploymentProcessor {
       await this.swarmService.executeSwarmRemove(stackName);
       job.progress(70);
       // Remove stack record
-      await this.db
+      await this.databaseService.db
         .delete(orchestrationStacks)
         .where(eq(orchestrationStacks.id, stackId));
       job.progress(90);
@@ -541,7 +554,7 @@ export class DeploymentProcessor {
       await new Promise((resolve) => setTimeout(resolve, 2000));
       job.progress(70);
       // Update certificate status in database
-      await this.db
+      await this.databaseService.db
         .update(sslCertificates)
         .set({
           renewalStatus: "completed",
@@ -648,7 +661,7 @@ export class DeploymentProcessor {
       }
       const isHealthy = healthyServices === totalServices && totalServices > 0;
       // Update stack health status
-      await this.db
+      await this.databaseService.db
         .update(orchestrationStacks)
         .set({
           lastHealthCheck: new Date(),
@@ -707,7 +720,7 @@ export class DeploymentProcessor {
       if (errorMessage) {
         updateData.result = { error: errorMessage };
       }
-      await this.db
+      await this.databaseService.db
         .update(deploymentJobs)
         .set(updateData)
         .where(eq(deploymentJobs.bullJobId, bullJobId));
@@ -734,7 +747,7 @@ export class DeploymentProcessor {
       } else if (status === "failed" && errorMessage) {
         updateData.errorMessage = errorMessage;
       }
-      await this.db
+      await this.databaseService.db
         .update(orchestrationStacks)
         .set(updateData)
         .where(eq(orchestrationStacks.id, stackId));
@@ -747,7 +760,7 @@ export class DeploymentProcessor {
    */
   private async getProjectIdFromStack(stackId: string): Promise<string | null> {
     try {
-      const [stack] = await this.db
+      const [stack] = await this.databaseService.db
         .select()
         .from(orchestrationStacks)
         .where(eq(orchestrationStacks.id, stackId))
@@ -768,7 +781,7 @@ export class DeploymentProcessor {
     stackId: string
   ): Promise<string | null> {
     try {
-      const [stack] = await this.db
+      const [stack] = await this.databaseService.db
         .select()
         .from(orchestrationStacks)
         .where(eq(orchestrationStacks.id, stackId))
@@ -787,7 +800,7 @@ export class DeploymentProcessor {
    */
   private async getStackConfig(stackId: string): Promise<any> {
     try {
-      const [stack] = await this.db
+      const [stack] = await this.databaseService.db
         .select()
         .from(orchestrationStacks)
         .where(eq(orchestrationStacks.id, stackId))
@@ -884,7 +897,7 @@ export class DeploymentProcessor {
   private async cleanupUnusedImages(stackId: string): Promise<void> {
     try {
       // Get stack info to filter images by stack namespace
-      const [stack] = await this.db
+      const [stack] = await this.databaseService.db
         .select()
         .from(orchestrationStacks)
         .where(eq(orchestrationStacks.id, stackId))
@@ -912,7 +925,7 @@ export class DeploymentProcessor {
   private async cleanupStoppedContainers(stackId: string): Promise<void> {
     try {
       // Get stack info
-      const [stack] = await this.db
+      const [stack] = await this.databaseService.db
         .select()
         .from(orchestrationStacks)
         .where(eq(orchestrationStacks.id, stackId))
@@ -939,7 +952,7 @@ export class DeploymentProcessor {
   private async cleanupDanglingNetworks(stackId: string): Promise<void> {
     try {
       // Get stack info
-      const [stack] = await this.db
+      const [stack] = await this.databaseService.db
         .select()
         .from(orchestrationStacks)
         .where(eq(orchestrationStacks.id, stackId))
@@ -967,7 +980,7 @@ export class DeploymentProcessor {
   private async cleanupUnusedVolumes(stackId: string): Promise<void> {
     try {
       // Get stack info
-      const [stack] = await this.db
+      const [stack] = await this.databaseService.db
         .select()
         .from(orchestrationStacks)
         .where(eq(orchestrationStacks.id, stackId))
@@ -1063,7 +1076,7 @@ export class DeploymentProcessor {
           : null,
         status: "creating",
       };
-      const [stack] = await this.db
+      const [stack] = await this.databaseService.db
         .insert(orchestrationStacks)
         .values(stackData)
         .returning();
@@ -1178,7 +1191,7 @@ export class DeploymentProcessor {
         targetDeploymentId,
       });
       // Get target deployment info
-      const targetDeployment = await this.db
+      const targetDeployment = await this.databaseService.db
         .select()
         .from(deployments)
         .where(eq(deployments.id, targetDeploymentId))
@@ -1268,6 +1281,14 @@ export class DeploymentProcessor {
     } = job.data;
     this.logger.log(`Starting upload deployment job for upload ${uploadId}`);
     try {
+      // Phase 1: QUEUED → PULLING_SOURCE
+      await this.deploymentService.updateDeploymentPhase(
+        deploymentId,
+        DeploymentPhase.PULLING_SOURCE,
+        10,
+        { uploadId }
+      );
+
       // Update deployment status to building
       await this.updateDeploymentStatus(deploymentId, "building");
       await this.logDeployment(
@@ -1287,7 +1308,7 @@ export class DeploymentProcessor {
         throw new Error(`Upload ${uploadId} not found or expired`);
       }
       // Get service details to determine deployment strategy
-      const serviceResult = await this.db
+      const serviceResult = await this.databaseService.db
         .select()
         .from(services)
         .innerJoin(projects, eq(services.projectId, projects.id))
@@ -1297,9 +1318,26 @@ export class DeploymentProcessor {
         throw new Error(`Service ${serviceId} not found`);
       }
       const { projects: project, services: service } = serviceResult[0];
+
+      // Phase 2: BUILDING
+      await this.deploymentService.updateDeploymentPhase(
+        deploymentId,
+        DeploymentPhase.BUILDING,
+        30,
+        { detectedType: uploadInfo.metadata.detectedType }
+      );
+
       // Determine deployment strategy based on detected file type
       let deploymentResult;
       if (uploadInfo.metadata.detectedType === "static") {
+        // Phase 3: COPYING_FILES
+        await this.deploymentService.updateDeploymentPhase(
+          deploymentId,
+          DeploymentPhase.COPYING_FILES,
+          50,
+          { deploymentType: "static" }
+        );
+
         // Static file deployment
         deploymentResult = await this.deployStaticFiles(
           deploymentId,
@@ -1309,6 +1347,14 @@ export class DeploymentProcessor {
           project
         );
       } else if (uploadInfo.metadata.detectedType === "docker") {
+        // Phase 3: COPYING_FILES
+        await this.deploymentService.updateDeploymentPhase(
+          deploymentId,
+          DeploymentPhase.COPYING_FILES,
+          50,
+          { deploymentType: "docker" }
+        );
+
         // Docker-based deployment
         deploymentResult = await this.deployDockerFiles(
           deploymentId,
@@ -1318,6 +1364,14 @@ export class DeploymentProcessor {
           project
         );
       } else if (uploadInfo.metadata.detectedType === "node") {
+        // Phase 3: COPYING_FILES
+        await this.deploymentService.updateDeploymentPhase(
+          deploymentId,
+          DeploymentPhase.COPYING_FILES,
+          50,
+          { deploymentType: "node" }
+        );
+
         // Node.js deployment
         deploymentResult = await this.deployNodeFiles(
           deploymentId,
@@ -1336,6 +1390,19 @@ export class DeploymentProcessor {
           project
         );
       }
+
+      // Phase 4: ACTIVE - Deployment completed successfully
+      await this.deploymentService.updateDeploymentPhase(
+        deploymentId,
+        DeploymentPhase.ACTIVE,
+        100,
+        {
+          deploymentType: uploadInfo.metadata.detectedType,
+          completedAt: new Date().toISOString(),
+          ...deploymentResult,
+        }
+      );
+
       // Success - update status
       await this.updateDeploymentStatus(deploymentId, "success");
       await this.logDeployment(
@@ -1362,6 +1429,19 @@ export class DeploymentProcessor {
         `Upload deployment job failed for upload ${uploadId}:`,
         err
       );
+
+      // Phase: FAILED
+      await this.deploymentService.updateDeploymentPhase(
+        deploymentId,
+        DeploymentPhase.FAILED,
+        0,
+        {
+          error: err.message,
+          stack: err.stack,
+          failedAt: new Date().toISOString(),
+        }
+      );
+
       // Update status to failed
       await this.updateDeploymentStatus(deploymentId, "failed");
       await this.logDeployment(
@@ -1503,6 +1583,14 @@ export class DeploymentProcessor {
     sourceConfig: any,
     deploymentId: string
   ): Promise<string> {
+    // Phase: PULLING_SOURCE - Start source code preparation
+    await this.deploymentService.updateDeploymentPhase(
+      deploymentId,
+      DeploymentPhase.PULLING_SOURCE,
+      10,
+      { sourceType: sourceConfig.type, sourceConfig }
+    );
+
     // Handle different source types based on provider configuration
     if (
       sourceConfig.type === "github" ||
@@ -1513,27 +1601,95 @@ export class DeploymentProcessor {
       if (!sourceConfig.repositoryUrl) {
         throw new Error(
           `Repository URL is required for source type: ${sourceConfig.type}. ` +
-          `Please ensure the service has a valid repository URL configured in its provider settings.`
+            `Please ensure the service has a valid repository URL configured in its provider settings.`
         );
       }
 
-      return await this.gitService.cloneRepository({
+      // Update phase with Git clone progress
+      await this.deploymentService.updateDeploymentPhase(
+        deploymentId,
+        DeploymentPhase.PULLING_SOURCE,
+        15,
+        { 
+          sourceType: sourceConfig.type,
+          repositoryUrl: sourceConfig.repositoryUrl,
+          branch: sourceConfig.branch || "main",
+          cloneStatus: 'starting'
+        }
+      );
+
+      const sourcePath = await this.gitService.cloneRepository({
         url: sourceConfig.repositoryUrl,
         branch: sourceConfig.branch || "main",
         commit: sourceConfig.commitSha,
         deploymentId,
       });
+
+      // Complete Git clone phase
+      await this.deploymentService.updateDeploymentPhase(
+        deploymentId,
+        DeploymentPhase.PULLING_SOURCE,
+        25,
+        { 
+          sourceType: sourceConfig.type,
+          repositoryUrl: sourceConfig.repositoryUrl,
+          branch: sourceConfig.branch || "main",
+          cloneStatus: 'completed',
+          sourcePath
+        }
+      );
+
+      return sourcePath;
     } else if (sourceConfig.type === "upload") {
       // Upload sources can be from file uploads, S3, Docker registry, etc.
       if (sourceConfig.filePath) {
         // Direct file upload
-        return await this.gitService.extractUploadedFile({
+        await this.deploymentService.updateDeploymentPhase(
+          deploymentId,
+          DeploymentPhase.PULLING_SOURCE,
+          15,
+          { 
+            sourceType: 'upload',
+            uploadType: 'direct_file',
+            filePath: sourceConfig.filePath,
+            extractionStatus: 'starting'
+          }
+        );
+
+        const sourcePath = await this.gitService.extractUploadedFile({
           filePath: sourceConfig.filePath,
           deploymentId,
         });
+
+        await this.deploymentService.updateDeploymentPhase(
+          deploymentId,
+          DeploymentPhase.PULLING_SOURCE,
+          25,
+          { 
+            sourceType: 'upload',
+            uploadType: 'direct_file',
+            extractionStatus: 'completed',
+            sourcePath
+          }
+        );
+
+        return sourcePath;
       } else if (sourceConfig.bucketName && sourceConfig.objectKey) {
         // S3 bucket source
-        return await this.downloadFromS3({
+        await this.deploymentService.updateDeploymentPhase(
+          deploymentId,
+          DeploymentPhase.PULLING_SOURCE,
+          15,
+          { 
+            sourceType: 'upload',
+            uploadType: 's3_bucket',
+            bucketName: sourceConfig.bucketName,
+            objectKey: sourceConfig.objectKey,
+            downloadStatus: 'starting'
+          }
+        );
+
+        const sourcePath = await this.downloadFromS3({
           bucketName: sourceConfig.bucketName,
           objectKey: sourceConfig.objectKey,
           region: sourceConfig.region,
@@ -1541,40 +1697,144 @@ export class DeploymentProcessor {
           secretAccessKey: sourceConfig.secretAccessKey,
           deploymentId,
         });
+
+        await this.deploymentService.updateDeploymentPhase(
+          deploymentId,
+          DeploymentPhase.PULLING_SOURCE,
+          25,
+          { 
+            sourceType: 'upload',
+            uploadType: 's3_bucket',
+            downloadStatus: 'completed',
+            sourcePath
+          }
+        );
+
+        return sourcePath;
       } else if (sourceConfig.registryUrl && sourceConfig.imageName) {
         // Docker registry source - handle differently
         throw new Error(
           "Docker registry deployments should be handled through the container deployment flow, not source code preparation."
         );
-      } else if (sourceConfig.customData && sourceConfig.customData.embeddedContent) {
+      } else if (
+        sourceConfig.customData &&
+        sourceConfig.customData.embeddedContent
+      ) {
         // Embedded static content provided in customData (from seeded demo or manual)
+        await this.deploymentService.updateDeploymentPhase(
+          deploymentId,
+          DeploymentPhase.PULLING_SOURCE,
+          15,
+          { 
+            sourceType: 'upload',
+            uploadType: 'embedded_content',
+            contentSource: 'customData.embeddedContent',
+            generationStatus: 'starting'
+          }
+        );
+
         const embedded = sourceConfig.customData.embeddedContent;
-        const staticContent = typeof embedded === 'string' ? embedded : JSON.stringify(embedded);
-        return await this.createStaticContentFromEmbedded({
+        const staticContent =
+          typeof embedded === "string" ? embedded : JSON.stringify(embedded);
+        const sourcePath = await this.createStaticContentFromEmbedded({
           staticContent,
           deploymentId,
         });
-      } else if (sourceConfig.customData && sourceConfig.customData.type === 'static-content' && sourceConfig.customData.content) {
+
+        await this.deploymentService.updateDeploymentPhase(
+          deploymentId,
+          DeploymentPhase.PULLING_SOURCE,
+          25,
+          { 
+            sourceType: 'upload',
+            uploadType: 'embedded_content',
+            generationStatus: 'completed',
+            sourcePath
+          }
+        );
+
+        return sourcePath;
+      } else if (
+        sourceConfig.customData &&
+        sourceConfig.customData.type === "static-content" &&
+        sourceConfig.customData.content
+      ) {
         // Legacy seeded static content format used in seed.ts
+        await this.deploymentService.updateDeploymentPhase(
+          deploymentId,
+          DeploymentPhase.PULLING_SOURCE,
+          15,
+          { 
+            sourceType: 'upload',
+            uploadType: 'legacy_static_content',
+            contentSource: 'customData.content',
+            generationStatus: 'starting'
+          }
+        );
+
         const content = sourceConfig.customData.content;
-        const staticContent = typeof content === 'string' ? content : JSON.stringify(content);
-        return await this.createStaticContentFromEmbedded({
+        const staticContent =
+          typeof content === "string" ? content : JSON.stringify(content);
+        const sourcePath = await this.createStaticContentFromEmbedded({
           staticContent,
           deploymentId,
         });
-      } else if (sourceConfig.staticContent && sourceConfig.contentType === 'embedded') {
+
+        await this.deploymentService.updateDeploymentPhase(
+          deploymentId,
+          DeploymentPhase.PULLING_SOURCE,
+          25,
+          { 
+            sourceType: 'upload',
+            uploadType: 'legacy_static_content',
+            generationStatus: 'completed',
+            sourcePath
+          }
+        );
+
+        return sourcePath;
+      } else if (
+        sourceConfig.staticContent &&
+        sourceConfig.contentType === "embedded"
+      ) {
         // Embedded static content (like seeded demo content)
-        return await this.createStaticContentFromEmbedded({
+        await this.deploymentService.updateDeploymentPhase(
+          deploymentId,
+          DeploymentPhase.PULLING_SOURCE,
+          15,
+          { 
+            sourceType: 'upload',
+            uploadType: 'static_content',
+            contentType: 'embedded',
+            generationStatus: 'starting'
+          }
+        );
+
+        const sourcePath = await this.createStaticContentFromEmbedded({
           staticContent: sourceConfig.staticContent,
           deploymentId,
         });
+
+        await this.deploymentService.updateDeploymentPhase(
+          deploymentId,
+          DeploymentPhase.PULLING_SOURCE,
+          25,
+          { 
+            sourceType: 'upload',
+            uploadType: 'static_content',
+            generationStatus: 'completed',
+            sourcePath
+          }
+        );
+
+        return sourcePath;
       } else {
         // No file source specified - this might be a static service that needs file upload
         throw new Error(
           `This service appears to be configured for file upload deployment, but no files have been uploaded yet. ` +
-          `Please use the file upload feature in the dashboard to upload your static files, ` +
-          `or change the service provider to a git-based provider (github, gitlab, etc.) ` +
-          `and configure a repository URL if you want to deploy from a git repository.`
+            `Please use the file upload feature in the dashboard to upload your static files, ` +
+            `or change the service provider to a git-based provider (github, gitlab, etc.) ` +
+            `and configure a repository URL if you want to deploy from a git repository.`
         );
       }
     } else {
@@ -1627,7 +1887,7 @@ export class DeploymentProcessor {
     deploymentId: string,
     status: (typeof deploymentStatusEnum.enumValues)[number]
   ): Promise<void> {
-    await this.db
+    await this.databaseService.db
       .update(deployments)
       .set({
         status,
@@ -1643,17 +1903,18 @@ export class DeploymentProcessor {
     metadata?: Record<string, any>
   ): Promise<void> {
     // Sanitize message and metadata to prevent invalid byte sequences (NUL bytes) from causing DB errors
-    const safeMessage = String(message || '').replace(/\u0000/g, '');
+    const safeMessage = String(message || "").replace(/\u0000/g, "");
     let safeMetadata: Record<string, any> = {};
     try {
-      const serialized = metadata ? JSON.stringify(metadata) : '{}';
-      const sanitized = serialized.replace(/\u0000/g, '');
-      safeMetadata = sanitized && sanitized !== '{}' ? JSON.parse(sanitized) : {};
+      const serialized = metadata ? JSON.stringify(metadata) : "{}";
+      const sanitized = serialized.replace(/\u0000/g, "");
+      safeMetadata =
+        sanitized && sanitized !== "{}" ? JSON.parse(sanitized) : {};
     } catch {
       // If metadata can't be stringified/parsing fails, fall back to empty object
       safeMetadata = {};
     }
-    await this.db.insert(deploymentLogs).values({
+    await this.databaseService.db.insert(deploymentLogs).values({
       deploymentId,
       level,
       message: safeMessage,
@@ -1667,7 +1928,7 @@ export class DeploymentProcessor {
     _containerId: string
   ): Promise<string> {
     // Get deployment details with project and service info
-    const deploymentResult = await this.db
+    const deploymentResult = await this.databaseService.db
       .select({
         deployment: deployments,
         project: projects,
@@ -1695,7 +1956,7 @@ export class DeploymentProcessor {
     const domainUrl = `https://${subdomain}.${process.env.TRAEFIK_DOMAIN || "localhost"}`;
     // TODO: Implement proper domain registration logic with new schema
     // Update deployment with domain URL
-    await this.db
+    await this.databaseService.db
       .update(deployments)
       .set({
         domainUrl: domainUrl,
@@ -1762,10 +2023,20 @@ export class DeploymentProcessor {
   }> {
     await this.logDeployment(deploymentId, "info", "Deploying static files");
     // Generate domain URL
-    const subdomain = this.generateSubdomain(project.name, service.name, "production");
+    const subdomain = this.generateSubdomain(
+      project.name,
+      service.name,
+      "production"
+    );
     const domainUrl = `https://${subdomain}.${project.baseDomain || "localhost"}`;
     // Setup static file serving (project-level) and inform Traefik
-    await this.staticFileServingService.setupStaticServing(deploymentId, extractPath, service.id, project.id, domainUrl);
+    await this.staticFileServingService.setupStaticServing(
+      deploymentId,
+      extractPath,
+      service.id,
+      project.id,
+      domainUrl
+    );
     await this.logDeployment(
       deploymentId,
       "info",
@@ -1927,18 +2198,17 @@ CMD ["sh", "-c", "${startCommand}"]
     deploymentId: string;
   }): Promise<string> {
     const { bucketName, objectKey } = options;
-    
+
     try {
       // Import AWS SDK dynamically (if available)
       // Note: In a real implementation, you would install @aws-sdk/client-s3
       this.logger.log(`Downloading from S3: s3://${bucketName}/${objectKey}`);
-      
+
       // For now, throw an error indicating S3 support needs to be implemented
       throw new Error(
         `S3 downloads are not yet implemented. ` +
-        `To deploy from S3, please download the file manually and use the upload deployment method.`
+          `To deploy from S3, please download the file manually and use the upload deployment method.`
       );
-      
     } catch (error) {
       this.logger.error(`Failed to download from S3:`, error);
       throw error;
@@ -1953,40 +2223,51 @@ CMD ["sh", "-c", "${startCommand}"]
     deploymentId: string;
   }): Promise<string> {
     const { staticContent, deploymentId } = options;
-    const fs = require('fs-extra');
-    const path = require('path');
-    
+    const fs = require("fs-extra");
+    const path = require("path");
+
     // Create workspace directory
-    const workspaceDir = process.env.WORKSPACE_DIR || '/tmp/deployer-workspace';
+    const workspaceDir = process.env.WORKSPACE_DIR || "/tmp/deployer-workspace";
     const extractPath = path.join(workspaceDir, `deployment-${deploymentId}`);
-    
+
     try {
-      this.logger.log(`Creating static content from embedded data for deployment ${deploymentId}`);
-      
+      this.logger.log(
+        `Creating static content from embedded data for deployment ${deploymentId}`
+      );
+
       // Ensure directory exists
       await fs.ensureDir(extractPath);
-      
+
       // Parse the static content (it should be JSON string containing file contents)
       let fileContents: Record<string, string>;
       try {
         fileContents = JSON.parse(staticContent);
       } catch (parseError) {
-        this.logger.error(`Failed to parse embedded static content:`, parseError);
-        throw new Error(`Invalid embedded static content format - expected JSON object with filename->content mapping`);
+        this.logger.error(
+          `Failed to parse embedded static content:`,
+          parseError
+        );
+        throw new Error(
+          `Invalid embedded static content format - expected JSON object with filename->content mapping`
+        );
       }
-      
+
       // Write each file to the extract path
       for (const [filename, content] of Object.entries(fileContents)) {
         const filePath = path.join(extractPath, filename);
-        await fs.writeFile(filePath, content, 'utf8');
+        await fs.writeFile(filePath, content, "utf8");
         this.logger.log(`Created static file: ${filename}`);
       }
-      
-      this.logger.log(`Successfully created ${Object.keys(fileContents).length} static files in ${extractPath}`);
+
+      this.logger.log(
+        `Successfully created ${Object.keys(fileContents).length} static files in ${extractPath}`
+      );
       return extractPath;
-      
     } catch (error) {
-      this.logger.error(`Failed to create static content from embedded data:`, error);
+      this.logger.error(
+        `Failed to create static content from embedded data:`,
+        error
+      );
       // Clean up on failure
       if (await fs.pathExists(extractPath)) {
         await fs.remove(extractPath);

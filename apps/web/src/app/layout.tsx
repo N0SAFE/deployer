@@ -10,7 +10,6 @@ import ReactQueryProviders from '@/utils/providers/ReactQueryProviders'
 import { Suspense, type JSX } from 'react'
 import NextAuthProviders from '@/utils/providers/NextAuthProviders/index'
 import NextTopLoader from 'nextjs-toploader'
-import Validate from '@/lib/auth/validate'
 import Script from 'next/script'
 import { validateEnv } from '#/env'
 import { DynamicTanstackDevTools } from '@/components/devtools/DynamicTanstackDevTools'
@@ -61,33 +60,31 @@ export default async function RootLayout({
                         <></>
                     )}
                 <NextAuthProviders>
-                    <Validate>
-                        <NuqsAdapter>
-                            <ThemeProvider
-                                attribute="class"
-                                defaultTheme="system"
-                                enableSystem
-                                disableTransitionOnChange
-                            >
-                                <UIProvider>
-                                    <NextTopLoader />
-                                    <ReactQueryProviders>
-                                        <Suspense
-                                            fallback={
-                                                <div className="flex h-screen w-screen items-center justify-center">
-                                                    <Loader />
-                                                </div>
-                                            }
-                                        >
-                                            {children}
-                                        </Suspense>
+                    <NuqsAdapter>
+                        <ThemeProvider
+                            attribute="class"
+                            defaultTheme="system"
+                            enableSystem
+                            disableTransitionOnChange
+                        >
+                            <UIProvider>
+                                <NextTopLoader />
+                                <ReactQueryProviders>
+                                    <Suspense
+                                        fallback={
+                                            <div className="flex h-screen w-screen items-center justify-center">
+                                                <Loader />
+                                            </div>
+                                        }
+                                    >
+                                        {children}
+                                    </Suspense>
 
-                                        <DynamicTanstackDevTools />
-                                    </ReactQueryProviders>
-                                </UIProvider>
-                            </ThemeProvider>
-                        </NuqsAdapter>
-                    </Validate>
+                                    <DynamicTanstackDevTools />
+                                </ReactQueryProviders>
+                            </UIProvider>
+                        </ThemeProvider>
+                    </NuqsAdapter>
                 </NextAuthProviders>
             </body>
         </html>

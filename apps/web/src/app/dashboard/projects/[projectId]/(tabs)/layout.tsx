@@ -1,5 +1,4 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
-import { createServerORPC } from '@/lib/orpc/server'
 import getQueryClient from '@/lib/getQueryClient'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
@@ -23,6 +22,7 @@ import { ReactElement } from 'react'
 import ProjectTabsList from './ProjectTabsList'
 import { tryCatchAll } from '@/utils/server'
 import redirect from '@/actions/redirect'
+import { orpc } from '@/lib/orpc'
 
 const getTabSections = ({ projectId }: { projectId: string }) =>
     Object.entries({
@@ -56,21 +56,19 @@ export default DashboardProjectsProjectIdTabs.Page<{
 
     console.log(`🔄 [ProjectLayout-${projectId}] Starting server prefetch...`)
 
-    const orpcServer = await createServerORPC()
-
     // Fetch shared data and get results for server rendering
     const [project] = await tryCatchAll(
         [
             // Project data - used by layout header and all child pages
             async () => {
                 const result = await queryClient.fetchQuery(
-                    orpcServer.project.getById.queryOptions({
+                    orpc.project.getById.queryOptions({
                         input: { id: projectId },
                     })
                 )
                 // Also set cache for hydration
                 queryClient.setQueryData(
-                    orpcServer.project.getById.queryKey({
+                    orpc.project.getById.queryKey({
                         input: { id: projectId },
                     }),
                     result
@@ -80,7 +78,7 @@ export default DashboardProjectsProjectIdTabs.Page<{
             // Services data - used by services page, deployments page, and overview
             async () => {
                 const result = await queryClient.fetchQuery(
-                    orpcServer.service.listByProject.queryOptions({
+                    orpc.service.listByProject.queryOptions({
                         input: {
                             projectId,
                             limit: 50,
@@ -89,7 +87,7 @@ export default DashboardProjectsProjectIdTabs.Page<{
                 )
                 // Also set cache for hydration
                 queryClient.setQueryData(
-                    orpcServer.service.listByProject.queryKey({
+                    orpc.service.listByProject.queryKey({
                         input: { projectId, limit: 50 },
                     }),
                     result

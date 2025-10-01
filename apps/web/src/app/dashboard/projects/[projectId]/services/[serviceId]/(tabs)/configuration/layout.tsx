@@ -1,11 +1,11 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import getQueryClient from '@/lib/getQueryClient'
-import { createServerORPC } from '@/lib/orpc/server'
 import { Settings } from 'lucide-react'
 import { ConfigurationTabsList } from './ConfigurationTabsList'
 import { ConfigurationActions } from './ConfigurationActions'
 import { DashboardProjectsProjectIdServicesServiceIdTabsConfiguration } from '@/routes/index'
 import { tryCatch } from '@/utils/server'
+import { orpc } from '@/lib/orpc'
 
 export default DashboardProjectsProjectIdServicesServiceIdTabsConfiguration.Page<{
     children: React.ReactNode
@@ -13,12 +13,10 @@ export default DashboardProjectsProjectIdServicesServiceIdTabsConfiguration.Page
     const { projectId, serviceId } = await params
     const queryClient = getQueryClient()
 
-    const orpcServer = await createServerORPC()
-
     await tryCatch(
         () =>
             queryClient.fetchQuery(
-                orpcServer.service.getById.queryOptions({
+                orpc.service.getById.queryOptions({
                     input: { id: serviceId },
                 })
             ),

@@ -1,13 +1,12 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { DATABASE_CONNECTION } from '../../db/database-connection';
-import type { Database } from '../../db/drizzle/index';
-import { sslCertificates } from '../../db/drizzle/schema/orchestration';
+import { sslCertificates } from '@/config/drizzle/schema/orchestration';
 import { eq, lt, and, isNotNull } from 'drizzle-orm';
 import * as fs from 'fs-extra';
 import * as forge from 'node-forge';
+import { DatabaseService } from '../../database/services/database.service';
 export interface CertificateInfo {
     domain: string;
     notBefore: Date;
@@ -26,8 +25,7 @@ export interface CertificateInfo {
 export class SslCertificateService {
     private readonly logger = new Logger(SslCertificateService.name);
     constructor(
-    @Inject(DATABASE_CONNECTION)
-    private readonly db: Database, 
+    private readonly databaseService: DatabaseService, 
     @InjectQueue('deployment')
     private deploymentQueue: Queue) { }
     /**
@@ -38,7 +36,7 @@ export class SslCertificateService {
         try {
             this.logger.log('Starting certificate expiry monitoring');
             // Find certificates expiring in the next 30 days
-            const expiringCertificates = await this.db.select()
+            const expiringCertificates = await this.databaseService.db.select()
                 .from(sslCertificates)
                 .where(and(eq(sslCertificates.autoRenew, true), lt(sslCertificates.expiresAt, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) // 30 days from now
             ));
@@ -68,7 +66,7 @@ export class SslCertificateService {
         try {
             this.logger.log('Starting certificate file validation');
             // Get all valid certificates
-            const certificates = await this.db.select()
+            const certificates = await this.databaseService.db.select()
                 .from(sslCertificates)
                 .where(eq(sslCertificates.isValid, true));
             let validatedCount = 0;
@@ -78,7 +76,7 @@ export class SslCertificateService {
                     const info = await this.parseCertificateFile(cert.certificatePath);
                     if (info) {
                         // Update database with parsed certificate information
-                        await this.db.update(sslCertificates)
+                        await this.databaseService.db.update(sslCertificates)
                             .set({
                             isValid: info.isValid,
                             expiresAt: info.notAfter,
@@ -97,7 +95,7 @@ export class SslCertificateService {
                     }
                     else {
                         // Certificate file not found or invalid
-                        await this.db.update(sslCertificates)
+                        await this.databaseService.db.update(sslCertificates)
                             .set({
                             isValid: false,
                             updatedAt: new Date()
@@ -175,7 +173,7 @@ export class SslCertificateService {
         try {
             this.logger.log(`Initiating certificate renewal for: ${domain}`);
             // Update certificate record
-            await this.db.update(sslCertificates)
+            await this.databaseService.db.update(sslCertificates)
                 .set({
                 lastRenewalAttempt: new Date(),
                 renewalStatus: 'in-progress',
@@ -207,7 +205,7 @@ export class SslCertificateService {
     async handleRenewalFailure(domain: string, error: string): Promise<void> {
         try {
             this.logger.error(`Certificate renewal failed for ${domain}: ${error}`);
-            await this.db.update(sslCertificates)
+            await this.databaseService.db.update(sslCertificates)
                 .set({
                 renewalStatus: 'failed',
                 errorMessage: error,
@@ -226,7 +224,7 @@ export class SslCertificateService {
      */
     async getCertificateStatus(domain: string): Promise<any> {
         try {
-            const [certificate] = await this.db.select()
+            const [certificate] = await this.databaseService.db.select()
                 .from(sslCertificates)
                 .where(eq(sslCertificates.domain, domain))
                 .limit(1);
@@ -256,13 +254,13 @@ export class SslCertificateService {
     }): Promise<void> {
         try {
             // Check if certificate record exists
-            const existing = await this.db.select()
+            const existing = await this.databaseService.db.select()
                 .from(sslCertificates)
                 .where(eq(sslCertificates.domain, config.domain))
                 .limit(1);
             if (existing.length === 0) {
                 // Create new certificate record
-                await this.db.insert(sslCertificates).values({
+                await this.databaseService.db.insert(sslCertificates).values({
                     domain: config.domain,
                     projectId: config.projectId,
                     issuer: config.issuer,
@@ -292,7 +290,7 @@ export class SslCertificateService {
      */
     async getCertificatesExpiringSoon(days: number = 30): Promise<any[]> {
         try {
-            const expiringCertificates = await this.db.select()
+            const expiringCertificates = await this.databaseService.db.select()
                 .from(sslCertificates)
                 .where(and(eq(sslCertificates.isValid, true), isNotNull(sslCertificates.expiresAt), lt(sslCertificates.expiresAt, new Date(Date.now() + days * 24 * 60 * 60 * 1000))));
             return expiringCertificates.map(cert => {
@@ -315,7 +313,7 @@ export class SslCertificateService {
      */
     async removeCertificateRecord(domain: string): Promise<void> {
         try {
-            await this.db.update(sslCertificates)
+            await this.databaseService.db.update(sslCertificates)
                 .set({
                 isValid: false,
                 updatedAt: new Date()

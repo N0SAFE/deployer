@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DatabaseService } from '../../../core/modules/db/services/database.service';
+import { DatabaseService } from '../../../core/modules/database/services/database.service';
 @Injectable()
 export class HealthRepository {
     constructor(private readonly databaseService: DatabaseService) { }

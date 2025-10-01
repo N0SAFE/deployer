@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '../../../core/modules/db/services/database.service';
+import { DatabaseService } from '../../../core/modules/database/services/database.service';
 import { TraefikService } from '../../traefik/services/traefik.service';
-import { projects, projectCollaborators, services, deployments } from '../../../core/modules/db/drizzle/schema';
+import { projects, projectCollaborators, services, deployments } from '../../../config/drizzle/schema';
 import { eq, desc } from 'drizzle-orm';
 
 @Injectable()

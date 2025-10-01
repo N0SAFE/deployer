@@ -5,7 +5,7 @@ import { HealthModule } from '@/modules/health/health.module';
 import { HealthController } from '@/modules/health/controllers/health.controller';
 import { HealthService } from '@/modules/health/services/health.service';
 import { HealthRepository } from '@/modules/health/repositories/health.repository';
-import { DatabaseService } from '@/core/modules/db/services/database.service';
+import { DatabaseService } from '@/core/modules/database/services/database.service';
 describe('HealthModule', () => {
     let module: TestingModule;
     beforeEach(async () => {

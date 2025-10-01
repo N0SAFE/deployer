@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { DatabaseService } from "../../../core/modules/db/services/database.service";
-import { user } from "../../../core/modules/db/drizzle/schema/auth";
+import { DatabaseService } from "../../../core/modules/database/services/database.service";
+import { user } from "../../../config/drizzle/schema/auth";
 import { eq, desc, asc, like, count, and, SQL } from "drizzle-orm";
 import { userCreateInput, userUpdateInput, userListInput, } from "@repo/api-contracts";
 import { z } from "zod";

@@ -5,7 +5,7 @@ import { EnvironmentModule } from './environment.module';
 import { EnvironmentController } from './controllers/environment.controller';
 import { EnvironmentService } from './services/environment.service';
 import { EnvironmentRepository } from './repositories/environment.repository';
-import { DatabaseService } from '@/core/modules/db/services/database.service';
+import { DatabaseService } from '@/core/modules/database/services/database.service';
 describe('Environment Module Integration Tests', () => {
     let module: TestingModule;
     let controller: EnvironmentController;

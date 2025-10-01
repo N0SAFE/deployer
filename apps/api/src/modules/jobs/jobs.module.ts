@@ -3,7 +3,7 @@ import { Module } from '@nestjs/common';
 // import { DeploymentQueueService } from './services/deployment-queue.service';
 // Remove the duplicate deployment processor - now unified in OrchestrationModule
 // import { DeploymentProcessor } from './processors/deployment.processor';
-import { DatabaseModule } from '../../core/modules/db/database.module';
+import { DatabaseModule } from '../../core/modules/database/database.module';
 import { TraefikModule } from '../traefik/traefik.module';
 import { StorageModule } from '../storage/storage.module';
 import { WebSocketModule } from '../websocket/websocket.module';

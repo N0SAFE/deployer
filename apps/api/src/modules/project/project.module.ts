@@ -3,7 +3,7 @@ import { ProjectController } from './controllers/project.controller';
 import { ServiceController } from './controllers/service.controller';
 import { ProjectService } from './services/project.service';
 import { CoreModule } from '../../core/core.module';
-import { DatabaseModule } from '../../core/modules/db/database.module';
+import { DatabaseModule } from '../../core/modules/database/database.module';
 import { ServiceModule } from '../service/service.module';
 import { TraefikModule } from '../traefik/traefik.module';
 

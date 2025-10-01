@@ -1,21 +1,20 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import getQueryClient from '@/lib/getQueryClient'
-import { createServerORPC } from '@/lib/orpc/server'
 import { GeneralConfigurationClient } from './GeneralConfigurationClient'
 import { DashboardProjectsProjectIdServicesServiceIdTabsConfigurationGeneral } from '@/routes'
 import { tryCatch } from '@/utils/server'
+import { orpc } from '@/lib/orpc'
 
 export default DashboardProjectsProjectIdServicesServiceIdTabsConfigurationGeneral.Page(
     async function ServiceGeneralConfigPage({ params }) {
         const { serviceId } = await params
         const queryClient = getQueryClient()
-        const orpcServer = await createServerORPC()
 
         // Prefetch service data for general configuration
         tryCatch(
             async () => {
                 return await queryClient.fetchQuery(
-                    orpcServer.service.getById.queryOptions({
+                    orpc.service.getById.queryOptions({
                         input: { id: serviceId },
                     })
                 )

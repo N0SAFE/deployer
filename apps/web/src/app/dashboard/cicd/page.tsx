@@ -1,9 +1,9 @@
 import { HydrationBoundary, dehydrate } from '@tanstack/react-query'
 import getQueryClient from '@/lib/getQueryClient'
-import { createServerORPC } from '@/lib/orpc/server'
 import { CICDDashboard } from '@/components/cicd/CICDDashboard'
 import { DashboardCicd } from '@/routes/index'
 import { tryCatch } from '@/utils/server'
+import { orpc } from '@/lib/orpc'
 
 export default DashboardCicd.Page(async function CICDPage({ params }) {
     const { projectId } = await params
@@ -11,8 +11,6 @@ export default DashboardCicd.Page(async function CICDPage({ params }) {
     const queryClient = getQueryClient()
 
     console.log('🔄 [CICD] Starting server prefetch...')
-
-    const orpc = await createServerORPC()
 
     // Prefetch CI/CD data in parallel using tryCatch for better error handling
     await Promise.all([

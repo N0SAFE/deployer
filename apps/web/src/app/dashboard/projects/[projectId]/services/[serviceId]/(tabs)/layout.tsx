@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import getQueryClient from '@/lib/getQueryClient'
-import { createServerORPC } from '@/lib/orpc/server'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import Link from 'next/link'
@@ -31,6 +30,7 @@ import ServiceTabsList from './ServiceTabsList'
 import ServiceActionsDropdown from './ServiceActionsDropdown'
 import { tryCatchAll } from '@/utils/server'
 import redirect from '@/actions/redirect'
+import { orpc } from '@/lib/orpc'
 
 const getConfigSections = ({
     projectId,
@@ -72,32 +72,30 @@ export default DashboardProjectsProjectIdServicesServiceIdTabs.Page<{
         `🔄 [ServiceLayout-${projectId}/${serviceId}] Starting server prefetch...`
     )
 
-    const orpcServer = await createServerORPC()
-
     // Fetch service and deployments data using tryCatchAll for cleaner error handling
     const [service, deploymentsData] = await tryCatchAll([
         async () => {
             const result = await queryClient.fetchQuery(
-                orpcServer.service.getById.queryOptions({
+                orpc.service.getById.queryOptions({
                     input: { id: serviceId },
                 })
             )
             // Hydrate the cache
             queryClient.setQueryData(
-                orpcServer.service.getById.queryKey({ input: { id: serviceId } }),
+                orpc.service.getById.queryKey({ input: { id: serviceId } }),
                 result
             )
             return result
         },
         async () => {
             const result = await queryClient.fetchQuery(
-                orpcServer.service.getDeployments.queryOptions({
+                orpc.service.getDeployments.queryOptions({
                     input: { id: serviceId, limit: 50 },
                 })
             )
             // Hydrate the cache
             queryClient.setQueryData(
-                orpcServer.service.getDeployments.queryKey({
+                orpc.service.getDeployments.queryKey({
                     input: { id: serviceId, limit: 50 },
                 }),
                 result

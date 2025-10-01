@@ -1,15 +1,13 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import getQueryClient from '@/lib/getQueryClient'
-import { createServerORPC } from '@/lib/orpc/server'
 import ServiceLogsClient from './ServiceLogsClient'
 import { DashboardProjectsProjectIdServicesServiceIdTabsLogs } from '@/routes/index'
 import { tryCatch } from '@/utils/server'
+import { orpc } from '@/lib/orpc'
 
 export default DashboardProjectsProjectIdServicesServiceIdTabsLogs.Page(async function ServiceLogsPage({ params, searchParams }) {
   const { deploymentId } = (await searchParams) || {}
   const queryClient = getQueryClient()
-  
-  const orpc = await createServerORPC()
 
   if (deploymentId) {
     await tryCatch(

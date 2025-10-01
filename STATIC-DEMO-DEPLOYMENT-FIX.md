@@ -12,7 +12,7 @@
 
 ## Solution Implemented
 
-### 1. Enhanced Database Seeding (`apps/api/src/core/modules/db/drizzle/seed.ts`)
+### 1. Enhanced Database Seeding (`apps/api/src/config/drizzle/seed.ts`)
 
 **Key Changes Made**:
 - **Added Deployment Record Creation**: Creates a proper deployment entry in the database with logs

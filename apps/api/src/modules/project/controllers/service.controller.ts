@@ -1,9 +1,9 @@
 import { Controller, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { serviceContract } from '@repo/api-contracts';
-import { DatabaseService } from '../../../core/modules/db/services/database.service';
+import { DatabaseService } from '../../../core/modules/database/services/database.service';
 import { ServiceService } from '../../service/services/service.service';
-import { services, serviceDependencies, projects, serviceHealthConfigs, traefikServiceConfigs } from '../../../core/modules/db/drizzle/schema';
+import { services, serviceDependencies, projects, serviceHealthConfigs, traefikServiceConfigs } from '../../../config/drizzle/schema';
 import { eq, desc, count, ilike, and, or } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 @Controller()

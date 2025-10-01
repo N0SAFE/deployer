@@ -5,7 +5,7 @@ import { UserModule } from '@/modules/user/user.module';
 import { UserController } from '@/modules/user/controllers/user.controller';
 import { UserService } from '@/modules/user/services/user.service';
 import { UserRepository } from '@/modules/user/repositories/user.repository';
-import { DatabaseService } from '@/core/modules/db/services/database.service';
+import { DatabaseService } from '@/core/modules/database/services/database.service';
 describe('UserModule', () => {
     let module: TestingModule;
     beforeEach(async () => {

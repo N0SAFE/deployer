@@ -15,7 +15,7 @@ import { DeploymentProcessor } from './processors/deployment.processor';
 // Controllers
 import { OrchestrationOrpcController } from './controllers/orchestration-orpc.controller';
 // Modules
-import { DatabaseModule } from '../db/database.module';
+import { DatabaseModule } from '../database/database.module';
 import { CoreModule } from '../../core.module';
 
 @Global()
