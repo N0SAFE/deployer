@@ -1,5 +1,5 @@
 import { Injectable, Logger, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
-import { EnvironmentRepository, type Environment, type NewEnvironment, type EnvironmentVariable } from '../repositories/environment.repository';
+import { EnvironmentRepository, type Environment, type NewEnvironment, type EnvironmentVariable } from '@/modules/environment/repositories/environment.repository';
 @Injectable()
 export class EnvironmentService {
     private readonly logger = new Logger(EnvironmentService.name);

@@ -1,17 +1,17 @@
-import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { orchestrationStacks } from '@/config/drizzle/schema';
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import * as yaml from 'js-yaml';
+import { stringify } from 'yaml';
 import { eq } from 'drizzle-orm';
-import { DockerService } from '../../../services/docker.service';
+import { DockerService } from '@/core/modules/docker/services/docker.service';
 import type { SwarmStackConfig, StackStatus } from '@repo/api-contracts/modules/orchestration';
-import { DatabaseService } from '../../database/services/database.service';
+import { DatabaseService } from '@/core/modules/database/services/database.service';
 @Injectable()
-export class SwarmOrchestrationService implements OnModuleInit {
+export class SwarmOrchestrationService {
     private readonly logger = new Logger(SwarmOrchestrationService.name);
     private readonly stacksDir = './docker-stacks';
     constructor(
@@ -21,9 +21,6 @@ export class SwarmOrchestrationService implements OnModuleInit {
     private readonly dockerService: DockerService) {
         // Ensure stacks directory exists
         mkdirSync(this.stacksDir, { recursive: true });
-    }
-    async onModuleInit() {
-        await this.ensureSwarmInitialized();
     }
     @Cron(CronExpression.EVERY_MINUTE)
     async monitorStacks() {
@@ -89,7 +86,7 @@ export class SwarmOrchestrationService implements OnModuleInit {
                 .where(eq(orchestrationStacks.id, stackId));
             // Write compose file
             const composeFilePath = join(this.stacksDir, `${stackName}.yml`);
-            writeFileSync(composeFilePath, yaml.dump(composeConfig));
+            writeFileSync(composeFilePath, stringify(composeConfig));
             // Deploy to Docker Swarm using Docker API
             await this.deployStackToSwarm(stackName, composeConfig);
             // Update status to running
@@ -316,25 +313,6 @@ export class SwarmOrchestrationService implements OnModuleInit {
         catch (error) {
             this.logger.error(`Failed to list stacks for project ${projectId}:`, error);
             throw new Error(error instanceof Error ? error.message : 'Failed to list stacks');
-        }
-    }
-    private async ensureSwarmInitialized(): Promise<void> {
-        try {
-            const info = await this.dockerService.getDockerClient().info();
-            if (info.Swarm && info.Swarm.LocalNodeState === 'active') {
-                this.logger.debug('Docker Swarm is already active');
-                return;
-            }
-            this.logger.log('Initializing Docker Swarm...');
-            await this.dockerService.getDockerClient().swarmInit({
-                ListenAddr: '0.0.0.0:2377',
-                AdvertiseAddr: '127.0.0.1:2377',
-            });
-            this.logger.log('Docker Swarm initialized successfully');
-        }
-        catch (error) {
-            this.logger.error('Failed to initialize Docker Swarm:', error);
-            // Don't throw - let the service continue, but log the error
         }
     }
     private async deployStackToSwarm(stackName: string, composeConfig: any): Promise<void> {

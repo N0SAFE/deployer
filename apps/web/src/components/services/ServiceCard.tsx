@@ -44,7 +44,8 @@ import {
   useServiceDependencies, 
   useToggleServiceActive, 
   useDeleteService, 
-  useServiceHealth 
+  useServiceHealth,
+  useServiceDeployments
 } from '@/hooks/useServices'
 import { ServiceStatusIndicator } from './ServiceStatusIndicator'
 import ServiceDependencyView from './ServiceDependencyView'
@@ -56,37 +57,10 @@ interface ServiceCardProps {
     projectId: string
     name: string
     type: string
-    provider: 'github' | 'gitlab' | 'bitbucket' | 'docker_registry' | 'gitea' | 's3_bucket' | 'manual'
-    builder: 'nixpack' | 'railpack' | 'dockerfile' | 'buildpack' | 'static' | 'docker_compose'
-    providerConfig: {
-      repositoryUrl?: string
-      branch?: string
-      accessToken?: string
-      deployKey?: string
-      registryUrl?: string
-      imageName?: string
-      tag?: string
-      username?: string
-      password?: string
-      bucketName?: string
-      region?: string
-      accessKeyId?: string
-      secretAccessKey?: string
-      objectKey?: string
-      instructions?: string
-      deploymentScript?: string
-    } | null
-    builderConfig: {
-      dockerfilePath?: string
-      buildContext?: string
-      buildArgs?: Record<string, string>
-      buildCommand?: string
-      startCommand?: string
-      installCommand?: string
-      outputDirectory?: string
-      composeFilePath?: string
-      serviceName?: string
-    } | null
+    providerId: string
+    builderId: string
+    providerConfig: Record<string, unknown> | null
+    builderConfig: Record<string, unknown> | null
     port: number | null
     healthCheckPath: string
     environmentVariables: Record<string, string> | null
@@ -123,10 +97,35 @@ export default function ServiceCard({ service }: ServiceCardProps) {
   
   const { data: dependenciesData } = useServiceDependencies(service.id)
   const { data: healthData } = useServiceHealth(service.id)
+  const { data: deploymentsData } = useServiceDeployments(service.id)
   const toggleActive = useToggleServiceActive()
   const deleteService = useDeleteService()
   
   const dependencies = dependenciesData?.dependencies || []
+  const deployments = Array.isArray(deploymentsData?.deployments) ? deploymentsData.deployments : []
+  
+  // Calculate effective deployment status based on rollback policy
+  // If ANY deployment succeeded, the service is considered healthy
+  // because rollback policy keeps the last successful deployment running
+  const calculateEffectiveStatus = (): 'pending' | 'queued' | 'building' | 'deploying' | 'success' | 'failed' | 'cancelled' | undefined => {
+    // Check if there's ANY successful deployment
+    const hasSuccessfulDeployment = deployments.some(
+      (deployment: { status: string }) => deployment.status === 'success'
+    )
+    
+    // If we have a successful deployment (due to rollback), service is healthy
+    if (hasSuccessfulDeployment) {
+      return 'success'
+    }
+    
+    // Otherwise, use the latest deployment status
+    return service.latestDeployment?.status
+  }
+  
+  // Use effectiveDeploymentStatus in the future for better status display
+  // Currently keeping original behavior for backward compatibility
+  const effectiveDeploymentStatus = calculateEffectiveStatus()
+  void effectiveDeploymentStatus // Mark as intentionally unused for now
   
   const getProviderLabel = (provider: string) => {
     const labels = {
@@ -195,7 +194,7 @@ export default function ServiceCard({ service }: ServiceCardProps) {
                   </span>
                 )}
                 <div className="mt-1 text-xs text-muted-foreground">
-                  {getProviderLabel(service.provider)} • {getBuilderLabel(service.builder)}
+                  {getProviderLabel(service.providerId)} • {getBuilderLabel(service.builderId)}
                 </div>
               </CardDescription>
             </div>

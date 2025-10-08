@@ -2,7 +2,7 @@ import { Controller, Logger } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { oc } from '@orpc/contract';
 import { z } from 'zod';
-import { DeploymentHealthMonitorService } from '../../../core/services/deployment-health-monitor.service';
+import { DeploymentHealthMonitorService } from '../../../core/modules/deployment/services/deployment-health-monitor.service';
 
 /**
  * Health Monitor API Contract

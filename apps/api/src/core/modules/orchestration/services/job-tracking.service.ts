@@ -4,7 +4,7 @@ import type { Queue, Job, JobStatus } from 'bull';
 import { Cron } from '@nestjs/schedule';
 import { jobTracking } from '@/config/drizzle/schema/orchestration';
 import { eq, desc, and, gte, lte, inArray } from 'drizzle-orm';
-import { DatabaseService } from '../../database/services/database.service';
+import { DatabaseService } from '@/core/modules/database/services/database.service';
 export interface JobTrackingInfo {
     id: string;
     type: string;

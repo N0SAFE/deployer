@@ -1,7 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement, implement } from "@orpc/nest";
 import { ciCdContract } from "@repo/api-contracts";
-import { CiCdService } from "../services/ci-cd.service";
+import { CiCdService } from "@/modules/ci-cd/services/ci-cd.service";
 @Controller("ci-cd")
 export class CiCdController {
     constructor(private readonly ciCdService: CiCdService) { }

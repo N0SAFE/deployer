@@ -9,7 +9,9 @@ traefikContract, orchestrationContract, storageContract, staticFileContract,
 // Monitoring & Analytics  
 analyticsContract, variableResolverContract, 
 // CI/CD Operations
-ciCdContract } from "./modules/index";
+ciCdContract,
+// Configuration
+providerSchemaRouter } from "./modules/index";
 /**
  * Universal Deployment Platform - Main API Contract
  *
@@ -60,6 +62,13 @@ export const appContract = oc.router({
     analytics: analyticsContract,
     /** Dynamic configuration and variable resolution */
     variableResolver: variableResolverContract,
+    
+    // =============================================================================
+    // CONFIGURATION - Schema-driven configuration
+    // =============================================================================
+    
+    /** Provider and builder schema management for dynamic forms */
+    providerSchema: providerSchemaRouter,
 });
 export type AppContract = typeof appContract;
 // Re-export individual contracts and schemas for direct access

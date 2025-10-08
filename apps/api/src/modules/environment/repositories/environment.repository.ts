@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '../../../core/modules/database/services/database.service';
-import { environments, environmentVariables, environmentServices, environmentTemplates, variableTemplates, environmentAccessLogs, } from '../../../config/drizzle/schema';
+import { DatabaseService } from '@/core/modules/database/services/database.service';
+import { environments, environmentVariables, environmentServices, environmentTemplates, variableTemplates, environmentAccessLogs, } from '@/config/drizzle/schema';
 import { eq, desc, asc, count, ilike, and, or, inArray } from 'drizzle-orm';
 export type Environment = typeof environments.$inferSelect;
 export type NewEnvironment = typeof environments.$inferInsert;

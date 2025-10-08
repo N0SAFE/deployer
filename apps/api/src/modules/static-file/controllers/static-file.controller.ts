@@ -1,11 +1,11 @@
 import { Controller, Logger } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
-import { StaticFileService } from '../../../core/services/static-file.service';
+import { StaticProviderService } from '@/core/modules/providers/static/static-provider.service';
 import { staticFileContract } from '@repo/api-contracts';
 @Controller()
 export class StaticFileController {
     private readonly logger = new Logger(StaticFileController.name);
-    constructor(private readonly staticFileService: StaticFileService) { }
+    constructor(private readonly staticFileService: StaticProviderService) { }
     /**
      * Deploy static files using project-level HTTP server
      * POST /static-file/deploy

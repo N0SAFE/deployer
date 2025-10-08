@@ -5,8 +5,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { orchestrationStacks, serviceInstances } from '@/config/drizzle/schema/orchestration';
 import { stackMetrics, resourceAlerts } from '@/config/drizzle/schema/resource-monitoring';
 import { eq, and, desc, gte, lt } from 'drizzle-orm';
-import { DockerService } from '../../../services/docker.service';
-import { DatabaseService } from '../../database/services/database.service';
+import { DockerService } from '@/core/modules/docker/services/docker.service';
+import { DatabaseService } from '@/core/modules/database/services/database.service';
 export interface ResourceMetrics {
     stackId: string;
     serviceId?: string;

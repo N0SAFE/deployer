@@ -4,13 +4,71 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
 import { toast } from 'sonner'
 
-// Re-export service types for backward compatibility
-// Note: We'll use the service contract types directly for now
+// Provider and Builder config types
+export type ProviderConfig = {
+    // GitHub/GitLab/Bitbucket/Gitea
+    repositoryUrl?: string
+    branch?: string
+    accessToken?: string
+    deployKey?: string
+    // Docker Registry
+    registryUrl?: string
+    imageName?: string
+    tag?: string
+    username?: string
+    password?: string
+    // S3 Bucket
+    bucketName?: string
+    region?: string
+    accessKeyId?: string
+    secretAccessKey?: string
+    objectKey?: string
+    // Manual
+    instructions?: string
+    deploymentScript?: string
+    [key: string]: unknown
+}
+
+export type BuilderConfig = {
+    // Dockerfile
+    dockerfilePath?: string
+    buildContext?: string
+    buildArgs?: Record<string, string>
+    // Nixpack/Railpack/Buildpack
+    buildCommand?: string
+    startCommand?: string
+    installCommand?: string
+    // Static
+    outputDirectory?: string
+    // Docker Compose
+    composeFilePath?: string
+    serviceName?: string
+    [key: string]: unknown
+}
+
+export type TraefikConfig = {
+    [key: string]: unknown
+}
+
+export type HealthCheckConfig = {
+    enabled?: boolean
+    path?: string
+    interval?: number
+    timeout?: number
+    retries?: number
+    [key: string]: unknown
+}
+
+// Service types matching the API contracts
 export type Service = {
     id: string
     projectId: string
     name: string
     type: string
+    provider: 'github' | 'gitlab' | 'bitbucket' | 'docker_registry' | 'gitea' | 's3_bucket' | 'manual'
+    builder: 'dockerfile' | 'nixpack' | 'railpack' | 'buildpack' | 'static' | 'docker_compose'
+    providerConfig: ProviderConfig | null
+    builderConfig: BuilderConfig | null
     dockerfilePath: string
     buildContext: string
     port: number | null
@@ -22,9 +80,30 @@ export type Service = {
         cpu?: string
         storage?: string
     } | null
+    traefikConfig: TraefikConfig | null
+    healthCheckConfig: HealthCheckConfig | null
     isActive: boolean
     createdAt: Date
     updatedAt: Date
+}
+
+export type ServiceWithStats = Service & {
+    _count: {
+        deployments: number
+        dependencies: number
+    }
+    latestDeployment: {
+        id: string
+        status: 'pending' | 'queued' | 'building' | 'deploying' | 'success' | 'failed' | 'cancelled'
+        environment: 'production' | 'staging' | 'preview' | 'development'
+        createdAt: Date
+        domainUrl: string | null
+    } | null
+    project: {
+        id: string
+        name: string
+        baseDomain: string | null
+    }
 }
 
 export type ServiceDependency = {

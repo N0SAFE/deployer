@@ -13,7 +13,7 @@ import {
 } from '@repo/ui/components/shadcn/select'
 import { useServices } from '@/hooks/useServices'
 import ServiceCard from '@/components/services/ServiceCard'
-import CreateServiceDialog from '@/components/services/CreateServiceDialog'
+import CreateServiceDialogRegistry from '@/components/services/CreateServiceDialogRegistry'
 
 interface ServiceListClientProps {
   projectId: string
@@ -146,7 +146,7 @@ export default function ServiceListClient({ projectId }: ServiceListClientProps)
       )}
 
       {/* Create Service Dialog */}
-      <CreateServiceDialog
+      <CreateServiceDialogRegistry
         projectId={projectId}
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}

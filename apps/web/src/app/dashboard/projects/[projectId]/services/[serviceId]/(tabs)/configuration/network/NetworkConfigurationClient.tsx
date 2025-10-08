@@ -1,7 +1,11 @@
 'use client'
 
-import { useState } from 'react'
-import { useService } from '@/hooks/useServices'
+import { useState, useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { useService, useUpdateService } from '@/hooks/useServices'
+import { useTraefikConfig, useUpdateTraefikConfig, useSyncTraefikConfig, useValidateTraefikConfig } from '@/hooks/useTraefikConfig'
 import {
     Card,
     CardContent,
@@ -13,26 +17,37 @@ import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
 import { Label } from '@repo/ui/components/shadcn/label'
-import { Switch } from '@repo/ui/components/shadcn/switch'
+import { Textarea } from '@repo/ui/components/shadcn/textarea'
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@repo/ui/components/shadcn/select'
+    Form,
+    FormControl,
+    FormDescription,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from '@repo/ui/components/shadcn/form'
 import {
     Network,
     Globe,
     Lock,
-    Shield,
-    ExternalLink,
-    Plus,
-    Trash2,
     CheckCircle,
+    AlertCircle,
+    Save,
+    RefreshCw,
+    FileCode,
+    Loader2,
     AlertTriangle,
-    Zap,
+    ExternalLink,
 } from 'lucide-react'
+
+const networkConfigSchema = z.object({
+    port: z.number().min(1).max(65535),
+    customDomains: z.array(z.string()).optional(),
+    traefikConfigContent: z.string().optional(),
+})
+
+type NetworkConfigFormData = z.infer<typeof networkConfigSchema>
 
 interface NetworkConfigurationClientProps {
     projectId: string
@@ -40,24 +55,109 @@ interface NetworkConfigurationClientProps {
 }
 
 export function NetworkConfigurationClient({
-    projectId, serviceId
+    serviceId,
 }: NetworkConfigurationClientProps) {
-    console.log(serviceId)
     const { data: service } = useService(serviceId)
+    const { data: traefikConfig } = useTraefikConfig(serviceId)
+    const updateService = useUpdateService()
+    const updateTraefikConfig = useUpdateTraefikConfig()
+    const syncTraefikConfig = useSyncTraefikConfig()
+    const validateConfig = useValidateTraefikConfig()
 
-    console.log('Service data in NetworkConfigurationClient:', service)
+    const [isValidating, setIsValidating] = useState(false)
+    const [validationResult, setValidationResult] = useState<{
+        isValid: boolean
+        errors?: Array<{ path: string; message: string; code: string }>
+        warnings?: Array<{ path: string; message: string }>
+        variables?: Array<{ name: string; resolved: boolean; value?: unknown; error?: string }>
+    } | null>(null)
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [_hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-    const [httpsRedirect, setHttpsRedirect] = useState(true)
-    const [corsEnabled, setCorsEnabled] = useState(true)
-    const [rateLimitEnabled, setRateLimitEnabled] = useState(false)
+    const form = useForm<NetworkConfigFormData>({
+        resolver: zodResolver(networkConfigSchema),
+        defaultValues: {
+            port: 3000,
+            customDomains: [],
+            traefikConfigContent: '',
+        },
+    })
 
-    // Mock custom domains
-    const [customDomains] = useState([
-        { domain: 'api.myapp.com', status: 'active', ssl: true },
-        { domain: 'app.example.com', status: 'pending', ssl: false },
-    ])
+    // Load service data into form
+    useEffect(() => {
+        if (service && traefikConfig) {
+            const configContent = (traefikConfig as { configContent?: string })?.configContent || ''
+            
+            console.log('Loading Traefik config:', {
+                serviceId: service.id,
+                serviceName: service.name,
+                traefikConfig,
+                configContent,
+                configContentLength: configContent.length,
+                hasConfigContent: !!configContent
+            })
+            
+            form.reset({
+                port: service.port || 3000,
+                customDomains: service.customDomains || [],
+                traefikConfigContent: configContent,
+            })
+        }
+    }, [service, traefikConfig, form])
+
+    const onSubmit = async (data: NetworkConfigFormData) => {
+        try {
+            // Update service port and custom domains
+            await updateService.mutateAsync({
+                id: serviceId,
+                port: data.port,
+                customDomains: data.customDomains,
+            })
+
+            // Update Traefik config if changed
+            if (data.traefikConfigContent) {
+                await updateTraefikConfig.mutateAsync({
+                    id: serviceId,
+                    configContent: data.traefikConfigContent,
+                })
+            }
+        } catch {
+            console.error('Error updating network config')
+        }
+    }
+
+    const handleValidateConfig = async () => {
+        const configContent = form.getValues('traefikConfigContent')
+        if (!configContent) {
+            setValidationResult({
+                isValid: false,
+                errors: [{ path: 'config', message: 'Config content is empty', code: 'EMPTY_CONFIG' }],
+            })
+            return
+        }
+
+        setIsValidating(true)
+        try {
+            const result = await validateConfig.mutateAsync({
+                serviceId,
+                configContent,
+            })
+            setValidationResult(result)
+        } catch {
+            setValidationResult({
+                isValid: false,
+                errors: [{ path: 'validation', message: 'Validation failed', code: 'VALIDATION_ERROR' }],
+            })
+        } finally {
+            setIsValidating(false)
+        }
+    }
+
+    const handleSyncConfig = async () => {
+        try {
+            await syncTraefikConfig.mutateAsync({ id: serviceId })
+        } catch (error) {
+            console.error('Error syncing config:', error)
+        }
+    }
 
     if (!service) {
         return (
@@ -69,578 +169,399 @@ export function NetworkConfigurationClient({
         )
     }
 
+    const isFormDisabled = updateService.isPending || updateTraefikConfig.isPending
+    const hasValidationErrors = validationResult ? !validationResult.isValid : false
+
     return (
-        <div className="space-y-6">
-            {/* Public Access */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Network className="h-5 w-5" />
-                        Public Access
-                    </CardTitle>
-                    <CardDescription>
-                        Configure how your service is accessible from the
-                        internet
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <Label>Default Service URL</Label>
-                        <div className="flex items-center gap-2">
-                            <Input
-                                value="https://service-abc123.onrender.com"
-                                readOnly
-                            />
-                            <Button variant="outline" size="sm" asChild>
-                                <a
-                                    href="https://service-abc123.onrender.com"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    <ExternalLink className="h-4 w-4" />
-                                </a>
-                            </Button>
-                        </div>
-                        <p className="text-muted-foreground text-xs">
-                            Automatically generated URL for your service
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <Label htmlFor="port">Service Port</Label>
-                            <Input
-                                id="port"
-                                type="number"
-                                value={service.port || 3000}
-                                onChange={() => setHasUnsavedChanges(true)}
-                                min="1"
-                                max="65535"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="protocol">Protocol</Label>
-                            <Select defaultValue="https">
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select protocol" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="https">HTTPS</SelectItem>
-                                    <SelectItem value="http">HTTP</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                            <Label htmlFor="https-redirect">Force HTTPS</Label>
-                            <p className="text-muted-foreground text-sm">
-                                Automatically redirect HTTP traffic to HTTPS
-                            </p>
-                        </div>
-                        <Switch
-                            id="https-redirect"
-                            checked={httpsRedirect}
-                            onCheckedChange={setHttpsRedirect}
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                {/* Basic Network Configuration */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Network className="h-5 w-5" />
+                            Network Configuration
+                        </CardTitle>
+                        <CardDescription>
+                            Configure service network settings and ports
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <FormField
+                            control={form.control}
+                            name="port"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Service Port</FormLabel>
+                                    <FormControl>
+                                        <Input
+                                            type="number"
+                                            {...field}
+                                            onChange={(e) => field.onChange(Number(e.target.value))}
+                                            min={1}
+                                            max={65535}
+                                        />
+                                    </FormControl>
+                                    <FormDescription>
+                                        The port your service listens on
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
                         />
-                    </div>
-                </CardContent>
-            </Card>
 
-            {/* Custom Domains */}
-            <Card>
-                <CardHeader>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <CardTitle className="flex items-center gap-2">
-                                <Globe className="h-5 w-5" />
-                                Custom Domains
-                            </CardTitle>
-                            <CardDescription>
-                                Connect your own domains to this service
-                            </CardDescription>
+                        <div className="space-y-2">
+                            <Label>Service URL</Label>
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    value={traefikConfig?.fullDomain || 'Not configured'}
+                                    readOnly
+                                    className="flex-1"
+                                />
+                                {traefikConfig?.fullDomain && (
+                                    <Button variant="outline" size="sm" asChild>
+                                        <a
+                                            href={`https://${traefikConfig.fullDomain}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        >
+                                            <ExternalLink className="h-4 w-4" />
+                                        </a>
+                                    </Button>
+                                )}
+                            </div>
                         </div>
-                        <Button size="sm">
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add Domain
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    {customDomains.length > 0 ? (
-                        <div className="space-y-3">
-                            {customDomains.map((domain, index) => (
-                                <div
-                                    key={index}
-                                    className="flex items-center justify-between rounded-lg border p-3"
+
+                        {traefikConfig?.sslEnabled && (
+                            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                <Lock className="h-4 w-4 text-green-600" />
+                                <span className="text-sm text-green-700">
+                                    SSL/TLS enabled
+                                    {traefikConfig.sslProvider && ` (${traefikConfig.sslProvider})`}
+                                </span>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* Custom Domains */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Globe className="h-5 w-5" />
+                            Custom Domains
+                        </CardTitle>
+                        <CardDescription>
+                            Additional domains for this service
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <FormField
+                            control={form.control}
+                            name="customDomains"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Domain List (one per line)</FormLabel>
+                                    <FormControl>
+                                        <Textarea
+                                            {...field}
+                                            value={field.value?.join('\n') || ''}
+                                            onChange={(e) =>
+                                                field.onChange(
+                                                    e.target.value
+                                                        .split('\n')
+                                                        .map((d) => d.trim())
+                                                        .filter(Boolean)
+                                                )
+                                            }
+                                            placeholder="api.example.com&#10;app.example.com"
+                                            rows={4}
+                                        />
+                                    </FormControl>
+                                    <FormDescription>
+                                        Each domain on a new line
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+
+                        {form.watch('customDomains') && form.watch('customDomains')!.length > 0 && (
+                            <div className="space-y-2">
+                                <Label>Configured Domains</Label>
+                                <div className="flex flex-wrap gap-2">
+                                    {form.watch('customDomains')!.map((domain, idx) => (
+                                        <Badge key={idx} variant="outline">
+                                            {domain}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* Traefik Configuration Editor */}
+                <Card>
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle className="flex items-center gap-2">
+                                    <FileCode className="h-5 w-5" />
+                                    Traefik Configuration
+                                </CardTitle>
+                                <CardDescription>
+                                    Advanced Traefik routing configuration with variable support
+                                </CardDescription>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleValidateConfig}
+                                    disabled={isValidating}
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <div>
-                                            <div className="mb-1 flex items-center gap-2">
-                                                <p className="text-sm font-medium">
-                                                    {domain.domain}
+                                    {isValidating ? (
+                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                    ) : (
+                                        <CheckCircle className="h-4 w-4 mr-2" />
+                                    )}
+                                    Validate
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleSyncConfig}
+                                    disabled={syncTraefikConfig.isPending}
+                                >
+                                    {syncTraefikConfig.isPending ? (
+                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                    ) : (
+                                        <RefreshCw className="h-4 w-4 mr-2" />
+                                    )}
+                                    Sync
+                                </Button>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <FormField
+                            control={form.control}
+                            name="traefikConfigContent"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Configuration (YAML)</FormLabel>
+                                    <FormControl>
+                                        <Textarea
+                                            {...field}
+                                            className="font-mono text-sm"
+                                            placeholder={`http:
+  routers:
+    ~##serviceName##~-router:
+      rule: "Host(\`~##domain##~\`)"
+      service: ~##serviceName##~-service
+      
+  services:
+    ~##serviceName##~-service:
+      loadBalancer:
+        servers:
+          - url: "http://~##containerName##~:~##port##~"`}
+                                            rows={15}
+                                        />
+                                    </FormControl>
+                                    <FormDescription>
+                                        Use variables: ~##domain##~, ~##containerName##~, ~##port##~, ~##serviceName##~
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+
+                        {/* Validation Result */}
+                        {validationResult && (
+                            <div className="space-y-3">
+                                {/* Validation Status */}
+                                <div
+                                    className={`p-4 rounded-lg border ${
+                                        validationResult.isValid
+                                            ? 'bg-green-50 border-green-200'
+                                            : 'bg-red-50 border-red-200'
+                                    }`}
+                                >
+                                    <div className="flex items-start gap-2">
+                                        {validationResult.isValid ? (
+                                            <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                                        ) : (
+                                            <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                                        )}
+                                        <div className="flex-1">
+                                            <p
+                                                className={`text-sm font-medium ${
+                                                    validationResult.isValid
+                                                        ? 'text-green-800'
+                                                        : 'text-red-800'
+                                                }`}
+                                            >
+                                                {validationResult.isValid
+                                                    ? 'Configuration is valid'
+                                                    : 'Configuration has errors'}
+                                            </p>
+                                            
+                                            {/* Errors */}
+                                            {validationResult.errors && validationResult.errors.length > 0 && (
+                                                <ul className="mt-2 space-y-1">
+                                                    {validationResult.errors.map((error, idx) => (
+                                                        <li
+                                                            key={idx}
+                                                            className="text-sm text-red-700 flex items-start gap-2"
+                                                        >
+                                                            <AlertCircle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                                                            <div className="flex-1">
+                                                                {error.path && (
+                                                                    <span className="font-mono text-xs bg-red-100 px-1 py-0.5 rounded mr-2">
+                                                                        {error.path}
+                                                                    </span>
+                                                                )}
+                                                                <span>{error.message}</span>
+                                                                {error.code && (
+                                                                    <span className="ml-2 text-xs text-red-600 font-mono">
+                                                                        ({error.code})
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Warnings */}
+                                {validationResult.warnings && validationResult.warnings.length > 0 && (
+                                    <div className="p-4 rounded-lg border bg-yellow-50 border-yellow-200">
+                                        <div className="flex items-start gap-2">
+                                            <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                                            <div className="flex-1">
+                                                <p className="text-sm font-medium text-yellow-800 mb-2">
+                                                    Warnings
                                                 </p>
-                                                {domain.ssl && (
-                                                    <Lock className="h-3 w-3 text-green-600" />
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <Badge
-                                                    variant={
-                                                        domain.status ===
-                                                        'active'
-                                                            ? 'default'
-                                                            : 'secondary'
-                                                    }
-                                                    className="text-xs"
-                                                >
-                                                    {domain.status}
-                                                </Badge>
-                                                {domain.ssl ? (
-                                                    <Badge
-                                                        variant="outline"
-                                                        className="text-xs text-green-600"
-                                                    >
-                                                        SSL Active
-                                                    </Badge>
-                                                ) : (
-                                                    <Badge
-                                                        variant="outline"
-                                                        className="text-xs text-yellow-600"
-                                                    >
-                                                        SSL Pending
-                                                    </Badge>
-                                                )}
+                                                <ul className="space-y-1">
+                                                    {validationResult.warnings.map((warning, idx) => (
+                                                        <li
+                                                            key={idx}
+                                                            className="text-sm text-yellow-700 flex items-start gap-2"
+                                                        >
+                                                            <span className="text-yellow-600">•</span>
+                                                            <div className="flex-1">
+                                                                {warning.path && (
+                                                                    <span className="font-mono text-xs bg-yellow-100 px-1 py-0.5 rounded mr-2">
+                                                                        {warning.path}
+                                                                    </span>
+                                                                )}
+                                                                <span>{warning.message}</span>
+                                                            </div>
+                                                        </li>
+                                                    ))}
+                                                </ul>
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            asChild
-                                        >
-                                            <a
-                                                href={`https://${domain.domain}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                            >
-                                                <ExternalLink className="h-4 w-4" />
-                                            </a>
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="text-destructive"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
+                                )}
+
+                                {/* Variables */}
+                                {validationResult.variables && validationResult.variables.length > 0 && (
+                                    <div className="p-4 rounded-lg border bg-blue-50 border-blue-200">
+                                        <div className="flex items-start gap-2">
+                                            <FileCode className="h-5 w-5 text-blue-600 mt-0.5" />
+                                            <div className="flex-1">
+                                                <p className="text-sm font-medium text-blue-800 mb-2">
+                                                    Variables Detected ({validationResult.variables.length})
+                                                </p>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                    {validationResult.variables.map((variable, idx) => (
+                                                        <div
+                                                            key={idx}
+                                                            className={`flex items-center gap-2 p-2 rounded ${
+                                                                variable.resolved
+                                                                    ? 'bg-green-100 border border-green-300'
+                                                                    : 'bg-blue-100 border border-blue-300'
+                                                            }`}
+                                                        >
+                                                            <code className="text-xs font-mono text-blue-900">
+                                                                ~##{variable.name}##~
+                                                            </code>
+                                                            {variable.resolved === true ? (
+                                                                <Badge variant="outline" className="text-xs bg-green-200 text-green-800 border-green-400">
+                                                                    ✓ Resolved
+                                                                </Badge>
+                                                            ) : (
+                                                                <Badge variant="outline" className="text-xs bg-blue-200 text-blue-800 border-blue-400">
+                                                                    Unresolved
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="py-8 text-center">
-                            <Globe className="text-muted-foreground mx-auto mb-4 h-12 w-12" />
-                            <h3 className="mb-2 text-lg font-medium">
-                                No custom domains
-                            </h3>
-                            <p className="text-muted-foreground mb-4">
-                                Add your own domain to make your service
-                                accessible at a custom URL
-                            </p>
-                            <Button>
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add Domain
-                            </Button>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-
-            {/* CORS Configuration */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Shield className="h-5 w-5" />
-                        CORS Configuration
-                    </CardTitle>
-                    <CardDescription>
-                        Cross-Origin Resource Sharing settings for web
-                        applications
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                            <Label htmlFor="cors-enabled">Enable CORS</Label>
-                            <p className="text-muted-foreground text-sm">
-                                Allow cross-origin requests from web
-                                applications
-                            </p>
-                        </div>
-                        <Switch
-                            id="cors-enabled"
-                            checked={corsEnabled}
-                            onCheckedChange={setCorsEnabled}
-                        />
-                    </div>
-
-                    {corsEnabled && (
-                        <div className="bg-muted/50 space-y-4 rounded-lg border p-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="cors-origins">
-                                    Allowed Origins
-                                </Label>
-                                <Input
-                                    id="cors-origins"
-                                    value="https://myapp.com, https://www.myapp.com"
-                                    onChange={() => setHasUnsavedChanges(true)}
-                                    placeholder="https://example.com, https://app.example.com"
-                                />
-                                <p className="text-muted-foreground text-xs">
-                                    Comma-separated list of allowed origins (*
-                                    for all origins)
-                                </p>
+                                )}
                             </div>
+                        )}
 
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label htmlFor="cors-methods">
-                                        Allowed Methods
-                                    </Label>
-                                    <Input
-                                        id="cors-methods"
-                                        value="GET, POST, PUT, DELETE"
-                                        onChange={() =>
-                                            setHasUnsavedChanges(true)
-                                        }
-                                        placeholder="GET, POST, PUT, DELETE"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="cors-headers">
-                                        Allowed Headers
-                                    </Label>
-                                    <Input
-                                        id="cors-headers"
-                                        value="Content-Type, Authorization"
-                                        onChange={() =>
-                                            setHasUnsavedChanges(true)
-                                        }
-                                        placeholder="Content-Type, Authorization"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="cors-credentials">
-                                    <input
-                                        type="checkbox"
-                                        id="cors-credentials"
-                                        className="mr-2"
-                                        defaultChecked
-                                    />
-                                    Allow Credentials
-                                </Label>
-                                <p className="text-muted-foreground text-xs">
-                                    Allow cookies and authorization headers in
-                                    cross-origin requests
-                                </p>
-                            </div>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-
-            {/* Rate Limiting */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Zap className="h-5 w-5" />
-                        Rate Limiting
-                    </CardTitle>
-                    <CardDescription>
-                        Protect your service from abuse with request rate
-                        limiting
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                            <Label htmlFor="rate-limit">
-                                Enable Rate Limiting
-                            </Label>
-                            <p className="text-muted-foreground text-sm">
-                                Limit the number of requests per time period
-                            </p>
-                        </div>
-                        <Switch
-                            id="rate-limit"
-                            checked={rateLimitEnabled}
-                            onCheckedChange={setRateLimitEnabled}
-                        />
-                    </div>
-
-                    {rateLimitEnabled && (
-                        <div className="bg-muted/50 space-y-4 rounded-lg border p-4">
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label htmlFor="rate-limit-requests">
-                                        Requests per Window
-                                    </Label>
-                                    <Input
-                                        id="rate-limit-requests"
-                                        type="number"
-                                        value="100"
-                                        onChange={() =>
-                                            setHasUnsavedChanges(true)
-                                        }
-                                        min="1"
-                                        max="10000"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="rate-limit-window">
-                                        Window Duration
-                                    </Label>
-                                    <Select defaultValue="1m">
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select window" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="1s">
-                                                1 second
-                                            </SelectItem>
-                                            <SelectItem value="1m">
-                                                1 minute
-                                            </SelectItem>
-                                            <SelectItem value="1h">
-                                                1 hour
-                                            </SelectItem>
-                                            <SelectItem value="1d">
-                                                1 day
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="rate-limit-burst">
-                                    Burst Limit
-                                </Label>
-                                <Input
-                                    id="rate-limit-burst"
-                                    type="number"
-                                    value="20"
-                                    onChange={() => setHasUnsavedChanges(true)}
-                                    min="1"
-                                    max="1000"
-                                />
-                                <p className="text-muted-foreground text-xs">
-                                    Allow brief bursts above the regular limit
-                                </p>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="rate-limit-response">
-                                    Rate Limit Response
-                                </Label>
-                                <Select defaultValue="429">
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select response" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="429">
-                                            429 Too Many Requests
-                                        </SelectItem>
-                                        <SelectItem value="503">
-                                            503 Service Unavailable
-                                        </SelectItem>
-                                        <SelectItem value="custom">
-                                            Custom Response
-                                        </SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-
-            {/* Network Security */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Lock className="h-5 w-5" />
-                        Network Security
-                    </CardTitle>
-                    <CardDescription>
-                        Additional security settings for network access
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="ip-whitelist">IP Whitelist</Label>
-                        <Input
-                            id="ip-whitelist"
-                            placeholder="192.168.1.0/24, 10.0.0.0/8"
-                            onChange={() => setHasUnsavedChanges(true)}
-                        />
-                        <p className="text-muted-foreground text-xs">
-                            Comma-separated list of allowed IP ranges (leave
-                            empty to allow all)
-                        </p>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label htmlFor="user-agent-filter">
-                            User Agent Filtering
-                        </Label>
-                        <Input
-                            id="user-agent-filter"
-                            placeholder="Block specific user agents..."
-                            onChange={() => setHasUnsavedChanges(true)}
-                        />
-                        <p className="text-muted-foreground text-xs">
-                            Block requests from specific user agents or bots
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <Label htmlFor="ddos-protection">
-                                <input
-                                    type="checkbox"
-                                    id="ddos-protection"
-                                    className="mr-2"
-                                    defaultChecked
-                                />
-                                DDoS Protection
-                            </Label>
-                            <p className="text-muted-foreground text-xs">
-                                Automatic protection against distributed denial
-                                of service attacks
-                            </p>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="geo-blocking">
-                                <input
-                                    type="checkbox"
-                                    id="geo-blocking"
-                                    className="mr-2"
-                                />
-                                Geo-blocking
-                            </Label>
-                            <p className="text-muted-foreground text-xs">
-                                Block requests from specific countries or
-                                regions
-                            </p>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Network Status */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <CheckCircle className="h-5 w-5" />
-                        Network Status
-                    </CardTitle>
-                    <CardDescription>
-                        Current network configuration and connectivity status
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-                            <div className="rounded-lg border p-3">
-                                <div className="mb-2 flex items-center gap-2">
-                                    <CheckCircle className="h-4 w-4 text-green-600" />
-                                    <span className="text-sm font-medium">
-                                        SSL Certificate
-                                    </span>
-                                </div>
-                                <p className="text-muted-foreground text-xs">
-                                    Active, expires in 89 days
-                                </p>
-                            </div>
-
-                            <div className="rounded-lg border p-3">
-                                <div className="mb-2 flex items-center gap-2">
-                                    <CheckCircle className="h-4 w-4 text-green-600" />
-                                    <span className="text-sm font-medium">
-                                        HTTPS Redirect
-                                    </span>
-                                </div>
-                                <p className="text-muted-foreground text-xs">
-                                    Enabled and working
-                                </p>
-                            </div>
-
-                            <div className="rounded-lg border p-3">
-                                <div className="mb-2 flex items-center gap-2">
-                                    <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                                    <span className="text-sm font-medium">
-                                        Rate Limiting
-                                    </span>
-                                </div>
-                                <p className="text-muted-foreground text-xs">
-                                    Disabled
-                                </p>
-                            </div>
-
-                            <div className="rounded-lg border p-3">
-                                <div className="mb-2 flex items-center gap-2">
-                                    <CheckCircle className="h-4 w-4 text-green-600" />
-                                    <span className="text-sm font-medium">
-                                        CORS
-                                    </span>
-                                </div>
-                                <p className="text-muted-foreground text-xs">
-                                    Configured for 2 origins
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                        <div className="p-4 border border-blue-200 bg-blue-50 rounded-lg">
                             <div className="flex items-start gap-2">
-                                <Network className="mt-0.5 h-5 w-5 text-blue-600" />
+                                <FileCode className="h-5 w-5 text-blue-600 mt-0.5" />
                                 <div>
-                                    <p className="mb-2 text-sm font-medium text-blue-800">
-                                        Network Configuration Tips
+                                    <p className="text-sm font-medium text-blue-800 mb-2">
+                                        Configuration Tips
                                     </p>
-                                    <ul className="space-y-1 text-sm text-blue-700">
-                                        <li>
-                                            • Always use HTTPS in production
-                                            environments
-                                        </li>
-                                        <li>
-                                            • Configure CORS carefully to
-                                            prevent security issues
-                                        </li>
-                                        <li>
-                                            • Enable rate limiting to protect
-                                            against abuse
-                                        </li>
-                                        <li>
-                                            • Monitor SSL certificate expiration
-                                            dates
-                                        </li>
-                                        <li>
-                                            • Use custom domains for
-                                            professional branding
-                                        </li>
+                                    <ul className="text-sm text-blue-700 space-y-1">
+                                        <li>• Use ~##variable##~ syntax for dynamic values</li>
+                                        <li>• Validate configuration before saving</li>
+                                        <li>• Sync after changes to apply to Traefik</li>
+                                        <li>• Check validation errors carefully</li>
                                     </ul>
                                 </div>
                             </div>
                         </div>
+                    </CardContent>
+                </Card>
+
+                {/* Save Buttons */}
+                <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline">
+                        Cancel
+                    </Button>
+                    <Button
+                        type="submit"
+                        disabled={isFormDisabled || hasValidationErrors}
+                    >
+                        <Save className="h-4 w-4 mr-2" />
+                        {isFormDisabled ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                </div>
+
+                {/* Block submission if validation errors */}
+                {hasValidationErrors && (
+                    <div className="p-4 border border-red-200 bg-red-50 rounded-lg">
+                        <div className="flex items-start gap-2">
+                            <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                            <div>
+                                <p className="text-sm font-medium text-red-800">
+                                    Cannot save configuration
+                                </p>
+                                <p className="text-sm text-red-700">
+                                    Please fix the validation errors in your Traefik configuration before saving.
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                </CardContent>
-            </Card>
-        </div>
+                )}
+            </form>
+        </Form>
     )
 }

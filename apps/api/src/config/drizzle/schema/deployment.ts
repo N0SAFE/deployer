@@ -1,6 +1,8 @@
 import { pgTable, text, timestamp, boolean, integer, uuid, jsonb, pgEnum, } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { user } from "./auth";
+import { encryptedText } from "@/config/drizzle/custom-types/encrypted-text";
+import { traefikConfigBuilder } from "@/config/drizzle/custom-types/traefik-config-builder";
 import { healthChecks, serviceHealthConfigs } from "./health";
 // Enums for deployment-related types
 export const projectRoleEnum = pgEnum('project_role', ['owner', 'admin', 'developer', 'viewer']);
@@ -37,23 +39,6 @@ export const sourceTypeEnum = pgEnum('source_type', [
     'upload',
     'custom'
 ]);
-export const serviceProviderEnum = pgEnum('service_provider', [
-    'github',
-    'gitlab',
-    'bitbucket',
-    'docker_registry',
-    'gitea',
-    's3_bucket',
-    'manual'
-]);
-export const serviceBuilderEnum = pgEnum('service_builder', [
-    'nixpack',
-    'railpack',
-    'dockerfile',
-    'buildpack',
-    'static',
-    'docker_compose'
-]);
 export const logLevelEnum = pgEnum('log_level', ['info', 'warn', 'error', 'debug']);
 // Projects table - main container for all services and deployments
 export const projects = pgTable("projects", {
@@ -86,61 +71,96 @@ export const projects = pgTable("projects", {
         .notNull(),
 });
 // Services table - individual deployable components within projects
+// Organized into logical sections for better readability and maintainability
 export const services = pgTable("services", {
+    // ==========================================
+    // IDENTITY & RELATIONSHIP
+    // ==========================================
     id: uuid("id").primaryKey().defaultRandom(),
     projectId: uuid("project_id")
         .notNull()
         .references(() => projects.id, { onDelete: "cascade" }),
-    name: text("name").notNull(), // e.g., "web", "api", "docs"
-    type: text("type").notNull(), // e.g., "web", "worker", "database"
-    provider: serviceProviderEnum("provider").notNull(), // Source provider
-    builder: serviceBuilderEnum("builder").notNull(), // Build system
-    providerConfig: jsonb("provider_config").$type<{
-        // GitHub/GitLab/Bitbucket/Gitea
-        repositoryUrl?: string;
-        branch?: string;
-        accessToken?: string;
-        deployKey?: string;
-        // Docker Registry
-        registryUrl?: string;
-        imageName?: string;
-        tag?: string;
-        username?: string;
-        password?: string;
-        // S3 Bucket
-        bucketName?: string;
-        region?: string;
-        accessKeyId?: string;
-        secretAccessKey?: string;
-        objectKey?: string;
-        // Manual
-        instructions?: string;
-        deploymentScript?: string;
-    }>(),
-    builderConfig: jsonb("builder_config").$type<{
-        // Dockerfile
-        dockerfilePath?: string;
-        buildContext?: string;
-        buildArgs?: Record<string, string>;
-        // Nixpack/Railpack/Buildpack
-        buildCommand?: string;
-        startCommand?: string;
-        installCommand?: string;
-        // Static
-        outputDirectory?: string;
-        // Docker Compose  
-        composeFilePath?: string;
-        serviceName?: string;
-    }>(),
-    port: integer("port"), // Main port for the service
-    healthCheckPath: text("health_check_path").default("/health"),
+    name: text("name").notNull(), // Service name, e.g., "web", "api", "docs"
+    description: text("description"), // Optional service description
+    type: text("type").notNull(), // Service type: "web", "worker", "database", "cron"
+    
+    // ==========================================
+    // SOURCE PROVIDER CONFIGURATION
+    // Dynamic configuration based on provider registry
+    // ==========================================
+    providerId: text("provider_id").notNull(), // Provider ID from registry: "github", "static", etc.
+    // Dynamic provider configuration - validated against provider's ConfigSchema
+    // Structure defined by the provider's getConfigSchema() method
+    providerConfig: jsonb("provider_config").$type<Record<string, any>>(),
+    
+    // ==========================================
+    // BUILD SYSTEM CONFIGURATION  
+    // Dynamic configuration based on builder registry
+    // ==========================================
+    builderId: text("builder_id").notNull(), // Builder ID from registry: "dockerfile", "nixpack", etc.
+    // Dynamic builder configuration - validated against builder's ConfigSchema
+    // Structure defined by the builder's getConfigSchema() method
+    builderConfig: jsonb("builder_config").$type<Record<string, any>>(),
+    
+    // ==========================================
+    // RUNTIME CONFIGURATION
+    // ==========================================
+    port: integer("port"), // Main service port
     environmentVariables: jsonb("environment_variables").$type<Record<string, string>>(),
     resourceLimits: jsonb("resource_limits").$type<{
-        memory?: string; // e.g., "512m"
-        cpu?: string; // e.g., "0.5"
-        storage?: string; // e.g., "1g" 
+        memory?: string; // e.g., "512m", "1g", "2g"
+        cpu?: string; // e.g., "0.5", "1", "2"
+        storage?: string; // e.g., "1g", "5g", "10g"
     }>(),
+    
+    // ==========================================
+    // HEALTH & MONITORING
+    // ==========================================
+    healthCheckPath: text("health_check_path").default("/health"),
+    healthCheckInterval: integer("health_check_interval").default(30), // Seconds
+    healthCheckTimeout: integer("health_check_timeout").default(10), // Seconds
+    healthCheckRetries: integer("health_check_retries").default(3), // Number of retries
+    
+    // ==========================================
+    // DEPLOYMENT CONFIGURATION
+    // ==========================================
+    deploymentRetention: jsonb("deployment_retention").$type<{
+        maxSuccessfulDeployments?: number; // Default: 5 - max successful deployments to keep
+        keepArtifacts?: boolean; // Default: true - keep Docker images and build artifacts
+        autoCleanup?: boolean; // Default: true - auto-cleanup old deployments
+        cleanupSchedule?: string; // Cron expression for cleanup schedule
+    }>().default({ 
+        maxSuccessfulDeployments: 5, 
+        keepArtifacts: true, 
+        autoCleanup: true 
+    }),
+    
+    // ==========================================
+    // ROUTING & NETWORK CONFIGURATION
+    // ==========================================
+    // Traefik configuration with variable support (~##domain##~, ~##containerName##~, etc.)
+    // Variables are resolved during Traefik sync, not during storage
+    traefikConfig: traefikConfigBuilder("traefik_config"),
+    customDomains: jsonb("custom_domains").$type<string[]>(), // Additional custom domains
+    
+    // ==========================================
+    // METADATA & STATE
+    // ==========================================
     isActive: boolean("is_active").default(true).notNull(),
+    metadata: jsonb("metadata").$type<{
+        tags?: string[]; // Service tags for organization
+        category?: string; // Service category
+        icon?: string; // Service icon URL or emoji
+        color?: string; // UI color for the service
+        lastDeployedAt?: string; // Last successful deployment timestamp
+        lastDeployedBy?: string; // User ID who triggered last deployment
+        deploymentCount?: number; // Total number of deployments
+        customData?: Record<string, any>; // Additional custom metadata
+    }>(),
+    
+    // ==========================================
+    // TIMESTAMPS
+    // ==========================================
     createdAt: timestamp("created_at")
         .$defaultFn(() => new Date())
         .notNull(),
@@ -360,6 +380,172 @@ export const apiKeys = pgTable("api_keys", {
         .notNull(),
 });
 
+// Deployment Rollbacks - track rollback operations
+export const rollbackStatusEnum = pgEnum('rollback_status', [
+    'pending',
+    'in_progress',
+    'completed',
+    'failed',
+    'cancelled'
+]);
+
+export const deploymentRollbacks = pgTable("deployment_rollbacks", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    fromDeploymentId: uuid("from_deployment_id")
+        .notNull()
+        .references(() => deployments.id, { onDelete: "cascade" }),
+    toDeploymentId: uuid("to_deployment_id")
+        .notNull()
+        .references(() => deployments.id, { onDelete: "cascade" }),
+    triggeredBy: text("triggered_by")
+        .references(() => user.id, { onDelete: "set null" }),
+    status: rollbackStatusEnum("status").default("pending").notNull(),
+    reason: text("reason"), // Why the rollback was triggered
+    startedAt: timestamp("started_at"),
+    completedAt: timestamp("completed_at"),
+    failedAt: timestamp("failed_at"),
+    errorMessage: text("error_message"),
+    metadata: jsonb("metadata").$type<{
+        containersRemoved?: string[];
+        routesUpdated?: string[];
+        symlinksRecreated?: string[];
+        filesRestored?: number;
+        [key: string]: any;
+    }>(),
+    createdAt: timestamp("created_at")
+        .$defaultFn(() => new Date())
+        .notNull(),
+    updatedAt: timestamp("updated_at")
+        .$defaultFn(() => new Date())
+        .notNull(),
+});
+
+// GitHub App Installations - store GitHub app connection per user/organization
+export const githubInstallations = pgTable("github_installations", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+        .notNull()
+        .references(() => user.id, { onDelete: "cascade" }),
+    installationId: integer("installation_id").notNull().unique(), // GitHub installation ID
+    accountLogin: text("account_login").notNull(), // GitHub username or org name
+    accountType: text("account_type").notNull(), // "User" or "Organization"
+    accountAvatarUrl: text("account_avatar_url"),
+    repositoriesCount: integer("repositories_count").default(0),
+    // GitHub App credentials (automatically encrypted/decrypted)
+    appId: text("app_id"), // GitHub App ID (not encrypted - public identifier)
+    privateKey: encryptedText("private_key"), // GitHub App private key (automatically encrypted)
+    clientId: text("client_id"), // OAuth client ID (not encrypted - public identifier)
+    clientSecret: encryptedText("client_secret"), // OAuth client secret (automatically encrypted)
+    webhookSecret: encryptedText("webhook_secret"), // Webhook secret (automatically encrypted)
+    permissions: jsonb("permissions").$type<{
+        contents?: string; // read, write
+        metadata?: string; // read
+        pullRequests?: string; // read, write
+        webhooks?: string; // read, write
+        [key: string]: string | undefined;
+    }>(),
+    accessTokenUrl: text("access_token_url"), // URL to fetch installation access token
+    htmlUrl: text("html_url"), // GitHub installation URL
+    isActive: boolean("is_active").default(true).notNull(),
+    lastSyncedAt: timestamp("last_synced_at"),
+    metadata: jsonb("metadata").$type<{
+        appSlug?: string;
+        targetType?: string;
+        suspendedAt?: string;
+        [key: string]: any;
+    }>(),
+    createdAt: timestamp("created_at")
+        .$defaultFn(() => new Date())
+        .notNull(),
+    updatedAt: timestamp("updated_at")
+        .$defaultFn(() => new Date())
+        .notNull(),
+});
+
+// GitHub Repositories - track connected repositories
+export const githubRepositories = pgTable("github_repositories", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    installationId: uuid("installation_id")
+        .notNull()
+        .references(() => githubInstallations.id, { onDelete: "cascade" }),
+    repositoryId: integer("repository_id").notNull().unique(), // GitHub repository ID
+    name: text("name").notNull(),
+    fullName: text("full_name").notNull(), // owner/repo
+    private: boolean("private").notNull(),
+    htmlUrl: text("html_url").notNull(),
+    description: text("description"),
+    defaultBranch: text("default_branch").notNull(),
+    language: text("language"),
+    forksCount: integer("forks_count").default(0),
+    stargazersCount: integer("stargazers_count").default(0),
+    isActive: boolean("is_active").default(true).notNull(),
+    lastSyncedAt: timestamp("last_synced_at"),
+    createdAt: timestamp("created_at")
+        .$defaultFn(() => new Date())
+        .notNull(),
+    updatedAt: timestamp("updated_at")
+        .$defaultFn(() => new Date())
+        .notNull(),
+});
+
+// Deployment Rules - configure automatic deployments based on GitHub events
+export const deploymentRuleTriggerEnum = pgEnum('deployment_rule_trigger', [
+    'push',           // On push to branch
+    'pull_request',   // On PR open/update
+    'tag',            // On tag creation
+    'release',        // On release creation
+    'manual'          // Manual trigger only
+]);
+
+export const deploymentRules = pgTable("deployment_rules", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    serviceId: uuid("service_id")
+        .notNull()
+        .references(() => services.id, { onDelete: "cascade" }),
+    name: text("name").notNull(), // e.g., "Production deployments", "Preview PRs"
+    trigger: deploymentRuleTriggerEnum("trigger").notNull(),
+    isEnabled: boolean("is_enabled").default(true).notNull(),
+    priority: integer("priority").default(0).notNull(), // Higher number = higher priority
+    
+    // Branch/Tag matching
+    branchPattern: text("branch_pattern"), // e.g., "main", "master", "release/*", "feature/*"
+    excludeBranchPattern: text("exclude_branch_pattern"), // e.g., "dev/*"
+    tagPattern: text("tag_pattern"), // e.g., "v*", "release-*"
+    
+    // PR-specific rules
+    prLabels: jsonb("pr_labels").$type<string[]>(), // Only deploy PRs with these labels
+    prTargetBranches: jsonb("pr_target_branches").$type<string[]>(), // Only PRs targeting these branches
+    requireApproval: boolean("require_approval").default(false),
+    minApprovals: integer("min_approvals").default(1),
+    
+    // Deployment configuration
+    environment: deploymentEnvironmentEnum("environment").notNull(),
+    autoMergeOnSuccess: boolean("auto_merge_on_success").default(false),
+    autoDeleteOnMerge: boolean("auto_delete_on_merge").default(true), // For preview envs
+    
+    // Custom configuration overrides
+    environmentVariables: jsonb("environment_variables").$type<Record<string, string>>(),
+    builderConfigOverride: jsonb("builder_config_override").$type<{
+        buildCommand?: string;
+        outputDirectory?: string;
+        [key: string]: any;
+    }>(),
+    
+    metadata: jsonb("metadata").$type<{
+        description?: string;
+        lastTriggeredAt?: string;
+        triggerCount?: number;
+        [key: string]: any;
+    }>(),
+    
+    createdAt: timestamp("created_at")
+        .$defaultFn(() => new Date())
+        .notNull(),
+    updatedAt: timestamp("updated_at")
+        .$defaultFn(() => new Date())
+        .notNull(),
+});
+
 // Relations
 export const projectsRelations = relations(projects, ({ one, many }) => ({
     owner: one(user, {
@@ -385,6 +571,7 @@ export const servicesRelations = relations(services, ({ one, many }) => ({
         relationName: "serviceDependents",
     }),
     webhooks: many(webhooks),
+    deploymentRules: many(deploymentRules),
     healthConfig: one(serviceHealthConfigs, {
         fields: [services.id],
         references: [serviceHealthConfigs.serviceId],
@@ -466,5 +653,42 @@ export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
     project: one(projects, {
         fields: [apiKeys.projectId],
         references: [projects.id],
+    }),
+}));
+
+export const deploymentRollbacksRelations = relations(deploymentRollbacks, ({ one }) => ({
+    fromDeployment: one(deployments, {
+        fields: [deploymentRollbacks.fromDeploymentId],
+        references: [deployments.id],
+    }),
+    toDeployment: one(deployments, {
+        fields: [deploymentRollbacks.toDeploymentId],
+        references: [deployments.id],
+    }),
+    triggeredByUser: one(user, {
+        fields: [deploymentRollbacks.triggeredBy],
+        references: [user.id],
+    }),
+}));
+
+export const githubInstallationsRelations = relations(githubInstallations, ({ one, many }) => ({
+    user: one(user, {
+        fields: [githubInstallations.userId],
+        references: [user.id],
+    }),
+    repositories: many(githubRepositories),
+}));
+
+export const githubRepositoriesRelations = relations(githubRepositories, ({ one }) => ({
+    installation: one(githubInstallations, {
+        fields: [githubRepositories.installationId],
+        references: [githubInstallations.id],
+    }),
+}));
+
+export const deploymentRulesRelations = relations(deploymentRules, ({ one }) => ({
+    service: one(services, {
+        fields: [deploymentRules.serviceId],
+        references: [services.id],
     }),
 }));

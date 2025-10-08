@@ -128,13 +128,13 @@ export function GeneralConfigurationClient({ serviceId }: GeneralConfigurationCl
             <div className="space-y-2">
               <Label>Provider</Label>
               <div className="flex items-center gap-2">
-                <Badge variant="outline">{getProviderLabel(service.provider)}</Badge>
+                <Badge variant="outline">{getProviderLabel(service.providerId)}</Badge>
               </div>
             </div>
             <div className="space-y-2">
               <Label>Builder</Label>
               <div className="flex items-center gap-2">
-                <Badge variant="outline">{getBuilderLabel(service.builder)}</Badge>
+                <Badge variant="outline">{getBuilderLabel(service.builderId)}</Badge>
               </div>
             </div>
             <div className="space-y-2">

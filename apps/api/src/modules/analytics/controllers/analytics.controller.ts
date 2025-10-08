@@ -1,6 +1,6 @@
 import { Controller, Logger } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
-import { AnalyticsService } from '../services/analytics.service';
+import { AnalyticsService } from '@/modules/analytics/services/analytics.service';
 import { analyticsContract } from '@repo/api-contracts';
 @Controller()
 export class AnalyticsController {

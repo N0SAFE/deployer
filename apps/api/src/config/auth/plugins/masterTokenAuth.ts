@@ -1,15 +1,12 @@
 // plugins/master-token/index.ts
-import type { BetterAuthPlugin } from "better-auth";
+import type { BetterAuthPlugin, User } from "better-auth";
 import { createAuthMiddleware } from "better-auth/api";
+import { setSessionCookie } from "better-auth/cookies";
 
 interface MasterTokenOptions {
   devAuthKey: string;
-  enabled?: boolean;
-  masterUser?: {
-    id?: string;
-    email?: string;
-    name?: string;
-  };
+  masterUserEmail: string,
+  enabled: boolean
 }
 
 export const masterTokenPlugin = (
@@ -17,12 +14,8 @@ export const masterTokenPlugin = (
 ): BetterAuthPlugin => {
   const {
     devAuthKey,
-    enabled = true,
-    masterUser = {
-      id: "master-token-user",
-      email: "master@system.local",
-      name: "Master Token User",
-    },
+    masterUserEmail,
+    enabled
   } = options;
 
   return {
@@ -33,6 +26,7 @@ export const masterTokenPlugin = (
         {
           matcher: (context) => {
             // Hook into all API calls
+            console.log(context.headers, context.path);
             return (
               context.path === "/get-session" ||
               context.path === "/session" ||
@@ -54,30 +48,34 @@ export const masterTokenPlugin = (
                   !ctx.body ||
                   (ctx.body && Object.keys(ctx.body).length === 0)
                 ) {
-                  const masterSession = {
-                    session: {
-                      id: `master-session-${Date.now()}`,
-                      userId: masterUser.id!,
-                      expiresAt: new Date(
-                        Date.now() + 24 * 60 * 60 * 1000
-                      ).toISOString(),
-                      userAgent: ctx.headers?.get("user-agent") || "unknown",
-                      createdAt: new Date().toISOString(),
-                      updatedAt: new Date().toISOString(),
-                    },
-                    user: {
-                      id: masterUser.id!,
-                      email: masterUser.email!,
-                      emailVerified: true,
-                      name: masterUser.name!,
-                      createdAt: new Date().toISOString(),
-                      updatedAt: new Date().toISOString(),
-                    },
-                  };
+                  const user = await ctx.context.adapter.findOne<User>({
+                    model: "user",
+                    where: [{ field: "email", value: masterUserEmail, operator: "eq" }],
+                  });
 
-                  return {
-                    response: Response.json(masterSession),
-                  };
+                  if (!user) {
+                    return ctx.json(
+                      { error: "User not found" },
+                      { status: 404 }
+                    );
+                  }
+
+                  // Create session for the user
+                  const session =
+                    await ctx.context.internalAdapter.createSession(
+                      user.id,
+                      ctx
+                    );
+
+                  await setSessionCookie(ctx, {
+                    session,
+                    user,
+                  });
+
+                  return ctx.json({
+                    session,
+                    user
+                  });
                 }
               }
             }

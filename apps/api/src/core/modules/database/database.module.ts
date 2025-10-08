@@ -5,11 +5,10 @@ import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@/config/drizzle/schema";
 import { EnvService } from "@/config/env/env.service";
-import { EnvModule } from "@/config/env/env.module";
 
 @Global()
 @Module({
-    imports: [EnvModule],
+    imports: [],
     providers: [
         DatabaseService,
         {

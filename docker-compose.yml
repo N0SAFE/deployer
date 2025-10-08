@@ -146,6 +146,7 @@ services:
             BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-better-auth-fallback-secret}
             # Development authentication
             DEV_AUTH_KEY: ${DEV_AUTH_KEY:-dev-fallback-key}
+            MASTER_USER: ${MASTER_USER:-admin@admin.com/adminadmin}
             # Traefik Configuration
             TRAEFIK_DOMAIN: ${TRAEFIK_DOMAIN:-localhost}
             TRAEFIK_ACME_EMAIL: ${TRAEFIK_ACME_EMAIL:-admin@localhost}
@@ -235,7 +236,7 @@ services:
             - turbo_cache_dev:/root/.cache/turbo
         depends_on:
             api-dev:
-                condition: service_healthy
+                condition: service_started
         environment:
             - NODE_ENV=development
             # Server-side API URL (internal Docker network)
@@ -250,6 +251,7 @@ services:
             - BETTER_AUTH_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
             # Docs URL (for navbar link)
             - NEXT_PUBLIC_DEV_AUTH_KEY=${NEXT_PUBLIC_DEV_AUTH_KEY:-${DEV_AUTH_KEY:-dev-fallback-key}}
+            - MASTER_USER=${MASTER_USER:-admin@admin.com/adminadmin}
             - NEXT_PUBLIC_DOC_PORT=${NEXT_PUBLIC_DOC_PORT:-3020}
             - NEXT_PUBLIC_DOC_URL=${NEXT_PUBLIC_DOC_URL:-http://localhost:${NEXT_PUBLIC_DOC_PORT:-3020}}
             # Debug configuration

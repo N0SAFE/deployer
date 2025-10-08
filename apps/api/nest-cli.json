@@ -4,9 +4,12 @@
   "sourceRoot": "src",
   "monorepo": true,
   "compilerOptions": {
-    "deleteOutDir": false
+    "deleteOutDir": false,
+    "builder": "swc",
+    "typeCheck": true,
+    "webpack": true,
+    "webpackConfigPath": "webpack.config.js"
   },
-  "entryFile": "apps/api/src/main.js",
   "projects": {
     "api": {
       "type": "application",

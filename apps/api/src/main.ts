@@ -3,7 +3,7 @@ import { AppModule } from "./app.module";
 import { apiReference } from "@scalar/nestjs-api-reference";
 import { FlubErrorHandler } from "nestjs-flub";
 import { generateSpec } from "./openapi";
-import { AuthService } from "./core/modules/auth/services/auth.service";
+import { AuthService } from "@/core/modules/auth/services/auth.service";
 import { isErrorResult, merge } from "openapi-merge";
 import EventEmitter from "events";
 
@@ -12,9 +12,16 @@ EventEmitter.defaultMaxListeners = 50;
 
 // Also set it for process if needed
 if (process.setMaxListeners) {
-    process.setMaxListeners(50);
+  process.setMaxListeners(50);
 }
 
+declare const module: {
+  hot: {
+    accept: () => void;
+    dispose: (callback: () => void) => void;
+    data: unknown;
+  };
+};
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -81,6 +88,16 @@ async function bootstrap() {
     `📘 OpenAPI JSON available at http://localhost:${port}/openapi.json`
   );
   console.log(`📗 Scalar API Reference at http://localhost:${port}/reference`);
+
+  if (module.hot) {
+    module.hot.accept();
+    module.hot.dispose(() => {
+      console.log("🔄 HMR: Closing application before reload...");
+      app.close();
+    });
+  }
+
+  return app;
 }
 
 bootstrap().catch((error) => {

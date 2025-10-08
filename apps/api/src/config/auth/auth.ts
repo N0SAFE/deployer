@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { passkey } from "better-auth/plugins/passkey";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import type { EnvService } from "../env/env.service";
+import type { EnvService } from "@/config/env/env.service";
 import { masterTokenPlugin } from "./plugins/masterTokenAuth";
 import { loginAsPlugin } from "./plugins/loginAs";
 import { useAdmin } from "./permissions/index";
@@ -12,6 +12,7 @@ export const betterAuthFactory = (...args: unknown[]) => {
   const [database, envService] = args as [unknown, EnvService];
   const dbInstance = database as NodePgDatabase<any>;
 
+  const masterUserEmail = envService.get("MASTER_USER")?.email;
   const devAuthKey = envService.get("DEV_AUTH_KEY");
 
   return {
@@ -31,12 +32,15 @@ export const betterAuthFactory = (...args: unknown[]) => {
         useAdmin(),
         masterTokenPlugin({
           devAuthKey: devAuthKey || "",
-          enabled: envService.get("NODE_ENV") === "development" && !!devAuthKey,
+          masterUserEmail: masterUserEmail || "",
+          enabled:
+            envService.get("NODE_ENV") === "development" &&
+            !!masterUserEmail &&
+            !!devAuthKey,
         }),
         // Dev-only loginAs plugin to support 'Login as' from DevTools
         loginAsPlugin({
-          enabled: envService.get("NODE_ENV") === "development" && !!devAuthKey,
-          devAuthKey: devAuthKey || "",
+          enabled: envService.get("NODE_ENV") === "development",
         }),
         openAPI(),
         organization({

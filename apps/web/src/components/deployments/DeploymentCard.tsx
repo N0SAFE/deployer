@@ -182,7 +182,7 @@ export default function DeploymentCard({ deployment, projectId, serviceId, rollb
                 <FileText className="h-4 w-4 mr-2" />
                 View Logs
               </DropdownMenuItem>
-              {deployment.status === 'success' && (
+              {(deployment.status === 'success' || deployment.status === 'cancelled') && (
                 <DropdownMenuItem onClick={handleRollback} disabled={!rollbackTargetId}>
                   <RotateCcw className="h-4 w-4 mr-2" />
                   Rollback

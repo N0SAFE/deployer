@@ -1,9 +1,9 @@
 import { Controller, Logger } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { environmentContract } from '@repo/api-contracts';
-import { EnvironmentService } from '../services/environment.service';
-import { DatabaseService } from '../../../core/modules/database/services/database.service';
-import { projects } from '../../../config/drizzle/schema';
+import { EnvironmentService } from '@/modules/environment/services/environment.service';
+import { DatabaseService } from '@/core/modules/database/services/database.service';
+import { projects } from '@/config/drizzle/schema';
 import { eq } from 'drizzle-orm';
 @Controller()
 export class EnvironmentController {

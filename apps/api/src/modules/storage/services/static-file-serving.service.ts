@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { StaticFileService } from "../../../core/services/static-file.service";
-import { services, deployments } from "../../../config/drizzle/schema";
+import { StaticProviderService } from "@/core/modules/providers/static/static-provider.service";
+import { services, deployments } from "@/config/drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
 import * as fs from "fs-extra";
 import * as path from "path";
@@ -31,13 +31,8 @@ export class StaticFileServingService {
   private readonly staticFilesDir = "/app/static";
   constructor(
     private readonly databaseService: DatabaseService,
-    private readonly staticFileService: StaticFileService
+    private readonly staticFileService: StaticProviderService
   ) {}
-  async onModuleInit() {
-    // Ensure static files directory exists
-    await fs.ensureDir(this.staticFilesDir);
-    this.logger.log("Static file serving service initialized");
-  }
   /**
    * Get static file content and metadata
    */

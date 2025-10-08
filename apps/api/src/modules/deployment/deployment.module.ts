@@ -1,13 +1,19 @@
-import { Module } from '@nestjs/common';
-import { CoreModule } from '../../core/core.module';
-import { OrchestrationModule } from '../../core/modules/orchestration/orchestration.module';  // Import for DeploymentQueueService
-import { JobsModule } from '../jobs/jobs.module';
-import { WebSocketModule } from '../websocket/websocket.module';
+import { Module } from "@nestjs/common";
+import { DeploymentController } from "./controllers/deployment.controller";
+import { CoreModule } from "@/core/core.module";
 // Use the DB-backed DeploymentController implemented in the websocket module folder
-import { DeploymentController as DeploymentHttpController } from '../websocket/controllers/deployment.controller';
+
+/**
+ * FEATURE MODULE: Deployment
+ * Handles HTTP deployment endpoints
+ *
+ * Dependencies:
+ * - CoreModule: For core deployment services and orchestration
+ * - WebSocketModule: For real-time deployment notifications (feature module)
+ * - BullModule: For DeploymentQueueService dependency
+ */
 @Module({
-    imports: [CoreModule, OrchestrationModule, JobsModule, WebSocketModule],  // Add OrchestrationModule for DeploymentQueueService
-    controllers: [DeploymentHttpController],
+  imports: [CoreModule],
+  controllers: [DeploymentController],
 })
-export class DeploymentModule {
-}
+export class DeploymentModule {}

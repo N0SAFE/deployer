@@ -27,10 +27,28 @@
     "noPropertyAccessFromIndexSignature": false,
 
     // Module resolution helper for monorepo local packages
-    "baseUrl": ".",
     "paths": {
-      "@repo/types": ["packages/types/src"],
-      "@repo/types/*": ["packages/types/src/*"]
+      "@repo/types": ["./packages/types/src"],
+      "@repo/types/*": ["./packages/types/src/*"]
     }
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "**/node_modules",
+    "dist",
+    "**/dist",
+    "build",
+    "**/build",
+    "out",
+    ".next",
+    "apps/*/.next",
+    ".vercel",
+    ".turbo",
+    "coverage",
+    ".cache",
+    "tmp",
+    "logs",
+    ".git",
+    "packages/*/dist"
+  ]
 }

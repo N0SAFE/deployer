@@ -59,3 +59,10 @@ export * from './static-file'; // 🟢 Routes: /static-file/* | Frontend: ❌ | 
 export * from './analytics'; // 🟢 Routes: /analytics/* | Frontend: ❌ | Complexity: Medium
 /** Dynamic configuration resolution - Template and variable processing */
 export * from './variable-resolver'; // 🟢 Routes: /variable-resolver/* | Frontend: ❌ | Complexity: Medium
+
+// =============================================================================
+// ⚙️ CONFIGURATION - Dynamic schema-driven configuration
+// =============================================================================
+
+/** Provider and builder schema management - Dynamic form generation */
+export * from './provider-schema'; // 🟢 Routes: /providers/*, /builders/* | Frontend: ✅ | Complexity: Medium

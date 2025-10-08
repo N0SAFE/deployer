@@ -1,4 +1,4 @@
-import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
 import { sslCertificates, orchestrationStacks, networkAssignments } from '@/config/drizzle/schema/orchestration';
@@ -6,9 +6,9 @@ import { eq, and } from 'drizzle-orm';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as forge from 'node-forge';
-import { DockerService } from '../../../services/docker.service';
+import { DockerService } from '@/core/modules/docker/services/docker.service';
 import * as net from 'net';
-import { DatabaseService } from '../../database/services/database.service';
+import { DatabaseService } from '@/core/modules/database/services/database.service';
 export interface TraefikConfig {
     projectId: string;
     environment: string;
@@ -37,7 +37,7 @@ export interface DomainMapping {
 }
 
 @Injectable()
-export class TraefikService implements OnModuleInit {
+export class TraefikService {
     private readonly logger = new Logger(TraefikService.name);
     // Honor environment configuration used by docker-compose (TRAEFIK_CONFIG_BASE_PATH)
     private readonly traefikConfigDir = process.env.TRAEFIK_CONFIG_BASE_PATH || '/app/traefik-configs';
@@ -47,9 +47,6 @@ export class TraefikService implements OnModuleInit {
     @InjectQueue('deployment')
     private deploymentQueue: Queue,
     private readonly dockerService: DockerService) { }
-    async onModuleInit() {
-        this.logger.log('Docker client initialized for Traefik service');
-    }
     /**
      * Generate Traefik configuration for a stack
      */

@@ -1,9 +1,9 @@
 import { Controller, Logger, Inject, All, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { toNodeHandler } from "better-auth/node";
-import { AUTH_INSTANCE_KEY } from "../types/symbols";
+import { AUTH_INSTANCE_KEY } from "@/core/modules/auth/types/symbols";
 import type { Auth } from "@/core/modules/auth/types/auth";
-import { Public } from "../decorators/decorators";
+import { Public } from "@/core/modules/auth/decorators/decorators";
 
 /**
  * Controller that handles all Better Auth routes using NestJS routing system

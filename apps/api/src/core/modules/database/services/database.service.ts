@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { DATABASE_CONNECTION } from '../tokens/database-connection';
-import type { Database } from '../interfaces/Database';
+import { DATABASE_CONNECTION } from '@/core/modules/database/tokens/database-connection';
+import type { Database } from '@/core/modules/database/interfaces/Database';
 
 @Injectable()
 export class DatabaseService {

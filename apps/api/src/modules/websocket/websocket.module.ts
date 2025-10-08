@@ -1,17 +1,22 @@
 import { Module } from '@nestjs/common';
-import { CoreModule } from '../../core/core.module';
-import { OrchestrationModule } from '../../core/modules/orchestration/orchestration.module';  // Import for DeploymentQueueService
-// Services
-import { WebSocketEventService } from './services/websocket-event.service';
-// import { DeploymentQueueService } from '../jobs/services/deployment-queue.service';  // Now in OrchestrationModule
-// Gateways
 import { DeploymentWebSocketGateway } from './gateways/deployment.gateway';
+import { WebSocketEventService } from './services/websocket-event.service';
+import { DeploymentController } from './controllers/deployment.controller';
+import { CoreModule } from '@/core/core.module';
+
+/**
+ * FEATURE MODULE: WebSocket
+ * Provides real-time deployment updates via WebSocket
+ * 
+ * Dependencies (Core Modules):
+ * - DockerService: Injected from global DockerModule (no import needed)
+ * - OrchestrationModule: For DeploymentQueueService
+ */
 @Module({
-    imports: [
-        CoreModule, // Import CoreModule to provide DockerService
-        OrchestrationModule,  // Import OrchestrationModule to provide DeploymentQueueService
-    ],
-    controllers: [],
+  imports: [
+    CoreModule,
+  ],
+    controllers: [DeploymentController],
     providers: [
         DeploymentWebSocketGateway,
         WebSocketEventService,

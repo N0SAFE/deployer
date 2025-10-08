@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
-import type { DeploymentJobData, RollbackJobData, HealthCheckJobData, CleanupJobData } from '../types/deployment-job.types';
+import type { DeploymentJobData, RollbackJobData, HealthCheckJobData, CleanupJobData } from '@/core/modules/orchestration/types/deployment-job.types';
 @Injectable()
 export class DeploymentQueueService {
     private readonly logger = new Logger(DeploymentQueueService.name);

@@ -11,6 +11,9 @@ import {
   traefikCleanupOrphanedFilesContract
 } from './file-management';
 
+// Import service config validation
+import { traefikValidateServiceConfigContract } from './service-config';
+
 // Main traefik contract with only the minimal file management API
 export const traefikContract = oc.tag("Traefik").prefix("/traefik").router({
   // ============================================================================= 
@@ -27,9 +30,14 @@ export const traefikContract = oc.tag("Traefik").prefix("/traefik").router({
   // Configuration synchronization
   forceSyncConfigs: traefikForceSyncConfigsContract,
   cleanupOrphanedFiles: traefikCleanupOrphanedFilesContract,
+  
+  // Service configuration validation
+  validateServiceConfig: traefikValidateServiceConfigContract,
 });
 
 export type TraefikContract = typeof traefikContract;
 
 // Re-export file management contracts
 export * from './file-management';
+export * from './service-config';
+

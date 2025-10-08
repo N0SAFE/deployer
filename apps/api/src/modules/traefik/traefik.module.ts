@@ -1,29 +1,16 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { DatabaseModule } from '@/core/modules/database/database.module';
 import { TraefikController } from './controllers/traefik.controller';
-import { TraefikService } from './services/traefik.service';
-import { TraefikSyncService } from './services/traefik-sync.service';
-import { TraefikFileSystemService } from './services/traefik-file-system.service';
-import { TraefikStartupService } from './services/traefik-startup.service';
-import { TraefikRepository } from './repositories/traefik.repository';
+import { TraefikCoreModule } from '@/core/modules/traefik/traefik.module';
 
+/**
+ * FEATURE MODULE: Traefik
+ * Provides HTTP endpoints for Traefik configuration management
+ * 
+ * This is a FEATURE module - it provides HTTP API endpoints.
+ * All business logic is in TraefikCoreModule.
+ */
 @Module({
-  imports: [ConfigModule, DatabaseModule],
+  imports: [TraefikCoreModule],
   controllers: [TraefikController],
-  providers: [
-    TraefikService,
-    TraefikSyncService,
-    TraefikFileSystemService,
-    TraefikStartupService,
-    TraefikRepository,
-  ],
-  exports: [
-    TraefikService,
-    TraefikSyncService,
-    TraefikFileSystemService,
-    TraefikStartupService,
-    TraefikRepository,
-  ],
 })
 export class TraefikModule {}

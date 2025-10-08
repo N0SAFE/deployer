@@ -317,13 +317,27 @@ export const traefikValidateServiceConfigContract = oc
   .route({
     method: 'POST',
     path: '/services/:serviceId/traefik-config/validate',
-    summary: 'Validate Traefik configuration for a service',
+    summary: 'Validate Traefik configuration (either stored or custom YAML content)',
   })
   .input(z.object({
     serviceId: z.string(),
+    configContent: z.string().optional(), // Optional YAML content to validate (if not provided, validates stored config)
   }))
   .output(z.object({
     isValid: z.boolean(),
-    errors: z.array(z.string()),
-    warnings: z.array(z.string()).optional(),
+    errors: z.array(z.object({
+      path: z.string(),
+      message: z.string(),
+      code: z.string(),
+    })).optional(),
+    warnings: z.array(z.object({
+      path: z.string(),
+      message: z.string(),
+    })).optional(),
+    variables: z.array(z.object({
+      name: z.string(),
+      resolved: z.boolean(),
+      value: z.any().optional(),
+      error: z.string().optional(),
+    })).optional(),
   }));

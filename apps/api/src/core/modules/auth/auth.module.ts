@@ -100,10 +100,14 @@ const HOOKS = [
 /**
  * NestJS module that integrates the Auth library with NestJS applications.
  * Provides authentication middleware, hooks, and exception handling.
+ * 
+ * NOTE: This base module should not provide any services that depend on AUTH_INSTANCE_KEY
+ * or AUTH_MODULE_OPTIONS_KEY, as those are only provided by the dynamic module returned
+ * from forRoot() or forRootAsync().
  */
 @Module({
   imports: [DiscoveryModule],
-  providers: [AuthGuard],
+  providers: [], // No providers in base module - only in dynamic module
 })
 export class AuthModule implements NestModule, OnModuleInit {
   private readonly logger = new Logger(AuthModule.name);

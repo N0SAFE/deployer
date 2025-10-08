@@ -6,7 +6,7 @@ import { sslCertificates } from '@/config/drizzle/schema/orchestration';
 import { eq, lt, and, isNotNull } from 'drizzle-orm';
 import * as fs from 'fs-extra';
 import * as forge from 'node-forge';
-import { DatabaseService } from '../../database/services/database.service';
+import { DatabaseService } from '@/core/modules/database/services/database.service';
 export interface CertificateInfo {
     domain: string;
     notBefore: Date;

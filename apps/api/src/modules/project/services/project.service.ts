@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '../../../core/modules/database/services/database.service';
-import { TraefikService } from '../../traefik/services/traefik.service';
-import { projects, projectCollaborators, services, deployments } from '../../../config/drizzle/schema';
+import { DatabaseService } from '@/core/modules/database/services/database.service';
+import { projects, projectCollaborators, services, deployments } from '@/config/drizzle/schema';
 import { eq, desc } from 'drizzle-orm';
 
 @Injectable()
@@ -10,7 +9,6 @@ export class ProjectService {
 
   constructor(
     private readonly databaseService: DatabaseService,
-    private readonly traefikService: TraefikService,
   ) {}
 
   /**

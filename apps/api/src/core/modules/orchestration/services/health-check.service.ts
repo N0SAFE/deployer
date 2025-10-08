@@ -11,9 +11,9 @@ import {
   resourceAlerts,
 } from "@/config/drizzle/schema/resource-monitoring";
 import { eq, and, desc, gte } from "drizzle-orm";
-import { DockerService } from "../../../services/docker.service";
+import { DockerService } from "@/core/modules/docker/services/docker.service";
 import axios, { type AxiosResponse } from "axios";
-import { DatabaseService } from "../../database/services/database.service";
+import { DatabaseService } from "@/core/modules/database/services/database.service";
 export interface HealthCheckResult {
   stackId: string;
   serviceId?: string;

@@ -1,6 +1,6 @@
+import { StorageService } from '@/core/modules/storage/services/storage.service';  // Changed from 'import type' to allow runtime injection
 import { Controller, Logger } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
-import { StorageService } from '../services/storage.service';
 import { storageContract } from '@repo/api-contracts';
 @Controller()
 export class StorageController {

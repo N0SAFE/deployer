@@ -26,6 +26,13 @@ import { deploymentListContract } from './list';
 import { deploymentSubscribeContract, deploymentUnsubscribeContract, deploymentStatusUpdateContract, deploymentLogStreamContract, } from './websocket';
 import { deploymentHealthMonitorContract, deploymentDetailedStatusContract, deploymentRestartUnhealthyContract } from './health';
 import { deploymentListContainersContract, deploymentContainerActionContract } from './listContainers';
+import { 
+    deploymentGetRollbackHistoryContract,
+    deploymentPreviewCleanupContract, 
+    deploymentTriggerCleanupContract,
+    deploymentUpdateRetentionPolicyContract
+} from './rollbackHistory';
+
 // Combine HTTP API contracts into main deployment contract
 export const deploymentContract = oc.tag("Deployment").prefix("/deployment").router({
     getStatus: deploymentGetStatusContract,
@@ -40,6 +47,11 @@ export const deploymentContract = oc.tag("Deployment").prefix("/deployment").rou
     restartUnhealthy: deploymentRestartUnhealthyContract,
     listContainers: deploymentListContainersContract,
     containerAction: deploymentContainerActionContract,
+    // Rollback history and cleanup
+    getRollbackHistory: deploymentGetRollbackHistoryContract,
+    previewCleanup: deploymentPreviewCleanupContract,
+    triggerCleanup: deploymentTriggerCleanupContract,
+    updateRetentionPolicy: deploymentUpdateRetentionPolicyContract,
 });
 // WebSocket contracts for real-time events
 export const deploymentWebSocketContract = oc.router({
@@ -60,3 +72,4 @@ export * from './list';
 export * from './websocket';
 export * from './health';
 export * from './listContainers';
+export * from './rollbackHistory';

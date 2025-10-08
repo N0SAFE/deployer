@@ -102,94 +102,111 @@ export const healthCheckResultSchema = z.object({
 // Use shared resource limits schema from deployment-config
 export const resourceLimitsSchema = sharedResourceLimitsSchema;
 // Service provider and builder enums
-export const serviceProviderEnum = z.enum([
-    'github',
-    'gitlab',
-    'bitbucket',
-    'docker_registry',
-    'gitea',
-    's3_bucket',
-    'manual'
-]);
-export const serviceBuilderEnum = z.enum([
-    'nixpack',
-    'railpack',
-    'dockerfile',
-    'buildpack',
-    'static',
-    'docker_compose'
-]);
-// Configuration schemas
-export const providerConfigSchema = z.object({
-    // GitHub/GitLab/Bitbucket/Gitea
-    repositoryUrl: z.string().optional(),
-    branch: z.string().optional(),
-    accessToken: z.string().optional(),
-    deployKey: z.string().optional(),
-    // Docker Registry
-    registryUrl: z.string().optional(),
-    imageName: z.string().optional(),
-    tag: z.string().optional(),
-    username: z.string().optional(),
-    password: z.string().optional(),
-    // S3 Bucket
-    bucketName: z.string().optional(),
-    region: z.string().optional(),
-    accessKeyId: z.string().optional(),
-    secretAccessKey: z.string().optional(),
-    objectKey: z.string().optional(),
-    // Manual
-    instructions: z.string().optional(),
-    deploymentScript: z.string().optional(),
+// Configuration schemas - Dynamic to support any provider/builder configuration
+// These are validated at runtime against provider/builder ConfigSchemas from the registry
+export const providerConfigSchema = z.record(z.string(), z.any());
+export const builderConfigSchema = z.record(z.string(), z.any());
+
+// Deployment retention configuration
+export const deploymentRetentionSchema = z.object({
+    maxSuccessfulDeployments: z.number().int().positive().default(5).optional(),
+    keepArtifacts: z.boolean().default(true).optional(),
+    autoCleanup: z.boolean().default(true).optional(),
+    cleanupSchedule: z.string().optional(), // Cron expression
 });
-export const builderConfigSchema = z.object({
-    // Dockerfile
-    dockerfilePath: z.string().optional(),
-    buildContext: z.string().optional(),
-    buildArgs: z.record(z.string(), z.string()).optional(),
-    // Nixpack/Railpack/Buildpack
-    buildCommand: z.string().optional(),
-    startCommand: z.string().optional(),
-    installCommand: z.string().optional(),
-    // Static
-    outputDirectory: z.string().optional(),
-    // Docker Compose  
-    composeFilePath: z.string().optional(),
-    serviceName: z.string().optional(),
+
+// Service metadata schema
+export const serviceMetadataSchema = z.object({
+    tags: z.array(z.string()).optional(),
+    category: z.string().optional(),
+    icon: z.string().optional(),
+    color: z.string().optional(),
+    lastDeployedAt: z.string().optional(),
+    lastDeployedBy: z.string().optional(),
+    deploymentCount: z.number().optional(),
+    customData: z.record(z.string(), z.any()).optional(),
 });
-// Main service schemas
+
+// Main service schemas - Registry-based with dynamic configurations
 export const createServiceSchema = z.object({
+    // Identity & Relationship
     projectId: z.string().uuid(),
     name: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/, 'Service name must be lowercase alphanumeric with hyphens only'),
-    type: z.string().min(1), // e.g., "web", "worker", "database"
-    provider: serviceProviderEnum,
-    builder: serviceBuilderEnum,
+    description: z.string().optional(),
+    type: z.string().min(1), // e.g., "web", "worker", "database", "cron"
+    
+    // Source Provider Configuration (Registry-based)
+    providerId: z.string().min(1), // Registry ID: "github", "static", etc.
     providerConfig: providerConfigSchema.optional(),
+    
+    // Build System Configuration (Registry-based)
+    builderId: z.string().min(1), // Registry ID: "dockerfile", "nixpack", etc.
     builderConfig: builderConfigSchema.optional(),
+    
+    // Runtime Configuration
     port: z.number().int().positive().optional(),
-    healthCheckPath: z.string().default("/health"), // Deprecated: use healthCheckConfig instead
     environmentVariables: z.record(z.string(), z.string()).optional(),
     resourceLimits: resourceLimitsSchema.optional(),
-    traefikConfig: traefikConfigSchema.optional(),
+    
+    // Health & Monitoring
+    healthCheckPath: z.string().default("/health"),
+    healthCheckInterval: z.number().int().positive().default(30).optional(),
+    healthCheckTimeout: z.number().int().positive().default(10).optional(),
+    healthCheckRetries: z.number().int().positive().default(3).optional(),
     healthCheckConfig: healthCheckConfigSchema.optional(),
+    
+    // Deployment Configuration
+    deploymentRetention: deploymentRetentionSchema.optional(),
+    
+    // Routing & Network
+    traefikConfig: traefikConfigSchema.optional(),
+    customDomains: z.array(z.string()).optional(),
+    
+    // Metadata
+    metadata: serviceMetadataSchema.optional(),
 });
+
 export const updateServiceSchema = createServiceSchema.partial().omit({ projectId: true });
 export const serviceSchema = z.object({
+    // Identity & Relationship
     id: z.string().uuid(),
     projectId: z.string().uuid(),
     name: z.string(),
+    description: z.string().nullable(),
     type: z.string(),
-    provider: serviceProviderEnum,
-    builder: serviceBuilderEnum,
+    
+    // Source Provider Configuration
+    providerId: z.string(),
     providerConfig: providerConfigSchema.nullable(),
+    
+    // Build System Configuration
+    builderId: z.string(),
     builderConfig: builderConfigSchema.nullable(),
+    
+    // Runtime Configuration
     port: z.number().nullable(),
-    healthCheckPath: z.string(), // Deprecated: use healthCheckConfig instead
     environmentVariables: z.record(z.string(), z.string()).nullable(),
     resourceLimits: resourceLimitsSchema.nullable(),
-    traefikConfig: traefikConfigSchema.nullable(),
+    
+    // Health & Monitoring
+    healthCheckPath: z.string(),
+    healthCheckInterval: z.number().nullable(),
+    healthCheckTimeout: z.number().nullable(),
+    healthCheckRetries: z.number().nullable(),
     healthCheckConfig: healthCheckConfigSchema.nullable(),
+    
+    // Deployment Configuration
+    deploymentRetention: deploymentRetentionSchema.nullable(),
+    
+    // Routing & Network
+    traefikConfig: traefikConfigSchema.nullable(),
+    customDomains: z.array(z.string()).nullable(),
+    
+    // Metadata & State
+    metadata: serviceMetadataSchema.nullable(),
     isActive: z.boolean(),
+    
+    // Timestamps
     createdAt: z.date(),
     updatedAt: z.date(),
 });
@@ -229,8 +246,8 @@ export const serviceEnvironmentConfigSchema = z.object({
     secretVariables: z.record(z.string(), z.string()).optional(),
 });
 export const serviceBuildConfigSchema = z.object({
-    provider: serviceProviderEnum,
-    builder: serviceBuilderEnum,
+    providerId: z.string().min(1),
+    builderId: z.string().min(1),
     providerConfig: providerConfigSchema,
     builderConfig: builderConfigSchema,
     buildCommand: z.string().optional(),

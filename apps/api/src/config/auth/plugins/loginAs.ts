@@ -5,12 +5,10 @@ import { z } from "zod";
 
 interface LoginAsOptions {
   enabled?: boolean;
-  devAuthKey: string;
 }
 
 export const loginAsPlugin = (options: LoginAsOptions) => {
-  const { enabled = process.env.NODE_ENV === "development", devAuthKey } =
-    options;
+  const { enabled = process.env.NODE_ENV === "development" } = options;
 
   return {
     id: "login-as",
@@ -34,12 +32,6 @@ export const loginAsPlugin = (options: LoginAsOptions) => {
               { error: "Invalid request context" },
               { status: 400 }
             );
-          }
-
-          if (
-            ctx.request.headers.get("authorization") !== `Bearer ${devAuthKey}`
-          ) {
-            return ctx.json({ error: "Unauthorized" }, { status: 401 });
           }
 
           const { userId } = ctx.body;

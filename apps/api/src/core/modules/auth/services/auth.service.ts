@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { AUTH_INSTANCE_KEY } from "../types/symbols";
+import { AUTH_INSTANCE_KEY } from "@/core/modules/auth/types/symbols";
 import type { Auth } from "@/core/modules/auth/types/auth";
 
 /**

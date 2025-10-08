@@ -1,0 +1,1 @@
+ALTER TABLE "services" ADD COLUMN "traefik_config" jsonb;

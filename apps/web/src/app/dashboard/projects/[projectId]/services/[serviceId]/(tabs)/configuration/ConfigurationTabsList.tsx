@@ -5,19 +5,19 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Card } from '@repo/ui/components/shadcn/card'
 import {
-    Server,
-    Key,
     Box,
     HardDrive,
     Network,
+    Wrench,
+    Cloud,
 } from 'lucide-react'
 import { cn } from '@repo/ui/lib/utils'
 import {
-    DashboardProjectsProjectIdServicesServiceIdTabsConfigurationDeployment,
+    DashboardProjectsProjectIdServicesServiceIdTabsConfigurationBuild,
     DashboardProjectsProjectIdServicesServiceIdTabsConfigurationEnvironment,
     DashboardProjectsProjectIdServicesServiceIdTabsConfigurationGeneral,
     DashboardProjectsProjectIdServicesServiceIdTabsConfigurationNetwork,
-    DashboardProjectsProjectIdServicesServiceIdTabsConfigurationResources,
+    DashboardProjectsProjectIdServicesServiceIdTabsConfigurationProvider,
 } from '@/routes'
 
 const getConfigSections = ({
@@ -34,29 +34,29 @@ const getConfigSections = ({
             icon: Box,
             description: 'Basic service settings',
         },
+        Provider: {
+            builder:
+                DashboardProjectsProjectIdServicesServiceIdTabsConfigurationProvider,
+            icon: Cloud,
+            description: 'Provider configuration',
+        },
+        Build: {
+            builder:
+                DashboardProjectsProjectIdServicesServiceIdTabsConfigurationBuild,
+            icon: Wrench,
+            description: 'Build configuration',
+        },
         Environment: {
             builder:
                 DashboardProjectsProjectIdServicesServiceIdTabsConfigurationEnvironment,
             icon: HardDrive,
             description: 'Environment variables',
         },
-        Resources: {
-            builder:
-                DashboardProjectsProjectIdServicesServiceIdTabsConfigurationResources,
-            icon: Server,
-            description: 'Resource limits',
-        },
-        Deployment: {
-            builder:
-                DashboardProjectsProjectIdServicesServiceIdTabsConfigurationDeployment,
-            icon: Key,
-            description: 'Deployment settings',
-        },
         Network: {
             builder:
                 DashboardProjectsProjectIdServicesServiceIdTabsConfigurationNetwork,
             icon: Network,
-            description: 'Network settings',
+            description: 'Network & Traefik',
         },
     }).map(([label, { builder, icon, description }]) => ({
         label: label,

@@ -1,9 +1,10 @@
 import { Controller, Logger } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { projectContract } from '@repo/api-contracts';
-import { DatabaseService } from '../../../core/modules/database/services/database.service';
+import { DatabaseService } from '@/core/modules/database/services/database.service';
 import { ProjectService } from '../services/project.service';
 import { projects, projectCollaborators, environments, variableTemplates } from '../../../config/drizzle/schema';
+import { user } from '../../../config/drizzle/schema/auth';
 import { eq, desc, count, ilike, asc, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { Session } from '@/core/modules/auth/decorators/decorators';
@@ -322,50 +323,94 @@ export class ProjectController {
         });
     }
     @Implement(projectContract.inviteCollaborator)
-    inviteCollaborator() {
-        return implement(projectContract.inviteCollaborator).handler(async ({ input: _input }) => {
-            // TODO: Implement collaborator invitation logic
-            this.logger.log('Inviting collaborator (not implemented)');
+    inviteCollaborator(
+    @Session()
+    session?: UserSession) {
+        return implement(projectContract.inviteCollaborator).handler(async ({ input }) => {
+            this.logger.log(`Inviting collaborator ${input.email} to project ${input.id}`);
+            const db = this.databaseService.db;
+
+            // Try to find an existing user by email
+            const foundUser = await db.select().from(user).where(eq(user.email, input.email)).limit(1);
+            if (foundUser.length === 0) {
+                // Platform user does not exist - instruct caller to invite the user to the platform first
+                this.logger.warn(`User ${input.email} not found in users table; cannot add as collaborator`);
+                return {
+                    inviteId: randomUUID(),
+                    message: 'User not found on this platform. Please invite the user to the platform before adding as a collaborator.'
+                };
+            }
+
+            const found = foundUser[0];
+            // Check if collaborator already exists
+            const existing = await db.select().from(projectCollaborators)
+                .where(and(eq(projectCollaborators.projectId, input.id), eq(projectCollaborators.userId, found.id))).limit(1);
+            if (existing.length > 0) {
+                return {
+                    inviteId: existing[0].id,
+                    message: 'User is already a collaborator'
+                };
+            }
+
+            const inviteId = randomUUID();
+            await db.insert(projectCollaborators).values({
+                id: inviteId,
+                projectId: input.id,
+                userId: found.id,
+                role: input.role,
+                permissions: input.permissions || undefined,
+                invitedBy: session?.user?.id || null,
+                invitedAt: new Date(),
+            });
+
             return {
-                inviteId: randomUUID(),
-                message: 'Invitation sent successfully (mock implementation)'
+                inviteId,
+                message: 'Collaborator added successfully'
             };
         });
     }
     @Implement(projectContract.updateCollaborator)
     updateCollaborator() {
-        return implement(projectContract.updateCollaborator).handler(async ({ input: _input }) => {
-            // TODO: Implement collaborator update logic
-            this.logger.log('Updating collaborator (not implemented)');
-            // Return a mock collaborator object that matches collaboratorSchema
+        return implement(projectContract.updateCollaborator).handler(async ({ input }) => {
+            this.logger.log(`Updating collaborator ${input.userId} in project ${input.id}`);
+            const db = this.databaseService.db;
+
+            const [existing] = await db.select().from(projectCollaborators)
+                .where(and(eq(projectCollaborators.projectId, input.id), eq(projectCollaborators.userId, input.userId))).limit(1);
+            if (!existing) {
+                throw new Error('Collaborator not found');
+            }
+
+            const updateData: any = { updatedAt: new Date() };
+            if (input.role !== undefined) updateData.role = input.role;
+            if (input.permissions !== undefined) updateData.permissions = input.permissions;
+
+            const [updated] = await db.update(projectCollaborators).set(updateData)
+                .where(eq(projectCollaborators.id, existing.id)).returning();
+
             return {
-                id: randomUUID(),
-                projectId: 'mock-project-id',
-                userId: 'mock-user-id',
-                role: 'viewer' as const,
-                invitedBy: 'system',
-                invitedAt: new Date(),
-                acceptedAt: new Date(),
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                permissions: {
-                    canDeploy: false,
-                    canManageServices: false,
-                    canManageCollaborators: false,
-                    canViewLogs: true,
-                    canDeleteDeployments: false,
-                }
+                id: updated.id,
+                projectId: updated.projectId,
+                userId: updated.userId,
+                role: updated.role,
+                permissions: updated.permissions || undefined,
+                invitedBy: updated.invitedBy ?? null,
+                invitedAt: updated.invitedAt,
+                acceptedAt: updated.acceptedAt ?? null,
+                createdAt: updated.createdAt,
+                updatedAt: updated.updatedAt,
             };
         });
     }
     @Implement(projectContract.removeCollaborator)
     removeCollaborator() {
-        return implement(projectContract.removeCollaborator).handler(async ({ input: _input }) => {
-            // TODO: Implement collaborator removal logic
-            this.logger.log('Removing collaborator (not implemented)');
+        return implement(projectContract.removeCollaborator).handler(async ({ input }) => {
+            this.logger.log(`Removing collaborator ${input.userId} from project ${input.id}`);
+            const db = this.databaseService.db;
+            await db.delete(projectCollaborators).where(and(eq(projectCollaborators.projectId, input.id), eq(projectCollaborators.userId, input.userId)));
             return {
                 success: true,
-                message: 'Collaborator removed successfully (mock implementation)'
+                message: 'Collaborator removed successfully'
             };
         });
     }

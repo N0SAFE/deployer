@@ -2,14 +2,14 @@ import { Controller, Get, Logger } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { deploymentContract } from '@repo/api-contracts';
 import type { ContainerInfo } from '@repo/api-contracts/modules/deployment/listContainers';
-import { DeploymentQueueService } from '../../jobs/services/deployment-queue.service';
 import { WebSocketEventService } from '../services/websocket-event.service';
-import { DockerService } from '../../../core/services/docker.service';
-import { DeploymentService } from '../../../core/services/deployment.service';
+import { DockerService } from '@/core/modules/docker/services/docker.service';
+import { DeploymentService } from '@/core/modules/deployment/services/deployment.service';
 import { deployments, services, projects, deploymentLogs } from '@/config/drizzle/schema/deployment';
 import { eq, desc, count, and } from 'drizzle-orm';
 import { Public } from '@/core/modules/auth/decorators/decorators';
 import { DatabaseService } from '@/core/modules/database/services/database.service';
+import { DeploymentQueueService } from '@/core/modules/orchestration/services/deployment-queue.service';
 @Controller()
 export class DeploymentController {
     private readonly logger = new Logger(DeploymentController.name);
@@ -125,7 +125,7 @@ export class DeploymentController {
 
             // If sourceType/sourceConfig not provided, infer from service
             if (!sourceType || !sourceConfig) {
-                if (serviceData.provider === 'manual' && serviceData.builder === 'static') {
+                if (serviceData.providerId === 'manual' && serviceData.builderId === 'static') {
                     sourceType = 'upload';
                     sourceConfig = {
                         type: 'upload',
@@ -133,10 +133,10 @@ export class DeploymentController {
                             embeddedContent: serviceData.providerConfig?.deploymentScript || undefined,
                         },
                     };
-                } else if (serviceData.provider === 'github') {
+                } else if (serviceData.providerId === 'github') {
                     sourceType = 'github';
                     sourceConfig = { type: 'github', repositoryUrl: serviceData.providerConfig?.repositoryUrl || '', branch: serviceData.providerConfig?.branch || 'main' };
-                } else if (serviceData.provider === 'gitlab') {
+                } else if (serviceData.providerId === 'gitlab') {
                     sourceType = 'gitlab';
                     sourceConfig = { type: 'gitlab', repositoryUrl: serviceData.providerConfig?.repositoryUrl || '', branch: serviceData.providerConfig?.branch || 'main' };
                 } else {

@@ -3,7 +3,7 @@ import { Injectable, Inject } from "@nestjs/common";
 import { AUTH_INSTANCE_KEY } from "@/core/modules/auth/types/symbols";
 import type { Auth } from "@/auth";
 import { nanoid } from "nanoid";
-import { roles } from "../../config/auth/permissions/statements"; // Correct relative path
+import { roles } from "@/config/auth/permissions/statements"; // Correct relative path
 
 import {
   projects,
@@ -11,11 +11,7 @@ import {
   serviceDependencies,
   projectCollaborators,
   systemStatus,
-  traefikServiceConfigs,
-  traefikDomainRoutes,
-  traefikServiceTargets,
   traefikMiddlewares,
-  traefikConfigFiles,
   domainConfigs,
   routeConfigs,
   traefikConfigs,
@@ -26,13 +22,24 @@ import {
   traefikStaticFiles,
   traefikBackups,
   environments,
+  traefikServiceConfigs,
   type CreateTraefikMiddleware,
   type CreateTraefikPlugin,
   type CreateTraefikStaticFile,
 } from "@/config/drizzle/schema";
+import {
+  githubApps,
+  githubRepositoryConfigs,
+  githubDeploymentRules,
+} from "@/config/drizzle/schema/github-provider";
 import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { DatabaseService } from "@/core/modules/database/services/database.service";
+import { EnvService } from "@/config/env/env.service";
+import { GithubProviderService } from "@/core/modules/providers/github/github-provider.service";
+import { StaticProviderService } from "@/core/modules/providers/static/static-provider.service";
+import { TraefikConfigBuilder } from "@/core/modules/traefik/config-builder/builders";
+import { TraefikRepository } from "@/core/modules/traefik/repositories/traefik.repository";
 
 // Interface for service data used in this.createServiceWithTraefik function
 interface ServiceData {
@@ -40,21 +47,8 @@ interface ServiceData {
   projectId: string;
   name: string;
   type: string;
-  provider:
-    | "github"
-    | "gitlab"
-    | "bitbucket"
-    | "gitea"
-    | "docker_registry"
-    | "s3_bucket"
-    | "manual";
-  builder:
-    | "dockerfile"
-    | "nixpack"
-    | "railpack"
-    | "buildpack"
-    | "static"
-    | "docker_compose";
+  providerId: string;
+  builderId: string;
   providerConfig: {
     repositoryUrl?: string;
     branch?: string;
@@ -103,163 +97,81 @@ export class SeedCommand extends CommandRunner {
   constructor(
     @Inject(AUTH_INSTANCE_KEY)
     private readonly auth: Auth,
-    private readonly databaseService: DatabaseService
+    private readonly databaseService: DatabaseService,
+    private readonly envService: EnvService,
+    private readonly githubProvider: GithubProviderService,
+    private readonly staticProvider: StaticProviderService,
+    private readonly traefikRepository: TraefikRepository
   ) {
     super();
   }
 
-  // Helper function to create service with Traefik configuration
+  // Helper function to create service with provider's default Traefik template
   async createServiceWithTraefik(
     serviceData: ServiceData,
     projectId: string,
     projectDomain: string
   ) {
-    // Create the service in database
+    // Get provider instance
+    const provider = serviceData.providerId === 'github' ? this.githubProvider : this.staticProvider;
+    
+    // Get default Traefik template from provider (with variables ~##name##~)
+    const traefikTemplate = provider.getTraefikTemplate();
+    
+    console.log(`🌐 Creating service: ${serviceData.name} for project ${projectId} with provider ${provider.constructor.name}`);
+    
+    // Parse template into TraefikConfigBuilder (stores with variables intact)
+    const traefikConfigBuilder = TraefikConfigBuilder.load(traefikTemplate);
+    
+    // Create the service in database with TraefikConfigBuilder
+    // The traefikConfig column uses custom type that serializes the builder with variables intact
     const [service] = await this.databaseService.db
       .insert(services)
       .values({
         ...serviceData,
+        providerId: serviceData.providerId,
+        builderId: serviceData.builderId,
+        traefikConfig: traefikConfigBuilder, // Custom column type auto-serializes with variables
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
       .returning();
-    console.log(`✅ Created service: ${service.name}`);
-    // Create Traefik configuration for this service
-    if (service.port) {
-      // Create domain configuration
-      const domainConfig = {
-        id: randomUUID(),
-        projectId: projectId,
-        domain: projectDomain,
-        subdomain: service.name,
-        fullDomain: `${service.name}.${projectDomain}`,
-        sslEnabled: false, // No SSL for localhost
-        sslProvider: null,
-        middleware: {
-          cors: {
-            accessControlAllowOrigin: [
-              `http://${projectDomain}`,
-              "http://localhost:3000",
-            ],
-            accessControlAllowMethods: ["GET", "POST", "PUT", "DELETE"],
-            accessControlAllowHeaders: ["Content-Type", "Authorization"],
-          },
-        },
-        dnsStatus: "valid" as const, // localhost is always valid
-        dnsRecords: null,
-        dnsLastChecked: new Date(),
-        dnsErrorMessage: null,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      const [insertedDomainConfig] = await this.databaseService.db
-        .insert(domainConfigs)
-        .values(domainConfig)
-        .returning();
-      console.log(`✅ Created domain config: ${domainConfig.fullDomain}`);
-      // Create route configuration
-      const routeConfig = {
-        id: randomUUID(),
-        domainConfigId: insertedDomainConfig.id,
-        deploymentId: null, // Will be set when deployment is created
-        routeName: `${service.name}-route`,
-        serviceName: `${service.name}-service`,
-        containerName: `${service.name}-container`,
-        targetPort: service.port,
-        pathPrefix: "/",
-        priority: 1,
-        middleware: {
-          rateLimit: {
-            burst: 100,
-            rate: "10/s",
-          },
-        },
-        healthCheck: service.healthCheckPath
-          ? {
-              path: service.healthCheckPath,
-              interval: "30s",
-              timeout: "10s",
-              retries: 3,
-            }
-          : null,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      await this.databaseService.db.insert(routeConfigs).values(routeConfig);
-      console.log(`✅ Created route config: ${routeConfig.routeName}`);
-      // Create Traefik configuration file for this service
-      const traefikConfigContent = `# Traefik configuration for ${service.name}
-http:
-  services:
-    ${routeConfig.serviceName}:
-      loadBalancer:
-        servers:
-          - url: "http://${routeConfig.containerName}:${routeConfig.targetPort}"
-
-  routers:
-    ${routeConfig.routeName}:
-      rule: "Host(\`${domainConfig.fullDomain}\`)"
-      service: "${routeConfig.serviceName}"
-      entryPoints:
-        - "web"
-      middlewares:
-        - "${service.name}-cors"
-        - "${service.name}-ratelimit"
-
-  middlewares:
-    ${service.name}-cors:
-      headers:
-        accessControlAllowMethods:
-          - "GET"
-          - "POST"
-          - "PUT"
-          - "DELETE"
-          - "OPTIONS"
-        accessControlAllowOriginList:
-          - "http://${projectDomain}"
-          - "http://localhost:3000"
-        accessControlAllowHeaders:
-          - "Content-Type"
-          - "Authorization"
-    ${service.name}-ratelimit:
-      rateLimit:
-        burst: 100
-        period: "1s"
-        average: 10`;
-      const traefikConfigRecord = {
-        id: randomUUID(),
-        projectId: projectId,
-        configName: `${service.name}-config`,
-        configContent: traefikConfigContent,
-        configType: "dynamic" as const,
-        storageType: "project" as const,
-        requiresFile: true,
-        syncStatus: "pending" as const,
-        lastSyncedAt: null,
-        syncErrorMessage: null,
-        fileChecksum: null,
-        configVersion: 1,
-        metadata: {
-          serviceName: service.name,
-          serviceId: service.id,
-          projectId: projectId,
-        },
-        description: `Configuration for ${service.name} service`,
-        tags: [service.name, "service-config"],
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      await this.databaseService.db
-        .insert(traefikConfigs)
-        .values(traefikConfigRecord);
-      console.log(
-        `✅ Created Traefik config: ${traefikConfigRecord.configName}`
-      );
-    }
+      
+    console.log(`✅ Created service: ${service.name} (Traefik template stored with variables)`);
+    
+    // Create initial traefik_service_configs entry
+    const traefikServiceConfig = await this.traefikRepository.createServiceConfig({
+      serviceId: service.id,
+      domain: projectDomain || 'localhost',
+      subdomain: service.name,
+      port: serviceData.port || 80,
+      sslEnabled: false,
+      sslProvider: undefined,
+      pathPrefix: '/',
+      middleware: {},
+      healthCheck: {
+        enabled: false,
+        path: serviceData.healthCheckPath || '/',
+      },
+      isActive: true,
+    });
+    
+    // Update the config to add configContent (which is not in the create input type)
+    await this.databaseService.db
+      .update(traefikServiceConfigs)
+      .set({ configContent: traefikTemplate })
+      .where(eq(traefikServiceConfigs.id, traefikServiceConfig.id));
+    
+    console.log(`✅ Created traefik_service_configs entry for: ${service.name}`);
+    
+    // NOTE: We do NOT create Traefik config files here anymore
+    // The deployment processor will:
+    // 1. Load the template from service.traefikConfig
+    // 2. Resolve variables during deployment
+    // 3. Create the actual Traefik config files
+    // 4. Sync to Traefik filesystem
+    
     return service;
   }
 
@@ -283,7 +195,32 @@ http:
         return;
       }
       console.log("🌱 Database not seeded yet. Starting seeding process...");
-      const usersCreationPromises: Promise<Awaited<ReturnType<typeof this.auth.api.createUser>>['user']>[] = [];
+      const usersCreationPromises: Promise<
+        Awaited<ReturnType<typeof this.auth.api.createUser>>["user"]
+      >[] = [];
+      const masterEmail = this.envService.get("MASTER_USER")?.email;
+      if (masterEmail) {
+        usersCreationPromises.push(
+          new Promise(async (resolve) => {
+            resolve(
+              await this.auth.api
+                .createUser({
+                  body: {
+                    name: "admin admin",
+                    email: masterEmail,
+                    password: this.envService.get("MASTER_USER")?.password || "adminadmin",
+                    data: {
+                      role: roles.superAdmin,
+                      emailVerified: true,
+                      image: `https://avatars.githubusercontent.com/u/1?v=4`,
+                    },
+                  },
+                })
+                .then((userResult) => userResult.user)
+            );
+          })
+        );
+      }
       // Create sample users
       for (const roleKey of roleNames) {
         const role = roleKey as string; // Type assertion
@@ -501,8 +438,8 @@ http:
           projectId: insertedProjects[0].id,
           name: "api",
           type: "backend",
-          provider: "github" as const,
-          builder: "dockerfile" as const,
+          providerId: "github",
+          builderId: "dockerfile",
           providerConfig: {
             repositoryUrl: "https://github.com/example/api-service",
             branch: "main",
@@ -532,8 +469,8 @@ http:
           projectId: insertedProjects[0].id,
           name: "web",
           type: "frontend",
-          provider: "github" as const,
-          builder: "nixpack" as const,
+          providerId: "github",
+          builderId: "nixpack",
           providerConfig: {
             repositoryUrl: "https://github.com/example/web-app",
             branch: "main",
@@ -556,268 +493,15 @@ http:
         insertedProjects[0].baseDomain || "localhost"
       );
       const insertedServices = [apiService, webService];
-      console.log("✅ Created sample services with Traefik configuration");
-
-      // Create service-based Traefik configurations for the services
-      console.log("🔧 Creating service-based Traefik configurations...");
-
-      // Service-based config for API service
-      const apiTraefikConfig = {
-        id: randomUUID(),
-        serviceId: apiService.id,
-        domain: insertedProjects[0].baseDomain || "my-blog.localhost",
-        subdomain: "api",
-        fullDomain: `api.${insertedProjects[0].baseDomain || "my-blog.localhost"}`,
-        sslEnabled: false,
-        sslProvider: null,
-        pathPrefix: "/",
-        port: apiService.port!,
-        middleware: {
-          cors: {
-            accessControlAllowOrigin: [
-              `http://${insertedProjects[0].baseDomain || "my-blog.localhost"}`,
-              "http://localhost:3000",
-            ],
-            accessControlAllowMethods: [
-              "GET",
-              "POST",
-              "PUT",
-              "DELETE",
-              "OPTIONS",
-            ],
-            accessControlAllowHeaders: [
-              "Content-Type",
-              "Authorization",
-              "X-Requested-With",
-            ],
-          },
-          rateLimit: {
-            burst: 100,
-            rate: "50/s",
-          },
-        },
-        healthCheck: {
-          enabled: true,
-          path: apiService.healthCheckPath || "/health",
-          interval: 30,
-          timeout: 10,
-        },
-        isActive: true,
-        configContent: `# Service-based Traefik configuration for ${apiService.name}
-http:
-  services:
-    ${apiService.name}-service:
-      loadBalancer:
-        servers:
-          - url: "http://${apiService.name}:${apiService.port}"
-        healthCheck:
-          path: "${apiService.healthCheckPath || "/health"}"
-          interval: "30s"
-          timeout: "10s"
-
-  routers:
-    ${apiService.name}-router:
-      rule: "Host(\`api.${insertedProjects[0].baseDomain || "my-blog.localhost"}\`)"
-      service: "${apiService.name}-service"
-      entryPoints:
-        - "web"
-      middlewares:
-        - "${apiService.name}-cors"
-        - "${apiService.name}-ratelimit"
-
-  middlewares:
-    ${apiService.name}-cors:
-      headers:
-        accessControlAllowMethods:
-          - "GET"
-          - "POST"
-          - "PUT"
-          - "DELETE"
-          - "OPTIONS"
-        accessControlAllowOriginList:
-          - "http://${insertedProjects[0].baseDomain || "my-blog.localhost"}"
-          - "http://localhost:3000"
-        accessControlAllowHeaders:
-          - "Content-Type"
-          - "Authorization"
-          - "X-Requested-With"
-    ${apiService.name}-ratelimit:
-      rateLimit:
-        burst: 100
-        period: "1s"
-        average: 50`,
-        lastSyncedAt: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      // Service-based config for Web service
-      const webTraefikConfig = {
-        id: randomUUID(),
-        serviceId: webService.id,
-        domain: insertedProjects[0].baseDomain || "my-blog.localhost",
-        subdomain: "web",
-        fullDomain: `web.${insertedProjects[0].baseDomain || "my-blog.localhost"}`,
-        sslEnabled: false,
-        sslProvider: null,
-        pathPrefix: "/",
-        port: webService.port!,
-        middleware: {
-          compression: {
-            enabled: true,
-            types: [
-              "text/html",
-              "text/css",
-              "text/javascript",
-              "application/javascript",
-              "application/json",
-            ],
-          },
-          headers: {
-            customHeaders: {
-              "X-Frame-Options": "SAMEORIGIN",
-              "X-Content-Type-Options": "nosniff",
-              "X-XSS-Protection": "1; mode=block",
-            },
-          },
-        },
-        healthCheck: {
-          enabled: true,
-          path: webService.healthCheckPath || "/",
-          interval: 60,
-          timeout: 15,
-        },
-        isActive: true,
-        configContent: `# Service-based Traefik configuration for ${webService.name}
-http:
-  services:
-    ${webService.name}-service:
-      loadBalancer:
-        servers:
-          - url: "http://${webService.name}:${webService.port}"
-        healthCheck:
-          path: "${webService.healthCheckPath || "/"}"
-          interval: "60s"
-          timeout: "15s"
-
-  routers:
-    ${webService.name}-router:
-      rule: "Host(\`web.${insertedProjects[0].baseDomain || "my-blog.localhost"}\`)"
-      service: "${webService.name}-service"
-      entryPoints:
-        - "web"
-      middlewares:
-        - "${webService.name}-compression"
-        - "${webService.name}-security-headers"
-
-  middlewares:
-    ${webService.name}-compression:
-      compress:
-        excludedContentTypes:
-          - "image/png"
-          - "image/jpeg"
-          - "image/gif"
-    ${webService.name}-security-headers:
-      headers:
-        customRequestHeaders:
-          X-Frame-Options: "SAMEORIGIN"
-          X-Content-Type-Options: "nosniff"
-          X-XSS-Protection: "1; mode=block"`,
-        lastSyncedAt: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      const insertedServiceConfigs = await this.databaseService.db
-        .insert(traefikServiceConfigs)
-        .values([apiTraefikConfig, webTraefikConfig])
-        .returning();
-      console.log("✅ Created service-based Traefik configurations");
-
-      // Create domain routes for each service config
-      const apiDomainRoute = {
-        id: randomUUID(),
-        configId: insertedServiceConfigs[0].id,
-        hostRule: `Host(\`api.${insertedProjects[0].baseDomain || "my-blog.localhost"}\`)`,
-        pathRule: null,
-        method: null,
-        headers: null,
-        priority: 10,
-        entryPoint: "web",
-        middleware: {
-          chain: ["api-cors", "api-ratelimit"],
-        },
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      const webDomainRoute = {
-        id: randomUUID(),
-        configId: insertedServiceConfigs[1].id,
-        hostRule: `Host(\`web.${insertedProjects[0].baseDomain || "my-blog.localhost"}\`)`,
-        pathRule: null,
-        method: null,
-        headers: null,
-        priority: 10,
-        entryPoint: "web",
-        middleware: {
-          chain: ["web-compression", "web-security-headers"],
-        },
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      await this.databaseService.db
-        .insert(traefikDomainRoutes)
-        .values([apiDomainRoute, webDomainRoute]);
-      console.log("✅ Created domain routes for service configs");
-
-      // Create service targets for load balancing
-      const apiServiceTarget = {
-        id: randomUUID(),
-        configId: insertedServiceConfigs[0].id,
-        url: `http://${apiService.name}:${apiService.port}`,
-        weight: 1,
-        healthCheck: {
-          enabled: true,
-          path: apiService.healthCheckPath || "/health",
-          interval: 30,
-          timeout: 10,
-          retries: 3,
-        },
-        isActive: true,
-        lastHealthCheck: new Date(),
-        healthStatus: "healthy" as const,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      const webServiceTarget = {
-        id: randomUUID(),
-        configId: insertedServiceConfigs[1].id,
-        url: `http://${webService.name}:${webService.port}`,
-        weight: 1,
-        healthCheck: {
-          enabled: true,
-          path: webService.healthCheckPath || "/",
-          interval: 60,
-          timeout: 15,
-          retries: 2,
-        },
-        isActive: true,
-        lastHealthCheck: new Date(),
-        healthStatus: "healthy" as const,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      await this.databaseService.db
-        .insert(traefikServiceTargets)
-        .values([apiServiceTarget, webServiceTarget]);
-      console.log("✅ Created service targets for load balancing");
-
+      console.log("✅ Created sample services with Traefik templates");
+      
+      // NOTE: Service-based Traefik configurations are NO LONGER created in seed
+      // The deployment processor will:
+      // 1. Load service.traefikConfig (template with variables)
+      // 2. Resolve variables during deployment
+      // 3. Create actual Traefik config files
+      // 4. Sync to Traefik filesystem
+      
       // Create reusable middleware definitions
       const middlewareDefinitions = [
         {
@@ -911,49 +595,9 @@ http:
         .values(middlewareDefinitions);
       console.log("✅ Created middleware definitions");
 
-      // Create config files for the service-based configurations
-      const apiConfigFile = {
-        id: randomUUID(),
-        configId: insertedServiceConfigs[0].id,
-        fileName: `${apiService.name}-service-config.yml`,
-        filePath: `/etc/traefik/dynamic/services/${apiService.name}-service-config.yml`,
-        relativePath: `services/${apiService.name}-service-config.yml`,
-        fileType: "traefik" as const,
-        contentType: "application/yaml",
-        size: Buffer.byteLength(apiTraefikConfig.configContent, "utf8"),
-        checksum: null,
-        content: apiTraefikConfig.configContent,
-        lastSynced: new Date(),
-        syncStatus: "synced" as const,
-        syncError: null,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      const webConfigFile = {
-        id: randomUUID(),
-        configId: insertedServiceConfigs[1].id,
-        fileName: `${webService.name}-service-config.yml`,
-        filePath: `/etc/traefik/dynamic/services/${webService.name}-service-config.yml`,
-        relativePath: `services/${webService.name}-service-config.yml`,
-        fileType: "traefik" as const,
-        contentType: "application/yaml",
-        size: Buffer.byteLength(webTraefikConfig.configContent, "utf8"),
-        checksum: null,
-        content: webTraefikConfig.configContent,
-        lastSynced: new Date(),
-        syncStatus: "synced" as const,
-        syncError: null,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      await this.databaseService.db
-        .insert(traefikConfigFiles)
-        .values([apiConfigFile, webConfigFile]);
-      console.log("✅ Created service-based config files");
+      // NOTE: Config files are NO LONGER created in seed
+      // The deployment processor will create config files when resolving templates
+      
       // Create static file service for testing local file deployment
       const staticFileContent = {
         "index.html": `<!DOCTYPE html>
@@ -1096,12 +740,12 @@ Sitemap: http://static.localhost/sitemap.xml`,
       // Static Service for testing local file deployment
       const staticService = await this.createServiceWithTraefik(
         {
-          id: 'aaaabdf8-5731-4380-86b0-c884e2c55d64',
+          id: "aaaabdf8-5731-4380-86b0-c884e2c55d64",
           projectId: insertedProjects[0].id,
           name: "static-demo",
           type: "frontend",
-          provider: "manual" as const,
-          builder: "static" as const,
+          providerId: "manual",
+          builderId: "static",
           providerConfig: {
             instructions: "Static file deployment with local content",
             deploymentScript: JSON.stringify(staticFileContent),
@@ -1123,168 +767,148 @@ Sitemap: http://static.localhost/sitemap.xml`,
       const insertedStaticService = [staticService];
       console.log("✅ Created static file service with Traefik configuration");
 
-      // Add static service to service-based Traefik configurations
-      console.log(
-        "🔧 Adding static service to service-based Traefik configurations..."
-      );
+      // NOTE: Static service Traefik configuration is NO LONGER created in seed
+      // The template is already stored in staticService.traefikConfig
+      // Deployment processor will resolve variables and create actual config files
+      
+      console.log("✅ Static service created with Traefik template");
 
-      const staticTraefikConfig = {
+      // ============================================================================
+      // GITHUB PROVIDER CONFIGURATION
+      // ============================================================================
+      console.log("\n🐙 Creating GitHub Provider Configuration...");
+
+      // Create GitHub App (for octocat organization)
+      const githubAppConfig = {
         id: randomUUID(),
-        serviceId: staticService.id,
-        domain: insertedProjects[0].baseDomain || "my-blog.localhost",
-        subdomain: "static-demo",
-        fullDomain: `static-demo-${insertedProjects[0].baseDomain || "my-blog.localhost"}`,
-        sslEnabled: false,
-        sslProvider: null,
-        pathPrefix: "/",
-        port: staticService.port!,
-        middleware: {
-          headers: {
-            customHeaders: {
-              "X-Frame-Options": "SAMEORIGIN",
-              "X-Content-Type-Options": "nosniff",
-              "Cache-Control": "public, max-age=3600",
-            },
-          },
-        },
-        healthCheck: {
-          enabled: true,
-          path: staticService.healthCheckPath || "/",
-          interval: 120,
-          timeout: 10,
-        },
+        organizationId: "octocat",
+        name: "Deployer GitHub App",
+        appId: "123456",
+        clientId: "Iv1.demo-client-id",
+        clientSecret: "demo-client-secret-for-testing",
+        privateKey: "-----BEGIN RSA PRIVATE KEY-----\nDEMO_PRIVATE_KEY\n-----END RSA PRIVATE KEY-----",
+        webhookSecret: "demo-webhook-secret",
+        installationId: "12345678",
         isActive: true,
-        configContent: `# Service-based Traefik configuration for ${staticService.name}
-http:
-  services:
-    ${staticService.name}-service:
-      loadBalancer:
-        servers:
-          - url: "http://${staticService.name}:${staticService.port}"
-        healthCheck:
-          path: "${staticService.healthCheckPath || "/"}"
-          interval: "120s"
-          timeout: "10s"
-
-  routers:
-    ${staticService.name}-router:
-      rule: "Host(\`static-demo-${insertedProjects[0].baseDomain || "my-blog.localhost"}\`)"
-      service: "${staticService.name}-service"
-      entryPoints:
-        - "web"
-      middlewares:
-        - "${staticService.name}-security-headers"
-
-  middlewares:
-    ${staticService.name}-security-headers:
-      headers:
-        customRequestHeaders:
-          X-Frame-Options: "SAMEORIGIN"
-          X-Content-Type-Options: "nosniff"
-          Cache-Control: "public, max-age=3600"`,
-        lastSyncedAt: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
-      const insertedStaticServiceConfig = await this.databaseService.db
-        .insert(traefikServiceConfigs)
-        .values(staticTraefikConfig)
+      const [insertedGithubApp] = await this.databaseService.db
+        .insert(githubApps)
+        .values(githubAppConfig)
         .returning();
-      console.log(
-        "✅ Added static service to service-based Traefik configurations"
-      );
+      console.log(`✅ Created GitHub App for organization: ${githubAppConfig.organizationId}`);
 
-      // Add static service to related Traefik tables
-      const staticDomainRoute = {
+      // Create Repository Configuration for octocat/Spoon-Knife
+      const repoConfig = {
         id: randomUUID(),
-        configId: insertedStaticServiceConfig[0].id,
-        hostRule: `Host(\`static-demo-${insertedProjects[0].baseDomain || "my-blog.localhost"}\`)`,
-        pathRule: null,
-        method: null,
-        headers: null,
-        priority: 8,
-        entryPoint: "web",
-        middleware: {
-          chain: ["static-demo-security-headers"],
-        },
-        isActive: true,
+        projectId: insertedProjects[0].id,
+        githubAppId: insertedGithubApp.id,
+        repositoryId: "1300192", // Actual GitHub ID for Spoon-Knife
+        repositoryFullName: "octocat/Spoon-Knife",
+        basePath: "/",
+        watchPaths: ["**/*"],
+        ignorePaths: ["node_modules/**", ".git/**"],
+        cacheStrategy: "loose" as const,
+        autoDeployEnabled: true,
+        deploymentStrategy: "standard" as const,
+        customStrategyScript: null,
+        previewDeploymentsEnabled: false,
+        previewBranchPattern: "*",
+        previewAutoDelete: true,
+        previewAutoDeleteAfterDays: 7,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
       await this.databaseService.db
-        .insert(traefikDomainRoutes)
-        .values(staticDomainRoute);
+        .insert(githubRepositoryConfigs)
+        .values(repoConfig);
+      console.log(`✅ Created repository config: ${repoConfig.repositoryFullName}`);
 
-      const staticServiceTarget = {
+      // Create Deployment Rule for push events
+      const deploymentRule = {
         id: randomUUID(),
-        configId: insertedStaticServiceConfig[0].id,
-        url: `http://${staticService.name}:${staticService.port}`,
-        weight: 100,
-        healthCheck: {
-          enabled: true,
-          path: staticService.healthCheckPath || "/",
-          interval: 120,
-          timeout: 10,
-          retries: 3,
-          startPeriod: 30,
-        },
+        projectId: insertedProjects[0].id,
+        name: "Deploy on Main Push",
+        description: "Automatically deploy when code is pushed to main branch",
+        priority: 100,
         isActive: true,
+        event: "push",
+        branchPattern: "main",
+        tagPattern: null,
+        pathConditions: {
+          include: ["**/*.html", "**/*.css", "**/*.js"],
+          exclude: ["README.md"],
+          requireAll: false,
+        },
+        customCondition: null,
+        action: "deploy",
+        deploymentStrategy: "standard" as const,
+        customStrategyScript: null,
+        bypassCache: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
       await this.databaseService.db
-        .insert(traefikServiceTargets)
-        .values(staticServiceTarget);
+        .insert(githubDeploymentRules)
+        .values(deploymentRule);
+      console.log(`✅ Created deployment rule: ${deploymentRule.name}`);
 
-      const staticMiddleware = {
-        id: randomUUID(),
-        name: "static-demo-security-headers",
-        type: "headers" as const,
-        config: {
-          customRequestHeaders: {
-            "X-Frame-Options": "SAMEORIGIN",
-            "X-Content-Type-Options": "nosniff",
-            "Cache-Control": "public, max-age=3600",
+      console.log("\n🎉 GitHub Provider Configuration Complete!");
+      console.log("  📦 Repository: octocat/Spoon-Knife");
+      console.log("  🔀 Branch: main");
+      console.log("  🚀 Auto-deploy: enabled");
+      console.log("  📋 Strategy: standard");
+      console.log("  🔧 Builder: static (assigned to static-demo service)");
+      console.log("\n💡 To test GitHub webhook deployment:");
+      console.log("  1. Service 'static-demo' is configured with manual provider");
+      console.log("  2. Update service to use GitHub provider with octocat/Spoon-Knife");
+      console.log("  3. Push to main branch will trigger automatic deployment");
+      console.log("  4. Files will be served at: http://static-demo-my-blog.localhost");
+
+      // Create GitHub-based service
+      console.log("\n🚀 Creating GitHub-based service...");
+      
+      // Create GitHub service with Traefik template
+      void await this.createServiceWithTraefik(
+        {
+          id: randomUUID(),
+          projectId: insertedProjects[0].id,
+          name: "spoon-knife",
+          type: "frontend",
+          providerId: "github",
+          builderId: "static",
+          providerConfig: {
+            repositoryUrl: "https://github.com/octocat/Spoon-Knife",
+            branch: "main",
+          },
+          builderConfig: {
+            outputDirectory: "/",
+          },
+          port: 80,
+          healthCheckPath: "/index.html",
+          environmentVariables: {} as Record<string, string>,
+          resourceLimits: {
+            memory: "64m",
+            cpu: "0.1",
           },
         },
-        description: "Security headers for static demo service",
-        isGlobal: false,
-        serviceId: staticService.id,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+        insertedProjects[0].id,
+        insertedProjects[0].baseDomain || "localhost"
+      );
 
-      await this.databaseService.db
-        .insert(traefikMiddlewares)
-        .values(staticMiddleware);
-
-      const staticConfigFile = {
-        id: randomUUID(),
-        configId: insertedStaticServiceConfig[0].id,
-        fileName: `${staticService.name}-service-config.yml`,
-        filePath: `/etc/traefik/dynamic/services/${staticService.name}-service-config.yml`,
-        relativePath: `services/${staticService.name}-service-config.yml`,
-        fileType: "traefik" as const,
-        contentType: "application/yaml",
-        size: Buffer.byteLength(staticTraefikConfig.configContent, "utf8"),
-        checksum: null,
-        content: staticTraefikConfig.configContent,
-        lastSynced: new Date(),
-        syncStatus: "synced" as const,
-        syncError: null,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      await this.databaseService.db
-        .insert(traefikConfigFiles)
-        .values(staticConfigFile);
-      console.log("✅ Added static service to all related Traefik tables");
+      // NOTE: GitHub service Traefik configuration is NO LONGER created in seed
+      // The template is already stored in githubService.traefikConfig
+      // Deployment processor will resolve variables and create actual config files
+      
+      console.log("✅ Created GitHub service: spoon-knife");
+      console.log("  📦 Repository: octocat/Spoon-Knife");
+      console.log("  🌐 URL: http://spoon-knife.my-blog.localhost");
+      console.log("  🔧 Builder: static");
+      console.log("  🚀 Auto-deploy: enabled via GitHub webhook");
 
       // Create service dependency (web depends on api)
       const serviceDependency = {
@@ -1468,9 +1092,7 @@ http:
       console.log(
         "  ⚙️  3 sample services with automatic Traefik configuration"
       );
-      console.log("  🚀 2 sample deployments (API + Static)");
-      console.log("  📋 10 deployment logs (6 API + 4 static)");
-      console.log("  🔮 1 preview environment");
+      console.log("   1 preview environment");
       console.log("  🔀 1 Traefik instance");
       console.log(
         "  🌐 4 domain configurations (3 services + 1 test redirect)"
@@ -1509,7 +1131,7 @@ http:
       console.log("  4. Visit: http://api.my-blog.localhost (API service)");
       console.log("  5. Visit: http://web.my-blog.localhost (Web service)");
       console.log(
-        "  6. Visit: http://static-demo.my-blog.localhost (Static demo service - should work immediately)"
+        "  6. Visit: http://static-demo-my-blog.localhost (Static demo service - should work immediately)"
       );
 
       // ============================================================================
@@ -1781,7 +1403,9 @@ metrics:
           id: randomUUID(),
           projectId: insertedProjects[0].id,
           fileName: "dynamic-config.yml",
-          fileContent: `# Dynamic Configuration Template
+          fileContent: `# Dynamic Configuration Template Example
+# NOTE: This is a DEMO file showing variable syntax
+# Real configs are created by deployment processor from service templates
 http:
   middlewares:
     default-headers:
@@ -1804,17 +1428,17 @@ http:
         addVaryHeader: true
 
   routers:
-    api:
-      rule: "Host(\`api.my-blog.localhost\`)"
-      service: api
+    ~##serviceName##~:
+      rule: "Host(\`~##host##~\`)"
+      service: ~##serviceName##~
       middlewares:
         - default-headers
 
   services:
-    api:
+    ~##serviceName##~:
       loadBalancer:
         servers:
-          - url: "http://api:3001"`,
+          - url: "http://~##containerName##~:~##containerPort##~"`,
           mimeType: "application/yaml",
           fileSize: 680,
           relativePath: "/dynamic/dynamic-config.yml",
@@ -2008,11 +1632,9 @@ customResponseHeaders:
         servicesCount: insertedServices.length + insertedStaticService.length,
         deploymentsCount: 0, // Deployments should be created by API, not seeded
         localServicesCreated: [insertedStaticService[0].name],
-        serviceBasedTraefikConfigs: insertedServiceConfigs.length,
+        // NOTE: Service-based configs are NO LONGER created in seed
+        // Deployment processor creates these from templates
         middlewareDefinitions: middlewareDefinitions.length,
-        serviceTargets: 2,
-        domainRoutes: 2,
-        configFiles: 2,
         // Virtual filesystem data
         virtualSslCertificates: 1,
         virtualMiddleware: insertedMiddleware.length,

@@ -2,6 +2,7 @@ import { ClientOptions } from 'better-auth'
 import masterTokenClient from './plugins/masterToken'
 import { loginAsClientPlugin } from './plugins/loginAs'
 import { passkeyClient } from 'better-auth/client/plugins'
+import { organizationClient } from 'better-auth/client/plugins'
 import { validateEnvPath } from '#/env'
 
 const appUrl = validateEnvPath(
@@ -12,5 +13,5 @@ const appUrl = validateEnvPath(
 export const options = {
     basePath: '/api/auth',
     baseURL: appUrl,
-    plugins: [passkeyClient(), masterTokenClient(), loginAsClientPlugin()],
-} satisfies ClientOptions
+    plugins: [passkeyClient(), organizationClient(), masterTokenClient(), loginAsClientPlugin()],
+} as const satisfies ClientOptions

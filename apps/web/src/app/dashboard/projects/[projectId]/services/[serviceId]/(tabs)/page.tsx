@@ -6,10 +6,11 @@ import ServiceDependencyView from '@/components/services/ServiceDependencyView'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
-import { CheckCircle2, XCircle, Clock, Loader2, AlertCircle, Network, FileText, RotateCcw } from 'lucide-react'
+import { CheckCircle2, XCircle, Clock, Loader2, AlertCircle, Network, FileText, RotateCcw, Globe } from 'lucide-react'
 import ServiceScalingCard from '@/components/orchestration/ServiceScalingCard'
 import { DashboardProjectsProjectIdServicesServiceIdTabs } from '@/routes';
 import { useParams } from '@/routes/hooks';
+import Link from 'next/link'
 
 export default function ServiceOverviewPage() {
   const params = useParams(DashboardProjectsProjectIdServicesServiceIdTabs)
@@ -133,30 +134,102 @@ export default function ServiceOverviewPage() {
       <Card>
         <CardHeader>
           <CardTitle>Configuration</CardTitle>
-          <CardDescription>Service configuration and settings</CardDescription>
+          <CardDescription>Service build and deployment configuration</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <h4 className="text-sm font-medium text-muted-foreground mb-2">Provider</h4>
               <div className="flex items-center gap-2">
-                <Badge variant="outline">{service ? getProviderLabel(service.provider) : 'Loading...'}</Badge>
+                <Badge variant="outline">
+                  {service?.providerId ? getProviderLabel(service.providerId) : 'Loading...'}
+                </Badge>
               </div>
             </div>
             <div>
               <h4 className="text-sm font-medium text-muted-foreground mb-2">Builder</h4>
               <div className="flex items-center gap-2">
-                <Badge variant="outline">{service ? getBuilderLabel(service.builder) : 'Loading...'}</Badge>
+                <Badge variant="outline">
+                  {service?.builderId ? getBuilderLabel(service.builderId) : 'Loading...'}
+                </Badge>
               </div>
             </div>
           </div>
-          
-          <div>
-            <h4 className="text-sm font-medium text-muted-foreground mb-2">Source</h4>
-            <p className="text-sm bg-muted p-2 rounded">
-              Managed via {service ? getProviderLabel(service.provider) : 'Loading...'}
-            </p>
-          </div>
+
+          {service?.providerConfig && (
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground mb-2">Source Repository</h4>
+              <div className="text-sm bg-muted p-3 rounded space-y-1">
+                {service.providerConfig.repositoryUrl && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Repository:</span>
+                    <code className="text-xs">{service.providerConfig.repositoryUrl}</code>
+                  </div>
+                )}
+                {service.providerConfig.branch && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Branch:</span>
+                    <code className="text-xs bg-background px-1 rounded">{service.providerConfig.branch}</code>
+                  </div>
+                )}
+                {service.providerConfig.imageName && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Image:</span>
+                    <code className="text-xs">{service.providerConfig.imageName}</code>
+                    {service.providerConfig.tag && <Badge variant="outline" className="text-xs">{service.providerConfig.tag}</Badge>}
+                  </div>
+                )}
+                {service.providerConfig.bucketName && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Bucket:</span>
+                    <code className="text-xs">{service.providerConfig.bucketName}</code>
+                    {service.providerConfig.region && <Badge variant="outline" className="text-xs">{service.providerConfig.region}</Badge>}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {service?.builderConfig && (
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground mb-2">Build Configuration</h4>
+              <div className="text-sm bg-muted p-3 rounded space-y-1">
+                {service.builderConfig.dockerfilePath && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Dockerfile:</span>
+                    <code className="text-xs">{service.builderConfig.dockerfilePath}</code>
+                  </div>
+                )}
+                {service.builderConfig.buildContext && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Context:</span>
+                    <code className="text-xs">{service.builderConfig.buildContext}</code>
+                  </div>
+                )}
+                {service.builderConfig.outputDirectory && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Output:</span>
+                    <code className="text-xs">{service.builderConfig.outputDirectory}</code>
+                  </div>
+                )}
+                {service.builderConfig.buildCommand && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Build:</span>
+                    <code className="text-xs">{service.builderConfig.buildCommand}</code>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {service?.port && (
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground mb-2">Network</h4>
+              <div className="text-sm bg-muted p-2 rounded">
+                Port: <code className="text-xs bg-background px-1 rounded">{service.port}</code>
+              </div>
+            </div>
+          )}
 
           {service && (
             <div className="pt-2">
@@ -179,13 +252,15 @@ export default function ServiceOverviewPage() {
           stackId={params.projectId} // project ID as stack ID
           service={{
             name: service.name,
-            status: 'running',
+            status: latestDeployment?.status === 'success' ? 'running' : 
+                    latestDeployment?.status === 'failed' ? 'failed' : 
+                    latestDeployment ? 'deploying' : 'stopped',
             replicas: {
-              desired: 1,
-              current: 1,
-              updated: 1
+              desired: 1, // TODO: Get from actual deployment or scaling config
+              current: latestDeployment?.status === 'success' ? 1 : 0,
+              updated: latestDeployment?.status === 'success' ? 1 : 0
             },
-            ports: []
+            ports: service.port ? [service.port] : []
           }}
         />
       )}
@@ -193,8 +268,23 @@ export default function ServiceOverviewPage() {
       {/* Recent Deployments */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Deployments</CardTitle>
-          <CardDescription>Latest deployment activity</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Recent Deployments</CardTitle>
+              <CardDescription>
+                {deployments.length > 0 
+                  ? `Showing ${Math.min(3, deployments.length)} of ${deployments.length} deployments` 
+                  : 'No deployments yet'}
+              </CardDescription>
+            </div>
+            {deployments.length > 3 && (
+              <Button variant="ghost" size="sm" asChild>
+                <Link href={`/dashboard/projects/${params.projectId}/services/${params.serviceId}/deployments`}>
+                  View All
+                </Link>
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {deployments.length > 0 ? (
@@ -202,27 +292,48 @@ export default function ServiceOverviewPage() {
               {deployments.slice(0, 3).map((deployment) => (
                 <div
                   key={getDeploymentId(deployment) || JSON.stringify(deployment)}
-                  className="flex items-center justify-between p-3 border rounded-lg"
+                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <Badge variant={deployment.status === 'success' ? 'default' : 'destructive'}>
                       {deployment.status}
                     </Badge>
                     <div>
-                      <p className="text-sm font-medium">Deployment {getDeploymentId(deployment) ? getDeploymentId(deployment).slice(0, 7) : 'unknown'}</p>
+                      <p className="text-sm font-medium">
+                        {deployment.environment.charAt(0).toUpperCase() + deployment.environment.slice(1)} • 
+                        {getDeploymentId(deployment) ? ` #${getDeploymentId(deployment).slice(0, 7)}` : ' Deployment'}
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         {new Date(deployment.createdAt).toLocaleString()}
                       </p>
                     </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {deployment.status === 'success' ? 'Completed' : 'In progress'}
+                  <div className="flex items-center gap-2">
+                    {deployment.domainUrl && (
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link href={deployment.domainUrl} target="_blank" rel="noopener noreferrer">
+                          <Globe className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {deployment.status === 'success' ? 'Active' : 
+                       deployment.status === 'failed' ? 'Failed' : 'In progress'}
+                    </span>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-muted-foreground">No deployments yet</p>
+            <div className="text-center py-8">
+              <AlertCircle className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground mb-4">
+                No deployments yet. Deploy your service to see it here.
+              </p>
+              <Button size="sm" variant="outline">
+                Create Deployment
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
