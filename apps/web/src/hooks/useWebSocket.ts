@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { io, Socket } from 'socket.io-client';
 import { orpc } from '@/lib/orpc';
 import { toast } from 'sonner';
+// WebSocket event interfaces
 
 // WebSocket event interfaces
 export interface DeploymentUpdateEvent {
@@ -24,6 +25,33 @@ export interface ServiceStatusUpdateEvent {
 export interface LogStreamEvent {
   deploymentId: string;
   timestamp: string;
+  level: 'info' | 'warn' | 'error' | 'debug'; 
+  message: string;
+  service?: string;
+  stage?: string;
+}
+
+// Server-sent WebSocket event payloads (from NestJS gateway)
+type DeploymentGatewayEventType =
+  | 'deployment_started'
+  | 'deployment_completed'
+  | 'deployment_failed'
+  | 'deployment_cancelled';
+
+export interface DeploymentGatewayEvent {
+  deploymentId: string;
+  type: DeploymentGatewayEventType;
+}
+
+export interface DeploymentProgressGatewayEvent {
+  deploymentId: string;
+  progress: number;
+  stage?: string;
+}
+
+export interface LogMessageGatewayEvent {
+  deploymentId: string;
+  timestamp: string;
   level: 'info' | 'warn' | 'error' | 'debug';
   message: string;
   service?: string;
@@ -34,7 +62,7 @@ export interface LogStreamEvent {
 export interface WebSocketState {
   isConnected: boolean;
   isConnecting: boolean;
-  reconnectAttempts: number;
+  reconnectAttempts: number; 
   lastError: string | null;
   subscribedRooms: Set<string>;
 }
@@ -59,7 +87,9 @@ export function useWebSocket() {
     setState(prev => ({ ...prev, isConnecting: true, lastError: null }));
 
     try {
-      const socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001', {
+      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      // Connect to the deployments namespace exposed by the API gateway
+      const socket = io(`${base}/deployments`, {
         transports: ['websocket', 'polling'],
         timeout: 10000,
         reconnectionAttempts: 5,
@@ -68,7 +98,7 @@ export function useWebSocket() {
 
       socketRef.current = socket;
 
-      // Connection event handlers
+      // Connection established
       socket.on('connect', () => {
         console.log('WebSocket connected');
         setState(prev => ({
@@ -78,14 +108,21 @@ export function useWebSocket() {
           lastError: null,
           reconnectAttempts: 0,
         }));
-        
-        // Rejoin all previously subscribed rooms
+
+        // Re-subscribe to all rooms after reconnect
         state.subscribedRooms.forEach(room => {
-          socket.emit('join-room', room);
+          const [scope, id] = room.split(':');
+          if (scope === 'deployment') {
+            socket.emit('subscribe_to_deployment', { deploymentId: id });
+          } else if (scope === 'service') {
+            socket.emit('subscribe_to_service', { serviceId: id });
+          } else if (scope === 'project') {
+            socket.emit('subscribe_to_project', { projectId: id });
+          }
         });
       });
 
-      socket.on('disconnect', (reason) => {
+      socket.on('disconnect', (reason: string) => {
         console.log('WebSocket disconnected:', reason);
         setState(prev => ({
           ...prev,
@@ -94,7 +131,7 @@ export function useWebSocket() {
         }));
       });
 
-      socket.on('connect_error', (error) => {
+      socket.on('connect_error', (error: Error) => {
         console.error('WebSocket connection error:', error);
         setState(prev => ({
           ...prev,
@@ -105,13 +142,36 @@ export function useWebSocket() {
         }));
       });
 
-      // Business logic event handlers
-      socket.on('deployment:update', handleDeploymentUpdate);
-      socket.on('deployment:progress', handleDeploymentProgress);
-      socket.on('deployment:status', handleDeploymentStatus);
-      socket.on('deployment:complete', handleDeploymentComplete);
-      socket.on('deployment:log', handleLogStream);
-      socket.on('service:status', handleServiceStatusUpdate);
+      // Business logic event handlers mapping to server events
+      socket.on('deployment_event', (event: DeploymentGatewayEvent) => {
+        const mapped: DeploymentUpdateEvent = {
+          deploymentId: event.deploymentId,
+          status:
+            event.type === 'deployment_completed'
+              ? 'success'
+              : event.type === 'deployment_failed'
+              ? 'failed'
+              : event.type === 'deployment_cancelled'
+              ? 'cancelled'
+              : 'queued',
+        };
+        handleDeploymentStatus(mapped);
+        if (mapped.status === 'success' || mapped.status === 'failed') {
+          handleDeploymentComplete(mapped);
+        }
+      });
+      socket.on('deployment_progress', (event: DeploymentProgressGatewayEvent) => {
+        const mapped: DeploymentUpdateEvent = {
+          deploymentId: event.deploymentId,
+          progress: event.progress,
+          stage: event.stage,
+        };
+        handleDeploymentProgress(mapped);
+      });
+      socket.on('log_message', (event: LogMessageGatewayEvent) => {
+        const mapped: LogStreamEvent = { ...event };
+        handleLogStream(mapped);
+      });
 
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
@@ -146,7 +206,14 @@ export function useWebSocket() {
   // Join a room
   const joinRoom = (room: string) => {
     if (socketRef.current?.connected) {
-      socketRef.current.emit('join-room', room);
+      const [scope, id] = room.split(':');
+      if (scope === 'deployment') {
+        socketRef.current.emit('subscribe_to_deployment', { deploymentId: id });
+      } else if (scope === 'service') {
+        socketRef.current.emit('subscribe_to_service', { serviceId: id });
+      } else if (scope === 'project') {
+        socketRef.current.emit('subscribe_to_project', { projectId: id });
+      }
       setState(prev => ({
         ...prev,
         subscribedRooms: new Set([...prev.subscribedRooms, room]),
@@ -157,7 +224,8 @@ export function useWebSocket() {
   // Leave a room
   const leaveRoom = (room: string) => {
     if (socketRef.current?.connected) {
-      socketRef.current.emit('leave-room', room);
+      const [scope, id] = room.split(':');
+      socketRef.current.emit('unsubscribe', { type: scope, id });
     }
     setState(prev => {
       const newRooms = new Set(prev.subscribedRooms);
@@ -170,7 +238,8 @@ export function useWebSocket() {
   const leaveAllRooms = () => {
     if (socketRef.current?.connected) {
       state.subscribedRooms.forEach(room => {
-        socketRef.current!.emit('leave-room', room);
+        const [scope, id] = room.split(':');
+        socketRef.current!.emit('unsubscribe', { type: scope, id });
       });
     }
     setState(prev => ({
@@ -180,31 +249,7 @@ export function useWebSocket() {
   };
 
   // Event handlers that use React Query cache invalidation
-  const handleDeploymentUpdate = (data: DeploymentUpdateEvent) => {
-    // Invalidate deployment queries to trigger refetch
-    queryClient.invalidateQueries({
-      queryKey: orpc.deployment.getStatus.queryKey({ 
-        input: { deploymentId: data.deploymentId } 
-      })
-    });
-    
-    queryClient.invalidateQueries({
-      queryKey: orpc.deployment.list.queryKey({ 
-        input: { serviceId: '' } 
-      })
-    });
-
-    // Show notification for important status changes
-    if (data.status === 'success') {
-      toast.success('Deployment Complete', {
-        description: `Deployment ${data.deploymentId.slice(0, 8)} completed successfully`,
-      });
-    } else if (data.status === 'failed') {
-      toast.error('Deployment Failed', {
-        description: `Deployment ${data.deploymentId.slice(0, 8)} failed`,
-      });
-    }
-  };
+  // Note: unified handling happens in handleDeploymentStatus/progress/complete
 
   const handleDeploymentProgress = (data: DeploymentUpdateEvent) => {
     // Invalidate deployment status to get latest progress
@@ -261,24 +306,7 @@ export function useWebSocket() {
     });
   };
 
-  const handleServiceStatusUpdate = (data: ServiceStatusUpdateEvent) => {
-    // Invalidate service queries
-    queryClient.invalidateQueries({
-      queryKey: orpc.service.getById.queryKey({ 
-        input: { id: data.serviceId } 
-      })
-    });
-    
-    queryClient.invalidateQueries({
-      queryKey: orpc.service.listByProject.queryKey({ 
-        input: { projectId: '' } 
-      })
-    });
-
-    toast.info('Service Status Updated', {
-      description: `Service status changed to ${data.status}`,
-    });
-  };
+  // Service status updates are not currently emitted by the gateway
 
   // Cleanup on unmount
   useEffect(() => {
@@ -322,10 +350,13 @@ export function useDeploymentWebSocket(deploymentId?: string) {
       webSocket.joinRoom(room);
       
       return () => {
-        webSocket.leaveRoom(room);
+        // Only cleanup if the WebSocket is still connected
+        if (webSocket.isConnected) {
+          webSocket.leaveRoom(room);
+        }
       };
     }
-  }, [deploymentId, webSocket.isConnected]);
+  }, [deploymentId, webSocket.isConnected, webSocket]);
 
   return webSocket;
 }
@@ -340,10 +371,13 @@ export function useServiceWebSocket(serviceId?: string) {
       webSocket.joinRoom(room);
       
       return () => {
-        webSocket.leaveRoom(room);
+        // Only cleanup if the WebSocket is still connected
+        if (webSocket.isConnected) {
+          webSocket.leaveRoom(room);
+        }
       };
     }
-  }, [serviceId, webSocket.isConnected]);
+  }, [serviceId, webSocket.isConnected, webSocket]);
 
   return webSocket;
 }
@@ -358,10 +392,13 @@ export function useProjectWebSocket(projectId?: string) {
       webSocket.joinRoom(room);
       
       return () => {
-        webSocket.leaveRoom(room);
+        // Only cleanup if the WebSocket is still connected
+        if (webSocket.isConnected) {
+          webSocket.leaveRoom(room);
+        }
       };
     }
-  }, [projectId, webSocket.isConnected]);
+  }, [projectId, webSocket.isConnected, webSocket]);
 
   return webSocket;
 }

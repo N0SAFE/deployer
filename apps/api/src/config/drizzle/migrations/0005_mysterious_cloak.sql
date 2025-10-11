@@ -1,0 +1,1 @@
+ALTER TABLE "services" ADD COLUMN "deployment_retention" jsonb DEFAULT '{"maxSuccessfulDeployments":5,"keepArtifacts":true,"autoCleanup":true}'::jsonb;

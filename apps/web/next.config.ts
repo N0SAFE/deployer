@@ -65,6 +65,7 @@ const nextConfig: NextConfig = {
     experimental: {
         // ppr: 'incremental',
         reactCompiler: true,
+        optimisticClientCache: true,
     },
     images: {
         dangerouslyAllowSVG: true,

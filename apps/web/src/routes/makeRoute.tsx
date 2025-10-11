@@ -14,6 +14,13 @@ export { emptySchema }
 
 type LinkProps = Parameters<typeof Link>[0]
 
+// When Params is an empty z.object({}), z.input<Params> can resolve to Record<string, never>,
+// which poisons intersections (e.g., children: ReactNode becomes never). This conditional
+// removes the index-signature when there are no params so React props work as expected.
+type ParamProps<P extends z.ZodSchema> = z.input<P> extends Record<string, never>
+    ? object
+    : z.input<P>
+
 export type RouteInfo<
     Params extends z.ZodSchema,
     Search extends z.ZodSchema,
@@ -112,6 +119,36 @@ type DeleteRouteBuilder<Params extends z.ZodSchema> = CoreRouteElements<
     (p?: z.input<Params>, options?: FetchOptions): Promise<void>
 }
 
+// Page component props that all pages receive
+export type BasePageProps = {
+    children?: React.ReactNode
+}
+
+// Typed page props including params and search
+export type PageProps<
+    Params extends z.ZodSchema,
+    Search extends z.ZodSchema,
+> = {
+    params: Promise<z.output<Params>>
+    searchParams: Promise<z.output<Search>>
+} & BasePageProps
+
+// Page wrapper component type
+export type PageComponent<
+    Params extends z.ZodSchema,
+    Search extends z.ZodSchema,
+    AdditionalProps = object,
+> = React.FC<PageProps<Params, Search> & AdditionalProps>
+
+// Utility types to extract params and search types from RouteBuilder
+export type RouteBuilderParams<T extends RouteBuilder<any, any>> = T extends RouteBuilder<infer Params, any> 
+    ? z.output<Params> 
+    : never
+
+export type RouteBuilderSearch<T extends RouteBuilder<any, any>> = T extends RouteBuilder<any, infer Search> 
+    ? z.output<Search> 
+    : never
+
 export type RouteBuilder<
     Params extends z.ZodSchema,
     Search extends z.ZodSchema,
@@ -128,7 +165,7 @@ export type RouteBuilder<
 
     Link: React.FC<
         Omit<LinkProps, 'href'> &
-            z.input<Params> & {
+            ParamProps<Params> & {
                 search?: z.input<Search>
             } & { children?: React.ReactNode }
     >
@@ -138,6 +175,14 @@ export type RouteBuilder<
             search?: z.input<Search>
         } & { children?: React.ReactNode }
     >
+
+    Page: <AdditionalProps = object>(
+        component: PageComponent<Params, Search, AdditionalProps>
+    ) => PageComponent<Params, Search, AdditionalProps>
+
+    // Validation helpers
+    validateParams: (params: unknown) => z.output<Params>
+    validateSearch: (search: unknown) => z.output<Search>
 }
 
 function createPathBuilder<T extends Record<string, string | string[]>>(
@@ -464,10 +509,10 @@ export function makeRoute<
         children,
         ...props
     }: Omit<LinkProps, 'href'> &
-        z.input<Params> & {
+        ParamProps<Params> & {
             search?: z.input<Search>
         } & { children?: React.ReactNode }) {
-        const parsedParams = info.params.parse(props)
+        const parsedParams = info.params.parse(props as any)
         const params = parsedParams as Record<string, any>
         const extraProps = { ...props }
         for (const key of Object.keys(params)) {
@@ -476,11 +521,34 @@ export function makeRoute<
         return (
             <Link
                 {...extraProps}
-                href={urlBuilder(parsedParams, linkSearch)}
+                href={urlBuilder(parsedParams as any, linkSearch)}
             >
                 {children}
             </Link>
         )
+    }
+
+    urlBuilder.Page = function PageWrapper<AdditionalProps = object>(
+        component: PageComponent<Params, Search, AdditionalProps>
+    ) {
+        const WrappedComponent = (props: PageProps<Params, Search> & AdditionalProps) => {
+            // Always use props as-is since they're already properly typed
+            // The hooks should be used directly in components that need reactive updates
+            return component(props)
+        }
+        
+        // Preserve component name for debugging
+        WrappedComponent.displayName = `RoutePageWrapper(${component.displayName || component.name || 'Component'})`
+        
+        return WrappedComponent as PageComponent<Params, Search, AdditionalProps>
+    }
+
+    urlBuilder.validateParams = function validateParams(params: unknown) {
+        return info.params.parse(params)
+    }
+
+    urlBuilder.validateSearch = function validateSearch(search: unknown) {
+        return info.search.parse(search)
     }
 
     urlBuilder.params = undefined as z.output<Params>

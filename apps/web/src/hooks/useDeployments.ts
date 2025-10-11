@@ -4,9 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { orpc } from '@/lib/orpc';
 import { toast } from 'sonner';
 import type { z } from 'zod';
-import type { 
-  deploymentStatusSchema
-} from '@repo/api-contracts';
+import type { deploymentStatusSchema } from '@repo/api-contracts/common/deployment-config';
 
 // Type inference from ORPC contracts
 type DeploymentStatus = z.infer<typeof deploymentStatusSchema>;
@@ -30,12 +28,24 @@ export function useDeployments(options?: {
   offset?: number;
   status?: DeploymentStatus;
 }) {
-  const params = {
-    serviceId: options?.serviceId || '',
+  const params: {
+    limit: number;
+    offset: number;
+    serviceId?: string;
+    status?: DeploymentStatus;
+  } = {
     limit: options?.limit || 20,
     offset: options?.offset || 0,
     ...(options?.status && { status: options.status })
   };
+
+  // Only include serviceId if it's a valid UUID
+  if (options?.serviceId && options.serviceId.trim() !== '') {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(options.serviceId)) {
+      params.serviceId = options.serviceId;
+    }
+  }
 
   return useQuery(orpc.deployment.list.queryOptions({
     input: params,
@@ -68,6 +78,14 @@ export function useDeploymentLogs(deploymentId: string, options?: {
     },
     enabled: !!deploymentId,
     staleTime: 1000 * 10, // 10 seconds
+    // Ensure AbortController signal is properly handled
+    retry: (failureCount, error) => {
+      // Don't retry on abort errors
+      if (error?.name === 'AbortError' || (error && typeof error === 'object' && 'code' in error && error.code === 'ABORT_ERR')) {
+        return false;
+      }
+      return failureCount < 3;
+    },
   }));
 }
 
@@ -105,8 +123,11 @@ export function useCancelDeployment() {
       queryClient.invalidateQueries({
         queryKey: orpc.deployment.getStatus.queryKey({ input: { deploymentId: variables.deploymentId } })
       });
+      // Invalidate all deployment lists
       queryClient.invalidateQueries({
-        queryKey: orpc.deployment.list.queryKey({ input: { serviceId: '' } })
+        predicate: (query) => {
+          return query.queryKey[0] === 'deployment' && query.queryKey[1] === 'list';
+        }
       });
     },
     onError: (error: Error) => {
@@ -123,9 +144,11 @@ export function useRollbackDeployment() {
     onSuccess: () => {
       toast.success('Rollback initiated successfully');
       
-      // Invalidate deployment queries
+      // Invalidate all deployment lists
       queryClient.invalidateQueries({
-        queryKey: orpc.deployment.list.queryKey({ input: { serviceId: '' } })
+        predicate: (query) => {
+          return query.queryKey[0] === 'deployment' && query.queryKey[1] === 'list';
+        }
       });
     },
     onError: (error: Error) => {
@@ -141,9 +164,9 @@ export function useDeploymentActions() {
   const rollbackDeployment = useRollbackDeployment();
 
   return {
-    triggerDeployment: triggerDeployment.mutate,
-    cancelDeployment: cancelDeployment.mutate,
-    rollbackDeployment: rollbackDeployment.mutate,
+    triggerDeployment: triggerDeployment.mutateAsync,
+    cancelDeployment: cancelDeployment.mutateAsync,
+    rollbackDeployment: rollbackDeployment.mutateAsync,
     isLoading: {
       trigger: triggerDeployment.isPending,
       cancel: cancelDeployment.isPending,

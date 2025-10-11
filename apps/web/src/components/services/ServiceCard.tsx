@@ -40,8 +40,16 @@ import {
   Network,
   ChevronRight
 } from 'lucide-react'
-import { useServiceDependencies, useToggleServiceActive, useDeleteService } from '@/hooks/useServices'
+import { 
+  useServiceDependencies, 
+  useToggleServiceActive, 
+  useDeleteService, 
+  useServiceHealth,
+  useServiceDeployments
+} from '@/hooks/useServices'
+import { ServiceStatusIndicator } from './ServiceStatusIndicator'
 import ServiceDependencyView from './ServiceDependencyView'
+import { DashboardProjectsProjectIdServicesServiceIdTabs } from '@/routes'
 
 interface ServiceCardProps {
   service: {
@@ -49,12 +57,13 @@ interface ServiceCardProps {
     projectId: string
     name: string
     type: string
-    dockerfilePath: string
-    buildContext: string
+    providerId: string
+    builderId: string
+    providerConfig: Record<string, unknown> | null
+    builderConfig: Record<string, unknown> | null
     port: number | null
     healthCheckPath: string
     environmentVariables: Record<string, string> | null
-    buildArguments: Record<string, string> | null
     resourceLimits: {
       memory?: string
       cpu?: string
@@ -87,24 +96,63 @@ export default function ServiceCard({ service }: ServiceCardProps) {
   const [showDependencies, setShowDependencies] = useState(false)
   
   const { data: dependenciesData } = useServiceDependencies(service.id)
+  const { data: healthData } = useServiceHealth(service.id)
+  const { data: deploymentsData } = useServiceDeployments(service.id)
   const toggleActive = useToggleServiceActive()
   const deleteService = useDeleteService()
   
   const dependencies = dependenciesData?.dependencies || []
+  const deployments = Array.isArray(deploymentsData?.deployments) ? deploymentsData.deployments : []
   
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      pending: { variant: 'secondary' as const, label: 'Pending' },
-      queued: { variant: 'secondary' as const, label: 'Queued' },
-      building: { variant: 'default' as const, label: 'Building' },
-      deploying: { variant: 'default' as const, label: 'Deploying' },
-      success: { variant: 'default' as const, label: 'Success' },
-      failed: { variant: 'destructive' as const, label: 'Failed' },
-      cancelled: { variant: 'secondary' as const, label: 'Cancelled' },
+  // Calculate effective deployment status based on rollback policy
+  // If ANY deployment succeeded, the service is considered healthy
+  // because rollback policy keeps the last successful deployment running
+  const calculateEffectiveStatus = (): 'pending' | 'queued' | 'building' | 'deploying' | 'success' | 'failed' | 'cancelled' | undefined => {
+    // Check if there's ANY successful deployment
+    const hasSuccessfulDeployment = deployments.some(
+      (deployment: { status: string }) => deployment.status === 'success'
+    )
+    
+    // If we have a successful deployment (due to rollback), service is healthy
+    if (hasSuccessfulDeployment) {
+      return 'success'
     }
     
-    return statusConfig[status as keyof typeof statusConfig] || statusConfig.pending
+    // Otherwise, use the latest deployment status
+    return service.latestDeployment?.status
   }
+  
+  // Use effectiveDeploymentStatus in the future for better status display
+  // Currently keeping original behavior for backward compatibility
+  const effectiveDeploymentStatus = calculateEffectiveStatus()
+  void effectiveDeploymentStatus // Mark as intentionally unused for now
+  
+  const getProviderLabel = (provider: string) => {
+    const labels = {
+      github: 'GitHub',
+      gitlab: 'GitLab', 
+      bitbucket: 'Bitbucket',
+      docker_registry: 'Docker Registry',
+      gitea: 'Gitea',
+      s3_bucket: 'S3 Bucket',
+      manual: 'Manual'
+    }
+    return labels[provider as keyof typeof labels] || provider
+  }
+  
+  const getBuilderLabel = (builder: string) => {
+    const labels = {
+      dockerfile: 'Dockerfile',
+      nixpack: 'Nixpack',
+      railpack: 'Railpack', 
+      buildpack: 'Buildpack',
+      static: 'Static',
+      docker_compose: 'Docker Compose'
+    }
+    return labels[builder as keyof typeof labels] || builder
+  }
+  
+
   
   const handleToggleActive = async () => {
     try {
@@ -145,6 +193,9 @@ export default function ServiceCard({ service }: ServiceCardProps) {
                     • {service.project.baseDomain}
                   </span>
                 )}
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {getProviderLabel(service.providerId)} • {getBuilderLabel(service.builderId)}
+                </div>
               </CardDescription>
             </div>
             <DropdownMenu>
@@ -154,22 +205,29 @@ export default function ServiceCard({ service }: ServiceCardProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <DashboardProjectsProjectIdServicesServiceIdTabs.Link
+                    projectId={service.projectId} 
+                    serviceId={service.id}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    View Details
+                  </DashboardProjectsProjectIdServicesServiceIdTabs.Link>
+                </DropdownMenuItem>
                 {service.latestDeployment?.domainUrl && (
-                  <>
-                    <DropdownMenuItem asChild>
-                      <a 
-                        href={service.latestDeployment.domainUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center"
-                      >
-                        <ExternalLink className="h-4 w-4 mr-2" />
-                        Open Service
-                      </a>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
+                  <DropdownMenuItem asChild>
+                    <a 
+                      href={service.latestDeployment.domainUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Open Service
+                    </a>
+                  </DropdownMenuItem>
                 )}
+                <DropdownMenuSeparator />
                 <DropdownMenuItem>
                   <Settings className="h-4 w-4 mr-2" />
                   Configure
@@ -205,26 +263,29 @@ export default function ServiceCard({ service }: ServiceCardProps) {
         </CardHeader>
 
         <CardContent className="pt-0 space-y-4">
-          {/* Latest Deployment Status */}
-          {service.latestDeployment && (
-            <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-              <div className="flex items-center space-x-2">
-                <Activity className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Latest Deploy</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Badge 
-                  variant={getStatusBadge(service.latestDeployment.status).variant}
-                  className="text-xs"
-                >
-                  {getStatusBadge(service.latestDeployment.status).label}
-                </Badge>
+          {/* Service Status */}
+          <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <Activity className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Service Status</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <ServiceStatusIndicator
+                isActive={service.isActive}
+                deploymentStatus={service.latestDeployment?.status}
+                healthStatus={healthData?.status}
+                containerStatus={healthData?.containerStatus}
+                variant="badge"
+                showText={true}
+                size="sm"
+              />
+              {service.latestDeployment && (
                 <span className="text-xs text-muted-foreground">
                   {service.latestDeployment.environment}
                 </span>
-              </div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Service Stats */}
           <div className="flex items-center justify-between text-sm">
@@ -268,16 +329,23 @@ export default function ServiceCard({ service }: ServiceCardProps) {
 
           {/* Status Indicator */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className={`h-2 w-2 rounded-full ${
-                service.isActive 
-                  ? 'bg-green-500' 
-                  : 'bg-gray-400'
-              }`} />
-              <span className="text-sm text-muted-foreground">
-                {service.isActive ? 'Active' : 'Inactive'}
-              </span>
-            </div>
+            <ServiceStatusIndicator
+              isActive={service.isActive}
+              deploymentStatus={service.latestDeployment?.status}
+              healthStatus={healthData?.status}
+              containerStatus={healthData?.containerStatus}
+              variant="detailed"
+              size="sm"
+            />
+            <Button asChild size="sm" variant="outline">
+              <DashboardProjectsProjectIdServicesServiceIdTabs.Link 
+                projectId={service.projectId} 
+                serviceId={service.id}
+              >
+                <ChevronRight className="h-4 w-4 mr-1" />
+                View Details
+              </DashboardProjectsProjectIdServicesServiceIdTabs.Link>
+            </Button>
           </div>
         </CardContent>
       </Card>

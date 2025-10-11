@@ -1,50 +1,70 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { BullModule } from '@nestjs/bull';
-import { DatabaseModule } from './core/modules/db/database.module';
-import { CoreModule } from './core/core.module';
-import { HealthModule } from './modules/health/health.module';
-import { UserModule } from './modules/user/user.module';
-import { JobsModule } from './modules/jobs/jobs.module';
-import { WebSocketModule } from './modules/websocket/websocket.module';
-import { TraefikModule } from './modules/traefik/traefik.module';
-import { ProjectModule } from './modules/project/project.module';
-import { ServiceModule } from './modules/service/service.module';
-import { onError, ORPCModule } from '@orpc/nest';
-import { DATABASE_CONNECTION } from './core/modules/db/database-connection';
-import { AuthModule } from './modules/auth/auth.module';
-import { betterAuthFactory } from './auth';
-import { LoggerMiddleware } from './core/middlewares/logger.middleware';
-import { APP_GUARD } from '@nestjs/core';
-import { AuthGuard } from './modules/auth/guards/auth.guard';
+import {
+  Module,
+  type MiddlewareConsumer,
+  type NestModule,
+} from "@nestjs/common";
+import { BullModule } from "@nestjs/bull";
+import { ScheduleModule } from "@nestjs/schedule";
+import { onError, ORPCModule } from "@orpc/nest";
+import { DATABASE_CONNECTION } from "@/core/modules/database/tokens/database-connection";
+import { AuthModule } from "@/core/modules/auth/auth.module";
+import { LoggerMiddleware } from "@/core/common/middlewares/logger.middleware";
+import { APP_GUARD } from "@nestjs/core";
+import { AuthGuard } from "@/core/modules/auth/guards/auth.guard";
+import { betterAuthFactory } from "@/config/auth/auth";
+import { EnvService } from "@/config/env/env.service";
+import { FeaturesModule } from "@/modules/features.module";
+import { BootstrapModule } from "@/modules/bootstrap/bootstrap.module";
 
 @Module({
   imports: [
+    BootstrapModule, // Bootstrap services that run on application startup
+    FeaturesModule,
+    // Enable scheduled tasks
+    ScheduleModule.forRoot(),
     // Redis/Bull Queue configuration
     BullModule.forRoot({
       redis: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379'),
-        password: process.env.REDIS_PASSWORD,
+        host: "api-cache-dev",
+        port: 6379,
+        enableReadyCheck: false,
+        lazyConnect: false,
+      },
+      defaultJobOptions: {
+        removeOnComplete: 10,
+        removeOnFail: 25,
       },
     }),
-    DatabaseModule,
-    CoreModule,
-    HealthModule,
-    UserModule,
-    JobsModule,
-    WebSocketModule,
-    TraefikModule,
-    ProjectModule,
-    ServiceModule,
     AuthModule.forRootAsync({
-      imports: [DatabaseModule],
       useFactory: betterAuthFactory,
-      inject: [DATABASE_CONNECTION],
+      inject: [DATABASE_CONNECTION, EnvService],
     }),
     ORPCModule.forRoot({
       interceptors: [
         onError((error, ctx) => {
-          console.error('oRPC Error:', JSON.stringify(error), JSON.stringify(ctx));
+          // Handle potential circular references in error objects
+          const safeStringify = (obj: any) => {
+            try {
+              return JSON.stringify(obj);
+            } catch {
+              // Handle circular reference by using a replacer function
+              const circularSeen = new WeakSet();
+              return JSON.stringify(obj, (key, value) => {
+                if (typeof value === "object" && value !== null) {
+                  if (circularSeen.has(value)) {
+                    return "[Circular]";
+                  }
+                  circularSeen.add(value);
+                }
+                return value;
+              });
+            }
+          };
+          console.error(
+            "oRPC Error:",
+            safeStringify(error),
+            safeStringify(ctx)
+          );
         }),
       ],
       eventIteratorKeepAliveInterval: 5000, // 5 seconds
@@ -59,8 +79,6 @@ import { AuthGuard } from './modules/auth/guards/auth.guard';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(LoggerMiddleware)
-      .forRoutes('*'); // Apply the logger middleware to all routes
+    consumer.apply(LoggerMiddleware).forRoutes("*"); // Apply the logger middleware to all routes
   }
 }

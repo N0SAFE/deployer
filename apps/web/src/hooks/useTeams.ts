@@ -3,6 +3,8 @@ import { toast } from 'sonner';
 import { authClient } from '@/lib/auth';
 
 // Types based on Better Auth organization plugin
+export type OrganizationRole = "owner" | "admin" | "member"
+
 export interface Organization {
   id: string;
   name: string;
@@ -16,7 +18,7 @@ export interface OrganizationMember {
   id: string;
   userId: string;
   organizationId: string;
-  role: string[];
+  role: OrganizationRole[];
   createdAt: Date;
   user: {
     id: string;
@@ -72,7 +74,7 @@ export function useOrganizations() {
   });
 }
 
-export function useActiveOrganization() {
+export function useActiveOrganization(): ReturnType<typeof authClient.useActiveOrganization> {
   return authClient.useActiveOrganization();
 }
 
@@ -84,9 +86,18 @@ export function useSetActiveOrganization() {
       const { data, error } = await authClient.organization.setActive({
         organizationId,
       });
+      console.log(data, error);
       if (error) {
         throw new Error(error.message);
       }
+      // IMPORTANT: Refetch the session to update activeOrganizationId
+      // This is a known limitation in Better Auth where setActive doesn't automatically
+      // update the session state in useSession() hook
+      await authClient.getSession({ 
+        fetchOptions: {
+          cache: 'no-store'
+        }
+      });
       return data;
     },
     onSuccess: () => {
@@ -155,7 +166,7 @@ export function useInviteMember() {
       teamId,
     }: {
       email: string;
-      role: string | string[];
+      role: OrganizationRole | OrganizationRole[];
       organizationId?: string;
       teamId?: string;
     }) => {
@@ -191,7 +202,7 @@ export function useUpdateMemberRole() {
       organizationId,
     }: {
       memberId: string;
-      role: string | string[];
+      role: OrganizationRole | OrganizationRole[];
       organizationId?: string;
     }) => {
       const { data, error } = await authClient.organization.updateMemberRole({

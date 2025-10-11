@@ -50,24 +50,53 @@ services:
     restart: unless-stopped
     ports:
       - "${API_PORT:-3001}:${API_PORT:-3001}"
+    volumes:
+      # Mount Docker socket for container management
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount entire Traefik configuration directory
+      - traefik_configs_prod:/app/traefik-configs
+      # Mount file upload and extraction storage
+      - file_uploads_prod:/app/uploads
+      - file_extracted_prod:/app/extracted
+      # Mount static file serving storage (for deployed apps)
+      - static_files_prod:/app/static
     environment:
       NODE_ENV: production
       API_PORT: ${API_PORT:-3001}
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-prod:5432/${DB_DATABASE:-nestjs_api}
       REDIS_URL: redis://api-cache-prod:6379
       JWT_SECRET: ${JWT_SECRET:-jwt-fallback-secret}
       AUTH_SECRET: ${AUTH_SECRET:-auth-fallback-secret}
+      PASSKEY_RPID: ${PASSKEY_RPID:-localhost}
+      PASSKEY_RPNAME: ${PASSKEY_RPNAME:-NestJS App}
+      PASSKEY_ORIGIN: ${PASSKEY_ORIGIN:-http://localhost:3000}
       NEXT_PUBLIC_WEB_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       # CORS Configuration for cross-origin requests from web app
       CORS_ORIGIN: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       # Production optimizations
       LOG_LEVEL: warn
+      BETTER_AUTH_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-better-auth-fallback-secret}
+      # Traefik Configuration
+      TRAEFIK_DOMAIN: ${TRAEFIK_DOMAIN:-localhost}
+      TRAEFIK_ACME_EMAIL: ${TRAEFIK_ACME_EMAIL:-admin@localhost}
+      TRAEFIK_CONFIG_BASE_PATH: /app/traefik-configs
+      # Turbo Remote Cache Configuration
+      TURBO_TOKEN: ${TURBO_TOKEN}
+      TURBO_TEAM: ${TURBO_TEAM}
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://127.0.0.1:${API_PORT:-3001}/health || exit 1
       start_period: 15s
       interval: 15s
       timeout: 15s
       retries: 5
+    # Memory limits
+    mem_limit: 8g
+    memswap_limit: 8g
+    ulimits:
+      nproc: 65535
+      nofile: 65535
     networks:
       - app_network_prod
 
@@ -89,7 +118,7 @@ services:
         - API_PING_PATH=${API_PING_PATH:-/health}
     restart: unless-stopped
     ports:
-      - "${NEXT_PUBLIC_APP_PORT:-3000}:3000"
+      - "${NEXT_PUBLIC_APP_PORT:-3000}:${NEXT_PUBLIC_APP_PORT:-3000}"
     depends_on:
       api-prod:
         condition: service_healthy
@@ -146,6 +175,14 @@ networks:
 volumes:
   api_db_data_prod:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_db_data_prod
+  traefik_configs_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_traefik_configs_prod
+  file_uploads_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_file_uploads_prod
+  file_extracted_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_file_extracted_prod
+  static_files_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_static_files_prod
   bun_cache_web_prod:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_bun_cache_web_prod
   turbo_cache_web_prod:

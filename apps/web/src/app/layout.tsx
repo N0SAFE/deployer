@@ -6,21 +6,23 @@ import { Inter } from 'next/font/google'
 import { cn } from '@repo/ui/lib/utils'
 import ThemeProvider from '@repo/ui/components/theme-provider'
 import Loader from '@repo/ui/components/atomics/atoms/Loader'
+import { Toaster } from '@repo/ui/components/shadcn/sonner'
 import ReactQueryProviders from '@/utils/providers/ReactQueryProviders'
 import { Suspense, type JSX } from 'react'
 import NextAuthProviders from '@/utils/providers/NextAuthProviders/index'
 import NextTopLoader from 'nextjs-toploader'
-import Validate from '@/lib/auth/validate'
 import Script from 'next/script'
 import { validateEnv } from '#/env'
 import { DynamicTanstackDevTools } from '@/components/devtools/DynamicTanstackDevTools'
 import { UIProvider } from '@/contexts/UIContext'
+import { NuqsAdapter } from 'nuqs/adapters/next/app'
 
 const fontSans = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
 export const metadata: Metadata = {
     title: 'Deployer - Deployment Platform',
-    description: 'Modern deployment platform with Docker and Traefik integration',
+    description:
+        'Modern deployment platform with Docker and Traefik integration',
 }
 
 export default async function RootLayout({
@@ -59,7 +61,8 @@ export default async function RootLayout({
                         <></>
                     )}
                 <NextAuthProviders>
-                    <Validate>
+                    <NuqsAdapter>
+                        <Toaster richColors />
                         <ThemeProvider
                             attribute="class"
                             defaultTheme="system"
@@ -78,12 +81,12 @@ export default async function RootLayout({
                                     >
                                         {children}
                                     </Suspense>
-                                    
+
                                     <DynamicTanstackDevTools />
                                 </ReactQueryProviders>
                             </UIProvider>
                         </ThemeProvider>
-                    </Validate>
+                    </NuqsAdapter>
                 </NextAuthProviders>
             </body>
         </html>

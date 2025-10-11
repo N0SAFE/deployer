@@ -76,10 +76,6 @@
         },
         "clean": {
             "cache": false
-        },
-        "type-check": {
-            "cache": false,
-            "inputs": ["src/**", "*.config.*", "package.json", "tsconfig.json"]
         }
     }
 }

@@ -1,33 +1,32 @@
 import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bull';
-
-// Controllers
-import { DeploymentController } from './controllers/deployment.controller';
-
-// Services
-import { WebSocketEventService } from './services/websocket-event.service';
-import { DeploymentQueueService } from '../jobs/services/deployment-queue.service';
-
-// Gateways
 import { DeploymentWebSocketGateway } from './gateways/deployment.gateway';
+import { WebSocketEventService } from './services/websocket-event.service';
+import { DeploymentController } from './controllers/deployment.controller';
+import { CoreModule } from '@/core/core.module';
 
+/**
+ * FEATURE MODULE: WebSocket
+ * Provides real-time deployment updates via WebSocket
+ * 
+ * Dependencies (Core Modules):
+ * - DockerService: Injected from global DockerModule (no import needed)
+ * - OrchestrationModule: For DeploymentQueueService
+ */
 @Module({
   imports: [
-    // Bull Queue for deployment jobs
-    BullModule.registerQueue({
-      name: 'deployment',
-    }),
+    CoreModule,
   ],
-  controllers: [DeploymentController],
-  providers: [
-    DeploymentWebSocketGateway,
-    WebSocketEventService,
-    DeploymentQueueService,
-  ],
-  exports: [
-    DeploymentWebSocketGateway,
-    WebSocketEventService,
-    DeploymentQueueService,
-  ],
+    controllers: [DeploymentController],
+    providers: [
+        DeploymentWebSocketGateway,
+        WebSocketEventService,
+        // DeploymentQueueService,  // Now provided by OrchestrationModule
+    ],
+    exports: [
+        DeploymentWebSocketGateway,
+        WebSocketEventService,
+        // DeploymentQueueService,  // Now exported by OrchestrationModule
+    ],
 })
-export class WebSocketModule {}
+export class WebSocketModule {
+}

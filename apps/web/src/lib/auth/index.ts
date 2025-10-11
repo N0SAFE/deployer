@@ -1,37 +1,23 @@
-import { validateEnvPath } from "#/env"
-import { createAuthClient } from "better-auth/react"
-import { passkeyClient } from "better-auth/client/plugins"
-import { organizationClient } from "better-auth/client/plugins"
-import { nextCookies } from "better-auth/next-js";
+import { createAuthClient } from 'better-auth/react'
+import { hasMasterTokenPlugin } from './plugins/guards'
+import { options } from './options'
 
-const appUrl = validateEnvPath(process.env.NEXT_PUBLIC_APP_URL!, "NEXT_PUBLIC_APP_URL")
-
-export const authClient = createAuthClient({
-  basePath: '/api/auth',
-  baseURL: appUrl,
-  plugins: [
-    passkeyClient(),
-    organizationClient({
-      teams: {
-        enabled: true
-      }
-    }),
-    nextCookies() // make sure this is the last plugin in the array
-  ],
-})
+export const authClient = createAuthClient(options)
 
 export const {
-  signIn,
-  signOut,
-  signUp,
-  useSession,
-  getSession,
-  $store,
-  $fetch,
-  $ERROR_CODES,
-  $Infer,
-  organization
+    signIn,
+    signUp,
+    useSession,
+    getSession,
+    $store,
+    $fetch,
+    $ERROR_CODES,
+    $Infer,
 } = authClient
+
+export const signOut = hasMasterTokenPlugin(authClient)
+    ? authClient.masterTokenSignOut
+    : authClient.signOut
 
 // Auth pages configuration for Better Auth
 export const pages = {

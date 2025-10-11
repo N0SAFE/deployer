@@ -2,7 +2,7 @@
 # Multi-stage build for optimized production image
 
 # syntax=docker/dockerfile:1.7
-FROM oven/bun:1.2.14-alpine AS base
+FROM oven/bun:1.2.23-alpine AS base
 ENV NODE_ENV=production
 
 # Install dependencies only when needed
@@ -49,6 +49,10 @@ RUN adduser --system --uid 1001 nestjs
 # Copy built application
 COPY --from=installer --chown=nestjs:nodejs /app ./
 
+# Ensure writable directories exist and are owned by the app user
+RUN mkdir -p /app/uploads /app/extracted /app/static-files && \
+  chown -R nestjs:nodejs /app
+
 # Switch to non-root user
 USER nestjs
 
@@ -63,4 +67,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
 
 # Start the application with migrations
-CMD ["sh", "-c", "bun run db:migrate && bun --bun dist/src/main"]
+CMD ["sh", "-c", "bun run db:migrate && bun --bun dist/main"]

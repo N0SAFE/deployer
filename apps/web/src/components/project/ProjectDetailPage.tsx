@@ -5,6 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/sh
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Separator } from '@repo/ui/components/shadcn/separator'
+import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Alert, AlertDescription } from '@repo/ui/components/shadcn/alert'
 import { 
   Settings, 
   Users, 
@@ -12,156 +14,107 @@ import {
   Zap,
   Plus,
   ExternalLink,
-  Globe
+  Globe,
+  AlertCircle
 } from 'lucide-react'
 import ServiceCard from '../services/ServiceCard'
 import DeploymentCard from '../deployments/DeploymentCard'
 import ActivityFeed from '../activity/ActivityFeed'
 
-import { type Service } from '@/state/serviceStore'
-import { type Deployment } from '@/state/deploymentStore'
+import { useProject, useProjectCollaborators } from '@/hooks/useProjects'
+import { useServices } from '@/hooks/useServices'
+import { useDeployments } from '@/hooks/useDeployments'
 
 interface ProjectDetailPageProps {
   projectId: string
 }
 
-// Mock project data
-const mockProject = {
-  id: 'project-1',
-  name: 'E-commerce Platform',
-  description: 'Modern full-stack e-commerce platform with React and Node.js',
-  status: 'active' as const,
-  repository: 'https://github.com/company/ecommerce-platform',
-  domain: 'ecommerce.example.com',
-  environmentVariables: {
-    NODE_ENV: 'production',
-    DATABASE_URL: '***',
-    API_KEY: '***'
-  },
-  collaborators: [
-    { id: '1', name: 'John Doe', email: 'john@example.com', role: 'owner' },
-    { id: '2', name: 'Jane Smith', email: 'jane@example.com', role: 'developer' },
-    { id: '3', name: 'Bob Wilson', email: 'bob@example.com', role: 'viewer' }
-  ],
-  createdAt: new Date('2024-01-15'),
-  updatedAt: new Date()
-}
-
-// Mock services data
-const mockServices: Service[] = [
-  {
-    id: 'service-1',
-    name: 'API Backend',
-    description: 'Backend API service for the e-commerce platform',
-    projectId: 'project-1',
-    dockerfilePath: './Dockerfile.api',
-    buildArgs: { 'NODE_ENV': 'production' },
-    envVars: { 'NODE_ENV': 'production', 'PORT': '3000' },
-    subdomain: 'api',
-    customDomain: null,
-    port: 3000,
-    healthCheckPath: '/health',
-    cpuLimit: '0.5',
-    memoryLimit: '512M',
-    isEnabled: true,
-    createdAt: new Date('2024-01-15'),
-    updatedAt: new Date(),
-    status: 'running' as const,
-    currentDeploymentId: 'deploy-1',
-    lastDeploymentAt: new Date(Date.now() - 1000 * 60 * 30)
-  },
-  {
-    id: 'service-2',
-    name: 'Web Frontend',
-    description: 'React frontend for the e-commerce platform',
-    projectId: 'project-1',
-    dockerfilePath: './Dockerfile.web',
-    buildArgs: { 'NODE_ENV': 'production' },
-    envVars: { 'NEXT_PUBLIC_API_URL': 'https://api.example.com', 'PORT': '3001' },
-    subdomain: 'www',
-    customDomain: null,
-    port: 3001,
-    healthCheckPath: '/',
-    cpuLimit: '0.5',
-    memoryLimit: '512M',
-    isEnabled: true,
-    createdAt: new Date('2024-01-15'),
-    updatedAt: new Date(),
-    status: 'running' as const,
-    currentDeploymentId: 'deploy-2',
-    lastDeploymentAt: new Date(Date.now() - 1000 * 60 * 15)
-  }
-]
-
-// Mock deployments data  
-const mockDeployments: Deployment[] = [
-  {
-    id: 'deploy-1',
-    serviceId: 'service-1',
-    environment: 'production' as const,
-    status: 'success' as const,
-    sourceType: 'git' as const,
-    sourceConfig: {
-      repository: 'https://github.com/company/ecommerce-platform',
-      branch: 'main',
-      commit: 'a1b2c3d4'
-    },
-    buildLogs: 'Build completed successfully',
-    deploymentLogs: 'Deployment completed',
-    imageTag: 'api-backend:v1.2.3',
-    containerId: 'container-api-1',
-    traefikRuleId: 'rule-api-1',
-    url: 'https://api.example.com',
-    triggeredById: 'user-1',
-    createdAt: new Date(Date.now() - 1000 * 60 * 35),
-    startedAt: new Date(Date.now() - 1000 * 60 * 32),
-    completedAt: new Date(Date.now() - 1000 * 60 * 30),
-    duration: 120,
-    progress: 100
-  },
-  {
-    id: 'deploy-2',
-    serviceId: 'service-2',
-    environment: 'production' as const,
-    status: 'building' as const,
-    sourceType: 'git' as const,
-    sourceConfig: {
-      repository: 'https://github.com/company/ecommerce-platform',
-      branch: 'main',
-      commit: 'e5f6g7h8'
-    },
-    buildLogs: 'Build in progress...',
-    deploymentLogs: null,
-    imageTag: null,
-    containerId: null,
-    traefikRuleId: null,
-    url: null,
-    triggeredById: 'user-2',
-    createdAt: new Date(Date.now() - 1000 * 60 * 20),
-    startedAt: new Date(Date.now() - 1000 * 60 * 17),
-    completedAt: null,
-    duration: undefined,
-    progress: 65
-  }
-]
-
 export default function ProjectDetailPage({ projectId }: ProjectDetailPageProps) {
-  // TODO: Use projectId to fetch real project data
-  console.log('Project ID:', projectId)
-  const project = mockProject
-  const services = mockServices
-  const deployments = mockDeployments
+  // Fetch real project data using hooks
+  const { data: project, isLoading: isProjectLoading, error: projectError } = useProject(projectId)
+  const { data: collaboratorsData } = useProjectCollaborators(projectId)
+  const { data: servicesData } = useServices(projectId)
+  const { data: deploymentsData } = useDeployments({ 
+    serviceId: servicesData?.services?.[0]?.id || undefined, // Get deployments for first service if available
+    limit: 5 
+  })
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'default'
-      case 'inactive':
-        return 'secondary'
-      case 'error':
-        return 'destructive'
-      default:
-        return 'outline'
+  // Loading states
+  if (isProjectLoading) {
+    return (
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-4 w-96" />
+          <div className="flex space-x-2">
+            <Skeleton className="h-9 w-24" />
+            <Skeleton className="h-9 w-24" />
+          </div>
+        </div>
+        <Separator />
+        <div className="space-y-4">
+          <Skeleton className="h-6 w-48" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-4">
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-32 w-full" />
+            </div>
+            <div className="space-y-4">
+              <Skeleton className="h-64 w-full" />
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Error states
+  if (projectError || !project) {
+    return (
+      <div className="container mx-auto p-6">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {projectError?.message || 'Project not found'} 
+            Please check the project ID and try again.
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
+
+  // Extract data with fallbacks
+  const services = servicesData?.services || []
+  const collaborators = collaboratorsData?.collaborators || []
+  const deployments = deploymentsData?.deployments || []
+
+  const getDeploymentId = (dep: unknown): string => {
+    const d = dep as Record<string, unknown>
+    const depId = d['deploymentId']
+    if (typeof depId === 'string') return depId
+    const legacy = d['id']
+    if (typeof legacy === 'string') return legacy
+    return ''
+  }
+
+  // Type adapter function to convert API service data to ServiceCard expected format
+  const adaptServiceForCard = (apiService: typeof services[0]) => {
+    // Flatten the builderConfig to match what ServiceCard expects
+    const flatBuilderConfig: Record<string, string | number | boolean> | null = 
+      apiService.builderConfig ? 
+        Object.fromEntries(
+          Object.entries(apiService.builderConfig).map(([key, value]) => {
+            // Handle nested objects like buildArgs by stringifying them
+            if (typeof value === 'object' && value !== null) {
+              return [key, JSON.stringify(value)]
+            }
+            return [key, value]
+          })
+        ) : null
+
+    return {
+      ...apiService,
+      builderConfig: flatBuilderConfig
     }
   }
 
@@ -172,8 +125,8 @@ export default function ProjectDetailPage({ projectId }: ProjectDetailPageProps)
         <div className="space-y-2">
           <div className="flex items-center space-x-3">
             <h1 className="text-3xl font-bold">{project.name}</h1>
-            <Badge variant={getStatusColor(project.status) as "default" | "destructive" | "outline" | "secondary"}>
-              {project.status}
+            <Badge variant="default">
+              Active
             </Badge>
           </div>
           <p className="text-muted-foreground max-w-2xl">
@@ -182,28 +135,22 @@ export default function ProjectDetailPage({ projectId }: ProjectDetailPageProps)
           <div className="flex items-center space-x-4 text-sm text-muted-foreground">
             <div className="flex items-center space-x-1">
               <GitBranch className="h-4 w-4" />
-              <a 
-                href={project.repository}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground"
-              >
-                Repository
-                <ExternalLink className="h-3 w-3 ml-1 inline" />
-              </a>
+              <span className="text-muted-foreground">Repository</span>
             </div>
-            <div className="flex items-center space-x-1">
-              <Globe className="h-4 w-4" />
-              <a 
-                href={`https://${project.domain}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground"
-              >
-                {project.domain}
-                <ExternalLink className="h-3 w-3 ml-1 inline" />
-              </a>
-            </div>
+            {project.baseDomain && (
+              <div className="flex items-center space-x-1">
+                <Globe className="h-4 w-4" />
+                <a 
+                  href={`https://${project.baseDomain}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground"
+                >
+                  {project.baseDomain}
+                  <ExternalLink className="h-3 w-3 ml-1 inline" />
+                </a>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex space-x-2">
@@ -226,7 +173,7 @@ export default function ProjectDetailPage({ projectId }: ProjectDetailPageProps)
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="services">Services ({services.length})</TabsTrigger>
           <TabsTrigger value="deployments">Deployments</TabsTrigger>
-          <TabsTrigger value="team">Team ({project.collaborators.length})</TabsTrigger>
+          <TabsTrigger value="team">Team ({collaborators.length})</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
@@ -244,8 +191,13 @@ export default function ProjectDetailPage({ projectId }: ProjectDetailPageProps)
               </div>
               <div className="grid gap-4">
                 {services.map((service) => (
-                  <ServiceCard key={service.id} service={service} />
+                  <ServiceCard key={service.id} service={adaptServiceForCard(service)} />
                 ))}
+                {services.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No services found. Add a service to get started.
+                  </div>
+                )}
               </div>
             </div>
 
@@ -260,8 +212,17 @@ export default function ProjectDetailPage({ projectId }: ProjectDetailPageProps)
             <h2 className="text-xl font-semibold">Recent Deployments</h2>
             <div className="grid gap-4">
               {deployments.slice(0, 3).map((deployment) => (
-                <DeploymentCard key={deployment.id} deployment={deployment} />
-              ))}
+                <DeploymentCard 
+                  key={getDeploymentId(deployment) || JSON.stringify(deployment)} 
+                  deployment={deployment} 
+                   // We don't have a specific service context here; logs button will be disabled
+                 />
+               ))}
+              {deployments.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  No deployments found
+                </div>
+              )}
             </div>
           </div>
         </TabsContent>
@@ -277,8 +238,13 @@ export default function ProjectDetailPage({ projectId }: ProjectDetailPageProps)
           </div>
           <div className="grid gap-4">
             {services.map((service) => (
-              <ServiceCard key={service.id} service={service} />
+              <ServiceCard key={service.id} service={adaptServiceForCard(service)} />
             ))}
+            {services.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                No services found. Add a service to get started.
+              </div>
+            )}
           </div>
         </TabsContent>
 
@@ -293,8 +259,17 @@ export default function ProjectDetailPage({ projectId }: ProjectDetailPageProps)
           </div>
           <div className="grid gap-4">
             {deployments.map((deployment) => (
-              <DeploymentCard key={deployment.id} deployment={deployment} />
-            ))}
+              <DeploymentCard 
+                key={getDeploymentId(deployment) || JSON.stringify(deployment)} 
+                deployment={deployment} 
+                 // No explicit params; navigation to logs disabled in this context
+               />
+             ))}
+            {deployments.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                No deployments found
+              </div>
+            )}
           </div>
         </TabsContent>
 
@@ -310,22 +285,27 @@ export default function ProjectDetailPage({ projectId }: ProjectDetailPageProps)
           <Card>
             <CardContent className="p-6">
               <div className="space-y-4">
-                {project.collaborators.map((collaborator) => (
+                {collaborators.map((collaborator) => (
                   <div key={collaborator.id} className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                         <span className="text-sm font-medium">
-                          {collaborator.name.split(' ').map(n => n[0]).join('')}
+                          {collaborator.userId.slice(0, 2).toUpperCase()}
                         </span>
                       </div>
                       <div>
-                        <p className="font-medium">{collaborator.name}</p>
-                        <p className="text-sm text-muted-foreground">{collaborator.email}</p>
+                        <p className="font-medium">User {collaborator.userId.slice(0, 8)}</p>
+                        <p className="text-sm text-muted-foreground">ID: {collaborator.userId}</p>
                       </div>
                     </div>
                     <Badge variant="outline">{collaborator.role}</Badge>
                   </div>
                 ))}
+                {collaborators.length === 0 && (
+                  <div className="text-center py-4 text-muted-foreground">
+                    No team members found
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -24,6 +24,31 @@
     // Some stricter flags (disabled by default)
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
-  }
+    "noPropertyAccessFromIndexSignature": false,
+
+    // Module resolution helper for monorepo local packages
+    "paths": {
+      "@repo/types": ["./packages/types/src"],
+      "@repo/types/*": ["./packages/types/src/*"]
+    }
+  },
+  "exclude": [
+    "node_modules",
+    "**/node_modules",
+    "dist",
+    "**/dist",
+    "build",
+    "**/build",
+    "out",
+    ".next",
+    "apps/*/.next",
+    ".vercel",
+    ".turbo",
+    "coverage",
+    ".cache",
+    "tmp",
+    "logs",
+    ".git",
+    "packages/*/dist"
+  ]
 }

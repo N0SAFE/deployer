@@ -37,6 +37,14 @@ Converting the existing NestJS + Next.js application into a self-hosted universa
 - Secure webhook endpoints with signature validation
 
 #### **Priority 3: Enhanced Deployment Engine** (Week 4)
+### Recent Frontend Updates (Deployments UI)
+- Removed mock fields from global deployments page (`apps/web/src/app/dashboard/deployments/page.tsx`): no more synthetic `branch`, `duration`, `url`, `progress`.
+- `DeploymentCard` now receives raw deployment objects on the global page; optional fields render only when provided by API.
+- Typecheck for `apps/web` is clean; Better Auth client export uses a deliberate `as any` cast with an inline ESLint directive to keep types portable.
+
+### Next UX work
+- If backend exposes real `duration/progress/url`, surface them in `DeploymentCard`; otherwise keep them hidden.
+- Consider passing `projectId/serviceId` context from global views once service→project mapping is available to enable logs navigation.
 - Multi-source deployment processing (GitHub, GitLab, Git, upload)
 - Service dependency-aware orchestration with topological sorting
 - Preview environment lifecycle management with automatic cleanup
@@ -174,10 +182,52 @@ PREVIEW_CLEANUP_DAYS=7
 - [ ] **Reliable operations**: >99% deployment success rate
 - [ ] **Comprehensive monitoring**: Real-time status and resource usage
 
+## Multi-Deployment Orchestration Architecture
+
+**CRITICAL DECISION MADE**: ✅ **DOCKER SWARM MODE + TRAEFIK SELECTED AS ORCHESTRATION STRATEGY**
+
+After comprehensive analysis of the current Docker Compose setup and universal deployment platform requirements, **Docker Swarm Mode with Traefik** has been selected as the optimal orchestration solution.
+
+### **Architecture Specifications Created**
+1. **📋 [Multi-Deployment Orchestration Specification](../docs/MULTI-DEPLOYMENT-ORCHESTRATION-SPECIFICATION.md)**
+   - Complete architecture overview for handling multiple Docker deployments
+   - Docker Swarm Mode + Traefik integration strategy
+   - Multi-tenant resource management and network isolation
+   - Performance targets and security considerations
+
+2. **🔧 [Multi-Deployment Orchestration Implementation Guide](../docs/MULTI-DEPLOYMENT-ORCHESTRATION-IMPLEMENTATION-GUIDE.md)**
+   - Practical implementation steps and code examples
+   - SwarmOrchestrationService, TraefikService, ResourceAllocationService
+   - Database migrations and ORPC contract extensions
+   - Frontend integration examples and monitoring setup
+
+### **Why Docker Swarm Mode Over Kubernetes**
+- **Simplicity**: Single binary installation, no complex cluster management
+- **Resource Efficiency**: Lower overhead for VPS deployments
+- **Docker Compose Compatibility**: Easy migration from existing setup
+- **Self-Hosted Friendly**: Perfect for single-server deployments
+- **Built-in Features**: Service discovery, load balancing, automatic TLS
+
+### **Key Architecture Benefits**
+- **Multi-Tenancy**: Complete isolation per deployment with dedicated networks/volumes
+- **Dynamic Configuration**: Auto-generated Docker Compose files per deployment
+- **Automatic SSL**: Let's Encrypt integration via Traefik
+- **Service Discovery**: Automatic subdomain routing (`project.domain.com`, `project-staging.domain.com`)
+- **Resource Management**: CPU/memory quotas and monitoring per project
+- **Scalability**: Support for 100+ concurrent deployments
+
+### **Implementation Components Ready**
+- ✅ **SwarmOrchestrationService**: Stack deployment and management
+- ✅ **TraefikService**: Reverse proxy with automatic SSL
+- ✅ **ResourceAllocationService**: Resource quotas and monitoring
+- ✅ **Database Schema**: Extended tables for orchestration metadata
+- ✅ **ORPC Contracts**: New orchestration endpoints
+- ✅ **Frontend Components**: Swarm deployment forms and status monitoring
+
 ## Ready for Implementation
 
-**Current Status**: ✅ **FOUNDATION COMPLETE - READY FOR UNIVERSAL PLATFORM EXPANSION**
+**Current Status**: ✅ **FOUNDATION COMPLETE - ORCHESTRATION ARCHITECTURE DEFINED**
 
-All foundational services, database schema, API contracts, and core infrastructure are implemented and tested. Ready to begin Phase 1 development focusing on multi-source deployment system and enhanced preview environments.
+All foundational services, database schema, API contracts, and core infrastructure are implemented and tested. Multi-deployment orchestration architecture is fully specified with Docker Swarm Mode + Traefik.
 
-**Next Action**: Begin database schema extension for universal deployment features and implement Git integration services for GitHub, GitLab, and generic Git repository support.
+**Next Action**: Begin implementing the orchestration services (SwarmOrchestrationService, TraefikService) and extend database schema for multi-tenant deployments as outlined in the implementation guide.

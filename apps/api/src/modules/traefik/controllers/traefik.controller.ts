@@ -1,146 +1,113 @@
 import { Controller } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
-import { TraefikService } from '../services/traefik.service';
+import { TraefikService } from '@/core/modules/traefik/services/traefik.service';
+import { TraefikValidationService } from '@/core/modules/traefik/services/traefik-validation.service';
+import { TraefikRepository } from '@/core/modules/traefik/repositories/traefik.repository';
 import { traefikContract } from '@repo/api-contracts';
-
 @Controller()
 export class TraefikController {
-  constructor(private readonly traefikService: TraefikService) {}
+    constructor(
+        private readonly traefikService: TraefikService,
+        private readonly traefikValidationService: TraefikValidationService,
+        private readonly traefikRepository: TraefikRepository
+    ) { }
+    @Implement(traefikContract.forceSyncConfigs)
+    forceSyncConfigs() {
+        return implement(traefikContract.forceSyncConfigs).handler(async ({ input }) => {
+            const { projectName } = input;
+            const result = await this.traefikService.forceSyncAll(projectName);
+            return result;
+        });
+    }
 
-  // Instance management endpoints
-  @Implement(traefikContract.createInstance)
-  createInstance() {
-    return implement(traefikContract.createInstance).handler(async ({ input }) => {
-      const result = await this.traefikService.createInstance(input);
-      return {
-        ...result,
-        status: result.status as "error" | "stopped" | "starting" | "running" | "stopping"
-      };
-    });
-  }
+    @Implement(traefikContract.cleanupOrphanedFiles)
+    cleanupOrphanedFiles() {
+        return implement(traefikContract.cleanupOrphanedFiles).handler(async ({ input }) => {
+            const { projectName } = input;
+            const syncSummary = await this.traefikService.cleanupOrphanedFiles(projectName);
+            
+            // Transform SyncSummary to match contract expectations
+            const cleanedFiles = syncSummary.results
+                .filter(result => result.action === 'deleted' && result.success)
+                .map(result => result.filePath || result.configName);
+            
+            return {
+                cleanedFiles,
+                count: cleanedFiles.length
+            };
+        });
+    }
 
-  @Implement(traefikContract.listInstances)
-  listInstances() {
-    return implement(traefikContract.listInstances).handler(async () => {
-      const instances = await this.traefikService.listInstances();
-      return instances.map(instance => ({
-        ...instance,
-        status: instance.status as "error" | "stopped" | "starting" | "running" | "stopping"
-      }));
-    });
-  }
+    // File system endpoints (NEW PROJECT-BASED)
+    @Implement(traefikContract.getFileSystem)
+    getFileSystem() {
+        return implement(traefikContract.getFileSystem).handler(async ({ input }) => {
+            const { path } = input;
+            return await this.traefikService.getTraefikFileSystem(path);
+        });
+    }
 
-  @Implement(traefikContract.getInstance)
-  getInstance() {
-    return implement(traefikContract.getInstance).handler(async ({ input }) => {
-      const { instanceId } = input;
-      const instance = await this.traefikService.getInstance(instanceId);
-      if (!instance) {
-        throw new Error(`Traefik instance not found: ${instanceId}`);
-      }
-      return {
-        ...instance,
-        status: instance.status as "error" | "stopped" | "starting" | "running" | "stopping"
-      };
-    });
-  }
+    @Implement(traefikContract.getProjectFileSystem)
+    getProjectFileSystem() {
+        return implement(traefikContract.getProjectFileSystem).handler(async ({ input }) => {
+            const { projectName } = input;
+            return await this.traefikService.getProjectFileSystem(projectName);
+        });
+    }
 
-  @Implement(traefikContract.startInstance)
-  startInstance() {
-    return implement(traefikContract.startInstance).handler(async ({ input }) => {
-      const { instanceId } = input;
-      const result = await this.traefikService.startInstance(instanceId);
-      return {
-        ...result,
-        status: result.status as "error" | "stopped" | "starting" | "running" | "stopping"
-      };
-    });
-  }
+    @Implement(traefikContract.getFileContent)
+    getFileContent() {
+        return implement(traefikContract.getFileContent).handler(async ({ input }) => {
+            const { filePath } = input;
+            return await this.traefikService.getFileContent(filePath);
+        });
+    }
 
-  @Implement(traefikContract.stopInstance)
-  stopInstance() {
-    return implement(traefikContract.stopInstance).handler(async ({ input }) => {
-      const { instanceId } = input;
-      const result = await this.traefikService.stopInstance(instanceId);
-      return {
-        ...result,
-        status: result.status as "error" | "stopped" | "starting" | "running" | "stopping"
-      };
-    });
-  }
+    @Implement(traefikContract.downloadFile)
+    downloadFile() {
+        return implement(traefikContract.downloadFile).handler(async ({ input }) => {
+            const { filePath } = input;
+            return await this.traefikService.downloadFile(filePath);
+        });
+    }
 
-  @Implement(traefikContract.healthCheckInstance)
-  healthCheckInstance() {
-    return implement(traefikContract.healthCheckInstance).handler(async ({ input }) => {
-      const { instanceId } = input;
-      const healthy = await this.traefikService.healthCheck(instanceId);
-      return { healthy };
-    });
-  }
+    @Implement(traefikContract.listProjects)
+    listProjects() {
+        return implement(traefikContract.listProjects).handler(async () => {
+            const projects = await this.traefikService.listProjects();
+            return projects;
+        });
+    }
 
-  // Domain management endpoints
-  @Implement(traefikContract.createDomainConfig)
-  createDomainConfig() {
-    return implement(traefikContract.createDomainConfig).handler(async ({ input: _ }) => {
-      // const { instanceId, ...domainConfig } = input;
-      // Need to implement createDomainConfig method in TraefikService
-      throw new Error('Method not implemented yet');
-    });
-  }
+    @Implement(traefikContract.validateServiceConfig)
+    validateServiceConfig() {
+        return implement(traefikContract.validateServiceConfig).handler(async ({ input }) => {
+            const { serviceId, configContent } = input;
 
-  @Implement(traefikContract.listDomainConfigs)
-  listDomainConfigs() {
-    return implement(traefikContract.listDomainConfigs).handler(async ({ input: _ }) => {
-      // const { instanceId } = input;
-      // Need to implement listDomainConfigs method in TraefikService
-      throw new Error('Method not implemented yet');
-    });
-  }
+            // If configContent is provided, validate it directly
+            if (configContent) {
+                const result = await this.traefikValidationService.validateConfig(configContent);
+                return result;
+            }
 
-  // Route management endpoints
-  @Implement(traefikContract.createRouteConfig)
-  createRouteConfig() {
-    return implement(traefikContract.createRouteConfig).handler(async ({ input: _ }) => {
-      // const { domainConfigId, ...routeConfig } = input;
-      // Need to implement createRouteConfig method in TraefikService
-      throw new Error('Method not implemented yet');
-    });
-  }
+            // Otherwise, fetch the stored config for the service
+            const storedConfig = await this.traefikRepository.getServiceConfigByServiceId(serviceId);
+            
+            if (!storedConfig?.configContent) {
+                return {
+                    isValid: false,
+                    errors: [
+                        {
+                            path: '',
+                            message: 'No Traefik configuration found for this service',
+                            code: 'NO_CONFIG'
+                        }
+                    ]
+                };
+            }
 
-  @Implement(traefikContract.listRouteConfigs)
-  listRouteConfigs() {
-    return implement(traefikContract.listRouteConfigs).handler(async ({ input: _ }) => {
-      // const { domainConfigId } = input;
-      // Need to implement listRouteConfigs method in TraefikService
-      throw new Error('Method not implemented yet');
-    });
-  }
-
-  @Implement(traefikContract.deleteRouteConfig)
-  deleteRouteConfig() {
-    return implement(traefikContract.deleteRouteConfig).handler(async ({ input: _ }) => {
-      // const { routeConfigId } = input;
-      // Need to implement deleteRouteConfig method in TraefikService
-      throw new Error('Method not implemented yet');
-    });
-  }
-
-  // Deployment registration endpoints
-  @Implement(traefikContract.registerDeployment)
-  registerDeployment() {
-    return implement(traefikContract.registerDeployment).handler(async ({ input: _ }) => {
-      // const { instanceId, ...registrationData } = input;
-      // The registerDeployment method exists but has a different signature
-      // Need to update it to match the API contract
-      throw new Error('Method not implemented yet');
-    });
-  }
-
-  @Implement(traefikContract.unregisterDeployment)
-  unregisterDeployment() {
-    return implement(traefikContract.unregisterDeployment).handler(async ({ input }) => {
-      const { deploymentId } = input;
-      await this.traefikService.unregisterDeployment(deploymentId);
-    });
-  }
+            const result = await this.traefikValidationService.validateConfig(storedConfig.configContent);
+            return result;
+        });
+    }
 }

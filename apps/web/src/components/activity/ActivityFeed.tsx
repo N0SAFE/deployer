@@ -2,6 +2,8 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
 import { Badge } from '@repo/ui/components/shadcn/badge'
+import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Alert, AlertDescription } from '@repo/ui/components/shadcn/alert'
 import { 
   CheckCircle2,
   XCircle,
@@ -10,185 +12,255 @@ import {
   GitBranch,
   Users,
   Settings,
-  Upload
+  Upload,
+  Activity,
+  AlertCircle
 } from 'lucide-react'
+import { useProjectActivity } from '@/hooks/useActivity'
+import type { UserActivity } from '@/hooks/useActivity'
 
 interface ActivityFeedProps {
   projectId: string
 }
 
-// Mock activity data - will be replaced with real data from the API
-const mockActivities = [
-  {
-    id: '1',
-    type: 'deployment',
-    title: 'Deployment completed',
-    description: 'Successfully deployed web service to production',
-    status: 'success',
-    timestamp: new Date(Date.now() - 1000 * 60 * 5), // 5 minutes ago
-    user: 'John Doe'
-  },
-  {
-    id: '2',
-    type: 'deployment',
-    title: 'Deployment started',
-    description: 'Building and deploying API service to staging',
-    status: 'building',
-    timestamp: new Date(Date.now() - 1000 * 60 * 15), // 15 minutes ago
-    user: 'Jane Smith'
-  },
-  {
-    id: '3',
-    type: 'git',
-    title: 'New commit pushed',
-    description: 'feat: add user authentication system',
-    status: 'info',
-    timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-    user: 'John Doe'
-  },
-  {
-    id: '4',
-    type: 'team',
-    title: 'Team member invited',
-    description: 'Invited alice@example.com as developer',
-    status: 'info',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60), // 1 hour ago
-    user: 'Admin'
-  },
-  {
-    id: '5',
-    type: 'deployment',
-    title: 'Deployment failed',
-    description: 'Build failed for web service - missing dependencies',
-    status: 'failed',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-    user: 'Bot'
-  },
-  {
-    id: '6',
-    type: 'upload',
-    title: 'File upload deployment',
-    description: 'Deployed from uploaded ZIP file',
-    status: 'success',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3), // 3 hours ago
-    user: 'Jane Smith'
-  }
-]
-
 export default function ActivityFeed({ projectId }: ActivityFeedProps) {
-  // TODO: Use projectId for real API calls to fetch activity
-  console.log('Loading activity feed for project:', projectId)
-  
-  const getActivityIcon = (type: string, status: string) => {
-    switch (type) {
+  const { data: activityData, isLoading, error } = useProjectActivity(projectId, { 
+    limit: 10,
+    timeRange: '7d',
+    offset: 0
+  })
+
+  const activities = activityData?.data || []
+
+  const getActivityIcon = (action: string) => {
+    switch (action.toLowerCase()) {
       case 'deployment':
-        if (status === 'success') {
-          return <CheckCircle2 className="h-4 w-4 text-green-600" />
-        } else if (status === 'failed') {
-          return <XCircle className="h-4 w-4 text-red-600" />
-        } else {
-          return <Clock className="h-4 w-4 text-yellow-600" />
-        }
-      case 'git':
-        return <GitBranch className="h-4 w-4 text-blue-600" />
-      case 'team':
-        return <Users className="h-4 w-4 text-purple-600" />
-      case 'settings':
-        return <Settings className="h-4 w-4 text-gray-600" />
+      case 'deploy':
+        return Zap
+      case 'commit':
+      case 'push':
+        return GitBranch
+      case 'invite':
+      case 'join':
+        return Users
+      case 'update':
+      case 'configure':
+        return Settings
       case 'upload':
-        return <Upload className="h-4 w-4 text-indigo-600" />
+        return Upload
       default:
-        return <Zap className="h-4 w-4 text-gray-600" />
+        return Activity
     }
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusIcon = (action: string, details?: Record<string, unknown>) => {
+    if (details?.status && typeof details.status === 'string') {
+      switch (details.status.toLowerCase()) {
+        case 'success':
+        case 'completed':
+          return CheckCircle2
+        case 'failed':
+        case 'error':
+          return XCircle
+        case 'building':
+        case 'deploying':
+        case 'pending':
+          return Clock
+        default:
+          return Activity
+      }
+    }
+    
+    // Fallback based on action
+    if (action.toLowerCase().includes('fail')) return XCircle
+    if (action.toLowerCase().includes('success')) return CheckCircle2
+    return getActivityIcon(action)
+  }
+
+  const getStatusBadge = (action: string, details?: Record<string, unknown>) => {
+    const status = typeof details?.status === 'string' ? details.status.toLowerCase() : undefined
+    
     switch (status) {
       case 'success':
-        return 'default'
+      case 'completed':
+        return { variant: 'default' as const, label: 'Success' }
       case 'failed':
-        return 'destructive'
+      case 'error':
+        return { variant: 'destructive' as const, label: 'Failed' }
       case 'building':
       case 'deploying':
-        return 'secondary'
-      case 'info':
-        return 'outline'
+        return { variant: 'secondary' as const, label: 'In Progress' }
+      case 'pending':
+        return { variant: 'outline' as const, label: 'Pending' }
       default:
-        return 'outline'
+        return { variant: 'secondary' as const, label: 'Info' }
     }
   }
 
-  const formatTimeAgo = (date: Date) => {
-    const now = new Date()
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+  const getActivityTitle = (activity: UserActivity) => {
+    const action = activity.action
+    const details = activity.details
     
-    if (diffInSeconds < 60) {
-      return `${diffInSeconds}s ago`
-    } else if (diffInSeconds < 3600) {
-      return `${Math.floor(diffInSeconds / 60)}m ago`
-    } else if (diffInSeconds < 86400) {
-      return `${Math.floor(diffInSeconds / 3600)}h ago`
-    } else {
-      return `${Math.floor(diffInSeconds / 86400)}d ago`
+    switch (action.toLowerCase()) {
+      case 'deployment':
+      case 'deploy':
+        return details?.status === 'success' ? 'Deployment completed' : 
+               details?.status === 'failed' ? 'Deployment failed' : 'Deployment started'
+      case 'commit':
+      case 'push':
+        return 'New commit pushed'
+      case 'invite':
+        return 'User invited to project'
+      case 'join':
+        return 'User joined project'
+      case 'update':
+        return 'Configuration updated'
+      default:
+        return `${action.charAt(0).toUpperCase()}${action.slice(1)} action`
     }
   }
 
-  // Filter activities by projectId (in real implementation)
-  const activities = mockActivities
-  
-  // TODO: Implement real-time activity feed using _projectId
+  const getActivityDescription = (activity: UserActivity) => {
+    const details = activity.details
+    const resource = activity.resource
+    
+    if (details?.message) return details.message
+    if (details?.description) return details.description
+    if (details?.commitMessage) return details.commitMessage
+    
+    // Generate description based on action and resource
+    if (resource) {
+      const resourceParts = resource.split(':')
+      const resourceType = resourceParts[0]
+      const resourceId = resourceParts[1]
+      
+      switch (resourceType) {
+        case 'project':
+          return `Action performed on project`
+        case 'service':
+          return `Service ${resourceId || 'updated'}`
+        case 'deployment':
+          return `Deployment ${resourceId || 'processed'}`
+        default:
+          return `Action performed on ${resourceType}`
+      }
+    }
+    
+    return `${activity.action} completed`
+  }
 
-  return (
-    <div className="space-y-4">
+  const formatTimestamp = (timestamp: Date) => {
+    const now = new Date()
+    const diff = now.getTime() - timestamp.getTime()
+    const minutes = Math.floor(diff / (1000 * 60))
+    const hours = Math.floor(diff / (1000 * 60 * 60))
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+
+    if (minutes < 1) return 'Just now'
+    if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`
+    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`
+    if (days < 7) return `${days} day${days > 1 ? 's' : ''} ago`
+    
+    return timestamp.toLocaleDateString()
+  }
+
+  if (isLoading) {
+    return (
       <Card>
         <CardHeader>
-          <CardTitle>Activity Feed</CardTitle>
+          <CardTitle className="text-lg">Recent Activity</CardTitle>
           <CardDescription>
-            Recent activity and events for this project
+            Project activity and updates
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center space-x-3">
+              <Skeleton className="h-8 w-8 rounded-full" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
+              </div>
+              <Skeleton className="h-5 w-16" />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Recent Activity</CardTitle>
+          <CardDescription>
+            Project activity and updates
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {activities.map((activity, index) => (
-              <div key={activity.id} className="flex items-start space-x-4">
-                <div className="flex-shrink-0 mt-1">
-                  {getActivityIcon(activity.type, activity.status)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <p className="text-sm font-medium">{activity.title}</p>
-                    <Badge 
-                      variant={getStatusColor(activity.status) as "default" | "destructive" | "outline" | "secondary"}
-                      className="text-xs"
-                    >
-                      {activity.status}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    {activity.description}
-                  </p>
-                  <div className="flex items-center space-x-3 text-xs text-muted-foreground">
-                    <span>{formatTimeAgo(activity.timestamp)}</span>
-                    <span>•</span>
-                    <span>by {activity.user}</span>
-                  </div>
-                </div>
-                {index < activities.length - 1 && (
-                  <div className="absolute left-6 mt-8 h-8 w-px bg-border" 
-                       style={{ marginLeft: '1.5rem' }} />
-                )}
-              </div>
-            ))}
-          </div>
-          
-          {activities.length === 0 && (
-            <div className="text-center py-8">
-              <Zap className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">No recent activity</p>
-            </div>
-          )}
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Failed to load activity data. Please try again later.
+            </AlertDescription>
+          </Alert>
         </CardContent>
       </Card>
-    </div>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Recent Activity</CardTitle>
+        <CardDescription>
+          Project activity and updates
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {activities.length > 0 ? (
+          <div className="space-y-4">
+            {activities.map((activity, index) => {
+              const Icon = getStatusIcon(activity.action, activity.details)
+              const badge = getStatusBadge(activity.action, activity.details)
+              const title = getActivityTitle(activity)
+              const description = getActivityDescription(activity)
+              
+              return (
+                <div key={`${activity.userId}-${activity.timestamp.getTime()}-${index}`} className="flex items-start space-x-3">
+                  <div className="flex-shrink-0">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Icon className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {title}
+                      </p>
+                      <Badge variant={badge.variant} className="ml-2">
+                        {badge.label}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground truncate mt-1">
+                      {description}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {formatTimestamp(activity.timestamp)} • User {activity.userId.slice(0, 8)}
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p>No recent activity</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }

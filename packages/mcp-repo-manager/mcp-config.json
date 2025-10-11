@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MCP Repo Manager Server Configuration",
+  "type": "object",
+  "properties": {
+    "mcpServer": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "default": "bun",
+          "description": "Command to run the MCP server"
+        },
+        "args": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["run", "start"],
+          "description": "Arguments to pass to the command"
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Working directory for the server (auto-detected from repo root)"
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables for the server"
+        }
+      }
+    }
+  }
+}

@@ -2,7 +2,7 @@
 # Simple development Dockerfile for NestJS API
 # Focused on simplicity and avoiding permission issues
 
-FROM oven/bun:1.2.14-alpine
+FROM oven/bun:1.2.23-alpine
 
 # Install system dependencies
 RUN apk add --no-cache curl wget bash git python3 make g++ supervisor
@@ -20,6 +20,10 @@ RUN bun install -g @nestjs/cli
 
 # Set working directory
 WORKDIR /app
+
+# Create upload directories with proper permissions
+RUN mkdir -p /app/uploads /app/extracted /app/static-files && \
+    chmod 755 /app/uploads /app/extracted /app/static-files
 
 # Copy workspace configuration files for dependency installation
 COPY package.json bun.lock* ./

@@ -5,10 +5,12 @@
   "main": "./index.ts",
   "types": "./index.ts",
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "dependencies": {
     "@orpc/contract": "catalog:orpc",
+    "@repo/types": "*",
     "zod": "catalog:utils"
   },
   "devDependencies": {

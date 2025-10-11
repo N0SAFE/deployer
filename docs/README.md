@@ -1,77 +1,145 @@
 # Documentation Home
 
-Welcome to the documentation for this Next.js + NestJS monorepo template. This hub gives you a clear, consistent starting point and links to focused guides for each part of the stack.
+Welcome to the documentation for this Next.js + NestJS deployment platform. This hub provides organized, accessible documentation across concepts, architecture, guides, and references.
 
-> Use case this docs set is optimized for
+> **Use case optimized for:** Docker-first deployment platform with multi-tenant support, GitHub integration, and automated deployment workflows.
 >
-> Docker-first SaaS app: develop locally with Docker, build end-to-end types with ORPC and declarative routing, and deploy to Render for production.
+> **Audience:** Full-stack developers building or maintaining the deployment platform.
 >
-> Audience: Full‑stack developers starting a new project from this template.
->
-> Out of scope: Non-Render cloud specifics, legacy CMS guides.
+> **Out of scope:** Platform-specific deployment details are in provider-specific guides.
 
-## How to use these docs
+## 📁 Documentation Structure
 
-- Start with Overview and Quick Start if you're new
-- Jump to Concepts to understand how core systems work
-- Use Guides for day-to-day development and deployment
-- Check Reference for commands, environment, and glossary
+Our documentation is organized into focused directories:
 
-All docs follow the conventions in Docs Style Guide to stay consistent and avoid repetition.
+- **📚 Concepts** - Core system concepts and patterns
+- **🏗️ Architecture** - System design and architectural decisions
+- **📖 Guides** - Step-by-step how-to documentation
+- **🎯 Features** - Feature-specific implementation details
+- **📋 Planning** - Roadmaps, TODOs, and implementation guides
+- **📑 Reference** - API references, specs, and lookup documentation
+- **📐 Specifications** - Detailed technical specifications
+- **📦 Archive** - Historical and completed documentation
 
-## 🧭 Opinionated journey (recommended order)
+## 🧭 Quick Start Journey (Recommended Order)
 
-1. Bootstrap your environment: ./GETTING-STARTED.md
-2. Understand the system: ./ARCHITECTURE.md and ./TECH-STACK.md
-3. Configure env via the template system: ./ENVIRONMENT-TEMPLATE-SYSTEM.md
-4. Daily dev with Docker, routes, and ORPC: ./DEVELOPMENT-WORKFLOW.md and ./ORPC-TYPE-CONTRACTS.md
-5. Build and test confidently: ./TESTING.md
-6. Choose build strategy for prod: ./DOCKER-BUILD-STRATEGIES.md
-7. Deploy to production:
-	- Generic Docker Compose: ./PRODUCTION-DEPLOYMENT.md
-	- Render PaaS: ./RENDER-DEPLOYMENT.md
-8. Optional multi-project isolation on one machine: ./PROJECT-ISOLATION.md
+1. **Bootstrap**: [`guides/GETTING-STARTED.md`](./guides/GETTING-STARTED.md) - Set up your development environment
+2. **Understand**: [`architecture/ARCHITECTURE.md`](./architecture/ARCHITECTURE.md) + [`reference/TECH-STACK.md`](./reference/TECH-STACK.md) - System overview
+3. **Configure**: [`reference/ENVIRONMENT-TEMPLATE-SYSTEM.md`](./reference/ENVIRONMENT-TEMPLATE-SYSTEM.md) - Environment setup
+4. **Develop**: [`guides/DEVELOPMENT-WORKFLOW.md`](./guides/DEVELOPMENT-WORKFLOW.md) - Daily development tasks
+5. **Test**: [`guides/TESTING.md`](./guides/TESTING.md) - Testing strategies and execution
+6. **Deploy**: [`guides/PRODUCTION-DEPLOYMENT.md`](./guides/PRODUCTION-DEPLOYMENT.md) or [`guides/RENDER-DEPLOYMENT.md`](./guides/RENDER-DEPLOYMENT.md)
 
-You can still jump directly to any topic below.
+## 📚 Concepts (Understanding Core Systems)
 
-## Overview
+Learn how the fundamental systems work:
 
-- Architecture overview: ./ARCHITECTURE.md
-- Technology stack: ./TECH-STACK.md
-- Getting started: ./GETTING-STARTED.md
-- Development workflow: ./DEVELOPMENT-WORKFLOW.md
+### 📖 Concepts
+*Core patterns and design principles*
 
-## Concepts (How it works)
+- [`SERVICE-ADAPTER-PATTERN.md`](./concepts/SERVICE-ADAPTER-PATTERN.md) - Service-adapter-controller orchestration pattern
+- [`FRONTEND-DEVELOPMENT-PATTERNS.md`](./concepts/FRONTEND-DEVELOPMENT-PATTERNS.md) - ORPC, Better Auth, and Declarative Routing patterns
+- **ORPC Type Safety**: [`concepts/orpc.md`](./concepts/orpc.md) - End-to-end type-safe API contracts
+- **Declarative Routing**: [`concepts/declarative-routing.md`](./concepts/declarative-routing.md) - Type-safe Next.js routing
+- **Authentication**: [`concepts/authentication.md`](./concepts/authentication.md) - Better Auth integration
+- **Database**: [`concepts/database.md`](./concepts/database.md) - Drizzle ORM patterns
+- **Monorepo**: [`concepts/monorepo.md`](./concepts/monorepo.md) - Turborepo structure
 
-- End-to-end types with ORPC: ./concepts/orpc.md
-- Declarative routing in Next.js: ./concepts/declarative-routing.md
-- Authentication with Better Auth: ./concepts/authentication.md
-- Database with Drizzle ORM: ./concepts/database.md
-- Monorepo with Turborepo: ./concepts/monorepo.md
+## 🏗️ Architecture (System Design)
 
-## Guides (Do this)
+Understand the system architecture and design decisions:
 
-- Testing: ./TESTING.md
-- Production deployment: ./PRODUCTION-DEPLOYMENT.md
-- Render deployment: ./RENDER-DEPLOYMENT.md
-- Docker build strategies: ./DOCKER-BUILD-STRATEGIES.md
-- Memory optimization (Docker): ./MEMORY-OPTIMIZATION.md
-- Project isolation (multiple projects on one machine): ./PROJECT-ISOLATION.md
+- **System Architecture**: [`architecture/ARCHITECTURE.md`](./architecture/ARCHITECTURE.md) - Overall system design
+- **Service Context Architecture**: [`architecture/SERVICE-CONTEXT-ARCHITECTURE.md`](./architecture/SERVICE-CONTEXT-ARCHITECTURE.md) - Service context system diagrams and data flows
+- **Core vs Feature**: [`architecture/CORE-VS-FEATURE-ARCHITECTURE.md`](./architecture/CORE-VS-FEATURE-ARCHITECTURE.md) - Module organization
+- **Core Modules**: [`architecture/CORE-MODULE-ARCHITECTURE.md`](./architecture/CORE-MODULE-ARCHITECTURE.md) - Core module design
+- **Reconciliation**: [`architecture/RECONCILIATION-ARCHITECTURE.md`](./architecture/RECONCILIATION-ARCHITECTURE.md) - State reconciliation
+- **Traefik Database**: [`architecture/TRAEFIK-DATABASE-ARCHITECTURE.md`](./architecture/TRAEFIK-DATABASE-ARCHITECTURE.md) - Traefik integration
 
-## Reference
+## 📖 Guides (Step-by-Step How-To)
 
-- Environment template system: ./ENVIRONMENT-TEMPLATE-SYSTEM.md
-- ORPC contracts (reference): ./ORPC-TYPE-CONTRACTS.md
-- Docs style guide: ./STYLEGUIDE.md
-- Glossary: ./GLOSSARY.md
+Practical guides for development and deployment:
 
-## Archived/Legacy
+- **Getting Started**: [`guides/GETTING-STARTED.md`](./guides/GETTING-STARTED.md)
+- **Development Workflow**: [`guides/DEVELOPMENT-WORKFLOW.md`](./guides/DEVELOPMENT-WORKFLOW.md)
+- **Static Deployment**: [`guides/STATIC-DEPLOYMENT.md`](./guides/STATIC-DEPLOYMENT.md) - Comprehensive guide for deploying static websites
+- **Testing**: [`guides/TESTING.md`](./guides/TESTING.md)
+- **Production Deployment**: [`guides/PRODUCTION-DEPLOYMENT.md`](./guides/PRODUCTION-DEPLOYMENT.md)
+- **Render Deployment**: [`guides/RENDER-DEPLOYMENT.md`](./guides/RENDER-DEPLOYMENT.md)
+- **Project Isolation**: [`guides/PROJECT-ISOLATION.md`](./guides/PROJECT-ISOLATION.md)
 
-The following historical documents are preserved for context but are not part of the active workflow:
+## 🎯 Features (Feature-Specific Documentation)
 
-- Docker migration summary (Directus → NestJS): ../DOCKER-MIGRATION-SUMMARY.md
-- Testing implementation and success summaries: ./TESTING-IMPLEMENTATION-SUMMARY.md, ./TESTING-SUCCESS-SUMMARY.md
+Detailed documentation organized by feature:
 
-## Contributing to docs
+### Context System
+- [`features/SERVICE-CONTEXT-SYSTEM.md`](./features/SERVICE-CONTEXT-SYSTEM.md) - Comprehensive service and project context system with domain management
+- [`features/DEPLOYMENT-CONTEXT-INTEGRATION.md`](./features/DEPLOYMENT-CONTEXT-INTEGRATION.md) - How deployment services use the context system
 
-Please follow ./STYLEGUIDE.md. When a topic already exists, link to it rather than duplicating content. If you must diverge, add only the delta and reference the primary source.
+### Deployment
+- [`features/deployment/`](./features/deployment/) - Deployment health rules, status semantics, configuration, retention policies, and rollback filtering
+- **See also:** [`guides/STATIC-DEPLOYMENT.md`](./guides/STATIC-DEPLOYMENT.md) for comprehensive static deployment guide
+
+### Docker
+- [`features/docker/`](./features/docker/) - Build strategies, storage management, and file ownership
+
+### GitHub Provider
+- [`features/github-provider/`](./features/github-provider/) - GitHub App integration, multi-tenant support, and implementation
+
+### Database
+- [`features/database/`](./features/database/) - Database encryption implementation
+
+### Testing
+- [`features/testing/`](./features/testing/) - Phase tracking and testing implementation
+
+## 📋 Planning (Roadmaps & TODOs)
+
+Current work and future plans:
+
+### High-Level Roadmap
+- [`planning/ROADMAP.md`](./planning/ROADMAP.md) - Platform roadmap and release planning
+
+### Feature-Specific Planning
+- [`planning/GITHUB-PROVIDER-ROADMAP.md`](./planning/GITHUB-PROVIDER-ROADMAP.md) - GitHub integration progress and tasks
+- [`planning/FEATURE-TODOS.md`](./planning/FEATURE-TODOS.md) - Actionable implementation tasks across all features
+- [`planning/RECONCILIATION-TODO.md`](./planning/RECONCILIATION-TODO.md) - Reconciliation feature detailed tasks
+
+### Implementation Guides
+- [`planning/RECONCILIATION-IMPLEMENTATION-GUIDE.md`](./planning/RECONCILIATION-IMPLEMENTATION-GUIDE.md) - Reconciliation implementation roadmap
+- [`planning/MULTI-DEPLOYMENT-ORCHESTRATION-IMPLEMENTATION-GUIDE.md`](./planning/MULTI-DEPLOYMENT-ORCHESTRATION-IMPLEMENTATION-GUIDE.md) - Multi-deployment orchestration guide
+
+## 📑 Reference (Lookup Documentation)
+
+Quick reference and technical specifications:
+
+- **Tech Stack**: [`reference/TECH-STACK.md`](./reference/TECH-STACK.md)
+- **ORPC Contracts**: [`reference/ORPC-TYPE-CONTRACTS.md`](./reference/ORPC-TYPE-CONTRACTS.md)
+- **Environment System**: [`reference/ENVIRONMENT-TEMPLATE-SYSTEM.md`](./reference/ENVIRONMENT-TEMPLATE-SYSTEM.md)
+- **Database Encryption**: [`reference/DATABASE-ENCRYPTION.md`](./reference/DATABASE-ENCRYPTION.md)
+- **Glossary**: [`reference/GLOSSARY.md`](./reference/GLOSSARY.md)
+- **Style Guide**: [`reference/STYLEGUIDE.md`](./reference/STYLEGUIDE.md)
+- **Directus Types**: [`reference/DIRECTUS-TYPE-GENERATION.md`](./reference/DIRECTUS-TYPE-GENERATION.md)
+
+## 📐 Specifications (Detailed Technical Specs)
+
+In-depth technical specifications:
+
+- **Multi-Deployment Orchestration**: [`specifications/MULTI-DEPLOYMENT-ORCHESTRATION-SPECIFICATION.md`](./specifications/MULTI-DEPLOYMENT-ORCHESTRATION-SPECIFICATION.md)
+- **Environment**: [`specifications/ENVIRONMENT-SPECIFICATION.md`](./specifications/ENVIRONMENT-SPECIFICATION.md)
+- **Frontend**: [`specifications/FRONTEND-SPECIFICATION.md`](./specifications/FRONTEND-SPECIFICATION.md)
+
+## 📦 Archive (Historical Documentation)
+
+Completed implementations and historical documentation:
+
+- [`archive/README.md`](./archive/README.md) - Archive index and purpose
+- See archive directory for completion summaries and obsolete documentation
+
+## 🤝 Contributing to Documentation
+
+When contributing to documentation:
+
+1. Follow the [`reference/STYLEGUIDE.md`](./reference/STYLEGUIDE.md) conventions
+2. Place documents in the appropriate directory based on their purpose
+3. Link to existing documentation rather than duplicating content
+4. Update this README when adding new major documentation sections
