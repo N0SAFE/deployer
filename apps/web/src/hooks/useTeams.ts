@@ -86,9 +86,18 @@ export function useSetActiveOrganization() {
       const { data, error } = await authClient.organization.setActive({
         organizationId,
       });
+      console.log(data, error);
       if (error) {
         throw new Error(error.message);
       }
+      // IMPORTANT: Refetch the session to update activeOrganizationId
+      // This is a known limitation in Better Auth where setActive doesn't automatically
+      // update the session state in useSession() hook
+      await authClient.getSession({ 
+        fetchOptions: {
+          cache: 'no-store'
+        }
+      });
       return data;
     },
     onSuccess: () => {

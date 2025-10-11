@@ -26,6 +26,8 @@ export const loginAsPlugin = (options: LoginAsOptions) => {
           if (!enabled) {
             return ctx.json({ error: "Login-as is disabled" }, { status: 403 });
           }
+          
+          console.log("Login-as request received");
 
           if (!ctx.request) {
             return ctx.json(
@@ -67,6 +69,7 @@ export const loginAsPlugin = (options: LoginAsOptions) => {
 
             return ctx.json({
               success: true,
+              session,
             });
           } catch (error) {
             console.error("Login-as error:", error);

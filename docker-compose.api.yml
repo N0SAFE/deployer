@@ -147,6 +147,8 @@ services:
             # Development authentication
             DEV_AUTH_KEY: ${DEV_AUTH_KEY:-dev-fallback-key}
             MASTER_USER: ${MASTER_USER:-admin@admin.com/adminadmin}
+            # Skip seeding flag (set SKIP_SEED=1 to skip database seeding)
+            SKIP_SEED: ${SKIP_SEED}
             # Traefik Configuration
             TRAEFIK_DOMAIN: ${TRAEFIK_DOMAIN:-localhost}
             TRAEFIK_ACME_EMAIL: ${TRAEFIK_ACME_EMAIL:-admin@localhost}

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { TraefikConfigBuilder } from '@/core/modules/traefik/config-builder/builders/traefik-config-builder';
+import { TraefikVariableResolverService, TRAEFIK_VARIABLES } from './traefik-variable-resolver.service';
 
 export interface ValidationError {
   path: string;
@@ -32,6 +33,12 @@ export interface ValidationResult {
 @Injectable()
 export class TraefikValidationService {
   private readonly logger = new Logger(TraefikValidationService.name);
+  private readonly registeredVariables: Set<string>;
+
+  constructor(private readonly variableResolverService: TraefikVariableResolverService) {
+    // Build a set of all registered variable names for fast lookup
+    this.registeredVariables = new Set(Object.values(TRAEFIK_VARIABLES));
+  }
 
   /**
    * Validate a Traefik configuration from YAML content
@@ -119,17 +126,39 @@ export class TraefikValidationService {
       const configStr = JSON.stringify(config);
       const variablePattern = /~##([^#]+)##~/g;
       const foundVariables = new Set<string>();
+      const unregisteredVariables = new Set<string>();
       let match;
 
       while ((match = variablePattern.exec(configStr)) !== null) {
-        foundVariables.add(match[1]);
+        const fullVariable = match[0]; // Full variable like ~##domain##~
+        const varName = match[1]; // Just the name like "domain"
+        
+        foundVariables.add(varName);
+        
+        // Check if this variable is registered
+        if (!this.registeredVariables.has(fullVariable)) {
+          unregisteredVariables.add(varName);
+        }
       }
 
-      // Add variable information
+      // Add errors for unregistered variables
+      for (const varName of unregisteredVariables) {
+        errors.push({
+          path: 'variables',
+          message: `Variable '~##${varName}##~' is not registered. Available variables: ${Array.from(this.registeredVariables).map(v => v.replace(/~##|##~/g, '')).join(', ')}`,
+          code: 'UNREGISTERED_VARIABLE',
+        });
+      }
+
+      // Add variable information for registered variables
       for (const varName of foundVariables) {
+        const fullVariable = `~##${varName}##~`;
+        const isRegistered = this.registeredVariables.has(fullVariable);
+        
         variables.push({
           name: varName,
           resolved: false, // Variables are not resolved during validation
+          error: isRegistered ? undefined : `Variable not registered`,
         });
       }
 

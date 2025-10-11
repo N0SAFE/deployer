@@ -50,6 +50,7 @@ Learn how the fundamental systems work:
 Understand the system architecture and design decisions:
 
 - **System Architecture**: [`architecture/ARCHITECTURE.md`](./architecture/ARCHITECTURE.md) - Overall system design
+- **Service Context Architecture**: [`architecture/SERVICE-CONTEXT-ARCHITECTURE.md`](./architecture/SERVICE-CONTEXT-ARCHITECTURE.md) - Service context system diagrams and data flows
 - **Core vs Feature**: [`architecture/CORE-VS-FEATURE-ARCHITECTURE.md`](./architecture/CORE-VS-FEATURE-ARCHITECTURE.md) - Module organization
 - **Core Modules**: [`architecture/CORE-MODULE-ARCHITECTURE.md`](./architecture/CORE-MODULE-ARCHITECTURE.md) - Core module design
 - **Reconciliation**: [`architecture/RECONCILIATION-ARCHITECTURE.md`](./architecture/RECONCILIATION-ARCHITECTURE.md) - State reconciliation
@@ -70,6 +71,10 @@ Practical guides for development and deployment:
 ## 🎯 Features (Feature-Specific Documentation)
 
 Detailed documentation organized by feature:
+
+### Context System
+- [`features/SERVICE-CONTEXT-SYSTEM.md`](./features/SERVICE-CONTEXT-SYSTEM.md) - Comprehensive service and project context system with domain management
+- [`features/DEPLOYMENT-CONTEXT-INTEGRATION.md`](./features/DEPLOYMENT-CONTEXT-INTEGRATION.md) - How deployment services use the context system
 
 ### Deployment
 - [`features/deployment/`](./features/deployment/) - Deployment health rules, status semantics, configuration, retention policies, and rollback filtering

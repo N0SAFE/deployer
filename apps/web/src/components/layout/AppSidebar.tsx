@@ -58,7 +58,9 @@ import {
 } from '@/hooks/useTeams'
 import CreateOrganizationDialog from '@/components/organization/CreateOrganizationDialog'
 import { UserProfileFooter } from './UserProfileFooter'
-import { Dashboard, DashboardProjects, DashboardContainers } from '@/routes'
+import { Dashboard, DashboardProjects, DashboardContainers, DashboardDomains } from '@/routes'
+import { useEffect } from 'react'
+import { getDefaultOrganizationId, setDefaultOrganizationId } from '@/lib/organization-state'
 
 const navigationItems = [
     {
@@ -75,6 +77,11 @@ const navigationItems = [
         title: 'Deployments',
         url: '/dashboard/deployments',
         icon: Zap,
+    },
+    {
+        title: 'Domains',
+        url: DashboardDomains(),
+        icon: Globe,
     },
     {
         title: 'Containers',
@@ -137,6 +144,13 @@ export function AppSidebar() {
     const { data: activeOrg } = useActiveOrganization()
     const { data: organizations = [] } = useOrganizations()
     const setActiveOrganization = useSetActiveOrganization()
+
+    // Update cookie when active organization changes
+    useEffect(() => {
+        if (activeOrg?.id) {
+            setDefaultOrganizationId(activeOrg.id)
+        }
+    }, [activeOrg?.id])
 
     const getActiveTab = () => {
         let section = navigationItems.find(
@@ -248,7 +262,7 @@ export function AppSidebar() {
                                     <div className="flex items-center gap-2">
                                         <Building2 className="h-3.5 w-3.5" />
                                         <span className="truncate">
-                                            {activeOrg?.name || 'Personal'}
+                                            {activeOrg?.name || organizations[0]?.name || 'Select Organization'}
                                         </span>
                                     </div>
                                     <ChevronDown className="h-3.5 w-3.5 opacity-50" />
@@ -259,27 +273,6 @@ export function AppSidebar() {
                                     Organizations
                                 </DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-
-                                {/* Personal workspace */}
-                                <DropdownMenuItem
-                                    onClick={() =>
-                                        setActiveOrganization.mutate({
-                                            organizationId: null,
-                                        })
-                                    }
-                                    className="flex items-center gap-2"
-                                >
-                                    <User className="h-4 w-4" />
-                                    <span>Personal</span>
-                                    {!activeOrg && (
-                                        <Badge
-                                            variant="outline"
-                                            className="ml-auto text-xs"
-                                        >
-                                            Current
-                                        </Badge>
-                                    )}
-                                </DropdownMenuItem>
 
                                 {/* Organization list */}
                                 {organizations.map(

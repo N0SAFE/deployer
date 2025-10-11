@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { TraefikConfigBuilder } from '../config-builder/builders';
+import type { ServiceContext } from '../../context/types/service-context.types';
+import { ContextUtils } from '../../context/types/service-context.types';
 
 /**
  * Available variables for Traefik configuration templates
@@ -23,6 +25,7 @@ export const TRAEFIK_VARIABLES = {
   SUBDOMAIN: '~##subdomain##~',
   FULL_DOMAIN: '~##fullDomain##~',
   BASE_DOMAIN: '~##baseDomain##~',
+  HOST: '~##host##~', // Alias for fullDomain or domain
   
   // SSL/TLS variables
   CERT_FILE: '~##certFile##~',
@@ -171,6 +174,7 @@ export class TraefikVariableResolverService {
     if (context.domain) {
       variables[TRAEFIK_VARIABLES.DOMAIN] = context.domain.domain;
       variables[TRAEFIK_VARIABLES.FULL_DOMAIN] = context.domain.fullDomain;
+      variables[TRAEFIK_VARIABLES.HOST] = context.domain.fullDomain; // HOST is an alias for fullDomain
       if (context.domain.subdomain) {
         variables[TRAEFIK_VARIABLES.SUBDOMAIN] = context.domain.subdomain;
       }
@@ -337,5 +341,37 @@ export class TraefikVariableResolverService {
    */
   private escapeRegex(str: string): string {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /**
+   * Build variable map from ServiceContext
+   * Uses the new context system for cleaner variable resolution
+   */
+  buildVariableMapFromServiceContext(serviceContext: ServiceContext): Record<string, string> {
+    return this.buildVariableMap(ContextUtils.toTraefikVariableContext(serviceContext));
+  }
+
+  /**
+   * Resolve variables in a string using ServiceContext
+   */
+  resolveStringFromServiceContext(template: string, serviceContext: ServiceContext): string {
+    return this.resolveString(template, ContextUtils.toTraefikVariableContext(serviceContext));
+  }
+
+  /**
+   * Resolve variables in a config using ServiceContext
+   */
+  resolveConfigFromServiceContext(config: any, serviceContext: ServiceContext): any {
+    return this.resolveConfig(config, ContextUtils.toTraefikVariableContext(serviceContext));
+  }
+
+  /**
+   * Resolve variables in a TraefikConfigBuilder using ServiceContext
+   */
+  resolveBuilderFromServiceContext(
+    builder: TraefikConfigBuilder,
+    serviceContext: ServiceContext
+  ): TraefikConfigBuilder {
+    return this.resolveBuilder(builder, ContextUtils.toTraefikVariableContext(serviceContext));
   }
 }

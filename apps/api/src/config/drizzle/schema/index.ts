@@ -9,3 +9,4 @@ export * from './orchestration';
 export * from './resource-monitoring';
 export * from './system';
 export * from './github-provider'; // Enhanced GitHub provider with multi-app support
+export * from './domain'; // Multi-level domain management system

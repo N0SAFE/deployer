@@ -15,8 +15,12 @@ if [ -z "$SKIP_MIGRATIONS" ]; then
     echo 'Found apps/api/package.json - running migrations'
     bun run --cwd apps/api db:migrate || echo 'db:migrate failed (continuing)'
     
-    echo 'Running database seeding (if not already seeded)'
-    bun run --cwd apps/api db:seed || echo 'db:seed failed (continuing)'
+    if [ -z "$SKIP_SEED" ]; then
+      echo 'Running database seeding (if not already seeded)'
+      bun run --cwd apps/api db:seed || echo 'db:seed failed (continuing)'
+    else
+      echo 'SKIP_SEED set, skipping database seeding'
+    fi
   else
     echo 'apps/api/package.json missing even after restore, skipping migrations and seeding'
   fi

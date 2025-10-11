@@ -143,7 +143,9 @@
   },
   "scripts": {
     "dev": "docker compose down && docker compose up",
+    "dev:no:seed": "docker compose down && SKIP_SEED=1 docker compose up",
     "dev:api": "bun --bun run dev:api:down && docker compose -f ./docker-compose.api.yml up",
+    "dev:api:no:seed": "bun --bun run dev:api:down && SKIP_SEED=1 docker compose -f ./docker-compose.api.yml up",
     "dev:web": "bun --bun run dev:web:down && docker compose -f ./docker-compose.web.yml up",
     "dev:api:build": "bun --bun run dev:api:down && docker compose -f ./docker-compose.api.yml up --build",
     "dev:web:build": "bun --bun run dev:web:down && docker compose -f ./docker-compose.web.yml up --build",

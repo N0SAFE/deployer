@@ -6,6 +6,7 @@ import { Inter } from 'next/font/google'
 import { cn } from '@repo/ui/lib/utils'
 import ThemeProvider from '@repo/ui/components/theme-provider'
 import Loader from '@repo/ui/components/atomics/atoms/Loader'
+import { Toaster } from '@repo/ui/components/shadcn/sonner'
 import ReactQueryProviders from '@/utils/providers/ReactQueryProviders'
 import { Suspense, type JSX } from 'react'
 import NextAuthProviders from '@/utils/providers/NextAuthProviders/index'
@@ -61,6 +62,7 @@ export default async function RootLayout({
                     )}
                 <NextAuthProviders>
                     <NuqsAdapter>
+                        <Toaster richColors />
                         <ThemeProvider
                             attribute="class"
                             defaultTheme="system"

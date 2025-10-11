@@ -25,6 +25,24 @@
 export * from './health'; // 🟢 Routes: /health/* | Frontend: ❌ | Complexity: Low
 /** User management and authentication - Core platform security */
 export * from './user'; // 🟢 Routes: /user/* | Frontend: ✅ | Complexity: Medium
+/** Initial application setup - First-time configuration */
+export * from './setup'; // 🟢 Routes: /setup/* | Frontend: ✅ | Complexity: Low
+
+// =============================================================================
+// 🏢 PROJECT MANAGEMENT - Core business logic
+// =============================================================================
+
+/** Project lifecycle and team management - Primary frontend functionality */
+export * from './project'; // 🟢 Routes: /projects/* | Frontend: ✅ | Complexity: High
+
+/** Service definitions and monitoring - Service configuration and tracking */
+export * from './service'; // 🟢 Routes: /services/* | Frontend: ✅ | Complexity: Medium-High
+
+/** Environment and variable management - Configuration and preview environments */
+export * from './environment'; // 🟢 Routes: /environments/* | Frontend: ✅ | Complexity: High
+
+/** Multi-level domain management - Organization, project, and service domain hierarchy */
+export * from './domain'; // 🟢 Routes: /domains/* | Frontend: ✅ | Complexity: High
 // =============================================================================
 // 🏢 PROJECT MANAGEMENT - Core business logic
 // =============================================================================

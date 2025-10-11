@@ -7,11 +7,10 @@ import { CoreModule } from '@/core/core.module';
 import { ZombieCleanupBootstrap } from '@/modules/bootstrap/services/zombie-cleanup.bootstrap';
 import { FileUploadBootstrap } from '@/modules/bootstrap/services/file-upload.bootstrap';
 import { TraefikBootstrap } from '@/modules/bootstrap/services/traefik.bootstrap';
-import { TraefikCoreModule } from '@/core/modules/traefik/traefik.module';
 
 @Module({
-  imports: [CoreModule, TraefikCoreModule],
-  providers: [SwarmBootstrap, FileUploadBootstrap, ZombieCleanupBootstrap, TraefikBootstrap],
+  imports: [CoreModule],
+  providers: [SwarmBootstrap, FileUploadBootstrap, ZombieCleanupBootstrap, TraefikBootstrap, TraefikBootstrap],
   exports: [],
 })
 export class BootstrapModule {}

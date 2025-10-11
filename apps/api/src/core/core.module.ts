@@ -11,6 +11,8 @@ import { CoreStorageModule } from '@/core/modules/storage/storage.module';
 import { ServiceModule } from '@/core/modules/service/service.module';
 import { ConstantsModule } from '@/core/modules/constants/constants.module';
 import { TraefikCoreModule } from '@/core/modules/traefik/traefik.module';
+import { ContextModule } from '@/core/modules/context/context.module';
+import { DomainModule } from '@/core/modules/domain/domain.module';
 
 /**
  * CORE MODULE: Core Services
@@ -27,6 +29,7 @@ import { TraefikCoreModule } from '@/core/modules/traefik/traefik.module';
  * - DeploymentModule: Deployment lifecycle, cleanup, and health monitoring
  * - ProjectsModule: Project server management
  * - OrchestrationModule: Traefik, Bull queues, deployment processing
+ * - DomainModule: Multi-level domain management (organization → project → service)
  */
 @Module({
   imports: [
@@ -36,6 +39,8 @@ import { TraefikCoreModule } from '@/core/modules/traefik/traefik.module';
     ServiceModule,
     BuildersModule,
     CoreStorageModule,
+    ContextModule, // Add before other modules that may use it
+    DomainModule, // Add before modules that need domain management
     TraefikCoreModule, // Add before ProjectsModule (ProjectsModule depends on it)
     ProjectsModule,
     OrchestrationModule,
@@ -50,6 +55,8 @@ import { TraefikCoreModule } from '@/core/modules/traefik/traefik.module';
     ServiceModule,
     BuildersModule,
     CoreStorageModule,
+    ContextModule,
+    DomainModule,
     TraefikCoreModule,
     ProjectsModule,
     OrchestrationModule,

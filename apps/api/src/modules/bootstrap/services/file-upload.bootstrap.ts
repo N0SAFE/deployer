@@ -6,7 +6,7 @@ import {
   type OnApplicationBootstrap,
 } from "@nestjs/common";
 import * as fs from "fs-extra";
-import type { ConstantsService } from "@/core/modules/constants/services/constants.service";
+import { ConstantsService } from "@/core/modules/constants/services/constants.service";
 
 @Global()
 @Injectable()

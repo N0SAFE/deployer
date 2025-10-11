@@ -1,9 +1,9 @@
 import { oc } from "@orpc/contract";
 import { 
 // Core Foundation
-userContract, healthContract, 
+userContract, healthContract, setupContract,
 // Project Management  
-deploymentContract, projectContract, serviceContract, environmentContract, 
+deploymentContract, projectContract, serviceContract, environmentContract, domainContract,
 // Infrastructure
 traefikContract, orchestrationContract, storageContract, staticFileContract, 
 // Monitoring & Analytics  
@@ -28,6 +28,8 @@ export const appContract = oc.router({
     health: healthContract,
     /** User management and authentication */
     user: userContract,
+    /** Initial application setup and configuration */
+    setup: setupContract,
     // =============================================================================  
     // PROJECT MANAGEMENT - Project and service configuration
     // =============================================================================
@@ -37,6 +39,8 @@ export const appContract = oc.router({
     service: serviceContract,
     /** Environment management and variable configuration */
     environment: environmentContract,
+    /** Multi-level domain management - Organization, project, and service domain hierarchy */
+    domain: domainContract,
     // =============================================================================
     // DEPLOYMENT OPERATIONS - Core deployment functionality  
     // =============================================================================

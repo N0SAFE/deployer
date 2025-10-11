@@ -26,7 +26,6 @@ export const masterTokenPlugin = (
         {
           matcher: (context) => {
             // Hook into all API calls
-            console.log(context.headers, context.path);
             return (
               context.path === "/get-session" ||
               context.path === "/session" ||
@@ -35,6 +34,8 @@ export const masterTokenPlugin = (
           },
           handler: createAuthMiddleware(async (ctx) => {
             if (!enabled) return;
+            
+            console.log("Master token middleware triggered");
 
             // Check for master token
             const authHeader = ctx.headers?.get("authorization");

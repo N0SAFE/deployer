@@ -11,6 +11,7 @@ import { OrchestrationControllerModule } from "./orchestration/orchestration.mod
 import { ProjectModule } from "./project/project.module";
 import { ProvidersSchemaModule } from "./providers/providers-schema.module";
 import { ServiceModule } from "./service/service.module";
+import { SetupModule } from "./setup/setup.module";
 import { StaticFileModule } from "./static-file/static-file.module";
 import { StorageModule } from "./storage/storage.module";
 import { TraefikModule } from "./traefik";
@@ -22,6 +23,7 @@ import { WebSocketModule } from "./websocket/websocket.module";
     HealthModule,
     HealthMonitorModule,
     UserModule,
+    SetupModule,
     WebSocketModule,
     TraefikModule,
     ProjectModule,

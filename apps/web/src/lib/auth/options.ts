@@ -3,6 +3,7 @@ import masterTokenClient from './plugins/masterToken'
 import { loginAsClientPlugin } from './plugins/loginAs'
 import { passkeyClient } from 'better-auth/client/plugins'
 import { organizationClient } from 'better-auth/client/plugins'
+import { nextCookies } from 'better-auth/next-js'
 import { validateEnvPath } from '#/env'
 
 const appUrl = validateEnvPath(
@@ -13,5 +14,15 @@ const appUrl = validateEnvPath(
 export const options = {
     basePath: '/api/auth',
     baseURL: appUrl,
-    plugins: [passkeyClient(), organizationClient(), masterTokenClient(), loginAsClientPlugin()],
+    plugins: [
+        passkeyClient(),
+        organizationClient({
+            teams: {
+                enabled: true,
+            },
+        }),
+        masterTokenClient(),
+        loginAsClientPlugin(),
+        nextCookies(),
+    ],
 } as const satisfies ClientOptions

@@ -17,11 +17,12 @@ import type {
 } from '../../providers/interfaces/provider.interface';
 import type { BuilderResult } from '@/core/modules/builders/common/services/base-builder.service';
 import { TraefikVariableResolverService } from '@/core/modules/traefik/services/traefik-variable-resolver.service';
-import type { VariableResolutionContext } from '@/core/modules/traefik/services/traefik-variable-resolver.service';
 import { TraefikConfigBuilder } from '@/core/modules/traefik/config-builder/builders';
 import { DatabaseService } from '@/core/modules/database/services/database.service';
 import { services, projects, deployments } from '@/config/drizzle/schema';
 import { eq, desc } from 'drizzle-orm';
+import { ServiceContextService } from '@/core/modules/context/services/service-context.service';
+import type { ServiceContext } from '@/core/modules/context/types/service-context.types';
 
 export interface BuilderConfig {
   type: 'dockerfile' | 'nixpacks' | 'buildpack' | 'static' | 'docker-compose';
@@ -115,6 +116,7 @@ export class DeploymentOrchestrator {
     // Traefik and database services for routing
     @Optional() private readonly traefikVariableResolver?: TraefikVariableResolverService,
     @Optional() private readonly databaseService?: DatabaseService,
+    @Optional() private readonly serviceContextService?: ServiceContextService,
   ) {
     // Auto-register all injected providers
     if (this.injectedProviders) {
@@ -691,6 +693,88 @@ export class DeploymentOrchestrator {
   }
 
   /**
+   * Build ServiceContext from database entities
+   * Helper method to create a unified context for variable resolution
+   * 
+   * Now uses the new domain mapping system - domain mappings are fetched
+   * from the database via ServiceContextService, no need to pass them manually
+   */
+  private async buildServiceContext(serviceId: string): Promise<ServiceContext | null> {
+    if (!this.databaseService || !this.serviceContextService) {
+      this.logger.warn('Database or ServiceContext service not available');
+      return null;
+    }
+
+    try {
+      // Get service from database
+      const [service] = await this.databaseService.db
+        .select()
+        .from(services)
+        .where(eq(services.id, serviceId))
+        .limit(1);
+
+      if (!service) {
+        throw new Error(`Service ${serviceId} not found`);
+      }
+
+      // Get latest deployment
+      const [latestDeployment] = await this.databaseService.db
+        .select()
+        .from(deployments)
+        .where(eq(deployments.serviceId, serviceId))
+        .orderBy(desc(deployments.createdAt))
+        .limit(1);
+
+      if (!latestDeployment) {
+        this.logger.warn('No deployment found for service');
+        return null;
+      }
+
+      // Get project info
+      const [project] = await this.databaseService.db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, service.projectId))
+        .limit(1);
+
+      // Create service context - domain mappings are now fetched automatically from database
+      const serviceContext = await this.serviceContextService.createServiceContext({
+        service: {
+          id: service.id,
+          name: service.name,
+          type: service.type,
+          description: service.description || undefined,
+          port: (service as any).port,
+          healthCheckPath: (service as any).healthCheckPath,
+          environmentVariables: (service as any).environmentVariables,
+          resourceLimits: (service as any).resourceLimits,
+        },
+        deployment: {
+          id: latestDeployment.id,
+          containerName: latestDeployment.containerName || `${service.name}-${latestDeployment.id.substring(0, 8)}`,
+          containerPort: (service as any).port || 3000,
+          containerId: latestDeployment.containerName || undefined,
+          environment: latestDeployment.environment,
+          status: latestDeployment.status,
+        },
+        project: {
+          id: service.projectId,
+          name: project?.name || 'project',
+          baseDomain: process.env.TRAEFIK_DOMAIN || process.env.DEPLOYER_BASE_DOMAIN || 'localhost',
+        },
+        network: {
+          name: `${project?.name || 'project'}-network`,
+        },
+      });
+
+      return serviceContext;
+    } catch (error) {
+      this.logger.error('Failed to build service context', error);
+      return null;
+    }
+  }
+
+  /**
    * Run health check
    */
   private async runHealthCheck(
@@ -705,18 +789,27 @@ export class DeploymentOrchestrator {
   /**
    * Update routing (Traefik)
    * 
-   * Gets service's TraefikConfigBuilder from DB, resolves variables with deployment context,
-   * and writes the resolved configuration to Traefik's dynamic config directory.
+   * Uses ServiceContext for unified variable resolution and writes the resolved
+   * configuration to Traefik's dynamic config directory.
+   * 
+   * Now supports multiple domain mappings per service with different base paths
    */
   private async updateRouting(serviceId: string, _url: string): Promise<void> {
     this.logger.log(`Updating Traefik routing for service ${serviceId}`);
 
-    if (!this.databaseService || !this.traefikVariableResolver) {
-      this.logger.warn('Database or Traefik variable resolver not available - skipping routing update');
+    if (!this.databaseService || !this.traefikVariableResolver || !this.serviceContextService) {
+      this.logger.warn('Required services not available - skipping routing update');
       return;
     }
 
     try {
+      // Build service context with domain mappings from database
+      const serviceContext = await this.buildServiceContext(serviceId);
+      if (!serviceContext) {
+        this.logger.warn('Failed to build service context - skipping routing');
+        return;
+      }
+
       // Get service with traefik config from database
       const [service] = await this.databaseService.db
         .select()
@@ -743,70 +836,12 @@ export class DeploymentOrchestrator {
         traefikConfig = (provider as any).getDefaultTraefikConfig({ enableSSL: false });
       }
 
-      // Get latest deployment for this service to get container info
-      const [latestDeployment] = await this.databaseService.db
-        .select()
-        .from(deployments)
-        .where(eq(deployments.serviceId, serviceId))
-        .orderBy(desc(deployments.createdAt))
-        .limit(1);
-
-      if (!latestDeployment) {
-        this.logger.warn('No deployment found for service - cannot resolve variables');
-        return;
-      }
-
-      // Get project info
-      const [project] = await this.databaseService.db
-        .select()
-        .from(projects)
-        .where(eq(projects.id, service.projectId))
-        .limit(1);
-
-      // Build variable resolution context
-      const domain = process.env.TRAEFIK_DOMAIN || process.env.DEPLOYER_BASE_DOMAIN || 'localhost';
-      const containerName = latestDeployment.containerName || `${service.name}-${latestDeployment.id.substring(0, 8)}`;
-      const containerPort = (service as any).port || 3000;
-      const subdomain = `${service.name}-${project?.name || 'project'}`.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-      const fullDomain = `${subdomain}.${domain}`;
-
-      const context: VariableResolutionContext = {
-        service: {
-          id: service.id,
-          name: service.name,
-          type: service.type,
-        },
-        deployment: {
-          id: latestDeployment.id,
-          containerName,
-          containerPort,
-          containerId: containerName, // Use containerName as fallback
-          environment: latestDeployment.environment,
-        },
-        domain: {
-          domain,
-          subdomain,
-          fullDomain,
-          baseDomain: domain,
-        },
-        project: {
-          id: service.projectId,
-          name: project?.name || 'project',
-        },
-        ssl: {
-          certFile: `/certificates/${fullDomain}.crt`,
-          keyFile: `/certificates/${fullDomain}.key`,
-          certResolver: 'letsencrypt',
-        },
-        path: {
-          prefix: '/',
-          healthCheck: '/health',
-        },
-      };
-
-      // Resolve variables in traefik config
-      this.logger.debug('Resolving Traefik config variables', { context });
-      const resolvedBuilder = this.traefikVariableResolver.resolveBuilder(traefikConfig, context);
+      // Resolve variables using service context
+      this.logger.debug('Resolving Traefik config variables using ServiceContext');
+      const resolvedBuilder = this.traefikVariableResolver.resolveBuilderFromServiceContext(
+        traefikConfig,
+        serviceContext
+      );
 
       // Build and convert to YAML
       const resolvedConfig = resolvedBuilder.build();
@@ -823,8 +858,20 @@ export class DeploymentOrchestrator {
       // Write config file
       await fs.promises.writeFile(configFilePath, yamlConfig, 'utf-8');
 
+      // Log all available URLs for this service
+      const primaryMapping = this.serviceContextService.getPrimaryDomain(serviceContext);
+      const allUrls = this.serviceContextService.getAllUrls(serviceContext);
+      
       this.logger.log(`Traefik config written to ${configFilePath}`);
-      this.logger.log(`Service accessible at: http://${fullDomain}`);
+      if (primaryMapping) {
+        this.logger.log(`Primary URL: ${primaryMapping.fullUrl}`);
+      }
+      if (allUrls.length > 1) {
+        this.logger.log(`Additional URLs: ${allUrls.slice(1).join(', ')}`);
+      }
+      if (allUrls.length === 0) {
+        this.logger.warn('No domain mappings configured for this service');
+      }
     } catch (error) {
       this.logger.error('Failed to update Traefik routing', error);
       // Don't throw - routing failure shouldn't fail the deployment

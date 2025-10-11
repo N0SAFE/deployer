@@ -4,9 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { orpc } from '@/lib/orpc';
 import { toast } from 'sonner';
 import type { z } from 'zod';
-import type { 
-  deploymentStatusSchema
-} from '@repo/api-contracts';
+import type { deploymentStatusSchema } from '@repo/api-contracts/common/deployment-config';
 
 // Type inference from ORPC contracts
 type DeploymentStatus = z.infer<typeof deploymentStatusSchema>;

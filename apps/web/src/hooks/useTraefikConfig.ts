@@ -116,7 +116,7 @@ export function useSyncTraefikConfig() {
     )
 }
 
-// Validate Traefik config (you'll need to add this to your API contracts)
+// Validate Traefik config
 export function useValidateTraefikConfig() {
     return useMutation({
         mutationFn: async (config: {
@@ -125,7 +125,7 @@ export function useValidateTraefikConfig() {
         }): Promise<TraefikValidationResult> => {
             try {
                 // Call validation endpoint
-                const result = await orpc.traefik.validateServiceConfig({
+                const result = await orpc.traefik.validateServiceConfig.call({
                     serviceId: config.serviceId,
                     configContent: config.configContent,
                 })
@@ -137,7 +137,7 @@ export function useValidateTraefikConfig() {
         },
         onError: (error: Error) => {
             console.error('Error validating Traefik config:', error)
-            toast.error('Failed to validate Traefik configuration')
+            toast.error(error.message || 'Failed to validate Traefik configuration')
         },
     })
 }

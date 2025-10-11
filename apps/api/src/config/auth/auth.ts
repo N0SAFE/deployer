@@ -6,7 +6,7 @@ import type { EnvService } from "@/config/env/env.service";
 import { masterTokenPlugin } from "./plugins/masterTokenAuth";
 import { loginAsPlugin } from "./plugins/loginAs";
 import { useAdmin } from "./permissions/index";
-import { openAPI, organization } from "better-auth/plugins";
+import { apiKey, openAPI, organization } from "better-auth/plugins";
 
 export const betterAuthFactory = (...args: unknown[]) => {
   const [database, envService] = args as [unknown, EnvService];
@@ -53,14 +53,15 @@ export const betterAuthFactory = (...args: unknown[]) => {
             maximumTeams: 20, // Max 20 teams per organization
             maximumMembersPerTeam: 25, // Max 25 members per team
           },
-          // We'll add email sending later when needed
-          sendInvitationEmail: async (data) => {
-            // TODO: Implement email sending
-            console.log(
-              `Invitation sent to ${data.email} for organization ${data.organization.name}`
-            );
-          },
+          // // We'll add email sending later when needed
+          // sendInvitationEmail: async (data) => {
+          //   // TODO: Implement email sending
+          //   console.log(
+          //     `Invitation sent to ${data.email} for organization ${data.organization.name}`
+          //   );
+          // },
         }),
+        apiKey()
       ],
     }),
   };

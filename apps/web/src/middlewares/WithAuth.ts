@@ -18,7 +18,7 @@ const debugAuthError = createDebug('middleware/auth/error')
 
 const env = validateEnvSafe(process.env).data
 
-const showcaseRegexpAndChildren = /^\/showcase(\/.*)?$/
+const organizationSelectionRegexpAndChildren = /^\/organization\/select(\/.*)?$/
 const dashboardRegexpAndChildren = /^\/dashboard(\/.*)?$/
 
 const withAuth: MiddlewareFactory = (next: NextMiddleware) => {
@@ -84,7 +84,7 @@ const withAuth: MiddlewareFactory = (next: NextMiddleware) => {
         if (isAuth) {
             const matcher = matcherHandler(request.nextUrl.pathname, [
                 {
-                    and: [showcaseRegexpAndChildren, '/me/customer'],
+                    and: [organizationSelectionRegexpAndChildren, '/me/customer'],
                 },
                 () => {
                     // in this route we can check if the user is authenticated with the customer role
@@ -137,7 +137,7 @@ export const matcher: Matcher = [
             nextjsRegexpPageOnly,
             {
                 or: [
-                    showcaseRegexpAndChildren,
+                    organizationSelectionRegexpAndChildren,
                     dashboardRegexpAndChildren,
                     '/settings',
                     '/profile',
