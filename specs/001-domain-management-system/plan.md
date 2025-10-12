@@ -659,7 +659,7 @@ During specification review, 5 technical unknowns were identified requiring rese
 5. ✅ Test specifications complete (unit, integration, E2E plans)
 
 **Proceed to**: 
-- Execute database migration (`bun run api -- db:generate` → `bun run api -- db:push`)
+- Generate database migration (`bun run api -- db:generate` - developer will apply manually)
 - Implement ORPC contracts in `packages/api-contracts/domain/`
 - Implement backend module following quickstart.md order
 - Implement frontend pages and components

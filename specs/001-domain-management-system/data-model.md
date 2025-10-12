@@ -696,4 +696,4 @@ export async function seedDomainManagement() {
 2. Create ORPC contracts in `/contracts/` directory
 3. Implement Drizzle schema changes in `apps/api/src/config/drizzle/schema/domain.ts`
 4. Generate migration SQL using `bun run api -- db:generate`
-5. Apply migration using `bun run api -- db:push` (dev) or `bun run api -- db:migrate` (prod)
+5. Generate migration using `bun run api -- db:generate` (developer will apply manually)

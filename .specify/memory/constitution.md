@@ -1,6 +1,24 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version Change: 1.2.2 → 1.3.0
+Action: AI Database Operation Policy (AI CANNOT Apply Migrations/Seeds)
+Date: 2025-10-12
+
+Changes Made:
+-------------
+- REMOVED: Automatic execution policies for db:migrate and db:seed
+- REMOVED: All instructions for AI to run db:push, db:migrate, or db:seed
+- ADDED: AI MUST ONLY generate migrations using db:generate
+- ADDED: AI MUST NEVER apply migrations or seed database
+- ADDED: Developer responsibility for all database state changes
+- UPDATED: Database Operations section to reflect AI-only generation policy
+- UPDATED: Command documentation to show AI vs Developer permissions
+- UPDATED: Rationale focusing on developer control and human oversight
+- REASON: Migration/seed timing is critical developer decision, not AI automation
+
+Previous Version (1.2.2):
+-------------------------
 Version Change: 1.2.1 → 1.2.2
 Action: Enhanced Migration & Seed Execution Policy (Automatic Execution)
 Date: 2025-01-12
@@ -190,14 +208,19 @@ bun run dev:api          # API only with database
 bun run dev:web          # Web only (requires running API)
 ```
 
-**Database Operations (Container-Based):**
+**Database Operations:**
 ```bash
-bun run api -- db:generate    # Generate migrations (can run on host)
-bun run api -- db:push        # Push schema changes (CONTAINER ONLY)
-bun run api -- db:migrate     # Run migrations (CONTAINER ONLY)
-bun run api -- db:seed        # Seed data (CONTAINER ONLY)
-bun run api -- db:studio      # Database admin UI (CONTAINER ONLY)
+# AI can only generate migrations - NEVER apply them
+bun run api -- db:generate    # Generate migrations (AI can run this)
+bun run api -- db:studio      # Database admin UI (for developer use only)
 ```
+
+**⚠️ CRITICAL: AI Database Operation Policy**
+- **AI MUST ONLY**: Generate migration files using `bun run api -- db:generate`
+- **AI MUST NEVER**: Run `db:push`, `db:migrate`, or `db:seed` commands
+- **Developer responsibility**: The developer will manually apply migrations and seed data
+- **Reasoning**: Migration and seeding timing is a developer decision based on their workflow
+- **After generating migrations**: Inform the developer that migrations have been generated and they need to apply them manually
 
 **NEVER:**
 - ❌ Run `next dev` or `nest start` directly on host
@@ -1120,165 +1143,110 @@ bun run web -- dr:build:watch   # Watch mode
 
 ### Database Operations
 
-**CRITICAL RULES - Migration Generation:**
+**CRITICAL - AI Database Operation Policy:**
 
-1. **NEVER Create Migration Files Directly**:
-   - ❌ FORBIDDEN: Manually creating files in `apps/api/src/config/drizzle/migrations/`
-   - ❌ FORBIDDEN: Manually editing migration SQL files
-   - ❌ FORBIDDEN: Manually editing snapshot files in `migrations/meta/`
-   - ✅ MANDATORY: Always use `bun run api -- db:generate` to create migrations
-   - ✅ MANDATORY: Let Drizzle Kit generate migration files automatically
+**AI Responsibilities**:
+- ✅ **AI MUST**: Generate migration files using `bun run api -- db:generate`
+- ✅ **AI MUST**: Generate auth types using `bun run api -- auth:generate` (after Better Auth plugin changes)
+- ✅ **AI MUST**: Inform developer after generating migrations with clear message
+- ❌ **AI MUST NEVER**: Run `bun run api -- db:push`
+- ❌ **AI MUST NEVER**: Run `bun run api -- db:migrate`
+- ❌ **AI MUST NEVER**: Run `bun run api -- db:seed`
+- ❌ **AI MUST NEVER**: Apply database schema changes automatically
 
-2. **Migration Generation Workflow**:
-   ```bash
-   # 1. Modify schema in apps/api/src/config/drizzle/schema/
-   # Example: Add new column, create new table, modify constraints
-   
-   # 2. Generate migration (MANDATORY - never skip this)
-   bun run api -- db:generate
-   # This creates:
-   # - apps/api/src/config/drizzle/migrations/0001_migration_name.sql
-   # - apps/api/src/config/drizzle/migrations/meta/0001_snapshot.json
-   # - Updates apps/api/src/config/drizzle/migrations/meta/_journal.json
-   
-   # 3. Review generated migration SQL (verify correctness)
-   # Check the generated SQL matches your intended schema changes
-   
-   # 4. Apply migration to development database (container-based)
-   bun run api -- db:push
-   # OR for production-like testing:
-   bun run api -- db:migrate
-   ```
-
-3. **Removing Migrations (When Needed)**:
-   ```bash
-   # If you need to remove a migration that hasn't been applied to production:
-   
-   # Step 1: Delete the migration SQL file
-   rm apps/api/src/config/drizzle/migrations/0001_migration_name.sql
-   
-   # Step 2: Delete the corresponding snapshot
-   rm apps/api/src/config/drizzle/migrations/meta/0001_snapshot.json
-   
-   # Step 3: Remove entry from journal
-   # Edit apps/api/src/config/drizzle/migrations/meta/_journal.json
-   # Remove the entry for this migration from the "entries" array
-   
-   # Step 4: Regenerate migration with corrected schema
-   bun run api -- db:generate
-   ```
-
-   **⚠️ WARNING**: Only remove migrations that have NOT been applied to production.
-   For production migrations, create a new migration to revert changes.
-
-4. **Better Auth Plugin Changes**:
-   ```bash
-   # When adding or removing Better Auth plugins:
-   
-   # 1. Modify apps/api/src/auth.ts
-   # Add or remove plugins from betterAuth() configuration
-   
-   # 2. Generate auth types and migrations (MANDATORY)
-   bun run api -- auth:generate
-   # This updates:
-   # - Type definitions for auth
-   # - Database schema if plugins require new tables/columns
-   
-   # 3. If schema changed, generate database migration
-   bun run api -- db:generate
-   
-   # 4. Apply changes to database
-   bun run api -- db:push
-   ```
-
-**Development Commands**:
+**AI Workflow**:
 ```bash
-bun run api -- db:generate    # Generate migration from schema changes
-bun run api -- db:push        # Push schema to dev database (CONTAINER ONLY)
-bun run api -- db:migrate     # Run migrations (RARELY NEEDED - see below)
-bun run api -- db:seed        # Seed test data (RARELY NEEDED - see below)
-bun run api -- db:studio      # Database admin UI (CONTAINER ONLY)
-bun run api -- auth:generate  # Generate auth types/migrations after plugin changes
-```
+# 1. Modify schema in apps/api/src/config/drizzle/schema/
+# Example: Add new column, create new table, modify constraints
 
-**CRITICAL - Migration & Seed Execution Rules**:
-
-**`db:migrate` - Automatic Execution**:
-- ❌ **DO NOT RUN** on local machine (outside container)
-- ⚠️ **RARELY NEEDED** - Migrations run automatically on container start
-- ✅ **Container handles it**: When dev container starts, migrations run automatically
-- 🔧 **Manual run only if**: 
-  * Container is already running AND new migrations were generated
-  * Run inside container: `docker exec -it deployer-api-1 bun run db:migrate`
-  * OR restart container: `bun run dev:api` (migrations run on startup)
-
-**`db:seed` - Automatic Execution**:
-- ❌ **NEVER RUN** on local machine (outside container)
-- ❌ **NEVER RUN** in running dev container (data already seeded)
-- ✅ **Automatic seeding**: Runs when container starts with fresh/unmounted volumes
-- 🔄 **To re-seed data**:
-  ```bash
-  # Stop containers and remove volumes
-  docker compose down -v
-  
-  # Start fresh (migrations + seed run automatically)
-  bun run dev:api
-  ```
-- 🔧 **Manual run only if**:
-  * Seed data changed significantly AND you need it immediately
-  * Container is running AND you want to re-seed without restart
-  * Run inside container: `docker exec -it deployer-api-1 bun run db:seed`
-  * **WARNING**: This may duplicate data or cause conflicts
-
-**Recommended Workflows**:
-
-```bash
-# Scenario 1: Generated new migration
-# Option A (recommended): Restart container
-bun run dev:api  # Migrations run automatically on startup
-
-# Option B: Manual run in running container (if you don't want to restart)
-docker exec -it deployer-api-1 bun run db:migrate
-
-# Scenario 2: Need fresh seed data
-# Only option: Recreate volumes
-docker compose down -v
-bun run dev:api  # Migrations + seed run automatically
-
-# Scenario 3: Iterating on migrations (development)
-# Use db:push instead of db:migrate for faster iteration
+# 2. Generate migration (AI CAN RUN THIS)
 bun run api -- db:generate
-bun run api -- db:push  # Directly updates schema without migration files
+
+# 3. Inform developer with message:
+# """
+# ✅ Migration files generated successfully!
+# 
+# Generated files:
+# - apps/api/src/config/drizzle/migrations/XXXX_migration_name.sql
+# - apps/api/src/config/drizzle/migrations/meta/XXXX_snapshot.json
+# - Updated apps/api/src/config/drizzle/migrations/meta/_journal.json
+# 
+# ⚠️ Developer Action Required:
+# Please review and apply the migration manually using one of these methods:
+# 1. Development (fast): bun run api -- db:push
+# 2. Production-like: bun run api -- db:migrate
+# 3. Container restart: bun run dev:api
+# """
+
+# 4. STOP - AI does not apply migrations
 ```
 
-**Why Automatic Execution?**:
-- **Prevents drift**: Database always in sync with code on container start
-- **Zero manual steps**: Developers don't forget to run migrations
-- **Fresh environments**: New team members get seeded data automatically
-- **Production parity**: Same auto-migration pattern used in production deployments
-- **Idempotent**: Migrations track what's applied, safe to run multiple times
+**Developer Responsibilities**:
+- 🔧 Review generated migration SQL files
+- 🔧 Decide when to apply migrations (timing is critical)
+- 🔧 Choose application method (db:push, db:migrate, container restart)
+- 🔧 Test migrations in development environment
+- 🔧 Commit migration files to version control
+- 🔧 Apply to production when ready
+- 🔧 Seed database when needed
 
-**Production Migration Workflow**:
+**Migration Removal (Developer Only)**:
 ```bash
-# 1. Develop and test migration locally
+# If migration needs to be removed (not yet in production):
+
+# Step 1: Delete the migration SQL file
+rm apps/api/src/config/drizzle/migrations/0001_migration_name.sql
+
+# Step 2: Delete the corresponding snapshot
+rm apps/api/src/config/drizzle/migrations/meta/0001_snapshot.json
+
+# Step 3: Remove entry from journal
+# Edit apps/api/src/config/drizzle/migrations/meta/_journal.json
+# Remove the entry for this migration from the "entries" array
+
+# Step 4: Developer regenerates migration with corrected schema
 bun run api -- db:generate
-bun run api -- db:migrate
-
-# 2. Commit migration files to git
-git add apps/api/src/config/drizzle/migrations/
-git commit -m "feat(db): add user_preferences table"
-
-# 3. Deploy to production
-# Migration runs automatically via deployment pipeline
-# OR manually: bun run api -- db:migrate
 ```
+
+**⚠️ WARNING**: Only remove migrations that have NOT been applied to production.
+For production migrations, create a new migration to revert changes.
+
+**Better Auth Plugin Changes (AI Workflow)**:
+```bash
+# When adding or removing Better Auth plugins:
+
+# 1. Modify apps/api/src/auth.ts
+# Add or remove plugins from betterAuth() configuration
+
+# 2. Generate auth types (AI CAN RUN THIS)
+bun run api -- auth:generate
+
+# 3. Generate database migration (AI CAN RUN THIS)
+bun run api -- db:generate
+
+# 4. Inform developer to apply changes manually
+# AI STOPS HERE - Developer applies migration
+```
+
+**Command Permissions**:
+
+| Command | AI Can Use | Developer Can Use | Purpose |
+|---------|------------|-------------------|----------|
+| `db:generate` | ✅ YES | ✅ YES | Generate migration files |
+| `db:push` | ❌ NO | ✅ YES | Apply schema (development) |
+| `db:migrate` | ❌ NO | ✅ YES | Apply migrations (production) |
+| `db:seed` | ❌ NO | ✅ YES | Populate test data |
+| `db:studio` | ❌ NO | ✅ YES | Database admin UI |
+| `auth:generate` | ✅ YES | ✅ YES | Generate auth types |
 
 **Rationale**:
-- **Generated Migrations**: Drizzle Kit ensures SQL correctness and snapshot consistency
-- **No Manual Editing**: Prevents SQL errors, missing constraints, snapshot mismatches
-- **Journal Integrity**: _journal.json tracks migration order and dependencies
-- **Reproducibility**: Same schema changes always generate same migrations
-- **Type Safety**: Generated snapshots keep schema and TypeScript types in sync
+- **Developer control**: Migration timing affects data integrity and application availability
+- **Human oversight**: Database changes require careful review before execution
+- **Workflow flexibility**: Developer chooses the right method for their situation
+- **Prevents accidents**: AI cannot accidentally break database state or lose data
+- **Clear responsibility**: Developer is accountable for database management
+
+
 
 ### Commit Standards
 

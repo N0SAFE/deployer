@@ -337,9 +337,9 @@ All 30 success criteria addressed by corresponding tasks or architectural decisi
 
 **Validation**:
 - ✅ T004: `bun run api -- db:generate` (Docker-based migration generation)
-- ✅ T005: `bun run api -- db:push` (Docker-based schema application)
+- ✅ T005: `bun run api -- db:generate` (Migration file generation - developer applies manually)
 - ✅ T006: `bun run api -- db:studio` (Docker-based database UI)
-- ✅ T152: `bun run api -- db:seed` (Docker-based test data seeding)
+- ✅ T152: Create seed data files (developer runs seeding manually)
 
 **Compliance**: PASS - All database commands use containerized execution.
 

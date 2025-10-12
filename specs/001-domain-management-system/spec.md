@@ -70,63 +70,65 @@ bun run api -- db:generate
 
 **Rationale**: Drizzle Kit generates correct SQL, maintains snapshot consistency, and ensures _journal.json integrity. Manual migration creation causes SQL errors, snapshot mismatches, and type safety issues.
 
-### Migration & Seed Execution Policy (CRITICAL)
+### AI Database Operation Policy (CRITICAL)
 
-**AUTOMATIC EXECUTION - Do Not Run Manually**:
+**AI RESPONSIBILITIES**:
 
-**`db:migrate` - Runs Automatically on Container Start**:
-- ❌ **DO NOT RUN** on local machine (outside container)
-- ✅ **Automatic**: Migrations execute when dev container starts
-- 🔧 **Manual run only if**:
-  * Generated new migration AND container already running
-  * Don't want to restart container
-  * Run: `docker exec -it deployer-api-1 bun run db:migrate`
-  * **OR** (recommended): Restart container with `bun run dev:api`
+**Migration Generation (AI CAN DO)**:
+- ✅ **AI MUST**: Generate migration files using `bun run api -- db:generate`
+- ✅ **AI MUST**: Inform developer after generating migrations
+- � **AI MUST**: Include message: "Migration files generated. Developer must apply manually."
 
-**`db:seed` - Runs Automatically on Fresh Container Start**:
-- ❌ **NEVER RUN** on local machine
-- ❌ **NEVER RUN** in running container (causes data duplication)
-- ✅ **Automatic**: Seed executes when container starts with fresh volumes
-- 🔄 **To re-seed** (only when seed data changed):
-  ```bash
-  docker compose down -v  # Remove volumes
-  bun run dev:api         # Restart with fresh DB (auto-seeds)
-  ```
+**Migration/Seed Application (AI CANNOT DO)**:
+- ❌ **AI MUST NEVER**: Run `bun run api -- db:push`
+- ❌ **AI MUST NEVER**: Run `bun run api -- db:migrate`
+- ❌ **AI MUST NEVER**: Run `bun run api -- db:seed`
+- ❌ **AI MUST NEVER**: Apply database schema changes automatically
 
-**Development Scenarios**:
+**DEVELOPER RESPONSIBILITIES**:
+- 🔧 **Developer decides**: When to apply migrations (timing is critical)
+- 🔧 **Developer decides**: Which method to use (db:push, db:migrate, container restart)
+- � **Developer decides**: When to seed the database
+- 🔧 **Developer controls**: All database state changes
+
+**AI Workflow Example**:
 
 ```bash
-# Scenario 1: Just generated new migration
-# Recommended approach:
-bun run dev:api  # Restart container (migrations run automatically)
+# AI generates migration after schema changes
+bun run api -- db:generate
 
-# Alternative (if container must stay running):
-docker exec -it deployer-api-1 bun run db:migrate
-
-# Scenario 2: Updated seed data, need fresh database
-docker compose down -v  # Remove volumes
-bun run dev:api         # Migrations + seed run automatically
-
-# Scenario 3: Iterating on schema (development)
-bun run api -- db:generate  # Generate migration
-bun run api -- db:push      # Apply directly (faster than migrate)
+# AI then informs developer with message:
+# """
+# ✅ Migration files generated successfully!
+# 
+# Generated files:
+# - apps/api/src/config/drizzle/migrations/0001_add_domain_table.sql
+# - apps/api/src/config/drizzle/migrations/meta/0001_snapshot.json
+# 
+# ⚠️ Developer Action Required:
+# Please apply the migration manually using one of these methods:
+# 1. Development (fast): bun run api -- db:push
+# 2. Production-like: bun run api -- db:migrate
+# 3. Container restart: bun run dev:api
+# """
 ```
 
-**When to Use Each Command**:
+**Command Permissions**:
 
-| Command | Use Case | Frequency |
-|---------|----------|----------|
-| `db:generate` | After schema changes | Every schema change |
-| `db:push` | Development iteration | During active development |
-| `db:migrate` | Manual migration run | Rarely (automatic on start) |
-| `db:seed` | Manual seed run | Never (automatic on fresh volumes) |
-| `db:studio` | Database inspection | As needed |
+| Command | AI Can Use | Developer Can Use | Purpose |
+|---------|------------|-------------------|----------|
+| `db:generate` | ✅ YES | ✅ YES | Generate migration files |
+| `db:push` | ❌ NO | ✅ YES | Apply schema (development) |
+| `db:migrate` | ❌ NO | ✅ YES | Apply migrations (production) |
+| `db:seed` | ❌ NO | ✅ YES | Populate test data |
+| `db:studio` | ❌ NO | ✅ YES | Database admin UI |
 
 **Rationale**: 
-- **Automatic migrations** prevent database drift and ensure consistency
-- **Automatic seeding** gives developers fresh test data without manual steps
-- **Container restart** is the safest way to apply migrations and re-seed
-- **Manual runs** only needed in specific edge cases to avoid container restart
+- **Developer control**: Migration timing affects data integrity and application availability
+- **Human oversight**: Database changes require careful review and intentional execution
+- **Workflow flexibility**: Developers choose the right method for their current task
+- **Prevents accidents**: AI cannot accidentally break database state or lose data
+- **Clear responsibility**: Developer is accountable for database state management
 
 ### Code Replacement Policy (Mandatory)
 

@@ -26,7 +26,7 @@
 - [ ] T002 Add retry tracking columns to `organizationDomains` table: `retry_attempts`, `last_verification_attempt`, `next_retry_at`
 - [ ] T003 Add routing config columns to `serviceDomainMappings` table: `internal_path`, `internal_port`, `strip_path_enabled`, `protocol_config`
 - [ ] T004 Generate database migration using `bun run api -- db:generate`
-- [ ] T005 Apply migration in development using `bun run api -- db:push`
+- [ ] T005 Generate migration using `bun run api -- db:generate` (developer applies manually)
 - [ ] T006 Verify schema changes in Drizzle Studio using `bun run api -- db:studio`
 
 **Checkpoint**: Database schema updated - all tables and columns ready
@@ -462,7 +462,7 @@
 ### Validation
 
 - [ ] T151 Run quickstart.md validation - verify all documented commands work correctly
-- [ ] T152 Seed test data: `bun run api -- db:seed` - populate development database with sample domains
+- [ ] T152 Create seed data files - developer will run seeding manually
 - [ ] T153 Manual testing - verify all user stories work end-to-end in development environment
 - [ ] T153.5 [P] Create performance test script to seed 1000+ domain mappings and measure query response times (target: under 100ms for domain list queries) - validates SC-018
 

@@ -380,19 +380,17 @@ bun run test:coverage          # Coverage across monorepo
 
 ### Database Operations
 ```bash
-# Container-based database operations (REQUIRED during development)
-bun run api -- db:generate    # Generate migrations (can run on host)
-bun run api -- db:push        # Push schema changes (CONTAINER ONLY)
-bun run api -- db:migrate     # Run migrations (CONTAINER ONLY)
-bun run api -- db:seed        # Seed development data (CONTAINER ONLY)
-bun run api -- db:studio      # Database admin UI (CONTAINER ONLY)
+# AI can only generate migrations - NEVER apply them
+bun run api -- db:generate    # Generate migrations (AI can run this)
+bun run api -- db:studio      # Database admin UI (for developer use only)
 ```
 
-**⚠️ CRITICAL: Database Command Requirements**
-- **During development**: ALL database operations (push, migrate, seed, studio) MUST run inside containers
-- **Code generation**: Commands like `db:generate` can run on host as they only generate files
-- **Never run directly on host**: Database modification commands bypass Docker networking and env setup
-- **Container execution ensures**: Proper database connections, environment variables, and network access
+**⚠️ CRITICAL: AI Database Operation Policy**
+- **AI MUST ONLY**: Generate migration files using `bun run api -- db:generate`
+- **AI MUST NEVER**: Run `db:push`, `db:migrate`, or `db:seed` commands
+- **Developer responsibility**: The developer will manually apply migrations and seed data
+- **Reasoning**: Migration and seeding timing is a developer decision based on their workflow
+- **After generating migrations**: Inform the developer that migrations have been generated and they need to apply them manually
 
 ## File Organization Patterns
 
