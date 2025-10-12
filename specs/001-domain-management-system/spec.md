@@ -70,6 +70,64 @@ bun run api -- db:generate
 
 **Rationale**: Drizzle Kit generates correct SQL, maintains snapshot consistency, and ensures _journal.json integrity. Manual migration creation causes SQL errors, snapshot mismatches, and type safety issues.
 
+### Migration & Seed Execution Policy (CRITICAL)
+
+**AUTOMATIC EXECUTION - Do Not Run Manually**:
+
+**`db:migrate` - Runs Automatically on Container Start**:
+- ❌ **DO NOT RUN** on local machine (outside container)
+- ✅ **Automatic**: Migrations execute when dev container starts
+- 🔧 **Manual run only if**:
+  * Generated new migration AND container already running
+  * Don't want to restart container
+  * Run: `docker exec -it deployer-api-1 bun run db:migrate`
+  * **OR** (recommended): Restart container with `bun run dev:api`
+
+**`db:seed` - Runs Automatically on Fresh Container Start**:
+- ❌ **NEVER RUN** on local machine
+- ❌ **NEVER RUN** in running container (causes data duplication)
+- ✅ **Automatic**: Seed executes when container starts with fresh volumes
+- 🔄 **To re-seed** (only when seed data changed):
+  ```bash
+  docker compose down -v  # Remove volumes
+  bun run dev:api         # Restart with fresh DB (auto-seeds)
+  ```
+
+**Development Scenarios**:
+
+```bash
+# Scenario 1: Just generated new migration
+# Recommended approach:
+bun run dev:api  # Restart container (migrations run automatically)
+
+# Alternative (if container must stay running):
+docker exec -it deployer-api-1 bun run db:migrate
+
+# Scenario 2: Updated seed data, need fresh database
+docker compose down -v  # Remove volumes
+bun run dev:api         # Migrations + seed run automatically
+
+# Scenario 3: Iterating on schema (development)
+bun run api -- db:generate  # Generate migration
+bun run api -- db:push      # Apply directly (faster than migrate)
+```
+
+**When to Use Each Command**:
+
+| Command | Use Case | Frequency |
+|---------|----------|----------|
+| `db:generate` | After schema changes | Every schema change |
+| `db:push` | Development iteration | During active development |
+| `db:migrate` | Manual migration run | Rarely (automatic on start) |
+| `db:seed` | Manual seed run | Never (automatic on fresh volumes) |
+| `db:studio` | Database inspection | As needed |
+
+**Rationale**: 
+- **Automatic migrations** prevent database drift and ensure consistency
+- **Automatic seeding** gives developers fresh test data without manual steps
+- **Container restart** is the safest way to apply migrations and re-seed
+- **Manual runs** only needed in specific edge cases to avoid container restart
+
 ### Code Replacement Policy (Mandatory)
 
 **CRITICAL REQUIREMENT**: All new implementations MUST completely replace legacy code.

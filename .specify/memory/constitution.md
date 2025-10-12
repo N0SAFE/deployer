@@ -1,6 +1,23 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version Change: 1.2.1 → 1.2.2
+Action: Enhanced Migration & Seed Execution Policy (Automatic Execution)
+Date: 2025-01-12
+
+Changes Made:
+-------------
+- Added CRITICAL rules for db:migrate automatic execution on container start
+- Added CRITICAL rules for db:seed automatic execution on fresh volumes
+- Documented when manual runs are acceptable (rarely needed)
+- Added recommended workflows for common scenarios
+- Added rationale for automatic execution (prevents drift, zero manual steps)
+- Updated command documentation to indicate RARELY NEEDED status
+- Added container restart as preferred method over manual migration runs
+- Added docker compose down -v workflow for re-seeding
+
+Previous Version (1.2.1):
+-------------------------
 Version Change: 1.2.0 → 1.2.1
 Action: Enhanced Database Operations with Migration Generation Workflow
 Date: 2025-01-12
@@ -1178,11 +1195,68 @@ bun run web -- dr:build:watch   # Watch mode
 ```bash
 bun run api -- db:generate    # Generate migration from schema changes
 bun run api -- db:push        # Push schema to dev database (CONTAINER ONLY)
-bun run api -- db:migrate     # Run migrations (CONTAINER ONLY)
-bun run api -- db:seed        # Seed test data (CONTAINER ONLY)
+bun run api -- db:migrate     # Run migrations (RARELY NEEDED - see below)
+bun run api -- db:seed        # Seed test data (RARELY NEEDED - see below)
 bun run api -- db:studio      # Database admin UI (CONTAINER ONLY)
 bun run api -- auth:generate  # Generate auth types/migrations after plugin changes
 ```
+
+**CRITICAL - Migration & Seed Execution Rules**:
+
+**`db:migrate` - Automatic Execution**:
+- ❌ **DO NOT RUN** on local machine (outside container)
+- ⚠️ **RARELY NEEDED** - Migrations run automatically on container start
+- ✅ **Container handles it**: When dev container starts, migrations run automatically
+- 🔧 **Manual run only if**: 
+  * Container is already running AND new migrations were generated
+  * Run inside container: `docker exec -it deployer-api-1 bun run db:migrate`
+  * OR restart container: `bun run dev:api` (migrations run on startup)
+
+**`db:seed` - Automatic Execution**:
+- ❌ **NEVER RUN** on local machine (outside container)
+- ❌ **NEVER RUN** in running dev container (data already seeded)
+- ✅ **Automatic seeding**: Runs when container starts with fresh/unmounted volumes
+- 🔄 **To re-seed data**:
+  ```bash
+  # Stop containers and remove volumes
+  docker compose down -v
+  
+  # Start fresh (migrations + seed run automatically)
+  bun run dev:api
+  ```
+- 🔧 **Manual run only if**:
+  * Seed data changed significantly AND you need it immediately
+  * Container is running AND you want to re-seed without restart
+  * Run inside container: `docker exec -it deployer-api-1 bun run db:seed`
+  * **WARNING**: This may duplicate data or cause conflicts
+
+**Recommended Workflows**:
+
+```bash
+# Scenario 1: Generated new migration
+# Option A (recommended): Restart container
+bun run dev:api  # Migrations run automatically on startup
+
+# Option B: Manual run in running container (if you don't want to restart)
+docker exec -it deployer-api-1 bun run db:migrate
+
+# Scenario 2: Need fresh seed data
+# Only option: Recreate volumes
+docker compose down -v
+bun run dev:api  # Migrations + seed run automatically
+
+# Scenario 3: Iterating on migrations (development)
+# Use db:push instead of db:migrate for faster iteration
+bun run api -- db:generate
+bun run api -- db:push  # Directly updates schema without migration files
+```
+
+**Why Automatic Execution?**:
+- **Prevents drift**: Database always in sync with code on container start
+- **Zero manual steps**: Developers don't forget to run migrations
+- **Fresh environments**: New team members get seeded data automatically
+- **Production parity**: Same auto-migration pattern used in production deployments
+- **Idempotent**: Migrations track what's applied, safe to run multiple times
 
 **Production Migration Workflow**:
 ```bash
@@ -1323,4 +1397,4 @@ When introducing ANY new concept, pattern, technology, or approach:
 
 ---
 
-**Version**: 1.2.1 | **Ratified**: 2025-10-11 | **Last Amended**: 2025-01-12
+**Version**: 1.2.2 | **Ratified**: 2025-10-11 | **Last Amended**: 2025-01-12
