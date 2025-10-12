@@ -1,6 +1,23 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version Change: 1.2.0 → 1.2.1
+Action: Enhanced Database Operations with Migration Generation Workflow
+Date: 2025-01-12
+
+Changes Made:
+-------------
+- Replaced basic Database Operations section with comprehensive migration workflow
+- Added CRITICAL RULES for migration generation (never create manually)
+- Documented 4-step workflow: schema change → generate → review → apply
+- Added migration removal process (3 steps: delete SQL, delete snapshot, update journal)
+- Added Better Auth plugin change workflow with auth:generate command
+- Added production migration workflow and rationale
+- Documented all database commands with container requirements
+- Added enforcement rules (FORBIDDEN vs MANDATORY actions)
+
+Previous Version (1.2.0):
+-------------------------
 Version Change: 1.1.0 → 1.2.0
 Action: Added Principle IX - Legacy Code Replacement (MANDATORY)
 Date: 2025-01-12
@@ -1086,18 +1103,108 @@ bun run web -- dr:build:watch   # Watch mode
 
 ### Database Operations
 
-**Workflow**:
+**CRITICAL RULES - Migration Generation:**
+
+1. **NEVER Create Migration Files Directly**:
+   - ❌ FORBIDDEN: Manually creating files in `apps/api/src/config/drizzle/migrations/`
+   - ❌ FORBIDDEN: Manually editing migration SQL files
+   - ❌ FORBIDDEN: Manually editing snapshot files in `migrations/meta/`
+   - ✅ MANDATORY: Always use `bun run api -- db:generate` to create migrations
+   - ✅ MANDATORY: Let Drizzle Kit generate migration files automatically
+
+2. **Migration Generation Workflow**:
+   ```bash
+   # 1. Modify schema in apps/api/src/config/drizzle/schema/
+   # Example: Add new column, create new table, modify constraints
+   
+   # 2. Generate migration (MANDATORY - never skip this)
+   bun run api -- db:generate
+   # This creates:
+   # - apps/api/src/config/drizzle/migrations/0001_migration_name.sql
+   # - apps/api/src/config/drizzle/migrations/meta/0001_snapshot.json
+   # - Updates apps/api/src/config/drizzle/migrations/meta/_journal.json
+   
+   # 3. Review generated migration SQL (verify correctness)
+   # Check the generated SQL matches your intended schema changes
+   
+   # 4. Apply migration to development database (container-based)
+   bun run api -- db:push
+   # OR for production-like testing:
+   bun run api -- db:migrate
+   ```
+
+3. **Removing Migrations (When Needed)**:
+   ```bash
+   # If you need to remove a migration that hasn't been applied to production:
+   
+   # Step 1: Delete the migration SQL file
+   rm apps/api/src/config/drizzle/migrations/0001_migration_name.sql
+   
+   # Step 2: Delete the corresponding snapshot
+   rm apps/api/src/config/drizzle/migrations/meta/0001_snapshot.json
+   
+   # Step 3: Remove entry from journal
+   # Edit apps/api/src/config/drizzle/migrations/meta/_journal.json
+   # Remove the entry for this migration from the "entries" array
+   
+   # Step 4: Regenerate migration with corrected schema
+   bun run api -- db:generate
+   ```
+
+   **⚠️ WARNING**: Only remove migrations that have NOT been applied to production.
+   For production migrations, create a new migration to revert changes.
+
+4. **Better Auth Plugin Changes**:
+   ```bash
+   # When adding or removing Better Auth plugins:
+   
+   # 1. Modify apps/api/src/auth.ts
+   # Add or remove plugins from betterAuth() configuration
+   
+   # 2. Generate auth types and migrations (MANDATORY)
+   bun run api -- auth:generate
+   # This updates:
+   # - Type definitions for auth
+   # - Database schema if plugins require new tables/columns
+   
+   # 3. If schema changed, generate database migration
+   bun run api -- db:generate
+   
+   # 4. Apply changes to database
+   bun run api -- db:push
+   ```
+
+**Development Commands**:
 ```bash
-# 1. Modify schema in apps/api/src/db/schema/
-# 2. Generate migration
-bun run api -- db:generate
-
-# 3. Push to development database (container-based)
-bun run api -- db:push
-
-# 4. Run migrations in production
-bun run api -- db:migrate
+bun run api -- db:generate    # Generate migration from schema changes
+bun run api -- db:push        # Push schema to dev database (CONTAINER ONLY)
+bun run api -- db:migrate     # Run migrations (CONTAINER ONLY)
+bun run api -- db:seed        # Seed test data (CONTAINER ONLY)
+bun run api -- db:studio      # Database admin UI (CONTAINER ONLY)
+bun run api -- auth:generate  # Generate auth types/migrations after plugin changes
 ```
+
+**Production Migration Workflow**:
+```bash
+# 1. Develop and test migration locally
+bun run api -- db:generate
+bun run api -- db:migrate
+
+# 2. Commit migration files to git
+git add apps/api/src/config/drizzle/migrations/
+git commit -m "feat(db): add user_preferences table"
+
+# 3. Deploy to production
+# Migration runs automatically via deployment pipeline
+# OR manually: bun run api -- db:migrate
+```
+
+**Rationale**:
+- **Generated Migrations**: Drizzle Kit ensures SQL correctness and snapshot consistency
+- **No Manual Editing**: Prevents SQL errors, missing constraints, snapshot mismatches
+- **Journal Integrity**: _journal.json tracks migration order and dependencies
+- **Reproducibility**: Same schema changes always generate same migrations
+- **Type Safety**: Generated snapshots keep schema and TypeScript types in sync
 
 ### Commit Standards
 
@@ -1216,4 +1323,4 @@ When introducing ANY new concept, pattern, technology, or approach:
 
 ---
 
-**Version**: 1.2.0 | **Ratified**: 2025-10-11 | **Last Amended**: 2025-01-12
+**Version**: 1.2.1 | **Ratified**: 2025-10-11 | **Last Amended**: 2025-01-12

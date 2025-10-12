@@ -7,6 +7,69 @@
 
 ## Clarifications
 
+### Migration Generation Policy (CRITICAL)
+
+**MANDATORY RULES - Never Create Migration Files Manually**:
+
+**Database Migrations**:
+- ❌ **FORBIDDEN**: Manually creating files in `apps/api/src/config/drizzle/migrations/`
+- ❌ **FORBIDDEN**: Manually editing migration SQL files
+- ❌ **FORBIDDEN**: Manually editing snapshot files or `_journal.json`
+- ✅ **MANDATORY**: Always use `bun run api -- db:generate` after schema changes
+- ✅ **MANDATORY**: Review generated SQL before applying
+
+**Workflow**:
+```bash
+# 1. Modify schema in apps/api/src/config/drizzle/schema/domain.ts
+export const organizationDomains = pgTable('organization_domains', {
+  id: text('id').primaryKey(),
+  organizationId: text('organization_id').notNull(),
+  domain: text('domain').notNull().unique(),
+  // ... add/modify columns
+})
+
+# 2. Generate migration (REQUIRED)
+bun run api -- db:generate
+# Creates: 0001_migration_name.sql, meta/0001_snapshot.json, updates _journal.json
+
+# 3. Review generated SQL
+# Verify the generated migration matches intended changes
+
+# 4. Apply to development database
+bun run api -- db:push
+```
+
+**Better Auth Plugin Changes**:
+```bash
+# When adding/removing Better Auth plugins:
+# 1. Modify apps/api/src/auth.ts (add/remove plugin)
+# 2. Generate auth configuration (REQUIRED)
+bun run api -- auth:generate
+# 3. If schema changed, generate database migration
+bun run api -- db:generate
+# 4. Apply changes
+bun run api -- db:push
+```
+
+**Removing Migrations** (only if NOT in production):
+```bash
+# Step 1: Delete migration SQL file
+rm apps/api/src/config/drizzle/migrations/0001_name.sql
+
+# Step 2: Delete snapshot
+rm apps/api/src/config/drizzle/migrations/meta/0001_snapshot.json
+
+# Step 3: Remove from _journal.json
+# Edit meta/_journal.json and remove entry from "entries" array
+
+# Step 4: Regenerate with corrected schema
+bun run api -- db:generate
+```
+
+**⚠️ WARNING**: Never remove migrations applied to production. Create new migration to revert.
+
+**Rationale**: Drizzle Kit generates correct SQL, maintains snapshot consistency, and ensures _journal.json integrity. Manual migration creation causes SQL errors, snapshot mismatches, and type safety issues.
+
 ### Code Replacement Policy (Mandatory)
 
 **CRITICAL REQUIREMENT**: All new implementations MUST completely replace legacy code.
