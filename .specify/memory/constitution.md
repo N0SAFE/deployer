@@ -1,6 +1,21 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version Change: 1.1.0 → 1.2.0
+Action: Added Principle IX - Legacy Code Replacement (MANDATORY)
+Date: 2025-01-12
+
+Changes Made:
+-------------
+- Added mandatory Principle IX for complete legacy code replacement
+- Defined 6 replacement rules with code examples
+- Documented when explanatory comments are required vs optional
+- Provided migration workflow for clean code transitions
+- Established enforcement rules (PR rejection criteria)
+- Added comment structure template for architectural changes
+
+Previous Version (1.1.0):
+-------------------------
 Version Change: 1.0.0 → 1.1.0
 Action: Added Principle VIII - NestJS Service Architecture
 Date: 2025-01-11
@@ -41,6 +56,11 @@ Principles Defined (v1.1.0):
 ----------------------------
 1-7. [All previous principles unchanged]
 8. NestJS Service Architecture & File Organization (NEW)
+
+Principles Defined (v1.2.0):
+----------------------------
+1-8. [All previous principles unchanged]
+9. Legacy Code Replacement (MANDATORY) (NEW)
 
 Templates Requiring Updates:
 ----------------------------
@@ -663,6 +683,205 @@ export class FeatureModule implements NestModule {
 
 ---
 
+### IX. Legacy Code Replacement (MANDATORY)
+
+**All new implementations MUST completely replace legacy code - leaving both old and new code is FORBIDDEN:**
+
+**Replacement Rules:**
+
+1. **Complete Removal Required**:
+   - ❌ **NEVER** leave old implementations alongside new ones
+   - ❌ **NEVER** comment out old code "just in case"
+   - ❌ **NEVER** rename old code with `_old`, `_legacy`, `_deprecated` suffixes
+   - ✅ **ALWAYS** delete old code completely when new implementation is ready
+   - ✅ **ALWAYS** update all references to use new implementation
+
+2. **Explanatory Comments Required**:
+   - When replacement involves significant architectural changes, add comments explaining:
+     * **WHY** the change was made (business/technical rationale)
+     * **WHAT** changed at a high level (not line-by-line diff)
+     * **HOW** to use the new implementation (if not obvious)
+   - Comments should be concise (2-5 lines) and focused on context, not implementation details
+   - Place comments at the top of the new implementation, not scattered throughout
+
+3. **Migration Pattern**:
+   ```typescript
+   // ❌ WRONG: Leaving both implementations
+   function calculatePriceOld(item: Item): number { ... }  // Legacy
+   function calculatePrice(item: Item): number { ... }     // New
+   
+   // ❌ WRONG: Commented out code
+   function calculatePrice(item: Item): number {
+     // Old implementation:
+     // return item.basePrice * item.quantity
+     
+     // New implementation with tax calculation
+     return (item.basePrice * item.quantity) * (1 + item.taxRate)
+   }
+   
+   // ✅ CORRECT: Clean replacement with explanatory comment
+   /**
+    * Calculate item price including tax.
+    * Changed from simple multiplication to include tax calculation
+    * as per new tax compliance requirements (FR-042).
+    */
+   function calculatePrice(item: Item): number {
+     return (item.basePrice * item.quantity) * (1 + item.taxRate)
+   }
+   ```
+
+4. **Service-Adapter Pattern Replacement**:
+   ```typescript
+   // ❌ WRONG: Keeping old service method
+   class UserService {
+     // Legacy method - DO NOT USE
+     async getUserDataOld(id: string) { ... }
+     
+     // New method
+     async findById(id: string) { ... }
+   }
+   
+   // ✅ CORRECT: Only new implementation exists
+   /**
+    * User service following service-adapter pattern.
+    * Migrated from mixed-concern service to pure business logic.
+    * All contract transformations moved to UserAdapterService.
+    */
+   class UserService {
+     async findById(id: string): Promise<User | null> { ... }
+     async getStats(userId: string): Promise<UserStats> { ... }
+   }
+   ```
+
+5. **Database Schema Migration**:
+   ```typescript
+   // ❌ WRONG: Keeping old columns
+   export const users = pgTable('users', {
+     id: text('id').primaryKey(),
+     full_name: text('full_name'),        // Old column
+     firstName: text('first_name'),        // New column
+     lastName: text('last_name'),          // New column
+   })
+   
+   // ✅ CORRECT: Only new schema (old columns removed in migration)
+   /**
+    * Users table schema.
+    * Migration 2025-01-12: Replaced full_name with firstName/lastName
+    * to support better internationalization and display names.
+    */
+   export const users = pgTable('users', {
+     id: text('id').primaryKey(),
+     firstName: text('first_name').notNull(),
+     lastName: text('last_name').notNull(),
+   })
+   ```
+
+6. **Frontend Component Replacement**:
+   ```typescript
+   // ❌ WRONG: Multiple versions of same component
+   export function UserCardOld({ user }: Props) { ... }
+   export function UserCard({ user }: Props) { ... }
+   
+   // ✅ CORRECT: Single implementation
+   /**
+    * User card component with avatar and status badge.
+    * Replaced inline styles with Tailwind classes for consistency.
+    * Now uses Shadcn Card component instead of custom div structure.
+    */
+   export function UserCard({ user }: Props) { ... }
+   ```
+
+**When Comments Are Required:**
+
+- ✅ **Architectural pattern changes** (e.g., moving from services to service-adapter pattern)
+- ✅ **Database schema changes** (e.g., column renames, table splits)
+- ✅ **Breaking API changes** (e.g., contract signature changes)
+- ✅ **Algorithm replacements** (e.g., switching from A* to Dijkstra)
+- ✅ **Security improvements** (e.g., replacing plain text with encryption)
+- ❌ **Simple refactoring** (e.g., renaming variables, extracting functions)
+- ❌ **Code formatting** (e.g., Prettier changes)
+- ❌ **Dependency updates** (e.g., library version bumps)
+
+**Comment Structure (when needed):**
+
+```typescript
+/**
+ * [Brief description of what the code does]
+ * 
+ * REPLACED: [What was replaced and why]
+ * - Previous: [Brief description of old approach]
+ * - Current: [Brief description of new approach]
+ * - Rationale: [Why the change was made - reference FR/spec if applicable]
+ * 
+ * @example
+ * // Usage example if not obvious
+ */
+```
+
+**Example with Complete Replacement:**
+
+```typescript
+// ❌ BEFORE (what to avoid):
+class DeploymentService {
+  // Old method - uses direct Docker calls
+  async deployOld(config: any) {
+    await docker.createContainer(config)
+  }
+  
+  // New method - uses orchestration service
+  async deploy(config: DeploymentConfig) {
+    await this.orchestrationService.deploy(config)
+  }
+}
+
+// ✅ AFTER (correct approach):
+/**
+ * Deployment service using orchestration layer.
+ * 
+ * REPLACED: Direct Docker SDK calls with OrchestrationService
+ * - Previous: Called Docker SDK directly, no error recovery
+ * - Current: Uses OrchestrationService for reconciliation support
+ * - Rationale: Enables self-healing and multi-server coordination (Principle VII)
+ */
+class DeploymentService {
+  constructor(
+    private orchestrationService: OrchestrationService
+  ) {}
+  
+  async deploy(config: DeploymentConfig): Promise<Deployment> {
+    return this.orchestrationService.deploy(config)
+  }
+}
+```
+
+**Enforcement:**
+
+- ❌ **Pull requests with legacy code alongside new code will be REJECTED**
+- ❌ **Commented-out code blocks will be REJECTED** (except temporary debugging)
+- ❌ **Functions/methods with `_old`, `_legacy`, `_deprecated` suffixes will be REJECTED**
+- ✅ **Clean replacements with appropriate comments will be APPROVED**
+- ✅ **Git history preserves old implementations** (no need to keep in code)
+
+**Migration Workflow:**
+
+1. **Implement new code** following current architectural patterns
+2. **Add explanatory comments** if replacement is non-trivial
+3. **Update all references** to use new implementation
+4. **Remove old code completely** (no renaming, no commenting out)
+5. **Run tests** to verify nothing broke
+6. **Commit with clear message**: `refactor(scope): replace legacy X with Y`
+7. **Document in PR**: Explain what was replaced and why
+
+**Rationale**: 
+- **Code Clarity**: One way to do things, not multiple deprecated paths
+- **Maintainability**: No confusion about which implementation to use
+- **Performance**: No dead code in production bundles
+- **Onboarding**: New developers don't waste time on deprecated code
+- **Git History**: Old implementations preserved in version control, not in codebase
+- **Context Preservation**: Comments explain architectural decisions without code duplication
+
+---
+
 ## Technology Stack Requirements
 
 ### Monorepo Structure (Turborepo)
@@ -997,4 +1216,4 @@ When introducing ANY new concept, pattern, technology, or approach:
 
 ---
 
-**Version**: 1.0.0 | **Ratified**: 2025-10-11 | **Last Amended**: 2025-10-11
+**Version**: 1.2.0 | **Ratified**: 2025-10-11 | **Last Amended**: 2025-01-12

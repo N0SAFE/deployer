@@ -7,6 +7,46 @@
 
 ## Clarifications
 
+### Code Replacement Policy (Mandatory)
+
+**CRITICAL REQUIREMENT**: All new implementations MUST completely replace legacy code.
+
+**Rules**:
+- ❌ **FORBIDDEN**: Leaving old and new implementations side-by-side
+- ❌ **FORBIDDEN**: Commenting out old code "just in case"
+- ❌ **FORBIDDEN**: Renaming with `_old`, `_legacy`, `_deprecated` suffixes
+- ✅ **MANDATORY**: Complete deletion of old code when new implementation is ready
+- ✅ **MANDATORY**: Update all references to use new implementation
+- ✅ **MANDATORY**: Add explanatory comments for non-trivial architectural changes
+
+**Comment Requirements**:
+- Add 2-5 line comments explaining WHY, WHAT, and HOW for significant changes
+- Reference spec requirements (FR-XXX) when applicable
+- Place at top of new implementation, not scattered throughout
+- Skip comments for simple refactoring or formatting changes
+
+**Example**:
+```typescript
+// ❌ WRONG: Both implementations present
+class DomainService {
+  async verifyDomainOld(domain: string) { ... }  // Legacy
+  async verifyDomain(domain: string) { ... }     // New
+}
+
+// ✅ CORRECT: Only new implementation with comment
+/**
+ * Domain verification service using native DNS resolution.
+ * 
+ * REPLACED: Third-party DNS API with Node.js dns module
+ * - Rationale: Zero dependencies, works with any DNS provider (FR-004)
+ */
+class DomainService {
+  async verifyDomain(domain: string): Promise<VerificationResult> { ... }
+}
+```
+
+**Enforcement**: Pull requests with legacy code alongside new code will be rejected. Git history preserves old implementations - no need to keep in codebase.
+
 ### DNS Verification Mechanism (Clarified: 2025-10-11)
 
 **Question**: How should DNS verification be performed?
