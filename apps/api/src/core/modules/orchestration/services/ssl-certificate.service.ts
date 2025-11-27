@@ -2,11 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { sslCertificates } from '@/config/drizzle/schema/orchestration';
-import { eq, lt, and, isNotNull } from 'drizzle-orm';
 import * as fs from 'fs-extra';
 import * as forge from 'node-forge';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
+import { SslCertificateRepository } from '../repositories/ssl-certificate.repository';
 export interface CertificateInfo {
     domain: string;
     notBefore: Date;
@@ -25,7 +23,7 @@ export interface CertificateInfo {
 export class SslCertificateService {
     private readonly logger = new Logger(SslCertificateService.name);
     constructor(
-    private readonly databaseService: DatabaseService, 
+    private readonly sslCertificateRepository: SslCertificateRepository,
     @InjectQueue('deployment')
     private deploymentQueue: Queue) { }
     /**
@@ -36,10 +34,7 @@ export class SslCertificateService {
         try {
             this.logger.log('Starting certificate expiry monitoring');
             // Find certificates expiring in the next 30 days
-            const expiringCertificates = await this.databaseService.db.select()
-                .from(sslCertificates)
-                .where(and(eq(sslCertificates.autoRenew, true), lt(sslCertificates.expiresAt, new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) // 30 days from now
-            ));
+            const expiringCertificates = await this.sslCertificateRepository.findExpiringCertificates(30);
             for (const cert of expiringCertificates) {
                 const daysUntilExpiry = Math.ceil((new Date(cert.expiresAt!).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
                 if (daysUntilExpiry <= 7) {
@@ -66,9 +61,7 @@ export class SslCertificateService {
         try {
             this.logger.log('Starting certificate file validation');
             // Get all valid certificates
-            const certificates = await this.databaseService.db.select()
-                .from(sslCertificates)
-                .where(eq(sslCertificates.isValid, true));
+            const certificates = await this.sslCertificateRepository.findAll();
             let validatedCount = 0;
             let errorCount = 0;
             for (const cert of certificates) {
@@ -76,31 +69,17 @@ export class SslCertificateService {
                     const info = await this.parseCertificateFile(cert.certificatePath);
                     if (info) {
                         // Update database with parsed certificate information
-                        await this.databaseService.db.update(sslCertificates)
-                            .set({
-                            isValid: info.isValid,
+                        await this.sslCertificateRepository.updateCertificate(cert.domain, {
                             expiresAt: info.notAfter,
-                            issuedAt: info.notBefore,
-                            metadata: {
-                                subjectAlternativeNames: info.subjectAlternativeNames,
-                                keyType: info.keyType,
-                                keySize: info.keySize,
-                                fingerprint: info.fingerprint,
-                                serialNumber: info.serialNumber
-                            },
-                            updatedAt: new Date()
-                        })
-                            .where(eq(sslCertificates.id, cert.id));
+                        });
                         validatedCount++;
                     }
                     else {
                         // Certificate file not found or invalid
-                        await this.databaseService.db.update(sslCertificates)
-                            .set({
-                            isValid: false,
-                            updatedAt: new Date()
-                        })
-                            .where(eq(sslCertificates.id, cert.id));
+                        await this.sslCertificateRepository.updateCertificate(cert.domain, {
+                            renewalStatus: 'failed',
+                            errorMessage: 'Certificate file not found or invalid'
+                        });
                         errorCount++;
                     }
                 }
@@ -173,13 +152,9 @@ export class SslCertificateService {
         try {
             this.logger.log(`Initiating certificate renewal for: ${domain}`);
             // Update certificate record
-            await this.databaseService.db.update(sslCertificates)
-                .set({
-                lastRenewalAttempt: new Date(),
-                renewalStatus: 'in-progress',
-                updatedAt: new Date()
-            })
-                .where(eq(sslCertificates.domain, domain));
+            await this.sslCertificateRepository.updateCertificate(domain, {
+                renewalStatus: 'pending'
+            });
             // Queue renewal job with high priority
             await this.deploymentQueue.add('renew-certificate', {
                 domain
@@ -205,13 +180,10 @@ export class SslCertificateService {
     async handleRenewalFailure(domain: string, error: string): Promise<void> {
         try {
             this.logger.error(`Certificate renewal failed for ${domain}: ${error}`);
-            await this.databaseService.db.update(sslCertificates)
-                .set({
+            await this.sslCertificateRepository.updateCertificate(domain, {
                 renewalStatus: 'failed',
-                errorMessage: error,
-                updatedAt: new Date()
-            })
-                .where(eq(sslCertificates.domain, domain));
+                errorMessage: error
+            });
             // Send alert (could integrate with notification service)
             this.logger.error(`ALERT: Certificate renewal failed for ${domain}. Manual intervention required.`);
         }
@@ -224,10 +196,7 @@ export class SslCertificateService {
      */
     async getCertificateStatus(domain: string): Promise<any> {
         try {
-            const [certificate] = await this.databaseService.db.select()
-                .from(sslCertificates)
-                .where(eq(sslCertificates.domain, domain))
-                .limit(1);
+            const certificate = await this.sslCertificateRepository.findByDomain(domain);
             if (!certificate) {
                 return null;
             }
@@ -254,31 +223,23 @@ export class SslCertificateService {
     }): Promise<void> {
         try {
             // Check if certificate record exists
-            const existing = await this.databaseService.db.select()
-                .from(sslCertificates)
-                .where(eq(sslCertificates.domain, config.domain))
-                .limit(1);
-            if (existing.length === 0) {
-                // Create new certificate record
-                await this.databaseService.db.insert(sslCertificates).values({
-                    domain: config.domain,
-                    projectId: config.projectId,
-                    issuer: config.issuer,
-                    autoRenew: config.autoRenew,
-                    isValid: false, // Will be updated when certificate is issued
-                    certificatePath: `/certificates/${config.domain}.crt`,
-                    privateKeyPath: `/certificates/${config.domain}.key`,
-                    renewalStatus: 'pending',
-                    metadata: {
-                        subjectAlternativeNames: [config.domain],
-                        keyType: 'RSA',
-                        keySize: 2048,
-                        fingerprint: '',
-                        serialNumber: ''
-                    }
-                });
-                this.logger.log(`SSL certificate record created: ${config.domain}`);
-            }
+            await this.sslCertificateRepository.findByDomainOrCreate(config.domain, {
+                projectId: config.projectId,
+                issuer: config.issuer,
+                autoRenew: config.autoRenew,
+                isValid: false, // Will be updated when certificate is issued
+                certificatePath: `/certificates/${config.domain}.crt`,
+                privateKeyPath: `/certificates/${config.domain}.key`,
+                renewalStatus: 'pending',
+                metadata: {
+                    subjectAlternativeNames: [config.domain],
+                    keyType: 'RSA',
+                    keySize: 2048,
+                    fingerprint: '',
+                    serialNumber: ''
+                }
+            });
+            this.logger.log(`SSL certificate record created: ${config.domain}`);
         }
         catch (error) {
             this.logger.error(`Failed to create SSL certificate record for ${config.domain}:`, error);
@@ -290,9 +251,7 @@ export class SslCertificateService {
      */
     async getCertificatesExpiringSoon(days: number = 30): Promise<any[]> {
         try {
-            const expiringCertificates = await this.databaseService.db.select()
-                .from(sslCertificates)
-                .where(and(eq(sslCertificates.isValid, true), isNotNull(sslCertificates.expiresAt), lt(sslCertificates.expiresAt, new Date(Date.now() + days * 24 * 60 * 60 * 1000))));
+            const expiringCertificates = await this.sslCertificateRepository.findExpiringCertificatesForNotification(days);
             return expiringCertificates.map(cert => {
                 const expiresIn = cert.expiresAt ?
                     Math.ceil((new Date(cert.expiresAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)) :
@@ -313,12 +272,7 @@ export class SslCertificateService {
      */
     async removeCertificateRecord(domain: string): Promise<void> {
         try {
-            await this.databaseService.db.update(sslCertificates)
-                .set({
-                isValid: false,
-                updatedAt: new Date()
-            })
-                .where(eq(sslCertificates.domain, domain));
+            await this.sslCertificateRepository.markAsRenewing(domain);
             this.logger.log(`SSL certificate record deactivated: ${domain}`);
         }
         catch (error) {

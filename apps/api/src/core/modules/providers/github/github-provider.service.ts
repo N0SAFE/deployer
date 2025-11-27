@@ -16,10 +16,7 @@ import { TraefikConfigBuilder } from '@/core/modules/traefik/config-builder/buil
 import * as crypto from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
-import { githubApps, githubRepositoryConfigs, githubDeploymentRules } from '@/config/drizzle/schema/github-provider';
-import { services } from '@/config/drizzle/schema';
-import { eq, and } from 'drizzle-orm';
+import { GithubProviderRepository } from './repositories/github-provider.repository';
 
 /**
  * GitHub Provider Service
@@ -50,7 +47,7 @@ export class GithubProviderService
     private readonly repoConfigService: GithubRepositoryConfigService,
     private readonly changeDetectionService: GithubChangeDetectionService,
     private readonly cacheService: GithubDeploymentCacheService,
-    private readonly databaseService: DatabaseService,
+    private readonly githubProviderRepository: GithubProviderRepository,
   ) {
     super('GithubProviderService');
   }
@@ -127,13 +124,7 @@ export class GithubProviderService
    * handlers to look up per-organization credentials and webhook secrets.
    */
   async getInstallationByOrganization(organizationLogin: string) {
-    const [installation] = await this.databaseService.db
-      .select()
-      .from(githubApps)
-      .where(eq(githubApps.organizationId, organizationLogin))
-      .limit(1);
-
-    return installation || null;
+    return await this.githubProviderRepository.findInstallationByOrganization(organizationLogin);
   }
 
   /**
@@ -142,10 +133,7 @@ export class GithubProviderService
    * This returns all installations. In a production system, you would filter by user.
    */
   async getUserInstallations(_userId: string) {
-    // Return all installations since schema doesn't have userId
-    return await this.databaseService.db
-      .select()
-      .from(githubApps);
+    return await this.githubProviderRepository.findAllInstallations();
   }
 
   /**
@@ -166,7 +154,7 @@ export class GithubProviderService
     clientSecret?: string;
     webhookSecret?: string;
   }): Promise<string> {
-    const [inserted] = await this.databaseService.db.insert(githubApps).values({
+    const inserted = await this.githubProviderRepository.createInstallation({
       organizationId: data.organizationLogin,
       name: `${data.accountLogin} App`,
       appId: data.appId,
@@ -176,9 +164,7 @@ export class GithubProviderService
       webhookSecret: data.webhookSecret || '',
       installationId: data.installationId.toString(),
       isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }).returning();
+    });
 
     return inserted.id;
   }
@@ -202,9 +188,7 @@ export class GithubProviderService
     repositoriesCount?: number;
     updatedAt?: Date;
   }): Promise<void> {
-    const updateData: any = {
-      updatedAt: new Date(),
-    };
+    const updateData: any = {};
     
     if (data.installationId !== undefined) {
       updateData.installationId = data.installationId.toString();
@@ -225,10 +209,7 @@ export class GithubProviderService
       updateData.webhookSecret = data.webhookSecret || '';
     }
 
-    await this.databaseService.db
-      .update(githubApps)
-      .set(updateData)
-      .where(eq(githubApps.id, data.id));
+    await this.githubProviderRepository.updateInstallation(data.id, updateData);
   }
 
   /**
@@ -253,22 +234,15 @@ export class GithubProviderService
     createdAt: Date;
     updatedAt: Date;
   }): Promise<void> {
-    // Check if repository config already exists
-    const existing = await this.databaseService.db
-      .select()
-      .from(githubRepositoryConfigs)
-      .where(eq(githubRepositoryConfigs.repositoryId, data.repositoryId.toString()))
-      .limit(1);
+    const existing = await this.githubProviderRepository.findRepositoryConfigByRepositoryId(data.repositoryId.toString());
 
-    if (existing && existing.length > 0) {
-      // Update existing repository config
-      await this.databaseService.db
-        .update(githubRepositoryConfigs)
-        .set({
+    if (existing) {
+      await this.githubProviderRepository.updateRepositoryConfig(
+        data.repositoryId.toString(),
+        {
           repositoryFullName: data.fullName,
-          updatedAt: new Date(),
-        })
-        .where(eq(githubRepositoryConfigs.repositoryId, data.repositoryId.toString()));
+        }
+      );
       
       this.log(`Updated repository config for ${data.fullName}`);
     } else {
@@ -294,30 +268,23 @@ export class GithubProviderService
     const repoId = event.repository?.id?.toString();
     const repoFull = event.repository?.full_name;
 
-    const query = this.databaseService.db
-      .select()
-      .from(githubRepositoryConfigs)
-      .where(repoId ? eq(githubRepositoryConfigs.repositoryId, repoId) : eq(githubRepositoryConfigs.repositoryFullName, repoFull))
-      .limit(1);
+    const config = await this.githubProviderRepository.findRepositoryConfig(
+      repoId,
+      repoFull
+    );
+    
+    if (!config) return [];
 
-    const configs = await query;
-    if (!configs || configs.length === 0) return [];
-    const config = configs[0];
-
-    const rules = await this.databaseService.db
-      .select()
-      .from(githubDeploymentRules)
-      .where(and(eq(githubDeploymentRules.projectId, config.projectId), eq(githubDeploymentRules.event, event.type || event.event || 'push')));
+    const rules = await this.githubProviderRepository.findDeploymentRulesByProjectAndEvent(
+      config.projectId,
+      event.type || event.event || 'push'
+    );
 
     const matches: Array<any> = [];
     for (const rule of rules) {
-      const svc = await this.databaseService.db
-        .select()
-        .from(services)
-        .where(eq(services.projectId, config.projectId))
-        .limit(1);
+      const svc = await this.githubProviderRepository.findServiceByProjectId(rule.projectId);
 
-      const serviceObj = svc && svc.length > 0 ? svc[0] : { id: `svc-${rule.id}`, name: `svc-${rule.name}`, projectId: config.projectId };
+      const serviceObj = svc ? svc : { id: `svc-${rule.id}`, name: `svc-${rule.name}`, projectId: config.projectId };
 
       matches.push({
         service: serviceObj,

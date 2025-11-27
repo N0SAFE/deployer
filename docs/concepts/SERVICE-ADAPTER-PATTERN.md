@@ -31,12 +31,34 @@ async adaptToContract(id: string): Promise<any> { ... }
 ### 3. 🎭 Controllers: Orchestrate and Mix Service Methods
 ```typescript
 // ✅ DO: Mix multiple service methods
-const service = await this.service.findById(id);
-const config = await this.service.getTraefikConfig(id);
-return this.adapter.adaptToContract(service, config);
+import { Controller } from '@nestjs/common';
+import { Implement, implement } from '@orpc/nest';
+
+@Controller()
+export class ServiceController {
+  @Implement(contract.getById)
+  getById() {
+    return implement(contract.getById).handler(async ({ input }) => {
+      const service = await this.service.findById(input.id);
+      const config = await this.service.getTraefikConfig(input.id);
+      const stats = await this.service.getStats(input.id);
+      
+      // Pass aggregated data to adapter
+      return this.adapter.adaptWithStats(service, config, stats);
+    });
+  }
+}
 
 // ❌ DON'T: Just delegate to one service method
-return this.service.getServiceById(id);
+@Controller()
+export class ServiceController {
+  @Implement(contract.getById)
+  getById() {
+    return implement(contract.getById).handler(async ({ input }) => {
+      return this.service.getServiceById(input.id); // ❌ Just delegates
+    });
+  }
+}
 ```
 
 **Key Principle**: Controllers mix composable service methods and pass aggregated data to adapters with fixed contract return types.
@@ -439,55 +461,63 @@ Controllers should **mix and match** service methods, not just call one service 
 #### ✅ GOOD - Controller Orchestrates Multiple Service Methods
 
 ```typescript
-@Controller('services')
+import { Controller } from '@nestjs/common';
+import { Implement, implement } from '@orpc/nest';
+import { serviceContract } from '@repo/api-contracts';
+
+@Controller()
 export class ServiceController {
   constructor(
-    private coreServiceService: ServiceService,      // Core business logic
-    private serviceAdapter: ServiceAdapterService     // Contract transformation
+    private readonly coreServiceService: ServiceService,      // Core business logic
+    private readonly serviceAdapter: ServiceAdapterService     // Contract transformation
   ) {}
   
   @Implement(serviceContract.getById)
-  async getById(input: { id: string }) {
-    // Step 1: Mix multiple service methods to gather data
-    const service = await this.coreServiceService.findById(input.id);
-    const traefikConfig = await this.coreServiceService.getTraefikConfig(input.id);
-    const healthCheckConfig = await this.coreServiceService.getHealthCheckConfig(input.id);
-    
-    // Step 2: Pass aggregated data to adapter
-    return this.serviceAdapter.adaptServiceToContract(
-      service,
-      traefikConfig,
-      healthCheckConfig
-    );
+  getById() {
+    return implement(serviceContract.getById).handler(async ({ input }) => {
+      // Step 1: Mix multiple service methods to gather data
+      const service = await this.coreServiceService.findById(input.id);
+      const traefikConfig = await this.coreServiceService.getTraefikConfig(input.id);
+      const healthCheckConfig = await this.coreServiceService.getHealthCheckConfig(input.id);
+      
+      // Step 2: Pass aggregated data to adapter
+      return this.serviceAdapter.adaptServiceToContract(
+        service,
+        traefikConfig,
+        healthCheckConfig
+      );
+    });
   }
   
   @Implement(serviceContract.listByProject)
-  async listByProject(input: { projectId: string }) {
-    // Step 1: Mix service methods - fetch services + stats
-    const services = await this.coreServiceService.findByProject(input.projectId);
-    
-    // Step 2: Aggregate additional data for all services
-    const traefikConfigs = new Map();
-    const stats = new Map();
-    
-    await Promise.all(
-      services.map(async (service) => {
-        // Mix multiple service methods per service
-        const [config, serviceStats] = await Promise.all([
-          this.coreServiceService.getTraefikConfig(service.id),
-          this.coreServiceService.getStats(service.id),
-        ]);
-        traefikConfigs.set(service.id, config);
-        stats.set(service.id, serviceStats);
-      })
-    );
-    
-    // Step 3: Pass aggregated data to adapter
-    return this.serviceAdapter.adaptServicesWithStatsToContract(
-      services,
-      traefikConfigs,
-      stats
-    );
+  listByProject() {
+    return implement(serviceContract.listByProject).handler(async ({ input }) => {
+      // Step 1: Mix service methods - fetch services + stats
+      const services = await this.coreServiceService.findByProject(input.projectId);
+      
+      // Step 2: Aggregate additional data for all services
+      const traefikConfigs = new Map();
+      const stats = new Map();
+      
+      await Promise.all(
+        services.map(async (service) => {
+          // Mix multiple service methods per service
+          const [config, serviceStats] = await Promise.all([
+            this.coreServiceService.getTraefikConfig(service.id),
+            this.coreServiceService.getStats(service.id),
+          ]);
+          traefikConfigs.set(service.id, config);
+          stats.set(service.id, serviceStats);
+        })
+      );
+      
+      // Step 3: Pass aggregated data to adapter
+      return this.serviceAdapter.adaptServicesWithStatsToContract(
+        services,
+        traefikConfigs,
+        stats
+      );
+    });
   }
 }
 ```
@@ -502,20 +532,28 @@ export class ServiceController {
 #### ❌ BAD - Controller Just Delegates to One Service Method
 
 ```typescript
-@Controller('services')
+import { Controller } from '@nestjs/common';
+import { Implement, implement } from '@orpc/nest';
+import { serviceContract } from '@repo/api-contracts';
+
+@Controller()
 export class ServiceController {
-  constructor(private serviceService: ServiceService) {}
+  constructor(private readonly serviceService: ServiceService) {}
   
   @Implement(serviceContract.getById)
-  async getById(input: { id: string }) {
-    // ❌ Just delegates to single service method (1:1 mapping)
-    return this.serviceService.getServiceById(input.id);
+  getById() {
+    return implement(serviceContract.getById).handler(async ({ input }) => {
+      // ❌ Just delegates to single service method (1:1 mapping)
+      return this.serviceService.getServiceById(input.id);
+    });
   }
   
   @Implement(serviceContract.listByProject)
-  async listByProject(input: { projectId: string }) {
-    // ❌ Just delegates to single service method (1:1 mapping)
-    return this.serviceService.listServicesByProject(input.projectId);
+  listByProject() {
+    return implement(serviceContract.listByProject).handler(async ({ input }) => {
+      // ❌ Just delegates to single service method (1:1 mapping)
+      return this.serviceService.listServicesByProject(input.projectId);
+    });
   }
 }
 ```
@@ -1143,69 +1181,73 @@ Controllers **orchestrate** by:
 
 ```typescript
 import { Controller } from '@nestjs/common';
-import { Implement } from '@orpc/nestjs';
+import { Implement, implement } from '@orpc/nest';
 import { serviceContract } from '@repo/api-contracts';
 import { ServiceService } from '@/core/modules/service/services/service.service';
-import { ServiceAdapterService } from '../services/service-adapter.service';
+import { ServiceAdapterService } from '../adapters/service-adapter.service';
 
 @Controller()
 export class ServiceController {
   constructor(
-    private coreServiceService: ServiceService,      // Core business logic
-    private serviceAdapter: ServiceAdapterService     // Contract transformation
+    private readonly coreServiceService: ServiceService,      // Core business logic
+    private readonly serviceAdapter: ServiceAdapterService     // Contract transformation
   ) {}
 
   @Implement(serviceContract.getById)
-  async getById(input: { id: string }) {
-    // Step 1: Fetch entity from core
-    const service = await this.coreServiceService.findById(input.id);
-    if (!service) {
-      throw new Error('Service not found');
-    }
+  getById() {
+    return implement(serviceContract.getById).handler(async ({ input }) => {
+      // Step 1: Fetch entity from core
+      const service = await this.coreServiceService.findById(input.id);
+      if (!service) {
+        throw new Error('Service not found');
+      }
 
-    // Step 2: Fetch additional data from core
-    const traefikConfig = await this.coreServiceService.getTraefikConfig(input.id);
-    const healthCheckConfig = await this.coreServiceService.getHealthCheckConfig(input.id);
+      // Step 2: Fetch additional data from core
+      const traefikConfig = await this.coreServiceService.getTraefikConfig(input.id);
+      const healthCheckConfig = await this.coreServiceService.getHealthCheckConfig(input.id);
 
-    // Step 3: Transform via adapter
-    return this.serviceAdapter.adaptServiceToContract(
-      service,
-      traefikConfig,
-      healthCheckConfig
-    );
+      // Step 3: Transform via adapter
+      return this.serviceAdapter.adaptServiceToContract(
+        service,
+        traefikConfig,
+        healthCheckConfig
+      );
+    });
   }
 
   @Implement(serviceContract.listByProject)
-  async listByProject(input: { projectId: string }) {
-    // Step 1: Fetch entities from core
-    const services = await this.coreServiceService.findByProject(input.projectId);
+  listByProject() {
+    return implement(serviceContract.listByProject).handler(async ({ input }) => {
+      // Step 1: Fetch entities from core
+      const services = await this.coreServiceService.findByProject(input.projectId);
 
-    // Step 2: Fetch additional data for all services
-    const traefikConfigs = new Map();
-    const healthCheckConfigs = new Map();
-    const stats = new Map();
+      // Step 2: Fetch additional data for all services
+      const traefikConfigs = new Map();
+      const healthCheckConfigs = new Map();
+      const stats = new Map();
 
-    await Promise.all(
-      services.map(async (service) => {
-        const [traefikConfig, healthCheckConfig, serviceStats] = await Promise.all([
-          this.coreServiceService.getTraefikConfig(service.id),
-          this.coreServiceService.getHealthCheckConfig(service.id),
-          this.coreServiceService.getServiceStats(service.id),
-        ]);
+      await Promise.all(
+        services.map(async (service) => {
+          const [traefikConfig, healthCheckConfig, serviceStats] = await Promise.all([
+            this.coreServiceService.getTraefikConfig(service.id),
+            this.coreServiceService.getHealthCheckConfig(service.id),
+            this.coreServiceService.getServiceStats(service.id),
+          ]);
 
-        traefikConfigs.set(service.id, traefikConfig);
-        healthCheckConfigs.set(service.id, healthCheckConfig);
-        stats.set(service.id, serviceStats);
-      })
-    );
+          traefikConfigs.set(service.id, traefikConfig);
+          healthCheckConfigs.set(service.id, healthCheckConfig);
+          stats.set(service.id, serviceStats);
+        })
+      );
 
-    // Step 3: Transform via adapter
-    return this.serviceAdapter.adaptServicesWithStatsToContract(
-      services,
-      traefikConfigs,
-      healthCheckConfigs,
-      stats
-    );
+      // Step 3: Transform via adapter
+      return this.serviceAdapter.adaptServicesWithStatsToContract(
+        services,
+        traefikConfigs,
+        healthCheckConfigs,
+        stats
+      );
+    });
   }
 }
 ```
@@ -1374,23 +1416,28 @@ export class ServiceAdapterService {
 
 **Controller** (`modules/project/controllers/service.controller.ts`):
 ```typescript
+import { Controller } from '@nestjs/common';
+import { Implement, implement } from '@orpc/nest';
+import { serviceContract } from '@repo/api-contracts';
 import { ServiceAdapterService } from '../adapters/service-adapter.service';
 
 @Controller()
 export class ServiceController {
   constructor(
-    private coreServiceService: ServiceService,
-    private serviceAdapter: ServiceAdapterService
+    private readonly coreServiceService: ServiceService,
+    private readonly serviceAdapter: ServiceAdapterService
   ) {}
 
   @Implement(serviceContract.getById)
-  async getById(input: { id: string }) {
-    const service = await this.coreServiceService.findById(input.id);
-    if (!service) throw new Error('Service not found');
+  getById() {
+    return implement(serviceContract.getById).handler(async ({ input }) => {
+      const service = await this.coreServiceService.findById(input.id);
+      if (!service) throw new Error('Service not found');
 
-    const traefikConfig = await this.coreServiceService.getTraefikConfig(input.id);
+      const traefikConfig = await this.coreServiceService.getTraefikConfig(input.id);
 
-    return this.serviceAdapter.adaptServiceToContract(service, traefikConfig);
+      return this.serviceAdapter.adaptServiceToContract(service, traefikConfig);
+    });
   }
 }
 ```
@@ -1473,35 +1520,46 @@ export class ServiceAdapterService {
 
 **Controller** (`modules/project/controllers/service.controller.ts`):
 ```typescript
+import { Controller } from '@nestjs/common';
+import { Implement, implement } from '@orpc/nest';
+import { serviceContract } from '@repo/api-contracts';
+
 @Controller()
 export class ServiceController {
+  constructor(
+    private readonly coreServiceService: ServiceService,
+    private readonly serviceAdapter: ServiceAdapterService
+  ) {}
+  
   @Implement(serviceContract.listByProject)
-  async listByProject(input: { projectId: string }) {
-    // Step 1: Fetch all services
-    const services = await this.coreServiceService.findByProject(input.projectId);
+  listByProject() {
+    return implement(serviceContract.listByProject).handler(async ({ input }) => {
+      // Step 1: Fetch all services
+      const services = await this.coreServiceService.findByProject(input.projectId);
 
-    // Step 2: Fetch additional data for each service in parallel
-    const traefikConfigs = new Map<string, TraefikConfig | null>();
-    const stats = new Map<string, { deploymentCount: number; uptime: number }>();
+      // Step 2: Fetch additional data for each service in parallel
+      const traefikConfigs = new Map<string, TraefikConfig | null>();
+      const stats = new Map<string, { deploymentCount: number; uptime: number }>();
 
-    await Promise.all(
-      services.map(async (service) => {
-        const [traefikConfig, serviceStats] = await Promise.all([
-          this.coreServiceService.getTraefikConfig(service.id),
-          this.coreServiceService.getServiceStats(service.id),
-        ]);
+      await Promise.all(
+        services.map(async (service) => {
+          const [traefikConfig, serviceStats] = await Promise.all([
+            this.coreServiceService.getTraefikConfig(service.id),
+            this.coreServiceService.getServiceStats(service.id),
+          ]);
 
-        traefikConfigs.set(service.id, traefikConfig);
-        stats.set(service.id, serviceStats);
-      })
-    );
+          traefikConfigs.set(service.id, traefikConfig);
+          stats.set(service.id, serviceStats);
+        })
+      );
 
-    // Step 3: Transform via adapter
-    return this.serviceAdapter.adaptServicesWithStatsToContract(
-      services,
-      traefikConfigs,
-      stats
-    );
+      // Step 3: Transform via adapter
+      return this.serviceAdapter.adaptServicesWithStatsToContract(
+        services,
+        traefikConfigs,
+        stats
+      );
+    });
   }
 }
 ```
@@ -1940,7 +1998,7 @@ const response: ServiceContract = await controller.getById({ id }); // ✅ Type-
 ## Related Documentation
 
 - **Infrastructure Core/Feature Pattern**: See `CORE-VS-FEATURE-ARCHITECTURE.md` for module organization
-- **ORPC Contracts**: See `ORPC-TYPE-CONTRACTS.md` for contract definition patterns
+- **ORPC Contracts**: See `09-ORPC-IMPLEMENTATION-PATTERN.md` for contract definition patterns
 - **Development Workflow**: See `DEVELOPMENT-WORKFLOW.md` for implementation workflows
 
 ---

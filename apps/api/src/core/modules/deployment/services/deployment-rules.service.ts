@@ -1,14 +1,13 @@
 import { Injectable } from '@nestjs/common'
-import { eq, and, desc } from 'drizzle-orm'
-import { DatabaseService } from '@/core/modules/database/services/database.service'
+import { DeploymentRulesRepository } from '../repositories/deployment-rules.repository'
 import {
-  deploymentRules,
   deploymentRuleTriggerEnum,
 } from '@/config/drizzle/schema'
 
-// Type inference from schema
-type SelectDeploymentRule = typeof deploymentRules.$inferSelect
+// Type inference from repository
 type DeploymentRuleTrigger = typeof deploymentRuleTriggerEnum.enumValues[number]
+// Repository returns the correct type
+type SelectDeploymentRule = Awaited<ReturnType<DeploymentRulesRepository['findById']>>
 
 export interface CreateDeploymentRuleInput {
   serviceId: string
@@ -52,54 +51,44 @@ export interface UpdateDeploymentRuleInput {
 
 @Injectable()
 export class DeploymentRulesService {
-  constructor(private database: DatabaseService) {}
+  constructor(private readonly repository: DeploymentRulesRepository) {}
 
   /**
    * Create a new deployment rule
    */
   async createRule(
     input: CreateDeploymentRuleInput
-  ): Promise<SelectDeploymentRule> {
-    const [rule] = await this.database.db
-      .insert(deploymentRules)
-      .values({
-        serviceId: input.serviceId,
-        name: input.name,
-        trigger: input.trigger,
-        isEnabled: input.isEnabled ?? true,
-        priority: input.priority ?? 50,
-        branchPattern: input.branchPattern ?? undefined,
-        excludeBranchPattern: input.excludeBranchPattern ?? undefined,
-        tagPattern: input.tagPattern ?? undefined,
-        prLabels: input.prLabels ?? undefined,
-        prTargetBranches: input.prTargetBranches ?? undefined,
-        requireApproval: input.requireApproval ?? false,
-        minApprovals: input.minApprovals ?? undefined,
-        environment: input.environment,
-        autoMergeOnSuccess: input.autoMergeOnSuccess ?? false,
-        autoDeleteOnMerge: input.autoDeleteOnMerge ?? false,
-        environmentVariables: input.environmentVariables ?? undefined,
-        builderConfigOverride: input.builderConfigOverride ?? undefined,
-        metadata: {
-          description: input.description ?? undefined,
-          triggerCount: 0,
-        },
-      })
-      .returning()
-
-    return rule
+  ): Promise<NonNullable<SelectDeploymentRule>> {
+    return await this.repository.create({
+      serviceId: input.serviceId,
+      name: input.name,
+      trigger: input.trigger,
+      isEnabled: input.isEnabled ?? true,
+      priority: input.priority ?? 50,
+      branchPattern: input.branchPattern ?? undefined,
+      excludeBranchPattern: input.excludeBranchPattern ?? undefined,
+      tagPattern: input.tagPattern ?? undefined,
+      prLabels: input.prLabels ?? undefined,
+      prTargetBranches: input.prTargetBranches ?? undefined,
+      requireApproval: input.requireApproval ?? false,
+      minApprovals: input.minApprovals ?? undefined,
+      environment: input.environment,
+      autoMergeOnSuccess: input.autoMergeOnSuccess ?? false,
+      autoDeleteOnMerge: input.autoDeleteOnMerge ?? false,
+      environmentVariables: input.environmentVariables ?? undefined,
+      builderConfigOverride: input.builderConfigOverride ?? undefined,
+      metadata: {
+        description: input.description ?? undefined,
+        triggerCount: 0,
+      },
+    });
   }
 
   /**
    * Get a deployment rule by ID
    */
-  async getRuleById(id: string): Promise<SelectDeploymentRule | null> {
-    const [rule] = await this.database.db
-      .select()
-      .from(deploymentRules)
-      .where(eq(deploymentRules.id, id))
-
-    return rule || null
+  async getRuleById(id: string): Promise<SelectDeploymentRule> {
+    return await this.repository.findById(id);
   }
 
   /**
@@ -107,14 +96,8 @@ export class DeploymentRulesService {
    */
   async listRulesByService(
     serviceId: string
-  ): Promise<SelectDeploymentRule[]> {
-    const rules = await this.database.db
-      .select()
-      .from(deploymentRules)
-      .where(eq(deploymentRules.serviceId, serviceId))
-      .orderBy(desc(deploymentRules.priority), deploymentRules.name)
-
-    return rules
+  ): Promise<NonNullable<SelectDeploymentRule>[]> {
+    return await this.repository.findByService(serviceId);
   }
 
   /**
@@ -122,19 +105,8 @@ export class DeploymentRulesService {
    */
   async listEnabledRulesByService(
     serviceId: string
-  ): Promise<SelectDeploymentRule[]> {
-    const rules = await this.database.db
-      .select()
-      .from(deploymentRules)
-      .where(
-        and(
-          eq(deploymentRules.serviceId, serviceId),
-          eq(deploymentRules.isEnabled, true)
-        )
-      )
-      .orderBy(desc(deploymentRules.priority), deploymentRules.name)
-
-    return rules
+  ): Promise<NonNullable<SelectDeploymentRule>[]> {
+    return await this.repository.findEnabledByService(serviceId);
   }
 
   /**
@@ -143,75 +115,51 @@ export class DeploymentRulesService {
   async updateRule(
     id: string,
     input: UpdateDeploymentRuleInput
-  ): Promise<SelectDeploymentRule | null> {
-    const [rule] = await this.database.db
-      .update(deploymentRules)
-      .set({
-        ...input,
-        updatedAt: new Date(),
-      })
-      .where(eq(deploymentRules.id, id))
-      .returning()
-
-    return rule || null
+  ): Promise<SelectDeploymentRule> {
+    return await this.repository.update(id, input);
   }
 
   /**
    * Toggle a deployment rule's enabled state
    */
-  async toggleRule(id: string): Promise<SelectDeploymentRule | null> {
+  async toggleRule(id: string): Promise<SelectDeploymentRule> {
     // Get current state
-    const currentRule = await this.getRuleById(id)
+    const currentRule = await this.getRuleById(id);
     if (!currentRule) {
-      return null
+      return null;
     }
 
-    // Toggle the isEnabled flag
-    const [rule] = await this.database.db
-      .update(deploymentRules)
-      .set({
-        isEnabled: !currentRule.isEnabled,
-        updatedAt: new Date(),
-      })
-      .where(eq(deploymentRules.id, id))
-      .returning()
-
-    return rule || null
+    // Toggle the isEnabled flag using repository
+    return await this.repository.update(id, {
+      isEnabled: !currentRule.isEnabled,
+    });
   }
 
   /**
    * Delete a deployment rule
    */
   async deleteRule(id: string): Promise<boolean> {
-    const result = await this.database.db
-      .delete(deploymentRules)
-      .where(eq(deploymentRules.id, id))
-
-    return result.rowCount ? result.rowCount > 0 : false
+    return await this.repository.delete(id);
   }
 
   /**
    * Increment trigger count when a rule is used
    */
   async incrementTriggerCount(id: string): Promise<void> {
-    const rule = await this.getRuleById(id)
+    const rule = await this.getRuleById(id);
     if (!rule) {
-      return
+      return;
     }
 
-    const currentCount = rule.metadata?.triggerCount || 0
+    const currentCount = rule.metadata?.triggerCount || 0;
 
-    await this.database.db
-      .update(deploymentRules)
-      .set({
-        metadata: {
-          ...rule.metadata,
-          triggerCount: currentCount + 1,
-          lastTriggeredAt: new Date().toISOString(),
-        },
-        updatedAt: new Date(),
-      })
-      .where(eq(deploymentRules.id, id))
+    await this.repository.update(id, {
+      metadata: {
+        ...rule.metadata,
+        triggerCount: currentCount + 1,
+        lastTriggeredAt: new Date().toISOString(),
+      },
+    });
   }
 
   /**
@@ -283,7 +231,7 @@ export class DeploymentRulesService {
    * Test if a rule would match a given event (for testing purposes)
    */
   testRuleMatch(
-    rule: SelectDeploymentRule,
+    rule: NonNullable<SelectDeploymentRule>,
     testEvent: {
       type: 'push' | 'pull_request' | 'tag' | 'release'
       branch?: string

@@ -1,5 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ServiceRepository, type CreateServiceData, type UpdateServiceData, type ServiceLogsFilter } from '@/core/modules/service/repositories/service.repository';
+import type { traefikServiceConfigs } from '@/config/drizzle/schema';
+
+type TraefikConfig = typeof traefikServiceConfigs.$inferSelect | null;
 
 @Injectable()
 export class ServiceService {
@@ -13,7 +16,7 @@ export class ServiceService {
      * Transform DB traefik config to API contract format
      * Contract only expects specific fields, DB has more fields
      */
-    private transformTraefikConfig(dbConfig: any) {
+    private transformTraefikConfig(dbConfig: TraefikConfig) {
         if (!dbConfig) return null;
         
         // Map DB fields to contract fields
@@ -714,5 +717,15 @@ export class ServiceService {
             syncedAt: syncedAt.toISOString(),
             filePath,
         };
+    }
+
+    async findAll() {
+        this.logger.log('Finding all services');
+        return await this.serviceRepository.findAll();
+    }
+
+    async findByProject(projectId: string, limit?: number) {
+        this.logger.log(`Finding services for project: ${projectId}`);
+        return await this.serviceRepository.findByProject(projectId, limit);
     }
 }

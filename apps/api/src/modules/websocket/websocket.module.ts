@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { DeploymentWebSocketGateway } from './gateways/deployment.gateway';
 import { WebSocketEventService } from './services/websocket-event.service';
 import { DeploymentController } from './controllers/deployment.controller';
@@ -14,7 +14,7 @@ import { CoreModule } from '@/core/core.module';
  */
 @Module({
   imports: [
-    CoreModule,
+    forwardRef(() => CoreModule),
   ],
     controllers: [DeploymentController],
     providers: [

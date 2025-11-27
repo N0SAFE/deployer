@@ -1,12 +1,13 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { SetupController } from './controllers/setup.controller';
 import { SetupService } from './services/setup.service';
+import { SetupAdapter } from './adapters/setup-adapter.service';
 import { CoreModule } from '@/core/core.module';
 
 @Module({
-  imports: [CoreModule],
+  imports: [forwardRef(() => CoreModule)],
   controllers: [SetupController],
-  providers: [SetupService],
+  providers: [SetupService, SetupAdapter],
   exports: [SetupService],
 })
 export class SetupModule {}

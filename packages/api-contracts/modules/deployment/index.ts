@@ -64,6 +64,7 @@ export type DeploymentContract = typeof deploymentContract;
 export type DeploymentWebSocketContract = typeof deploymentWebSocketContract;
 // Re-export everything from individual contracts
 export * from './getStatus';
+export * from './jobStatus';
 export * from './trigger';
 export * from './cancel';
 export * from './rollback';

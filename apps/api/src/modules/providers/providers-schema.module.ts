@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { CoreModule } from '@/core/core.module';
 import { ProviderRegistryService } from '@/core/modules/providers/services/provider-registry.service';
 import { ProviderRegistryInitializer } from '@/core/modules/providers/services/provider-registry-initializer.service';
@@ -38,7 +38,7 @@ import { StaticBuilderModule } from '@/core/modules/builders/static/static-build
  */
 @Module({
   imports: [
-    CoreModule,
+    forwardRef(() => CoreModule),
     GitHubProviderModule,
     StaticProviderModule,
     DockerfileBuilderModule,

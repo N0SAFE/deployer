@@ -1,5 +1,5 @@
 
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 
 
 import { SwarmBootstrap } from '@/modules/bootstrap/services/swarm.bootstrap';
@@ -9,7 +9,7 @@ import { FileUploadBootstrap } from '@/modules/bootstrap/services/file-upload.bo
 import { TraefikBootstrap } from '@/modules/bootstrap/services/traefik.bootstrap';
 
 @Module({
-  imports: [CoreModule],
+  imports: [forwardRef(() => CoreModule)],
   providers: [SwarmBootstrap, FileUploadBootstrap, ZombieCleanupBootstrap, TraefikBootstrap, TraefikBootstrap],
   exports: [],
 })

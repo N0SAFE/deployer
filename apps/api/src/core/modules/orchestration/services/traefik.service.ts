@@ -1,14 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
-import { sslCertificates, orchestrationStacks, networkAssignments } from '@/config/drizzle/schema/orchestration';
-import { eq, and } from 'drizzle-orm';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as forge from 'node-forge';
 import { DockerService } from '@/core/modules/docker/services/docker.service';
 import * as net from 'net';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
+import { TraefikRepository } from '../repositories/traefik.repository';
+import { orchestrationStacks } from '@/config/drizzle/schema/orchestration';
 export interface TraefikConfig {
     projectId: string;
     environment: string;
@@ -43,7 +42,7 @@ export class TraefikService {
     private readonly traefikConfigDir = process.env.TRAEFIK_CONFIG_BASE_PATH || '/app/traefik-configs';
     private readonly certificatesDir = '/app/certificates';
     constructor(
-    private readonly databaseService: DatabaseService, 
+    private readonly traefikRepository: TraefikRepository,
     @InjectQueue('deployment')
     private deploymentQueue: Queue,
     private readonly dockerService: DockerService) { }
@@ -197,10 +196,11 @@ export class TraefikService {
     private async createOrUpdateNetwork(projectId: string, environment: string, networkName: string): Promise<void> {
         try {
             // Check if network assignment exists
-            const existing = await this.databaseService.db.select()
-                .from(networkAssignments)
-                .where(and(eq(networkAssignments.projectId, projectId), eq(networkAssignments.environment, environment), eq(networkAssignments.networkName, networkName)))
-                .limit(1);
+            const existing = await this.traefikRepository.findNetworkAssignmentByProjectEnv(
+                projectId,
+                environment,
+                networkName
+            );
             // Create Docker network if it doesn't exist
             let dockerNetworkId: string;
             try {
@@ -239,33 +239,23 @@ export class TraefikService {
             }
             if (existing.length === 0) {
                 // Create new network assignment
-                await this.databaseService.db.insert(networkAssignments).values({
+                                await this.traefikRepository.createNetworkAssignmentWithProject({
                     projectId,
                     networkName,
-                    networkId: dockerNetworkId,
-                    networkType: 'overlay',
+                    networkId: networkName,
+                    networkType: 'bridge' as any,
                     environment,
-                    networkConfig: {
-                        driver: 'overlay',
-                        attachable: true,
-                        encrypted: false,
-                        labels: {
-                            'project.id': projectId,
-                            'project.environment': environment
-                        }
-                    },
+                    networkConfig: {},
                     isActive: true
                 });
                 this.logger.log(`Network assignment created: ${networkName} -> ${dockerNetworkId}`);
             }
             else {
                 // Update existing assignment with Docker network ID
-                await this.databaseService.db.update(networkAssignments)
-                    .set({
-                    networkId: dockerNetworkId,
-                    updatedAt: new Date()
-                })
-                    .where(eq(networkAssignments.id, existing[0].id));
+                await this.traefikRepository.updateNetworkAssignmentById(
+                    existing[0].id,
+                    dockerNetworkId
+                );
                 this.logger.log(`Network assignment updated: ${networkName} -> ${dockerNetworkId}`);
             }
         }
@@ -285,27 +275,15 @@ export class TraefikService {
     }): Promise<void> {
         try {
             // Check if certificate record exists
-            const existing = await this.databaseService.db.select()
-                .from(sslCertificates)
-                .where(eq(sslCertificates.domain, config.domain))
-                .limit(1);
+            const existing = await this.traefikRepository.findCertificateByDomain(config.domain);
             if (existing.length === 0) {
                 // Create new certificate record
-                await this.databaseService.db.insert(sslCertificates).values({
+                await this.traefikRepository.createCertificate({
                     domain: config.domain,
-                    projectId: config.projectId,
-                    issuer: config.issuer,
-                    autoRenew: config.autoRenew,
-                    isValid: false, // Will be updated when certificate is issued
                     certificatePath: `/certificates/${config.domain}.crt`,
-                    privateKeyPath: `/certificates/${config.domain}.key`,
-                    metadata: {
-                        subjectAlternativeNames: [config.domain],
-                        keyType: 'RSA',
-                        keySize: 2048,
-                        fingerprint: '',
-                        serialNumber: ''
-                    }
+                    keyPath: `/certificates/${config.domain}.key`,
+                    provider: config.issuer,
+                    autoRenew: config.autoRenew,
                 });
                 this.logger.log(`SSL certificate record created: ${config.domain}`);
             }
@@ -320,10 +298,7 @@ export class TraefikService {
      */
     async updateDomainMappings(stackId: string, mappings: DomainMapping[]): Promise<void> {
         try {
-            const [stack] = await this.databaseService.db.select()
-                .from(orchestrationStacks)
-                .where(eq(orchestrationStacks.id, stackId))
-                .limit(1);
+            const stack = await this.traefikRepository.findStackById(stackId);
             if (!stack) {
                 throw new Error(`Stack ${stackId} not found`);
             }
@@ -341,12 +316,10 @@ export class TraefikService {
                 });
                 return acc;
             }, {} as any);
-            await this.databaseService.db.update(orchestrationStacks)
-                .set({
-                domainMappings: domainConfig,
-                updatedAt: new Date()
-            })
-                .where(eq(orchestrationStacks.id, stackId));
+            await this.traefikRepository.updateStackDomainMappings(
+                stackId,
+                domainConfig
+            );
             // Queue config update job
             await this.deploymentQueue.add('update-traefik-config', {
                 stackId,
@@ -367,10 +340,7 @@ export class TraefikService {
      */
     async getCertificateStatus(domain: string): Promise<any> {
         try {
-            const [certificate] = await this.databaseService.db.select()
-                .from(sslCertificates)
-                .where(eq(sslCertificates.domain, domain))
-                .limit(1);
+            const [certificate] = await this.traefikRepository.findCertificateByDomain(domain);
             if (!certificate) {
                 return null;
             }
@@ -414,13 +384,10 @@ export class TraefikService {
         try {
             this.logger.log(`Initiating certificate renewal for: ${domain}`);
             // Update certificate record
-            await this.databaseService.db.update(sslCertificates)
-                .set({
-                lastRenewalAttempt: new Date(),
-                renewalStatus: 'in-progress',
-                updatedAt: new Date()
-            })
-                .where(eq(sslCertificates.domain, domain));
+            await this.traefikRepository.updateCertificateRenewalStatus(
+                domain,
+                'in-progress'
+            );
             // Queue renewal job
             await this.deploymentQueue.add('renew-certificate', {
                 domain
@@ -950,7 +917,7 @@ http {
 
             // Try find by stack name first
             try {
-                const [foundByName] = await this.databaseService.db.select().from(orchestrationStacks).where(eq(orchestrationStacks.name, serviceId)).limit(1);
+                const foundByName = await this.traefikRepository.findStackByName(serviceId);
                 if (foundByName) stack = foundByName as StackRow;
             }
             catch (lookupErr) {
@@ -962,7 +929,7 @@ http {
                 const uuidLike = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(serviceId);
                 if (uuidLike) {
                     try {
-                        const [foundByProject] = await this.databaseService.db.select().from(orchestrationStacks).where(eq(orchestrationStacks.projectId, serviceId)).limit(1);
+                        const foundByProject = await this.traefikRepository.findStackByProjectId(serviceId);
                         if (foundByProject) stack = foundByProject as StackRow;
                     }
                     catch (lookupErr) {
@@ -978,7 +945,10 @@ http {
 
             // Update existing stack compose config with static config
             const updatedConfig = { ...stack.composeConfig, staticConfig: config } as any;
-            await this.databaseService.db.update(orchestrationStacks).set({ composeConfig: updatedConfig, updatedAt: new Date() }).where(eq(orchestrationStacks.id, stack.id));
+            await this.traefikRepository.updateStackComposeConfig(
+                stack.id,
+                updatedConfig
+            );
             this.logger.log(`Updated stack configuration for service: ${serviceId}`);
         }
         catch (error) {

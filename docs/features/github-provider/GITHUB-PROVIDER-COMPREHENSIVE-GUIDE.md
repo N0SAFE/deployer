@@ -658,6 +658,6 @@ apps/api/src/modules/github-provider/
 ---
 
 **Related Documentation**:
-- [GitHub Provider Roadmap](./GITHUB-PROVIDER-ROADMAP.md)
+- [GitHub Provider Roadmap](../../planning/GITHUB-PROVIDER-ROADMAP.md)
 - [GitHub Provider Implementation](./GITHUB-PROVIDER-IMPLEMENTATION.md)
 - [Deployment Rules API Contract](../../../packages/api-contracts/modules/deployment-rules.ts)

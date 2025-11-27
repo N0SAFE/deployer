@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { CoreModule } from '@/core/core.module';
 
 // Import controllers and processors
@@ -25,7 +25,7 @@ import { DeploymentProcessor } from './processors/deployment.processor';
 @Module({
     imports: [
         // Core modules (all services available)
-        CoreModule,
+        forwardRef(() => CoreModule),
     ],
     controllers: [
         // Legacy `OrchestrationController` removed from registration to prevent

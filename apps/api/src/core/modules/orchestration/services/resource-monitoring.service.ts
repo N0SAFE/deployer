@@ -2,11 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { orchestrationStacks, serviceInstances } from '@/config/drizzle/schema/orchestration';
-import { stackMetrics, resourceAlerts } from '@/config/drizzle/schema/resource-monitoring';
-import { eq, and, desc, gte, lt } from 'drizzle-orm';
 import { DockerService } from '@/core/modules/docker/services/docker.service';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
+import { ResourceMonitoringRepository } from '../repositories/resource-monitoring.repository';
 export interface ResourceMetrics {
     stackId: string;
     serviceId?: string;
@@ -58,7 +55,7 @@ export class ResourceMonitoringService {
         }
     };
     constructor(
-    private readonly databaseService: DatabaseService, 
+    private readonly resourceMonitoringRepository: ResourceMonitoringRepository, 
     @InjectQueue('deployment')
     private deploymentQueue: Queue,
     private readonly dockerService: DockerService) {
@@ -71,13 +68,7 @@ export class ResourceMonitoringService {
         try {
             this.logger.log('Starting resource metrics collection');
             // Get all active stacks
-            const activeStacks = await this.databaseService.db.select({
-                id: orchestrationStacks.id,
-                name: orchestrationStacks.name,
-                projectId: orchestrationStacks.projectId
-            })
-                .from(orchestrationStacks)
-                .where(eq(orchestrationStacks.status, 'running'));
+            const activeStacks = await this.resourceMonitoringRepository.findActiveStacks();
             const allMetrics: ResourceMetrics[] = [];
             let totalSystemMetrics: SystemMetrics = {
                 totalCpuUsage: 0,
@@ -91,12 +82,10 @@ export class ResourceMonitoringService {
             for (const stack of activeStacks) {
                 try {
                     // Get stack services
-                    const stackServices = await this.databaseService.db.select()
-                        .from(serviceInstances)
-                        .where(eq(serviceInstances.stackId, stack.id));
+                    const stackServices = await this.resourceMonitoringRepository.findStackServices(stack.stackId);
                     totalSystemMetrics.activeServices += stackServices.length;
                     // Collect metrics for each service in the stack
-                    const stackMetrics = await this.collectStackMetrics(stack.id, stackServices);
+                    const stackMetrics = await this.collectStackMetrics(stack.stackId, stackServices);
                     allMetrics.push(...stackMetrics);
                     // Aggregate stack metrics for system totals
                     for (const metric of stackMetrics) {
@@ -107,7 +96,7 @@ export class ResourceMonitoringService {
                     }
                 }
                 catch (error) {
-                    this.logger.error(`Failed to collect metrics for stack ${stack.name}:`, error);
+                    this.logger.error(`Failed to collect metrics for stack ${stack.stackName}:`, error);
                 }
             }
             // Store metrics in database
@@ -220,7 +209,7 @@ export class ResourceMonitoringService {
                     containerCount: 1
                 }
             }));
-            await this.databaseService.db.insert(stackMetrics).values(dbMetrics);
+            await this.resourceMonitoringRepository.insertMetrics(dbMetrics);
             this.logger.log(`Stored ${dbMetrics.length} metrics in database`);
         }
         catch (error) {
@@ -233,7 +222,7 @@ export class ResourceMonitoringService {
     private async storeSystemMetrics(systemMetrics: SystemMetrics): Promise<void> {
         try {
             // Store system metrics as a special stack metric with stackId 'system'
-            await this.databaseService.db.insert(stackMetrics).values({
+            await this.resourceMonitoringRepository.insertSingleMetric({
                 stackId: 'system',
                 timestamp: systemMetrics.timestamp,
                 cpuUsage: systemMetrics.totalCpuUsage.toString(),
@@ -354,7 +343,7 @@ export class ResourceMonitoringService {
                     timestamp: alert.timestamp.toISOString()
                 }
             }));
-            await this.databaseService.db.insert(resourceAlerts).values(dbAlerts);
+            await this.resourceMonitoringRepository.insertAlerts(dbAlerts);
             this.logger.log(`Stored ${dbAlerts.length} resource alerts`);
         }
         catch (error) {
@@ -396,12 +385,10 @@ export class ResourceMonitoringService {
             this.logger.log('Starting metrics cleanup');
             const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
             // Delete metrics older than 30 days
-            await this.databaseService.db.delete(stackMetrics)
-                .where(lt(stackMetrics.timestamp, thirtyDaysAgo));
+            await this.resourceMonitoringRepository.deleteOldMetrics(30);
             // Delete resolved alerts older than 7 days
             const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-            await this.databaseService.db.delete(resourceAlerts)
-                .where(and(eq(resourceAlerts.isResolved, true), lt(resourceAlerts.createdAt, sevenDaysAgo)));
+            await this.resourceMonitoringRepository.deleteResolvedAlerts(7);
             this.logger.log(`Metrics cleanup completed. Deleted old metrics and resolved alerts`);
         }
         catch (error) {
@@ -414,10 +401,7 @@ export class ResourceMonitoringService {
     async getStackMetrics(stackId: string, hours: number = 24): Promise<any[]> {
         try {
             const since = new Date(Date.now() - hours * 60 * 60 * 1000);
-            const metrics = await this.databaseService.db.select()
-                .from(stackMetrics)
-                .where(and(eq(stackMetrics.stackId, stackId), gte(stackMetrics.timestamp, since)))
-                .orderBy(desc(stackMetrics.timestamp));
+            const metrics = await this.resourceMonitoringRepository.findMetricsByStack(stackId, hours);
             return metrics;
         }
         catch (error) {
@@ -428,13 +412,10 @@ export class ResourceMonitoringService {
     /**
      * Get system metrics
      */
-    async getSystemMetrics(hours: number = 24): Promise<any[]> {
+    async getSystemMetrics(serviceId: string, hours: number = 24): Promise<any[]> {
         try {
             const since = new Date(Date.now() - hours * 60 * 60 * 1000);
-            const metrics = await this.databaseService.db.select()
-                .from(stackMetrics)
-                .where(and(eq(stackMetrics.stackId, 'system'), gte(stackMetrics.timestamp, since)))
-                .orderBy(desc(stackMetrics.timestamp));
+            const metrics = await this.resourceMonitoringRepository.findMetricsByService(serviceId, hours);
             return metrics;
         }
         catch (error) {
@@ -448,17 +429,11 @@ export class ResourceMonitoringService {
     async getActiveAlerts(stackId?: string): Promise<any[]> {
         try {
             if (stackId) {
-                const alerts = await this.databaseService.db.select()
-                    .from(resourceAlerts)
-                    .where(and(eq(resourceAlerts.isResolved, false), eq(resourceAlerts.stackId, stackId)))
-                    .orderBy(desc(resourceAlerts.createdAt));
+                const alerts = await this.resourceMonitoringRepository.findActiveAlertsByStack(stackId);
                 return alerts;
             }
             else {
-                const alerts = await this.databaseService.db.select()
-                    .from(resourceAlerts)
-                    .where(eq(resourceAlerts.isResolved, false))
-                    .orderBy(desc(resourceAlerts.createdAt));
+                const alerts = await this.resourceMonitoringRepository.findAllActiveAlerts();
                 return alerts;
             }
         }
@@ -472,13 +447,7 @@ export class ResourceMonitoringService {
      */
     async resolveAlert(alertId: string): Promise<void> {
         try {
-            await this.databaseService.db.update(resourceAlerts)
-                .set({
-                isResolved: true,
-                resolvedAt: new Date(),
-                updatedAt: new Date()
-            })
-                .where(eq(resourceAlerts.id, alertId));
+            await this.resourceMonitoringRepository.resolveAlert(alertId);
             this.logger.log(`Alert ${alertId} resolved`);
         }
         catch (error) {
@@ -492,11 +461,7 @@ export class ResourceMonitoringService {
     async getStackResourceSummary(stackId: string): Promise<any> {
         try {
             // Get latest metrics for the stack
-            const [latestMetrics] = await this.databaseService.db.select()
-                .from(stackMetrics)
-                .where(eq(stackMetrics.stackId, stackId))
-                .orderBy(desc(stackMetrics.timestamp))
-                .limit(1);
+            const latestMetrics = await this.resourceMonitoringRepository.findLatestMetricByService(stackId);
             if (!latestMetrics) {
                 return {
                     stackId,

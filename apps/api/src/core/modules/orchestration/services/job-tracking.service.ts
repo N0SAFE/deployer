@@ -3,8 +3,8 @@ import { InjectQueue } from '@nestjs/bull';
 import type { Queue, Job, JobStatus } from 'bull';
 import { Cron } from '@nestjs/schedule';
 import { jobTracking } from '@/config/drizzle/schema/orchestration';
-import { eq, desc, and, gte, lte, inArray } from 'drizzle-orm';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
+import { eq, and, gte, lte, inArray } from 'drizzle-orm';
+import { JobTrackingRepository } from '../repositories/job-tracking.repository';
 export interface JobTrackingInfo {
     id: string;
     type: string;
@@ -47,9 +47,9 @@ export class JobTrackingService {
     private readonly JOB_RETENTION_DAYS = 30;
     private readonly MAX_LOGS_PER_JOB = 1000;
     constructor(
-    private readonly databaseService: DatabaseService, 
+    private readonly jobTrackingRepository: JobTrackingRepository,
     @InjectQueue('deployment')
-    private readonly deploymentQueue: Queue) { }
+    private deploymentQueue: Queue) { }
     /**
      * Get real-time job statistics from Bull queue
      */
@@ -82,11 +82,7 @@ export class JobTrackingService {
                 return this.mapBullJobToTrackingInfo(bullJob);
             }
             // If not in queue, check database for completed/failed jobs
-            const [dbJob] = await this.databaseService.db
-                .select()
-                .from(jobTracking)
-                .where(eq(jobTracking.id, jobId))
-                .limit(1);
+            const dbJob = await this.jobTrackingRepository.findById(jobId);
             if (dbJob) {
                 return this.mapDbJobToTrackingInfo(dbJob);
             }
@@ -129,20 +125,15 @@ export class JobTrackingService {
             const whereClause = whereConditions.length > 0
                 ? and(...whereConditions)
                 : undefined;
-            // Get total count
-            const totalResult = await this.databaseService.db
-                .select({ count: jobTracking.id })
-                .from(jobTracking)
-                .where(whereClause);
-            const total = totalResult.length;
-            // Get paginated results
-            const dbJobs = await this.databaseService.db
-                .select()
-                .from(jobTracking)
-                .where(whereClause)
-                .orderBy(desc(jobTracking.createdAt))
-                .limit(limit)
-                .offset(offset);
+            // Get total count and paginated results
+            const { jobs: dbJobs, total } = await this.jobTrackingRepository.findJobHistory({
+                stackId,
+                status: Array.isArray(status) ? status[0] : status,
+                fromDate,
+                toDate,
+                limit,
+                offset
+            });
             const jobs = dbJobs.map(job => this.mapDbJobToTrackingInfo(job));
             return {
                 jobs,
@@ -248,20 +239,17 @@ export class JobTrackingService {
         try {
             const jobData = {
                 id: job.id.toString(),
-                type: job.name as 'deploy' | 'update' | 'remove' | 'scale' | 'build' | 'cleanup' | 'health-check' | 'ssl-renew' | 'backup' | 'restore',
+                jobType: job.name as 'deploy' | 'update' | 'remove' | 'scale' | 'build' | 'cleanup' | 'health-check' | 'ssl-renew' | 'backup' | 'restore',
                 status: status as 'waiting' | 'active' | 'completed' | 'failed' | 'delayed' | 'paused',
-                data: job.data,
                 progress: job.progress(),
-                createdAt: new Date(job.timestamp),
-                startedAt: job.processedOn ? new Date(job.processedOn) : null,
+                startedAt: job.processedOn ? new Date(job.processedOn) : new Date(),
                 completedAt: job.finishedOn ? new Date(job.finishedOn) : null,
                 failedAt: job.failedReason ? new Date(job.finishedOn || Date.now()) : null,
                 duration: job.processedOn && job.finishedOn
                     ? job.finishedOn - job.processedOn
                     : null,
                 stackId: job.data.stackId || null,
-                serviceId: job.data.serviceId || null,
-                logs: this.extractJobLogs(job),
+                logs: this.extractJobLogs(job).join('\n'),
                 error: job.failedReason || null,
                 metadata: {
                     opts: job.opts,
@@ -269,23 +257,7 @@ export class JobTrackingService {
                     attempts: job.attemptsMade
                 }
             };
-            await this.databaseService.db
-                .insert(jobTracking)
-                .values(jobData)
-                .onConflictDoUpdate({
-                target: jobTracking.id,
-                set: {
-                    status: jobData.status,
-                    progress: jobData.progress,
-                    completedAt: jobData.completedAt,
-                    failedAt: jobData.failedAt,
-                    duration: jobData.duration,
-                    logs: jobData.logs,
-                    error: jobData.error,
-                    metadata: jobData.metadata,
-                    updatedAt: new Date()
-                }
-            });
+            await this.jobTrackingRepository.upsertJobTracking(jobData);
             this.logger.log(`Stored job tracking for ${job.id} with status ${status}`);
         }
         catch (error) {
@@ -301,9 +273,7 @@ export class JobTrackingService {
         try {
             const cutoffDate = new Date();
             cutoffDate.setDate(cutoffDate.getDate() - this.JOB_RETENTION_DAYS);
-            await this.databaseService.db
-                .delete(jobTracking)
-                .where(lte(jobTracking.createdAt, cutoffDate));
+            await this.jobTrackingRepository.deleteOldJobs(cutoffDate);
             this.logger.log(`Cleaned up job tracking records older than ${this.JOB_RETENTION_DAYS} days`);
         }
         catch (error) {
@@ -321,12 +291,7 @@ export class JobTrackingService {
         recentJobs: JobTrackingInfo[];
     }> {
         try {
-            const jobs = await this.databaseService.db
-                .select()
-                .from(jobTracking)
-                .where(eq(jobTracking.stackId, stackId))
-                .orderBy(desc(jobTracking.createdAt))
-                .limit(100);
+            const jobs = await this.jobTrackingRepository.findJobsByStackId(stackId, 100);
             const total = jobs.length;
             const byStatus: Record<string, number> = {};
             const byType: Record<string, number> = {};

@@ -6,6 +6,7 @@ import { TraefikSyncService } from './services/traefik-sync.service';
 import { TraefikFileSystemService } from './services/traefik-file-system.service';
 import { TraefikValidationService } from './services/traefik-validation.service';
 import { TraefikRepository } from './repositories/traefik.repository';
+import { TraefikTemplateRepository } from './repositories/traefik-template.repository';
 import { DatabaseModule } from '../database/database.module';
 
 /**
@@ -36,6 +37,7 @@ import { DatabaseModule } from '../database/database.module';
     TraefikFileSystemService,
     TraefikValidationService,
     TraefikRepository,
+    TraefikTemplateRepository,
   ],
   exports: [
     TraefikTemplateService,
@@ -45,6 +47,7 @@ import { DatabaseModule } from '../database/database.module';
     TraefikFileSystemService,
     TraefikValidationService,
     TraefikRepository,
+    TraefikTemplateRepository,
   ],
 })
 export class TraefikCoreModule {}

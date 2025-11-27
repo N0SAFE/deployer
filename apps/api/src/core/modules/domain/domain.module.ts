@@ -10,6 +10,8 @@ import { ServiceDomainController } from './controllers/service-domain.controller
 // Services
 import { DomainVerificationService } from './services/domain-verification.service';
 import { DomainConflictService } from './services/domain-conflict.service';
+import { OrganizationDomainService } from './services/organization-domain.service';
+import { ServiceDomainMappingService } from './services/service-domain-mapping.service';
 
 // Repositories
 import { OrganizationDomainRepository } from './repositories/organization-domain.repository';
@@ -30,6 +32,8 @@ import { ServiceDomainMappingRepository } from './repositories/service-domain-ma
     // Services
     DomainVerificationService,
     DomainConflictService,
+    OrganizationDomainService,
+    ServiceDomainMappingService,
     
     // Repositories
     OrganizationDomainRepository,
@@ -40,6 +44,8 @@ import { ServiceDomainMappingRepository } from './repositories/service-domain-ma
     // Export services for use in other modules (e.g., ServiceContext, Deployment)
     DomainVerificationService,
     DomainConflictService,
+    OrganizationDomainService,
+    ServiceDomainMappingService,
     
     // Export repositories for use in other modules
     OrganizationDomainRepository,

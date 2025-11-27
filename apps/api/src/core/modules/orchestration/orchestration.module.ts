@@ -3,6 +3,8 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bull';
 import { CoreDeploymentModule } from '@/core/modules/deployment/deployment.module';
 import { ServiceModule } from '@/core/modules/service/service.module';
+import { DatabaseModule } from '@/core/modules/database/database.module';
+
 // Services
 import { SwarmOrchestrationService } from './services/swarm-orchestration.service';
 import { TraefikService } from './services/traefik.service';
@@ -14,6 +16,14 @@ import { SslCertificateService } from './services/ssl-certificate.service';
 import { ResourceMonitoringService } from './services/resource-monitoring.service';
 import { HealthCheckService } from './services/health-check.service';
 import { JobTrackingService } from './services/job-tracking.service';
+
+// Repositories
+import { SslCertificateRepository } from './repositories/ssl-certificate.repository';
+import { JobTrackingRepository } from './repositories/job-tracking.repository';
+import { ResourceMonitoringRepository } from './repositories/resource-monitoring.repository';
+import { HealthCheckRepository } from './repositories/health-check.repository';
+import { SwarmOrchestrationRepository } from './repositories/swarm-orchestration.repository';
+import { TraefikRepository } from './repositories/traefik.repository';
 
 /**
  * CORE MODULE: Orchestration Services
@@ -33,11 +43,20 @@ import { JobTrackingService } from './services/job-tracking.service';
  * - JobTrackingService: Deployment job tracking and history
  * - DeploymentQueueService: Bull queue service for deployments
  * 
+ * Repositories provided:
+ * - SslCertificateRepository: SSL certificate data access
+ * - JobTrackingRepository: Job tracking data access
+ * - ResourceMonitoringRepository: Resource metrics data access
+ * - HealthCheckRepository: Health check data access
+ * - SwarmOrchestrationRepository: Stack orchestration data access
+ * - TraefikRepository: Traefik configuration data access
+ * 
  * Controllers and Processors have been moved to OrchestrationControllerModule (feature module).
  */
 @Global()
 @Module({
     imports: [
+        DatabaseModule,  // Required for repositories
         ServiceModule,  // Import to provide ServiceService for DeploymentProcessor
         forwardRef(() => CoreDeploymentModule),  // Use forwardRef to break circular dependency
         BullModule.registerQueue({
@@ -58,6 +77,14 @@ import { JobTrackingService } from './services/job-tracking.service';
     providers: [
         GitService,
         FileUploadService,
+        // Repositories
+        SslCertificateRepository,
+        JobTrackingRepository,
+        ResourceMonitoringRepository,
+        HealthCheckRepository,
+        SwarmOrchestrationRepository,
+        TraefikRepository,
+        // Services
         SwarmOrchestrationService,
         TraefikService,
         ResourceAllocationService,
@@ -68,6 +95,14 @@ import { JobTrackingService } from './services/job-tracking.service';
         DeploymentQueueService,
     ],
     exports: [
+        // Repositories
+        SslCertificateRepository,
+        JobTrackingRepository,
+        ResourceMonitoringRepository,
+        HealthCheckRepository,
+        SwarmOrchestrationRepository,
+        TraefikRepository,
+        // Services
         SwarmOrchestrationService,
         TraefikService,
         ResourceAllocationService,

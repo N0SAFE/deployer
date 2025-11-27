@@ -1,8 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { eq, and } from 'drizzle-orm';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
-import { organizationDomains } from '@/config/drizzle/schema';
+import { OrganizationDomainService } from './organization-domain.service';
 import * as dns from 'dns/promises';
 import { randomBytes } from 'crypto';
 
@@ -28,7 +26,7 @@ export interface VerifyDomainResult {
 export class DomainVerificationService {
   private readonly logger = new Logger(DomainVerificationService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly organizationDomainService: OrganizationDomainService) {}
 
   /**
    * Generate a unique verification token for domain ownership
@@ -88,11 +86,7 @@ The verification will be checked automatically within an hour, or you can trigge
   async verifyDomain(domainId: string): Promise<VerifyDomainResult> {
     try {
       // Fetch domain details
-      const [orgDomain] = await this.databaseService.db
-        .select()
-        .from(organizationDomains)
-        .where(eq(organizationDomains.id, domainId))
-        .limit(1);
+      const orgDomain = await this.organizationDomainService.findById(domainId);
 
       if (!orgDomain) {
         return {
@@ -130,16 +124,13 @@ The verification will be checked automatically within an hour, or you can trigge
       // Update domain status
       if (verified) {
         const now = new Date();
-        await this.databaseService.db
-          .update(organizationDomains)
-          .set({
-            verificationStatus: 'verified',
-            verifiedAt: now,
-            dnsRecordChecked: true,
-            lastVerificationAttempt: now,
-            updatedAt: now,
-          })
-          .where(eq(organizationDomains.id, domainId));
+        await this.organizationDomainService.update(domainId, {
+          verificationStatus: 'verified',
+          verifiedAt: now,
+          dnsRecordChecked: true,
+          lastVerificationAttempt: now,
+          updatedAt: now,
+        });
 
         this.logger.log(`Domain verified successfully: ${orgDomain.domain}`);
 
@@ -151,15 +142,12 @@ The verification will be checked automatically within an hour, or you can trigge
         };
       } else {
         const now = new Date();
-        await this.databaseService.db
-          .update(organizationDomains)
-          .set({
-            verificationStatus: 'failed',
-            dnsRecordChecked: true,
-            lastVerificationAttempt: now,
-            updatedAt: now,
-          })
-          .where(eq(organizationDomains.id, domainId));
+        await this.organizationDomainService.update(domainId, {
+          verificationStatus: 'failed',
+          dnsRecordChecked: true,
+          lastVerificationAttempt: now,
+          updatedAt: now,
+        });
 
         return {
           success: false,
@@ -235,10 +223,7 @@ The verification will be checked automatically within an hour, or you can trigge
 
     try {
       // Get all pending domains
-      const pendingDomains = await this.databaseService.db
-        .select()
-        .from(organizationDomains)
-        .where(eq(organizationDomains.verificationStatus, 'pending'));
+      const pendingDomains = await this.organizationDomainService.findPendingDomains();
 
       this.logger.log(`Found ${pendingDomains.length} pending domains to verify`);
 
@@ -271,17 +256,8 @@ The verification will be checked automatically within an hour, or you can trigge
    * Get pending domains count
    */
   async getPendingDomainsCount(organizationId: string): Promise<number> {
-    const result = await this.databaseService.db
-      .select()
-      .from(organizationDomains)
-      .where(
-        and(
-          eq(organizationDomains.organizationId, organizationId),
-          eq(organizationDomains.verificationStatus, 'pending')
-        )
-      );
-
-    return result.length;
+    const domains = await this.organizationDomainService.findByOrganizationId(organizationId);
+    return domains.filter(d => d.verificationStatus === 'pending').length;
   }
 
   /**
@@ -289,15 +265,12 @@ The verification will be checked automatically within an hour, or you can trigge
    */
   async retryVerification(domainId: string): Promise<VerifyDomainResult> {
     // Reset status to pending before retrying
-    await this.databaseService.db
-      .update(organizationDomains)
-      .set({
-        verificationStatus: 'pending',
-        dnsRecordChecked: false,
-        updatedAt: new Date(),
-      })
-      .where(eq(organizationDomains.id, domainId));
+    await this.organizationDomainService.update(domainId, {
+      verificationStatus: 'pending',
+      updatedAt: new Date(),
+    });
 
-    return this.verifyDomain(domainId);
+    // Trigger verification
+    return await this.verifyDomain(domainId);
   }
 }

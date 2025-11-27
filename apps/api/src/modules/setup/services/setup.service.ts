@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '@/core/modules/database/services/database.service';
-import { user, organization, member } from '@/config/drizzle/schema';
-import { eq } from 'drizzle-orm';
+import { user } from '@/config/drizzle/schema';
 
 @Injectable()
 export class SetupService {

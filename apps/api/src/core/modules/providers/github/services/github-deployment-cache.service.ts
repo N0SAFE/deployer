@@ -1,7 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { eq, and, desc } from 'drizzle-orm';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
-import { deploymentCache } from '@/config/drizzle/schema';
+import { GithubDeploymentCacheRepository } from '@/core/modules/github/repositories/github-deployment-cache.repository';
 
 export interface CacheEntry {
   id: string;
@@ -37,7 +35,9 @@ export interface CreateCacheEntryInput {
 export class GithubDeploymentCacheService {
   private readonly logger = new Logger(GithubDeploymentCacheService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly cacheRepository: GithubDeploymentCacheRepository,
+  ) {}
 
   /**
    * Create a cache entry for a deployment
@@ -47,23 +47,20 @@ export class GithubDeploymentCacheService {
       `Creating cache entry for ${input.repositoryId}@${input.branch} - ${input.commitSha}`,
     );
 
-    const [entry] = await this.databaseService.db
-      .insert(deploymentCache)
-      .values({
-        projectId: input.projectId,
-        repositoryId: input.repositoryId,
-        branch: input.branch,
-        commitSha: input.commitSha,
-        commitMessage: input.commitMessage || null,
-        commitAuthor: input.commitAuthor || null,
-        commitDate: input.commitDate || null,
-        changedFiles: input.changedFiles,
-        deploymentId: input.deploymentId || null,
-        basePath: input.basePath || '/',
-        cacheStrategy: input.cacheStrategy || 'strict',
-        createdAt: new Date(),
-      })
-      .returning();
+    const entry = await this.cacheRepository.create({
+      projectId: input.projectId,
+      repositoryId: input.repositoryId,
+      branch: input.branch,
+      commitSha: input.commitSha,
+      commitMessage: input.commitMessage || null,
+      commitAuthor: input.commitAuthor || null,
+      commitDate: input.commitDate || null,
+      changedFiles: input.changedFiles,
+      deploymentId: input.deploymentId || null,
+      basePath: input.basePath || '/',
+      cacheStrategy: input.cacheStrategy || 'strict',
+      createdAt: new Date(),
+    });
 
     return entry as CacheEntry;
   }
@@ -76,18 +73,11 @@ export class GithubDeploymentCacheService {
     repositoryId: string,
     branch: string,
   ): Promise<CacheEntry | null> {
-    const [entry] = await this.databaseService.db
-      .select()
-      .from(deploymentCache)
-      .where(
-        and(
-          eq(deploymentCache.projectId, projectId),
-          eq(deploymentCache.repositoryId, repositoryId),
-          eq(deploymentCache.branch, branch),
-        ),
-      )
-      .orderBy(desc(deploymentCache.createdAt))
-      .limit(1);
+    const entry = await this.cacheRepository.findLatestByBranch(
+      projectId,
+      repositoryId,
+      branch,
+    );
 
     return (entry as CacheEntry) || null;
   }
@@ -100,16 +90,11 @@ export class GithubDeploymentCacheService {
     repositoryId: string,
     commitSha: string,
   ): Promise<CacheEntry | null> {
-    const [entry] = await this.databaseService.db
-      .select()
-      .from(deploymentCache)
-      .where(
-        and(
-          eq(deploymentCache.projectId, projectId),
-          eq(deploymentCache.repositoryId, repositoryId),
-          eq(deploymentCache.commitSha, commitSha),
-        ),
-      );
+    const entry = await this.cacheRepository.findByCommitSha(
+      projectId,
+      repositoryId,
+      commitSha,
+    );
 
     return (entry as CacheEntry) || null;
   }
@@ -193,10 +178,7 @@ export class GithubDeploymentCacheService {
    * Update cache entry with deployment ID
    */
   async updateDeploymentId(cacheEntryId: string, deploymentId: string): Promise<void> {
-    await this.databaseService.db
-      .update(deploymentCache)
-      .set({ deploymentId })
-      .where(eq(deploymentCache.id, cacheEntryId));
+    await this.cacheRepository.updateDeploymentId(cacheEntryId, deploymentId);
 
     this.logger.log(`Updated cache entry ${cacheEntryId} with deployment ${deploymentId}`);
   }
@@ -205,11 +187,7 @@ export class GithubDeploymentCacheService {
    * Get all cache entries for a project
    */
   async getCacheEntriesByProject(projectId: string): Promise<CacheEntry[]> {
-    const entries = await this.databaseService.db
-      .select()
-      .from(deploymentCache)
-      .where(eq(deploymentCache.projectId, projectId))
-      .orderBy(desc(deploymentCache.createdAt));
+    const entries = await this.cacheRepository.findByProjectId(projectId);
 
     return entries as CacheEntry[];
   }
@@ -224,16 +202,10 @@ export class GithubDeploymentCacheService {
     oldestEntry: Date | null;
     newestEntry: Date | null;
   }> {
-    const entries = await this.databaseService.db
-      .select()
-      .from(deploymentCache)
-      .where(
-        and(
-          eq(deploymentCache.projectId, projectId),
-          eq(deploymentCache.repositoryId, repositoryId),
-        ),
-      )
-      .orderBy(desc(deploymentCache.createdAt));
+    const entries = await this.cacheRepository.findByRepository(
+      projectId,
+      repositoryId,
+    );
 
     const branches = [...new Set(entries.map((e) => e.branch))];
     const latestCommit = entries.length > 0 ? entries[0].commitSha : null;
@@ -257,16 +229,10 @@ export class GithubDeploymentCacheService {
     repositoryId: string,
     keepPerBranch: number = 10,
   ): Promise<number> {
-    const entries = await this.databaseService.db
-      .select()
-      .from(deploymentCache)
-      .where(
-        and(
-          eq(deploymentCache.projectId, projectId),
-          eq(deploymentCache.repositoryId, repositoryId),
-        ),
-      )
-      .orderBy(desc(deploymentCache.createdAt));
+    const entries = await this.cacheRepository.findByRepository(
+      projectId,
+      repositoryId,
+    );
 
     // Group by branch
     const entriesByBranch = entries.reduce(
@@ -292,9 +258,7 @@ export class GithubDeploymentCacheService {
 
     // Delete old entries
     if (toDelete.length > 0) {
-      for (const id of toDelete) {
-        await this.databaseService.db.delete(deploymentCache).where(eq(deploymentCache.id, id));
-      }
+      await this.cacheRepository.deleteMany(toDelete);
 
       this.logger.log(
         `Cleaned up ${toDelete.length} old cache entries for ${repositoryId}`,
@@ -312,15 +276,7 @@ export class GithubDeploymentCacheService {
     repositoryId: string,
     branch: string,
   ): Promise<void> {
-    await this.databaseService.db
-      .delete(deploymentCache)
-      .where(
-        and(
-          eq(deploymentCache.projectId, projectId),
-          eq(deploymentCache.repositoryId, repositoryId),
-          eq(deploymentCache.branch, branch),
-        ),
-      );
+    await this.cacheRepository.deleteByBranch(projectId, repositoryId, branch);
 
     this.logger.log(`Deleted all cache entries for ${repositoryId}@${branch}`);
   }

@@ -4,6 +4,12 @@ import { GithubProviderService } from "./github-provider.service";
 import { GithubRepositoryConfigService } from './services/github-repository-config.service';
 import { GithubChangeDetectionService } from './services/github-change-detection.service';
 import { GithubDeploymentCacheService } from './services/github-deployment-cache.service';
+import { GithubDeploymentRulesService } from './services/github-deployment-rules.service';
+import { GithubDeploymentRulesDataService } from './services/github-deployment-rules-data.service';
+import { GithubRepositoryConfigRepository } from '@/core/modules/github/repositories/github-repository-config.repository';
+import { GithubDeploymentRulesRepository } from '@/core/modules/github/repositories/github-deployment-rules.repository';
+import { GithubDeploymentCacheRepository } from '@/core/modules/github/repositories/github-deployment-cache.repository';
+import { GithubProviderRepository } from './repositories/github-provider.repository';
 
 /**
  * GitHub Provider Module
@@ -33,12 +39,24 @@ import { GithubDeploymentCacheService } from './services/github-deployment-cache
     GithubRepositoryConfigService,
     GithubChangeDetectionService,
     GithubDeploymentCacheService,
+    GithubDeploymentRulesService,
+    GithubDeploymentRulesDataService,
+    GithubProviderRepository,
+    GithubRepositoryConfigRepository,
+    GithubDeploymentRulesRepository,
+    GithubDeploymentCacheRepository,
   ],
   exports: [
     GithubProviderService,
     GithubRepositoryConfigService,
     GithubChangeDetectionService,
     GithubDeploymentCacheService,
+    GithubDeploymentRulesService,
+    GithubDeploymentRulesDataService,
+    GithubProviderRepository,
+    GithubRepositoryConfigRepository,
+    GithubDeploymentRulesRepository,
+    GithubDeploymentCacheRepository,
   ],
 })
 export class GitHubProviderModule {}

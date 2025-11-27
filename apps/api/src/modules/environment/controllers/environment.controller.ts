@@ -2,15 +2,15 @@ import { Controller, Logger } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { environmentContract } from '@repo/api-contracts';
 import { EnvironmentService } from '@/modules/environment/services/environment.service';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
-import { projects } from '@/config/drizzle/schema';
-import { eq } from 'drizzle-orm';
+import { IdentifierResolverService } from '@/core/modules/identifier-resolver/services/identifier-resolver.service';
+
 @Controller()
 export class EnvironmentController {
     private readonly logger = new Logger(EnvironmentController.name);
+
     constructor(
         private readonly environmentService: EnvironmentService,
-        private readonly databaseService: DatabaseService
+        private readonly identifierResolver: IdentifierResolverService,
     ) { }
     // Helper to transform database environment to contract format
     private transformEnvironment(env: any) {
@@ -87,23 +87,7 @@ export class EnvironmentController {
     }
 
     private async resolveProjectId(projectId: string): Promise<string> {
-        // Check if it's already a UUID (basic format check)
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        
-        if (uuidRegex.test(projectId)) {
-            // It's already a UUID, return as-is
-            return projectId;
-        }
-        
-        // It's a slug/name, resolve to UUID
-        const db = this.databaseService.db;
-        const project = await db.select().from(projects).where(eq(projects.name, projectId)).limit(1);
-        
-        if (!project || project.length === 0) {
-            throw new Error(`Project not found: ${projectId}`);
-        }
-        
-        return project[0].id;
+        return this.identifierResolver.resolveProjectId(projectId);
     }
 
     @Implement(environmentContract.list)

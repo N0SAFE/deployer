@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { eq, desc, and } from 'drizzle-orm';
-import { deployments, services } from '@/config/drizzle/schema';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
+import { DeploymentRepository } from '../repositories/deployment.repository';
+import { ServiceService } from '@/core/modules/service/services/service.service';
 import { DockerService } from '@/core/modules/docker/services/docker.service';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -19,7 +18,8 @@ export class DeploymentCleanupService {
     private readonly logger = new Logger(DeploymentCleanupService.name);
 
     constructor(
-        private readonly databaseService: DatabaseService,
+        private readonly deploymentRepository: DeploymentRepository,
+        private readonly serviceService: ServiceService,
         private readonly dockerService: DockerService,
     ) {}
 
@@ -31,11 +31,7 @@ export class DeploymentCleanupService {
 
         try {
             // Get service configuration
-            const [service] = await this.databaseService.db
-                .select()
-                .from(services)
-                .where(eq(services.id, serviceId))
-                .limit(1);
+            const service = await this.serviceService.getService(serviceId);
 
             if (!service) {
                 throw new Error(`Service ${serviceId} not found`);
@@ -64,23 +60,21 @@ export class DeploymentCleanupService {
             const keepArtifacts = retentionPolicy.keepArtifacts !== false;
 
             // Get all successful deployments, sorted by creation date (newest first)
-            const successfulDeployments = await this.databaseService.db
-                .select({
-                    id: deployments.id,
-                    containerName: deployments.containerName,
-                    containerImage: deployments.containerImage,
-                    createdAt: deployments.createdAt,
-                    builder: services.builderId,
-                })
-                .from(deployments)
-                .innerJoin(services, eq(deployments.serviceId, services.id))
-                .where(
-                    and(
-                        eq(deployments.serviceId, serviceId),
-                        eq(deployments.status, 'success')
-                    )
-                )
-                .orderBy(desc(deployments.createdAt));
+            const { deployments: successfulDeploymentsData } = await this.deploymentRepository.findMany({
+                serviceId,
+                status: 'success',
+                limit: 1000, // Large limit to get all successful deployments
+                offset: 0,
+            });
+
+            // Map to include builder info from service
+            const successfulDeployments = successfulDeploymentsData.map(deployment => ({
+                id: deployment.id,
+                containerName: deployment.containerName,
+                containerImage: deployment.containerImage,
+                createdAt: deployment.createdAt,
+                builder: service.builderId,
+            }));
 
             // If we have fewer or equal to maxDeployments, nothing to clean
             if (successfulDeployments.length <= maxDeployments) {
@@ -119,9 +113,7 @@ export class DeploymentCleanupService {
                     );
 
                     // Delete deployment record from database
-                    await this.databaseService.db
-                        .delete(deployments)
-                        .where(eq(deployments.id, deployment.id));
+                    await this.deploymentRepository.delete(deployment.id);
 
                     deletedIds.push(deployment.id);
                     this.logger.log(`Deleted deployment: ${deployment.id}`);
@@ -243,9 +235,7 @@ export class DeploymentCleanupService {
 
         try {
             // Get all services
-            const allServices = await this.databaseService.db
-                .select({ id: services.id })
-                .from(services);
+            const allServices = await this.serviceService.findAll();
 
             const results: CleanupResult[] = [];
 
@@ -292,11 +282,7 @@ export class DeploymentCleanupService {
         }>;
     }> {
         // Get service configuration
-        const [service] = await this.databaseService.db
-            .select()
-            .from(services)
-            .where(eq(services.id, serviceId))
-            .limit(1);
+        const service = await this.serviceService.getService(serviceId);
 
         if (!service) {
             throw new Error(`Service ${serviceId} not found`);
@@ -305,20 +291,12 @@ export class DeploymentCleanupService {
         const maxDeployments = service.deploymentRetention?.maxSuccessfulDeployments || 5;
 
         // Get all successful deployments
-        const successfulDeployments = await this.databaseService.db
-            .select({
-                id: deployments.id,
-                containerName: deployments.containerName,
-                createdAt: deployments.createdAt,
-            })
-            .from(deployments)
-            .where(
-                and(
-                    eq(deployments.serviceId, serviceId),
-                    eq(deployments.status, 'success')
-                )
-            )
-            .orderBy(desc(deployments.createdAt));
+        const { deployments: successfulDeployments } = await this.deploymentRepository.findMany({
+            serviceId,
+            status: 'success',
+            limit: 1000, // Large limit to get all successful deployments
+            offset: 0,
+        });
 
         const deploymentsToKeep = successfulDeployments.slice(0, maxDeployments);
         const deploymentsToDelete = successfulDeployments.slice(maxDeployments);

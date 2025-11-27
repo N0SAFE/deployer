@@ -420,7 +420,7 @@ This change is **backward compatible**:
 
 - [Deployment Retention System](./DEPLOYMENT-RETENTION.md)
 - [Deployment Health Rules](./DEPLOYMENT-HEALTH-RULES.md)
-- [API Contracts - ORPC](../../reference/ORPC-TYPE-CONTRACTS.md)
+- [API Contracts - ORPC](../../core-concepts/09-ORPC-IMPLEMENTATION-PATTERN.md)
 
 ## Summary
 

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { EnvModule } from '@/config/env/env.module';
 import { DatabaseModule } from '@/core/modules/database/database.module';
 import { AuthModule } from '@/core/modules/auth/auth.module';
@@ -15,7 +15,7 @@ import { DATABASE_CONNECTION } from '@/core/modules/database/tokens/database-con
   imports: [
     EnvModule,
     DatabaseModule,
-    CoreModule,
+    forwardRef(() => CoreModule),
     TraefikCoreModule,
     AuthModule.forRootAsync({
       imports: [DatabaseModule, EnvModule],

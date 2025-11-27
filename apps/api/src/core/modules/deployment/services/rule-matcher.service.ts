@@ -1,8 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
-import { githubRepositoryConfigs, githubDeploymentRules } from '@/config/drizzle/schema/github-provider';
-import { services } from '@/config/drizzle/schema';
-import { eq, and } from 'drizzle-orm';
+import { GithubRepositoryConfigService } from '@/core/modules/providers/github/services/github-repository-config.service';
+import { GithubDeploymentRulesService } from '@/core/modules/providers/github/services/github-deployment-rules.service';
+import { ServiceService } from '@/core/modules/service/services/service.service';
 import { EnhancedDeploymentRulesService } from './enhanced-deployment-rules.service';
 import { CustomConditionRegistry } from './custom-condition-registry.service';
 
@@ -10,7 +9,9 @@ import { CustomConditionRegistry } from './custom-condition-registry.service';
 export class RuleMatcherService {
   private readonly logger = new Logger(RuleMatcherService.name);
   constructor(
-    private readonly db: DatabaseService,
+    private readonly githubConfigService: GithubRepositoryConfigService,
+    private readonly githubRulesService: GithubDeploymentRulesService,
+    private readonly serviceService: ServiceService,
     private readonly enhanced: EnhancedDeploymentRulesService,
     private readonly customRegistry: CustomConditionRegistry,
   ) {}
@@ -24,42 +25,43 @@ export class RuleMatcherService {
     const repoId = event.repository?.id?.toString();
     const repoFull = event.repository?.full_name;
 
-    const configs = await this.db.db
-      .select()
-      .from(githubRepositoryConfigs)
-      .where(repoId ? eq(githubRepositoryConfigs.repositoryId, repoId) : eq(githubRepositoryConfigs.repositoryFullName, repoFull))
-      .limit(1);
+    const config = await this.githubConfigService.findByRepositoryIdOrFullName(repoId, repoFull);
 
-    if (!configs || configs.length === 0) {
+    if (!config) {
       return [];
     }
-    const config = configs[0];
 
     // Find rules for this project and event
-    const rules = await this.db.db
-      .select()
-      .from(githubDeploymentRules)
-      .where(and(eq(githubDeploymentRules.projectId, config.projectId), eq(githubDeploymentRules.event, event.action || event.type || 'push')));
+    const rules = await this.githubRulesService.findByProjectId(
+      config.projectId
+    );
+    
+    // Filter by event type
+    const eventType = event.action || event.type || 'push';
+    const filteredRules = rules.filter((rule: any) => 
+      !rule.eventType || rule.eventType === eventType
+    );
 
     const matches: Array<any> = [];
-    for (const rule of rules) {
+    for (const rule of filteredRules) {
       // Resolve target service in multiple ways
       let svc: any = null;
       if ((rule as any).metadata?.targetServiceId || (rule as any).targetServiceId) {
         const svcId = (rule as any).metadata?.targetServiceId || (rule as any).targetServiceId;
-        const found = await this.db.db.select().from(services).where(eq(services.id, svcId)).limit(1);
-        if (found && found.length > 0) svc = found[0];
+        // Use getServiceById
+        svc = await this.serviceService.getServiceById(svcId);
       }
 
       if (!svc && (rule as any).metadata?.targetServiceName) {
-        const found = await this.db.db.select().from(services).where(and(eq(services.name, (rule as any).metadata.targetServiceName), eq(services.projectId, config.projectId))).limit(1);
-        if (found && found.length > 0) svc = found[0];
+        // Get all services for project and find by name
+        const services = await this.serviceService.findByProject(config.projectId);
+        svc = services.find((s: any) => s.name === (rule as any).metadata.targetServiceName) || null;
       }
 
       // Fallback: first service in project
       if (!svc) {
-        const found = await this.db.db.select().from(services).where(eq(services.projectId, config.projectId)).limit(1);
-        if (found && found.length > 0) svc = found[0];
+        const services = await this.serviceService.findByProject(config.projectId, 1);
+        if (services && services.length > 0) svc = services[0];
       }
 
       // As last resort synthesize minimal service object

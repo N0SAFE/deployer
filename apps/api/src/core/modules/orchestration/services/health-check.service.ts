@@ -2,18 +2,9 @@ import { Injectable, Logger } from "@nestjs/common";
 import { InjectQueue } from "@nestjs/bull";
 import type { Queue } from "bull";
 import { Cron, CronExpression } from "@nestjs/schedule";
-import {
-  orchestrationStacks,
-  serviceInstances,
-} from "@/config/drizzle/schema/orchestration";
-import {
-  stackMetrics,
-  resourceAlerts,
-} from "@/config/drizzle/schema/resource-monitoring";
-import { eq, and, desc, gte } from "drizzle-orm";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
 import axios, { type AxiosResponse } from "axios";
-import { DatabaseService } from "@/core/modules/database/services/database.service";
+import { HealthCheckRepository } from '../repositories/health-check.repository';
 export interface HealthCheckResult {
   stackId: string;
   serviceId?: string;
@@ -70,7 +61,7 @@ export class HealthCheckService {
     },
   };
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly healthCheckRepository: HealthCheckRepository,
     @InjectQueue("deployment")
     private deploymentQueue: Queue,
     private readonly dockerService: DockerService
@@ -83,20 +74,14 @@ export class HealthCheckService {
     try {
       this.logger.log("Starting health checks");
       // Get all active stacks
-      const activeStacks = await this.databaseService.db
-        .select()
-        .from(orchestrationStacks)
-        .where(eq(orchestrationStacks.status, "running"));
+      const activeStacks = await this.healthCheckRepository.findActiveStacks();
       let totalChecks = 0;
       let healthyServices = 0;
       let unhealthyServices = 0;
       for (const stack of activeStacks) {
         try {
           // Get services for this stack
-          const services = await this.databaseService.db
-            .select()
-            .from(serviceInstances)
-            .where(eq(serviceInstances.stackId, stack.id));
+          const services = await this.healthCheckRepository.findServicesByStackId(stack.id);
           // Perform health checks for each service
           for (const service of services) {
             const healthCheckConfig = this.extractHealthCheckConfig(service);
@@ -287,7 +272,7 @@ export class HealthCheckService {
   ): Promise<void> {
     try {
       // Store as a metric entry
-      await this.databaseService.db.insert(stackMetrics).values({
+      await this.healthCheckRepository.insertStackMetric({
         stackId: result.stackId,
         serviceId: result.serviceId,
         timestamp: result.timestamp,
@@ -311,19 +296,11 @@ export class HealthCheckService {
         },
       });
       // Update service health status in service_instances table
-      await this.databaseService.db
-        .update(serviceInstances)
-        .set({
-          healthStatus:
-            result.status === "healthy"
-              ? "healthy"
-              : result.status === "timeout"
-                ? "starting"
-                : "unhealthy",
-          lastHealthCheck: result.timestamp,
-          updatedAt: new Date(),
-        })
-        .where(eq(serviceInstances.id, result.serviceId!));
+      await this.healthCheckRepository.updateServiceHealth(
+        result.serviceId!,
+        result.status,
+        result
+      );
     } catch (error) {
       this.logger.error(
         `Failed to store health check result for ${result.serviceName}:`,
@@ -341,26 +318,19 @@ export class HealthCheckService {
         return;
       }
       // Check if we already have a recent alert for this service
-      const recentAlerts = await this.databaseService.db
-        .select()
-        .from(resourceAlerts)
-        .where(
-          and(
-            eq(resourceAlerts.stackId, result.stackId),
-            eq(resourceAlerts.serviceId, result.serviceId!),
-            eq(resourceAlerts.alertType, "health"),
-            eq(resourceAlerts.isResolved, false),
-            gte(resourceAlerts.createdAt, new Date(Date.now() - 5 * 60 * 1000)) // Last 5 minutes
-          )
-        )
-        .limit(1);
-      if (recentAlerts.length > 0) {
+      const recentAlert = await this.healthCheckRepository.findRecentServiceHealthAlert(
+        result.stackId,
+        result.serviceId!,
+        'health',
+        5
+      );
+      if (recentAlert) {
         return; // Don't spam alerts
       }
       // Determine severity based on status
       const severity = result.status === "error" ? "critical" : "warning";
       // Create alert
-      await this.databaseService.db.insert(resourceAlerts).values({
+      await this.healthCheckRepository.insertAlert({
         stackId: result.stackId,
         serviceId: result.serviceId,
         alertType: "health",
@@ -410,17 +380,8 @@ export class HealthCheckService {
    */
   private async updateStackHealthStatus(stackId: string): Promise<void> {
     try {
-      // Get recent health checks for all services in the stack
-      const recentHealthChecks = await this.databaseService.db
-        .select()
-        .from(stackMetrics)
-        .where(
-          and(
-            eq(stackMetrics.stackId, stackId),
-            gte(stackMetrics.timestamp, new Date(Date.now() - 5 * 60 * 1000)) // Last 5 minutes
-          )
-        )
-        .orderBy(desc(stackMetrics.timestamp));
+            // Get recent health checks for all services in the stack
+      const recentHealthChecks = await this.healthCheckRepository.findRecentHealthChecksByStack(stackId, 5);
       if (recentHealthChecks.length === 0) {
         return;
       }
@@ -458,21 +419,12 @@ export class HealthCheckService {
           stackHealthStatus = "unhealthy";
         }
       }
-      // Update stack record with health status
-      await this.databaseService.db
-        .update(orchestrationStacks)
-        .set({
-          lastHealthCheck: new Date(),
-          updatedAt: new Date(),
-          currentResources: {
-            healthStatus: stackHealthStatus,
-            healthyServices: healthyCount,
-            totalServices: totalCount,
-            healthPercentage:
-              totalCount > 0 ? (healthyCount / totalCount) * 100 : 0,
-          } as any,
-        })
-        .where(eq(orchestrationStacks.id, stackId));
+      // Update stack health status
+      await this.healthCheckRepository.updateStackHealth(stackId, stackHealthStatus, {
+        healthyServices: healthyCount,
+        totalServices: totalCount,
+        healthPercentage: totalCount > 0 ? (healthyCount / totalCount) * 100 : 0,
+      } as any);
     } catch (error) {
       this.logger.error(
         `Failed to update stack health status for ${stackId}:`,
@@ -488,26 +440,12 @@ export class HealthCheckService {
   ): Promise<ServiceHealthSummary | null> {
     try {
       // Get service details
-      const [service] = await this.databaseService.db
-        .select()
-        .from(serviceInstances)
-        .where(eq(serviceInstances.id, serviceId))
-        .limit(1);
+      const service = await this.healthCheckRepository.findServiceById(serviceId);
       if (!service) {
         return null;
       }
-      // Get health checks from last 24 hours
-      const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const healthChecks = await this.databaseService.db
-        .select()
-        .from(stackMetrics)
-        .where(
-          and(
-            eq(stackMetrics.serviceId, serviceId),
-            gte(stackMetrics.timestamp, last24h)
-          )
-        )
-        .orderBy(desc(stackMetrics.timestamp));
+      // Get health checks from last 24 hours (1440 minutes)
+      const healthChecks = await this.healthCheckRepository.findRecentHealthChecksByService(serviceId, 1440);
       const healthCheckResults = healthChecks.filter(
         (check) => check.metadata?.type === "health-check"
       );
@@ -586,10 +524,7 @@ export class HealthCheckService {
   async getStackHealthOverview(stackId: string): Promise<any> {
     try {
       // Get all services in the stack
-      const services = await this.databaseService.db
-        .select()
-        .from(serviceInstances)
-        .where(eq(serviceInstances.stackId, stackId));
+      const services = await this.healthCheckRepository.findServicesByStackId(stackId);
       const healthSummaries = await Promise.all(
         services.map((service) => this.getServiceHealthSummary(service.id))
       );
@@ -666,19 +601,11 @@ export class HealthCheckService {
   async triggerHealthCheck(serviceId: string): Promise<HealthCheckResult> {
     try {
       // Get service and stack details
-      const [service] = await this.databaseService.db
-        .select()
-        .from(serviceInstances)
-        .where(eq(serviceInstances.id, serviceId))
-        .limit(1);
+      const service = await this.healthCheckRepository.findServiceById(serviceId);
       if (!service) {
         throw new Error(`Service ${serviceId} not found`);
       }
-      const [stack] = await this.databaseService.db
-        .select()
-        .from(orchestrationStacks)
-        .where(eq(orchestrationStacks.id, service.stackId))
-        .limit(1);
+      const stack = await this.healthCheckRepository.findStackByServiceId(serviceId);
       if (!stack) {
         throw new Error(`Stack ${service.stackId} not found`);
       }
@@ -710,35 +637,16 @@ export class HealthCheckService {
       this.logger.log(
         "Checking for recovered services to resolve health alerts"
       );
-      // Get active health alerts
-      const activeHealthAlerts = await this.databaseService.db
-        .select()
-        .from(resourceAlerts)
-        .where(
-          and(
-            eq(resourceAlerts.alertType, "health"),
-            eq(resourceAlerts.isResolved, false)
-          )
-        );
+      // Get active health alerts (filter by type='health' and isResolved=false)
+      const activeHealthAlerts = await this.healthCheckRepository.findAllActiveHealthAlerts();
       let resolvedCount = 0;
       for (const alert of activeHealthAlerts) {
         try {
-          // Check recent health status for this service
-          const recentHealthChecks = await this.databaseService.db
-            .select()
-            .from(stackMetrics)
-            .where(
-              and(
-                eq(stackMetrics.stackId, alert.stackId),
-                eq(stackMetrics.serviceId, alert.serviceId!),
-                gte(
-                  stackMetrics.timestamp,
-                  new Date(Date.now() - 5 * 60 * 1000)
-                ) // Last 5 minutes
-              )
-            )
-            .orderBy(desc(stackMetrics.timestamp))
-            .limit(3);
+          // Check recent health status for this service (last 5 minutes)
+          const recentHealthChecks = await this.healthCheckRepository.findRecentHealthChecksByService(
+            alert.serviceId!,
+            5  // 5 minutes
+          );
           const healthyChecks = recentHealthChecks.filter(
             (check) =>
               check.metadata?.type === "health-check" &&
@@ -746,14 +654,8 @@ export class HealthCheckService {
           );
           // If we have 2 or more consecutive healthy checks, resolve the alert
           if (healthyChecks.length >= 2) {
-            await this.databaseService.db
-              .update(resourceAlerts)
-              .set({
-                isResolved: true,
-                resolvedAt: new Date(),
-                updatedAt: new Date(),
-              })
-              .where(eq(resourceAlerts.id, alert.id));
+            // Use repository to resolve individual alert
+            await this.healthCheckRepository.resolveHealthAlerts(alert.serviceId!);
             resolvedCount++;
             this.logger.log(
               `Resolved health alert for service in stack ${alert.stackId}`

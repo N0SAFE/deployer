@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { eq, and } from 'drizzle-orm';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
+import { GithubRepositoryConfigRepository } from '@/core/modules/github/repositories/github-repository-config.repository';
 import { githubRepositoryConfigs } from '@/config/drizzle/schema';
 
 export interface CreateRepositoryConfigInput {
@@ -37,114 +36,91 @@ export interface UpdateRepositoryConfigInput {
 
 @Injectable()
 export class GithubRepositoryConfigService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly configRepository: GithubRepositoryConfigRepository,
+  ) {}
 
   /**
    * Create a new repository configuration
    */
   async create(input: CreateRepositoryConfigInput) {
-    const [config] = await this.databaseService.db
-      .insert(githubRepositoryConfigs)
-      .values({
-        projectId: input.projectId,
-        githubAppId: input.githubAppId,
-        repositoryId: input.repositoryId,
-        repositoryFullName: input.repositoryFullName,
-        basePath: input.basePath || '/',
-        watchPaths: input.watchPaths || [],
-        ignorePaths: input.ignorePaths || [],
-        cacheStrategy: input.cacheStrategy || 'strict',
-        autoDeployEnabled: input.autoDeployEnabled ?? true,
-        deploymentStrategy: input.deploymentStrategy || 'standard',
-        customStrategyScript: input.customStrategyScript,
-        previewDeploymentsEnabled: input.previewDeploymentsEnabled ?? false,
-        previewBranchPattern: input.previewBranchPattern || '*',
-        previewAutoDelete: input.previewAutoDelete ?? true,
-        previewAutoDeleteAfterDays: input.previewAutoDeleteAfterDays || 7,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .returning();
-
-    return config;
+    return await this.configRepository.create({
+      projectId: input.projectId,
+      githubAppId: input.githubAppId,
+      repositoryId: input.repositoryId,
+      repositoryFullName: input.repositoryFullName,
+      basePath: input.basePath || '/',
+      watchPaths: input.watchPaths || [],
+      ignorePaths: input.ignorePaths || [],
+      cacheStrategy: input.cacheStrategy || 'strict',
+      autoDeployEnabled: input.autoDeployEnabled ?? true,
+      deploymentStrategy: input.deploymentStrategy || 'standard',
+      customStrategyScript: input.customStrategyScript,
+      previewDeploymentsEnabled: input.previewDeploymentsEnabled ?? false,
+      previewBranchPattern: input.previewBranchPattern || '*',
+      previewAutoDelete: input.previewAutoDelete ?? true,
+      previewAutoDeleteAfterDays: input.previewAutoDeleteAfterDays || 7,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
   }
 
   /**
    * Get repository configuration by ID
    */
   async findById(id: string) {
-    const [config] = await this.databaseService.db
-      .select()
-      .from(githubRepositoryConfigs)
-      .where(eq(githubRepositoryConfigs.id, id));
-
-    return config;
+    return await this.configRepository.findById(id);
   }
 
   /**
    * Get repository configuration by project ID
    */
   async findByProjectId(projectId: string) {
-    const configs = await this.databaseService.db
-      .select()
-      .from(githubRepositoryConfigs)
-      .where(eq(githubRepositoryConfigs.projectId, projectId));
-
-    return configs;
+    return await this.configRepository.findByProjectId(projectId);
   }
 
   /**
    * Get repository configuration by repository ID
    */
   async findByRepositoryId(repositoryId: string) {
-    const [config] = await this.databaseService.db
-      .select()
-      .from(githubRepositoryConfigs)
-      .where(eq(githubRepositoryConfigs.repositoryId, repositoryId));
-
-    return config;
+    return await this.configRepository.findByRepositoryId(repositoryId);
   }
 
   /**
    * Get repository configuration by project and repository
    */
   async findByProjectAndRepository(projectId: string, repositoryId: string) {
-    const [config] = await this.databaseService.db
-      .select()
-      .from(githubRepositoryConfigs)
-      .where(
-        and(
-          eq(githubRepositoryConfigs.projectId, projectId),
-          eq(githubRepositoryConfigs.repositoryId, repositoryId),
-        ),
-      );
+    return await this.configRepository.findByProjectAndRepository(
+      projectId,
+      repositoryId,
+    );
+  }
 
-    return config;
+  /**
+   * Find config by repository ID or full name
+   */
+  async findByRepositoryIdOrFullName(
+    repositoryId?: string,
+    fullName?: string
+  ) {
+    return await this.configRepository.findByRepositoryIdOrFullName(
+      repositoryId,
+      fullName,
+    );
   }
 
   /**
    * Update repository configuration
    */
   async update(id: string, input: UpdateRepositoryConfigInput) {
-    const [config] = await this.databaseService.db
-      .update(githubRepositoryConfigs)
-      .set({
-        ...input,
-        updatedAt: new Date(),
-      })
-      .where(eq(githubRepositoryConfigs.id, id))
-      .returning();
-
-    return config;
+    return await this.configRepository.update(id, input);
   }
 
   /**
    * Delete repository configuration
    */
   async delete(id: string) {
-    await this.databaseService.db
-      .delete(githubRepositoryConfigs)
-      .where(eq(githubRepositoryConfigs.id, id));
+    await this.configRepository.delete(id);
   }
 
   /**

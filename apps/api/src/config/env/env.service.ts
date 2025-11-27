@@ -23,6 +23,8 @@ export class EnvService {
     key: T,
     defaultValue?: D
   ): D extends undefined ? Env[T] : D {
+    console.log(`EnvService.get called for key: ${String(key)}`);
+    console.log('configService:', this.configService);
     if (!this.configService) {
       // Fallback to process.env if ConfigService is not available
       const value = process.env[key as string];

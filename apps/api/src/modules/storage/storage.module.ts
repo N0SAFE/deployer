@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { StorageController } from './controllers/storage.controller';
 import { UploadController } from './controllers/upload.controller';
 import { CoreModule } from '@/core/core.module';
@@ -22,7 +22,7 @@ import { StorageService } from '@/core/modules/storage/services/storage.service'
  */
 @Module({
     imports: [
-        CoreModule,
+        forwardRef(() => CoreModule),
         ProvidersModule,
     ],
     controllers: [StorageController, UploadController],

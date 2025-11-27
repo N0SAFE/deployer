@@ -3,10 +3,8 @@ import type { OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/comm
 import { Cron } from '@nestjs/schedule';
 import { DeploymentService } from './deployment.service';
 import { DockerService } from '@/core/modules/docker/services/docker.service';
-import { deployments, deploymentLogs } from '@/config/drizzle/schema';
-import { inArray, and, lt, sql } from 'drizzle-orm';
 import { DeploymentPhase } from '@/core/common/types/deployment-phase';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
+import { DeploymentRepository } from '../repositories/deployment.repository';
 
 /**
  * Deployment Health Monitor Service
@@ -47,7 +45,7 @@ export class DeploymentHealthMonitorService implements OnApplicationBootstrap, O
 
     constructor(
         private readonly deploymentService: DeploymentService,
-        private readonly databaseService: DatabaseService,
+        private readonly deploymentRepository: DeploymentRepository,
         private readonly dockerService: DockerService,
     ) {}
 
@@ -96,16 +94,12 @@ export class DeploymentHealthMonitorService implements OnApplicationBootstrap, O
             await this.checkStuckDeployments();
 
             // Get all active deployments (success or deploying)
-            // Also join with services to check if deployment has containers (exclude static sites)
-            const activeDeployments = await this.databaseService.db
-                .select({
-                    id: deployments.id,
-                    serviceId: deployments.serviceId,
-                    status: deployments.status,
-                    containerName: deployments.containerName,
-                })
-                .from(deployments)
-                .where(inArray(deployments.status, ['success', 'deploying']));
+            // Use repository to fetch deployments with containerized services
+            const { deployments: activeDeployments } = await this.deploymentRepository.findMany({
+                status: ['success', 'deploying'],
+                limit: 1000, // Large limit to get all active deployments
+                offset: 0,
+            });
 
             // Filter out deployments without containers (static sites)
             // Static deployments don't have Docker containers to monitor
@@ -162,19 +156,8 @@ export class DeploymentHealthMonitorService implements OnApplicationBootstrap, O
      */
     private async checkStuckDeployments(): Promise<void> {
         try {
-            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-            
-            const stuckDeployments = await this.databaseService.db
-                .select()
-                .from(deployments)
-                .where(
-                    and(
-                        inArray(deployments.status, ['building', 'deploying']),
-                        lt(deployments.phaseUpdatedAt, fiveMinutesAgo),
-                        sql`${deployments.phase} != ${DeploymentPhase.ACTIVE}`,
-                        sql`${deployments.phase} != ${DeploymentPhase.FAILED}`
-                    )
-                );
+            // Check for deployments stuck for more than 5 minutes
+            const stuckDeployments = await this.deploymentRepository.findStuckDeployments(5);
 
             this.stats.stuckDeployments = stuckDeployments.length;
 
@@ -274,8 +257,7 @@ export class DeploymentHealthMonitorService implements OnApplicationBootstrap, O
      */
     private async logRestartAction(deploymentId: string, restartResult: any): Promise<void> {
         try {
-            await this.databaseService.db.insert(deploymentLogs).values({
-                deploymentId,
+            await this.deploymentRepository.addLog(deploymentId, {
                 level: 'info',
                 message: `Automatic restart: ${restartResult.restartedContainers.length} containers restarted`,
                 service: 'health-monitor',
@@ -300,15 +282,14 @@ export class DeploymentHealthMonitorService implements OnApplicationBootstrap, O
     private async logMonitoringSummary(): Promise<void> {
         try {
             // Log a summary to the most recent deployment if there are issues
-            const recentDeployments = await this.databaseService.db
-                .select()
-                .from(deployments)
-                .where(inArray(deployments.status, ['success', 'deploying']))
-                .limit(1);
+            const { deployments: recentDeployments } = await this.deploymentRepository.findMany({
+                status: ['success', 'deploying'],
+                limit: 1,
+                offset: 0,
+            });
 
             if (recentDeployments.length > 0) {
-                await this.databaseService.db.insert(deploymentLogs).values({
-                    deploymentId: recentDeployments[0].id,
+                await this.deploymentRepository.addLog(recentDeployments[0].id, {
                     level: 'warn',
                     message: `Health monitoring summary: ${this.stats.degradedDeployments} degraded, ${this.stats.unhealthyDeployments} unhealthy, ${this.stats.stuckDeployments} stuck deployments detected`,
                     service: 'health-monitor',

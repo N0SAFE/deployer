@@ -18,9 +18,9 @@ import type {
 import type { BuilderResult } from '@/core/modules/builders/common/services/base-builder.service';
 import { TraefikVariableResolverService } from '@/core/modules/traefik/services/traefik-variable-resolver.service';
 import { TraefikConfigBuilder } from '@/core/modules/traefik/config-builder/builders';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
-import { services, projects, deployments } from '@/config/drizzle/schema';
-import { eq, desc } from 'drizzle-orm';
+import { ServiceService } from '@/core/modules/service/services/service.service';
+import { DeploymentService } from '@/core/modules/deployment/services/deployment.service';
+import { ProjectService } from '@/modules/project/services/project.service';
 import { ServiceContextService } from '@/core/modules/context/services/service-context.service';
 import type { ServiceContext } from '@/core/modules/context/types/service-context.types';
 
@@ -113,10 +113,13 @@ export class DeploymentOrchestrator {
     @Optional() private readonly staticBuilder?: StaticBuilderService,
     @Optional() private readonly composeBuilder?: DockerComposeBuilderService,
     @Optional() private readonly dockerService?: DockerService,
-    // Traefik and database services for routing
+    // Traefik and services for routing
     @Optional() private readonly traefikVariableResolver?: TraefikVariableResolverService,
-    @Optional() private readonly databaseService?: DatabaseService,
     @Optional() private readonly serviceContextService?: ServiceContextService,
+    // Required services for business logic
+    @Optional() private readonly serviceService?: ServiceService,
+    @Optional() private readonly deploymentService?: DeploymentService,
+    @Optional() private readonly projectService?: ProjectService,
   ) {
     // Auto-register all injected providers
     if (this.injectedProviders) {
@@ -700,42 +703,30 @@ export class DeploymentOrchestrator {
    * from the database via ServiceContextService, no need to pass them manually
    */
   private async buildServiceContext(serviceId: string): Promise<ServiceContext | null> {
-    if (!this.databaseService || !this.serviceContextService) {
-      this.logger.warn('Database or ServiceContext service not available');
+    if (!this.serviceService || !this.deploymentService || !this.projectService || !this.serviceContextService) {
+      this.logger.warn('Required repositories or ServiceContext service not available');
       return null;
     }
 
     try {
-      // Get service from database
-      const [service] = await this.databaseService.db
-        .select()
-        .from(services)
-        .where(eq(services.id, serviceId))
-        .limit(1);
+      // Get service from repository
+      const service = await this.serviceService.getService(serviceId);
 
       if (!service) {
         throw new Error(`Service ${serviceId} not found`);
       }
 
-      // Get latest deployment
-      const [latestDeployment] = await this.databaseService.db
-        .select()
-        .from(deployments)
-        .where(eq(deployments.serviceId, serviceId))
-        .orderBy(desc(deployments.createdAt))
-        .limit(1);
+      // Get latest deployment using repository
+      const recentDeployments = await this.deploymentService.findRecentByServiceId(serviceId, 1);
+      const latestDeployment = recentDeployments[0];
 
       if (!latestDeployment) {
         this.logger.warn('No deployment found for service');
         return null;
       }
 
-      // Get project info
-      const [project] = await this.databaseService.db
-        .select()
-        .from(projects)
-        .where(eq(projects.id, service.projectId))
-        .limit(1);
+      // Get project info from repository
+      const project = await this.projectService.findById(service.projectId);
 
       // Create service context - domain mappings are now fetched automatically from database
       const serviceContext = await this.serviceContextService.createServiceContext({
@@ -797,7 +788,7 @@ export class DeploymentOrchestrator {
   private async updateRouting(serviceId: string, _url: string): Promise<void> {
     this.logger.log(`Updating Traefik routing for service ${serviceId}`);
 
-    if (!this.databaseService || !this.traefikVariableResolver || !this.serviceContextService) {
+    if (!this.serviceService || !this.traefikVariableResolver || !this.serviceContextService) {
       this.logger.warn('Required services not available - skipping routing update');
       return;
     }
@@ -810,12 +801,8 @@ export class DeploymentOrchestrator {
         return;
       }
 
-      // Get service with traefik config from database
-      const [service] = await this.databaseService.db
-        .select()
-        .from(services)
-        .where(eq(services.id, serviceId))
-        .limit(1);
+      // Get service with traefik config from repository
+      const service = await this.serviceService.getService(serviceId);
 
       if (!service) {
         throw new Error(`Service ${serviceId} not found`);

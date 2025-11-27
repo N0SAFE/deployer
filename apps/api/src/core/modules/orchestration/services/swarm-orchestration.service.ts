@@ -2,20 +2,18 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { orchestrationStacks } from '@/config/drizzle/schema';
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { stringify } from 'yaml';
-import { eq } from 'drizzle-orm';
 import { DockerService } from '@/core/modules/docker/services/docker.service';
 import type { SwarmStackConfig, StackStatus } from '@repo/api-contracts/modules/orchestration';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
+import { SwarmOrchestrationRepository } from '../repositories/swarm-orchestration.repository';
 @Injectable()
 export class SwarmOrchestrationService {
     private readonly logger = new Logger(SwarmOrchestrationService.name);
     private readonly stacksDir = './docker-stacks';
     constructor(
-    private readonly databaseService: DatabaseService, 
+    private readonly swarmOrchestrationRepository: SwarmOrchestrationRepository,
     @InjectQueue('deployment')
     private readonly deploymentQueue: Queue,
     private readonly dockerService: DockerService) {
@@ -26,21 +24,12 @@ export class SwarmOrchestrationService {
     async monitorStacks() {
         this.logger.debug('Running stack monitoring...');
         try {
-            const activeStacks = await this.databaseService.db
-                .select()
-                .from(orchestrationStacks)
-                .where(eq(orchestrationStacks.status, 'running'));
+            const activeStacks = await this.swarmOrchestrationRepository.findActiveStacks();
             for (const stack of activeStacks) {
                 const status = await this.getStackStatus(stack.id);
                 if (status) {
                     // Update stack status in database
-                    await this.databaseService.db
-                        .update(orchestrationStacks)
-                        .set({
-                        status: status.status as any,
-                        updatedAt: new Date()
-                    })
-                        .where(eq(orchestrationStacks.id, stack.id));
+                    await this.swarmOrchestrationRepository.updateStackStatus(stack.id, status.status);
                 }
             }
         }
@@ -61,7 +50,7 @@ export class SwarmOrchestrationService {
                 domainMappings: stackConfig.domain ? { [stackName]: [stackConfig.domain] } : null,
                 status: 'creating' as any,
             };
-            const [stack] = await this.databaseService.db.insert(orchestrationStacks).values(insertData as any).returning();
+            const stack = await this.swarmOrchestrationRepository.createStack(insertData);
             // Queue deployment job
             await this.deploymentQueue.add('deploy-stack', {
                 stackId: stack.id,
@@ -80,56 +69,38 @@ export class SwarmOrchestrationService {
         try {
             this.logger.log(`Deploying stack: ${stackName}`);
             // Update status to deploying
-            await this.databaseService.db
-                .update(orchestrationStacks)
-                .set({ status: 'updating', updatedAt: new Date() })
-                .where(eq(orchestrationStacks.id, stackId));
+            await this.swarmOrchestrationRepository.updateStackStatus(stackId, 'updating');
             // Write compose file
             const composeFilePath = join(this.stacksDir, `${stackName}.yml`);
             writeFileSync(composeFilePath, stringify(composeConfig));
             // Deploy to Docker Swarm using Docker API
             await this.deployStackToSwarm(stackName, composeConfig);
             // Update status to running
-            await this.databaseService.db
-                .update(orchestrationStacks)
-                .set({ status: 'running', updatedAt: new Date() })
-                .where(eq(orchestrationStacks.id, stackId));
+            await this.swarmOrchestrationRepository.updateStackStatus(stackId, 'running');
             this.logger.log(`Stack ${stackName} deployed successfully`);
         }
         catch (error) {
             this.logger.error(`Failed to deploy stack ${stackName}:`, error);
             // Update status to error
-            await this.databaseService.db
-                .update(orchestrationStacks)
-                .set({ status: 'failed', updatedAt: new Date() })
-                .where(eq(orchestrationStacks.id, stackId));
+            await this.swarmOrchestrationRepository.updateStackStatus(stackId, 'failed');
             throw error;
         }
     }
     async removeStack(stackId: string): Promise<void> {
         try {
             // Get stack from database
-            const [stack] = await this.databaseService.db
-                .select()
-                .from(orchestrationStacks)
-                .where(eq(orchestrationStacks.id, stackId))
-                .limit(1);
+            const stack = await this.swarmOrchestrationRepository.findById(stackId);
             if (!stack) {
                 throw new Error(`Stack with ID ${stackId} not found`);
             }
             const stackName = stack.name;
             this.logger.log(`Removing stack: ${stackName}`);
             // Update status
-            await this.databaseService.db
-                .update(orchestrationStacks)
-                .set({ status: 'removing', updatedAt: new Date() })
-                .where(eq(orchestrationStacks.id, stackId));
+            await this.swarmOrchestrationRepository.updateStackStatus(stackId, 'removing');
             // Remove from Docker Swarm
             await this.removeStackFromSwarm(stackName);
             // Remove from database
-            await this.databaseService.db
-                .delete(orchestrationStacks)
-                .where(eq(orchestrationStacks.id, stackId));
+            await this.swarmOrchestrationRepository.deleteStack(stackId);
             this.logger.log(`Stack ${stackName} removed successfully`);
         }
         catch (error) {
@@ -140,11 +111,7 @@ export class SwarmOrchestrationService {
     async updateStack(stackId: string, request: any): Promise<void> {
         try {
             // Find the stack in database
-            const [stack] = await this.databaseService.db
-                .select()
-                .from(orchestrationStacks)
-                .where(eq(orchestrationStacks.id, stackId))
-                .limit(1);
+            const stack = await this.swarmOrchestrationRepository.findById(stackId);
             if (!stack) {
                 throw new Error(`Stack with ID ${stackId} not found`);
             }
@@ -153,41 +120,24 @@ export class SwarmOrchestrationService {
             if (request.composeConfig) {
                 this.logger.log(`Updating stack: ${stackName}`);
                 // Update status
-                await this.databaseService.db
-                    .update(orchestrationStacks)
-                    .set({ status: 'updating', updatedAt: new Date() })
-                    .where(eq(orchestrationStacks.id, stackId));
+                await this.swarmOrchestrationRepository.updateStackStatus(stackId, 'updating');
                 // Deploy updated stack
                 await this.deployStackToSwarm(stackName, request.composeConfig);
                 // Update database
-                await this.databaseService.db
-                    .update(orchestrationStacks)
-                    .set({
-                    composeConfig: request.composeConfig,
-                    status: 'running',
-                    updatedAt: new Date()
-                })
-                    .where(eq(orchestrationStacks.id, stackId));
+                await this.swarmOrchestrationRepository.updateStackConfig(stackId, request.composeConfig);
             }
         }
         catch (error) {
             this.logger.error(`Failed to update stack:`, error);
             // Update status to error
-            await this.databaseService.db
-                .update(orchestrationStacks)
-                .set({ status: 'failed', updatedAt: new Date() })
-                .where(eq(orchestrationStacks.id, stackId));
+            await this.swarmOrchestrationRepository.updateStackStatus(stackId, 'failed');
             throw error;
         }
     }
     async scaleServices(stackId: string, request: any): Promise<void> {
         try {
             // Find the stack
-            const [stack] = await this.databaseService.db
-                .select()
-                .from(orchestrationStacks)
-                .where(eq(orchestrationStacks.id, stackId))
-                .limit(1);
+            const stack = await this.swarmOrchestrationRepository.findById(stackId);
             if (!stack) {
                 throw new Error(`Stack with ID ${stackId} not found`);
             }
@@ -229,11 +179,7 @@ export class SwarmOrchestrationService {
     async getStackStatus(stackId: string): Promise<StackStatus | null> {
         try {
             // Get stack from database
-            const [stack] = await this.databaseService.db
-                .select()
-                .from(orchestrationStacks)
-                .where(eq(orchestrationStacks.id, stackId))
-                .limit(1);
+            const stack = await this.swarmOrchestrationRepository.findById(stackId);
             if (!stack) {
                 return null;
             }
@@ -298,15 +244,10 @@ export class SwarmOrchestrationService {
         this.logger.debug(`Listing stacks for project: ${projectId}`);
         try {
             // Get all stacks for the project from database
-            const stacks = await this.databaseService.db
-                .select()
-                .from(orchestrationStacks)
-                .where(eq(orchestrationStacks.projectId, projectId));
+            const stacks = await this.swarmOrchestrationRepository.findByProjectId(projectId);
             // Get current status for each stack
-            const stackStatuses = await Promise.all(stacks.map(async (stack) => {
-                const status = await this.getStackStatus(stack.id);
-                return status;
-            }));
+            const stack = stacks;
+            const stackStatuses = [await this.getStackStatus(stack.id)];
             // Filter out null statuses and return
             return stackStatuses.filter((status): status is StackStatus => status !== null);
         }

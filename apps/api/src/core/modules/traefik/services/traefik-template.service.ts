@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { eq, and } from 'drizzle-orm';
-import { DatabaseService } from '../../database/services/database.service';
+import { TraefikTemplateRepository } from '../repositories/traefik-template.repository';
 import {
   providerTraefikTemplates,
   serviceTraefikTemplates,
@@ -33,7 +32,9 @@ export interface ParsedTemplate {
 export class TraefikTemplateService {
   private readonly logger = new Logger(TraefikTemplateService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly traefikTemplateRepository: TraefikTemplateRepository,
+  ) {}
 
   /**
    * Parse template and replace variables with actual values
@@ -98,59 +99,35 @@ export class TraefikTemplateService {
    * Get provider template by type
    */
   async getProviderTemplate(providerType: string): Promise<ProviderTraefikTemplate | null> {
-    const db = this.databaseService.db;
-    
-    const [template] = await db
-      .select()
-      .from(providerTraefikTemplates)
-      .where(eq(providerTraefikTemplates.providerType, providerType))
-      .limit(1);
-    
-    return template || null;
+    return this.traefikTemplateRepository.findProviderByType(providerType);
   }
 
   /**
    * Get service template
    */
   async getServiceTemplate(serviceId: string): Promise<ServiceTraefikTemplate | null> {
-    const db = this.databaseService.db;
-    
-    const [template] = await db
-      .select()
-      .from(serviceTraefikTemplates)
-      .where(and(
-        eq(serviceTraefikTemplates.serviceId, serviceId),
-        eq(serviceTraefikTemplates.isActive, true)
-      ))
-      .limit(1);
-    
-    return template || null;
+    return this.traefikTemplateRepository.findActiveByServiceId(serviceId);
   }
 
   /**
    * Create provider template
    */
   async createProviderTemplate(data: CreateProviderTraefikTemplate): Promise<ProviderTraefikTemplate> {
-    const db = this.databaseService.db;
-    
     const id = data.id || nanoid();
     const extractedVars = this.extractVariables(data.templateContent);
     
     // Build variables metadata if not provided
     const variables = data.variables || this.buildVariablesMetadata(extractedVars);
     
-    const [template] = await db
-      .insert(providerTraefikTemplates)
-      .values({
-        id,
-        providerType: data.providerType,
-        templateName: data.templateName,
-        templateContent: data.templateContent,
-        description: data.description || null,
-        variables,
-        isDefault: data.isDefault ?? true,
-      })
-      .returning();
+    const template = await this.traefikTemplateRepository.createProviderTemplate({
+      id,
+      providerType: data.providerType,
+      templateName: data.templateName,
+      templateContent: data.templateContent,
+      description: data.description || null,
+      variables,
+      isDefault: data.isDefault ?? true,
+    });
     
     this.logger.log(`Created provider template for ${data.providerType}`);
     return template;
@@ -160,24 +137,19 @@ export class TraefikTemplateService {
    * Create service template
    */
   async createServiceTemplate(data: CreateServiceTraefikTemplate): Promise<ServiceTraefikTemplate> {
-    const db = this.databaseService.db;
-    
     const id = data.id || nanoid();
     const extractedVars = this.extractVariables(data.templateContent);
     
     // Build variables metadata if not provided
     const variables = data.variables || this.buildVariablesMetadata(extractedVars);
     
-    const [template] = await db
-      .insert(serviceTraefikTemplates)
-      .values({
-        id,
-        serviceId: data.serviceId,
-        templateContent: data.templateContent,
-        variables,
-        isActive: data.isActive ?? true,
-      })
-      .returning();
+    const template = await this.traefikTemplateRepository.createServiceTemplate({
+      id,
+      serviceId: data.serviceId,
+      templateContent: data.templateContent,
+      variables,
+      isActive: data.isActive ?? true,
+    });
     
     this.logger.log(`Created service template for service ${data.serviceId}`);
     return template;
@@ -190,8 +162,6 @@ export class TraefikTemplateService {
     id: string,
     updates: Partial<CreateServiceTraefikTemplate>,
   ): Promise<ServiceTraefikTemplate> {
-    const db = this.databaseService.db;
-    
     const updateData: any = {
       updatedAt: new Date(),
     };
@@ -207,11 +177,7 @@ export class TraefikTemplateService {
       updateData.isActive = updates.isActive;
     }
     
-    const [template] = await db
-      .update(serviceTraefikTemplates)
-      .set(updateData)
-      .where(eq(serviceTraefikTemplates.id, id))
-      .returning();
+    const template = await this.traefikTemplateRepository.updateServiceTemplate(id, updateData);
     
     this.logger.log(`Updated service template ${id}`);
     return template;

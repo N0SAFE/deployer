@@ -1,7 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { eq, and, ne, isNull } from 'drizzle-orm';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
-import { serviceDomainMappings, services } from '@/config/drizzle/schema';
+import { ServiceDomainMappingService } from './service-domain-mapping.service';
 
 export interface SubdomainConflict {
   serviceId: string;
@@ -24,7 +22,7 @@ export interface SubdomainAvailabilityResult {
 export class DomainConflictService {
   private readonly logger = new Logger(DomainConflictService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly serviceDomainMappingService: ServiceDomainMappingService) {}
 
   /**
    * Check if a subdomain + base path combination is available
@@ -36,29 +34,13 @@ export class DomainConflictService {
     excludeServiceId?: string
   ): Promise<SubdomainAvailabilityResult> {
     try {
-      // Build where conditions
-      const conditions = [
-        eq(serviceDomainMappings.projectDomainId, projectDomainId),
-        subdomain === null 
-          ? isNull(serviceDomainMappings.subdomain)
-          : eq(serviceDomainMappings.subdomain, subdomain),
-      ];
-
-      if (excludeServiceId) {
-        conditions.push(ne(serviceDomainMappings.serviceId, excludeServiceId));
-      }
-
       // Find all mappings for this project domain with same subdomain
-      const existingMappings = await this.databaseService.db
-        .select({
-          serviceId: serviceDomainMappings.serviceId,
-          serviceName: services.name,
-          subdomain: serviceDomainMappings.subdomain,
-          basePath: serviceDomainMappings.basePath,
-        })
-        .from(serviceDomainMappings)
-        .innerJoin(services, eq(services.id, serviceDomainMappings.serviceId))
-        .where(and(...conditions));
+      const existingMappings = await this.serviceDomainMappingService.findByProjectDomainAndPathWithServiceNames(
+        projectDomainId,
+        subdomain,
+        basePath,
+        excludeServiceId,
+      );
 
       // Check for exact match (same subdomain + same basePath)
       const exactMatch = existingMappings.find(m => m.basePath === basePath);

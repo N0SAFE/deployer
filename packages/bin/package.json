@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "bin": {
+    "analyze-imports": "./scripts/analyze-imports.ts"
+  },
   "scripts": {
     " ": " ",
     "test": "vitest run",
@@ -11,6 +14,9 @@
   },
   "keywords": [],
   "author": "",
+  "dependencies": {
+    "@typescript-eslint/typescript-estree": "^8.18.1"
+  },
   "devDependencies": {
     "@repo/vitest-config": "*",
     "vitest": "catalog:testing",

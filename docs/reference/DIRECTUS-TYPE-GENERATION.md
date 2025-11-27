@@ -7,7 +7,7 @@ This document has been replaced to avoid duplication.
 Please see the canonical docs:
 
 - Concept overview: ./concepts/orpc.md
-- Reference guide: ./ORPC-TYPE-CONTRACTS.md
+- Reference guide: ../core-concepts/09-ORPC-IMPLEMENTATION-PATTERN.md
 
 Why the change:
 - We now use a single source of truth for ORPC concepts and reference

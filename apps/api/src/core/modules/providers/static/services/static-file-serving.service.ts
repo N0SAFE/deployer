@@ -4,7 +4,7 @@ import { eq, and, desc } from "drizzle-orm";
 import * as fs from "fs-extra";
 import * as path from "path";
 import * as mime from "mime-types";
-import { DatabaseService } from "@/core/modules/database/services/database.service";
+import { StaticProviderRepository } from '../repositories/static-provider.repository';
 import { ConstantsService } from "@/core/modules/constants/services/constants.service";
 
 /**
@@ -44,7 +44,7 @@ export interface StaticServingConfig {
 export class StaticFileServingService {
   private readonly logger = new Logger(StaticFileServingService.name);
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly staticProviderRepository: StaticProviderRepository,
     private readonly constantsService: ConstantsService,
   ) {}
   /**
@@ -111,13 +111,9 @@ export class StaticFileServingService {
       // If serviceId not provided, attempt to lookup from deployments table
       let svcId = serviceId;
       if (!svcId) {
-        const row = await this.databaseService.db
-          .select({ id: deployments.id, serviceId: deployments.serviceId })
-          .from(deployments)
-          .where(eq(deployments.id, deploymentId))
-          .limit(1);
-        if (row && row.length) {
-          svcId = row[0].serviceId;
+        const row = await this.staticProviderRepository.findDeploymentWithServiceId(deploymentId);
+        if (row) {
+          svcId = row.serviceId;
         }
       }
       if (!svcId) {
@@ -371,26 +367,14 @@ export class StaticFileServingService {
    * Get service with latest deployment
    */
   private async getServiceWithLatestDeployment(serviceId: string) {
-    const result = await this.databaseService.db
-      .select({
-        service: services,
-        latestDeployment: {
-          id: deployments.id,
-          status: deployments.status,
-          deployCompletedAt: deployments.deployCompletedAt,
-        },
-      })
-      .from(services)
-      .leftJoin(deployments, eq(services.id, deployments.serviceId))
-      .where(and(eq(services.id, serviceId), eq(deployments.status, "success")))
-      .orderBy(desc(deployments.deployCompletedAt))
-      .limit(1);
-    if (!result.length) {
+    const result = await this.staticProviderRepository.findServiceWithLatestDeployment(serviceId);
+    
+    if (!result) {
       return null;
     }
+    
     return {
-      ...result[0].service,
-      latestDeployment: result[0].latestDeployment,
+      ...result,
       cacheConfig: { maxAge: 86400 }, // Default cache config
     };
   }

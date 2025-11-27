@@ -1,7 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { eq, and, desc } from 'drizzle-orm';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
-import { githubDeploymentRules } from '@/config/drizzle/schema';
+import { GithubDeploymentRulesDataService } from './github-deployment-rules-data.service';
 
 export interface PathCondition {
   include?: string[];
@@ -92,7 +90,7 @@ export interface RuleMatchResult {
 export class GithubDeploymentRulesService {
   private readonly logger = new Logger(GithubDeploymentRulesService.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly githubDeploymentRulesDataService: GithubDeploymentRulesDataService) {}
 
   /**
    * Create a new deployment rule
@@ -100,27 +98,24 @@ export class GithubDeploymentRulesService {
   async create(input: CreateDeploymentRuleInput): Promise<DeploymentRule> {
     this.logger.log(`Creating deployment rule: ${input.name}`);
 
-    const [rule] = await this.databaseService.db
-      .insert(githubDeploymentRules)
-      .values({
-        projectId: input.projectId,
-        name: input.name,
-        description: input.description || null,
-        priority: input.priority ?? 0,
-        isActive: input.isActive ?? true,
-        event: input.event,
-        branchPattern: input.branchPattern || null,
-        tagPattern: input.tagPattern || null,
-        pathConditions: input.pathConditions || null,
-        customCondition: input.customCondition || null,
-        action: input.action,
-        deploymentStrategy: input.deploymentStrategy || null,
-        customStrategyScript: input.customStrategyScript || null,
-        bypassCache: input.bypassCache ?? false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .returning();
+    const rule = await this.githubDeploymentRulesDataService.create({
+      projectId: input.projectId,
+      name: input.name,
+      description: input.description || null,
+      priority: input.priority ?? 0,
+      isActive: input.isActive ?? true,
+      event: input.event,
+      branchPattern: input.branchPattern || null,
+      tagPattern: input.tagPattern || null,
+      pathConditions: input.pathConditions || null,
+      customCondition: input.customCondition || null,
+      action: input.action,
+      deploymentStrategy: input.deploymentStrategy || null,
+      customStrategyScript: input.customStrategyScript || null,
+      bypassCache: input.bypassCache ?? false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      });
 
     return rule as DeploymentRule;
   }
@@ -129,11 +124,7 @@ export class GithubDeploymentRulesService {
    * Get rule by ID
    */
   async findById(id: string): Promise<DeploymentRule | null> {
-    const [rule] = await this.databaseService.db
-      .select()
-      .from(githubDeploymentRules)
-      .where(eq(githubDeploymentRules.id, id));
-
+    const rule = await this.githubDeploymentRulesDataService.findById(id);
     return (rule as DeploymentRule) || null;
   }
 
@@ -141,12 +132,7 @@ export class GithubDeploymentRulesService {
    * Get all rules for a project (ordered by priority)
    */
   async findByProjectId(projectId: string): Promise<DeploymentRule[]> {
-    const rules = await this.databaseService.db
-      .select()
-      .from(githubDeploymentRules)
-      .where(eq(githubDeploymentRules.projectId, projectId))
-      .orderBy(desc(githubDeploymentRules.priority));
-
+    const rules = await this.githubDeploymentRulesDataService.findByProjectId(projectId);
     return rules as DeploymentRule[];
   }
 
@@ -154,16 +140,7 @@ export class GithubDeploymentRulesService {
    * Get active rules for a project
    */
   async findActiveRules(projectId: string): Promise<DeploymentRule[]> {
-    const rules = await this.databaseService.db
-      .select()
-      .from(githubDeploymentRules)
-      .where(
-        and(
-          eq(githubDeploymentRules.projectId, projectId),
-          eq(githubDeploymentRules.isActive, true),
-        ),
-      )
-      .orderBy(desc(githubDeploymentRules.priority));
+    const rules = await this.githubDeploymentRulesDataService.findActiveByProjectId(projectId);
 
     return rules as DeploymentRule[];
   }
@@ -172,14 +149,10 @@ export class GithubDeploymentRulesService {
    * Update a deployment rule
    */
   async update(id: string, input: UpdateDeploymentRuleInput): Promise<DeploymentRule> {
-    const [rule] = await this.databaseService.db
-      .update(githubDeploymentRules)
-      .set({
-        ...input,
-        updatedAt: new Date(),
-      })
-      .where(eq(githubDeploymentRules.id, id))
-      .returning();
+    const rule = await this.githubDeploymentRulesDataService.update(id, {
+      ...input,
+      updatedAt: new Date(),
+    });
 
     return rule as DeploymentRule;
   }
@@ -188,9 +161,7 @@ export class GithubDeploymentRulesService {
    * Delete a deployment rule
    */
   async delete(id: string): Promise<void> {
-    await this.databaseService.db
-      .delete(githubDeploymentRules)
-      .where(eq(githubDeploymentRules.id, id));
+    await this.githubDeploymentRulesDataService.delete(id);
 
     this.logger.log(`Deleted deployment rule: ${id}`);
   }

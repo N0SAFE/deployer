@@ -86,12 +86,72 @@ export class ServiceRepository {
         return service || null;
     }
 
-    async findByProject(projectId: string) {
+    async findByIdWithProject(id: string) {
+        this.logger.log(`Finding service by ID with project: ${id}`);
+        const result = await this.databaseService.db
+            .select({ svc: services, proj: projects })
+            .from(services)
+            .innerJoin(projects, eq(services.projectId, projects.id))
+            .where(eq(services.id, id))
+            .limit(1);
+
+        return result.length > 0 ? result[0] : null;
+    }
+
+    async findByNameWithProject(name: string) {
+        this.logger.log(`Finding service by name with project: ${name}`);
+        const result = await this.databaseService.db
+            .select({ svc: services, proj: projects })
+            .from(services)
+            .innerJoin(projects, eq(services.projectId, projects.id))
+            .where(eq(services.name, name))
+            .limit(1);
+
+        return result.length > 0 ? result[0] : null;
+    }
+
+    async findByProject(projectId: string, limit?: number) {
         this.logger.log(`Finding services for project: ${projectId}`);
-        return await this.databaseService.db
+        let query = this.databaseService.db
             .select()
             .from(services)
             .where(eq(services.projectId, projectId))
+            .orderBy(desc(services.createdAt));
+        
+        if (limit) {
+            query = query.limit(limit) as any;
+        }
+        
+        return await query;
+    }
+
+    async findByNameAndProject(name: string, projectId: string) {
+        this.logger.log(`Finding service by name '${name}' in project: ${projectId}`);
+        const [service] = await this.databaseService.db
+            .select()
+            .from(services)
+            .where(and(eq(services.name, name), eq(services.projectId, projectId)))
+            .limit(1);
+        
+        return service || null;
+    }
+
+    async findByName(name: string) {
+        this.logger.log(`Finding service by name: ${name}`);
+        const [service] = await this.databaseService.db
+            .select()
+            .from(services)
+            .where(eq(services.name, name))
+            .limit(1);
+        
+        return service || null;
+    }
+
+    async findAll() {
+        this.logger.log('Finding all services');
+        return await this.databaseService.db
+            .select()
+            .from(services)
             .orderBy(desc(services.createdAt));
     }
 

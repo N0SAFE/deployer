@@ -1,13 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DockerService } from './docker.service';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
 import { DeploymentService } from '@/core/modules/deployment/services/deployment.service';
-import { projects, deployments, services } from '@/config/drizzle/schema/deployment';
+import { ProjectService } from '@/modules/project/services/project.service';
+import { ServiceService } from '@/core/modules/service/services/service.service';
 import { DeploymentPhase } from '@/core/common/types/deployment-phase';
-import { eq, and, or, lt } from 'drizzle-orm';
+import { deployments, projects } from '@/config/drizzle/schema';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+
+// Type aliases for type safety
+type Deployment = typeof deployments.$inferSelect;
+type Project = typeof projects.$inferSelect;
 
 interface ZombieContainer {
   id: string;
@@ -32,8 +36,9 @@ export class ZombieCleanupService {
 
   constructor(
     private readonly dockerService: DockerService,
-    private readonly databaseService: DatabaseService,
     private readonly deploymentService: DeploymentService,
+    private readonly projectService: ProjectService,
+    private readonly serviceService: ServiceService,
   ) {}
 
   /**
@@ -47,26 +52,8 @@ export class ZombieCleanupService {
   }> {
     this.logger.log('🔄 Scanning for incomplete deployments to resume...');
 
-    const STUCK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-    const stuckTimestamp = new Date(Date.now() - STUCK_TIMEOUT_MS);
-
-    // Find deployments that are stuck in incomplete phases
-    const incompleteDeployments = await this.databaseService.db
-      .select()
-      .from(deployments)
-      .where(
-        and(
-          or(
-            eq(deployments.phase, DeploymentPhase.PULLING_SOURCE),
-            eq(deployments.phase, DeploymentPhase.BUILDING),
-            eq(deployments.phase, DeploymentPhase.COPYING_FILES),
-            eq(deployments.phase, DeploymentPhase.CREATING_SYMLINKS),
-            eq(deployments.phase, DeploymentPhase.UPDATING_ROUTES),
-            eq(deployments.phase, DeploymentPhase.HEALTH_CHECK)
-          ),
-          lt(deployments.phaseUpdatedAt, stuckTimestamp)
-        )
-      );
+    // Find deployments that are stuck for more than 5 minutes
+    const incompleteDeployments = await this.deploymentService.findStuckDeployments(5);
 
     this.logger.log(
       `Found ${incompleteDeployments.length} stuck deployments (no update for 5+ minutes)`
@@ -108,7 +95,7 @@ export class ZombieCleanupService {
    * Returns 'resumed', 'failed', or 'skipped'
    */
   private async handleIncompleteDeployment(
-    deployment: any
+    deployment: Deployment
   ): Promise<'resumed' | 'failed' | 'skipped'> {
     this.logger.log(
       `🔍 Examining deployment ${deployment.id} (phase: ${deployment.phase})`
@@ -156,7 +143,7 @@ export class ZombieCleanupService {
    * - Check if containers are still running
    * - Validate phase metadata
    */
-  private async canResumeDeployment(deployment: any): Promise<boolean> {
+  private async canResumeDeployment(deployment: Deployment): Promise<boolean> {
     const phase = deployment.phase as DeploymentPhase;
 
     // Early phases (before files exist) cannot be resumed
@@ -181,11 +168,8 @@ export class ZombieCleanupService {
       }
     }
 
-    // For docker/git deployments, check if source is still accessible
-    if (
-      deployment.sourceType === 'docker' ||
-      deployment.sourceType === 'git'
-    ) {
+    // For git deployments, check if source is still accessible
+    if (deployment.sourceType === 'git') {
       // TODO: Add source accessibility check
       // For now, assume we can retry from scratch
     }
@@ -197,7 +181,7 @@ export class ZombieCleanupService {
    * Resume a deployment from its current phase
    * This orchestrates the resume process based on deployment type and phase
    */
-  private async resumeDeployment(deployment: any): Promise<void> {
+  private async resumeDeployment(deployment: Deployment): Promise<void> {
     const phase = deployment.phase as DeploymentPhase;
 
     this.logger.log(
@@ -274,11 +258,11 @@ export class ZombieCleanupService {
   /**
    * Check if deployment files exist on disk
    */
-  private async checkDeploymentFiles(deployment: any): Promise<boolean> {
+  private async checkDeploymentFiles(deployment: Deployment): Promise<boolean> {
     try {
       const uploadPath =
-        deployment.sourceConfig?.filePath ||
-        deployment.phaseMetadata?.uploadPath;
+        (deployment.sourceConfig as any)?.filePath ||
+        (deployment.phaseMetadata as any)?.uploadPath;
 
       if (!uploadPath) {
         this.logger.warn(
@@ -358,9 +342,7 @@ export class ZombieCleanupService {
     let errors = 0;
 
     // Get all active projects
-    const activeProjects = await this.databaseService.db
-      .select()
-      .from(projects);
+    const { projects: activeProjects } = await this.projectService.findMany({});
 
     for (const project of activeProjects) {
       try {
@@ -394,17 +376,14 @@ export class ZombieCleanupService {
    * - Recreate if broken or missing
    */
   private async reconcileProjectSymlinks(
-    project: any
+    project: Project
   ): Promise<'fixed' | 'verified' | 'error'> {
     const projectPath = `/var/www/${project.id}`;
     const currentSymlink = path.join(projectPath, 'current');
 
     try {
       // Get services for this project
-      const projectServices = await this.databaseService.db
-        .select()
-        .from(services)
-        .where(eq(services.projectId, project.id));
+      const projectServices = await this.serviceService.findByProject(project.id);
 
       if (projectServices.length === 0) {
         // No services for this project yet
@@ -572,9 +551,7 @@ export class ZombieCleanupService {
     let errors = 0;
 
     // Get all active projects from database
-    const activeProjects = await this.databaseService.db
-      .select({ id: projects.id, name: projects.name, baseDomain: projects.baseDomain })
-      .from(projects);
+    const { projects: activeProjects } = await this.projectService.findMany({});
 
     const activeProjectMap = new Map(activeProjects.map((p) => [p.id, p]));
     this.logger.log(`Found ${activeProjectMap.size} active projects in database`);
@@ -612,7 +589,7 @@ export class ZombieCleanupService {
           if (containerInfo.State !== 'running') {
             // Attempt to restart
             this.logger.log(
-              `Container ${containerName} belongs to active project ${project.name} but is ${containerInfo.State} - attempting restart`,
+              `Container ${containerName} belongs to active project ${(project as any).name} but is ${containerInfo.State} - attempting restart`,
             );
 
             if (!dryRun) {
@@ -630,7 +607,7 @@ export class ZombieCleanupService {
             restarted++;
           } else {
             // Container is running - verify labels are correct
-            const expectedHost = project.baseDomain || 'localhost';
+            const expectedHost = (project as any).baseDomain || 'localhost';
             const currentRule = containerInfo.Labels?.[`traefik.http.routers.project-${containerProjectId}.rule`];
             
             if (currentRule && !currentRule.includes(expectedHost)) {
@@ -698,9 +675,7 @@ export class ZombieCleanupService {
     let errors = 0;
 
     // Get all active project IDs from database
-    const activeProjects = await this.databaseService.db
-      .select({ id: projects.id })
-      .from(projects);
+    const { projects: activeProjects } = await this.projectService.findMany({});
 
     const activeProjectIds = new Set(activeProjects.map((p) => p.id));
     this.logger.log(`Found ${activeProjectIds.size} active projects in database`);
@@ -858,12 +833,11 @@ export class ZombieCleanupService {
     activeProjects: number;
   }> {
     // Count active projects
-    const activeProjects = await this.databaseService.db
-      .select({ id: projects.id })
-      .from(projects);
-    const activeProjectIds = new Set(activeProjects.map((p) => p.id));
+    const deleted: string[] = [];
 
-    const docker = this.dockerService.getDockerClient();
+    // Get all active projects from database
+    const { projects: activeProjects } = await this.projectService.findMany({});
+    const activeProjectIds = new Set(activeProjects.map((p) => p.id));    const docker = this.dockerService.getDockerClient();
 
     // Count project servers
     const projectServerContainers = await docker.listContainers({

@@ -326,7 +326,7 @@ curl https://your-api.com/deployment/rollback-history?serviceId=<uuid>
 - [DEPLOYMENT-RETENTION.md](../features/deployment/DEPLOYMENT-RETENTION.md) - Full retention system
 - [ROLLBACK-STATUS-FILTERING.md](../features/deployment/ROLLBACK-STATUS-FILTERING.md) - Detailed implementation guide
 - [DEPLOYMENT-HEALTH-RULES.md](../features/deployment/DEPLOYMENT-HEALTH-RULES.md) - Health monitoring
-- [ORPC-TYPE-CONTRACTS.md](../reference/ORPC-TYPE-CONTRACTS.md) - API contract system
+- [ORPC-TYPE-CONTRACTS.md](../core-concepts/09-ORPC-IMPLEMENTATION-PATTERN.md) - API contract system
 
 ## ✨ Summary
 

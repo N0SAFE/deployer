@@ -248,4 +248,43 @@ export class ServiceDomainMappingRepository {
         )
       );
   }
+
+  /**
+   * Find mappings by project domain with subdomain and optional basePath (with service names)
+   */
+  async findByProjectDomainAndPathWithServiceNames(
+    projectDomainId: string,
+    subdomain: string | null,
+    basePath?: string | null,
+    excludeServiceId?: string
+  ): Promise<Array<{
+    serviceId: string;
+    serviceName: string;
+    subdomain: string | null;
+    basePath: string | null;
+  }>> {
+    const { services } = await import('@/config/drizzle/schema');
+    
+    const conditions = [
+      eq(serviceDomainMappings.projectDomainId, projectDomainId),
+      subdomain === null 
+        ? isNull(serviceDomainMappings.subdomain)
+        : eq(serviceDomainMappings.subdomain, subdomain),
+    ];
+
+    if (excludeServiceId) {
+      conditions.push(ne(serviceDomainMappings.serviceId, excludeServiceId));
+    }
+
+    return await this.databaseService.db
+      .select({
+        serviceId: serviceDomainMappings.serviceId,
+        serviceName: services.name,
+        subdomain: serviceDomainMappings.subdomain,
+        basePath: serviceDomainMappings.basePath,
+      })
+      .from(serviceDomainMappings)
+      .innerJoin(services, eq(services.id, serviceDomainMappings.serviceId))
+      .where(and(...conditions));
+  }
 }

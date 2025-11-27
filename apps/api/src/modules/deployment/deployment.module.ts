@@ -1,5 +1,6 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { DeploymentController } from "./controllers/deployment.controller";
+import { DeploymentAdapter } from "./adapters/deployment-adapter.service";
 import { CoreModule } from "@/core/core.module";
 // Use the DB-backed DeploymentController implemented in the websocket module folder
 
@@ -13,7 +14,8 @@ import { CoreModule } from "@/core/core.module";
  * - BullModule: For DeploymentQueueService dependency
  */
 @Module({
-  imports: [CoreModule],
+  imports: [forwardRef(() => CoreModule)],
   controllers: [DeploymentController],
+  providers: [DeploymentAdapter],
 })
 export class DeploymentModule {}

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { CoreModule } from '../../core/core.module';
 import { TraefikModule } from '../traefik/traefik.module';
 import { ServiceController } from './controllers/service.controller';
@@ -10,9 +10,11 @@ import { ServiceTraefikIntegrationService } from './services/service-traefik-int
  * 
  * Uses ServiceService from CoreModule for business logic
  * Adds TraefikService integration for service routing
+ * 
+ * ServiceController handles ORPC service contract endpoints
  */
 @Module({
-    imports: [CoreModule, TraefikModule],
+    imports: [forwardRef(() => CoreModule), TraefikModule],
     controllers: [ServiceController],
     providers: [ServiceTraefikIntegrationService],
     exports: [ServiceTraefikIntegrationService],

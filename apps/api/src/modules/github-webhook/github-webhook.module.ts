@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { GitHubWebhookController } from './controllers/github-webhook.controller';
 import { CoreModule } from '@/core/core.module';
 import { WebSocketModule } from '@/modules/websocket/websocket.module';
@@ -26,7 +26,7 @@ import { WebSocketModule } from '@/modules/websocket/websocket.module';
  */
 @Module({
   imports: [
-    CoreModule,
+    forwardRef(() => CoreModule),
     WebSocketModule,
   ],
   controllers: [GitHubWebhookController],

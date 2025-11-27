@@ -18,7 +18,7 @@ ORPC provides shared contracts between the NestJS API and the Next.js client for
 
 1. Edit or add a contract in packages/api-contracts
 2. Implement the handler in apps/api
-3. Generate client/hooks if needed by running web generation scripts (see ORPC-TYPE-CONTRACTS.md)
+3. Generate client/hooks if needed by running web generation scripts (see ../core-concepts/09-ORPC-IMPLEMENTATION-PATTERN.md)
 4. Use the typed hooks or server client in apps/web
 
 ## Error handling
@@ -28,5 +28,5 @@ ORPC provides shared contracts between the NestJS API and the Next.js client for
 
 ## See also
 
-- Reference: ../ORPC-TYPE-CONTRACTS.md
+- Reference: ../core-concepts/09-ORPC-IMPLEMENTATION-PATTERN.md
 - Architecture: ../ARCHITECTURE.md

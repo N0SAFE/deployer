@@ -1,10 +1,10 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { StaticFileController } from './controllers/static-file.controller';
 import { CoreModule } from '@/core/core.module';
 
 @Module({
     imports: [
-        CoreModule,
+        forwardRef(() => CoreModule),
     ],
     controllers: [StaticFileController],
 })

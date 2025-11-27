@@ -2,78 +2,172 @@
 
 This Next.js + NestJS turborepo uses modern patterns and conventions that require specific knowledge for effective development.
 
-## 📚 CRITICAL: Documentation-First Development Workflow
+## 🎯 CRITICAL: Core Concepts System
 
-**⚠️ BEFORE YOU DO ANYTHING - READ THE DOCUMENTATION**
+**⚠️ THESE ARE THE ONLY SOURCE OF TRUTH - MUST BE FOLLOWED AT ALL TIMES**
+
+**⚠️ YOU MUST FOLLOW THE WORKFLOW DIAGRAM IN `docs/core-concepts/COPILOT-WORKFLOW-DIAGRAM.md`**
+
+### Mandatory Workflow
+
+**BEFORE ANY TASK, you MUST follow the exact workflow defined in:**
+- **[`docs/core-concepts/COPILOT-WORKFLOW-DIAGRAM.md`](../docs/core-concepts/COPILOT-WORKFLOW-DIAGRAM.md)** ← **READ THIS CHART AND FOLLOW IT EXACTLY**
+
+The workflow diagram contains:
+1. **Complete process flow** - Mermaid diagram showing every step
+2. **Verification loops** - Quality checks you MUST perform
+3. **Decision points** - When to loop back vs proceed
+4. **Phase explanations** - Detailed instructions for each phase
+5. **Success criteria** - How to know you've completed correctly
+6. **Common pitfalls** - What NOT to do
+
+**Key Workflow Requirements:**
+- ✅ **Maintain documentation awareness** - Know what docs exist before starting
+- ✅ **Load task-relevant documentation** - Read applicable core concepts and guides
+- ✅ **Verify implementation quality** - Check code quality immediately after changes
+- ✅ **Re-verify patterns** - Ensure no violations introduced by changes
+- ✅ **Run pre-completion verification** - Final checks before showing results
+- ✅ **Fix in loops** - Don't proceed with known issues
+- ❌ **Never skip verification steps** - They prevent errors
+- ❌ **Never assume quality** - Verify it
+
+### Documentation Awareness and Selective Loading
+
+**Before ANY task, you MUST understand what documentation is available:**
+
+1. **Read [`docs/README.md`](../docs/README.md)** - Understand overall documentation structure
+2. **Read [`docs/core-concepts/README.md`](../docs/core-concepts/README.md)** - Inventory all core concepts
+3. **Identify relevant documentation** - Based on task type, determine which docs to load
+4. **Load task-specific documentation** - Read only applicable core concepts, guides, and references
+
+These concepts are **MANDATORY and NON-NEGOTIABLE** when they apply to your task. You cannot make informed decisions without understanding what documentation exists and loading the relevant context for your specific work.
+
+**This is not about reading everything - it's about knowing what exists and loading what you need.**
+
+### Core Concepts Rules
+
+1. **Maintain Documentation Inventory**: Understand what docs exist via README files
+2. **Load Task-Relevant Concepts**: Read applicable core concepts based on task type
+3. **Check Before Creating**: When adding new core concepts, check existing files first
+4. **Never Bypass Applicable Concepts**: Core concepts cannot be bypassed unless user explicitly overrides
+5. **Request Approval for Conflicts**: If user request violates loaded core concept, request approval before proceeding
+
+### When User Request Conflicts with Core Concept
+
+**STOP and request approval:**
+
+```
+⚠️ Core concept conflict detected:
+
+Your request: [describe request]
+Violates: docs/core-concepts/[FILENAME].md
+
+Core concept requires: [describe requirement]
+
+Options:
+1. Implement following core concept (recommended)
+2. Update core concept (requires your approval and rationale)
+
+Show proposed changes to core concept:
+[Show what would change]
+
+How would you like to proceed?
+```
+
+### Creating New Core Concepts
+
+When you learn or are requested to create a new core concept:
+
+1. **Check existing files** - Does another file already handle this?
+2. **Update existing** if concept fits in an existing category
+3. **Create new file** only if truly fundamental and new
+4. **Split logically** - Organize into clear, focused files
+5. **Update README.md** - Add to core concepts index
+6. **Update this file** - Add reference in relevant section
+
+**File naming**: `##-CONCEPT-NAME.md` (next sequential number)
+
+## 📚 Documentation-First Development Workflow
+
+**⚠️ SILENTLY READ DOCUMENTATION BEFORE IMPLEMENTATION**
+
+**⚠️ FOLLOW THE COMPLETE WORKFLOW DIAGRAM: [`docs/core-concepts/COPILOT-WORKFLOW-DIAGRAM.md`](../docs/core-concepts/COPILOT-WORKFLOW-DIAGRAM.md)**
 
 This is the **MOST IMPORTANT** rule for this project. You MUST follow this workflow for EVERY task:
 
-### Step 1: Always Read Documentation First
+The workflow diagram provides:
+- Complete mermaid flowchart with ALL steps
+- Verification loops you MUST execute
+- Quality checks before showing results
+- Decision points and loop conditions
+- Success criteria and common pitfalls
 
-**Before writing ANY code, making ANY changes, or answering ANY questions:**
+**Workflow Summary (see diagram for complete flow):**
+1. Maintain documentation awareness (Read docs/README.md and core-concepts/README.md)
+2. Load task-relevant documentation (Select applicable core concepts and guides)
+3. Read documentation (silent, parallel)
+4. Verify context complete
+5. Check conflicts with core concepts
+6. Verify patterns before implementing
+7. Implement changes
+8. **NEW: Verify implementation quality**
+9. **NEW: Re-verify patterns after changes**
+10. **NEW: Run pre-completion verification**
+11. Show results (only after verification passes)
+12. Update documentation if needed
+13. Validate links (MANDATORY)
 
-1. **Read `docs/README.md`** - Overview of all available documentation
-2. **Read relevant concept documentation** from `docs/concepts/`
-3. **Read relevant architecture documentation** from `docs/architecture/`
-4. **Read relevant feature documentation** from `docs/features/`
-5. **Read relevant specification** from `docs/specifications/`
+### Step 1: Understand Available Documentation
 
-**NEVER skip this step**. Even if you think you know the answer, **VERIFY IT IN THE DOCS FIRST**.
+**Before writing ANY code or making ANY changes, understand what documentation exists:**
 
-### Step 2: Keep Core Documentation in Memory
+1. **`docs/README.md`** - Documentation hub showing all available topics
+2. **`docs/core-concepts/README.md`** - Index of all core concepts
+3. **Identify task-relevant documentation** - Determine which docs apply to your current work
+4. **Load selectively** - Read only the applicable core concepts, guides, architecture docs, and specifications
 
-**You MUST have these documents loaded in your context at ALL times:**
+**Task-Based Documentation Loading:**
 
-#### Required Core Documents (Always Load)
+| Task Type | Load These Core Concepts | Also Consider |
+|-----------|--------------------------|---------------|
+| **API endpoint creation** | ORPC Implementation, Service-Adapter, Repository Ownership | `docs/guides/DEVELOPMENT-WORKFLOW.md` |
+| **Frontend routing** | README-First Discovery, Documentation-First | `apps/web/src/routes/README.md` |
+| **Database changes** | Service-Adapter, Repository Ownership | `docs/reference/DATABASE-ENCRYPTION.md` |
+| **Authentication work** | Better Auth Integration, Service-Adapter | Auth architecture docs |
+| **Documentation updates** | Documentation Maintenance Protocol, README-First | Relevant topic docs |
+| **File operations** | File Management Policy | N/A |
+
+**Read silently in parallel** - gather ALL needed context before implementation.
+
+### Step 2: Load Task-Specific Documentation
+
+**Based on your task, load ONLY relevant documentation:**
+
+#### Always Check First (Documentation Inventory)
 
 1. **`docs/README.md`** - Documentation hub and navigation
-   - Purpose: Understand what documentation exists and where to find it
-   - When: At the start of EVERY conversation
+2. **`docs/core-concepts/README.md`** - Core concepts index
 
-2. **`docs/concepts/SERVICE-ADAPTER-PATTERN.md`** - Core architectural pattern
-   - Purpose: Understand how to structure services, adapters, and controllers
-   - When: Before creating/modifying any API endpoint or service
-   - Key Rules:
-     * Services return entities (not contracts)
-     * Adapters in `adapters/` folder with fixed contract types
-     * Types/interfaces in `interfaces/` folder
-     * Controllers orchestrate and mix service methods
+#### Load When Relevant to Task
 
-3. **`docs/concepts/FRONTEND-DEVELOPMENT-PATTERNS.md`** - Frontend development patterns
-   - Purpose: Understand ORPC, Better Auth, and Declarative Routing patterns
-   - When: Before creating/modifying any frontend component, hook, or page
-   - Key Rules:
-     * Use `useQuery(orpc.contract.queryOptions())` for API calls
-     * Use Better Auth hooks for authentication (`useSession`, `signIn`, `signOut`)
-     * Use Declarative Routing for navigation (`<Route.Link>`, `Route.fetch()`)
-     * Extract logic to custom hooks in `hooks/` folder
+**Core Concepts** (from `docs/core-concepts/`):
+- Service-Adapter Pattern - For API controllers
+- Repository Ownership Rule - For database operations
+- Better Auth Integration - For authentication
+- ORPC Implementation Pattern - For API contracts
+- Documentation Maintenance Protocol - For doc changes
+- File Management Policy - Before deleting files
+- Efficient Execution Protocol - For all tasks
+- README-First Discovery - For doc navigation
 
-4. **`docs/architecture/CORE-VS-FEATURE-ARCHITECTURE.md`** - Module organization
-   - Purpose: Understand core vs feature module separation
-   - When: Before creating any new module or service
-   - Key Rules:
-     * Core modules (`core/modules/`) = shared infrastructure
-     * Feature modules (`modules/`) = HTTP endpoints and domain logic
-     * Core modules NEVER import feature modules
+**Architecture Docs** (from `docs/architecture/`):
+- Load when understanding system design or component relationships
 
-5. **`docs/architecture/CORE-MODULE-ARCHITECTURE.md`** - Core module dependencies
-   - Purpose: Avoid circular dependencies
-   - When: Before importing modules or creating dependencies
-   - Key Rules:
-     * Never import `CoreModule` from core modules
-     * Import only specific modules needed
-     * Use `forwardRef()` only for proven circular dependencies
+**Guides** (from `docs/guides/`):
+- Load when implementing specific features or workflows
 
-#### Specifications (Load When Relevant)
-
-5. **`docs/specifications/ENVIRONMENT-SPECIFICATION.md`** - Environment variables
-   - When: Working with configuration or environment variables
-
-6. **`docs/specifications/FRONTEND-SPECIFICATION.md`** - Frontend architecture
-   - When: Working on Next.js frontend code
-
-7. **`docs/specifications/MULTI-DEPLOYMENT-ORCHESTRATION-SPECIFICATION.md`** - Deployment orchestration
-   - When: Working on deployment-related features
+**Specifications** (from `docs/specifications/`):
+- Load when working with specific features (environment vars, deployment, etc.)
 
 ### Step 3: Workflow for Every Task
 
@@ -84,149 +178,83 @@ This is the **MOST IMPORTANT** rule for this project. You MUST follow this workf
                  │
                  ▼
 ┌─────────────────────────────────────────────┐
-│ 2. READ docs/README.md                      │
-│    - Identify relevant documentation        │
+│ 2. Silently Read ALL Required Context       │
+│    - docs/README.md                         │
+│    - Core concepts                          │
+│    - Relevant features/specs                │
+│    (NO announcements about reading)         │
 └────────────────┬────────────────────────────┘
                  │
                  ▼
 ┌─────────────────────────────────────────────┐
-│ 3. READ Core Concepts                       │
-│    - SERVICE-ADAPTER-PATTERN.md (backend)   │
-│    - FRONTEND-DEVELOPMENT-PATTERNS.md (web) │
-│    - CORE-VS-FEATURE-ARCHITECTURE.md        │
-│    - CORE-MODULE-ARCHITECTURE.md            │
+│ 3. Verify Understanding Internally          │
+│    - Correct pattern?                       │
+│    - Correct folder structure?              │
+│    - Dependencies clear?                    │
 └────────────────┬────────────────────────────┘
                  │
                  ▼
 ┌─────────────────────────────────────────────┐
-│ 4. READ Relevant Feature/Spec Docs          │
-│    - Check docs/features/                   │
-│    - Check docs/specifications/             │
-└────────────────┬────────────────────────────┘
-                 │
-                 ▼
-┌─────────────────────────────────────────────┐
-│ 5. VERIFY Understanding                     │
-│    - Do I know the correct pattern?         │
-│    - Do I know the folder structure?        │
-│    - Do I know the dependencies?            │
-└────────────────┬────────────────────────────┘
-                 │
-                 ▼
-┌─────────────────────────────────────────────┐
-│ 6. IMPLEMENT Following Documentation        │
+│ 4. Implement Immediately                    │
 │    - Use exact patterns from docs           │
-│    - Follow folder structures from docs     │
-│    - Apply rules from docs                  │
+│    - No explanations for standard work      │
+│    - Only explain critical decisions        │
 └────────────────┬────────────────────────────┘
                  │
                  ▼
 ┌─────────────────────────────────────────────┐
-│ 7. UPDATE Documentation (if needed)         │
-│    - Document new concepts                  │
-│    - Update affected docs                   │
+│ 5. Show Completed Work                      │
+│    - Present results                        │
+│    - Update docs if needed                  │
 └─────────────────────────────────────────────┘
 ```
 
 ### Examples: Documentation-First in Action
 
-#### ❌ WRONG: Code Without Reading Docs
-
-```typescript
-// User: "Create a new user service"
-
-// ❌ BAD - Writing code immediately without reading docs
-@Injectable()
-export class UserService {
-  async getUserById(id: string): Promise<UserContract> {
-    // This violates SERVICE-ADAPTER-PATTERN.md!
-    // Services should return entities, not contracts
-  }
-}
-```
-
-#### ✅ CORRECT: Documentation-First Approach
+#### ❌ WRONG: Verbose Announcements
 
 ```
-1. READ docs/README.md
-   → Found: SERVICE-ADAPTER-PATTERN.md in concepts/
-   → Found: CORE-VS-FEATURE-ARCHITECTURE.md in architecture/
+User: "Create a new user service"
 
-2. READ docs/concepts/SERVICE-ADAPTER-PATTERN.md
-   → Learn: Services return entities (not contracts)
-   → Learn: Adapters in adapters/ folder with fixed types
-   → Learn: Types in interfaces/ folder
-   → Learn: Controllers orchestrate multiple service methods
-
-3. READ docs/architecture/CORE-VS-FEATURE-ARCHITECTURE.md
-   → Learn: Should this be core or feature?
-   → Decision: Feature module (HTTP endpoints for users)
-
-4. IMPLEMENT with correct pattern:
+I'll first read the SERVICE-ADAPTER-PATTERN.md to understand the pattern,
+then check CORE-VS-FEATURE-ARCHITECTURE.md to determine module placement,
+and finally implement the service following the documented patterns.
 ```
 
-```typescript
-// ✅ GOOD - Following documentation patterns
+#### ✅ CORRECT: Silent Action
 
-// 1. Core service (if shared infrastructure)
-apps/api/src/core/modules/user/services/user.service.ts
-@Injectable()
-export class UserService {
-  async findById(id: string): Promise<User | null> { ... }
-  async findByEmail(email: string): Promise<User | null> { ... }
-}
+```
+User: "Create a new user service"
 
-// 2. Feature module structure
-apps/api/src/modules/user/
-├── adapters/
-│   └── user-adapter.service.ts
-├── controllers/
-│   └── user.controller.ts
-├── interfaces/
-│   └── user.types.ts
-└── user.module.ts
-
-// 3. Types in interfaces/
-apps/api/src/modules/user/interfaces/user.types.ts
-export type UserContract = typeof userContract.getById.output;
-
-// 4. Adapter in adapters/
-apps/api/src/modules/user/adapters/user-adapter.service.ts
-adaptUserToContract(user: User): UserContract { ... }
-
-// 5. Controller orchestrates
-apps/api/src/modules/user/controllers/user.controller.ts
-async getById(input: { id: string }) {
-  const user = await this.userService.findById(input.id);
-  return this.adapter.adaptUserToContract(user);
-}
+[Silently reads: docs/README.md, SERVICE-ADAPTER-PATTERN.md, CORE-VS-FEATURE-ARCHITECTURE.md]
+[Implements service following patterns]
+[Shows completed implementation]
 ```
 
 ### When Documentation is Missing or Unclear
 
 If you cannot find documentation for a specific pattern or feature:
 
-1. **Search existing docs** - Use grep/search to find similar patterns
-2. **Ask the user** - Request clarification before implementing
-3. **Document your decision** - Create new documentation following the template
-4. **Update this file** - Add to Documentation References if it's a new concept
+1. **Search existing docs** silently using grep/search
+2. **Batch all questions** to user in single request
+3. **Document your decision** after implementing
+4. **Update this file** if new concept
 
-**NEVER** implement based on assumptions when documentation could exist.
+**NEVER** announce you're searching documentation - just do it.
 
 ### Documentation Loading Checklist
 
-Before starting ANY task, verify:
+Internal verification (do not announce):
 
-- [ ] ✅ I have read `docs/README.md`
-- [ ] ✅ I have loaded `SERVICE-ADAPTER-PATTERN.md` in my context
-- [ ] ✅ I have loaded `FRONTEND-DEVELOPMENT-PATTERNS.md` in my context (for frontend work)
-- [ ] ✅ I have loaded `CORE-VS-FEATURE-ARCHITECTURE.md` in my context
-- [ ] ✅ I have loaded `CORE-MODULE-ARCHITECTURE.md` in my context
-- [ ] ✅ I have identified and read all relevant feature/spec docs
-- [ ] ✅ I understand the patterns required for this task
-- [ ] ✅ I can implement following documented patterns
+- [ ] Read `docs/README.md` (main documentation hub)
+- [ ] Read `docs/core-concepts/README.md` (mandatory patterns)
+- [ ] Navigate to relevant subdirectories via README structure
+- [ ] Check subdirectory READMEs for specific topics
+- [ ] Read individual files as needed for deep understanding
+- [ ] Understand patterns for task
+- [ ] Ready to implement
 
-**If you cannot check all boxes, READ MORE DOCUMENTATION before proceeding.**
+**If not ready, read more documentation silently.**
 
 ### Why This Matters
 
@@ -252,13 +280,26 @@ This project has **specific, non-standard patterns** that you cannot infer:
 ## Critical Development Patterns
 
 ### 0. File Management Policy
-**⚠️ NEVER delete or remove files without explicit user permission:**
-- Always ask before deleting any files, even if they appear redundant or outdated
-- When reorganizing code, preserve existing functionality by migrating content properly
-- If files need to be removed, explicitly request permission and explain why
-- **NEVER** use `rm`, `git rm`, or file deletion commands without user approval
+**⚠️ NEVER delete or remove files without explicit user permission**
 
-### 1. Docker-First Development
+> See `docs/core-concepts/README.md` for all core concepts (MANDATORY reading)
+
+### 1. Better Auth Integration Pattern (CRITICAL)
+**⚠️ ALL auth-related operations MUST use AuthService.api**
+
+> See `docs/core-concepts/README.md` for all core concepts (MANDATORY reading)
+
+### 2. Core Module Shared Logic Pattern
+**⚠️ Reusable business logic belongs in Core Modules**
+
+> See `docs/core-concepts/README.md` for all core concepts (MANDATORY reading)
+
+### 3. TypeScript Type Manipulation Pattern
+**⚠️ Prefer type inference over manual type definitions**
+
+> See `docs/core-concepts/README.md` for all core concepts (MANDATORY reading)
+
+### 4. Docker-First Development
 **Always use Docker commands for development:**
 ```bash
 bun run dev              # Full stack (API + Web + DB + Redis)
@@ -267,28 +308,28 @@ bun run dev:web          # Web only (requires running API)
 ```
 Never run `next dev` or `nest start` directly - services are containerized with proper networking.
 
-### 2. Declarative Routing System
+### 5. Declarative Routing System
 **Routes are type-safe and generated**, not manually written:
 - Route definitions: `apps/web/src/app/**/page.info.ts`
 - Generate routes: `bun run web -- dr:build` (required after route changes)
 - Usage: `import { Home, ApiAuth } from '@/routes'` then `<Home.Link>` or `ApiAuth.fetch()`
 - **Never** use raw `href` strings or manual `fetch()` calls
 
-### 3. API Contracts with ORPC
+### 6. API Contracts with ORPC
 **Shared type-safe contracts between frontend/backend:**
 - Contracts: `packages/api-contracts/index.ts`
 - API implementation: `apps/api/src/` using ORPC decorators
 - Client usage: Generated hooks via `@orpc/tanstack-query`
 - Changes require rebuilding web app: `bun run web -- generate`
 
-### 4. Better Auth Development Workflow
+### 7. Better Auth Development Workflow
 **Plugin addition and auth generation:**
 ```bash
 # When adding new Better Auth plugins
 bun run --cwd apps/api auth:generate    # Generate auth configuration
 ```
 
-### 5. API Development Workflow
+### 8. API Development Workflow
 **Creating new API endpoints (REQUIRED ORDER):**
 
 1. **Generate Contract** (First Step):
@@ -339,7 +380,880 @@ export class UserController {
 ```
 Import like: `import { Button } from '@repo/ui'`
 
-### 6. Shared Package System
+### 8.5. ORPC Controller Implementation Pattern
+
+**⚠️ This project uses ORPC for type-safe API contracts, NOT traditional REST decorators**
+
+#### ORPC vs Traditional REST Decorators
+
+**❌ WRONG - Traditional NestJS REST Decorators:**
+```typescript
+@Controller('users')
+export class UserController {
+  @Get(':id')
+  async getUserById(@Param('id') id: string) {
+    // Traditional REST approach - NOT USED in this project
+  }
+  
+  @Post()
+  async createUser(@Body() dto: CreateUserDto) {
+    // Traditional REST approach - NOT USED in this project
+  }
+}
+```
+
+**✅ CORRECT - ORPC Implementation:**
+```typescript
+import { Controller } from '@nestjs/common';
+import { Implement, implement } from '@orpc/nest';
+import { userContract } from '@repo/api-contracts';
+import { UserService } from '../services/user.service';
+import { UserAdapter } from '../adapters/user-adapter.service';
+
+@Controller()
+export class UserController {
+  constructor(
+    private readonly userService: UserService,
+    private readonly userAdapter: UserAdapter,
+  ) {}
+  
+  @Implement(userContract.getById)
+  getById() {
+    return implement(userContract.getById).handler(async ({ input }) => {
+      const user = await this.userService.findById(input.id);
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+      return this.userAdapter.adaptUserToContract(user);
+    });
+  }
+  
+  @Implement(userContract.create)
+  create() {
+    return implement(userContract.create).handler(async ({ input }) => {
+      const user = await this.userService.create(input);
+      return this.userAdapter.adaptUserToContract(user);
+    });
+  }
+}
+```
+
+#### ORPC Implementation Components
+
+**1. Contract Definition** (in `packages/api-contracts/index.ts`):
+```typescript
+import { procedure, router } from '@orpc/server';
+import { z } from 'zod';
+
+export const userContract = router({
+  getById: procedure
+    .input(z.object({ id: z.string() }))
+    .output(z.object({ 
+      id: z.string(), 
+      email: z.string(), 
+      name: z.string() 
+    }))
+    .query(),
+    
+  create: procedure
+    .input(z.object({ 
+      email: z.string().email(), 
+      name: z.string() 
+    }))
+    .output(z.object({ 
+      id: z.string(), 
+      email: z.string(), 
+      name: z.string() 
+    }))
+    .mutation(),
+});
+```
+
+**2. Controller Implementation** (in `apps/api/src/modules/user/controllers/`):
+```typescript
+import { Controller } from '@nestjs/common';
+import { Implement, implement } from '@orpc/nest';
+import { userContract } from '@repo/api-contracts';
+import { UserService } from '../services/user.service';
+import { UserAdapter } from '../adapters/user-adapter.service';
+
+@Controller()
+export class UserController {
+  constructor(
+    private readonly userService: UserService,
+    private readonly userAdapter: UserAdapter,
+  ) {}
+  
+  @Implement(userContract.getById)
+  getById() {
+    return implement(userContract.getById).handler(async ({ input }) => {
+      // 1. Call service for business logic
+      const user = await this.userService.findById(input.id);
+      
+      // 2. Transform via adapter
+      return this.userAdapter.adaptUserToContract(user);
+    });
+  }
+}
+```
+
+#### Session Handling in ORPC
+
+ORPC endpoints can access session data via the `@Session()` decorator:
+
+```typescript
+import { Controller } from '@nestjs/common';
+import { Implement, implement } from '@orpc/nest';
+import { Session } from '@/core/modules/auth/decorators/decorators';
+import type { UserSession } from '@/core/modules/auth/guards/auth.guard';
+import { projectContract } from '@repo/api-contracts';
+
+@Controller()
+export class ProjectController {
+  constructor(
+    private readonly projectService: ProjectService,
+    private readonly projectAdapter: ProjectAdapter,
+  ) {}
+  
+  @Implement(projectContract.create)
+  create(@Session() session?: UserSession) {
+    return implement(projectContract.create).handler(async ({ input }) => {
+      // Session contains user information if authenticated
+      const userId = session?.user?.id;
+      
+      const project = await this.projectService.create({
+        ...input,
+        userId,
+      });
+      
+      return this.projectAdapter.adaptProjectToContract(project);
+    });
+  }
+}
+```
+
+**Session Type Definition:**
+```typescript
+export type UserSession = {
+  user: {
+    id: string;
+    email: string;
+    name: string;
+  };
+  session: {
+    id: string;
+    expiresAt: Date;
+  };
+};
+```
+
+#### ORPC Input Validation
+
+ORPC provides automatic input validation using Zod schemas:
+
+```typescript
+// Contract with validation
+export const projectContract = router({
+  create: procedure
+    .input(z.object({
+      name: z.string().min(1).max(100),
+      description: z.string().optional(),
+      repositoryUrl: z.string().url(),
+    }))
+    .output(z.object({ 
+      id: z.string(),
+      name: z.string(),
+      // ... output schema
+    }))
+    .mutation(),
+});
+
+// Controller automatically validates input
+@Implement(projectContract.create)
+create() {
+  return implement(projectContract.create).handler(async ({ input }) => {
+    // Input is already validated by ORPC
+    // TypeScript knows exact shape of input
+    // No manual validation needed
+  });
+}
+```
+
+#### Contract-First Development Workflow
+
+1. **Define Contract** in `packages/api-contracts/index.ts`:
+   - Specify input schema (Zod)
+   - Specify output schema (Zod)
+   - Choose `.query()` (GET-like) or `.mutation()` (POST-like)
+
+2. **Generate Types** (automatic):
+   - Frontend gets typed hooks: `useQuery(orpc.userContract.getById.queryOptions())`
+   - Backend gets typed input/output
+
+3. **Implement Controller**:
+   - Use `@Implement(contract)` decorator
+   - Use `implement(contract).handler()` for implementation
+   - Follow Service-Adapter pattern
+
+4. **Benefits**:
+   - End-to-end type safety (frontend to backend)
+   - Automatic input validation
+   - Self-documenting API contracts
+   - No manual API client code needed
+   - Refactoring safety (contract changes break compilation)
+
+#### ORPC Best Practices
+
+**DO:**
+- ✅ Always use `@Implement(contract)` decorator
+- ✅ Always use `implement(contract).handler()` for implementation
+- ✅ Follow Service-Adapter pattern (service → adapter → return)
+- ✅ Define comprehensive input/output schemas in contracts
+- ✅ Use `@Session()` decorator for authentication
+- ✅ Return contract-typed objects (adapter handles transformation)
+
+**DON'T:**
+- ❌ Never use `@Get()`, `@Post()`, `@Put()`, `@Delete()` REST decorators
+- ❌ Never bypass ORPC contracts with manual routes
+- ❌ Never skip adapter transformation (always return contract type)
+- ❌ Never access DatabaseService in controllers (use service layer)
+- ❌ Never manually validate input (ORPC handles via Zod schemas)
+
+#### Complete ORPC Endpoint Example
+
+```typescript
+// 1. Contract (packages/api-contracts/index.ts)
+export const projectContract = router({
+  update: procedure
+    .input(z.object({
+      id: z.string(),
+      name: z.string().min(1).max(100),
+      description: z.string().optional(),
+    }))
+    .output(z.object({
+      id: z.string(),
+      name: z.string(),
+      description: z.string().nullable(),
+      updatedAt: z.string(),
+    }))
+    .mutation(),
+});
+
+// 2. Service (apps/api/src/modules/project/services/project.service.ts)
+@Injectable()
+export class ProjectService {
+  constructor(private projectRepository: ProjectRepository) {}
+  
+  async update(id: string, data: { name: string; description?: string }) {
+    return this.projectRepository.update(id, data);
+  }
+}
+
+// 3. Adapter (apps/api/src/modules/project/adapters/project-adapter.service.ts)
+@Injectable()
+export class ProjectAdapter {
+  adaptProjectToContract(project: Project): ProjectContract {
+    return {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      updatedAt: project.updatedAt.toISOString(),
+    };
+  }
+}
+
+// 4. Controller (apps/api/src/modules/project/controllers/project.controller.ts)
+import { Controller } from '@nestjs/common';
+import { Implement, implement } from '@orpc/nest';
+import { projectContract } from '@repo/api-contracts';
+import { Session } from '@/core/modules/auth/decorators/decorators';
+import type { UserSession } from '@/core/modules/auth/guards/auth.guard';
+
+@Controller()
+export class ProjectController {
+  constructor(
+    private readonly projectService: ProjectService,
+    private readonly projectAdapter: ProjectAdapter,
+  ) {}
+  
+  @Implement(projectContract.update)
+  update(@Session() session?: UserSession) {
+    return implement(projectContract.update).handler(async ({ input }) => {
+      // Input is validated by ORPC (name, description, id)
+      const project = await this.projectService.update(input.id, {
+        name: input.name,
+        description: input.description,
+      });
+      
+      // Adapter transforms entity → contract
+      return this.projectAdapter.adaptProjectToContract(project);
+    });
+  }
+}
+
+// 5. Frontend Usage (automatic, type-safe)
+import { orpc } from '@/lib/api';
+
+function UpdateProjectForm({ projectId }: { projectId: string }) {
+  const mutation = orpc.projectContract.update.useMutation();
+  
+  const handleSubmit = (data: { name: string; description?: string }) => {
+    mutation.mutate({
+      id: projectId,
+      name: data.name,
+      description: data.description,
+    });
+  };
+  
+  // mutation.data is typed as ProjectContract
+  // mutation.isPending, mutation.error available
+}
+```
+
+### 9. Service-Adapter Pattern Enforcement (CRITICAL)
+
+**⚠️ Controllers MUST NEVER access DatabaseService directly**
+
+> See `docs/core-concepts/README.md` for all core concepts (MANDATORY reading)
+
+### 10. Shared Package System
+
+#### The Three-Layer Architecture
+
+```typescript
+┌─────────────────────────────────────────────────────────┐
+│                      Controller Layer                    │
+│  • Handles HTTP requests (ORPC endpoints)               │
+│  • Orchestrates service calls                           │
+│  • Transforms responses via adapters                    │
+│  • NEVER accesses database directly                     │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│                      Service Layer                       │
+│  • Contains business logic                              │
+│  • Calls repository methods                             │
+│  • Returns entities (NOT contracts)                     │
+│  • Validates business rules                             │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│                    Repository Layer                      │
+│  • Direct database access (Drizzle ORM)                 │
+│  • CRUD operations                                      │
+│  • Query building                                       │
+│  • Returns database entities                            │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### Adapter Transformation Pattern
+
+```typescript
+┌─────────────────────────────────────────────────────────┐
+│                    Adapter Layer                         │
+│  • Transforms entities → contracts                      │
+│  • Located in adapters/ folder                          │
+│  • Fixed contract type definitions                      │
+│  • NO business logic here                               │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### WRONG Implementation (❌ NEVER DO THIS)
+
+```typescript
+import { Controller } from '@nestjs/common';
+import { Implement, implement } from '@orpc/nest';
+import { projectContract } from '@repo/api-contracts';
+import { DatabaseService } from '@/core/modules/database/services/database.service';
+import { projects } from '@/db/drizzle/schema';
+import { eq } from 'drizzle-orm';
+
+// ❌ BAD - Controller directly accessing DatabaseService
+@Controller()
+export class ProjectController {
+  constructor(
+    private databaseService: DatabaseService, // ❌ WRONG!
+    private projectService: ProjectService,
+  ) {}
+
+  @Implement(projectContract.list)
+  list() {
+    return implement(projectContract.list).handler(async ({ input }) => {
+      const db = this.databaseService.db;
+      
+      // ❌ Direct database access in controller
+      const projectList = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.userId, input.userId))
+        .execute();
+
+      // ❌ Transformation logic in controller
+      return projectList.map(p => ({
+        id: p.id,
+        name: p.name,
+        // ... transformation logic
+      }));
+    });
+  }
+}
+```
+
+**Problems with this approach:**
+- Business logic bypassed (service layer unused)
+- Transformation duplicated across methods
+- Cannot unit test without database
+- Violates separation of concerns
+- Makes refactoring extremely difficult
+
+#### CORRECT Implementation (✅ ALWAYS DO THIS)
+
+```typescript
+import { Controller } from '@nestjs/common';
+import { Implement, implement } from '@orpc/nest';
+import { projectContract } from '@repo/api-contracts';
+
+// ✅ GOOD - Controller uses Service-Adapter pattern
+@Controller()
+export class ProjectController {
+  constructor(
+    private readonly projectService: ProjectService,   // ✅ Service for business logic
+    private readonly projectAdapter: ProjectAdapter,   // ✅ Adapter for transformations
+  ) {}
+
+  @Implement(projectContract.list)
+  list() {
+    return implement(projectContract.list).handler(async ({ input }) => {
+      // 1. Call service for business logic
+      const result = await this.projectService.findMany({
+        userId: input.userId,
+        search: input.search,
+        limit: input.limit,
+        offset: input.offset,
+      });
+
+      // 2. Use adapter to transform to contract
+      return this.projectAdapter.adaptProjectListToContract(
+        result.projects,
+        result.total,
+        input.limit,
+        input.offset,
+      );
+    });
+  }
+}
+```
+
+**Benefits of this approach:**
+- Business logic centralized in service
+- Transformations reusable via adapter
+- Easy to unit test (mock service/adapter)
+- Clear separation of concerns
+- Consistent pattern across codebase
+
+#### Repository Layer Implementation
+
+```typescript
+// apps/api/src/modules/project/repositories/project.repository.ts
+@Injectable()
+export class ProjectRepository {
+  constructor(private databaseService: DatabaseService) {}
+
+  async findMany(filters: {
+    userId?: string;
+    search?: string;
+    limit: number;
+    offset: number;
+  }): Promise<Project[]> {
+    const db = this.databaseService.db;
+    
+    let query = db
+      .select()
+      .from(projects)
+      .limit(filters.limit)
+      .offset(filters.offset);
+
+    if (filters.userId) {
+      query = query.where(eq(projects.userId, filters.userId));
+    }
+
+    if (filters.search) {
+      query = query.where(ilike(projects.name, `%${filters.search}%`));
+    }
+
+    return query.execute();
+  }
+
+  async findById(id: string): Promise<Project | null> {
+    const db = this.databaseService.db;
+    const result = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, id))
+      .limit(1)
+      .execute();
+    
+    return result[0] || null;
+  }
+
+  // ... more CRUD methods
+}
+```
+
+**Repository Rules:**
+- ONLY layer that injects `DatabaseService`
+- Contains ONLY database queries (no business logic)
+- Returns raw database entities
+- Uses Drizzle ORM type inference (`$inferSelect`, `$inferInsert`)
+
+#### Service Layer Implementation
+
+```typescript
+// apps/api/src/modules/project/services/project.service.ts
+@Injectable()
+export class ProjectService {
+  constructor(private projectRepository: ProjectRepository) {}
+
+  async findMany(filters: {
+    userId?: string;
+    search?: string;
+    limit: number;
+    offset: number;
+  }) {
+    // Business logic validation
+    if (filters.limit > 100) {
+      throw new BadRequestException('Limit cannot exceed 100');
+    }
+
+    // Call repository
+    const projects = await this.projectRepository.findMany(filters);
+    
+    // Business logic: filter archived projects
+    return projects.filter(p => !p.isArchived);
+  }
+
+  async findById(id: string): Promise<Project | null> {
+    const project = await this.projectRepository.findById(id);
+    
+    if (!project) {
+      return null;
+    }
+
+    // Business logic: check access permissions
+    if (project.isDeleted) {
+      throw new NotFoundException('Project not found');
+    }
+
+    return project;
+  }
+
+  // ... more business logic methods
+}
+```
+
+**Service Rules:**
+- Contains ALL business logic
+- Calls repository methods (never DatabaseService)
+- Returns entities (NOT contracts)
+- Validates business rules
+- Throws business exceptions
+
+#### Repository Ownership Rule (CRITICAL)
+
+**⚠️ REPOSITORIES ARE OWNED BY THEIR DOMAIN SERVICE**
+
+> See `docs/core-concepts/README.md` for all core concepts (MANDATORY reading)
+
+**The Rule:**
+```
+Service A → Service B → Repository B
+NOT: Service A → Repository B
+```
+
+#### Adapter Layer Implementation
+
+```typescript
+// apps/api/src/modules/project/adapters/project-adapter.service.ts
+@Injectable()
+export class ProjectAdapter {
+  adaptProjectToContract(project: Project): ProjectContract {
+    return {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      createdAt: project.createdAt.toISOString(),
+      updatedAt: project.updatedAt.toISOString(),
+      // ... more transformations
+    };
+  }
+
+  adaptProjectListToContract(
+    projects: Project[],
+    limit: number,
+    offset: number,
+  ): ProjectListContract {
+    return {
+      items: projects.map(p => this.adaptProjectToContract(p)),
+      pagination: {
+        limit,
+        offset,
+        total: projects.length,
+      },
+    };
+  }
+
+  adaptEnvironmentToContract(env: Environment): EnvironmentContract {
+    return {
+      id: env.id,
+      name: env.name,
+      type: env.type,
+      // ... transformation logic
+    };
+  }
+
+  // ... more transformation methods
+}
+```
+
+**Adapter Rules:**
+- Located in `adapters/` folder
+- Contains ONLY transformation logic (entities → contracts)
+- NO business logic allowed
+- Reusable across multiple controller methods
+- Fixed contract types from `@repo/api-contracts`
+- **Type-safe parameters**: NEVER use `any` type for method parameters
+  - Use explicit entity types from Drizzle schema (`typeof schema.$inferSelect`)
+  - Use typed arrays for collections (`Entity[]`, not `any[]`)
+  - Use proper TypeScript types for all parameters
+  - Exception: `any` only allowed when technically required (e.g., truly dynamic data)
+
+#### Controller Module Location Rules
+
+**Core vs Feature Module Architecture:**
+
+```typescript
+// ❌ WRONG - ServiceController in project module
+apps/api/src/modules/project/
+├── controllers/
+│   ├── project.controller.ts   ✅ Correct (project domain)
+│   └── service.controller.ts   ❌ WRONG (service domain)
+
+// ✅ CORRECT - ServiceController in service module
+apps/api/src/modules/project/
+├── controllers/
+│   └── project.controller.ts   ✅ Correct
+
+apps/api/src/modules/service/
+├── controllers/
+│   └── service.controller.ts   ✅ Correct
+```
+
+**Module Location Rules:**
+- Controllers belong in their DOMAIN module (not related entity modules)
+- `ServiceController` handles service endpoints → goes in `modules/service/`
+- `ProjectController` handles project endpoints → goes in `modules/project/`
+- Follow aggregate root pattern for module organization
+
+#### Refactoring Checklist for Controllers
+
+When fixing a controller that violates the Service-Adapter pattern:
+
+1. **Remove DatabaseService Injection** ✅
+   ```typescript
+   // Remove this from constructor
+   private databaseService: DatabaseService, // ❌ DELETE
+   ```
+
+2. **Add Adapter Injection** ✅
+   ```typescript
+   // Add this to constructor
+   private projectAdapter: ProjectAdapter, // ✅ ADD
+   ```
+
+3. **Remove Direct Schema Imports** ✅
+   ```typescript
+   // Remove these imports
+   import { projects, environments, users } from '@/db/drizzle/schema'; // ❌ DELETE
+   import { eq, desc, count, ilike, and } from 'drizzle-orm'; // ❌ DELETE
+   ```
+
+4. **Remove Duplicate Transformation Methods** ✅
+   ```typescript
+   // Delete private transformation methods if they exist in adapter
+   private transformEnvironmentToContract() { ... } // ❌ DELETE (use adapter)
+   private transformUserToContract() { ... }        // ❌ DELETE (use adapter)
+   ```
+
+5. **Check Service Has Required Methods** ✅
+   ```typescript
+   // Verify service has methods for all controller operations
+   // If missing, add them to service first
+   async findMany(filters) { ... }
+   async findById(id) { ... }
+   async create(data) { ... }
+   // ... etc
+   ```
+
+6. **Refactor Each Endpoint** ✅
+   ```typescript
+   // BEFORE (❌ WRONG)
+   async getProject(id: string) {
+     const db = this.databaseService.db;
+     const project = await db.select().from(projects).where(eq(projects.id, id));
+     return { id: project.id, name: project.name };
+   }
+
+   // AFTER (✅ CORRECT)
+   async getProject(id: string) {
+     const project = await this.projectService.findById(id);
+     return this.projectAdapter.adaptProjectToContract(project);
+   }
+   ```
+
+7. **Update Module Providers** ✅
+   ```typescript
+   // Ensure module has all required providers
+   @Module({
+     imports: [CoreModule],
+     controllers: [ProjectController],
+     providers: [
+       ProjectService,      // ✅ Service
+       ProjectRepository,   // ✅ Repository
+       ProjectAdapter,      // ✅ Adapter
+     ],
+   })
+   export class ProjectModule {}
+   ```
+
+#### Common Refactoring Patterns
+
+**Pattern 1: Simple CRUD Operation**
+```typescript
+// ❌ BEFORE
+@Implement(projectContract.getById)
+getById() {
+  return implement(projectContract.getById).handler(async ({ input }) => {
+    const db = this.databaseService.db;
+    const result = await db.select().from(projects).where(eq(projects.id, input.id));
+    return result[0];
+  });
+}
+
+// ✅ AFTER
+@Implement(projectContract.getById)
+getById() {
+  return implement(projectContract.getById).handler(async ({ input }) => {
+    const entity = await this.projectService.findById(input.id);
+    return this.projectAdapter.adaptToContract(entity);
+  });
+}
+```
+
+**Pattern 2: List with Pagination**
+```typescript
+// ❌ BEFORE
+@Implement(projectContract.list)
+list() {
+  return implement(projectContract.list).handler(async ({ input }) => {
+    const db = this.databaseService.db;
+    const items = await db.select().from(projects).limit(input.limit);
+    const total = await db.select({ count: count() }).from(projects);
+    return { items, total: total[0].count };
+  });
+}
+
+// ✅ AFTER
+@Implement(projectContract.list)
+list() {
+  return implement(projectContract.list).handler(async ({ input }) => {
+    const result = await this.projectService.findMany(input);
+    return this.projectAdapter.adaptListToContract(result.projects, result.total, input.limit, input.offset);
+  });
+}
+```
+
+**Pattern 3: Complex Query with Joins**
+```typescript
+// ❌ BEFORE (join logic in controller)
+@Implement(projectContract.getWithEnvironments)
+getWithEnvironments() {
+  return implement(projectContract.getWithEnvironments).handler(async ({ input }) => {
+    const db = this.databaseService.db;
+    const result = await db
+      .select()
+      .from(projects)
+      .leftJoin(environments, eq(projects.id, environments.projectId))
+      .where(eq(projects.id, input.id));
+    // ... complex transformation
+  });
+}
+
+// ✅ AFTER (join logic in repository, called by service)
+@Implement(projectContract.getWithEnvironments)
+getWithEnvironments() {
+  return implement(projectContract.getWithEnvironments).handler(async ({ input }) => {
+    const project = await this.projectService.findByIdWithRelations(input.id);
+    return this.projectAdapter.adaptProjectWithRelationsToContract(project);
+  });
+}
+```
+
+#### Testing Benefits
+
+**Service Layer Tests (Easy):**
+```typescript
+describe('ProjectService', () => {
+  it('should filter archived projects', async () => {
+    const mockRepo = {
+      findMany: jest.fn().mockResolvedValue([
+        { id: '1', isArchived: false },
+        { id: '2', isArchived: true },
+      ]),
+    };
+    
+    const service = new ProjectService(mockRepo as any);
+    const result = await service.findMany({ userId: 'user1' });
+    
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('1');
+  });
+});
+```
+
+**Controller Tests (Easy):**
+```typescript
+describe('ProjectController', () => {
+  it('should return transformed project', async () => {
+    const mockService = {
+      findById: jest.fn().mockResolvedValue({ id: '1', name: 'Test' }),
+    };
+    const mockAdapter = {
+      adaptToContract: jest.fn().mockReturnValue({ id: '1', name: 'Test' }),
+    };
+    
+    const controller = new ProjectController(mockService as any, mockAdapter as any);
+    const result = await controller.getById('1');
+    
+    expect(mockService.findById).toHaveBeenCalledWith('1');
+    expect(mockAdapter.adaptToContract).toHaveBeenCalled();
+  });
+});
+```
+
+#### Key Takeaways
+
+1. **NEVER inject `DatabaseService` in controllers** - Use service layer
+2. **Services return entities, not contracts** - Transformation happens in adapters
+3. **Adapters are pure transformation functions** - No business logic
+4. **Controllers orchestrate, don't implement** - Call service → adapt → return
+5. **Repository is the ONLY layer accessing database** - All queries go through it
+6. **Follow domain-driven module organization** - Controllers in their domain module
+7. **Check for duplicate transformation methods** - Use adapter methods, don't duplicate
+8. **Extend services when needed** - Add missing methods to service layer first
+
+### 10. Shared Package System
 **Internal packages use workspace references:**
 ```json
 "@repo/ui": "*"           // Not published packages
@@ -347,7 +1261,7 @@ Import like: `import { Button } from '@repo/ui'`
 ```
 Import like: `import { Button } from '@repo/ui'`
 
-### 7. Environment Configuration
+### 11. Environment Configuration
 **Multi-environment setup with Docker:**
 - Development: `.env` file with Docker service URLs
 - API URL patterns: `http://api:3001` (internal) vs `http://localhost:3001` (external)
@@ -559,43 +1473,43 @@ bun run clean              # Clears local Turbo cache
 For detailed information on specific topics, reference these documentation files:
 
 ### 🚀 **Getting Started & Setup**
-- **Initial Setup**: [`docs/GETTING-STARTED.md`](../docs/GETTING-STARTED.md) - Complete setup guide with prerequisites and environment configuration
-- **Project Architecture**: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) - System design, component relationships, and data flows
-- **Technology Stack**: [`docs/TECH-STACK.md`](../docs/TECH-STACK.md) - Detailed technology choices and version information
+- **Initial Setup**: [`docs/guides/GETTING-STARTED.md`](../docs/guides/GETTING-STARTED.md) - Complete setup guide with prerequisites and environment configuration
+- **Project Architecture**: [`docs/architecture/ARCHITECTURE.md`](../docs/architecture/ARCHITECTURE.md) - System design, component relationships, and data flows
+- **Technology Stack**: [`docs/reference/TECH-STACK.md`](../docs/reference/TECH-STACK.md) - Detailed technology choices and version information
 
 ### 🛠️ **Development Workflows**
-- **Daily Development**: [`docs/DEVELOPMENT-WORKFLOW.md`](../docs/DEVELOPMENT-WORKFLOW.md) - Day-to-day development tasks and best practices
-- **API Contracts**: [`docs/ORPC-TYPE-CONTRACTS.md`](../docs/ORPC-TYPE-CONTRACTS.md) - ORPC type-safe API development and usage patterns
+- **Daily Development**: [`docs/guides/DEVELOPMENT-WORKFLOW.md`](../docs/guides/DEVELOPMENT-WORKFLOW.md) - Day-to-day development tasks and best practices
+- **API Contracts**: [`docs/core-concepts/09-ORPC-IMPLEMENTATION-PATTERN.md`](../docs/core-concepts/09-ORPC-IMPLEMENTATION-PATTERN.md) - ORPC type-safe API development and usage patterns
 - **Declarative Routing**: [`apps/web/src/routes/README.md`](../apps/web/src/routes/README.md) - Type-safe routing system usage and examples
 
 ### 🐳 **Docker & Deployment**
-- **Docker Strategies**: [`docs/DOCKER-BUILD-STRATEGIES.md`](../docs/DOCKER-BUILD-STRATEGIES.md) - Development vs production Docker configurations
-- **Production Deployment**: [`docs/PRODUCTION-DEPLOYMENT.md`](../docs/PRODUCTION-DEPLOYMENT.md) - Production environment setup and deployment strategies
-- **Render Deployment**: [`docs/RENDER-DEPLOYMENT.md`](../docs/RENDER-DEPLOYMENT.md) - Platform-specific deployment guide for Render
-- **Project Isolation**: [`docs/PROJECT-ISOLATION.md`](../docs/PROJECT-ISOLATION.md) - Running multiple project instances without conflicts
+- **Docker Strategies**: [`docs/features/docker/DOCKER-BUILD-STRATEGIES.md`](../docs/features/docker/DOCKER-BUILD-STRATEGIES.md) - Development vs production Docker configurations
+- **Production Deployment**: [`docs/guides/PRODUCTION-DEPLOYMENT.md`](../docs/guides/PRODUCTION-DEPLOYMENT.md) - Production environment setup and deployment strategies
+- **Render Deployment**: [`docs/guides/RENDER-DEPLOYMENT.md`](../docs/guides/RENDER-DEPLOYMENT.md) - Platform-specific deployment guide for Render
+- **Project Isolation**: [`docs/guides/PROJECT-ISOLATION.md`](../docs/guides/PROJECT-ISOLATION.md) - Running multiple project instances without conflicts
 
 ### ⚙️ **Configuration & Environment**
-- **Environment Variables**: [`docs/ENVIRONMENT-TEMPLATE-SYSTEM.md`](../docs/ENVIRONMENT-TEMPLATE-SYSTEM.md) - Environment configuration and template system
-- **Database Encryption**: [`docs/DATABASE-ENCRYPTION.md`](../docs/DATABASE-ENCRYPTION.md) - Automatic encryption/decryption for sensitive database fields
-- **GitHub Copilot Setup**: [`docs/COPILOT-SETUP.md`](../docs/COPILOT-SETUP.md) - AI development environment configuration
+- **Environment Variables**: [`docs/reference/ENVIRONMENT-TEMPLATE-SYSTEM.md`](../docs/reference/ENVIRONMENT-TEMPLATE-SYSTEM.md) - Environment configuration and template system
+- **Database Encryption**: [`docs/reference/DATABASE-ENCRYPTION.md`](../docs/reference/DATABASE-ENCRYPTION.md) - Automatic encryption/decryption for sensitive database fields
+- **GitHub Copilot Setup**: [`docs/archive/COPILOT-SETUP.md`](../docs/archive/COPILOT-SETUP.md) - AI development environment configuration
 
 ### 🧪 **Testing & Quality**
-- **Testing Guide**: [`docs/TESTING.md`](../docs/TESTING.md) - Testing strategies and test execution
-- **Testing Implementation**: [`docs/TESTING-IMPLEMENTATION-SUMMARY.md`](../docs/TESTING-IMPLEMENTATION-SUMMARY.md) - Comprehensive testing setup details
+- **Testing Guide**: [`docs/guides/TESTING.md`](../docs/guides/TESTING.md) - Testing strategies and test execution
+- **Testing Implementation**: [`docs/features/testing/TESTING-IMPLEMENTATION-SUMMARY.md`](../docs/features/testing/TESTING-IMPLEMENTATION-SUMMARY.md) - Comprehensive testing setup details
 
 ### 📂 **Quick Reference for Common Tasks**
 
 | Task | Documentation File | Key Section |
 |------|-------------------|-------------|
-| Setting up development environment | `docs/GETTING-STARTED.md` | Quick Start |
-| Creating API endpoints | `docs/ORPC-TYPE-CONTRACTS.md` | API Implementation |
+| Setting up development environment | `docs/guides/GETTING-STARTED.md` | Quick Start |
+| Creating API endpoints | `docs/core-concepts/09-ORPC-IMPLEMENTATION-PATTERN.md` | API Implementation |
 | Adding new pages | `apps/web/src/routes/README.md` | Using the routes |
-| Database operations | `docs/DEVELOPMENT-WORKFLOW.md` | Working with Database |
-| Encrypting sensitive database fields | `docs/DATABASE-ENCRYPTION.md` | Custom Column Type |
-| Docker issues | `docs/DOCKER-BUILD-STRATEGIES.md` | Troubleshooting |
-| Production deployment | `docs/PRODUCTION-DEPLOYMENT.md` | Production Environment Variables |
-| Environment configuration | `docs/ENVIRONMENT-TEMPLATE-SYSTEM.md` | Template System |
-| Testing setup | `docs/TESTING.md` | Running Tests |
+| Database operations | `docs/guides/DEVELOPMENT-WORKFLOW.md` | Working with Database |
+| Encrypting sensitive database fields | `docs/reference/DATABASE-ENCRYPTION.md` | Custom Column Type |
+| Docker issues | `docs/features/docker/DOCKER-BUILD-STRATEGIES.md` | Troubleshooting |
+| Production deployment | `docs/guides/PRODUCTION-DEPLOYMENT.md` | Production Environment Variables |
+| Environment configuration | `docs/reference/ENVIRONMENT-TEMPLATE-SYSTEM.md` | Template System |
+| Testing setup | `docs/guides/TESTING.md` | Running Tests |
 | **Service health & rollback policy** | **`docs/DEPLOYMENT-HEALTH-RULES.md`** | **Health Calculation Rules** |
 | **Static deployment status bug** | **`docs/STATIC-DEPLOYMENT-STATUS-BUG-FIX.md`** | **Health Monitor Fix** |
 
@@ -609,14 +1523,136 @@ For detailed information on specific topics, reference these documentation files
 
 Update relevant documentation whenever you:
 
-1. **Add/Modify API Endpoints**: Update `docs/ORPC-TYPE-CONTRACTS.md` and `docs/DEVELOPMENT-WORKFLOW.md`
-2. **Change Environment Variables**: Update `docs/GETTING-STARTED.md`, `docs/ENVIRONMENT-TEMPLATE-SYSTEM.md`, and relevant deployment docs
-3. **Modify Docker Configuration**: Update `docs/DOCKER-BUILD-STRATEGIES.md` and deployment guides
-4. **Update Dependencies**: Update `docs/TECH-STACK.md` with new versions and rationale
-5. **Change Database Schema**: Update `docs/DEVELOPMENT-WORKFLOW.md` database sections
+1. **Add/Modify API Endpoints**: Update `docs/core-concepts/09-ORPC-IMPLEMENTATION-PATTERN.md` and `docs/guides/DEVELOPMENT-WORKFLOW.md`
+2. **Change Environment Variables**: Update `docs/guides/GETTING-STARTED.md`, `docs/reference/ENVIRONMENT-TEMPLATE-SYSTEM.md`, and relevant deployment docs
+
+**2. Configure Environment Variables**
+
+**For Local Development:**
+```bash
+# Add to your .env file
+TURBO_TOKEN=your-vercel-token-here
+TURBO_TEAM=your-team-name-or-username  # Your Vercel username or team name
+```
+
+**For CI/CD (GitHub Secrets):**
+- Go to your GitHub repository Settings > Secrets and variables > Actions
+- Add repository secrets:
+  - `TURBO_TOKEN`: Your Vercel token
+  - `TURBO_TEAM`: Your Vercel username or team name
+
+**3. Docker Compose Integration**
+Remote caching is automatically configured in Docker containers when environment variables are set:
+```bash
+# Docker containers will inherit TURBO_TOKEN and TURBO_TEAM from your .env file
+bun run dev  # Uses remote cache in containers
+```
+
+**4. Host Development**
+For direct host development (not in containers):
+```bash
+# Ensure environment variables are set, then run:
+bun run build    # Will use remote cache
+bun run test     # Will use remote cache
+```
+
+**5. Verification**
+To verify remote caching is working:
+```bash
+# Clean local cache and build
+bun run clean
+bun run build    # Should show "MISS" for first build
+bun run clean
+bun run build    # Should show "HIT" for subsequent builds
+```
+
+### Remote Cache Benefits
+- **🚀 Faster Builds**: Share build artifacts across environments
+- **💾 Storage Efficient**: Avoid rebuilding unchanged packages
+- **🔄 Team Collaboration**: Share cache between team members
+- **⚡ CI/CD Speed**: Dramatically faster pipeline execution
+- **🐳 Container Optimization**: Faster Docker builds with persistent cache
+
+### Cache Locations
+- **Local Development**: Docker containers automatically use remote cache
+- **CI/CD Pipeline**: GitHub Actions configured with remote caching
+- **Host Development**: Uses remote cache when `TURBO_TOKEN` is configured
+
+### Troubleshooting Remote Cache
+```bash
+# View cache status
+bun run build --dry-run     # Shows what would be cached
+
+# Force bypass cache (for testing)
+bun run build --force      # Ignores remote cache
+
+# Clear local cache
+bun run clean              # Clears local Turbo cache
+```
+
+## Documentation References
+
+For detailed information on specific topics, reference these documentation files:
+
+### 🚀 **Getting Started & Setup**
+- **Initial Setup**: [`docs/guides/GETTING-STARTED.md`](../docs/guides/GETTING-STARTED.md) - Complete setup guide with prerequisites and environment configuration
+- **Project Architecture**: [`docs/architecture/ARCHITECTURE.md`](../docs/architecture/ARCHITECTURE.md) - System design, component relationships, and data flows
+- **Technology Stack**: [`docs/reference/TECH-STACK.md`](../docs/reference/TECH-STACK.md) - Detailed technology choices and version information
+
+### 🛠️ **Development Workflows**
+- **Daily Development**: [`docs/guides/DEVELOPMENT-WORKFLOW.md`](../docs/guides/DEVELOPMENT-WORKFLOW.md) - Day-to-day development tasks and best practices
+- **API Contracts**: [`docs/core-concepts/09-ORPC-IMPLEMENTATION-PATTERN.md`](../docs/core-concepts/09-ORPC-IMPLEMENTATION-PATTERN.md) - ORPC type-safe API development and usage patterns
+- **Declarative Routing**: [`apps/web/src/routes/README.md`](../apps/web/src/routes/README.md) - Type-safe routing system usage and examples
+
+### 🐳 **Docker & Deployment**
+- **Docker Strategies**: [`docs/features/docker/DOCKER-BUILD-STRATEGIES.md`](../docs/features/docker/DOCKER-BUILD-STRATEGIES.md) - Development vs production Docker configurations
+- **Production Deployment**: [`docs/guides/PRODUCTION-DEPLOYMENT.md`](../docs/guides/PRODUCTION-DEPLOYMENT.md) - Production environment setup and deployment strategies
+- **Render Deployment**: [`docs/guides/RENDER-DEPLOYMENT.md`](../docs/guides/RENDER-DEPLOYMENT.md) - Platform-specific deployment guide for Render
+- **Project Isolation**: [`docs/guides/PROJECT-ISOLATION.md`](../docs/guides/PROJECT-ISOLATION.md) - Running multiple project instances without conflicts
+
+### ⚙️ **Configuration & Environment**
+- **Environment Variables**: [`docs/reference/ENVIRONMENT-TEMPLATE-SYSTEM.md`](../docs/reference/ENVIRONMENT-TEMPLATE-SYSTEM.md) - Environment configuration and template system
+- **Database Encryption**: [`docs/reference/DATABASE-ENCRYPTION.md`](../docs/reference/DATABASE-ENCRYPTION.md) - Automatic encryption/decryption for sensitive database fields
+- **GitHub Copilot Setup**: [`docs/archive/COPILOT-SETUP.md`](../docs/archive/COPILOT-SETUP.md) - AI development environment configuration
+
+### 🧪 **Testing & Quality**
+- **Testing Guide**: [`docs/guides/TESTING.md`](../docs/guides/TESTING.md) - Testing strategies and test execution
+- **Testing Implementation**: [`docs/features/testing/TESTING-IMPLEMENTATION-SUMMARY.md`](../docs/features/testing/TESTING-IMPLEMENTATION-SUMMARY.md) - Comprehensive testing setup details
+
+### 📂 **Quick Reference for Common Tasks**
+
+| Task | Documentation File | Key Section |
+|------|-------------------|-------------|
+| Setting up development environment | `docs/guides/GETTING-STARTED.md` | Quick Start |
+| Creating API endpoints | `docs/core-concepts/09-ORPC-IMPLEMENTATION-PATTERN.md` | API Implementation |
+| Adding new pages | `apps/web/src/routes/README.md` | Using the routes |
+| Database operations | `docs/guides/DEVELOPMENT-WORKFLOW.md` | Working with Database |
+| Encrypting sensitive database fields | `docs/reference/DATABASE-ENCRYPTION.md` | Custom Column Type |
+| Docker issues | `docs/features/docker/DOCKER-BUILD-STRATEGIES.md` | Troubleshooting |
+| Production deployment | `docs/guides/PRODUCTION-DEPLOYMENT.md` | Production Environment Variables |
+| Environment configuration | `docs/reference/ENVIRONMENT-TEMPLATE-SYSTEM.md` | Template System |
+| Testing setup | `docs/guides/TESTING.md` | Running Tests |
+| **Service health & rollback policy** | **`docs/DEPLOYMENT-HEALTH-RULES.md`** | **Health Calculation Rules** |
+| **Static deployment status bug** | **`docs/STATIC-DEPLOYMENT-STATUS-BUG-FIX.md`** | **Health Monitor Fix** |
+
+**Note**: Always check these documentation files for the most up-to-date and detailed information before implementing features or resolving issues.
+
+## Documentation Maintenance
+
+**IMPORTANT**: As an AI coding agent, you have a responsibility to keep documentation accurate and up-to-date. 
+
+### When to Update Documentation
+
+Update relevant documentation whenever you:
+
+1. **Add/Modify API Endpoints**: Update `docs/core-concepts/09-ORPC-IMPLEMENTATION-PATTERN.md` and `docs/guides/DEVELOPMENT-WORKFLOW.md`
+2. **Change Environment Variables**: Update `docs/guides/GETTING-STARTED.md`, `docs/reference/ENVIRONMENT-TEMPLATE-SYSTEM.md`, and relevant deployment docs
+3. **Modify Docker Configuration**: Update `docs/features/docker/DOCKER-BUILD-STRATEGIES.md` and deployment guides
+4. **Update Dependencies**: Update `docs/reference/TECH-STACK.md` with new versions and rationale
+5. **Change Database Schema**: Update `docs/guides/DEVELOPMENT-WORKFLOW.md` database sections
 6. **Add/Remove Routes**: Update `apps/web/src/routes/README.md` and routing documentation
-7. **Modify Authentication Flow**: Update `docs/ARCHITECTURE.md` and setup guides
-8. **Change Testing Setup**: Update `docs/TESTING.md` and testing documentation
+7. **Modify Authentication Flow**: Update `docs/architecture/ARCHITECTURE.md` and setup guides
+8. **Change Testing Setup**: Update `docs/guides/TESTING.md` and testing documentation
 9. **Alter Deployment Procedures**: Update production and platform-specific deployment guides
 10. **Add New Features**: Create or update relevant documentation sections
 
@@ -711,10 +1747,10 @@ Links to related concepts and documentation.
 2. **Project README** (if user-facing)
    - Update feature lists or technology mentions
 
-3. **Architecture Documentation** (`docs/ARCHITECTURE.md`)
+3. **Architecture Documentation** (`docs/architecture/ARCHITECTURE.md`)
    - Update if it affects system architecture
 
-4. **Tech Stack Documentation** (`docs/TECH-STACK.md`)
+4. **Tech Stack Documentation** (`docs/reference/TECH-STACK.md`)
    - Add new technologies with version information and rationale
 
 ### Copilot Instructions File Maintenance

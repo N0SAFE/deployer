@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DeploymentCleanupService } from '../deployment-cleanup.service';
-import type { DatabaseService } from '../../../database/services/database.service';
 import type { DockerService } from '../../../docker/services/docker.service';
 
 // Mock services
@@ -31,8 +30,13 @@ describe('DeploymentCleanupService', () => {
     mockDb = createMockDatabaseService();
     mockDockerService = createMockDockerService();
 
+    // Create mock repositories and services
+    const mockDeploymentRepository = {} as any;
+    const mockServiceService = {} as any;
+
     service = new DeploymentCleanupService(
-      mockDb as unknown as DatabaseService,
+      mockDeploymentRepository,
+      mockServiceService,
       mockDockerService as unknown as DockerService,
     );
   });

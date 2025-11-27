@@ -3,33 +3,56 @@ import { Implement, implement } from "@orpc/nest";
 import { deploymentContract } from "@repo/api-contracts";
 import { DeploymentQueueService } from "@/core/modules/orchestration/services/deployment-queue.service";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
-import { DatabaseService } from "@/core/modules/database/services/database.service";
 import { DeploymentService } from "@/core/modules/deployment/services/deployment.service";
 import { DeploymentCleanupService } from "@/core/modules/deployment/services/deployment-cleanup.service";
 import { ServiceService } from "@/core/modules/service/services/service.service";
-import {
-  deployments,
-  deploymentLogs,
-  services,
-} from "@/config/drizzle/schema";
+import { DeploymentAdapter } from "../adapters/deployment-adapter.service";
 import type { DeploymentJobData } from "@/core/modules/orchestration/types/deployment-job.types";
+// TODO: REFACTOR - Controller should not access database directly (violates Service-Adapter pattern)
+// Import temporarily to fix compilation errors - needs proper refactor to use repository/service layer
+import { DatabaseService } from "@/core/modules/database/services/database.service";
+import { deployments, deploymentLogs, services } from "@/config/drizzle/schema";
 import { eq, desc, and, or } from "drizzle-orm";
-import type { InferSelectModel } from "drizzle-orm";
 
-// Type aliases for better type safety
-type Deployment = InferSelectModel<typeof deployments>;
-type DeploymentMetadata = Deployment["metadata"];
-type DeploymentSourceConfig = Deployment["sourceConfig"];
+// TODO: Move to proper type file
+type DeploymentSourceConfig = {
+  repositoryUrl?: string;
+  branch?: string;
+  commitSha?: string;
+  pullRequestNumber?: number;
+  fileName?: string;
+  fileSize?: number;
+  customData?: Record<string, any>;
+};
+
+type DeploymentMetadata = {
+  buildLogs?: string;
+  buildDuration?: number;
+  deployDuration?: number;
+  resourceUsage?: Record<string, any>;
+  stage?: string;
+  progress?: number;
+  cancelReason?: string;
+  cancelledAt?: Date;
+  version?: string;
+  branch?: string;
+  pr?: number;
+  customName?: string;
+};
+
 @Controller("other")
 export class DeploymentController {
   private readonly logger = new Logger(DeploymentController.name);
+  
   constructor(
+    // TODO: REFACTOR - Remove DatabaseService from controller (violates Service-Adapter pattern)
+    private readonly databaseService: DatabaseService,
     private readonly deploymentQueueService: DeploymentQueueService,
     private readonly dockerService: DockerService,
-    private readonly databaseService: DatabaseService,
     private readonly deploymentService: DeploymentService,
     private readonly deploymentCleanupService: DeploymentCleanupService,
     private readonly serviceService: ServiceService,
+    private readonly deploymentAdapter: DeploymentAdapter,
   ) {}
   @Implement(deploymentContract.jobStatus)
   jobStatus() {
@@ -89,79 +112,43 @@ export class DeploymentController {
       async ({ input }) => {
         this.logger.log(`Getting status for deployment: ${input.deploymentId}`);
         try {
-          // Get deployment from database
-          const [deployment] = await this.databaseService.db
-            .select()
-            .from(deployments)
-            .where(eq(deployments.id, input.deploymentId))
-            .limit(1);
+          // ✅ Use service layer instead of direct database access
+          const deployment = await this.deploymentService.getDeployment(input.deploymentId);
+          
           if (!deployment) {
             throw new Error(`Deployment ${input.deploymentId} not found`);
           }
+
           // Get container health status if deployment has containers
-          let containerHealthy = false;
+          let containerHealthy: 'healthy' | 'unhealthy' | 'starting' = 'unhealthy';
           if (deployment.status === "success" && deployment.containerName) {
             const containers =
               await this.dockerService.listContainersByDeployment(
                 deployment.id
               );
             if (containers.length > 0) {
-              containerHealthy = await this.dockerService.checkContainerHealth(
+              const isHealthy = await this.dockerService.checkContainerHealth(
                 containers[0].id
               );
+              containerHealthy = isHealthy ? 'healthy' : 'unhealthy';
             }
           }
 
-          // Build enriched status response matching the contract schema
-          const response = {
-            deploymentId: input.deploymentId,
-            serviceId: deployment.serviceId,
-            status: deployment.status as
-              | "queued"
-              | "building"
-              | "deploying"
-              | "success"
-              | "failed"
-              | "cancelled",
-            stage: this.mapStatusToStage(deployment.status),
-            progress: this.calculateProgress(
-              deployment.status,
-              containerHealthy
-            ),
-            startedAt: deployment.buildStartedAt || deployment.createdAt,
-            completedAt: deployment.deployCompletedAt || undefined,
-
-            // Container and network information
-            containerId: deployment.containerName || undefined,
-            url: deployment.domainUrl || undefined,
-            internalUrl: undefined,
-
-            // Build information
-            buildDuration: deployment.metadata?.buildDuration ?? undefined,
-            deploymentSize: deployment.metadata?.deployDuration ?? undefined,
-
-            // Health information
-            healthStatus: containerHealthy
-              ? "healthy"
-              : deployment.status === "success"
-                ? "unhealthy"
-                : undefined,
-            lastHealthCheck: deployment.updatedAt || undefined,
-
-            // Metadata
-            deployedBy: deployment.triggeredBy || "system",
-            environment: deployment.environment,
-            sourceType: deployment.sourceType,
-          } as const;
-
-          return response;
+          // ✅ Use adapter for transformation
+          return this.deploymentAdapter.adaptDeploymentToStatusContract(
+            deployment,
+            containerHealthy,
+            deployment.triggeredBy || 'system',
+            deployment.sourceType as 'github' | 'gitlab' | 'git' | 'upload' | 'docker-image' | 'custom'
+          );
         } catch (error) {
-          this.logger.error(`Error getting deployment status: ${error}`);
+          this.logger.error(`Get status error: ${error}`);
           throw error;
         }
       }
     );
   }
+
   @Implement(deploymentContract.trigger)
   trigger() {
     return implement(deploymentContract.trigger).handler(async ({ input }) => {

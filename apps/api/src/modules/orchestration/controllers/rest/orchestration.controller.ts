@@ -546,7 +546,7 @@ export class OrchestrationRestController {
   @Get("system/metrics")
   async getSystemMetrics() {
     try {
-      const metrics = await this.resourceMonitoringService.getSystemMetrics(24);
+      const metrics = await this.resourceMonitoringService.getSystemMetrics('system', 24);
       return metrics;
     } catch (error) {
       this.logger.error("Failed to get system metrics:", error);

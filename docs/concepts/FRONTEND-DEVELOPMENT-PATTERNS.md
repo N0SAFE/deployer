@@ -1233,7 +1233,7 @@ Before implementing any frontend feature:
 
 ## Related Documentation
 
-- **ORPC Contracts**: [`reference/ORPC-TYPE-CONTRACTS.md`](../reference/ORPC-TYPE-CONTRACTS.md) - API contract definitions
+- **ORPC Contracts**: [`reference/ORPC-TYPE-CONTRACTS.md`](../core-concepts/09-ORPC-IMPLEMENTATION-PATTERN.md) - API contract definitions
 - **Frontend Spec**: [`specifications/FRONTEND-SPECIFICATION.md`](../specifications/FRONTEND-SPECIFICATION.md) - UI/UX specifications
 - **Declarative Routing**: [`apps/web/src/routes/README.md`](../../apps/web/src/routes/README.md) - Routing system details
 - **Architecture**: [`architecture/ARCHITECTURE.md`](../architecture/ARCHITECTURE.md) - System architecture

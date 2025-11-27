@@ -13,6 +13,7 @@ import { ConstantsModule } from '@/core/modules/constants/constants.module';
 import { TraefikCoreModule } from '@/core/modules/traefik/traefik.module';
 import { ContextModule } from '@/core/modules/context/context.module';
 import { DomainModule } from '@/core/modules/domain/domain.module';
+import { IdentifierResolverModule } from '@/core/modules/identifier-resolver/identifier-resolver.module';
 
 /**
  * CORE MODULE: Core Services
@@ -30,6 +31,7 @@ import { DomainModule } from '@/core/modules/domain/domain.module';
  * - ProjectsModule: Project server management
  * - OrchestrationModule: Traefik, Bull queues, deployment processing
  * - DomainModule: Multi-level domain management (organization → project → service)
+ * - IdentifierResolverModule: Shared identifier resolution (slugs/names → UUIDs)
  */
 @Module({
   imports: [
@@ -42,6 +44,7 @@ import { DomainModule } from '@/core/modules/domain/domain.module';
     ContextModule, // Add before other modules that may use it
     DomainModule, // Add before modules that need domain management
     TraefikCoreModule, // Add before ProjectsModule (ProjectsModule depends on it)
+    IdentifierResolverModule, // Shared identifier resolution logic
     ProjectsModule,
     OrchestrationModule,
     ProvidersModule,
@@ -58,6 +61,7 @@ import { DomainModule } from '@/core/modules/domain/domain.module';
     ContextModule,
     DomainModule,
     TraefikCoreModule,
+    IdentifierResolverModule,
     ProjectsModule,
     OrchestrationModule,
     ProvidersModule,

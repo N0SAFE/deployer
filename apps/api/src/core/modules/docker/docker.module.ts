@@ -1,8 +1,10 @@
-import { Module, Global } from '@nestjs/common';
+import { Module, Global, forwardRef } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { DockerService } from './services/docker.service';
 import { ZombieCleanupService } from './services/zombie-cleanup.service';
 import { CoreDeploymentModule } from '@/core/modules/deployment/deployment.module';
+import { ProjectModule } from '@/modules/project/project.module';
+import { ServiceModule } from '@/core/modules/service/service.module';
 
 /**
  * CORE MODULE: Docker
@@ -16,13 +18,15 @@ import { CoreDeploymentModule } from '@/core/modules/deployment/deployment.modul
  * - ZombieCleanupService: Automated cleanup of orphaned containers
  * 
  * Dependencies:
- * - DeploymentModule: DeploymentService for ZombieCleanupService (circular dependency)
+ * - DeploymentModule: DeploymentService for ZombieCleanupService (circular dependency resolved with forwardRef)
  */
 @Global()
 @Module({
   imports: [
     ScheduleModule.forRoot(), // For ZombieCleanupService cron jobs
-    CoreDeploymentModule
+    forwardRef(() => CoreDeploymentModule), // Use forwardRef to break circular dependency
+    forwardRef(() => ProjectModule), // For ProjectService (cross-layer dependency)
+    ServiceModule, // For ServiceService
   ],
   providers: [
     DockerService,

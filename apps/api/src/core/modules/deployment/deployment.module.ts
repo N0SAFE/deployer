@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { DeploymentService } from './services/deployment.service';
+import { DeploymentRepository } from './repositories/deployment.repository';
 import { DeploymentCleanupService } from './services/deployment-cleanup.service';
 import { DeploymentHealthMonitorService } from './services/deployment-health-monitor.service';
 import { DeploymentRulesService } from './services/deployment-rules.service';
@@ -50,6 +51,7 @@ import { TraefikCoreModule } from '../traefik/traefik.module';
     // DockerModule not imported - it's @Global() and imported in CoreModule
   ],
   providers: [
+    DeploymentRepository, // Repository layer - handles ALL database access
     DeploymentService,
     DeploymentCleanupService,
     DeploymentHealthMonitorService,
@@ -73,6 +75,7 @@ import { TraefikCoreModule } from '../traefik/traefik.module';
     },
   ],
   exports: [
+    DeploymentRepository, // Export for use in other core/feature modules
     DeploymentService,
     DeploymentCleanupService,
     DeploymentHealthMonitorService,
