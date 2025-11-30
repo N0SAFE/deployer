@@ -43,6 +43,10 @@ export const apiEnvSchema = zod.object({
     DEV_AUTH_KEY: zod.string().optional(),
     TRUSTED_ORIGINS: zod.string().optional(),
     
+    // Traefik Configuration
+    TRAEFIK_CONFIG_BASE_PATH: zod.string().optional().default('/etc/traefik'),
+    TRAEFIK_BACKUP_PATH: zod.string().optional().default('/var/backups/traefik'),
+    
     // Shared
     ...sharedEnvVars,
 }).refine((data) => {
