@@ -13,6 +13,7 @@ import {
 } from '@repo/ui/components/shadcn/dropdown-menu'
 import {
     Home,
+    Dashboard,
     Authsignin,
     AuthMe,
     Appshowcase,
@@ -27,6 +28,7 @@ import {
     Server,
     Monitor,
     ChevronDown,
+    LayoutDashboard,
 } from 'lucide-react'
 import SignOutButton from '../signout/signoutButton'
 import { validateEnvPath } from '#/env'
@@ -61,6 +63,21 @@ const MainNavigation: React.FC = () => {
                             <span>Home</span>
                         </Button>
                     </Home.Link>
+
+                    <Dashboard.Link>
+                        <Button
+                            variant={
+                                pathname.startsWith('/dashboard')
+                                    ? 'default'
+                                    : 'ghost'
+                            }
+                            size="sm"
+                            className="flex items-center space-x-2"
+                        >
+                            <LayoutDashboard className="h-4 w-4" />
+                            <span>Dashboard</span>
+                        </Button>
+                    </Dashboard.Link>
 
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>

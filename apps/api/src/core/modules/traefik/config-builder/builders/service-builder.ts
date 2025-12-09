@@ -68,7 +68,7 @@ export class ServiceBuilder<TConfig extends HttpServiceConfig | TcpServiceConfig
     const config = this.config as Record<string, unknown>;
     if (!('loadBalancer' in config) && !('weighted' in config) && !('mirroring' in config)) {
       throw new ConfigBuildError(
-        `Service '${this.name}' must have at least one configuration (loadBalancer, weighted, or mirroring)`,
+        'Service must have at least one configuration',
         { service: this.name, missing: 'configuration' }
       );
     }
