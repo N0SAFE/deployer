@@ -225,7 +225,28 @@ const builder = new PermissionBuilder()
 export const permissionConfig = builder.build();
 export const { statement, ac, roles, schemas } = permissionConfig;
 
-// Type exports for use in other modules
-export type PermissionStatement = typeof statement;
-export type PermissionRoles = typeof roles;
+/**
+ * Exported role names as a const tuple for type-safe access.
+ * This includes both default Better Auth roles and custom roles.
+ */
+export const ROLE_NAMES = Object.keys(roles) as (keyof typeof roles)[];
+
+/**
+ * Type representing all valid role names
+ */
 export type RoleName = keyof typeof roles;
+
+/**
+ * Exported resource names as a const tuple for type-safe access.
+ */
+export const RESOURCE_NAMES = Object.keys(statement) as (keyof typeof statement)[];
+
+/**
+ * Type representing all valid resource names
+ */
+export type ResourceName = keyof typeof statement;
+
+/**
+ * Type representing all valid actions for a specific resource
+ */
+export type ActionsForResource<R extends ResourceName> = typeof statement[R][number];

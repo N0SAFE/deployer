@@ -22,6 +22,8 @@
         "NEXT_PUBLIC_API_URL",
         "API_PORT",
         "DEV_AUTH_KEY",
+        "DEV_AUTH_EMAIL",
+        "NEXT_PUBLIC_DEV_AUTH_KEY",
         "CORS_ORIGIN",
         "LOG_LEVEL",
         "CHOKIDAR_USEPOLLING",
@@ -35,7 +37,8 @@
         "DOCKER_PORT",
         "STATIC_FILES_BASE_PATH",
         "WORKSPACE_DIR",
-        "COMPOSE_PROJECT_NAME"
+        "COMPOSE_PROJECT_NAME",
+        "AUTH_BASE_DOMAIN"
     ],
     "tasks": {
         "dev": {

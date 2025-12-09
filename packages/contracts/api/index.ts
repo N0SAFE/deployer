@@ -14,6 +14,7 @@ import {
   traefikContract,
   setupContract,
   staticFileContract,
+  pushContract
 } from "./modules/index";
 
 // Main app contract that combines all feature contracts
@@ -35,6 +36,7 @@ export const appContract = oc.router({
   traefik: traefikContract,
   setup: setupContract,
   staticFile: staticFileContract,
+  push: pushContract,
 });
 
 export type AppContract = typeof appContract;

@@ -8,11 +8,13 @@ export const createBetterAuth = <TSchema extends Record<string, unknown>>(
 ) => {
     return betterAuthFactory(database, 'get' in envService ? {
         DEV_AUTH_KEY: envService.get('DEV_AUTH_KEY'),
+        DEV_AUTH_EMAIL: envService.get('DEV_AUTH_EMAIL'),
         NODE_ENV: envService.get('NODE_ENV'),
         BETTER_AUTH_SECRET: envService.get('BETTER_AUTH_SECRET'),
         BASE_URL: envService.get('NEXT_PUBLIC_API_URL'),
         TRUSTED_ORIGINS: envService.get('TRUSTED_ORIGINS'),
         NEXT_PUBLIC_APP_URL: envService.get('NEXT_PUBLIC_APP_URL'),
         APP_URL: envService.get('APP_URL'),
+        AUTH_BASE_DOMAIN: envService.get('AUTH_BASE_DOMAIN'),
     }: envService);
 };

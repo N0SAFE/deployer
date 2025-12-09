@@ -35,9 +35,11 @@ export const apiEnvSchema = zod
         APP_URL: zod.url().optional(), // Private Docker network URL
 
         // Authentication
-        AUTH_SECRET: zod.string().min(1, "AUTH_SECRET is required"),
-        BETTER_AUTH_SECRET: zod.string().min(1, "BETTER_AUTH_SECRET is required"),
+        AUTH_SECRET: zod.string().min(1, 'AUTH_SECRET is required'),
+        BETTER_AUTH_SECRET: zod.string().min(1, 'BETTER_AUTH_SECRET is required'),
+        AUTH_BASE_DOMAIN: zod.string().optional(),
         DEV_AUTH_KEY: zod.string().optional(),
+        DEV_AUTH_EMAIL: zod.email().optional(), // Email of the user to impersonate when using master token
         TRUSTED_ORIGINS: zod.string().optional(),
 
         // Traefik Configuration
@@ -92,8 +94,9 @@ export const webEnvSchema = zod
         NEXT_PUBLIC_APP_PORT: zod.coerce.number().int().min(1).max(65535).optional(),
 
         // Authentication
-        AUTH_SECRET: zod.string().min(1, "AUTH_SECRET is required"),
-        BETTER_AUTH_SECRET: zod.string().min(1, "BETTER_AUTH_SECRET is required"),
+        AUTH_SECRET: zod.string().min(1, 'AUTH_SECRET is required'),
+        BETTER_AUTH_SECRET: zod.string().min(1, 'BETTER_AUTH_SECRET is required'),
+        AUTH_BASE_DOMAIN: zod.string().optional(),
         DEV_AUTH_KEY: zod.string().optional(),
         NEXT_PUBLIC_SHOW_AUTH_LOGS: zod.coerce.boolean().optional().default(false),
 

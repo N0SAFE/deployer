@@ -6,17 +6,35 @@ import {
 import { DatabaseModule } from "./core/modules/database/database.module";
 import { HealthModule } from "./modules/health/health.module";
 import { UserModule } from "./modules/user/user.module";
-import { onError, ORPCModule } from "@orpc/nest";
+import { PushModule } from "./core/modules/push/push.module";
+import { ORPCModule } from "@orpc/nest";
 import { DATABASE_CONNECTION } from "./core/modules/database/database-connection";
 import { AuthModule } from "./core/modules/auth/auth.module";
+import { AuthService } from "./core/modules/auth/services/auth.service";
 import { LoggerMiddleware } from "./core/middlewares/logger.middleware";
 import { createBetterAuth } from "./config/auth/auth";
 import { EnvService } from "./config/env/env.service";
 import { EnvModule } from "./config/env/env.module";
-import { APP_GUARD } from "@nestjs/core";
-import { AuthGuard } from "./core/modules/auth/guards/auth.guard";
-import { RoleGuard } from "./core/modules/auth/guards/role.guard";
 import { REQUEST } from '@nestjs/core'
+import {
+  experimental_SmartCoercionPlugin as SmartCoercionPlugin
+} from '@orpc/json-schema'
+import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+import type { ORPCAuthContext } from "./core/modules/auth/orpc/types";
+import { TestModule } from "./modules/test/test.module";
+import { AuthPlugin } from "./core/modules/auth/orpc/plugins/auth.plugin";
+import { transformNestJSErrorToOrpcError, logOrpcErrors } from "./core/modules/auth/orpc/interceptors";
+
+
+declare module '@orpc/nest' {
+  /**
+   * Extend oRPC global context to make it type-safe inside your handlers/middlewares
+   */
+  interface ORPCGlobalContext {
+    request: Request;
+    auth: ORPCAuthContext;
+  }
+}
 
 @Module({
   imports: [
@@ -27,34 +45,37 @@ import { REQUEST } from '@nestjs/core'
       useFactory: createBetterAuth,
       inject: [DATABASE_CONNECTION, EnvService],
       disableBodyParser: false,
+      disableGlobalAuthGuard: true,
     }),
     HealthModule,
     UserModule,
+    PushModule,
+    TestModule,
     ORPCModule.forRootAsync({
-      useFactory: (request: Request) => ({
-        interceptors: [
-          onError((error, _ctx) => {
-            console.error(
-              "oRPC Error:",
-              error
-            );
-          })
-        ],
-        context: { request },
-        eventIteratorKeepAliveInterval: 5000, // 5 seconds
-      }),
-      inject: [REQUEST],
+      useFactory: (request: Request, authService: AuthService) => {
+        const emptyAuthUtils = authService.createEmptyAuthUtils();
+
+        return {
+          interceptors: [
+            transformNestJSErrorToOrpcError(),
+            logOrpcErrors(),
+          ],
+          plugins: [
+            new SmartCoercionPlugin({
+              schemaConverters: [
+                new ZodToJsonSchemaConverter()
+              ]
+            }),
+            // Auth plugin that populates context.auth with session data
+            new AuthPlugin({ auth: authService.instance }),
+          ],
+          // Initial context - auth will be populated by AuthPlugin
+          context: { request, auth: emptyAuthUtils },
+          eventIteratorKeepAliveInterval: 5000, // 5 seconds
+        };
+      },
+      inject: [REQUEST, AuthService],
     }),
-  ],
-  providers: [
-    {
-      provide: APP_GUARD,
-      useClass: AuthGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: RoleGuard,
-    },
   ],
 })
 export class AppModule implements NestModule {

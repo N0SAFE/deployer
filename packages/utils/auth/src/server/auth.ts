@@ -2,15 +2,21 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { openAPI } from "better-auth/plugins";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { masterTokenPlugin } from "./plugins/masterTokenAuth";
-import { loginAsPlugin } from "./plugins/loginAs";
-import { useAdmin, useInvite, useOrganization } from "../permissions/index";
+import {
+    masterTokenPlugin,
+    loginAsPlugin,
+    pushNotificationsPlugin,
+    useAdmin,
+    useInvite,
+    useOrganization
+} from "./plugins";
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
 export const betterAuthFactory = <TSchema extends Record<string, unknown> = Record<string, never>>(
     database: unknown,
     env: {
         DEV_AUTH_KEY: string | undefined;
+        DEV_AUTH_EMAIL: string | undefined;
         NODE_ENV: string;
         BETTER_AUTH_SECRET?: string;
         BASE_URL?: string;
@@ -22,7 +28,7 @@ export const betterAuthFactory = <TSchema extends Record<string, unknown> = Reco
 ) => {
     const dbInstance = database as NodePgDatabase<TSchema>;
 
-    const { DEV_AUTH_KEY, NODE_ENV, BETTER_AUTH_SECRET, BASE_URL, APP_URL, NEXT_PUBLIC_APP_URL, TRUSTED_ORIGINS, AUTH_BASE_DOMAIN } = env;
+    const { DEV_AUTH_KEY, DEV_AUTH_EMAIL, NODE_ENV, BETTER_AUTH_SECRET, BASE_URL, APP_URL, NEXT_PUBLIC_APP_URL, TRUSTED_ORIGINS, AUTH_BASE_DOMAIN } = env;
 
     // Build trusted origins: both public and private web app URLs + additional origins
     const origins: string[] = [];
@@ -51,7 +57,7 @@ export const betterAuthFactory = <TSchema extends Record<string, unknown> = Reco
     // - api-the-gossip-club.sebille.net + the-gossip-club.sebille.net
     const cookieDomain: string | undefined = isHttps && AUTH_BASE_DOMAIN ? AUTH_BASE_DOMAIN : undefined;
 
-    const auth = betterAuth({
+    const config = {
         secret: BETTER_AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET,
         baseURL: BASE_URL ?? process.env.NEXT_PUBLIC_API_URL,
         trustedOrigins: origins.length > 0 ? origins : undefined,
@@ -82,7 +88,8 @@ export const betterAuthFactory = <TSchema extends Record<string, unknown> = Reco
             useAdmin(),
             masterTokenPlugin({
                 devAuthKey: DEV_AUTH_KEY ?? "",
-                enabled: NODE_ENV === "development" && !!DEV_AUTH_KEY,
+                enabled: NODE_ENV === "development" && !!DEV_AUTH_KEY && !!DEV_AUTH_EMAIL,
+                masterEmail: DEV_AUTH_EMAIL ?? "",
             }),
             loginAsPlugin({
                 enabled: NODE_ENV === "development" && !!DEV_AUTH_KEY,
@@ -93,9 +100,11 @@ export const betterAuthFactory = <TSchema extends Record<string, unknown> = Reco
                 inviteDurationDays: 7,
             }),
             useOrganization(),
+            pushNotificationsPlugin()
         ],
-    });
+    };
 
-    console.log(auth.api);
-    return { auth };
+    const auth = betterAuth(config);
+
+    return { auth: { ...auth, config } };
 };

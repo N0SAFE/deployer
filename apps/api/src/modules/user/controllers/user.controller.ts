@@ -21,6 +21,7 @@ import { Implement, implement } from '@orpc/nest';
 import { userContract } from '@repo/api-contracts';
 import { UserService } from '../services/user.service';
 import { UserAdapter } from '../adapters/user-adapter.service';
+import { requireAuth } from '@/core/modules/auth/orpc/middlewares';
 
 @Controller()
 export class UserController {
@@ -35,10 +36,10 @@ export class UserController {
      */
     @Implement(userContract.list)
     list() {
-        return implement(userContract.list).handler(async ({ input }) => {
+        return implement(userContract.list).use(requireAuth()).handler(async ({ input }) => {
             // Fetch data from service
             const data = await this.userService.findMany(input);
-            
+
             // Transform via adapter
             return this.userAdapter.adaptUserListToContract(data);
         });
@@ -50,10 +51,10 @@ export class UserController {
      */
     @Implement(userContract.findById)
     findById() {
-        return implement(userContract.findById).handler(async ({ input }) => {
+        return implement(userContract.findById).use(requireAuth()).handler(async ({ input }) => {
             // Fetch entity from service
             const user = await this.userService.findById(input.id);
-            
+
             // Transform via adapter (handles null case)
             return this.userAdapter.adaptUserToContract(user);
         });
@@ -65,10 +66,10 @@ export class UserController {
      */
     @Implement(userContract.create)
     create() {
-        return implement(userContract.create).handler(async ({ input }) => {
+        return implement(userContract.create).use(requireAuth()).handler(async ({ input }) => {
             // Create via service (includes business validation)
             const user = await this.userService.create(input);
-            
+
             // Transform via adapter
             return this.userAdapter.adaptUserCreateToContract(user);
         });
@@ -80,10 +81,10 @@ export class UserController {
      */
     @Implement(userContract.update)
     update() {
-        return implement(userContract.update).handler(async ({ input }) => {
+        return implement(userContract.update).use(requireAuth()).handler(async ({ input }) => {
             // Update via service (includes business validation)
             const user = await this.userService.update(input.id, input);
-            
+
             // Transform via adapter (handles null case)
             return this.userAdapter.adaptUserUpdateToContract(user);
         });
@@ -95,10 +96,10 @@ export class UserController {
      */
     @Implement(userContract.delete)
     delete() {
-        return implement(userContract.delete).handler(async ({ input }) => {
+        return implement(userContract.delete).use(requireAuth()).handler(async ({ input }) => {
             // Delete via service
             const user = await this.userService.delete(input.id);
-            
+
             // Transform via adapter (handles null case)
             return this.userAdapter.adaptUserDeleteToContract(user);
         });
@@ -110,10 +111,10 @@ export class UserController {
      */
     @Implement(userContract.checkEmail)
     checkEmail() {
-        return implement(userContract.checkEmail).handler(async ({ input }) => {
+        return implement(userContract.checkEmail).use(requireAuth()).handler(async ({ input }) => {
             // Check via service
             const exists = await this.userService.checkEmailExists(input.email);
-            
+
             // Transform via adapter
             return this.userAdapter.adaptUserCheckEmailToContract(exists);
         });
@@ -125,10 +126,10 @@ export class UserController {
      */
     @Implement(userContract.count)
     count() {
-        return implement(userContract.count).handler(async () => {
+        return implement(userContract.count).use(requireAuth()).handler(async () => {
             // Get count from service
             const count = await this.userService.getCount();
-            
+
             // Transform via adapter
             return this.userAdapter.adaptUserCountToContract(count);
         });
