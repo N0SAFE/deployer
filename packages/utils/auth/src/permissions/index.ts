@@ -1,5 +1,4 @@
 import { statement, ac, roles, schemas } from "./config";
-import { adminClient, organizationClient } from "better-auth/client/plugins";
 
 // Export all system classes and types
 export * from "./system";

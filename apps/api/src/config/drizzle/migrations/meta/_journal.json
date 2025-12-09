@@ -50,6 +50,13 @@
       "when": 1764852681591,
       "tag": "0006_demonic_bastion",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1765295903348,
+      "tag": "0007_useful_famine",
+      "breakpoints": true
     }
   ]
 }

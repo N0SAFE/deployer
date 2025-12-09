@@ -16,29 +16,9 @@ export class UserRepository {
     constructor(private readonly databaseService: DatabaseService) {}
 
     /**
-     * Normalize user entity dates to ISO strings for API responses
-     */
-    private transformUser(userData: UserEntity | null): (Omit<UserEntity, 'createdAt' | 'updatedAt'> & { createdAt: string; updatedAt: string; }) | null {
-        if (!userData) return null;
-
-        return {
-            ...userData,
-            createdAt: userData.createdAt instanceof Date ? userData.createdAt.toISOString() : new Date(userData.createdAt).toISOString(),
-            updatedAt: userData.updatedAt instanceof Date ? userData.updatedAt.toISOString() : new Date(userData.updatedAt).toISOString(),
-        };
-    }
-
-    /**
-     * Normalize arrays of users
-     */
-    private transformUsers(users: UserEntity[]): ReturnType<UserRepository['transformUser']>[] {
-        return users.map(userData => this.transformUser(userData));
-    }
-
-    /**
      * Create a new user
      */
-    async create(input: CreateUserInput): Promise<ReturnType<UserRepository['transformUser']>> {
+    async create(input: CreateUserInput): Promise<UserEntity> {
         const newUser = await this.databaseService.db
             .insert(user)
             .values({
@@ -51,24 +31,24 @@ export class UserRepository {
                 updatedAt: new Date(),
             })
             .returning();
-            if (!newUser[0]) {
-                throw new Error('Failed to create user');
-            }
-        return this.transformUser(newUser[0]);
+        if (!newUser[0]) {
+            throw new Error('Failed to create user');
+        }
+        return newUser[0];
     }
     /**
      * Find user by ID
      */
-    async findById(id: string): Promise<ReturnType<UserRepository['transformUser']>> {
+    async findById(id: string): Promise<UserEntity | null> {
         const foundUser = await this.databaseService.db.select().from(user).where(eq(user.id, id)).limit(1);
-        return this.transformUser(foundUser[0] ?? null);
+        return foundUser[0] ?? null;
     }
     /**
      * Find user by email
      */
-    async findByEmail(email: string): Promise<ReturnType<UserRepository['transformUser']>> {
+    async findByEmail(email: string): Promise<UserEntity | null> {
         const foundUser = await this.databaseService.db.select().from(user).where(eq(user.email, email)).limit(1);
-        return this.transformUser(foundUser[0] ?? null);
+        return foundUser[0] ?? null;
     }
     /**
      * Find all users with pagination and filtering
@@ -124,7 +104,7 @@ export class UserRepository {
             : await this.databaseService.db.select({ count: count() }).from(user);
         const total = totalResult[0]?.count ?? 0;
         return {
-            users: this.transformUsers(users),
+            users,
             meta: {
                 pagination: {
                     total,
@@ -138,7 +118,7 @@ export class UserRepository {
     /**
      * Update user by ID
      */
-    async update(id: string, input: UpdateUserInput): Promise<ReturnType<UserRepository['transformUser']>> {
+    async update(id: string, input: UpdateUserInput): Promise<UserEntity | null> {
         const updateData: Partial<UpdateUserInput> & { updatedAt: Date; createdAt?: Date } = {
             ...input,
             updatedAt: new Date(),
@@ -154,14 +134,14 @@ export class UserRepository {
             .set(updateData)
             .where(eq(user.id, id))
             .returning();
-        return this.transformUser(updatedUser[0] ?? null);
+        return updatedUser[0] ?? null;
     }
     /**
      * Delete user by ID
      */
-    async delete(id: string): Promise<ReturnType<UserRepository['transformUser']>> {
+    async delete(id: string): Promise<UserEntity | null> {
         const deletedUser = await this.databaseService.db.delete(user).where(eq(user.id, id)).returning();
-        return this.transformUser(deletedUser[0] ?? null);
+        return deletedUser[0] ?? null;
     }
     /**
      * Check if user exists by email
