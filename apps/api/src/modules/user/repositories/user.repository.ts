@@ -31,9 +31,9 @@ export class UserRepository {
                 updatedAt: new Date(),
             })
             .returning();
-        if (!newUser[0]) {
-            throw new Error('Failed to create user');
-        }
+            if (!newUser[0]) {
+                throw new Error('Failed to create user');
+            }
         return newUser[0];
     }
     /**
@@ -119,19 +119,13 @@ export class UserRepository {
      * Update user by ID
      */
     async update(id: string, input: UpdateUserInput): Promise<UserEntity | null> {
-        const updateData: Partial<UpdateUserInput> & { updatedAt: Date; createdAt?: Date } = {
-            ...input,
-            updatedAt: new Date(),
-        };
-
-        // Only override createdAt when explicitly provided
-        if (input.createdAt) {
-            updateData.createdAt = new Date(input.createdAt);
-        }
-
         const updatedUser = await this.databaseService.db
             .update(user)
-            .set(updateData)
+            .set({
+                ...input,
+                createdAt: new Date(input.createdAt ?? Date.now()),
+                updatedAt: new Date(),
+            })
             .where(eq(user.id, id))
             .returning();
         return updatedUser[0] ?? null;
