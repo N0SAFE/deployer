@@ -26,6 +26,13 @@ export class DatabaseService {
     }
 
     /**
+     * Execute a database transaction with proper typing
+     */
+    async transaction<T>(handler: (tx: Database) => Promise<T>): Promise<T> {
+        return this._db.transaction(handler);
+    }
+
+    /**
      * Health check method to verify database connectivity
      */
     async isHealthy(): Promise<boolean> {

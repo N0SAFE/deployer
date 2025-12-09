@@ -1,0 +1,435 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bull';
+import type { Queue, Job, JobStatus } from 'bull';
+import { Cron } from '@nestjs/schedule';
+import { jobTracking } from '@/config/drizzle/schema/orchestration';
+import { eq, gte, lte, inArray, type SQL } from 'drizzle-orm';
+import type { InferSelectModel } from 'drizzle-orm';
+import { JobTrackingRepository } from '../repositories/job-tracking.repository';
+
+/** Type inferred from Drizzle job_tracking schema */
+type JobTrackingRow = InferSelectModel<typeof jobTracking>;
+
+/** Bull job data structure */
+interface BullJobData {
+    stackId?: string;
+    serviceId?: string;
+    [key: string]: unknown;
+}
+
+/** Bull job return value structure */
+interface BullJobReturnValue {
+    logs?: string[];
+    [key: string]: unknown;
+}
+
+export interface JobTrackingInfo {
+    id: string;
+    type: string;
+    status: 'waiting' | 'active' | 'completed' | 'failed' | 'delayed' | 'paused';
+    data: any;
+    progress: number;
+    createdAt: Date;
+    startedAt?: Date;
+    completedAt?: Date;
+    failedAt?: Date;
+    duration?: number;
+    stackId?: string;
+    serviceId?: string;
+    logs: string[];
+    error?: string;
+    metadata: Record<string, any>;
+}
+export interface JobStatusSummary {
+    total: number;
+    waiting: number;
+    active: number;
+    completed: number;
+    failed: number;
+    delayed: number;
+    paused: number;
+}
+export interface JobHistoryQuery {
+    status?: string[];
+    type?: string[];
+    stackId?: string;
+    serviceId?: string;
+    fromDate?: Date;
+    toDate?: Date;
+    limit?: number;
+    offset?: number;
+}
+@Injectable()
+export class JobTrackingService {
+    private readonly logger = new Logger(JobTrackingService.name);
+    private readonly JOB_RETENTION_DAYS = 30;
+    private readonly MAX_LOGS_PER_JOB = 1000;
+    constructor(
+    private readonly jobTrackingRepository: JobTrackingRepository,
+    @InjectQueue('deployment')
+    private deploymentQueue: Queue) { }
+    /**
+     * Get real-time job statistics from Bull queue
+     */
+    async getJobStatusSummary(): Promise<JobStatusSummary> {
+        try {
+            const counts = await this.deploymentQueue.getJobCounts();
+            return {
+                total: counts.waiting + counts.active + counts.completed + counts.failed + counts.delayed,
+                waiting: counts.waiting,
+                active: counts.active,
+                completed: counts.completed,
+                failed: counts.failed,
+                delayed: counts.delayed,
+                paused: 0 // Bull doesn't track paused jobs in getJobCounts()
+            };
+        }
+        catch (error) {
+            this.logger.error('Failed to get job status summary:', error);
+            throw error;
+        }
+    }
+    /**
+     * Get detailed information about a specific job
+     */
+    async getJobDetails(jobId: string): Promise<JobTrackingInfo | null> {
+        try {
+            // First try to get from Bull queue (for active jobs)
+            const bullJob = await this.deploymentQueue.getJob(jobId);
+            if (bullJob) {
+                return this.mapBullJobToTrackingInfo(bullJob);
+            }
+            // If not in queue, check database for completed/failed jobs
+            const dbJob = await this.jobTrackingRepository.findById(jobId);
+            if (dbJob) {
+                return this.mapDbJobToTrackingInfo(dbJob);
+            }
+            return null;
+        }
+        catch (error) {
+            this.logger.error(`Failed to get job details for ${jobId}:`, error);
+            throw error;
+        }
+    }
+    /**
+     * Get job history with filtering and pagination
+     */
+    async getJobHistory(query: JobHistoryQuery = {}): Promise<{
+        jobs: JobTrackingInfo[];
+        total: number;
+        hasMore: boolean;
+    }> {
+        try {
+            const { status, type, stackId, serviceId, fromDate, toDate, limit = 50, offset = 0 } = query;
+            const whereConditions: SQL[] = [];
+            if (status && status.length > 0) {
+                whereConditions.push(inArray(jobTracking.status, status));
+            }
+            if (type && type.length > 0) {
+                whereConditions.push(inArray(jobTracking.type, type));
+            }
+            if (stackId) {
+                whereConditions.push(eq(jobTracking.stackId, stackId));
+            }
+            if (serviceId) {
+                whereConditions.push(eq(jobTracking.serviceId, serviceId));
+            }
+            if (fromDate) {
+                whereConditions.push(gte(jobTracking.createdAt, fromDate));
+            }
+            if (toDate) {
+                whereConditions.push(lte(jobTracking.createdAt, toDate));
+            }
+            // Note: whereConditions built for potential future direct query use
+            // Currently repository handles filtering internally
+            
+            // Get total count and paginated results
+            const { jobs: dbJobs, total } = await this.jobTrackingRepository.findJobHistory({
+                stackId,
+                status: Array.isArray(status) ? status[0] : status,
+                fromDate,
+                toDate,
+                limit,
+                offset
+            });
+            const jobs = dbJobs.map(job => this.mapDbJobToTrackingInfo(job));
+            return {
+                jobs,
+                total,
+                hasMore: (offset + limit) < total
+            };
+        }
+        catch (error) {
+            this.logger.error('Failed to get job history:', error);
+            throw error;
+        }
+    }
+    /**
+     * Get active jobs from Bull queue
+     */
+    async getActiveJobs(): Promise<JobTrackingInfo[]> {
+        try {
+            const activeJobs = await this.deploymentQueue.getActive();
+            return activeJobs.map(job => this.mapBullJobToTrackingInfo(job));
+        }
+        catch (error) {
+            this.logger.error('Failed to get active jobs:', error);
+            throw error;
+        }
+    }
+    /**
+     * Get waiting jobs from Bull queue
+     */
+    async getWaitingJobs(): Promise<JobTrackingInfo[]> {
+        try {
+            const waitingJobs = await this.deploymentQueue.getWaiting();
+            return waitingJobs.map(job => this.mapBullJobToTrackingInfo(job));
+        }
+        catch (error) {
+            this.logger.error('Failed to get waiting jobs:', error);
+            throw error;
+        }
+    }
+    /**
+     * Get failed jobs from Bull queue
+     */
+    async getFailedJobs(): Promise<JobTrackingInfo[]> {
+        try {
+            const failedJobs = await this.deploymentQueue.getFailed();
+            return failedJobs.map(job => this.mapBullJobToTrackingInfo(job));
+        }
+        catch (error) {
+            this.logger.error('Failed to get failed jobs:', error);
+            throw error;
+        }
+    }
+    /**
+     * Get completed jobs from Bull queue (recent ones)
+     */
+    async getCompletedJobs(): Promise<JobTrackingInfo[]> {
+        try {
+            const completedJobs = await this.deploymentQueue.getCompleted();
+            return completedJobs.map(job => this.mapBullJobToTrackingInfo(job));
+        }
+        catch (error) {
+            this.logger.error('Failed to get completed jobs:', error);
+            throw error;
+        }
+    }
+    /**
+     * Retry a failed job
+     */
+    async retryJob(jobId: string): Promise<void> {
+        try {
+            const job = await this.deploymentQueue.getJob(jobId);
+            if (!job) {
+                throw new Error(`Job ${jobId} not found`);
+            }
+            await job.retry();
+            this.logger.log(`Job ${jobId} queued for retry`);
+        }
+        catch (error) {
+            this.logger.error(`Failed to retry job ${jobId}:`, error);
+            throw error;
+        }
+    }
+    /**
+     * Cancel/remove a job
+     */
+    async cancelJob(jobId: string): Promise<void> {
+        try {
+            const job = await this.deploymentQueue.getJob(jobId);
+            if (!job) {
+                throw new Error(`Job ${jobId} not found`);
+            }
+            await job.remove();
+            this.logger.log(`Job ${jobId} cancelled and removed`);
+        }
+        catch (error) {
+            this.logger.error(`Failed to cancel job ${jobId}:`, error);
+            throw error;
+        }
+    }
+    /**
+     * Store job tracking information to database when jobs complete/fail
+     */
+    async storeJobTracking(job: Job, status: JobStatus): Promise<void> {
+        try {
+            const data = job.data as BullJobData;
+            const returnValue = job.returnvalue as BullJobReturnValue | undefined;
+            const jobProgress = job.progress() as number;
+            
+            // stackId is required for job tracking
+            if (!data.stackId) {
+                this.logger.warn(`Job ${String(job.id)} has no stackId, skipping tracking`);
+                return;
+            }
+            
+            const jobData = {
+                id: job.id.toString(),
+                jobType: job.name as 'deploy' | 'update' | 'remove' | 'scale' | 'build' | 'cleanup' | 'health-check' | 'ssl-renew' | 'backup' | 'restore',
+                status: status as 'waiting' | 'active' | 'completed' | 'failed' | 'delayed' | 'paused',
+                progress: jobProgress,
+                startedAt: job.processedOn ? new Date(job.processedOn) : new Date(),
+                completedAt: job.finishedOn ? new Date(job.finishedOn) : null,
+                failedAt: job.failedReason ? new Date(job.finishedOn ?? Date.now()) : null,
+                duration: job.processedOn && job.finishedOn
+                    ? job.finishedOn - job.processedOn
+                    : null,
+                stackId: data.stackId,
+                logs: this.extractJobLogs(job).join('\n'),
+                error: job.failedReason ?? null,
+                metadata: {
+                    opts: job.opts,
+                    returnValue: returnValue,
+                    attempts: job.attemptsMade
+                }
+            };
+            await this.jobTrackingRepository.upsertJobTracking(jobData);
+            this.logger.log(`Stored job tracking for ${String(job.id)} with status ${status}`);
+        }
+        catch (error) {
+            this.logger.error(`Failed to store job tracking for ${String(job.id)}:`, error);
+            // Don't throw - this shouldn't break the job processing
+        }
+    }
+    /**
+     * Clean up old job tracking records
+     */
+    @Cron('0 2 * * *') // Daily at 2 AM
+    async cleanupOldJobTracking(): Promise<void> {
+        try {
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - this.JOB_RETENTION_DAYS);
+            await this.jobTrackingRepository.deleteOldJobs(cutoffDate);
+            this.logger.log(`Cleaned up job tracking records older than ${String(this.JOB_RETENTION_DAYS)} days`);
+        }
+        catch (error) {
+            this.logger.error('Failed to cleanup old job tracking records:', error);
+        }
+    }
+    /**
+     * Get job statistics for a specific stack
+     */
+    async getStackJobStatistics(stackId: string): Promise<{
+        total: number;
+        byStatus: Record<string, number>;
+        byType: Record<string, number>;
+        averageDuration: number;
+        recentJobs: JobTrackingInfo[];
+    }> {
+        try {
+            const jobs = await this.jobTrackingRepository.findJobsByStackId(stackId, 100);
+            const total = jobs.length;
+            const byStatus: Record<string, number> = {};
+            const byType: Record<string, number> = {};
+            let totalDuration = 0;
+            let durationsCount = 0;
+            jobs.forEach(job => {
+                // Count by status
+                byStatus[job.status] = (byStatus[job.status] ?? 0) + 1;
+                // Count by type
+                byType[job.type] = (byType[job.type] ?? 0) + 1;
+                // Calculate average duration
+                if (job.duration && job.duration > 0) {
+                    totalDuration += job.duration;
+                    durationsCount++;
+                }
+            });
+            const averageDuration = durationsCount > 0 ? totalDuration / durationsCount : 0;
+            const recentJobs = jobs
+                .slice(0, 10)
+                .map(job => this.mapDbJobToTrackingInfo(job));
+            return {
+                total,
+                byStatus,
+                byType,
+                averageDuration,
+                recentJobs
+            };
+        }
+        catch (error) {
+            this.logger.error(`Failed to get job statistics for stack ${stackId}:`, error);
+            throw error;
+        }
+    }
+    /**
+     * Map Bull job to tracking info
+     */
+    private mapBullJobToTrackingInfo(job: Job): JobTrackingInfo {
+        return {
+            id: job.id.toString(),
+            type: job.name,
+            status: this.mapBullJobStatus(job),
+            data: job.data,
+            progress: job.progress(),
+            createdAt: new Date(job.timestamp),
+            startedAt: job.processedOn ? new Date(job.processedOn) : undefined,
+            completedAt: job.finishedOn ? new Date(job.finishedOn) : undefined,
+            failedAt: job.failedReason ? new Date(job.finishedOn ?? Date.now()) : undefined,
+            duration: job.processedOn && job.finishedOn
+                ? job.finishedOn - job.processedOn
+                : undefined,
+            stackId: job.data.stackId,
+            serviceId: job.data.serviceId,
+            logs: this.extractJobLogs(job),
+            error: job.failedReason,
+            metadata: {
+                opts: job.opts,
+                returnValue: job.returnvalue,
+                attempts: job.attemptsMade
+            }
+        };
+    }
+    /**
+     * Map database job to tracking info
+     */
+    private mapDbJobToTrackingInfo(job: JobTrackingRow): JobTrackingInfo {
+        return {
+            id: job.id,
+            type: job.type,
+            status: job.status,
+            data: job.data ?? {},
+            progress: job.progress,
+            createdAt: job.createdAt,
+            startedAt: job.startedAt ?? undefined,
+            completedAt: job.completedAt ?? undefined,
+            failedAt: job.failedAt ?? undefined,
+            duration: job.duration ?? undefined,
+            stackId: job.stackId ?? undefined,
+            serviceId: job.serviceId ?? undefined,
+            logs: job.logs,
+            error: job.error ?? undefined,
+            metadata: job.metadata ?? {}
+        };
+    }
+    /**
+     * Map Bull job status to our status enum
+     */
+    private mapBullJobStatus(job: Job): 'waiting' | 'active' | 'completed' | 'failed' | 'delayed' | 'paused' {
+        if (job.finishedOn) {
+            return job.failedReason ? 'failed' : 'completed';
+        }
+        if (job.processedOn) {
+            return 'active';
+        }
+        if (job.opts.delay && Date.now() < job.timestamp + job.opts.delay) {
+            return 'delayed';
+        }
+        return 'waiting';
+    }
+    /**
+     * Extract logs from Bull job
+     */
+    private extractJobLogs(job: Job): string[] {
+        const logs: string[] = [];
+        if (job.returnvalue && typeof job.returnvalue === 'object' && job.returnvalue.logs) {
+            logs.push(...job.returnvalue.logs);
+        }
+        if (job.failedReason) {
+            logs.push(`ERROR: ${job.failedReason}`);
+        }
+        // Limit logs to prevent memory issues
+        return logs.slice(-this.MAX_LOGS_PER_JOB);
+    }
+}

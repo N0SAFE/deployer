@@ -9,6 +9,10 @@
       "import": "./index.ts",
       "types": "./index.ts"
     },
+    "./modules/*": "./modules/*/index.ts",
+    "./modules": "./modules/index.ts",
+    "./common/*": "./common/*.ts",
+    "./shared": "./shared/index.ts",
     "./*": "./*.ts"
   },
   "scripts": {

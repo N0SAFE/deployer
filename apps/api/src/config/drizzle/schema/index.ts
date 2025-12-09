@@ -8,3 +8,5 @@ export * from "./traefik-templates";
 export * from "./domain";
 export * from "./orchestration";
 export * from "./resource-monitoring";
+export * from "./environment";
+export * from "./github-provider";

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer, uuid, jsonb, decimal, pgEnum, } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, uuid, jsonb, decimal, pgEnum } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { orchestrationStacks, serviceInstances } from "./orchestration";
 // Enums for resource monitoring

@@ -27,10 +27,15 @@ export interface PhaseMetadata {
   deploymentType?: string;
   detectedType?: string;
   
+  // Domain and routing metadata
+  domain?: string;
+  finalDomain?: string;
+  healthCheckUrl?: string;
+  
   // Error metadata
   error?: string;
   stack?: string;
   
   // Allow additional custom metadata
-  [key: string]: any;
+  [key: string]: unknown;
 }

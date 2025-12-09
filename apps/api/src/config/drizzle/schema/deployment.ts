@@ -213,6 +213,9 @@ export const deployments = pgTable("deployments", {
         branch?: string;
         pr?: number;
         customName?: string;
+        // Rollback metadata
+        rollbackFrom?: string;
+        targetDeploymentId?: string;
     }>(),
     createdAt: timestamp("created_at")
         .$defaultFn(() => new Date())

@@ -5,6 +5,13 @@ import { fromNodeHeaders } from "better-auth/node";
 import type { IncomingHttpHeaders } from "http";
 import { getRequestFromContext } from "../utils/context";
 import { MODULE_OPTIONS_TOKEN, type AuthModuleOptions } from "../definitions/auth-module-definition";
+import type { Session } from "../types/auth";
+
+/**
+ * Type representing an authenticated user session
+ * Contains both session data and user information
+ */
+export type UserSession = Session;
 
 
 export const AuthErrorType = {

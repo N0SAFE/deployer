@@ -7,7 +7,7 @@ import type {
   addDomainResponseSchema,
   verifyDomainResponseSchema,
   verificationInstructionsSchema,
-} from '@repo/api-contracts/modules/domain/schemas';
+} from '@repo/api-contracts/modules/domain';
 
 type OrganizationDomain = typeof organizationDomains.$inferSelect;
 type ProjectDomain = typeof projectDomains.$inferSelect;

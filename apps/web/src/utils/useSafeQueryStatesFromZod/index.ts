@@ -1,9 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-deprecated */
 /* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
 /* eslint-disable no-case-declarations */
@@ -62,15 +58,28 @@ function useDebouncedCallback<T extends (...args: unknown[]) => unknown>(
     return debouncedCallback
 }
 
+// Internal Zod def interface for accessing private properties
+interface ZodDefAny {
+    typeName?: string;
+    defaultValue?: () => unknown;
+    innerType?: z.ZodTypeAny;
+    values?: unknown[] | Record<string, unknown>;
+    value?: unknown;
+    type?: z.ZodTypeAny | string;
+    schema?: z.ZodTypeAny;
+    checks?: { kind: string }[];
+}
+
 // Type-safe helper to check Zod type
 function getZodTypeName(schema: z.ZodTypeAny): string {
-    return (schema as any)._def?.typeName || 'ZodUnknown'
+    const def = schema.def as ZodDefAny
+    return def.typeName || 'ZodUnknown'
 }
 
 // Type-safe helper to get default value
-function getZodDefault(schema: z.ZodTypeAny): any {
-    const def = (schema as any)._def
-    if (def?.typeName === 'ZodDefault') {
+function getZodDefault(schema: z.ZodTypeAny): unknown {
+    const def = schema.def as ZodDefAny
+    if (def.typeName === 'ZodDefault') {
         return def.defaultValue?.()
     }
     return undefined
@@ -78,99 +87,104 @@ function getZodDefault(schema: z.ZodTypeAny): any {
 
 // Type-safe helper to unwrap schema
 function unwrapZodSchema(schema: z.ZodTypeAny): z.ZodTypeAny {
-    const def = (schema as any)._def
+    const def = schema.def as ZodDefAny
     
-    if (def?.typeName === 'ZodDefault') {
-        return def.innerType || schema
+    if (def.typeName === 'ZodDefault' && def.innerType) {
+        return def.innerType
     }
     
-    if (def?.typeName === 'ZodOptional') {
-        return def.innerType || schema
+    if (def.typeName === 'ZodOptional' && def.innerType) {
+        return def.innerType
     }
     
     return schema
 }
 
 // Helper function to create a parser for a single Zod type
-function createParserForZodType(schema: z.ZodTypeAny): any {
+function createParserForZodType(schema: z.ZodTypeAny): unknown {
     const defaultValue = getZodDefault(schema)
     const baseSchema = unwrapZodSchema(schema)
     const typeName = getZodTypeName(baseSchema)
-    const def = (baseSchema as any)._def
+    const def = baseSchema.def as ZodDefAny
 
     switch (typeName) {
         case 'ZodString':
             return defaultValue !== undefined 
-                ? parseAsString.withDefault(defaultValue)
+                ? parseAsString.withDefault(defaultValue as string)
                 : parseAsString
 
         case 'ZodNumber':
             // Check if it's an integer
-            const checks = def?.checks || []
-            const isInt = checks.some((check: any) => check.kind === 'int')
+            const checks = def.checks || []
+            const isInt = checks.some((check) => check.kind === 'int')
             
             const numberParser = isInt ? parseAsInteger : parseAsFloat
             return defaultValue !== undefined 
-                ? numberParser.withDefault(defaultValue)
+                ? numberParser.withDefault(defaultValue as number)
                 : numberParser
 
         case 'ZodBoolean':
             return defaultValue !== undefined 
-                ? parseAsBoolean.withDefault(defaultValue)
+                ? parseAsBoolean.withDefault(defaultValue as boolean)
                 : parseAsBoolean
 
         case 'ZodEnum':
             // For Zod enums, extract the values
-            const enumValues = def?.values || []
+            const enumValues = (def.values || []) as string[]
             if (enumValues.length > 0) {
                 const enumParser = parseAsStringLiteral(enumValues)
                 return defaultValue !== undefined 
-                    ? enumParser.withDefault(defaultValue)
+                    ? enumParser.withDefault(defaultValue as string)
                     : enumParser
             }
             break
 
         case 'ZodNativeEnum':
             // For native enums, extract the values
-            const nativeEnumValues = def?.values ? Object.values(def.values).filter((v): v is string => typeof v === 'string') : []
+            const nativeEnumObj = def.values as Record<string, unknown> | undefined
+            const nativeEnumValues = nativeEnumObj ? Object.values(nativeEnumObj).filter((v): v is string => typeof v === 'string') : []
             if (nativeEnumValues.length > 0) {
                 const nativeEnumParser = parseAsStringLiteral(nativeEnumValues)
                 return defaultValue !== undefined 
-                    ? nativeEnumParser.withDefault(defaultValue)
+                    ? nativeEnumParser.withDefault(defaultValue as string)
                     : nativeEnumParser
             }
             break
 
         case 'ZodLiteral':
             // For literal types, create an array with just that value
-            const literalValue = def?.value
+            const literalValue = def.value
             if (typeof literalValue === 'string') {
                 const literalParser = parseAsStringLiteral([literalValue])
                 return defaultValue !== undefined 
-                    ? literalParser.withDefault(defaultValue)
+                    ? literalParser.withDefault(defaultValue as string)
                     : literalParser
             } else if (typeof literalValue === 'number') {
                 const literalParser = parseAsNumberLiteral([literalValue])
                 return defaultValue !== undefined 
-                    ? literalParser.withDefault(defaultValue)
+                    ? literalParser.withDefault(defaultValue as number)
                     : literalParser
             }
             break
 
         case 'ZodArray':
             // For arrays, create an array parser with the element type
-            const elementSchema = def?.type
-            if (elementSchema) {
+            {
+                const elementSchema = def.type as z.ZodTypeAny | undefined
+                if (!elementSchema) {
+                    break
+                }
                 const elementTypeName = getZodTypeName(elementSchema)
-                let baseElementParser: any
+                let baseElementParser: unknown
                 
                 switch (elementTypeName) {
                     case 'ZodString':
                         baseElementParser = parseAsString
                         break
                     case 'ZodNumber':
-                        const elementChecks = elementSchema._def?.checks || []
-                        const elementIsInt = elementChecks.some((check: { kind: string }) => check.kind === 'int')
+                        const elementDef = elementSchema.def as ZodDefAny
+                        const elementChecks = elementDef.checks || []
+                        const elementIsInt = elementChecks.some((check) => check.kind === 'int')
                         baseElementParser = elementIsInt ? parseAsInteger : parseAsFloat
                         break
                     case 'ZodBoolean':
@@ -181,19 +195,18 @@ function createParserForZodType(schema: z.ZodTypeAny): any {
                         baseElementParser = parseAsString
                 }
                 
-                const arrayParser = parseAsArrayOf(baseElementParser)
+                const arrayParser = parseAsArrayOf(baseElementParser as Parameters<typeof parseAsArrayOf>[0])
                 return defaultValue !== undefined 
-                    ? arrayParser.withDefault(defaultValue)
+                    ? arrayParser.withDefault(defaultValue as unknown[])
                     : arrayParser
             }
-            break
 
         case 'ZodObject':
             // For nested objects, use JSON parser with the schema
             try {
                 const jsonParser = parseAsJson(baseSchema)
                 return defaultValue !== undefined 
-                    ? jsonParser.withDefault(defaultValue)
+                    ? jsonParser.withDefault(defaultValue as Record<string, unknown>)
                     : jsonParser
             } catch {
                 // Fallback if JSON parser fails
@@ -202,7 +215,7 @@ function createParserForZodType(schema: z.ZodTypeAny): any {
 
         case 'ZodEffects':
             // For refined schemas, try to infer from the underlying schema
-            const underlyingSchema = def?.schema
+            const underlyingSchema = def.schema
             if (underlyingSchema) {
                 return createParserForZodType(underlyingSchema)
             }
@@ -212,20 +225,20 @@ function createParserForZodType(schema: z.ZodTypeAny): any {
             // For unions, we'll use string by default
             // This could be enhanced to be smarter about union types
             return defaultValue !== undefined 
-                ? parseAsString.withDefault(defaultValue)
+                ? parseAsString.withDefault(defaultValue as string)
                 : parseAsString
     }
 
     // Final fallback to string parser
     return defaultValue !== undefined 
-        ? parseAsString.withDefault(defaultValue)
+        ? parseAsString.withDefault(defaultValue as string)
         : parseAsString
 }
 
 // Helper function to get all default values from a schema
-function getSchemaDefaults<T extends z.ZodObject<any>>(schema: T): z.infer<T> {
+function getSchemaDefaults<T extends z.ZodObject<z.ZodRawShape>>(schema: T): z.infer<T> {
     const shape = schema.shape
-    const defaults: any = {}
+    const defaults: Record<string, unknown> = {}
     
     for (const [key, fieldSchema] of Object.entries(shape)) {
         const defaultValue = getZodDefault(fieldSchema as z.ZodTypeAny)
@@ -251,25 +264,25 @@ function getSchemaDefaults<T extends z.ZodObject<any>>(schema: T): z.infer<T> {
                     break
                 case 'ZodObject':
                     // For nested objects, recursively get defaults
-                    defaults[key] = getSchemaDefaults(unwrapped as z.ZodObject<any>)
+                    defaults[key] = getSchemaDefaults(unwrapped as z.ZodObject<z.ZodRawShape>)
                     break
                 case 'ZodEnum':
                 case 'ZodNativeEnum':
-                    const def = (unwrapped as any)._def
-                    const values = def?.values
+                    const def = unwrapped.def as ZodDefAny
+                    const values = def.values
                     if (values) {
                         defaults[key] = Array.isArray(values) ? values[0] : Object.values(values)[0]
                     }
                     break
                 case 'ZodLiteral':
-                    const literalDef = (unwrapped as any)._def
-                    defaults[key] = literalDef?.value
+                    const literalDef = unwrapped.def as ZodDefAny
+                    defaults[key] = literalDef.value
                     break
             }
         }
     }
     
-    return defaults
+    return defaults as z.infer<T>
 }
 
 // Helper function to merge raw values with schema defaults
@@ -332,7 +345,7 @@ export function useSafeQueryStatesFromZod<T extends z.ZodObject>(
 
     const debouncedSet = useDebouncedCallback((...args: unknown[]) => {
         const v = args[0] as Partial<z.infer<T>> | null
-        void setRawValues(v as any)
+        void setRawValues(v)
 
         // Handle reset keys - limited in batched context
         if (resetKeys.length > 0) {
@@ -367,7 +380,7 @@ export function useSafeQueryStatesFromZod<T extends z.ZodObject>(
     // Return appropriate values based on whether debounce is enabled
     if (!useDebounce) {
         const immediateSetter = (value: Partial<z.infer<T>> | null) => {
-            void setRawValues(value as any)
+            void setRawValues(value)
             
             // Handle reset keys
             if (value !== null && resetKeys.length > 0) {

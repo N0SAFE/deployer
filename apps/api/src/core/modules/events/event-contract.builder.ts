@@ -77,7 +77,9 @@ export interface EventContract<TInput = unknown, TOutput = unknown> {
 /**
  * Event contracts definition map
  * Maps event names to their contracts
+ * Uses a more flexible type to allow specific input/output types
  */
+ 
 export type EventContracts = Record<string, EventContract<any, any>>;
 
 /**

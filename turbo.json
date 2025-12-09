@@ -25,7 +25,17 @@
         "CORS_ORIGIN",
         "LOG_LEVEL",
         "CHOKIDAR_USEPOLLING",
-        "TRUSTED_ORIGINS"
+        "TRUSTED_ORIGINS",
+        "TRAEFIK_DOMAIN",
+        "GITHUB_CLIENT_ID",
+        "GITHUB_CLIENT_SECRET",
+        "DEPLOYER_BASE_DOMAIN",
+        "TRAEFIK_CONFIG_BASE_PATH",
+        "DOCKER_HOST",
+        "DOCKER_PORT",
+        "STATIC_FILES_BASE_PATH",
+        "WORKSPACE_DIR",
+        "COMPOSE_PROJECT_NAME"
     ],
     "tasks": {
         "dev": {

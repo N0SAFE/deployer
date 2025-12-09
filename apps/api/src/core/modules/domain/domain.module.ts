@@ -1,12 +1,5 @@
-import { Module } from '@nestjs/common';
-// TODO: Install @nestjs/schedule to enable cron-based domain verification
-// import { ScheduleModule } from '@nestjs/schedule';
+import { Module, Global } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
-
-// Controllers
-import { OrganizationDomainController } from './controllers/organization-domain.controller';
-import { ProjectDomainController } from './controllers/project-domain.controller';
-import { ServiceDomainController } from './controllers/service-domain.controller';
 
 // Services
 import { DomainVerificationService } from './services/domain-verification.service';
@@ -19,17 +12,33 @@ import { OrganizationDomainRepository } from './repositories/organization-domain
 import { ProjectDomainRepository } from './repositories/project-domain.repository';
 import { ServiceDomainMappingRepository } from './repositories/service-domain-mapping.repository';
 
+/**
+ * CORE MODULE: Domain Infrastructure
+ * 
+ * Provides ONLY domain services and repositories. NO controllers.
+ * 
+ * Core modules should ONLY provide services (no controllers, no processors).
+ * Feature modules contain controllers, processors, and application logic.
+ * 
+ * Services provided:
+ * - DomainVerificationService: Domain verification (DNS, TXT records)
+ * - DomainConflictService: Subdomain conflict detection
+ * - OrganizationDomainService: Organization domain management
+ * - ServiceDomainMappingService: Service-to-domain mappings
+ * 
+ * Repositories provided:
+ * - OrganizationDomainRepository: Organization domain data access
+ * - ProjectDomainRepository: Project domain data access
+ * - ServiceDomainMappingRepository: Service domain mapping data access
+ * 
+ * Controllers have been moved to DomainControllerModule (feature module).
+ */
+@Global()
 @Module({
   imports: [
     DatabaseModule,
-    // TODO: Uncomment when @nestjs/schedule is installed
-    // ScheduleModule.forRoot(), // Enable cron jobs for auto-verification
   ],
-  controllers: [
-    OrganizationDomainController,
-    ProjectDomainController,
-    ServiceDomainController,
-  ],
+  controllers: [],  // NO CONTROLLERS - moved to DomainControllerModule (feature)
   providers: [
     // Services
     DomainVerificationService,
@@ -55,4 +64,4 @@ import { ServiceDomainMappingRepository } from './repositories/service-domain-ma
     ServiceDomainMappingRepository,
   ],
 })
-export class DomainModule {}
+export class CoreDomainModule {}

@@ -13,7 +13,10 @@ export class PermissionChecker {
         return false;
       }
 
-      const validActions = statement[resource as keyof typeof statement];
+      const validActions = statement[resource];
+      if (!validActions) {
+        return false;
+      }
       for (const action of actions as string[]) {
         if (!validActions.includes(action as never)) {
           return false;
@@ -56,12 +59,14 @@ export class PermissionChecker {
   static isValidActionForResource(resource: keyof typeof statement, action: string): boolean {
     if (!this.isValidResource(resource)) return false;
     const resourceActions = statement[resource];
+    if (!resourceActions) return false;
     return resourceActions.includes(action as never);
   }
 
   static getActionsForResource(resource: keyof typeof statement): readonly string[] {
     if (!this.isValidResource(resource)) return [];
-    return statement[resource];
+    const actions = statement[resource];
+    return actions ?? [];
   }
 
   static getAllResources(): Resource[] {

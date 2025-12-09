@@ -291,7 +291,7 @@ describe('Auth Decorators', () => {
 
     describe('RequireCommonPermission', () => {
       it('should create common permission requirement decorator', () => {
-        const decorator = RequireCommonPermission('capsuleFullAccess');
+        const decorator = RequireCommonPermission('projectOwner');
         
         expect(decorator).toBeDefined();
         expect(typeof decorator).toBe('function');
@@ -299,7 +299,7 @@ describe('Auth Decorators', () => {
 
       it('should apply to methods', () => {
         class TestController {
-          @RequireCommonPermission('capsuleReadOnly')
+          @RequireCommonPermission('projectViewer')
           manageUsers() {}
         }
 

@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import type { BuilderConfig, BuilderResult } from '@/core/modules/builders/common/services/base-builder.service';
 
 /**
  * Configuration schema definition with metadata
@@ -61,7 +62,7 @@ export interface ConfigSchema {
   /** Field definitions */
   fields: ConfigSchemaField[];
   /** Schema validation (composite) */
-  validate?: (config: any) => Promise<{ valid: boolean; errors: string[] }>;
+  validate?: (config: any) => { valid: boolean; errors: string[] };
   /** Transform function for backwards compatibility */
   transform?: (config: any) => any;
 }
@@ -72,6 +73,8 @@ export interface ConfigSchema {
 export interface IProvider {
   /** Provider unique identifier */
   readonly id: string;
+  /** Provider type (e.g., 'github', 'gitlab', 'static') */
+  readonly type: string;
   /** Provider display name */
   readonly name: string;
   /** Provider description */
@@ -95,6 +98,11 @@ export interface IProvider {
    * Validate provider configuration
    */
   validateConfig(config: any): Promise<{ valid: boolean; errors: string[] }>;
+  
+  /**
+   * Fetch source files for deployment
+   */
+  fetchSource(config: any, trigger: any): Promise<any>;
   
   /**
    * Get Traefik template for this provider
@@ -131,6 +139,13 @@ export interface IBuilder {
    * Validate builder configuration
    */
   validateConfig(config: any): Promise<{ valid: boolean; errors: string[] }>;
+
+  /**
+   * Deploy using this builder
+   * @param config Builder configuration including source path, environment variables, callbacks
+   * @returns Builder result with deployment status, container IDs, etc.
+   */
+  deploy(config: BuilderConfig & Record<string, unknown>): Promise<BuilderResult>;
 }
 
 /**

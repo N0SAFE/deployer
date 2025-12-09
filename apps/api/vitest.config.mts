@@ -40,6 +40,12 @@ export default defineConfig(
       // Increase timeout for database operations
       testTimeout: 15000,
       hookTimeout: 15000,
+      // Server deps configuration for proper module resolution
+      server: {
+        deps: {
+          inline: ['zod'],
+        },
+      },
     },
     resolve: {
       alias: {

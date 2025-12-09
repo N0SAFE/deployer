@@ -61,11 +61,14 @@ export class ConstantsService {
   get<K extends keyof ToObjectKeys<typeof this.constants>>(
     key: K
   ): ToObjectKeys<typeof this.constants>[K] {
-    const parts = String(key).split(".");
-    let result: any = this.constants;
+    const keyStr = key as string
+    const parts = keyStr.split(".");
+    let result: unknown = this.constants;
     for (const part of parts) {
-      if (result == null) return undefined as any;
-      result = result[part];
+      if (result == null) {
+        throw new Error(`Constant key not found: ${keyStr}`);
+      }
+      result = (result as Record<string, unknown>)[part];
     }
     return result as ToObjectKeys<typeof this.constants>[K];
   }
