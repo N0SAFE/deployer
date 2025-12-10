@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
 import { healthCheckOutput, healthDetailedOutput } from '@repo/api-contracts'
-import { z } from 'zod'
+import type { z } from 'zod'
 
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === 'true'
 
@@ -32,12 +32,14 @@ const mockHealthDetailed: z.infer<typeof healthDetailedOutput> = {
 
 export function useSystemHealthOverview() {
   const basicOptions = orpc.health.check.queryOptions({
+    input: {},
     retry: 0,
     staleTime: 1000 * 15,
     gcTime: 1000 * 60,
   })
 
   const detailedOptions = orpc.health.detailed.queryOptions({
+    input: {},
     retry: 0,
     staleTime: 1000 * 15,
     gcTime: 1000 * 60,
@@ -48,7 +50,6 @@ export function useSystemHealthOverview() {
     queryFn: async (ctx) => {
       if (USE_MOCKS) return mockHealthBasic
       const fn = basicOptions.queryFn
-      if (!fn) return mockHealthBasic
 
       try {
         return await fn(ctx)
@@ -65,7 +66,6 @@ export function useSystemHealthOverview() {
     queryFn: async (ctx) => {
       if (USE_MOCKS) return mockHealthDetailed
       const fn = detailedOptions.queryFn
-      if (!fn) return mockHealthDetailed
 
       try {
         return await fn(ctx)

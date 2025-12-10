@@ -12,7 +12,6 @@ import NextAuthProviders from '@/utils/providers/NextAuthProviders/index'
 import NextTopLoader from 'nextjs-toploader'
 import Script from 'next/script'
 import { validateEnv } from '#/env'
-import MainNavigation from '@/components/navigation/MainNavigation'
 import { DynamicTanstackDevTools } from '@/components/devtools/DynamicTanstackDevTools'
 import { SerwistProvider } from '@/lib/serwist-client'
 import { InstallPrompt, UpdateNotification } from '@/components/pwa'
@@ -71,7 +70,6 @@ export default function RootLayout({
                             disableTransitionOnChange
                         >
                             <NextTopLoader />
-                            <MainNavigation />
                             <ReactQueryProviders>
                                 <Suspense
                                     fallback={

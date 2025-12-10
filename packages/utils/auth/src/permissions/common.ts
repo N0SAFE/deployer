@@ -1,7 +1,8 @@
-import { schemas } from "./config";
+import { organizationSchemas } from "./config";
 
 /**
- * Common permission definitions that can be reused across the application
+ * Common organization-level permission definitions that can be reused across the application.
+ * These permissions relate to organization resources like projects, services, deployments, etc.
  */
 export const commonPermissions = {
     // ==========================================
@@ -117,40 +118,40 @@ export const commonPermissions = {
 } as const;
 
 /**
- * Common schema definitions for permission validation
+ * Common schema definitions for organization-level permission validation
  */
 export const commonSchemas = {
-    // Schema for read-only actions across all resources
-    readOnlyActions: schemas.actions.only("list", "read"),
+    // Schema for read-only actions across all organization resources
+    readOnlyActions: organizationSchemas.actions.only("list", "read"),
 
     // Schema for write actions (create, update, delete)
-    writeActions: schemas.actions.filter((action): action is "create" | "update" | "delete" => 
+    writeActions: organizationSchemas.actions.filter((action): action is "create" | "update" | "delete" => 
         /create|update|delete/.test(action)
     ),
 
     // Schema for deployment actions
-    deploymentActions: schemas.actions.forResource("deployment"),
+    deploymentActions: organizationSchemas.actions.forResource("deployment"),
 
     // Schema for dangerous/destructive actions
-    destructiveActions: schemas.actions.only("delete"),
+    destructiveActions: organizationSchemas.actions.only("delete"),
 
     // Schema for safe actions (excluding delete)
-    safeActions: schemas.actions.excluding("delete"),
+    safeActions: organizationSchemas.actions.excluding("delete"),
 
-    // Custom permission schemas
-    readOnlyPermission: schemas.actions.customPermission({
+    // Custom permission schemas for organization resources
+    readOnlyPermission: organizationSchemas.actions.customPermission({
         project: ["list", "read"] as const,
         service: ["list", "read"] as const,
     }),
 
-    // Schema for superAdmin permissions
-    superAdminAllActions: schemas.actions.forRole("superAdmin"),
+    // Schema for organization owner permissions
+    ownerAllActions: organizationSchemas.actions.forRole("owner"),
 
-    // Schema for admin actions
-    adminAllActions: schemas.actions.forRole("admin"),
+    // Schema for organization admin actions
+    adminAllActions: organizationSchemas.actions.forRole("admin"),
 
-    // Schema for user actions
-    userAllActions: schemas.actions.forRole("user"),
+    // Schema for organization member actions
+    memberAllActions: organizationSchemas.actions.forRole("member"),
 } as const;
 
 export type CommonPermissionKeys = keyof typeof commonPermissions;

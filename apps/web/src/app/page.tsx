@@ -7,25 +7,18 @@ import {
     CardHeader,
     CardTitle,
 } from '@repo/ui/components/shadcn/card'
-import {
-    Authsignin,
-    Appshowcase,
-    AppshowcaseClient,
-    AppshowcaseServer,
-    BuildInfo,
-} from '@/routes'
+import { Authsignin, Dashboard, Deployments, Health } from '@/routes'
 import {
     ArrowRight,
-    Database,
-    Monitor,
-    Server,
     Zap,
     Shield,
     Palette,
     Code,
     GitBranch,
     Layers,
-    Clock,
+    Activity,
+    Rocket,
+    LayoutDashboard,
 } from 'lucide-react'
 
 import type { JSX } from 'react'
@@ -42,14 +35,14 @@ function FeatureCard({
     gradient: string
 }) {
     return (
-        <Card className="from-background to-muted/20 relative overflow-hidden border-0 bg-gradient-to-br">
+        <Card className="from-background to-muted/20 relative overflow-hidden border-0 bg-linear-to-br">
             <div
-                className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-5`}
+                className={`absolute inset-0 bg-linear-to-br ${gradient} opacity-5`}
             />
             <CardHeader className="relative">
                 <div className="flex items-center space-x-3">
                     <div
-                        className={`rounded-lg bg-gradient-to-br p-2 ${gradient}`}
+                        className={`rounded-lg bg-linear-to-br p-2 ${gradient}`}
                     >
                         <Icon className="h-5 w-5 text-white" />
                     </div>
@@ -71,7 +64,7 @@ export default function Page(): JSX.Element {
             {/* Hero Section */}
             <section className="space-y-6 text-center">
                 <div className="space-y-4">
-                    <h1 className="from-primary to-primary/60 bg-gradient-to-r bg-clip-text text-4xl font-bold text-transparent md:text-6xl">
+                    <h1 className="from-primary to-primary/60 bg-linear-to-r bg-clip-text text-4xl font-bold text-transparent md:text-6xl">
                         Next.js NestJS Template
                     </h1>
                     <p className="text-muted-foreground mx-auto max-w-2xl text-xl">
@@ -81,17 +74,14 @@ export default function Page(): JSX.Element {
                     </p>
                 </div>
                 <div className="flex flex-col justify-center gap-4 sm:flex-row">
-                    <Appshowcase.Link>
-                        <Button
-                            size="lg"
-                            className="flex items-center space-x-2"
-                        >
-                            <Database className="h-5 w-5" />
-                            <span>Explore Showcase</span>
+                    <Dashboard.Link>
+                        <Button size="lg" className="flex items-center space-x-2">
+                            <LayoutDashboard className="h-5 w-5" />
+                            <span>Open Dashboard</span>
                             <ArrowRight className="h-4 w-4" />
                         </Button>
-                    </Appshowcase.Link>
-                    <Authsignin.Link search={{ callbackUrl: '/showcase' }}>
+                    </Dashboard.Link>
+                    <Authsignin.Link search={{ callbackUrl: '/dashboard' }}>
                         <Button
                             variant="outline"
                             size="lg"
@@ -164,79 +154,79 @@ export default function Page(): JSX.Element {
                     <Card className="p-6">
                         <div className="space-y-4">
                             <div className="flex items-center space-x-3">
-                                <Monitor className="h-8 w-8 text-blue-500" />
+                                <LayoutDashboard className="h-8 w-8 text-blue-500" />
                                 <div>
                                     <h3 className="text-xl font-semibold">
-                                        Client-Side Examples
+                                        Dashboard Overview
                                     </h3>
                                     <p className="text-muted-foreground text-sm">
-                                        React Query, client-side data fetching
+                                        Manage deployments and signals in one place
                                     </p>
                                 </div>
                             </div>
                             <p className="text-muted-foreground">
-                                Explore how to fetch data on the client side
-                                using React Query, handle loading states, and
-                                manage real-time updates.
+                                Jump into the unified dashboard to access
+                                deployments, projects, and live pipeline
+                                status with sidebar navigation.
                             </p>
-                            <AppshowcaseClient.Link>
+                            <Dashboard.Link>
                                 <Button className="w-full">
-                                    View Client Examples
+                                    Go to Dashboard
                                     <ArrowRight className="ml-2 h-4 w-4" />
                                 </Button>
-                            </AppshowcaseClient.Link>
+                            </Dashboard.Link>
                         </div>
                     </Card>
                     <Card className="p-6">
                         <div className="space-y-4">
                             <div className="flex items-center space-x-3">
-                                <Server className="h-8 w-8 text-green-500" />
+                                <Rocket className="h-8 w-8 text-green-500" />
                                 <div>
                                     <h3 className="text-xl font-semibold">
-                                        Server-Side Examples
+                                        Deployments
                                     </h3>
                                     <p className="text-muted-foreground text-sm">
-                                        SSR, server components, API routes
+                                        Track releases and promotion status
                                     </p>
                                 </div>
                             </div>
                             <p className="text-muted-foreground">
-                                Learn server-side rendering techniques, React
-                                Server Components, and API route implementations
-                                with NestJS API integration.
+                                Review deployment health, versions, and
+                                promotion state across environments with
+                                consolidated release metadata.
                             </p>
-                            <AppshowcaseServer.Link>
+                            <Deployments.Link>
                                 <Button className="w-full">
-                                    View Server Examples
+                                    View Deployments
                                     <ArrowRight className="ml-2 h-4 w-4" />
                                 </Button>
-                            </AppshowcaseServer.Link>
+                            </Deployments.Link>
                         </div>
                     </Card>
                     <Card className="p-6">
                         <div className="space-y-4">
                             <div className="flex items-center space-x-3">
-                                <Clock className="h-8 w-8 text-purple-500" />
+                                <Activity className="h-8 w-8 text-purple-500" />
                                 <div>
                                     <h3 className="text-xl font-semibold">
-                                        Build Information
+                                        Status & Health
                                     </h3>
                                     <p className="text-muted-foreground text-sm">
-                                        Static build time information
+                                        Live checks for systems and services
                                     </p>
                                 </div>
                             </div>
                             <p className="text-muted-foreground">
-                                View the exact time when the application was
-                                built. This page is generated statically at
-                                build time and shows deployment information.
+                                Monitor overall service health, incident
+                                status, and uptime signals to keep operations
+                                stable.
                             </p>
-                            <BuildInfo.Link>
+                            <Health.Link>
                                 <Button className="w-full">
-                                    View Build Info
+                                    View Health
                                     <ArrowRight className="ml-2 h-4 w-4" />
                                 </Button>
-                            </BuildInfo.Link>
+                            </Health.Link>
                         </div>
                     </Card>
                 </div>

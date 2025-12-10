@@ -75,7 +75,6 @@ export function useProjects(input?: z.input<typeof projectListInput>) {
     queryFn: async (ctx) => {
       if (USE_MOCKS) return mockProjects
       const fn = baseOptions.queryFn
-      if (!fn) return mockProjects
 
       try {
         return await fn(ctx)

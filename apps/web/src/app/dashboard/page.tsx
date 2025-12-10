@@ -24,6 +24,10 @@ import { useDeployments } from '@/hooks/useDeployments'
 import { useProjects } from '@/hooks/useProjects'
 import { useSystemHealthOverview } from '@/hooks/useHealth'
 import {
+  DeploymentTrendChart,
+  DeploymentsByEnvironmentChart,
+} from '@/components/dashboard/deployment-chart'
+import {
   AlertTriangle,
   CheckCircle2,
   Cloud,
@@ -97,8 +101,6 @@ export default function DashboardPage(): JSX.Element {
   const activeDeployments = deploymentsData.filter((d) =>
     ['deploying', 'building'].includes(d.status)
   ).length
-  const failedDeployments = deploymentsData.filter((d) => d.status === 'failed')
-    .length
   const totalProjects = projects.data?.total ?? projectsData.length
   const totalServices = projectsData.reduce(
     (sum, project) => sum + (project._count.services),
@@ -158,6 +160,12 @@ export default function DashboardPage(): JSX.Element {
           description="Deploying or building"
           icon={Gauge}
         />
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <DeploymentTrendChart isLoading={isLoading} />
+        <DeploymentsByEnvironmentChart isLoading={isLoading} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

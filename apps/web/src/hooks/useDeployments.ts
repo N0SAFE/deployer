@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
 import { deploymentListInput, deploymentListOutput } from '@repo/api-contracts'
-import { z } from 'zod'
+import type { z } from 'zod'
 
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === 'true'
 
@@ -134,13 +134,19 @@ export function useDeploymentLogs(deploymentId?: string, options?: { limit?: num
       if (USE_MOCKS) return mockDeploymentLogs
 
       try {
-        // Prefer real ORPC logs endpoint if available
-        const logsOptions = orpc.service.getLogs.queryOptions({
-          input: { deploymentId, limit, offset },
-          retry: 0,
-        })
-        const fn = logsOptions.queryFn
-        return await fn({ queryKey: logsOptions.queryKey })
+        // Use deployment.getLogs with correct input schema
+        const result = await orpc.deployment.getLogs.call({ deploymentId, limit, offset })
+        return {
+          logs: result.logs.map(log => ({
+            timestamp: new Date(log.timestamp).toISOString(),
+            level: log.level,
+            message: log.message,
+            service: log.service ?? undefined,
+            stage: log.stage ?? undefined,
+          })),
+          total: result.total,
+          hasMore: result.hasMore,
+        }
       } catch (error) {
         console.warn('[useDeploymentLogs] Falling back to mock data', error)
         return mockDeploymentLogs
