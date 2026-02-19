@@ -24,6 +24,7 @@ import type { ORPCAuthContext } from "./core/modules/auth/orpc/types";
 import { TestModule } from "./modules/test/test.module";
 import { AuthPlugin } from "./core/modules/auth/orpc/plugins/auth.plugin";
 import { transformNestJSErrorToOrpcError, logOrpcErrors } from "./core/modules/auth/orpc/interceptors";
+import { TraefikModule } from "./modules/traefik/traefik.module";
 
 
 declare module '@orpc/nest' {
@@ -51,6 +52,7 @@ declare module '@orpc/nest' {
     UserModule,
     PushModule,
     TestModule,
+    TraefikModule,
     ORPCModule.forRootAsync({
       useFactory: (request: Request, authService: AuthService) => {
         const emptyAuthUtils = authService.createEmptyAuthUtils();

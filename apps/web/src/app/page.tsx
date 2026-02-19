@@ -7,7 +7,7 @@ import {
     CardHeader,
     CardTitle,
 } from '@repo/ui/components/shadcn/card'
-import { Authsignin, Dashboard, Deployments, Health } from '@/routes'
+import { Authsignin, Dashboard } from '@/routes'
 import {
     ArrowRight,
     Zap,
@@ -195,12 +195,6 @@ export default function Page(): JSX.Element {
                                 promotion state across environments with
                                 consolidated release metadata.
                             </p>
-                            <Deployments.Link>
-                                <Button className="w-full">
-                                    View Deployments
-                                    <ArrowRight className="ml-2 h-4 w-4" />
-                                </Button>
-                            </Deployments.Link>
                         </div>
                     </Card>
                     <Card className="p-6">
@@ -221,12 +215,6 @@ export default function Page(): JSX.Element {
                                 status, and uptime signals to keep operations
                                 stable.
                             </p>
-                            <Health.Link>
-                                <Button className="w-full">
-                                    View Health
-                                    <ArrowRight className="ml-2 h-4 w-4" />
-                                </Button>
-                            </Health.Link>
                         </div>
                     </Card>
                 </div>
