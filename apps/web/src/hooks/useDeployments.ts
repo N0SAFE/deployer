@@ -1,165 +1,191 @@
-'use client'
+'use client';
 
-import { useQuery } from '@tanstack/react-query'
-import { orpc } from '@/lib/orpc'
-import { deploymentListInput, deploymentListOutput } from '@repo/api-contracts'
-import type { z } from 'zod'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { orpc } from '@/lib/orpc';
+import { toast } from 'sonner';
+import type { z } from 'zod';
+import type { deploymentStatusSchema } from '@repo/api-contracts/common/deployment-config';
 
-const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === 'true'
+// Type inference from ORPC contracts
+type DeploymentStatus = z.infer<typeof deploymentStatusSchema>;
 
-const mockDeployments: z.infer<typeof deploymentListOutput> = {
-  deployments: [
-    {
-      deploymentId: 'aaaa1111-1111-1111-1111-111111111111',
-      serviceId: 'service-1',
-      environment: 'production',
-      status: 'success',
-      sourceType: 'github',
-      url: 'https://demo.example.com',
-      createdAt: new Date(Date.now() - 1000 * 60 * 15),
-      deployedBy: 'alice',
+// Hook to get deployments for a service
+export function useServiceDeployments(serviceId: string) {
+  return useQuery(orpc.service.getDeployments.queryOptions({
+    input: {
+      id: serviceId,
+      limit: 50
     },
-    {
-      deploymentId: 'bbbb2222-2222-2222-2222-222222222222',
-      serviceId: 'service-2',
-      environment: 'staging',
-      status: 'deploying',
-      sourceType: 'gitlab',
-      url: 'https://staging.example.com',
-      createdAt: new Date(Date.now() - 1000 * 60 * 45),
-      deployedBy: 'bob',
-    },
-    {
-      deploymentId: 'cccc3333-3333-3333-3333-333333333333',
-      serviceId: 'service-3',
-      environment: 'development',
-      status: 'building',
-      sourceType: 'git',
-      url: undefined,
-      createdAt: new Date(Date.now() - 1000 * 60 * 90),
-      deployedBy: 'charlie',
-    },
-    {
-      deploymentId: 'dddd4444-4444-4444-4444-444444444444',
-      serviceId: 'service-1',
-      environment: 'production',
-      status: 'failed',
-      sourceType: 'upload',
-      url: 'https://demo.example.com',
-      createdAt: new Date(Date.now() - 1000 * 60 * 150),
-      deployedBy: 'dora',
-    },
-  ],
-  total: 4,
-  hasMore: false,
-  filters: {
-    environment: undefined,
-    status: undefined,
-    sourceType: undefined,
-  },
+    enabled: !!serviceId,
+    staleTime: 1000 * 30, // 30 seconds
+  }));
 }
 
-const mockDeploymentLogs = {
-  logs: [
-    {
-      timestamp: new Date(Date.now() - 1000 * 5).toISOString(),
-      level: 'info',
-      message: 'Deployment started',
-      service: 'service-1',
-      stage: 'init',
-    },
-    {
-      timestamp: new Date(Date.now() - 1000 * 3).toISOString(),
-      level: 'debug',
-      message: 'Building docker image',
-      service: 'service-1',
-      stage: 'build',
-    },
-    {
-      timestamp: new Date(Date.now() - 1000 * 1).toISOString(),
-      level: 'warn',
-      message: 'Waiting for health check',
-      service: 'service-1',
-      stage: 'deploy',
-    },
-  ],
-  total: 3,
-  hasMore: false,
-}
+// Hook to get all deployments (using deployment.list endpoint)
+export function useDeployments(options?: {
+  serviceId?: string;
+  limit?: number;
+  offset?: number;
+  status?: DeploymentStatus;
+}) {
+  const params: {
+    limit: number;
+    offset: number;
+    serviceId?: string;
+    status?: DeploymentStatus;
+  } = {
+    limit: options?.limit || 20,
+    offset: options?.offset || 0,
+    ...(options?.status && { status: options.status })
+  };
 
-export function useDeployments(input?: Partial<z.input<typeof deploymentListInput>>) {
-  const queryInput = {
-    limit: 20,
-    offset: 0,
-    sortBy: 'createdAt' as const,
-    sortOrder: 'desc' as const,
-    ...(input ?? {}),
+  // Only include serviceId if it's a valid UUID
+  if (options?.serviceId && options.serviceId.trim() !== '') {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(options.serviceId)) {
+      params.serviceId = options.serviceId;
+    }
   }
 
-  const baseOptions = orpc.deployment.list.queryOptions({
-    input: queryInput,
-    retry: 0,
-    staleTime: 1000 * 30,
-    gcTime: 1000 * 60 * 5,
-  })
-
-  return useQuery({
-    ...baseOptions,
-    queryFn: async (ctx) => {
-      if (USE_MOCKS) return mockDeployments
-      const fn = baseOptions.queryFn
-
-      try {
-        return await fn(ctx)
-      } catch (error) {
-        console.warn('[useDeployments] Falling back to mock data', error)
-        return mockDeployments
-      }
-    },
-    placeholderData: mockDeployments,
-  })
+  return useQuery(orpc.deployment.list.queryOptions({
+    input: params,
+    staleTime: 1000 * 30, // 30 seconds
+  }));
 }
 
-export function useDeploymentLogs(deploymentId?: string, options?: { limit?: number; offset?: number }) {
-  const limit = options?.limit ?? 200
-  const offset = options?.offset ?? 0
-
-  return useQuery({
-    queryKey: ['deployment-logs', deploymentId, limit, offset],
+// Hook to get deployment status
+export function useDeploymentStatus(deploymentId: string) {
+  return useQuery(orpc.deployment.getStatus.queryOptions({
+    input: {
+      deploymentId
+    },
     enabled: !!deploymentId,
-    staleTime: 1000 * 10,
-    gcTime: 1000 * 60,
-    queryFn: async () => {
-      if (!deploymentId) return mockDeploymentLogs
-      if (USE_MOCKS) return mockDeploymentLogs
-
-      try {
-        // Use deployment.getLogs with correct input schema
-        const result = await orpc.deployment.getLogs.call({ deploymentId, limit, offset })
-        return {
-          logs: result.logs.map(log => ({
-            timestamp: new Date(log.timestamp).toISOString(),
-            level: log.level,
-            message: log.message,
-            service: log.service ?? undefined,
-            stage: log.stage ?? undefined,
-          })),
-          total: result.total,
-          hasMore: result.hasMore,
-        }
-      } catch (error) {
-        console.warn('[useDeploymentLogs] Falling back to mock data', error)
-        return mockDeploymentLogs
-      }
-    },
-    placeholderData: mockDeploymentLogs,
-  })
+    refetchInterval: 5000, // Poll every 5 seconds for active deployments
+    staleTime: 0, // Always fresh for real-time status
+  }));
 }
 
+// Hook to get deployment logs
+export function useDeploymentLogs(deploymentId: string, options?: {
+  limit?: number;
+  offset?: number;
+}) {
+  return useQuery(orpc.deployment.getLogs.queryOptions({
+    input: {
+      deploymentId,
+      limit: options?.limit || 100,
+      offset: options?.offset || 0
+    },
+    enabled: !!deploymentId,
+    staleTime: 1000 * 10, // 10 seconds
+    // Ensure AbortController signal is properly handled
+    retry: (failureCount, error) => {
+      // Don't retry on abort errors
+      if (error?.name === 'AbortError' || (error && typeof error === 'object' && 'code' in error && error.code === 'ABORT_ERR')) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  }));
+}
+
+// Hook to trigger a new deployment
+export function useCreateDeployment() {
+  const queryClient = useQueryClient();
+
+  return useMutation(orpc.deployment.trigger.mutationOptions({
+    onSuccess: (data, variables) => {
+      toast.success('Deployment triggered successfully');
+      
+      // Invalidate related queries
+      queryClient.invalidateQueries({
+        queryKey: orpc.deployment.list.queryKey({ input: { serviceId: variables.serviceId } })
+      });
+      queryClient.invalidateQueries({
+        queryKey: orpc.service.getDeployments.queryKey({ input: { id: variables.serviceId } })
+      });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to trigger deployment: ${error.message || 'Unknown error'}`);
+    },
+  }));
+}
+
+// Hook to cancel a deployment
+export function useCancelDeployment() {
+  const queryClient = useQueryClient();
+
+  return useMutation(orpc.deployment.cancel.mutationOptions({
+    onSuccess: (data, variables) => {
+      toast.success('Deployment cancelled successfully');
+      
+      // Invalidate related queries
+      queryClient.invalidateQueries({
+        queryKey: orpc.deployment.getStatus.queryKey({ input: { deploymentId: variables.deploymentId } })
+      });
+      // Invalidate all deployment lists
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          return query.queryKey[0] === 'deployment' && query.queryKey[1] === 'list';
+        }
+      });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to cancel deployment: ${error.message || 'Unknown error'}`);
+    },
+  }));
+}
+
+// Hook to rollback a deployment
+export function useRollbackDeployment() {
+  const queryClient = useQueryClient();
+
+  return useMutation(orpc.deployment.rollback.mutationOptions({
+    onSuccess: () => {
+      toast.success('Rollback initiated successfully');
+      
+      // Invalidate all deployment lists
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          return query.queryKey[0] === 'deployment' && query.queryKey[1] === 'list';
+        }
+      });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to initiate rollback: ${error.message || 'Unknown error'}`);
+    },
+  }));
+}
+
+// Utility hook for deployment actions
 export function useDeploymentActions() {
+  const triggerDeployment = useCreateDeployment();
+  const cancelDeployment = useCancelDeployment();
+  const rollbackDeployment = useRollbackDeployment();
+
   return {
-    triggerDeployment: () => mockDeployments.deployments[0],
-    cancelDeployment: () => undefined,
-    rollbackDeployment: () => mockDeployments.deployments[0],
-  }
+    triggerDeployment: triggerDeployment.mutateAsync,
+    cancelDeployment: cancelDeployment.mutateAsync,
+    rollbackDeployment: rollbackDeployment.mutateAsync,
+    isLoading: {
+      trigger: triggerDeployment.isPending,
+      cancel: cancelDeployment.isPending,
+      rollback: rollbackDeployment.isPending,
+    }
+  };
+}
+
+// Helper hook for deployment status polling
+export function useDeploymentPolling(deploymentId: string) {
+  const { data: status, isLoading } = useDeploymentStatus(deploymentId);
+  
+  const isActive = status?.status && !['success', 'failed', 'cancelled'].includes(status.status);
+  
+  return {
+    status: status?.status,
+    stage: status?.stage,
+    progress: status?.progress,
+    isActive,
+    isLoading
+  };
 }

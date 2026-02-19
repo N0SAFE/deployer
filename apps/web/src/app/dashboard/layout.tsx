@@ -1,33 +1,42 @@
-"use client"
+'use client'
 
-import { useEffect } from "react"
-import { SidebarInset, SidebarProvider } from "@repo/ui/components/shadcn/sidebar"
+import { useEffect } from 'react'
+import { useWebSocket } from '@/hooks/useWebSocket'
+import { useSidebarCollapsed } from '@/contexts/UIContext'
+import { AppSidebar } from '@/components/layout/AppSidebar'
+import { SidebarProvider, SidebarInset } from '@repo/ui/components/shadcn/sidebar'
+import { Header } from '@/components/layout/Header'
 
-import { AppSidebar } from "@/components/layout/AppSidebar"
-import { Header } from "@/components/layout/Header"
-import { useWebSocket } from "@/hooks/useWebSocket"
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const { connect } = useWebSocket()
+  const sidebarCollapsed = useSidebarCollapsed()
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { status, connect } = useWebSocket()
-
+  // Initialize WebSocket connection when entering dashboard
   useEffect(() => {
-    const cleanup = connect()
+    connect()
+    
+    // Cleanup on unmount
     return () => {
-      if (cleanup) cleanup()
+      // Don't disconnect immediately as user might navigate within dashboard
+      // WebSocket will handle reconnection if needed
     }
-  }, [connect])
+  }, []) // Remove connect from dependencies to avoid infinite loop
 
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-background">
+    <div className="min-h-screen bg-background">
+      <SidebarProvider defaultOpen={!sidebarCollapsed}>
         <AppSidebar />
-        <SidebarInset className="flex min-h-screen flex-1 flex-col">
-          <Header connectionStatus={status} />
-          <main className="flex-1 px-4 py-6 md:px-8">
+        <SidebarInset className="min-h-screen">
+          <Header />
+          <main className="flex flex-1 flex-col gap-4 p-4 pt-6">
             {children}
           </main>
         </SidebarInset>
-      </div>
-    </SidebarProvider>
+      </SidebarProvider>
+    </div>
   )
 }

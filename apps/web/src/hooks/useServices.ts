@@ -2,438 +2,568 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
-import type { z } from 'zod'
-import type {
-  serviceSchema,
-  serviceWithStatsSchema,
-  createServiceSchema,
-  updateServiceSchema,
-  getProjectDependencyGraphOutput,
-} from '@repo/api-contracts/modules/service'
+import { toast } from 'sonner'
 
-/**
- * Service hooks following ORPC Client Hooks Pattern
- *
- * These hooks provide type-safe access to service operations
- * using the centralized oRPC client.
- *
- * @see .docs/core-concepts/11-ORPC-CLIENT-HOOKS-PATTERN.md
- */
-
-// Types
-export type Service = z.infer<typeof serviceSchema>
-export type ServiceWithStats = z.infer<typeof serviceWithStatsSchema>
-export type CreateServiceInput = z.infer<typeof createServiceSchema>
-export type UpdateServiceInput = z.infer<typeof updateServiceSchema>
-export type DependencyGraph = z.infer<typeof getProjectDependencyGraphOutput>
-
-// Query keys for cache management
-export const serviceKeys = {
-  all: ['services'] as const,
-  lists: () => [...serviceKeys.all, 'list'] as const,
-  byProject: (projectId: string) => [...serviceKeys.lists(), { projectId }] as const,
-  details: () => [...serviceKeys.all, 'detail'] as const,
-  detail: (serviceId: string) => [...serviceKeys.details(), serviceId] as const,
-  deployments: (serviceId: string) => [...serviceKeys.detail(serviceId), 'deployments'] as const,
-  dependencies: (serviceId: string) => [...serviceKeys.detail(serviceId), 'dependencies'] as const,
-  logs: (serviceId: string) => [...serviceKeys.detail(serviceId), 'logs'] as const,
-  metrics: (serviceId: string) => [...serviceKeys.detail(serviceId), 'metrics'] as const,
-  health: (serviceId: string) => [...serviceKeys.detail(serviceId), 'health'] as const,
-  dependencyGraph: (projectId: string) => [...serviceKeys.all, 'graph', projectId] as const,
+// Provider and Builder config types
+export type ProviderConfig = {
+    // GitHub/GitLab/Bitbucket/Gitea
+    repositoryUrl?: string
+    branch?: string
+    accessToken?: string
+    deployKey?: string
+    // Docker Registry
+    registryUrl?: string
+    imageName?: string
+    tag?: string
+    username?: string
+    password?: string
+    // S3 Bucket
+    bucketName?: string
+    region?: string
+    accessKeyId?: string
+    secretAccessKey?: string
+    objectKey?: string
+    // Manual
+    instructions?: string
+    deploymentScript?: string
+    [key: string]: unknown
 }
 
-// ============================================================================
-// Query Hooks
-// ============================================================================
-
-/**
- * Hook to fetch services by project
- */
-export function useServices(projectId: string, options?: { enabled?: boolean }) {
-  return useQuery(
-    orpc.service.listByProject.queryOptions({
-      input: { projectId },
-      context: undefined,
-      enabled: (options?.enabled ?? true) && !!projectId,
-      staleTime: 1000 * 60, // 1 minute
-      gcTime: 1000 * 60 * 5, // 5 minutes
-    })
-  )
+export type BuilderConfig = {
+    // Dockerfile
+    dockerfilePath?: string
+    buildContext?: string
+    buildArgs?: Record<string, string>
+    // Nixpack/Railpack/Buildpack
+    buildCommand?: string
+    startCommand?: string
+    installCommand?: string
+    // Static
+    outputDirectory?: string
+    // Docker Compose
+    composeFilePath?: string
+    serviceName?: string
+    [key: string]: unknown
 }
 
-/**
- * Hook to fetch a single service by ID
- */
-export function useService(serviceId: string, options?: { enabled?: boolean }) {
-  return useQuery(
-    orpc.service.getById.queryOptions({
-      input: { id: serviceId },
-      context: undefined,
-      enabled: (options?.enabled ?? true) && !!serviceId,
-      staleTime: 1000 * 60, // 1 minute
-      gcTime: 1000 * 60 * 5, // 5 minutes
-    })
-  )
+export type TraefikConfig = {
+    [key: string]: unknown
 }
 
-/**
- * Hook to fetch service deployments
- */
+export type HealthCheckConfig = {
+    enabled?: boolean
+    path?: string
+    interval?: number
+    timeout?: number
+    retries?: number
+    [key: string]: unknown
+}
+
+// Service types matching the API contracts
+export type Service = {
+    id: string
+    projectId: string
+    name: string
+    type: string
+    provider: 'github' | 'gitlab' | 'bitbucket' | 'docker_registry' | 'gitea' | 's3_bucket' | 'manual'
+    builder: 'dockerfile' | 'nixpack' | 'railpack' | 'buildpack' | 'static' | 'docker_compose'
+    providerConfig: ProviderConfig | null
+    builderConfig: BuilderConfig | null
+    dockerfilePath: string
+    buildContext: string
+    port: number | null
+    healthCheckPath: string
+    environmentVariables: Record<string, string> | null
+    buildArguments: Record<string, string> | null
+    resourceLimits: {
+        memory?: string
+        cpu?: string
+        storage?: string
+    } | null
+    traefikConfig: TraefikConfig | null
+    healthCheckConfig: HealthCheckConfig | null
+    isActive: boolean
+    createdAt: Date
+    updatedAt: Date
+}
+
+export type ServiceWithStats = Service & {
+    _count: {
+        deployments: number
+        dependencies: number
+    }
+    latestDeployment: {
+        id: string
+        status: 'pending' | 'queued' | 'building' | 'deploying' | 'success' | 'failed' | 'cancelled'
+        environment: 'production' | 'staging' | 'preview' | 'development'
+        createdAt: Date
+        domainUrl: string | null
+    } | null
+    project: {
+        id: string
+        name: string
+        baseDomain: string | null
+    }
+}
+
+export type ServiceDependency = {
+    id: string
+    serviceId: string
+    dependsOnServiceId: string
+    isRequired: boolean
+    createdAt: Date
+    dependsOnService: {
+        id: string
+        name: string
+        type: string
+    }
+}
+
+// Service hooks
+export function useServices(
+    projectId: string,
+    options?: {
+        limit?: number
+        offset?: number
+        search?: string
+        type?: string
+        isActive?: boolean
+    }
+) {
+    const params = {
+        projectId,
+        limit: options?.limit || 20,
+        offset: options?.offset || 0,
+        ...(options?.search && { search: options.search }),
+        ...(options?.type && { type: options.type }),
+        ...(options?.isActive !== undefined && { isActive: options.isActive }),
+    }
+
+    return useQuery(
+        orpc.service.listByProject.queryOptions({
+            input: params,
+            enabled: !!projectId,
+            staleTime: 1000 * 30, // 30 seconds
+        })
+    )
+}
+
+export function useService(serviceId: string) {
+    return useQuery(
+        orpc.service.getById.queryOptions({
+            input: { id: serviceId },
+            enabled: !!serviceId,
+            staleTime: 1000 * 30, // 30 seconds
+        })
+    )
+}
+
+export function useServiceDependencies(serviceId: string) {
+    return useQuery(
+        orpc.service.getDependencies.queryOptions({
+            input: { id: serviceId },
+            enabled: !!serviceId,
+            staleTime: 1000 * 60, // 1 minute
+        })
+    )
+}
+
 export function useServiceDeployments(
-  serviceId: string,
-  options?: {
-    limit?: number
-    offset?: number
-    status?: 'pending' | 'queued' | 'building' | 'deploying' | 'success' | 'failed' | 'cancelled'
-    environment?: 'production' | 'staging' | 'preview' | 'development'
-    enabled?: boolean
-  }
+    serviceId: string,
+    options?: {
+        limit?: number
+        offset?: number
+        environment?: 'production' | 'staging' | 'preview' | 'development'
+        status?:
+            | 'pending'
+            | 'queued'
+            | 'building'
+            | 'deploying'
+            | 'success'
+            | 'failed'
+            | 'cancelled'
+    }
 ) {
-  return useQuery(
-    orpc.service.getDeployments.queryOptions({
-      input: {
+    const params = {
         id: serviceId,
-        limit: options?.limit ?? 10,
-        offset: options?.offset ?? 0,
-        status: options?.status,
-        environment: options?.environment,
-      },
-      context: undefined,
-      enabled: (options?.enabled ?? true) && !!serviceId,
-      staleTime: 1000 * 30, // 30 seconds
-      gcTime: 1000 * 60 * 2, // 2 minutes
-    })
-  )
+        limit: options?.limit || 20,
+        offset: options?.offset || 0,
+        ...(options?.environment && { environment: options.environment }),
+        ...(options?.status && { status: options.status }),
+    }
+
+    return useQuery(
+        orpc.service.getDeployments.queryOptions({
+            input: params,
+            enabled: !!serviceId,
+            staleTime: 1000 * 30, // 30 seconds
+        })
+    )
 }
 
-/**
- * Hook to fetch service dependencies
- */
-export function useServiceDependencies(serviceId: string, options?: { enabled?: boolean }) {
-  return useQuery(
-    orpc.service.getDependencies.queryOptions({
-      input: { id: serviceId },
-      context: undefined,
-      enabled: (options?.enabled ?? true) && !!serviceId,
-      staleTime: 1000 * 60 * 2, // 2 minutes
-      gcTime: 1000 * 60 * 10, // 10 minutes
-    })
-  )
-}
-
-/**
- * Hook to fetch service logs
- */
-export function useServiceLogs(
-  serviceId: string,
-  options?: {
-    limit?: number
-    offset?: number
-    level?: 'info' | 'warn' | 'error' | 'debug'
-    since?: Date
-    until?: Date
-    enabled?: boolean
-  }
-) {
-  return useQuery(
-    orpc.service.getLogs.queryOptions({
-      input: {
-        id: serviceId,
-        limit: options?.limit ?? 100,
-        offset: options?.offset ?? 0,
-        level: options?.level,
-        since: options?.since,
-        until: options?.until,
-      },
-      context: undefined,
-      enabled: (options?.enabled ?? true) && !!serviceId,
-      staleTime: 1000 * 10, // 10 seconds
-      gcTime: 1000 * 60, // 1 minute
-    })
-  )
-}
-
-/**
- * Hook to fetch service metrics
- */
-export function useServiceMetrics(
-  serviceId: string,
-  options?: {
-    period?: '5m' | '1h' | '24h' | '7d'
-    granularity?: '1m' | '5m' | '1h'
-    enabled?: boolean
-  }
-) {
-  return useQuery(
-    orpc.service.getMetrics.queryOptions({
-      input: {
-        id: serviceId,
-        period: options?.period ?? '1h',
-        granularity: options?.granularity ?? '5m',
-      },
-      context: undefined,
-      enabled: (options?.enabled ?? true) && !!serviceId,
-      staleTime: 1000 * 30, // 30 seconds
-      gcTime: 1000 * 60 * 2, // 2 minutes
-    })
-  )
-}
-
-/**
- * Hook to fetch service health
- */
-export function useServiceHealth(serviceId: string, options?: { enabled?: boolean }) {
-  return useQuery(
-    orpc.service.getHealth.queryOptions({
-      input: { id: serviceId },
-      context: undefined,
-      enabled: (options?.enabled ?? true) && !!serviceId,
-      staleTime: 1000 * 15, // 15 seconds
-      gcTime: 1000 * 60, // 1 minute
-    })
-  )
-}
-
-/**
- * Hook to fetch project dependency graph
- */
-export function useProjectDependencyGraph(projectId: string, options?: { enabled?: boolean }) {
-  return useQuery(
-    orpc.service.getProjectDependencyGraph.queryOptions({
-      input: { projectId },
-      context: undefined,
-      enabled: (options?.enabled ?? true) && !!projectId,
-      staleTime: 1000 * 60, // 1 minute
-      gcTime: 1000 * 60 * 5, // 5 minutes
-    })
-  )
-}
-
-// ============================================================================
-// Mutation Hooks
-// ============================================================================
-
-/**
- * Hook to create a new service
- */
+// Service mutations
 export function useCreateService() {
-  const queryClient = useQueryClient()
+    const queryClient = useQueryClient()
 
-  return useMutation(
-    orpc.service.create.mutationOptions({
-      onSuccess: (_, variables) => {
-        // Invalidate service lists
-        void queryClient.invalidateQueries({ queryKey: serviceKeys.lists() })
-        void queryClient.invalidateQueries({
-          queryKey: serviceKeys.byProject(variables.projectId),
+    return useMutation(
+        orpc.service.create.mutationOptions({
+            onSuccess: (data, variables) => {
+                // Invalidate and refetch services for the project
+                queryClient.invalidateQueries({
+                    queryKey: orpc.service.listByProject.queryKey({
+                        input: { projectId: variables.projectId },
+                    }),
+                })
+                toast.success('Service created successfully')
+            },
+            onError: (error: Error) => {
+                console.error('Error creating service:', error)
+                toast.error('Failed to create service')
+            },
         })
-        // Invalidate dependency graph
-        void queryClient.invalidateQueries({
-          queryKey: serviceKeys.dependencyGraph(variables.projectId),
-        })
-      },
-    })
-  )
+    )
 }
 
-/**
- * Hook to update a service
- */
 export function useUpdateService() {
-  const queryClient = useQueryClient()
+    const queryClient = useQueryClient()
 
-  return useMutation(
-    orpc.service.update.mutationOptions({
-      onSuccess: (data, variables) => {
-        // Invalidate service detail
-        void queryClient.invalidateQueries({
-          queryKey: serviceKeys.detail(variables.id),
+    return useMutation(
+        orpc.service.update.mutationOptions({
+            onSuccess: (data, variables) => {
+                // Invalidate related queries
+                queryClient.invalidateQueries({
+                    queryKey: orpc.service.listByProject.queryKey({
+                        input: { projectId: data.projectId },
+                    }),
+                })
+                queryClient.invalidateQueries({
+                    queryKey: orpc.service.getById.queryKey({
+                        input: { id: variables.id },
+                    }),
+                })
+                toast.success('Service updated successfully')
+            },
+            onError: (error: Error) => {
+                console.error('Error updating service:', error)
+                toast.error('Failed to update service')
+            },
         })
-        // Invalidate service lists
-        void queryClient.invalidateQueries({ queryKey: serviceKeys.lists() })
-      },
-    })
-  )
+    )
 }
 
-/**
- * Hook to delete a service
- */
 export function useDeleteService() {
-  const queryClient = useQueryClient()
+    const queryClient = useQueryClient()
 
-  return useMutation(
-    orpc.service.delete.mutationOptions({
-      onSuccess: (_, variables) => {
-        // Remove from cache
-        queryClient.removeQueries({
-          queryKey: serviceKeys.detail(variables.id),
+    return useMutation(
+        orpc.service.delete.mutationOptions({
+            onSuccess: (data, variables) => {
+                // Invalidate services list for all projects
+                queryClient.invalidateQueries({
+                    queryKey: ['service', 'listByProject'],
+                })
+                queryClient.removeQueries({
+                    queryKey: orpc.service.getById.queryKey({
+                        input: { id: variables.id },
+                    }),
+                })
+                toast.success('Service deleted successfully')
+            },
+            onError: (error: Error) => {
+                console.error('Error deleting service:', error)
+                toast.error('Failed to delete service')
+            },
         })
-        // Invalidate lists
-        void queryClient.invalidateQueries({ queryKey: serviceKeys.lists() })
-      },
-    })
-  )
+    )
 }
 
-/**
- * Hook to toggle service active state
- */
 export function useToggleServiceActive() {
-  const queryClient = useQueryClient()
+    const queryClient = useQueryClient()
 
-  return useMutation(
-    orpc.service.toggleActive.mutationOptions({
-      onSuccess: (_, variables) => {
-        void queryClient.invalidateQueries({
-          queryKey: serviceKeys.detail(variables.id),
+    return useMutation(
+        orpc.service.toggleActive.mutationOptions({
+            onSuccess: (data, variables) => {
+                // Invalidate related queries
+                queryClient.invalidateQueries({
+                    queryKey: orpc.service.listByProject.queryKey({
+                        input: { projectId: data.projectId },
+                    }),
+                })
+                queryClient.invalidateQueries({
+                    queryKey: orpc.service.getById.queryKey({
+                        input: { id: variables.id },
+                    }),
+                })
+                toast.success(
+                    `Service ${data.isActive ? 'activated' : 'deactivated'}`
+                )
+            },
+            onError: (error: Error) => {
+                console.error('Error toggling service:', error)
+                toast.error('Failed to toggle service status')
+            },
         })
-        void queryClient.invalidateQueries({ queryKey: serviceKeys.lists() })
-      },
-    })
-  )
+    )
 }
 
-/**
- * Hook to add a service dependency
- */
 export function useAddServiceDependency() {
-  const queryClient = useQueryClient()
+    const queryClient = useQueryClient()
 
-  return useMutation(
-    orpc.service.addDependency.mutationOptions({
-      onSuccess: (_, variables) => {
-        void queryClient.invalidateQueries({
-          queryKey: serviceKeys.dependencies(variables.serviceId),
+    return useMutation(
+        orpc.service.addDependency.mutationOptions({
+            onSuccess: (data, variables) => {
+                // Invalidate service dependencies
+                queryClient.invalidateQueries({
+                    queryKey: orpc.service.getDependencies.queryKey({
+                        input: { id: variables.id },
+                    }),
+                })
+                toast.success('Service dependency added')
+            },
+            onError: (error: Error) => {
+                console.error('Error adding service dependency:', error)
+                toast.error('Failed to add service dependency')
+            },
         })
-        void queryClient.invalidateQueries({ queryKey: serviceKeys.all })
-      },
-    })
-  )
+    )
 }
 
-/**
- * Hook to remove a service dependency
- */
 export function useRemoveServiceDependency() {
-  const queryClient = useQueryClient()
+    const queryClient = useQueryClient()
 
-  return useMutation(
-    orpc.service.removeDependency.mutationOptions({
-      onSuccess: (_, variables) => {
-        void queryClient.invalidateQueries({
-          queryKey: serviceKeys.dependencies(variables.serviceId),
+    return useMutation(
+        orpc.service.removeDependency.mutationOptions({
+            onSuccess: (data, variables) => {
+                // Invalidate service dependencies
+                queryClient.invalidateQueries({
+                    queryKey: orpc.service.getDependencies.queryKey({
+                        input: { id: variables.id },
+                    }),
+                })
+                toast.success('Service dependency removed')
+            },
+            onError: (error: Error) => {
+                console.error('Error removing service dependency:', error)
+                toast.error('Failed to remove service dependency')
+            },
         })
-        void queryClient.invalidateQueries({ queryKey: serviceKeys.all })
-      },
-    })
-  )
+    )
 }
 
-// ============================================================================
-// Async Functions (for server components or direct use)
-// ============================================================================
+// Service logs hooks
+export function useServiceLogs(
+    serviceId: string,
+    options?: {
+        limit?: number
+        offset?: number
+        level?: 'info' | 'warn' | 'error' | 'debug'
+        since?: Date
+        until?: Date
+        follow?: boolean
+    }
+) {
+    const params = {
+        id: serviceId,
+        limit: options?.limit || 100,
+        offset: options?.offset || 0,
+        ...(options?.level && { level: options.level }),
+        ...(options?.since && { since: options.since }),
+        ...(options?.until && { until: options.until }),
+    }
 
-/**
- * Get services by project
- */
-export async function getServices(projectId: string) {
-  return orpc.service.listByProject.call({ projectId })
+    return useQuery(
+        orpc.service.getLogs.queryOptions({
+            input: params,
+            enabled: !!serviceId && !options?.follow, // Disable for streaming logs
+            staleTime: 1000 * 10, // 10 seconds for logs
+            refetchInterval: options?.follow ? 5000 : false, // Auto-refresh for streaming
+        })
+    )
 }
 
-/**
- * Get service by ID
- */
-export async function getService(serviceId: string) {
-  return orpc.service.getById.call({ id: serviceId })
+// Service metrics hook
+export function useServiceMetrics(
+    serviceId: string,
+    options?: {
+        timeRange?: '1h' | '6h' | '1d' | '7d' | '30d'
+        interval?: '1m' | '5m' | '15m' | '1h' | '1d'
+    }
+) {
+    const params = {
+        id: serviceId,
+        timeRange: options?.timeRange || '1h',
+        interval: options?.interval || '5m',
+    }
+
+    return useQuery(
+        orpc.service.getMetrics.queryOptions({
+            input: params,
+            enabled: !!serviceId,
+            staleTime: 1000 * 30, // 30 seconds
+            refetchInterval: 30000, // Auto-refresh every 30 seconds
+        })
+    )
 }
 
-/**
- * Get project dependency graph
- */
-export async function getProjectDependencyGraph(projectId: string) {
-  return orpc.service.getProjectDependencyGraph.call({ projectId })
+// Service health hook
+export function useServiceHealth(serviceId: string) {
+    return useQuery(
+        orpc.service.getHealth.queryOptions({
+            input: { id: serviceId },
+            enabled: !!serviceId,
+            staleTime: 1000 * 15, // 15 seconds
+            refetchInterval: 15000, // Auto-refresh every 15 seconds
+        })
+    )
 }
 
-// ============================================================================
-// Composite Utility Hooks
-// ============================================================================
+// Custom hook for real-time logs using WebSocket (placeholder for future implementation)
+export function useServiceLogsStream(
+    serviceId: string,
+    options?: {
+        level?: 'info' | 'warn' | 'error' | 'debug'
+        onLog?: (log: {
+            serviceId: string
+            timestamp: string
+            level: 'info' | 'warn' | 'error' | 'debug'
+            message: string
+            source?: 'container' | 'system' | 'proxy' | 'health_check'
+            containerId?: string
+            metadata?: Record<string, unknown>
+        }) => void
+    }
+) {
+    // TODO: Implement WebSocket connection for real-time logs
+    // For now, return a placeholder that uses regular polling
+    console.log(
+        'Service logs stream requested for:',
+        serviceId,
+        'with options:',
+        options
+    )
 
-/**
- * Hook that provides all service actions for convenience
- */
-export function useServiceActions() {
-  const createService = useCreateService()
-  const updateService = useUpdateService()
-  const deleteService = useDeleteService()
-  const toggleActive = useToggleServiceActive()
-  const addDependency = useAddServiceDependency()
-  const removeDependency = useRemoveServiceDependency()
-
-  return {
-    // Mutations
-    createService: createService.mutate,
-    createServiceAsync: createService.mutateAsync,
-    updateService: updateService.mutate,
-    updateServiceAsync: updateService.mutateAsync,
-    deleteService: deleteService.mutate,
-    deleteServiceAsync: deleteService.mutateAsync,
-    toggleActive: toggleActive.mutate,
-    toggleActiveAsync: toggleActive.mutateAsync,
-    addDependency: addDependency.mutate,
-    addDependencyAsync: addDependency.mutateAsync,
-    removeDependency: removeDependency.mutate,
-    removeDependencyAsync: removeDependency.mutateAsync,
-
-    // Loading states
-    isLoading: {
-      create: createService.isPending,
-      update: updateService.isPending,
-      delete: deleteService.isPending,
-      toggle: toggleActive.isPending,
-      addDep: addDependency.isPending,
-      removeDep: removeDependency.isPending,
-    },
-
-    // Error states
-    errors: {
-      create: createService.error,
-      update: updateService.error,
-      delete: deleteService.error,
-      toggle: toggleActive.error,
-      addDep: addDependency.error,
-      removeDep: removeDependency.error,
-    },
-  }
+    return {
+        isConnected: false,
+        error: null,
+        connect: () => console.log('WebSocket connection not yet implemented'),
+        disconnect: () =>
+            console.log('WebSocket disconnection not yet implemented'),
+        logs: [] as Array<{
+            id: string
+            timestamp: Date
+            level: 'info' | 'warn' | 'error' | 'debug'
+            message: string
+            source?: 'container' | 'system' | 'proxy' | 'health_check'
+            containerId?: string
+            metadata?: Record<string, unknown>
+        }>,
+    }
 }
 
-/**
- * Hook that provides service administration capabilities
- */
-export function useServiceAdministration(projectId: string) {
-  const services = useServices(projectId)
-  const dependencyGraph = useProjectDependencyGraph(projectId)
-  const serviceActions = useServiceActions()
+// Custom hook for real-time metrics using WebSocket (placeholder for future implementation)
+export function useServiceMetricsStream(
+    serviceId: string,
+    options?: {
+        interval?: '1m' | '5m' | '15m'
+        onMetrics?: (metrics: {
+            serviceId: string
+            timestamp: string
+            metrics: {
+                cpu: number
+                memory: { used: number; total: number }
+                network: { bytesIn: number; bytesOut: number }
+                requests?: { count: number; responseTime: number }
+            }
+        }) => void
+    }
+) {
+    // TODO: Implement WebSocket connection for real-time metrics
+    console.log(
+        'Service metrics stream requested for:',
+        serviceId,
+        'with options:',
+        options
+    )
 
-  return {
-    // Query data
-    services: services.data ?? [],
-    graph: dependencyGraph.data ?? { nodes: [], edges: [], project: { id: '', name: '', baseDomain: null } },
+    return {
+        isConnected: false,
+        error: null,
+        connect: () => console.log('WebSocket connection not yet implemented'),
+        disconnect: () =>
+            console.log('WebSocket disconnection not yet implemented'),
+        metrics: null as {
+            cpu: number
+            memory: { used: number; total: number }
+            network: { bytesIn: number; bytesOut: number }
+            requests?: { count: number; responseTime: number }
+        } | null,
+    }
+}
 
-    // Loading states
-    isLoading: services.isLoading || dependencyGraph.isLoading,
-    isRefreshing: services.isFetching,
+// Custom hook for real-time health updates using WebSocket (placeholder for future implementation)
+export function useServiceHealthStream(
+    serviceId: string,
+    options?: {
+        onHealthUpdate?: (health: {
+            serviceId: string
+            timestamp: string
+            status: 'healthy' | 'unhealthy' | 'unknown' | 'starting'
+            checks: Array<{
+                name: string
+                status: 'pass' | 'fail' | 'warn'
+                message?: string
+                timestamp: Date
+            }>
+            containerStatus?:
+                | 'running'
+                | 'stopped'
+                | 'restarting'
+                | 'paused'
+                | 'exited'
+        }) => void
+    }
+) {
+    // TODO: Implement WebSocket connection for real-time health updates
+    console.log(
+        'Service health stream requested for:',
+        serviceId,
+        'with options:',
+        options
+    )
 
-    // Error states
-    error: services.error ?? dependencyGraph.error,
+    return {
+        isConnected: false,
+        error: null,
+        connect: () => console.log('WebSocket connection not yet implemented'),
+        disconnect: () =>
+            console.log('WebSocket disconnection not yet implemented'),
+        health: null as {
+            status: 'healthy' | 'unhealthy' | 'unknown' | 'starting'
+            lastCheck?: Date
+            checks: Array<{
+                name: string
+                status: 'pass' | 'fail' | 'warn'
+                message?: string
+                timestamp: Date
+            }>
+            uptime?: number
+            containerStatus?:
+                | 'running'
+                | 'stopped'
+                | 'restarting'
+                | 'paused'
+                | 'exited'
+        } | null,
+    }
+}
 
-    // Actions
-    ...serviceActions,
-
-    // Refresh function
-    refresh: () => {
-      void services.refetch()
-      void dependencyGraph.refetch()
-    },
-  }
+// Project dependency graph hook
+export function useProjectDependencyGraph(projectId: string) {
+    return useQuery(
+        orpc.service.getProjectDependencyGraph.queryOptions({
+            input: { projectId },
+            enabled: !!projectId,
+            staleTime: 1000 * 60, // 1 minute
+            refetchInterval: 30000, // Auto-refresh every 30 seconds
+        })
+    )
 }

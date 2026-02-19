@@ -1,88 +1,130 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
-import { projectListInput, projectListOutput } from '@repo/api-contracts'
-import { z } from 'zod'
+import type { projectWithStatsSchema } from '@repo/api-contracts'
+import type { z } from 'zod'
 
-const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === 'true'
-
-const mockProjects: z.infer<typeof projectListOutput> = {
-  projects: [
-    {
-      id: '11111111-1111-1111-1111-111111111111',
-      name: 'Demo Platform',
-      description: 'A sample multi-service platform',
-      baseDomain: 'demo.example.com',
-      ownerId: 'owner-1',
-      settings: null,
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14),
-      updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 2),
-      _count: {
-        services: 3,
-        deployments: 18,
-        collaborators: 4,
-      },
-      latestDeployment: {
-        id: 'dpl-latest-1',
-        status: 'success',
-        createdAt: new Date(Date.now() - 1000 * 60 * 30),
-      },
-    },
-    {
-      id: '22222222-2222-2222-2222-222222222222',
-      name: 'Edge API',
-      description: 'API with edge caching and workers',
-      baseDomain: 'api.example.com',
-      ownerId: 'owner-2',
-      settings: null,
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30),
-      updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 12),
-      _count: {
-        services: 2,
-        deployments: 9,
-        collaborators: 2,
-      },
-      latestDeployment: {
-        id: 'dpl-latest-2',
-        status: 'deploying',
-        createdAt: new Date(Date.now() - 1000 * 60 * 10),
-      },
-    },
-  ],
-  total: 2,
-  hasMore: false,
+// Infer the actual API return types from the schema
+type ProjectWithStats = z.infer<typeof projectWithStatsSchema>
+type ProjectsListResponse = {
+  projects: ProjectWithStats[]
+  total: number
+  hasMore: boolean
 }
 
-export function useProjects(input?: z.input<typeof projectListInput>) {
-  const queryInput = {
-    limit: 10,
-    offset: 0,
-    sortBy: 'updatedAt' as const,
-    sortOrder: 'desc' as const,
-    ...(input ?? {}),
-  }
+// For backward compatibility, export the Project type
+export type Project = ProjectWithStats
 
-  const baseOptions = orpc.project.list.queryOptions({
-    input: queryInput,
-    retry: 0,
-    staleTime: 1000 * 30,
-    gcTime: 1000 * 60 * 5,
-  })
+// No transformation needed - use API data directly
+const transformProject = (apiProject: ProjectWithStats): Project => apiProject
 
-  return useQuery({
-    ...baseOptions,
-    queryFn: async (ctx) => {
-      if (USE_MOCKS) return mockProjects
-      const fn = baseOptions.queryFn
+// Main hook to get all projects
+export function useProjects(options?: {
+  limit?: number
+  offset?: number
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+}) {
+  return useQuery(orpc.project.list.queryOptions({
+    input: options || {},
+    select: (data: ProjectsListResponse) => ({
+      ...data,
+      projects: data.projects.map(transformProject)
+    }),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  }))
+}
 
-      try {
-        return await fn(ctx)
-      } catch (error) {
-        console.warn('[useProjects] Falling back to mock data', error)
-        return mockProjects
-      }
-    },
-    placeholderData: mockProjects,
-  })
+// Hook to get a specific project by ID
+export function useProject(id: string) {
+  return useQuery(orpc.project.getById.queryOptions({
+    input: { id },
+    select: transformProject,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    enabled: !!id,
+  }))
+}
+
+// Hook to create a new project
+export function useCreateProject() {
+  const queryClient = useQueryClient()
+  
+  return useMutation(orpc.project.create.mutationOptions({
+    onSuccess: () => {
+      // Invalidate projects list to refresh data
+      queryClient.invalidateQueries({ queryKey: orpc.project.list.queryKey() })
+    }
+  }))
+}
+
+// Hook to update a project
+export function useUpdateProject() {
+  const queryClient = useQueryClient()
+  
+  return useMutation(orpc.project.update.mutationOptions({
+    onSuccess: (_, variables: { id: string }) => {
+      // Invalidate both the project list and the specific project
+      queryClient.invalidateQueries({ queryKey: orpc.project.list.queryKey() })
+      queryClient.invalidateQueries({ queryKey: orpc.project.getById.queryKey({ input: { id: variables.id } }) })
+    }
+  }))
+}
+
+// Hook to delete a project
+export function useDeleteProject() {
+  const queryClient = useQueryClient()
+  
+  return useMutation(orpc.project.delete.mutationOptions({
+    onSuccess: () => {
+      // Invalidate projects list to refresh data
+      queryClient.invalidateQueries({ queryKey: orpc.project.list.queryKey() })
+    }
+  }))
+}
+
+// Hook to get project collaborators
+export function useProjectCollaborators(projectId: string) {
+  return useQuery(orpc.project.getCollaborators.queryOptions({
+    input: { id: projectId },
+    enabled: !!projectId,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  }))
+}
+
+// Hook to invite a collaborator
+export function useInviteCollaborator() {
+  const queryClient = useQueryClient()
+  
+  return useMutation(orpc.project.inviteCollaborator.mutationOptions({
+    onSuccess: (_, variables: { id: string }) => {
+      // Invalidate collaborators for this project
+      queryClient.invalidateQueries({ queryKey: orpc.project.getCollaborators.queryKey({ input: { id: variables.id } }) })
+    }
+  }))
+}
+
+// Hook to update a collaborator
+export function useUpdateCollaborator() {
+  const queryClient = useQueryClient()
+  
+  return useMutation(orpc.project.updateCollaborator.mutationOptions({
+    onSuccess: (_, variables: { id: string }) => {
+      // Invalidate collaborators for this project
+      queryClient.invalidateQueries({ queryKey: orpc.project.getCollaborators.queryKey({ input: { id: variables.id } }) })
+    }
+  }))
+}
+
+// Hook to remove a collaborator
+export function useRemoveCollaborator() {
+  const queryClient = useQueryClient()
+  
+  return useMutation(orpc.project.removeCollaborator.mutationOptions({
+    onSuccess: (_, variables: { id: string }) => {
+      // Invalidate collaborators for this project
+      queryClient.invalidateQueries({ queryKey: orpc.project.getCollaborators.queryKey({ input: { id: variables.id } }) })
+    }
+  }))
 }

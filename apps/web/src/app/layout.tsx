@@ -15,6 +15,7 @@ import { validateEnv } from '#/env'
 import { DynamicTanstackDevTools } from '@/components/devtools/DynamicTanstackDevTools'
 import { SerwistProvider } from '@/lib/serwist-client'
 import { InstallPrompt, UpdateNotification } from '@/components/pwa'
+import { UIProvider } from '@/contexts/UIContext'
 
 const fontSans = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
@@ -69,6 +70,7 @@ export default function RootLayout({
                             enableSystem
                             disableTransitionOnChange
                         >
+                            <UIProvider>
                             <NextTopLoader />
                             <ReactQueryProviders>
                                 <Suspense
@@ -87,6 +89,7 @@ export default function RootLayout({
                             </ReactQueryProviders>
                             <InstallPrompt />
                             <UpdateNotification />
+                            </UIProvider>
                         </ThemeProvider>
                     </SerwistProvider>
                 </NextAuthProviders>

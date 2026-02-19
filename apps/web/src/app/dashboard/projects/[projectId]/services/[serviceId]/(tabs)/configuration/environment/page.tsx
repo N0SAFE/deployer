@@ -1,0 +1,23 @@
+import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
+import getQueryClient from '@/lib/getQueryClient'
+import { EnvironmentConfigurationClient } from './EnvironmentConfigurationClient'
+import { DashboardProjectsProjectIdServicesServiceIdTabsConfigurationEnvironment } from '@/routes'
+import { orpc } from '@/lib/orpc'
+
+export default DashboardProjectsProjectIdServicesServiceIdTabsConfigurationEnvironment.Page(async function ServiceEnvironmentConfigPage({ params }) {
+  const { serviceId } = await params
+  const queryClient = getQueryClient()
+
+  // Prefetch service data (already prefetched in layout but ensure it's here)
+  await queryClient.prefetchQuery(
+    orpc.service.getById.queryOptions({
+      input: { id: serviceId }
+    })
+  )
+
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <EnvironmentConfigurationClient serviceId={serviceId} />
+    </HydrationBoundary>
+  )
+})
