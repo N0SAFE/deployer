@@ -29,7 +29,13 @@
         "TRUSTED_ORIGINS",
         "AUTH_BASE_DOMAIN",
         "DEFAULT_ADMIN_EMAIL",
-        "DEFAULT_ADMIN_PASSWORD"
+        "DEFAULT_ADMIN_PASSWORD",
+        "MESH_CLUSTER_ID",
+        "MESH_NODE_ID",
+        "MESH_STREAM_SHARED_SECRET",
+        "WORKSPACE_DIR",
+        "NODE_LOCAL_DB_PATH",
+        "GITHUB_WEBHOOK_SECRET"
     ],
     "tasks": {
         "dev": {

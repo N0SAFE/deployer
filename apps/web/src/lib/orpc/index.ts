@@ -12,6 +12,7 @@ import { CookieHeadersPlugin } from "./plugins/cookie-headers-plugin";
 import { RedirectOnUnauthorizedPlugin } from "./plugins/redirect-on-unauthorized-plugin";
 import { StandardLinkPlugin } from "@orpc/client/standard";
 import { FileUploadOpenAPILink, WithFileUploadsClient } from "./links/file-upload-link";
+import { withObservableChain } from "./utils/observable-chain";
 import { addCacheOperations } from "@/domains/shared/cache-operations";
 
 const Plugins = [
@@ -81,7 +82,7 @@ const baseOrpc = createTanstackQueryUtils(client);
 
 // Enhance with cache operations for type-safe cache manipulation
 // This adds .cache property to all query endpoints with get/set/update/invalidate/remove methods
-export const orpc = addCacheOperations(baseOrpc);
+export const orpc = withObservableChain(addCacheOperations(baseOrpc));
 
 // Export appContract for type checking and testing
 export { appContract };

@@ -1,5 +1,5 @@
 import { Command, CommandRunner } from 'nest-commander';
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { DATABASE_CONNECTION } from '../../core/modules/database/database-connection';
 import { EnvService } from '../../config/env/env.service';
@@ -13,7 +13,6 @@ import type * as schema from '../../config/drizzle/schema';
 })
 export class MigrateCommand extends CommandRunner {
   constructor(
-    @Inject(DATABASE_CONNECTION)
     private readonly db: NodePgDatabase<typeof schema>,
     private readonly envService: EnvService,
   ) {

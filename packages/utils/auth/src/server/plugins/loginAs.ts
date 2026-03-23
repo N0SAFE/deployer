@@ -1,7 +1,7 @@
 import type { BetterAuthPlugin, User } from "better-auth";
-import { createAuthEndpoint } from "better-auth/plugins";
+import { createAuthEndpoint } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
-import { z } from "zod";
+import * as z from "zod/v4";
 
 interface LoginAsOptions {
     enabled?: boolean;
@@ -40,10 +40,10 @@ export const loginAsPlugin = (options: LoginAsOptions) => {
 
                     try {
                         // Get user from database
-                        const user = await ctx.context.adapter.findOne<User>({
+                        const user = (await ctx.context.adapter.findOne({
                             model: "user",
                             where: [{ field: "id", value: userId, operator: "eq" }],
-                        });
+                        })) as User | null;
 
                         if (!user) {
                             return await ctx.json({ error: "User not found" }, { status: 404 });

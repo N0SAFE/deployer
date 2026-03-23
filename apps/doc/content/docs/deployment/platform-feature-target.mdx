@@ -1,0 +1,288 @@
+---
+title: Platform Feature Target (v3)
+description: Complete, goal-aligned feature specification for the self-hosted deployment platform.
+order: 25
+---
+
+<DocMeta source="v3 runtime + contracts + schema audit" scope="canonical" />
+
+## Product goal
+
+Build a production-ready open-core self-hosted deployment platform (Vercel/Render/Railway on your own VPS, 1–20+ nodes) with:
+
+- Docker-based runtime execution (four workload types: web, worker, cron, one-shot)
+- Traefik-driven routing, SSL (Let's Encrypt + custom certs), and rate limiting
+- Automatic deployment pipelines (build → test → release → deploy → smoke → approval gate)
+- Multi-service projects with dependency graphs and cascade deploys
+- Preview environments per branch/PR with scale-to-zero and wake-on-access
+- Mesh-based multi-node coordination (ORPC EventIterator over HTTP/SSE, gossip ring)
+- Config-as-code (`deployer.yaml`) with bidirectional PR-based sync
+- Public ORPC API with API key auth
+
+See [Platform Product Specification](/docs/architecture/platform-product-spec) for the full authoritative spec.
+
+## Status legend
+
+- ✅ Implemented
+- 🟡 Partial / scaffolded
+- ❌ Missing in active v3 runtime flow
+
+## Complete feature catalog (target state)
+
+### 0) Configuration template control plane (non-negotiable)
+
+**Must have**
+
+- Strongly typed template system for every deployment capability:
+	- provider templates (GitHub, GitLab, generic Git, upload, custom)
+	- build strategy templates (`dockerfile`, `nixpacks`, custom pipelines)
+	- deployment strategy templates (rolling, recreate, blue/green, canary)
+	- routing templates (Traefik rules, middleware chains, SSL policies)
+	- preview templates (domain pattern, TTL, auto-delete, env overlay)
+	- dependency/order templates (service graph policies, gates, retries)
+- Validation + compile pipeline: `template -> normalized plan -> executable workflow`
+- Versioned templates with rollback-safe migration
+- Inheritance/override model:
+	- global defaults
+	- provider defaults
+	- project overrides
+	- environment overrides
+	- deployment-run overrides
+
+**Current status**: 🟡
+
+- Registry and schema foundations exist in several places.
+- Unified template compiler and policy-driven execution are not yet fully wired.
+
+### 1) Project and service modeling
+
+**Must have**
+
+- Project ownership, collaborators, RBAC
+- Multi-service projects (`web`, `api`, `worker`, etc.)
+- Service dependency graph for deployment order
+- Service-level runtime config (env vars, resource limits, health settings)
+- Per-service strategy profile bound to template IDs (build/deploy/health/routing)
+
+**Current status**: 🟡
+
+- Schema support exists in `apps/api/src/config/drizzle/schema/deployment.ts` (`projects`, `services`, `service_dependencies`, collaborators).
+- API/runtime behavior is not yet fully elevated to fleet-aware orchestration execution.
+
+### 2) Source integrations (GitHub first)
+
+**Must have**
+
+- GitHub App installation + repository discovery
+- Webhook ingestion and validation
+- Branch/tag/PR metadata resolution for deployments
+- Provider-specific config adapters with shared normalized output contract
+
+**Current status**: 🟡
+
+- Strong schema + service foundation exists (`github_installations`, `github_repositories`, webhook tables, GitHub core services).
+- End-to-end trigger-to-runtime deployment path is still incomplete.
+
+### 3) Build and artifact flow
+
+**Must have**
+
+- Build strategy selection (`dockerfile`, `nixpacks`, etc.)
+- Build logs + phase progress
+- Image tagging and rollback-safe retention policy
+- Strategy-selectable build plans per provider/repository/service
+
+**Current status**: 🟡
+
+- Deployment schema supports phase/status/log metadata.
+- Orchestration queue/executor is not fully wired in v3 runtime path.
+
+### 4) Runtime orchestration and fleet control
+
+**Must have**
+
+- Job queue for deployment lifecycle
+- Ordered deployment respecting service dependency graph
+- Restart/redeploy/rollback operations
+- Health reconciliation and auto-recovery hooks
+- Config-driven ordering between services and projects (topological, gated, policy-based)
+
+**Current status**: ❌ (for full target behavior)
+
+- `DeploymentService` contains TODO markers to queue work through orchestration.
+- No fully integrated v3 orchestration execution module is currently the source-of-truth runtime path.
+
+### 5) Traefik routing and domains
+
+**Must have**
+
+- Domain registration and DNS validation
+- Dynamic route generation and sync to Traefik
+- TLS/SSL certificate lifecycle
+- Middleware and advanced route config support
+
+**Current status**: 🟡
+
+- Very strong Traefik schema and core services exist (`schema/traefik/index.ts`, Traefik core module/services).
+- Full deployment lifecycle coupling (deploy -> route apply -> ready confirmation) is not yet consistently enforced.
+
+### 6) Preview environments
+
+**Must have**
+
+- Automatic PR/branch preview creation
+- Deterministic preview subdomain conventions
+- Per-preview env overrides
+- Auto-delete and cleanup policies on merge/close/TTL
+- Preview behavior fully driven by template (domain format, secrets scope, rollback/cleanup policy)
+
+**Current status**: 🟡
+
+- `preview_environments` and related GitHub preview tables/settings exist.
+- End-to-end automated lifecycle (provision/update/teardown) needs orchestration integration.
+
+### 7) Deployment observability and event streams
+
+**Must have**
+
+- Structured deployment logs
+- Live deployment event streams
+- Deployment timeline and phase transitions
+- Operator-facing diagnostics for failures
+
+**Current status**: ✅ / 🟡
+
+- Log and stream data model + contracts are present.
+- Real-time UX surface and operator workflows in web are still limited.
+
+### 8) Security and access control
+
+**Must have**
+
+- Better Auth integration
+- Authenticated/authorized deployment actions
+- API keys + scoped automation access
+- Secret storage and encryption for provider/webhook credentials
+
+**Current status**: ✅ / 🟡
+
+- Foundations are present (auth, encrypted secrets, key tables).
+- Fine-grained enforcement parity must be verified per module as migration completes.
+
+### 9) Web control plane UX
+
+**Must have**
+
+- Project/service dashboard
+- Deployment history and logs
+- Preview environment control and status
+- Fleet actions: deploy all / selective rollout / rollback
+- Template editor and simulation UX (what will happen before execution)
+
+**Current status**: ❌ / 🟡
+
+- v3 web has limited deployment-control surface compared to target platform scope.
+
+## Strong configuration-template model
+
+All runtime operations should come from a compiled deployment plan.
+
+### Template layers
+
+1. `ProviderTemplate`
+	- Source checkout behavior, webhook mapping, branch/PR semantics, secret requirements.
+2. `BuildTemplate`
+	- Build inputs, cache keys, build args, artifact contracts.
+3. `DeployTemplate`
+	- Runtime strategy (`rolling`, `canary`, `blueGreen`, `recreate`), readiness and rollback conditions.
+4. `RouteTemplate`
+	- Traefik router/service/middleware/TLS policy generation.
+5. `PreviewTemplate`
+	- Preview naming, domain pattern, retention and cleanup triggers.
+6. `DependencyTemplate`
+	- Ordering gates between services/projects, failure propagation policy.
+
+### Execution model
+
+- Inputs: project + service + environment + trigger context + selected templates.
+- Compiler outputs: deterministic execution graph (DAG) with steps, retries, rollback edges.
+- Orchestrator runs this graph and emits typed events for every transition.
+
+### Why this matters
+
+- New provider or strategy should be mostly config + adapter, not core rewrites.
+- Fleet-scale behavior stays predictable because all decision logic is explicit and versioned.
+- “Automatic” does not mean opaque: every action is traceable to a config decision.
+
+## MVP definition (must ship first)
+
+P0 capabilities:
+
+1. Deploy one service from GitHub branch to live URL
+2. Health check gating before marking deployment success
+3. Traefik route creation/update tied to deployment lifecycle
+4. Rollback to previous successful deployment
+5. Basic deployment timeline + logs visible in API/web
+6. Template compiler produces a deterministic deployment plan for each run
+
+If these five are stable, the platform is truly “deploy-capable” and not just schema-capable.
+
+## v1 parity definition (full migration target)
+
+After MVP, parity and upgrades should include:
+
+- Multi-service cascade deploys with dependency graph
+- PR preview lifecycle automation
+- Fleet controls (batch/ordered strategy)
+- Rule-based CI/CD triggers and policy controls
+- Robust cleanup, retention, and drift reconciliation
+- Full template coverage for providers + strategies + environments + dependencies
+
+## Acceptance criteria for “feature complete v3 platform”
+
+- `triggerDeployment` executes runtime work (not only record/state updates)
+- Traefik routing and SSL become operationally verifiable per deployment
+- Preview environments auto-create and auto-clean based on merge/TTL rules
+- Fleet deployment order is deterministic and dependency-aware
+- Deployment and preview behavior are fully explainable from template versions used at runtime
+- `bun run check` passes while deployment integration tests cover happy-path + rollback + failure recovery
+
+## Advanced ideas to push the platform further
+
+1. **Plan Simulation Mode**
+	- Compile and simulate deployment graph without executing (cost/risk preview + expected ordering).
+2. **Policy Engine for Safe Deploys**
+	- Gate deploys using configurable policies (time windows, approval rules, blast radius limits).
+3. **Progressive Delivery Strategies**
+	- Canary percentage ramps with automatic rollback on SLO violations.
+4. **Environment Matrix Deploys**
+	- One config triggers coordinated deploy across multiple environments with dependency gates.
+5. **Cross-Project Dependency Graph**
+	- Allow project A service to gate project B deployment when hard dependencies exist.
+6. **Drift Detection and Auto-Reconcile**
+	- Compare desired state (compiled plan) vs actual state (containers/routes) and reconcile safely.
+7. **Template Marketplace (internal)**
+	- Reusable validated templates for common stacks and deployment patterns.
+8. **SLO-Aware Auto-Rollback**
+	- Tie health metrics and error budgets directly to rollback triggers.
+9. **Config Provenance Timeline**
+	- For each deployment, show exactly which template versions and overrides were applied.
+
+## Related docs
+
+- [Platform Product Specification](/docs/architecture/platform-product-spec)
+- [Migration Task Breakdown](/docs/deployment/migration-task-breakdown)
+- [Migration Master Plan](/docs/deployment/migration-master-plan)
+- [Registry, Monitoring & Advanced Features — Documentation Coverage](/docs/deployment/registry-monitoring-advanced-doc-coverage)
+- [Benchmark Feature Adaptation Matrix](/docs/deployment/benchmark-feature-adaptation-matrix)
+- [Deployment Trust Gate](/docs/deployment/deployment-trust-gate)
+- [Cost Guardrail Engine](/docs/deployment/cost-guardrail-engine)
+- [Resilience GameDay Controller](/docs/deployment/resilience-gameday-controller)
+- [Template Pack Catalog](/docs/deployment/template-pack-catalog)
+- [Change-Scoped Deploy Policy Preview](/docs/deployment/change-scoped-deploy-policy-preview)
+- [Remote Connectivity Profiles](/docs/deployment/remote-connectivity-profiles)
+- [Environment-Scoped RBAC Matrix](/docs/deployment/environment-scoped-rbac-matrix)
+- [Trust-Aware Update Policy Bridge](/docs/deployment/trust-aware-update-policy-bridge)
+- [Typed Async Operation Contract](/docs/deployment/typed-async-operation-contract)
+- [Production Deployment](/docs/deployment/production-deployment)
+- [Architecture Overview](/docs/architecture/architecture)

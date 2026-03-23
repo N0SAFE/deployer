@@ -1,4 +1,4 @@
-import { Inject, Injectable, Scope } from "@nestjs/common";
+import { Inject, Injectable, Optional, Scope } from "@nestjs/common";
 import { REQUEST } from "@nestjs/core";
 import type { Auth } from "@/auth";
 import {
@@ -47,8 +47,8 @@ export class AuthService<T extends AuthWithPlugins = Auth> {
 
 	constructor(
 		private readonly core: AuthCoreService<T>,
-		@Inject(REQUEST)
-		private readonly request: Request,
+		@Optional() 
+		private readonly request?: Request,
 	) {}
 
 	// ==========================================================================
@@ -92,7 +92,7 @@ export class AuthService<T extends AuthWithPlugins = Auth> {
 	 * await orgPlugin.createOrganization({ ... }); // Fully typed
 	 * ```
 	 */
-	plugin<K extends keyof PluginRegistry>(name: K): PluginRegistry[K] {
+	plugin<K extends keyof PluginRegistry>(name: K): any {
 		const headers = this.getRequestHeaders();
 		return this.core.plugin(name, headers);
 	}

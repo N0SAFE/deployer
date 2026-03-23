@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { nanoid } from 'nanoid';
 import { eq } from 'drizzle-orm';
@@ -41,9 +41,9 @@ export interface CliAuthContext {
 @Injectable()
 export class CliAuthService {
   constructor(
-    @Inject(DATABASE_SERVICE) private readonly databaseService: DatabaseService,
-    @Inject(AUTH_CORE_SERVICE) private readonly authCoreService: AuthCoreService,
-    @Inject(CONFIG_SERVICE) private readonly configService: ConfigService,
+    private readonly databaseService: DatabaseService,
+    private readonly authCoreService: AuthCoreService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -91,7 +91,7 @@ export class CliAuthService {
         const plugins = this.authCoreService.getRegistry().getAll(authHeaders);
         
         // Test if master token works by trying to list users
-        await plugins.admin.listUsers({});
+        await plugins.admin.listUsers();
         
         return {
           headers: authHeaders,
@@ -116,7 +116,7 @@ export class CliAuthService {
           const plugins = this.authCoreService.getRegistry().getAll(session.headers);
           
           // Test if credentials work
-          await plugins.admin.listUsers({});
+          await plugins.admin.listUsers();
           
           return {
             headers: session.headers,

@@ -4,7 +4,12 @@ import type { ReactNode } from 'react'
 import { useOrganizationMembers, type OrganizationMember } from '@/domains/organization/hooks'
 import { useSession } from '@/lib/auth'
 import type { OrganizationRole } from '@repo/auth/permissions'
-import { isOrganizationRoleAtLeast } from '@repo/auth/permissions'
+import { ORGANIZATION_ROLES } from '@repo/auth/permissions'
+
+function isOrganizationRoleAtLeast(role: OrganizationRole, minimumRole: OrganizationRole): boolean {
+  const roles = ORGANIZATION_ROLES as readonly string[]
+  return roles.indexOf(role) >= roles.indexOf(minimumRole)
+}
 
 export interface RequireOrganizationRoleProps {
   /**

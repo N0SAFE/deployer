@@ -3,7 +3,12 @@
 import type { ReactNode } from 'react'
 import { useSession } from '@/lib/auth'
 import type { PlatformRole } from '@repo/auth/permissions'
-import { isPlatformRoleAtLeast } from '@repo/auth/permissions'
+import { PLATFORM_ROLES } from '@repo/auth/permissions'
+
+function isPlatformRoleAtLeast(role: PlatformRole, minimumRole: PlatformRole): boolean {
+  const roles = PLATFORM_ROLES as readonly string[]
+  return roles.indexOf(role) >= roles.indexOf(minimumRole)
+}
 
 export interface RequirePlatformRoleProps {
   /**

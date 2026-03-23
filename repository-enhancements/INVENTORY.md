@@ -92,7 +92,7 @@ apps/web/src/
 | `usePermissions.ts` | 270 | ✅ Active | Permission checking |
 | `useSession.ts` | 80 | ✅ Active | Session management |
 | `useUsers.ts` | 632 | 🔴 Deprecated | Legacy user hooks |
-| `useUser.orpc-hooks.ts` | 200 | ✅ Active | Generated ORPC hooks |
+| `domains/user/hooks.ts` | ~200 | ✅ Active | Domain user hooks |
 | `index.ts` | 20 | ✅ Active | Exports |
 
 ---
@@ -130,9 +130,9 @@ apps/doc/
 
 ### tools/codegen (Code Generation)
 
-> **Note:** Should be created at `tools/codegen/orpc-hooks`
+> **Note:** Current web pattern is domain hooks under `apps/web/src/domains/<feature>/hooks.ts`; codegen history kept for reference.
 
-**orpc-hooks:**
+**domain-hooks (current):**
 - ORPC hook generator
 - Type-safe hook generation from contracts
 
@@ -394,7 +394,7 @@ packages/utils/orpc/src/
 | `useAdmin.ts` | 290 | web |
 | `usePermissions.ts` | 270 | web |
 | `RequirePermission.tsx` | 227 | web/permissions |
-| `useUser.orpc-hooks.ts` | 200 | web |
+| `domains/user/hooks.ts` | ~200 | web |
 
 ---
 

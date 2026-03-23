@@ -26,6 +26,7 @@
     "@orpc/contract": "catalog:orpc",
     "@orpc/shared": "catalog:orpc",
     "@repo/orpc-utils": "*",
+    "@repo/provider-schema": "*",
     "@repo/auth": "*",
     "zod": "catalog:utils"
   },

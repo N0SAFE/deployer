@@ -1,0 +1,382 @@
+services:
+  api-db-mesh-prod:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-db-mesh-prod
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_DATABASE:-nestjs_api}
+    volumes:
+      - api_db_data_mesh_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_DATABASE:-nestjs_api}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mesh_network_prod
+
+  api-mesh-prod-1:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-prod-1
+    build:
+      context: ../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.prod
+      args:
+        - API_PORT=3401
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3401}
+        - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
+    depends_on:
+      api-db-mesh-prod:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - "${MESH_PROD_API_PORT_1:-3401}:3401"
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=warn
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
+      - MIGRATIONS_FOLDER=./dist/migrations
+      - API_PORT=3401
+      - API_URL=http://api-mesh-prod-1:3401
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3401}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
+      - APP_URL=http://web-mesh-prod:3100
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-auth-key}
+      - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
+      - UPLOADS_DIR=/app/apps/api/uploads
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      - ENABLE_SEEDING=true
+      - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
+      - MESH_NODE_ID=${MESH_NODE_ID_NODE_1:-22222222-2222-4222-8222-222222222222}
+      - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-prod-mesh-stream-secret}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3401/health || exit 1
+      start_period: 20s
+      interval: 15s
+      timeout: 15s
+      retries: 5
+    networks:
+      - mesh_network_prod
+    volumes:
+      - bun_cache_mesh_prod:/root/.bun/install/cache
+      - turbo_cache_mesh_prod:/root/.cache/turbo
+      - api_uploads_mesh_prod_1:/app/apps/api/uploads
+
+  api-mesh-prod-2:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-prod-2
+    build:
+      context: ../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.prod
+      args:
+        - API_PORT=3402
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_NODE_2:-http://localhost:3402}
+        - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
+    depends_on:
+      api-db-mesh-prod:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - "${MESH_PROD_API_PORT_2:-3402}:3402"
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=warn
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
+      - MIGRATIONS_FOLDER=./dist/migrations
+      - API_PORT=3402
+      - API_URL=http://api-mesh-prod-2:3402
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_NODE_2:-http://localhost:3402}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
+      - APP_URL=http://web-mesh-prod:3100
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-auth-key}
+      - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
+      - UPLOADS_DIR=/app/apps/api/uploads
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      - ENABLE_SEEDING=true
+      - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
+      - MESH_NODE_ID=${MESH_NODE_ID_NODE_2:-33333333-3333-4333-8333-333333333333}
+      - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-prod-mesh-stream-secret}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3402/health || exit 1
+      start_period: 20s
+      interval: 15s
+      timeout: 15s
+      retries: 5
+    networks:
+      - mesh_network_prod
+    volumes:
+      - bun_cache_mesh_prod:/root/.bun/install/cache
+      - turbo_cache_mesh_prod:/root/.cache/turbo
+      - api_uploads_mesh_prod_2:/app/apps/api/uploads
+
+  api-mesh-prod-3:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-prod-3
+    build:
+      context: ../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.prod
+      args:
+        - API_PORT=3403
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_NODE_3:-http://localhost:3403}
+        - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
+    depends_on:
+      api-db-mesh-prod:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - "${MESH_PROD_API_PORT_3:-3403}:3403"
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=warn
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
+      - MIGRATIONS_FOLDER=./dist/migrations
+      - API_PORT=3403
+      - API_URL=http://api-mesh-prod-3:3403
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_NODE_3:-http://localhost:3403}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
+      - APP_URL=http://web-mesh-prod:3100
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-auth-key}
+      - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
+      - UPLOADS_DIR=/app/apps/api/uploads
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      - ENABLE_SEEDING=true
+      - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
+      - MESH_NODE_ID=${MESH_NODE_ID_NODE_3:-44444444-4444-4444-8444-444444444444}
+      - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-prod-mesh-stream-secret}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3403/health || exit 1
+      start_period: 20s
+      interval: 15s
+      timeout: 15s
+      retries: 5
+    networks:
+      - mesh_network_prod
+    volumes:
+      - bun_cache_mesh_prod:/root/.bun/install/cache
+      - turbo_cache_mesh_prod:/root/.cache/turbo
+      - api_uploads_mesh_prod_3:/app/apps/api/uploads
+
+  api-mesh-prod-4:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-prod-4
+    build:
+      context: ../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.prod
+      args:
+        - API_PORT=3404
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_NODE_4:-http://localhost:3404}
+        - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
+    depends_on:
+      api-db-mesh-prod:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - "${MESH_PROD_API_PORT_4:-3404}:3404"
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=warn
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
+      - MIGRATIONS_FOLDER=./dist/migrations
+      - API_PORT=3404
+      - API_URL=http://api-mesh-prod-4:3404
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_NODE_4:-http://localhost:3404}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
+      - APP_URL=http://web-mesh-prod:3100
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-auth-key}
+      - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
+      - UPLOADS_DIR=/app/apps/api/uploads
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      - ENABLE_SEEDING=true
+      - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
+      - MESH_NODE_ID=${MESH_NODE_ID_NODE_4:-55555555-5555-4555-8555-555555555555}
+      - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-prod-mesh-stream-secret}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3404/health || exit 1
+      start_period: 20s
+      interval: 15s
+      timeout: 15s
+      retries: 5
+    networks:
+      - mesh_network_prod
+    volumes:
+      - bun_cache_mesh_prod:/root/.bun/install/cache
+      - turbo_cache_mesh_prod:/root/.cache/turbo
+      - api_uploads_mesh_prod_4:/app/apps/api/uploads
+
+  api-mesh-prod-5:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-prod-5
+    build:
+      context: ../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.prod
+      args:
+        - API_PORT=3405
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_NODE_5:-http://localhost:3405}
+        - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
+    depends_on:
+      api-db-mesh-prod:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - "${MESH_PROD_API_PORT_5:-3405}:3405"
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=warn
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
+      - MIGRATIONS_FOLDER=./dist/migrations
+      - API_PORT=3405
+      - API_URL=http://api-mesh-prod-5:3405
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_NODE_5:-http://localhost:3405}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
+      - APP_URL=http://web-mesh-prod:3100
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-auth-key}
+      - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
+      - UPLOADS_DIR=/app/apps/api/uploads
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      - ENABLE_SEEDING=true
+      - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
+      - MESH_NODE_ID=${MESH_NODE_ID_NODE_5:-66666666-6666-4666-8666-666666666666}
+      - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-prod-mesh-stream-secret}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3405/health || exit 1
+      start_period: 20s
+      interval: 15s
+      timeout: 15s
+      retries: 5
+    networks:
+      - mesh_network_prod
+    volumes:
+      - bun_cache_mesh_prod:/root/.bun/install/cache
+      - turbo_cache_mesh_prod:/root/.cache/turbo
+      - api_uploads_mesh_prod_5:/app/apps/api/uploads
+
+  api-mesh-prod-6:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-prod-6
+    build:
+      context: ../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.prod
+      args:
+        - API_PORT=3406
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_NODE_6:-http://localhost:3406}
+        - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
+    depends_on:
+      api-db-mesh-prod:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - "${MESH_PROD_API_PORT_6:-3406}:3406"
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=warn
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
+      - MIGRATIONS_FOLDER=./dist/migrations
+      - API_PORT=3406
+      - API_URL=http://api-mesh-prod-6:3406
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_NODE_6:-http://localhost:3406}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
+      - APP_URL=http://web-mesh-prod:3100
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-auth-key}
+      - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
+      - UPLOADS_DIR=/app/apps/api/uploads
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      - ENABLE_SEEDING=true
+      - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
+      - MESH_NODE_ID=${MESH_NODE_ID_NODE_6:-77777777-7777-4777-8777-777777777777}
+      - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-prod-mesh-stream-secret}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3406/health || exit 1
+      start_period: 20s
+      interval: 15s
+      timeout: 15s
+      retries: 5
+    networks:
+      - mesh_network_prod
+    volumes:
+      - bun_cache_mesh_prod:/root/.bun/install/cache
+      - turbo_cache_mesh_prod:/root/.cache/turbo
+      - api_uploads_mesh_prod_6:/app/apps/api/uploads
+
+  web-mesh-prod:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-web-mesh-prod
+    build:
+      context: ../..
+      dockerfile: ./docker/builder/web/Dockerfile.web.runtime.prod
+      args:
+        - NODE_ENV=production
+        - API_PORT=3401
+        - API_URL=http://api-mesh-prod-1:3401
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3401}
+        - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
+        - NEXT_PUBLIC_APP_PORT=${MESH_WEB_PORT:-3100}
+    depends_on:
+      api-mesh-prod-1:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - "${MESH_WEB_PORT:-3100}:${MESH_WEB_PORT:-3100}"
+    environment:
+      - NODE_ENV=production
+      - API_URL=http://api-mesh-prod-1:3401
+      - APP_URL=http://web-mesh-prod:${MESH_WEB_PORT:-3100}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3401}
+      - NEXT_PUBLIC_API_PORT=3401
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3100}
+      - NEXT_PUBLIC_APP_PORT=${MESH_WEB_PORT:-3100}
+      - NEXT_PUBLIC_MESH_PEER_NODE_ID=${NEXT_PUBLIC_MESH_PEER_NODE_ID:-33333333-3333-4333-8333-333333333333}
+      - NEXT_PUBLIC_MESH_PEER_ENDPOINT=${NEXT_PUBLIC_MESH_PEER_ENDPOINT:-ws://api-mesh-prod-2:3402/mesh}
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-auth-key}
+      - NEXT_PUBLIC_DEV_AUTH_KEY=${NEXT_PUBLIC_DEV_AUTH_KEY:-${DEV_AUTH_KEY:-dev-auth-key}}
+    networks:
+      - mesh_network_prod
+    volumes:
+      - bun_cache_mesh_prod:/root/.bun/install/cache
+      - turbo_cache_mesh_prod:/root/.cache/turbo
+
+networks:
+  mesh_network_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_mesh_network_prod
+    driver: bridge
+
+volumes:
+  api_db_data_mesh_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_db_data_mesh_prod
+  bun_cache_mesh_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_bun_cache_mesh_prod
+  turbo_cache_mesh_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_turbo_cache_mesh_prod
+  api_uploads_mesh_prod_1:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_mesh_prod_1
+  api_uploads_mesh_prod_2:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_mesh_prod_2
+  api_uploads_mesh_prod_3:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_mesh_prod_3
+  api_uploads_mesh_prod_4:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_mesh_prod_4
+  api_uploads_mesh_prod_5:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_mesh_prod_5
+  api_uploads_mesh_prod_6:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_mesh_prod_6

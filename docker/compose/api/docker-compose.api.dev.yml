@@ -170,6 +170,10 @@ services:
       # Turbo Remote Cache
       - TURBO_TOKEN=${TURBO_TOKEN}
       - TURBO_TEAM=${TURBO_TEAM}
+      # Deterministic mesh IDs for local multi-node testing
+      - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
+      - MESH_NODE_ID=${MESH_NODE_ID_NODE_1:-22222222-2222-4222-8222-222222222222}
+      - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-dev-mesh-stream-secret}
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://127.0.0.1:${API_PORT:-3005}/health || exit 1
       start_period: 15s
@@ -181,6 +185,68 @@ services:
         aliases:
           - api-dev
           - api
+
+  # Second NestJS API instance for mesh testing in development
+  api-dev-2:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-dev-2
+    build:
+      context: ../../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.dev
+      tags:
+        - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-dev-2:latest"
+        - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-dev-2:${API_VERSION:-dev}"
+    depends_on:
+      api-db-dev:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 6g
+    memswap_limit: 6g
+    ports:
+      - "${API_PORT_NODE_2:-3006}:${API_PORT_NODE_2:-3006}"
+      - "${DRIZZLE_STUDIO_PORT_NODE_2:-4984}:4983"
+    volumes:
+      - bun_cache_dev:/root/.bun/install/cache
+      - turbo_cache_dev:/root/.cache/turbo
+      - api_uploads_dev_2:/app/apps/api/uploads
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@api-db-dev:5432/${DB_DATABASE:-nestjs_api}
+      - API_PORT=${API_PORT_NODE_2:-3006}
+      - LOG_LEVEL=debug
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - APP_URL=${APP_URL:-http://web-dev:3000}
+      - API_URL=http://api-dev-2:${API_PORT_NODE_2:-3006}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_NODE_2:-http://localhost:3006}
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-fallback-key}
+      - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
+      - PASSKEY_RPID=${PASSKEY_RPID:-localhost}
+      - PASSKEY_RPNAME=${PASSKEY_RPNAME:-NestJS App}
+      - PASSKEY_ORIGIN=${PASSKEY_ORIGIN:-http://localhost:3000}
+      - UPLOADS_DIR=${UPLOADS_DIR:-/app/apps/api/uploads}
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      - ENABLE_SEEDING=true
+      - CHOKIDAR_USEPOLLING=true
+      - TURBO_TOKEN=${TURBO_TOKEN}
+      - TURBO_TEAM=${TURBO_TEAM}
+      # Deterministic mesh IDs for local multi-node testing
+      - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
+      - MESH_NODE_ID=${MESH_NODE_ID_NODE_2:-33333333-3333-4333-8333-333333333333}
+      - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-dev-mesh-stream-secret}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:${API_PORT_NODE_2:-3006}/health || exit 1
+      start_period: 15s
+      interval: 15s
+      timeout: 15s
+      retries: 5
+    networks:
+      app_network_dev:
+        aliases:
+          - api-dev-2
+          - api-node-2
 
 networks:
   app_network_dev:
@@ -196,3 +262,5 @@ volumes:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_turbo_cache_dev
   api_uploads_dev:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_dev
+  api_uploads_dev_2:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_dev_2

@@ -128,7 +128,9 @@
                 "postgres": "^3.4.4",
                 "nanoid": "^5.1.6",
                 "bcrypt": "^6.0.0",
-                "@types/bcrypt": "^6.0.0"
+                "@types/bcrypt": "^6.0.0",
+                "better-sqlite3": "^11.9.1",
+                "@types/better-sqlite3": "^7.6.13"
             },
             "orpc": {
                 "@orpc/openapi-client": "1.13.5",
@@ -198,6 +200,8 @@
         "dev:web:down:volumes": "docker compose -f ./docker/compose/web/docker-compose.web.dev.yml down --volumes",
         "dev:api:logs": "docker compose -f ./docker/compose/api/docker-compose.api.dev.yml logs -f",
         "dev:web:logs": "docker compose -f ./docker/compose/web/docker-compose.web.dev.yml logs -f",
+        "test:e2e:api:docker": "docker compose -f ./docker/compose/api/docker-compose.api.e2e.yml up --build --abort-on-container-exit --exit-code-from api-e2e",
+        "test:e2e:api:docker:down": "docker compose -f ./docker/compose/api/docker-compose.api.e2e.yml down --remove-orphans",
         "dev:api:run": "envcli docker exec -it ${COMPOSE_PROJECT_NAME:-nextjs-directus}-api-dev /bin/sh",
         "dev:web:run": "envcli docker exec -it ${COMPOSE_PROJECT_NAME:-nextjs-directus}-web-dev /bin/sh",
         "dev:local": "turbo dev",
@@ -228,6 +232,14 @@
         "generate:directus:types": "turbo run generate:directus:types",
         "docker:dev": "bun --bun run dev",
         "docker:prod": "bun --bun run start",
+        "mesh:dev": "dotenv -e .env -- docker compose -f ./docker/compose/docker-compose.mesh-6.dev.yml up --build",
+        "mesh:dev:down": "docker compose -f ./docker/compose/docker-compose.mesh-6.dev.yml down",
+        "mesh:dev:down:volumes": "docker compose -f ./docker/compose/docker-compose.mesh-6.dev.yml down --volumes",
+        "mesh:dev:logs": "docker compose -f ./docker/compose/docker-compose.mesh-6.dev.yml logs -f",
+        "mesh:prod": "dotenv -e .env -- docker compose -f ./docker/compose/docker-compose.mesh-6.prod-like.yml up --build",
+        "mesh:prod:down": "docker compose -f ./docker/compose/docker-compose.mesh-6.prod-like.yml down",
+        "mesh:prod:down:volumes": "docker compose -f ./docker/compose/docker-compose.mesh-6.prod-like.yml down --volumes",
+        "mesh:prod:logs": "docker compose -f ./docker/compose/docker-compose.mesh-6.prod-like.yml logs -f",
         "docker:build": "docker compose -f ./docker/compose/docker-compose.prod-like.yml build",
         "docker:build:web": "docker build -f docker/builder/web/Dockerfile.web.build-time.prod . -t nextjs-directus-web:latest",
         "docker:build:api": "docker build -f docker/builder/api/Dockerfile.api.prod . -t directus-api:latest",
@@ -256,6 +268,7 @@
         "kill:api": "trycli-options --command \"envcli kill-port $:{NEXT_PUBLIC_API_PORT} && envcli wait-on $:{NEXT_PUBLIC_API_URL} -r\" --silent",
         "api": "dotenv -e .env -- bun --bun --cwd=./apps/api run --",
         "web": "dotenv -e .env -- bun --bun --cwd=./apps/web run --",
+        "load-balancer": "dotenv -e .env -- bun --bun --cwd=./apps/load-balancer run --",
         "@repo/ui": "dotenv -e .env -- bun --bun --cwd=./packages/ui/base run --",
         "@repo/types": "dotenv -e .env -- bun --bun --cwd=./packages/types run --",
         "@repo/auth": "dotenv -e .env -- bun --bun --cwd=./packages/auth run --",
@@ -294,7 +307,7 @@
     },
     "overrides": {
         "onetime": "5.1.2",
-        "signal-exit": "^4.1.0"
+        "signal-exit": "3.0.7"
     },
     "engines": {
         "bun": ">=1.3.1"

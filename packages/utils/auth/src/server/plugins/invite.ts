@@ -5,7 +5,7 @@ import {
 } from "better-auth/api";
 import { generateRandomString } from "better-auth/crypto";
 import type { UserWithRole } from "better-auth/plugins";
-import { z } from "zod";
+import * as z from "zod/v4";
 
 /**
  * Role schema type that accepts any valid role schema output from createSchemas
@@ -64,11 +64,22 @@ export interface Invite {
 };
 
 const ERROR_CODES = {
-  USER_NOT_LOGGED_IN: "User must be logged in to create an invite",
-  INSUFFICIENT_PERMISSIONS:
-    "User does not have sufficient permissions to create invite",
-  NO_SUCH_USER: "No such user",
-  INVALID_OR_EXPIRED_INVITE: "Invalid or expired invite token",
+  USER_NOT_LOGGED_IN: {
+    code: "USER_NOT_LOGGED_IN",
+    message: "User must be logged in to create an invite",
+  },
+  INSUFFICIENT_PERMISSIONS: {
+    code: "INSUFFICIENT_PERMISSIONS",
+    message: "User does not have sufficient permissions to create invite",
+  },
+  NO_SUCH_USER: {
+    code: "NO_SUCH_USER",
+    message: "No such user",
+  },
+  INVALID_OR_EXPIRED_INVITE: {
+    code: "INVALID_OR_EXPIRED_INVITE",
+    message: "Invalid or expired invite token",
+  },
 } as const;
 
 /**
@@ -120,7 +131,7 @@ export const invitePlugin = <TRoles extends string>(
           const userId = ctx.context.session.user.id;
           if (!userId) {
             throw ctx.error("BAD_REQUEST", {
-              message: ERROR_CODES.USER_NOT_LOGGED_IN,
+              message: ERROR_CODES.USER_NOT_LOGGED_IN.message,
             });
           }
 
@@ -128,7 +139,7 @@ export const invitePlugin = <TRoles extends string>(
 
           if (!user) {
             throw ctx.error("BAD_REQUEST", {
-              message: ERROR_CODES.NO_SUCH_USER,
+              message: ERROR_CODES.NO_SUCH_USER.message,
             });
           }
 
@@ -138,7 +149,7 @@ export const invitePlugin = <TRoles extends string>(
             const canCreateInvite = options.canCreateInvite(user);
             if (!canCreateInvite) {
               throw ctx.error("BAD_REQUEST", {
-                message: ERROR_CODES.INSUFFICIENT_PERMISSIONS,
+                message: ERROR_CODES.INSUFFICIENT_PERMISSIONS.message,
               });
             }
           }
@@ -207,7 +218,7 @@ export const invitePlugin = <TRoles extends string>(
           const userId = ctx.context.session.user.id;
           if (!userId) {
             throw ctx.error("BAD_REQUEST", {
-              message: ERROR_CODES.USER_NOT_LOGGED_IN,
+              message: ERROR_CODES.USER_NOT_LOGGED_IN.message,
             });
           }
 
@@ -215,7 +226,7 @@ export const invitePlugin = <TRoles extends string>(
 
           if (!user) {
             throw ctx.error("BAD_REQUEST", {
-              message: ERROR_CODES.NO_SUCH_USER,
+              message: ERROR_CODES.NO_SUCH_USER.message,
             });
           }
 
@@ -225,7 +236,7 @@ export const invitePlugin = <TRoles extends string>(
             const canListInvites = options.canCreateInvite(user);
             if (!canListInvites) {
               throw ctx.error("BAD_REQUEST", {
-                message: ERROR_CODES.INSUFFICIENT_PERMISSIONS,
+                message: ERROR_CODES.INSUFFICIENT_PERMISSIONS.message,
               });
             }
           }
@@ -336,7 +347,7 @@ export const invitePlugin = <TRoles extends string>(
           // Check if expired
           if (opts.getDate() > invite.expiresAt) {
             throw ctx.error("BAD_REQUEST", {
-              message: ERROR_CODES.INVALID_OR_EXPIRED_INVITE,
+              message: ERROR_CODES.INVALID_OR_EXPIRED_INVITE.message,
             });
           }
 

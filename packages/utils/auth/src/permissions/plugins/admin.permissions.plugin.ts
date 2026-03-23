@@ -12,7 +12,8 @@
  */
 
 import { admin, type InferAdminRolesFromOption } from "better-auth/plugins";
-import type { WithAuthPlugins } from "./system/auth-with-plugins";
+import type { Auth as BetterAuthInstance } from "better-auth";
+import type { MinimalAuth, WithAuthPlugins } from "./system/auth-with-plugins";
 import {
     BasePluginWrapper,
     type BasePluginWrapperOptions,
@@ -71,14 +72,13 @@ export interface ApiMethodsWithAdminPlugin<
         | "banUser"
         | "unbanUser"
         | "listUsers"
-        | "getSession"
         | "userHasPermission"
-    >;
+    > & Pick<MinimalAuth["api"], "getSession">;
     /**
      * Type inference helper inherited from Auth type.
      * Preserves all plugin type inference from the actual Auth instance.
      */
-    $Infer: AuthWithAdminPlugin<TPermissionBuilder>["$Infer"];
+    $Infer: BetterAuthInstance["$Infer"];
 }
 
 /**
@@ -159,7 +159,14 @@ export class AdminPermissionsPlugin<
                 headers: this.headers,
             });
 
-            const userId = session?.user.id;
+            const userId =
+                session &&
+                typeof session.user === "object" &&
+                session.user !== null &&
+                "id" in session.user &&
+                typeof (session.user as { id: unknown }).id === "string"
+                    ? (session.user as { id: string }).id
+                    : undefined;
             if (!userId) return false;
 
             const result = await this.auth.api.userHasPermission(

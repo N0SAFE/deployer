@@ -216,7 +216,7 @@ useAdminActions()        // All admin operations
 | `useOrganization.ts` | Organization management | ✅ Good |
 | `useOrganizationMembers.ts` | Member management | ✅ Good |
 | `useInvitation.ts` | Invitation management | ⚠️ Has TODOs |
-| `useUser.orpc-hooks.ts` | Generated ORPC hooks | ✅ Modern |
+| `domains/user/hooks.ts` | Domain user hooks | ✅ Modern |
 
 ---
 

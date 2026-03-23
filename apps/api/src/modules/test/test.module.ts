@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { ConfigurationCoreModule } from "@/core/modules/configuration/configuration-core.module";
 import { TestController } from "./controllers/test.controller";
 
 /**
@@ -23,6 +24,7 @@ import { TestController } from "./controllers/test.controller";
  * ```
  */
 @Module({
+	imports: [ConfigurationCoreModule],
 	controllers: [TestController],
 })
 export class TestModule {}

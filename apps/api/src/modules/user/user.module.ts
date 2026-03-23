@@ -3,9 +3,10 @@ import { UserService } from './services/user.service';
 import { UserRepository } from './repositories/user.repository';
 import { UserController } from './controllers/user.controller';
 import { DatabaseModule } from '../../core/modules/database/database.module';
+import { ConfigurationCoreModule } from '@/core/modules/configuration/configuration-core.module';
 
 @Module({
-    imports: [DatabaseModule],
+    imports: [DatabaseModule, ConfigurationCoreModule],
     controllers: [UserController],
     providers: [UserService, UserRepository],
     exports: [UserService, UserRepository],

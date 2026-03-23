@@ -13,7 +13,8 @@
  */
 
 import { organization } from "better-auth/plugins";
-import type { WithAuthPlugins } from "./system/auth-with-plugins";
+import type { Auth as BetterAuthInstance } from "better-auth";
+import type { MinimalAuth, WithAuthPlugins } from "./system/auth-with-plugins";
 import type { PermissionBuilder } from "../system/builder/builder";
 import type { LiteralString } from "better-auth";
 import {
@@ -71,14 +72,13 @@ export interface ApiMethodsWithOrganizationPlugin<
         | "updateMemberRole"
         | "removeMember"
         | "listMembers"
-        | "getSession"
         | "hasPermission"
-    >;
+    > & Pick<MinimalAuth["api"], "getSession">;
     /**
      * Type inference helper inherited from Auth type.
      * Preserves all plugin type inference from the actual Auth instance.
      */
-    $Infer: AuthWithOrganizationPlugin["$Infer"];
+    $Infer: BetterAuthInstance["$Infer"];
 }
 
 /**

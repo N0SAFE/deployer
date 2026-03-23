@@ -65,17 +65,17 @@ export class AuthModule
 
 	onModuleInit(): void {
 		const providers = this.discoveryService
-            .getProviders()
-            .filter(
-                (o: { metatype }): o is InstanceWrapper<(new (...args: unknown[]) => unknown) & Record<string, (...args: unknown[]) => unknown>> => {
-                    if (!o.metatype || typeof o.metatype !== 'function') return false;
-                    return Reflect.getMetadata(HOOK_KEY, o.metatype as object) as boolean;
-                }
-            );
+			.getProviders()
+			.filter(
+				(o: { metatype }): o is InstanceWrapper<(new (...args: unknown[]) => unknown) & Record<string, (...args: unknown[]) => unknown>> => {
+					if (!o.metatype || typeof o.metatype !== "function") return false;
+					return Reflect.getMetadata(HOOK_KEY, o.metatype as object) as boolean;
+				},
+			);
 
 		const hasHookProviders = providers.length > 0;
 		const hooksConfigured =
-			'hooks' in this.options.auth.options && typeof this.options.auth.options.hooks === "object";
+			"hooks" in this.options.auth.options && typeof this.options.auth.options.hooks === "object";
 
 		if (hasHookProviders && !hooksConfigured)
 			throw new Error(
@@ -85,16 +85,16 @@ export class AuthModule
 		if (!hooksConfigured) return;
 
 		for (const provider of providers) {
-            const providerPrototype = Object.getPrototypeOf(provider.instance) as typeof provider.instance;
-            const methods = this.metadataScanner.getAllMethodNames(providerPrototype);
+			const providerPrototype = Object.getPrototypeOf(provider.instance) as typeof provider.instance;
+			const methods = this.metadataScanner.getAllMethodNames(providerPrototype);
 
-            for (const method of methods) {
-                const providerMethod = providerPrototype[method];
-                if (providerMethod) {
-                    this.setupHooks(providerMethod, provider.instance);
-                }
-            }
-        }
+			for (const method of methods) {
+				const providerMethod = providerPrototype[method];
+				if (providerMethod) {
+					this.setupHooks(providerMethod, provider.instance);
+				}
+			}
+		}
 	}
 
 	configure(consumer: MiddlewareConsumer): void {
@@ -103,15 +103,15 @@ export class AuthModule
         // if we ever need this, take a look at better-call which show an implementation for this
         const isNotFunctionBased = trustedOrigins && Array.isArray(trustedOrigins);
 
-        if (!this.options.disableTrustedOriginsCors && isNotFunctionBased) {
-            this.adapter.httpAdapter.enableCors({
-                origin: trustedOrigins,
-                methods: ["GET", "POST", "PUT", "DELETE"],
-                credentials: true,
-                allowedHeaders: ["Content-Type", "Authorization", "Cookie"], // Explicit headers
-                exposedHeaders: ["Set-Cookie"], // Allow Set-Cookie to be read
-            });
-        } else if (trustedOrigins && !this.options.disableTrustedOriginsCors && !isNotFunctionBased)
+		if (!this.options.disableTrustedOriginsCors && isNotFunctionBased) {
+			this.adapter.httpAdapter.enableCors({
+				origin: trustedOrigins,
+				methods: ["GET", "POST", "PUT", "DELETE"],
+				credentials: true,
+				allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
+				exposedHeaders: ["Set-Cookie"],
+			});
+		} else if (trustedOrigins && !this.options.disableTrustedOriginsCors && !isNotFunctionBased)
             throw new Error("Function-based trustedOrigins not supported in NestJS. Use string array or disable CORS with disableTrustedOriginsCors: true.");
 
 		// Get basePath from options or use default
@@ -134,49 +134,46 @@ export class AuthModule
 		}
 
 		const handler = toNodeHandler(this.options.auth);
-        const http = this.adapter.httpAdapter.getInstance<{
+		const http = this.adapter.httpAdapter.getInstance<{
 			use: (path: string, handler: (req: Request, res: Response) => void | Promise<void>) => void;
 		}>();
 
-		// Mount Better Auth on the base path; Express will match both the base path and any subpaths.
-		// The previous `${basePath}/*path` literal was not a valid wildcard, so requests never reached the handler.
 		http.use(basePath, async (req: Request, res: Response) => {
 			await handler(req, res);
 		});
 
 		this.logger.log(`AuthModule initialized BetterAuth on '${basePath}'`);
 	}
+
+	private setupHooks(providerMethod: (...args: unknown[]) => unknown, providerClass: new (...args: unknown[]) => unknown) {
+		if (!("hooks" in this.options.auth.options) || typeof this.options.auth.options.hooks !== "object" || this.options.auth.options.hooks === null) return;
+		for (const { metadataKey, hookType } of HOOKS) {
+			const hookPath = Reflect.getMetadata(metadataKey, providerMethod) as string | undefined;
+			if (!hookPath) continue;
+
+			const originalHook = this.options.auth.options.hooks[hookType] as
+				| ((
+						ctx: MiddlewareContext<
+							MiddlewareOptions,
+							AuthContext & {
+								returned?: unknown;
+								responseHeaders?: Headers;
+							}
+						>
+					) => Promise<void>)
+				| undefined;
+			this.options.auth.options.hooks[hookType] = createAuthMiddleware(async (ctx) => {
+				if (originalHook) {
+					await originalHook(ctx);
+				}
+
+				if (hookPath === ctx.path) {
+					await providerMethod.apply(providerClass, [ctx]);
+				}
+			});
+		}
+	}
     
-    private setupHooks(providerMethod: (...args: unknown[]) => unknown, providerClass: new (...args: unknown[]) => unknown) {
-        if (!("hooks" in this.options.auth.options) || typeof this.options.auth.options.hooks !== "object" || this.options.auth.options.hooks === null) return;
-
-        for (const { metadataKey, hookType } of HOOKS) {
-            const hookPath = Reflect.getMetadata(metadataKey, providerMethod) as string | undefined;
-            if (!hookPath) continue;
-
-            const originalHook = this.options.auth.options.hooks[hookType] as
-                | ((
-                      ctx: MiddlewareContext<
-                          MiddlewareOptions,
-                          AuthContext & {
-                              returned?: unknown;
-                              responseHeaders?: Headers;
-                          }
-                      >
-                  ) => Promise<void>)
-                | undefined;
-            this.options.auth.options.hooks[hookType] = createAuthMiddleware(async (ctx) => {
-                if (originalHook) {
-                    await originalHook(ctx);
-                }
-
-                if (hookPath === ctx.path) {
-                    await providerMethod.apply(providerClass, [ctx]);
-                }
-            });
-        }
-    }
-
 	static forRootAsync(options: typeof ASYNC_OPTIONS_TYPE): DynamicModule {
 		const forRootAsyncResult = super.forRootAsync(options);
 		return {
@@ -230,3 +227,4 @@ export class AuthModule
 		};
 	}
 }
+

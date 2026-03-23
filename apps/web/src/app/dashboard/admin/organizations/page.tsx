@@ -27,18 +27,18 @@ export default function AdminOrganizationsPage() {
   return (
     <div className="container mx-auto py-8 space-y-8">
       <div>
-        <h1 className="text-3xl font-bold mb-2">Organizations Management</h1>
+        <h1 className="text-3xl font-bold mb-2">Organization Admin Dashboard</h1>
         <p className="text-muted-foreground">
-          Admin panel for managing all organizations in the system.
+          Manage organization-level administration, ownership, and delegation.
         </p>
       </div>
 
       {/* Organizations Overview Card */}
       <Card>
         <CardHeader>
-          <CardTitle>All Organizations</CardTitle>
+          <CardTitle>Admin users by organization</CardTitle>
           <CardDescription>
-            {organizations?.length ?? 0} organization{organizations?.length !== 1 ? 's' : ''} in the system
+            {organizations?.length ?? 0} organization{organizations?.length !== 1 ? 's' : ''} available for org-level admin management
           </CardDescription>
         </CardHeader>
         <CardContent>

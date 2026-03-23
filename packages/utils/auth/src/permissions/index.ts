@@ -68,6 +68,16 @@ export {
 } from "./config";
 
 // ============================================================================
+// PROJECT ROLE EXPORTS
+// ============================================================================
+
+export {
+    PROJECT_ROLES,
+    type ProjectRole,
+    projectRoleMeta,
+} from "./config";
+
+// ============================================================================
 // COMMON PERMISSIONS & UTILITIES
 // ============================================================================
 
@@ -92,6 +102,14 @@ export * from './utils';
 
 // Export access control utilities
 export * from './access-control';
+
+// ============================================================================
+// PERMISSION ENGINE (resource-rule evaluation)
+// ============================================================================
+
+// Core engine: PermissionEngine, ForbiddenError, types, resource graph,
+// filter matcher, and rule validator exported from a single entry point.
+export * from './engine';
 
 // ============================================================================
 // PLUGIN WRAPPERS (V2 PERMISSIONS)

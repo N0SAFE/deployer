@@ -1,0 +1,420 @@
+services:
+  api-db-mesh-dev:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-db-mesh-dev
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${DB_DATABASE:-nestjs_api}
+    volumes:
+      - api_db_data_mesh_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${DB_DATABASE:-nestjs_api}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      mesh_network_dev:
+        aliases:
+          - api-db-mesh-dev
+
+  api-mesh-dev-1:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-1
+    build:
+      context: ../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.dev
+    depends_on:
+      api-db-mesh-dev:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 6g
+    memswap_limit: 6g
+    ports:
+      - "${MESH_API_PORT_1:-3301}:3301"
+    volumes:
+      - bun_cache_mesh_dev:/root/.bun/install/cache
+      - turbo_cache_mesh_dev:/root/.cache/turbo
+      - api_uploads_mesh_dev_1:/app/apps/api/uploads
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@api-db-mesh-dev:5432/${DB_DATABASE:-nestjs_api}
+      - API_PORT=3301
+      - LOG_LEVEL=debug
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - APP_URL=http://web-mesh-dev:3000
+      - API_URL=http://api-mesh-dev-1:3301
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3301}
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-fallback-key}
+      - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
+      - PASSKEY_RPID=${PASSKEY_RPID:-localhost}
+      - PASSKEY_RPNAME=${PASSKEY_RPNAME:-NestJS App}
+      - PASSKEY_ORIGIN=${PASSKEY_ORIGIN:-http://localhost:3000}
+      - UPLOADS_DIR=/app/apps/api/uploads
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      - ENABLE_SEEDING=true
+      - CHOKIDAR_USEPOLLING=true
+      - TURBO_TOKEN=${TURBO_TOKEN}
+      - TURBO_TEAM=${TURBO_TEAM}
+      - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
+      - MESH_NODE_ID=${MESH_NODE_ID_NODE_1:-22222222-2222-4222-8222-222222222222}
+      - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-dev-mesh-stream-secret}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3301/health || exit 1
+      start_period: 15s
+      interval: 15s
+      timeout: 15s
+      retries: 5
+    networks:
+      mesh_network_dev:
+        aliases:
+          - api-mesh-dev-1
+
+  api-mesh-dev-2:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-2
+    build:
+      context: ../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.dev
+    depends_on:
+      api-db-mesh-dev:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 6g
+    memswap_limit: 6g
+    ports:
+      - "${MESH_API_PORT_2:-3302}:3302"
+    volumes:
+      - bun_cache_mesh_dev:/root/.bun/install/cache
+      - turbo_cache_mesh_dev:/root/.cache/turbo
+      - api_uploads_mesh_dev_2:/app/apps/api/uploads
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@api-db-mesh-dev:5432/${DB_DATABASE:-nestjs_api}
+      - API_PORT=3302
+      - LOG_LEVEL=debug
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - APP_URL=http://web-mesh-dev:3000
+      - API_URL=http://api-mesh-dev-2:3302
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_NODE_2:-http://localhost:3302}
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-fallback-key}
+      - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
+      - PASSKEY_RPID=${PASSKEY_RPID:-localhost}
+      - PASSKEY_RPNAME=${PASSKEY_RPNAME:-NestJS App}
+      - PASSKEY_ORIGIN=${PASSKEY_ORIGIN:-http://localhost:3000}
+      - UPLOADS_DIR=/app/apps/api/uploads
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      - ENABLE_SEEDING=true
+      - CHOKIDAR_USEPOLLING=true
+      - TURBO_TOKEN=${TURBO_TOKEN}
+      - TURBO_TEAM=${TURBO_TEAM}
+      - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
+      - MESH_NODE_ID=${MESH_NODE_ID_NODE_2:-33333333-3333-4333-8333-333333333333}
+      - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-dev-mesh-stream-secret}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3302/health || exit 1
+      start_period: 15s
+      interval: 15s
+      timeout: 15s
+      retries: 5
+    networks:
+      mesh_network_dev:
+        aliases:
+          - api-mesh-dev-2
+
+  api-mesh-dev-3:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-3
+    build:
+      context: ../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.dev
+    depends_on:
+      api-db-mesh-dev:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 6g
+    memswap_limit: 6g
+    ports:
+      - "${MESH_API_PORT_3:-3303}:3303"
+    volumes:
+      - bun_cache_mesh_dev:/root/.bun/install/cache
+      - turbo_cache_mesh_dev:/root/.cache/turbo
+      - api_uploads_mesh_dev_3:/app/apps/api/uploads
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@api-db-mesh-dev:5432/${DB_DATABASE:-nestjs_api}
+      - API_PORT=3303
+      - LOG_LEVEL=debug
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - APP_URL=http://web-mesh-dev:3000
+      - API_URL=http://api-mesh-dev-3:3303
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_NODE_3:-http://localhost:3303}
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-fallback-key}
+      - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
+      - PASSKEY_RPID=${PASSKEY_RPID:-localhost}
+      - PASSKEY_RPNAME=${PASSKEY_RPNAME:-NestJS App}
+      - PASSKEY_ORIGIN=${PASSKEY_ORIGIN:-http://localhost:3000}
+      - UPLOADS_DIR=/app/apps/api/uploads
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      - ENABLE_SEEDING=true
+      - CHOKIDAR_USEPOLLING=true
+      - TURBO_TOKEN=${TURBO_TOKEN}
+      - TURBO_TEAM=${TURBO_TEAM}
+      - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
+      - MESH_NODE_ID=${MESH_NODE_ID_NODE_3:-44444444-4444-4444-8444-444444444444}
+      - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-dev-mesh-stream-secret}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3303/health || exit 1
+      start_period: 15s
+      interval: 15s
+      timeout: 15s
+      retries: 5
+    networks:
+      mesh_network_dev:
+        aliases:
+          - api-mesh-dev-3
+
+  api-mesh-dev-4:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-4
+    build:
+      context: ../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.dev
+    depends_on:
+      api-db-mesh-dev:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 6g
+    memswap_limit: 6g
+    ports:
+      - "${MESH_API_PORT_4:-3304}:3304"
+    volumes:
+      - bun_cache_mesh_dev:/root/.bun/install/cache
+      - turbo_cache_mesh_dev:/root/.cache/turbo
+      - api_uploads_mesh_dev_4:/app/apps/api/uploads
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@api-db-mesh-dev:5432/${DB_DATABASE:-nestjs_api}
+      - API_PORT=3304
+      - LOG_LEVEL=debug
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - APP_URL=http://web-mesh-dev:3000
+      - API_URL=http://api-mesh-dev-4:3304
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_NODE_4:-http://localhost:3304}
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-fallback-key}
+      - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
+      - PASSKEY_RPID=${PASSKEY_RPID:-localhost}
+      - PASSKEY_RPNAME=${PASSKEY_RPNAME:-NestJS App}
+      - PASSKEY_ORIGIN=${PASSKEY_ORIGIN:-http://localhost:3000}
+      - UPLOADS_DIR=/app/apps/api/uploads
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      - ENABLE_SEEDING=true
+      - CHOKIDAR_USEPOLLING=true
+      - TURBO_TOKEN=${TURBO_TOKEN}
+      - TURBO_TEAM=${TURBO_TEAM}
+      - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
+      - MESH_NODE_ID=${MESH_NODE_ID_NODE_4:-55555555-5555-4555-8555-555555555555}
+      - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-dev-mesh-stream-secret}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3304/health || exit 1
+      start_period: 15s
+      interval: 15s
+      timeout: 15s
+      retries: 5
+    networks:
+      mesh_network_dev:
+        aliases:
+          - api-mesh-dev-4
+
+  api-mesh-dev-5:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-5
+    build:
+      context: ../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.dev
+    depends_on:
+      api-db-mesh-dev:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 6g
+    memswap_limit: 6g
+    ports:
+      - "${MESH_API_PORT_5:-3305}:3305"
+    volumes:
+      - bun_cache_mesh_dev:/root/.bun/install/cache
+      - turbo_cache_mesh_dev:/root/.cache/turbo
+      - api_uploads_mesh_dev_5:/app/apps/api/uploads
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@api-db-mesh-dev:5432/${DB_DATABASE:-nestjs_api}
+      - API_PORT=3305
+      - LOG_LEVEL=debug
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - APP_URL=http://web-mesh-dev:3000
+      - API_URL=http://api-mesh-dev-5:3305
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_NODE_5:-http://localhost:3305}
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-fallback-key}
+      - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
+      - PASSKEY_RPID=${PASSKEY_RPID:-localhost}
+      - PASSKEY_RPNAME=${PASSKEY_RPNAME:-NestJS App}
+      - PASSKEY_ORIGIN=${PASSKEY_ORIGIN:-http://localhost:3000}
+      - UPLOADS_DIR=/app/apps/api/uploads
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      - ENABLE_SEEDING=true
+      - CHOKIDAR_USEPOLLING=true
+      - TURBO_TOKEN=${TURBO_TOKEN}
+      - TURBO_TEAM=${TURBO_TEAM}
+      - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
+      - MESH_NODE_ID=${MESH_NODE_ID_NODE_5:-66666666-6666-4666-8666-666666666666}
+      - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-dev-mesh-stream-secret}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3305/health || exit 1
+      start_period: 15s
+      interval: 15s
+      timeout: 15s
+      retries: 5
+    networks:
+      mesh_network_dev:
+        aliases:
+          - api-mesh-dev-5
+
+  api-mesh-dev-6:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-6
+    build:
+      context: ../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.dev
+    depends_on:
+      api-db-mesh-dev:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 6g
+    memswap_limit: 6g
+    ports:
+      - "${MESH_API_PORT_6:-3306}:3306"
+    volumes:
+      - bun_cache_mesh_dev:/root/.bun/install/cache
+      - turbo_cache_mesh_dev:/root/.cache/turbo
+      - api_uploads_mesh_dev_6:/app/apps/api/uploads
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@api-db-mesh-dev:5432/${DB_DATABASE:-nestjs_api}
+      - API_PORT=3306
+      - LOG_LEVEL=debug
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - APP_URL=http://web-mesh-dev:3000
+      - API_URL=http://api-mesh-dev-6:3306
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_NODE_6:-http://localhost:3306}
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-fallback-key}
+      - TRUSTED_ORIGINS=${TRUSTED_ORIGINS:-}
+      - PASSKEY_RPID=${PASSKEY_RPID:-localhost}
+      - PASSKEY_RPNAME=${PASSKEY_RPNAME:-NestJS App}
+      - PASSKEY_ORIGIN=${PASSKEY_ORIGIN:-http://localhost:3000}
+      - UPLOADS_DIR=/app/apps/api/uploads
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      - ENABLE_SEEDING=true
+      - CHOKIDAR_USEPOLLING=true
+      - TURBO_TOKEN=${TURBO_TOKEN}
+      - TURBO_TEAM=${TURBO_TEAM}
+      - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
+      - MESH_NODE_ID=${MESH_NODE_ID_NODE_6:-77777777-7777-4777-8777-777777777777}
+      - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-dev-mesh-stream-secret}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3306/health || exit 1
+      start_period: 15s
+      interval: 15s
+      timeout: 15s
+      retries: 5
+    networks:
+      mesh_network_dev:
+        aliases:
+          - api-mesh-dev-6
+
+  web-mesh-dev:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-web-mesh-dev
+    build:
+      context: ../..
+      dockerfile: ./docker/builder/web/Dockerfile.web.dev
+      args:
+        - NODE_ENV=development
+        - API_PORT=3301
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3301}
+        - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+        - NEXT_PUBLIC_APP_PORT=${NEXT_PUBLIC_APP_PORT:-3000}
+    depends_on:
+      api-mesh-dev-1:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 4g
+    memswap_limit: 4g
+    ports:
+      - "${NEXT_PUBLIC_APP_PORT:-3000}:${NEXT_PUBLIC_APP_PORT:-3000}"
+    volumes:
+      - bun_cache_mesh_dev:/root/.bun/install/cache
+      - turbo_cache_mesh_dev:/root/.cache/turbo
+    environment:
+      - NODE_ENV=development
+      - API_URL=http://api-mesh-dev-1:3301
+      - APP_URL=http://web-mesh-dev:3000
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3301}
+      - NEXT_PUBLIC_API_PORT=3301
+      - NEXT_PUBLIC_MESH_PEER_NODE_ID=${NEXT_PUBLIC_MESH_PEER_NODE_ID:-33333333-3333-4333-8333-333333333333}
+      - NEXT_PUBLIC_MESH_PEER_ENDPOINT=${NEXT_PUBLIC_MESH_PEER_ENDPOINT:-ws://api-mesh-dev-2:3302/mesh}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_APP_PORT=${NEXT_PUBLIC_APP_PORT:-3000}
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-fallback-key}
+      - NEXT_PUBLIC_DEV_AUTH_KEY=${NEXT_PUBLIC_DEV_AUTH_KEY:-${DEV_AUTH_KEY:-dev-fallback-key}}
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+      - NEXT_WEBPACK_USEPOLLING=1
+      - TURBO_TOKEN=${TURBO_TOKEN}
+      - TURBO_TEAM=${TURBO_TEAM}
+    networks:
+      - mesh_network_dev
+
+networks:
+  mesh_network_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_mesh_network_dev
+    driver: bridge
+
+volumes:
+  api_db_data_mesh_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_db_data_mesh_dev
+  bun_cache_mesh_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_bun_cache_mesh_dev
+  turbo_cache_mesh_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_turbo_cache_mesh_dev
+  api_uploads_mesh_dev_1:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_mesh_dev_1
+  api_uploads_mesh_dev_2:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_mesh_dev_2
+  api_uploads_mesh_dev_3:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_mesh_dev_3
+  api_uploads_mesh_dev_4:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_mesh_dev_4
+  api_uploads_mesh_dev_5:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_mesh_dev_5
+  api_uploads_mesh_dev_6:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_mesh_dev_6

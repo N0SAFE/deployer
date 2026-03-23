@@ -1,11 +1,11 @@
 import { Logger } from '@nestjs/common';
-import { ProcessingStrategy } from './event-contract.builder';
+import { Observable, Subject } from 'rxjs';
+import { observableToAsyncIterable } from '@/core/utils/observable.utils';
 import type {
   EventContracts,
   EventContract,
   EventInput,
   EventOutput,
-  AbortContext,
 } from './event-contract.builder';
 
 /**
@@ -14,57 +14,9 @@ import type {
  */
 export type EventSubscription<T extends EventContract> = AsyncIterableIterator<EventOutput<T>>;
 
-/**
- * Async iterator controller for managing event streams
- */
-class AsyncIteratorController<TPayload> {
-  private queue: TPayload[] = [];
-  private resolvers: ((value: IteratorResult<TPayload>) => void)[] = [];
-  private ended = false;
-
-  push(value: TPayload): void {
-    if (this.ended) return;
-
-    if (this.resolvers.length > 0) {
-      const resolve = this.resolvers.shift();
-      if (resolve) {
-        resolve({ value, done: false });
-      }
-    } else {
-      this.queue.push(value);
-    }
-  }
-
-  end(): void {
-    this.ended = true;
-    while (this.resolvers.length > 0) {
-      const resolve = this.resolvers.shift();
-      if (resolve) {
-        resolve({ value: undefined, done: true });
-      }
-    }
-  }
-
-  async next(): Promise<IteratorResult<TPayload>> {
-    if (this.queue.length > 0) {
-      const value = this.queue.shift();
-      if (value !== undefined) {
-        return { value, done: false };
-      }
-    }
-
-    if (this.ended) {
-      return { value: undefined, done: true };
-    }
-
-    return new Promise((resolve) => {
-      this.resolvers.push(resolve);
-    });
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<TPayload> {
-    return this;
-  }
+export interface AnyEventEmission<T extends EventContract> {
+  input: EventInput<T>;
+  output: EventOutput<T>;
 }
 
 /**
@@ -72,27 +24,64 @@ class AsyncIteratorController<TPayload> {
  */
 interface EventSubscriptionData<T> {
   eventName: string;
-  asyncIterators: Set<AsyncIteratorController<T>>;
+  subject: Subject<T>;
+  subscriberCount: number;
 }
 
-/**
- * Processing state for queue/abort strategies
- */
-interface ProcessingState {
-  isProcessing: boolean;
-  abortController?: AbortController;
-  queue: {
-    input: unknown;
-    handler: () => Promise<void>;
-  }[];
+interface BufferedEventRecord {
+  eventName: string;
+  eventKey: string;
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
+  sequence: number;
+  emittedAt: string;
+}
+
+export interface PersistedEventLog {
+  namespace: string;
+  eventName: string;
+  eventKey: string;
+  sequence: number;
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
+  emittedAt: Date;
+}
+
+export interface EventLogPersistenceAdapter {
+  insertMany(logs: PersistedEventLog[]): Promise<void>;
+  findRecentByEventKey(input: {
+    namespace: string;
+    eventName: string;
+    eventKey: string;
+    limit: number;
+  }): Promise<PersistedEventLog[]>;
+  findRecentByEventName(input: {
+    namespace: string;
+    eventName: string;
+    limit: number;
+  }): Promise<PersistedEventLog[]>;
+}
+
+interface ReplayOptions {
+  replayLimit?: number;
+  includePersisted?: boolean;
+  /**
+   * If set, only buffered events with sequence > afterSequence are replayed.
+   * Used for cursor-based reconnect: subscribers pass back the last sequence they observed.
+   */
+  afterSequence?: number;
+}
+
+interface QueryByInputOptions<TInput> extends ReplayOptions {
+  fuzzy?: string;
+  predicate?: (input: TInput) => boolean;
 }
 
 /**
  * Base Event Service
  * 
  * Generic base class for feature-specific event services.
- * Provides type-safe event subscription and emission with automatic validation.
- * Supports multiple processing strategies: PARALLEL, QUEUE, ABORT, IGNORE
+ * Provides type-safe event subscription and durable emission buffering with automatic validation.
  * 
  * @template TContracts - Map of event names to their contracts
  * 
@@ -103,12 +92,6 @@ interface ProcessingState {
  *   processing: createContract({
  *     input: z.object({ videoId: z.string() }),
  *     output: z.object({ progress: z.number(), status: z.string() }),
- *     options: {
- *       strategy: ProcessingStrategy.ABORT,
- *       onAbort: (input, { signal }) => {
- *         console.log(`Aborting ${input.videoId}`);
- *       }
- *     }
  *   })
  * } satisfies EventContracts;
  * 
@@ -121,18 +104,161 @@ interface ProcessingState {
  * }
  * ```
  */
-export abstract class BaseEventService<TContracts extends EventContracts = EventContracts> {
+export abstract class BaseEventService<
+  TContracts extends EventContracts = EventContracts,
+  TNamespace extends string = string,
+> {
+  private static persistenceAdapter: EventLogPersistenceAdapter | null = null;
+
   protected readonly logger: Logger;
-  protected readonly eventPrefix: string;
+  protected readonly eventPrefix: TNamespace;
   private readonly events = new Map<string, EventSubscriptionData<unknown>>();
-  private readonly processingStates = new Map<string, ProcessingState>();
+  private readonly anyEventSubscriptions = new Map<string, EventSubscriptionData<unknown>>();
+  private readonly durableEmissionsByKey = new Map<string, BufferedEventRecord[]>();
+  private readonly durableEmissionsByEventName = new Map<string, BufferedEventRecord[]>();
+  private readonly sequenceByEventKey = new Map<string, number>();
+  private readonly pendingPersistence: PersistedEventLog[] = [];
+
+  protected readonly durableReplayLimit = 2_000;
+  protected readonly pendingFlushBatchSize = 200;
+  protected readonly flushIntervalMs = 3 * 60 * 1000;
+
+  private isFlushing = false;
 
   constructor(
-    eventPrefix: string,
+    eventPrefix: TNamespace,
     protected readonly contracts: TContracts,
   ) {
     this.eventPrefix = eventPrefix;
     this.logger = new Logger(`${eventPrefix}EventService`);
+  }
+
+  get namespace(): TNamespace {
+    return this.eventPrefix;
+  }
+
+  static configurePersistenceAdapter(adapter: EventLogPersistenceAdapter): void {
+    BaseEventService.persistenceAdapter = adapter;
+  }
+
+  subscribe$<K extends keyof TContracts>(
+    eventName: K,
+    input: EventInput<TContracts[K]>,
+    options?: ReplayOptions,
+  ): Observable<EventOutput<TContracts[K]>> {
+    const contract = this.contracts[eventName];
+    if (!contract) {
+      throw new Error(`Contract not found for event: ${String(eventName)}`);
+    }
+
+    const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
+    const fullEventName = this.buildFullEventName(String(eventName), validatedInput as Record<string, unknown>);
+
+    let subscription = this.events.get(fullEventName) as EventSubscriptionData<EventOutput<TContracts[K]>> | undefined;
+    if (!subscription) {
+      subscription = {
+        eventName: fullEventName,
+        subject: new Subject<EventOutput<TContracts[K]>>(),
+        subscriberCount: 0,
+      };
+      this.events.set(fullEventName, subscription as unknown as EventSubscriptionData<unknown>);
+    }
+
+    subscription.subscriberCount += 1;
+
+    const replayLimit = options?.replayLimit ?? this.durableReplayLimit;
+    const includePersisted = options?.includePersisted ?? true;
+    const afterSequence = options?.afterSequence;
+
+    return new Observable<EventOutput<TContracts[K]>>((subscriber) => {
+      void (async () => {
+        try {
+          if (includePersisted && BaseEventService.persistenceAdapter) {
+            const persisted = await BaseEventService.persistenceAdapter.findRecentByEventKey({
+              namespace: this.eventPrefix,
+              eventName: String(eventName),
+              eventKey: fullEventName,
+              limit: replayLimit,
+            });
+
+            for (const item of persisted) {
+              if (afterSequence != null && item.sequence <= afterSequence) {
+                continue;
+              }
+              subscriber.next(item.output as EventOutput<TContracts[K]>);
+            }
+          }
+
+          const buffered = this.durableEmissionsByKey.get(fullEventName);
+          if (buffered?.length) {
+            const window =
+              afterSequence != null
+                ? buffered.filter((r) => r.sequence > afterSequence)
+                : buffered.slice(-replayLimit);
+            for (const item of window) {
+              subscriber.next(item.output as EventOutput<TContracts[K]>);
+            }
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          this.logger.warn(`Skipping persisted replay for '${String(eventName)}': ${message}`);
+        }
+      })();
+
+      const internalSubscription = subscription.subject.subscribe(subscriber);
+      return () => {
+        internalSubscription.unsubscribe();
+
+        const current = this.events.get(fullEventName);
+        if (!current) {
+          return;
+        }
+
+        current.subscriberCount = Math.max(0, current.subscriberCount - 1);
+        if (current.subscriberCount === 0) {
+          this.events.delete(fullEventName);
+        }
+      };
+    });
+  }
+
+  subscribeAny$<K extends keyof TContracts>(
+    eventName: K,
+  ): Observable<AnyEventEmission<TContracts[K]>> {
+    const contract = this.contracts[eventName];
+    if (!contract) {
+      throw new Error(`Contract not found for event: ${String(eventName)}`);
+    }
+
+    const eventKey = String(eventName);
+    let subscription = this.anyEventSubscriptions.get(eventKey) as EventSubscriptionData<AnyEventEmission<TContracts[K]>> | undefined;
+    if (!subscription) {
+      subscription = {
+        eventName: eventKey,
+        subject: new Subject<AnyEventEmission<TContracts[K]>>(),
+        subscriberCount: 0,
+      };
+      this.anyEventSubscriptions.set(eventKey, subscription as unknown as EventSubscriptionData<unknown>);
+    }
+
+    subscription.subscriberCount += 1;
+
+    return new Observable<AnyEventEmission<TContracts[K]>>((subscriber) => {
+      const internalSubscription = subscription.subject.subscribe(subscriber);
+      return () => {
+        internalSubscription.unsubscribe();
+
+        const current = this.anyEventSubscriptions.get(eventKey);
+        if (!current) {
+          return;
+        }
+
+        current.subscriberCount = Math.max(0, current.subscriberCount - 1);
+        if (current.subscriberCount === 0) {
+          this.anyEventSubscriptions.delete(eventKey);
+        }
+      };
+    });
   }
 
   /**
@@ -144,56 +270,75 @@ export abstract class BaseEventService<TContracts extends EventContracts = Event
    */
   subscribe<K extends keyof TContracts>(
     eventName: K,
-    input: EventInput<TContracts[K]>
+    input: EventInput<TContracts[K]>,
+    options?: ReplayOptions,
   ): EventSubscription<TContracts[K]> {
+    const stream$ = this.subscribe$(eventName, input, options);
+    return observableToAsyncIterable(stream$)[Symbol.asyncIterator]() as EventSubscription<TContracts[K]>;
+  }
+
+  queryByInput$<K extends keyof TContracts>(
+    eventName: K,
+    options?: QueryByInputOptions<EventInput<TContracts[K]>>,
+  ): Observable<AnyEventEmission<TContracts[K]>> {
     const contract = this.contracts[eventName];
     if (!contract) {
       throw new Error(`Contract not found for event: ${String(eventName)}`);
     }
 
-    // Validate input
-    const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
+    const replayLimit = options?.replayLimit ?? this.durableReplayLimit;
+    const includePersisted = options?.includePersisted ?? true;
 
-    // Build full event name using fileId from input
-    const fullEventName = this.buildFullEventName(String(eventName), validatedInput as Record<string, unknown>);
-
-    // Get or create subscription data
-    let subscription = this.events.get(fullEventName);
-    if (!subscription) {
-      subscription = {
-        eventName: fullEventName,
-        asyncIterators: new Set(),
-      };
-      this.events.set(fullEventName, subscription);
-    }
-
-    const controller = new AsyncIteratorController<EventOutput<TContracts[K]>>();
-    subscription.asyncIterators.add(controller as AsyncIteratorController<unknown>);
-
-    // Create cleanup function that can be called on iteration end
-    const cleanup = (): void => {
-      const sub = this.events.get(fullEventName);
-      if (sub) {
-        sub.asyncIterators.delete(controller as AsyncIteratorController<unknown>);
-        if (sub.asyncIterators.size === 0) {
-          this.events.delete(fullEventName);
-        }
-      }
-    };
-
-    const iterator = {
-      async *[Symbol.asyncIterator]() {
+    return new Observable<AnyEventEmission<TContracts[K]>>((subscriber) => {
+      void (async () => {
         try {
-          for await (const value of controller) {
-            yield value;
-          }
-        } finally {
-          cleanup();
-        }
-      }
-    };
+          if (includePersisted && BaseEventService.persistenceAdapter) {
+            const persisted = await BaseEventService.persistenceAdapter.findRecentByEventName({
+              namespace: this.eventPrefix,
+              eventName: String(eventName),
+              limit: replayLimit,
+            });
 
-    return iterator[Symbol.asyncIterator]() as EventSubscription<TContracts[K]>;
+            for (const item of persisted) {
+              const parsedInput = contract.input.parse(item.input) as EventInput<TContracts[K]>;
+              if (!this.matchesInput(parsedInput, options)) {
+                continue;
+              }
+              subscriber.next({
+                input: parsedInput,
+                output: item.output as EventOutput<TContracts[K]>,
+              });
+            }
+          }
+
+          const buffered = this.durableEmissionsByEventName.get(String(eventName)) ?? [];
+          for (const item of buffered.slice(-replayLimit)) {
+            const parsedInput = contract.input.parse(item.input) as EventInput<TContracts[K]>;
+            if (!this.matchesInput(parsedInput, options)) {
+              continue;
+            }
+            subscriber.next({
+              input: parsedInput,
+              output: item.output as EventOutput<TContracts[K]>,
+            });
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          this.logger.warn(`Skipping persisted query replay for '${String(eventName)}': ${message}`);
+        }
+      })();
+
+      const subscription = this.subscribeAny$(eventName).subscribe((event) => {
+        if (!this.matchesInput(event.input as EventInput<TContracts[K]>, options)) {
+          return;
+        }
+        subscriber.next(event);
+      });
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    });
   }
 
   /**
@@ -219,27 +364,53 @@ export abstract class BaseEventService<TContracts extends EventContracts = Event
 
     // Build full event name using fileId from input
     const fullEventName = this.buildFullEventName(String(eventName), validatedInput as Record<string, unknown>);
+    const sequence = (this.sequenceByEventKey.get(fullEventName) ?? 0) + 1;
+    this.sequenceByEventKey.set(fullEventName, sequence);
 
-    const subscription = this.events.get(fullEventName);
-    if (!subscription) {
-      return;
+    const bufferedRecord: BufferedEventRecord = {
+      eventName: String(eventName),
+      eventKey: fullEventName,
+      input: validatedInput as Record<string, unknown>,
+      output: validatedOutput as Record<string, unknown>,
+      sequence,
+      emittedAt: new Date().toISOString(),
+    };
+
+    this.appendBufferedRecord(this.durableEmissionsByKey, fullEventName, bufferedRecord);
+    this.appendBufferedRecord(this.durableEmissionsByEventName, String(eventName), bufferedRecord);
+
+    this.pendingPersistence.push({
+      namespace: this.eventPrefix,
+      eventName: String(eventName),
+      eventKey: fullEventName,
+      sequence,
+      input: bufferedRecord.input,
+      output: bufferedRecord.output,
+      emittedAt: new Date(bufferedRecord.emittedAt),
+    });
+
+    if (this.pendingPersistence.length >= this.pendingFlushBatchSize) {
+      void this.flushPendingToPersistence();
     }
 
-    // Push to all subscribed iterators
-    const typedIterators = subscription.asyncIterators as unknown as Set<AsyncIteratorController<EventOutput<TContracts[K]>>>;
-    for (const iterator of typedIterators) {
-      iterator.push(validatedOutput);
+    const subscription = this.events.get(fullEventName);
+    if (subscription) {
+      const typedSubject = subscription.subject as Subject<EventOutput<TContracts[K]>>;
+      typedSubject.next(validatedOutput);
+    }
+
+    const anySubscription = this.anyEventSubscriptions.get(String(eventName));
+    if (anySubscription) {
+      const anyTypedSubject = anySubscription.subject as Subject<AnyEventEmission<TContracts[K]>>;
+      anyTypedSubject.next({
+        input: validatedInput,
+        output: validatedOutput,
+      });
     }
   }
 
   /**
-   * Start a processing operation with strategy handling
-   * This method handles queue, abort, and ignore strategies
-   * 
-   * @param eventName - Name of the event
-   * @param input - Input parameters (uses fileId as key)
-   * @param handler - Function that performs the processing and emits events
-   * @returns Promise that resolves when processing is complete (or queued/ignored)
+   * Start a processing operation and expose an emit bridge tied to the event input.
    */
   async startProcessing<K extends keyof TContracts>(
     eventName: K,
@@ -255,98 +426,12 @@ export abstract class BaseEventService<TContracts extends EventContracts = Event
       throw new Error(`Contract not found for event: ${String(eventName)}`);
     }
     const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
-    const fullEventName = this.buildFullEventName(String(eventName), validatedInput as Record<string, unknown>);
-    
-    const strategy = contract.options?.strategy ?? ProcessingStrategy.PARALLEL;
-    
-    // Create emit helper function
+
     const emit = (output: EventOutput<TContracts[K]>): void => {
       this.emit(eventName, validatedInput, output);
     };
-    
-    // Get or create processing state for this event
-    let state = this.processingStates.get(fullEventName);
-    if (!state) {
-      state = {
-        isProcessing: false,
-        queue: [],
-      };
-      this.processingStates.set(fullEventName, state);
-    }
 
-    // PARALLEL: Run immediately without blocking
-    if (strategy === ProcessingStrategy.PARALLEL) {
-      void Promise.resolve(handler({ input: validatedInput, emit }));
-      return;
-    }
-
-    // IGNORE: Skip if already processing
-    if (strategy === ProcessingStrategy.IGNORE) {
-      if (state.isProcessing) {
-        contract.options?.onIgnore?.(validatedInput);
-        return;
-      }
-    }
-
-    // ABORT: Kill previous operation and start new one
-    if (strategy === ProcessingStrategy.ABORT) {
-      if (state.isProcessing && state.abortController) {
-        const context: AbortContext = {
-          signal: state.abortController.signal,
-          abortController: state.abortController,
-        };
-        contract.options?.onAbort?.(validatedInput, context);
-        state.abortController.abort();
-      }
-
-      // Create new abort controller
-      const abortController = new AbortController();
-      state.abortController = abortController;
-      state.isProcessing = true;
-
-      try {
-        await Promise.resolve(handler({
-          abortSignal: abortController.signal,
-          input: validatedInput,
-          emit,
-        }));
-      } finally {
-        state.isProcessing = false;
-        state.abortController = undefined;
-      }
-      return;
-    }
-
-    // QUEUE: Add to queue and process sequentially
-    if (strategy === ProcessingStrategy.QUEUE) {
-      const wrappedHandler = async (): Promise<void> => {
-        state.isProcessing = true;
-        try {
-          await Promise.resolve(handler({ input: validatedInput, emit }));
-        } finally {
-          state.isProcessing = false;
-          // Process next in queue
-          const next = state.queue.shift();
-          if (next) {
-            void next.handler();
-          }
-        }
-      };
-
-      if (state.isProcessing) {
-        // Add to queue
-        const position = state.queue.length + 1;
-        contract.options?.onQueue?.(validatedInput, position);
-        state.queue.push({
-          input: validatedInput,
-          handler: wrappedHandler,
-        });
-      } else {
-        // Start immediately
-        await wrappedHandler();
-      }
-      return;
-    }
+    await Promise.resolve(handler({ input: validatedInput, emit }));
   }
 
   /**
@@ -367,7 +452,7 @@ export abstract class BaseEventService<TContracts extends EventContracts = Event
     const fullEventName = this.buildFullEventName(String(eventName), validatedInput as Record<string, unknown>);
 
     const subscription = this.events.get(fullEventName);
-    return subscription ? subscription.asyncIterators.size > 0 : false;
+    return subscription ? subscription.subscriberCount > 0 : false;
   }
 
   /**
@@ -388,7 +473,7 @@ export abstract class BaseEventService<TContracts extends EventContracts = Event
     const fullEventName = this.buildFullEventName(String(eventName), validatedInput as Record<string, unknown>);
 
     const subscription = this.events.get(fullEventName);
-    return subscription ? subscription.asyncIterators.size : 0;
+    return subscription ? subscription.subscriberCount : 0;
   }
 
   /**
@@ -405,11 +490,8 @@ export abstract class BaseEventService<TContracts extends EventContracts = Event
     if (!contract) {
       throw new Error(`Contract not found for event: ${String(eventName)}`);
     }
-    const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
-    const fullEventName = this.buildFullEventName(String(eventName), validatedInput as Record<string, unknown>);
-
-    const state = this.processingStates.get(fullEventName);
-    return state?.isProcessing ?? false;
+    contract.input.parse(input);
+    return false;
   }
 
   /**
@@ -426,11 +508,8 @@ export abstract class BaseEventService<TContracts extends EventContracts = Event
     if (!contract) {
       throw new Error(`Contract not found for event: ${String(eventName)}`);
     }
-    const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
-    const fullEventName = this.buildFullEventName(String(eventName), validatedInput as Record<string, unknown>);
-
-    const state = this.processingStates.get(fullEventName);
-    return state?.queue.length ?? 0;
+    contract.input.parse(input);
+    return 0;
   }
 
   /**
@@ -468,9 +547,7 @@ export abstract class BaseEventService<TContracts extends EventContracts = Event
 
     const subscription = this.events.get(fullEventName);
     if (subscription) {
-      for (const iterator of subscription.asyncIterators) {
-        (iterator as AsyncIteratorController<EventOutput<TContracts[K]>>).end();
-      }
+      subscription.subject.complete();
       this.events.delete(fullEventName);
     }
   }
@@ -488,20 +565,97 @@ export abstract class BaseEventService<TContracts extends EventContracts = Event
   clearAll(): void {
     // Clear all subscriptions
     for (const subscription of this.events.values()) {
-      for (const iterator of subscription.asyncIterators) {
-        iterator.end();
-      }
+      subscription.subject.complete();
     }
     this.events.clear();
 
-    // Abort all active operations
-    for (const state of this.processingStates.values()) {
-      if (state.abortController) {
-        state.abortController.abort();
-      }
+    for (const subscription of this.anyEventSubscriptions.values()) {
+      subscription.subject.complete();
     }
-    this.processingStates.clear();
+    this.anyEventSubscriptions.clear();
+    this.durableEmissionsByKey.clear();
+    this.durableEmissionsByEventName.clear();
+    this.sequenceByEventKey.clear();
+    this.pendingPersistence.length = 0;
 
     this.logger.log('All events cleared');
+  }
+
+  protected buildInputReplayFuzzy<TInput extends Record<string, unknown>>(input: TInput): string {
+    return JSON.stringify(input).toLowerCase();
+  }
+
+  /**
+   * Returns the highest sequence number buffered for the given event key.
+   * Callers use this as the cursor value to pass back on reconnect via `afterSequence`.
+   */
+  getLastSequence<K extends keyof TContracts>(
+    eventName: K,
+    input: EventInput<TContracts[K]>,
+  ): number {
+    const contract = this.contracts[eventName];
+    if (!contract) {
+      return 0;
+    }
+    const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
+    const fullEventName = this.buildFullEventName(String(eventName), validatedInput as Record<string, unknown>);
+    return this.sequenceByEventKey.get(fullEventName) ?? 0;
+  }
+
+  private appendBufferedRecord(
+    target: Map<string, BufferedEventRecord[]>,
+    key: string,
+    record: BufferedEventRecord,
+  ): void {
+    const previous = target.get(key) ?? [];
+    const appended = [...previous, record];
+    const overflow = appended.length - this.durableReplayLimit;
+    target.set(key, overflow > 0 ? appended.slice(overflow) : appended);
+  }
+
+  private matchesInput<TInput extends Record<string, unknown>>(
+    input: TInput,
+    options?: QueryByInputOptions<TInput>,
+  ): boolean {
+    if (options?.predicate && !options.predicate(input)) {
+      return false;
+    }
+
+    if (options?.fuzzy) {
+      const haystack = this.buildInputReplayFuzzy(input);
+      return haystack.includes(options.fuzzy.trim().toLowerCase());
+    }
+
+    return true;
+  }
+
+  private async flushPendingToPersistence(): Promise<void> {
+    if (this.isFlushing || this.pendingPersistence.length === 0 || !BaseEventService.persistenceAdapter) {
+      return;
+    }
+
+    this.isFlushing = true;
+    try {
+      const batch = this.pendingPersistence.splice(0, this.pendingFlushBatchSize);
+      await BaseEventService.persistenceAdapter.insertMany(batch);
+    } catch (error) {
+      this.logger.error('Failed to persist event logs', error as Error);
+    } finally {
+      this.isFlushing = false;
+    }
+  }
+
+  private readonly flushTicker = this.startFlushTicker();
+
+  private startFlushTicker(): ReturnType<typeof setInterval> {
+    const timer = setInterval(() => {
+      void this.flushPendingToPersistence();
+    }, this.flushIntervalMs);
+
+    if (typeof timer.unref === 'function') {
+      timer.unref();
+    }
+
+    return timer;
   }
 }

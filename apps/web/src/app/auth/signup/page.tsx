@@ -26,15 +26,42 @@ import React from 'react'
 import redirect from '@/actions/redirect'
 import { AlertCircle, Spinner } from '@repo/ui/components/atomics/atoms/Icon'
 import { signupSchema } from './schema'
-import { AuthSignup, AuthSignin } from '@/routes'
+import { AuthSignup, AuthSignin, Setup } from '@/routes'
 import { UserPlus } from 'lucide-react'
 import { authClient } from '@/lib/auth'
+import { useSetupStatus } from '@/domains/setup/hooks'
+import { useRouter } from 'next/navigation'
 
 // Use the Route wrapper to get type-safe, Suspense-wrapped search params
 export default AuthSignup.Route(({ searchParams }) => {
     const [isLoading, setIsLoading] = React.useState<boolean>(false)
     const [error, setError] = React.useState<string>('')
     const [success, setSuccess] = React.useState<string>('')
+    const router = useRouter()
+    const setupStatus = useSetupStatus()
+
+    React.useEffect(() => {
+        if (setupStatus.data?.needsSetup) {
+            router.replace(
+                Setup(
+                    {},
+                    {
+                        redirectTo: searchParams.redirectTo ?? searchParams.callbackUrl,
+                    }
+                )
+            )
+        }
+    }, [setupStatus.data, router, searchParams.callbackUrl, searchParams.redirectTo])
+
+    if (setupStatus.data?.needsSetup) {
+        return (
+            <div className="flex flex-1 items-center justify-center">
+                <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                    <Spinner /> Redirecting to setup...
+                </div>
+            </div>
+        )
+    }
 
     const form = useForm<z.infer<typeof signupSchema>>({
         resolver: zodResolver(signupSchema),
@@ -68,7 +95,7 @@ export default AuthSignup.Route(({ searchParams }) => {
             setSuccess('Account created successfully! Redirecting...')
             setTimeout(() => {
                 setIsLoading(false)
-                void redirect(searchParams.callbackUrl ?? '/')
+                void redirect(searchParams.redirectTo ?? searchParams.callbackUrl ?? '/')
             }, 1500)
         }
     }
@@ -219,7 +246,10 @@ export default AuthSignup.Route(({ searchParams }) => {
                     <p>
                         Already have an account?{' '}
                         <AuthSignin.Link
-                            search={{ callbackUrl: searchParams.callbackUrl }}
+                            search={{
+                                redirectTo: searchParams.redirectTo,
+                                callbackUrl: searchParams.callbackUrl,
+                            }}
                             className="text-primary hover:underline"
                         >
                             Sign in here

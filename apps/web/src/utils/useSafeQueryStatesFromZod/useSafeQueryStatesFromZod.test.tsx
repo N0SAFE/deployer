@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { z } from 'zod'
+import z from 'zod/v4'
 
 // Mock nuqs - must be at top level with factory function
 vi.mock('nuqs', () => {
@@ -17,7 +17,7 @@ vi.mock('nuqs', () => {
   return {
     useQueryStates: vi.fn(),
     parseAsString: createParser(),
-    parseAsInteger: createParser(), 
+    parseAsInteger: createParser(),
     parseAsFloat: createParser(),
     parseAsBoolean: createParser(),
     parseAsArrayOf: vi.fn(() => createParser()),

@@ -39,15 +39,15 @@ TypeError: Cannot read properties of undefined (reading 'object')
 ```typescript
 /**
  * @deprecated This file contains manually-written hooks that are being phased out.
- * Use the generated ORPC hooks from useUser.orpc-hooks.ts instead.
+ * Use the domain hooks from `src/domains/user/hooks.ts` instead.
  */
 ```
 
-**Replacement:** `apps/web/src/hooks/useUser.orpc-hooks.ts` (200 lines)
+**Replacement:** `apps/web/src/domains/user/hooks.ts` (+ `endpoints.ts` / `invalidations.ts`)
 
 **Action Required:**
 1. Audit all imports of `useUsers`
-2. Migrate consumers to `useUser.orpc-hooks.ts`
+2. Migrate consumers to domain hooks (`src/domains/<feature>/hooks.ts`)
 3. Remove deprecated file
 4. Update any documentation references
 

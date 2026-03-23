@@ -1,12 +1,14 @@
+import "reflect-metadata";
 import { type MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
 import { DatabaseModule } from "./core/modules/database/database.module";
+import { LocalDatabaseModule } from "./core/modules/local-database/local-database.module";
 import { HealthModule } from "./modules/health/health.module";
 import { UserModule } from "./modules/user/user.module";
-import { PushModule } from "./core/modules/push/push.module";
+import { PushModule } from "./modules/push/push.module";
 import { ORPCModule } from "@orpc/nest";
 import { DATABASE_CONNECTION } from "./core/modules/database/database-connection";
 import { AuthModule } from "./core/modules/auth/auth.module";
-import { AuthService } from "./core/modules/auth/services/auth.service";
+import { AuthCoreService } from "./core/modules/auth/services/auth-core.service";
 import { LoggerMiddleware } from "./core/middlewares/logger.middleware";
 import { createBetterAuth } from "./config/auth/auth";
 import { EnvService } from "./config/env/env.service";
@@ -19,6 +21,18 @@ import { TestModule } from "./modules/test/test.module";
 import { AuthPlugin } from "./core/modules/auth/orpc/plugins/auth.plugin";
 import { transformNestJSErrorToOrpcError, logOrpcErrors } from "./core/modules/auth/orpc/interceptors";
 import { OrganizationModule } from "./modules/organization/organization.module";
+import { ProjectModule } from "./modules/project/project.module";
+import { ServiceModule } from "./modules/service/service.module";
+import { DeploymentModule } from "./modules/deployment/deployment.module";
+import { GithubModule } from "./modules/github/github.module";
+import { FleetModule } from "./modules/fleet/fleet.module";
+import { EventsModule } from "./core/modules/events/events.module";
+import { DomainModule } from "./modules/domain/domain.module";
+import { AnalyticsModule } from "./modules/analytics/analytics.module";
+import { ProviderSchemaModule } from "./modules/provider-schema/provider-schema.module";
+import { SystemModule } from "./system/system.module";
+import { SetupModule } from "./modules/setup/setup.module";
+import { PermissionModule } from "./modules/permission/permission.module";
 
 declare module "@orpc/nest" {
     /**
@@ -37,6 +51,7 @@ declare module "@orpc/nest" {
 @Module({
     imports: [
         EnvModule,
+        LocalDatabaseModule,
         DatabaseModule,
         AuthModule.forRootAsync({
             imports: [DatabaseModule, EnvModule],
@@ -49,10 +64,22 @@ declare module "@orpc/nest" {
         UserModule,
         PushModule,
         TestModule,
+        SetupModule,
         OrganizationModule,
+        ProjectModule,
+        ServiceModule,
+        DeploymentModule,
+        GithubModule,
+        FleetModule,
+        DomainModule,
+        AnalyticsModule,
+        ProviderSchemaModule,
+        EventsModule,
+        SystemModule,
+        PermissionModule,
         ORPCModule.forRootAsync({
-            useFactory: (request: Request, authService: AuthService) => {
-                const emptyAuthUtils = authService.createEmptyAuthUtils();
+            useFactory: (request: Request, authCoreService: AuthCoreService) => {
+                const emptyAuthUtils = authCoreService.createEmptyAuthUtils();
 
                 return {
                     interceptors: [transformNestJSErrorToOrpcError(), logOrpcErrors()],
@@ -61,14 +88,14 @@ declare module "@orpc/nest" {
                             schemaConverters: [new ZodToJsonSchemaConverter()],
                         }),
                         // Auth plugin that populates context.auth with session data
-                        new AuthPlugin({ auth: authService.instance }),
+                        new AuthPlugin({ auth: authCoreService.instance }),
                     ],
                     // Initial context - auth will be populated by AuthPlugin
                     context: { request, auth: emptyAuthUtils },
                     eventIteratorKeepAliveInterval: 5000, // 5 seconds
                 };
             },
-            inject: [REQUEST, AuthService],
+            inject: [REQUEST, AuthCoreService],
         }),
     ],
 })

@@ -17,8 +17,7 @@ async function bootstrap() {
   const authService = await app.resolve<AuthService>(AuthService);
 
   // Build list of allowed origins for CORS
-  // @ts-expect-error - process.env typing
-  const allowedOrigins = buildAllowedOrigins(process.env);
+  const allowedOrigins = buildAllowedOrigins(process.env as Record<string, string | undefined>);
 
   // Enable CORS with flexible origin matching
   app.enableCors({

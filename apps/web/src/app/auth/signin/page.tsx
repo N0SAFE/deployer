@@ -28,15 +28,42 @@ import React from 'react'
 import redirect from '@/actions/redirect'
 import { AlertCircle, Spinner } from '@repo/ui/components/atomics/atoms/Icon'
 import { loginSchema } from './schema'
-import { AuthSignin, AuthSignup } from '@/routes'
+import { AuthSignin, AuthSignup, Setup } from '@/routes'
 import { Shield } from 'lucide-react'
 import { authClient } from '@/lib/auth'
 import { PageTimingLogger } from '@/lib/timing'
+import { useSetupStatus } from '@/domains/setup/hooks'
+import { useRouter } from 'next/navigation'
 
 // Use the Route wrapper to get type-safe, Suspense-wrapped search params
 export default AuthSignin.Route(({ searchParams }) => {
     const [isLoading, setIsLoading] = React.useState<boolean>(false)
     const [error, setError] = React.useState<string>('')
+    const router = useRouter()
+    const setupStatus = useSetupStatus()
+
+    React.useEffect(() => {
+        if (setupStatus.data?.needsSetup) {
+            router.replace(
+                Setup(
+                    {},
+                    {
+                        redirectTo: searchParams.redirectTo ?? searchParams.callbackUrl,
+                    }
+                )
+            )
+        }
+    }, [setupStatus.data, router, searchParams.callbackUrl, searchParams.redirectTo])
+
+    if (setupStatus.data?.needsSetup) {
+        return (
+            <div className="flex flex-1 items-center justify-center">
+                <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                    <Spinner /> Redirecting to setup...
+                </div>
+            </div>
+        )
+    }
 
     const form = useForm<z.infer<typeof loginSchema>>({
         resolver: zodResolver(loginSchema),
@@ -63,7 +90,7 @@ export default AuthSignin.Route(({ searchParams }) => {
             setIsLoading(false)
         } else {
             setIsLoading(false)
-            void redirect(searchParams.callbackUrl ?? '/')
+            void redirect(searchParams.redirectTo ?? searchParams.callbackUrl ?? '/')
         }
     }
 
@@ -194,7 +221,10 @@ export default AuthSignin.Route(({ searchParams }) => {
                     <p>
                         Don&apos;t have an account?{' '}
                         <AuthSignup.Link
-                            search={{ callbackUrl: searchParams.callbackUrl }}
+                            search={{
+                                redirectTo: searchParams.redirectTo,
+                                callbackUrl: searchParams.callbackUrl,
+                            }}
                             className="text-primary hover:underline"
                         >
                             Create one here

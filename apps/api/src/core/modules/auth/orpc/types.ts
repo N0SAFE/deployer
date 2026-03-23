@@ -1,5 +1,12 @@
 import type { Auth } from "@/auth";
 import type { AdminPluginWrapper, OrganizationPluginWrapper } from "../plugin-utils/plugin-wrapper-factory";
+import type { PlatformRole } from "@repo/auth/permissions";
+
+type SessionUserWithRole = Auth["$Infer"]["Session"]["user"] & {
+  role?: PlatformRole;
+  banned?: boolean;
+  [key: string]: unknown;
+};
 
 /**
  * Brand symbol for authenticated context
@@ -29,10 +36,10 @@ export interface ORPCAuthContext<TLoggedIn extends boolean = boolean> {
 
   /** User object (null if not authenticated) */
   readonly user: TLoggedIn extends true 
-    ? Auth["$Infer"]["Session"]["user"] 
+    ? SessionUserWithRole 
     : TLoggedIn extends false 
       ? null 
-      : Auth["$Infer"]["Session"]["user"] | null;
+      : SessionUserWithRole | null;
 
   /**
    * Admin plugin utilities with auto-injected headers

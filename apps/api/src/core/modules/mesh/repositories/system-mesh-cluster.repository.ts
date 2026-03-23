@@ -1,0 +1,468 @@
+import { Injectable } from "@nestjs/common";
+import { createHash, randomUUID } from "node:crypto";
+import { and, eq, gt, inArray, isNull } from "drizzle-orm";
+import { clusterJoinGrants, clusterNodeMetrics, clusterNodes, clusterSigningKeys, resourceOwnershipIndex } from "@/config/drizzle/schema";
+import { DatabaseService } from "@/core/modules/database/services/database.service";
+import type { MeshResourceIndexUpsertInput, MeshResourceLocation } from "@repo/api-contracts/common/mesh";
+
+@Injectable()
+export class SystemMeshClusterRepository {
+    constructor(private readonly databaseService: DatabaseService) {}
+
+    async loadSigningKeys(): Promise<{ keyId: string; algorithm: "HS256"; secretMaterial: string; status: "active" | "previous" }[]> {
+        const rows = await this.databaseService.db
+            .select({
+                keyId: clusterSigningKeys.kid,
+                algorithm: clusterSigningKeys.algorithm,
+                secretMaterial: clusterSigningKeys.secretMaterial,
+                status: clusterSigningKeys.status,
+            })
+            .from(clusterSigningKeys)
+            .where(
+                and(
+                    eq(clusterSigningKeys.clusterId, this.resolveClusterId()),
+                    inArray(clusterSigningKeys.status, ["active", "previous"]),
+                    isNull(clusterSigningKeys.revokedAt),
+                ),
+            );
+
+        return rows
+            .filter((row): row is { keyId: string; algorithm: "HS256"; secretMaterial: string; status: "active" | "previous" } =>
+                row.algorithm === "HS256" && (row.status === "active" || row.status === "previous"),
+            )
+            .map((row) => ({
+                keyId: row.keyId,
+                algorithm: "HS256" as const,
+                secretMaterial: row.secretMaterial,
+                status: row.status,
+            }));
+    }
+
+    async loadAllResourceLocations(): Promise<MeshResourceLocation[]> {
+        const rows = await this.databaseService.db.select().from(resourceOwnershipIndex);
+
+        const locations: MeshResourceLocation[] = [];
+        for (const row of rows) {
+            if (!this.isMeshResourceKind(row.resourceKind)) {
+                continue;
+            }
+
+            const metadata = (row.metadata ?? {});
+            const ownerServerUrl =
+                row.ownerServerUrl ??
+                (typeof metadata.ownerServerUrl === "string" ? metadata.ownerServerUrl : null);
+            const endpointPath = typeof metadata.endpointPath === "string" ? metadata.endpointPath : null;
+            const protocol = this.toMeshProtocol(metadata.protocol);
+
+            if (!ownerServerUrl || !endpointPath || !protocol) {
+                continue;
+            }
+
+            locations.push({
+                organizationId: row.organizationId,
+                kind: row.resourceKind,
+                key: row.resourceKey,
+                ownerNodeId: row.ownerNodeId,
+                ownerServerUrl,
+                endpointPath,
+                endpointMethod: this.toHttpMethod(metadata.endpointMethod),
+                protocol,
+                persistentConnectionRequired:
+                    typeof metadata.persistentConnectionRequired === "boolean"
+                        ? metadata.persistentConnectionRequired
+                        : false,
+                abortEndpointPath:
+                    typeof metadata.abortEndpointPath === "string" ? metadata.abortEndpointPath : undefined,
+                priority: row.priority,
+                version: row.version,
+                updatedAt: row.updatedAt.toISOString(),
+                metadata,
+            });
+        }
+
+        return locations;
+    }
+
+    async persistResourceIndexUpsert(input: MeshResourceIndexUpsertInput): Promise<void> {
+        const scope = input.organizationId ?? null;
+
+        if (input.replaceExistingForSource) {
+            if (scope === null) {
+                await this.databaseService.db
+                    .delete(resourceOwnershipIndex)
+                    .where(
+                        and(
+                            eq(resourceOwnershipIndex.ownerNodeId, input.sourceNodeId),
+                            isNull(resourceOwnershipIndex.organizationId),
+                        ),
+                    );
+            } else {
+                await this.databaseService.db
+                    .delete(resourceOwnershipIndex)
+                    .where(
+                        and(
+                            eq(resourceOwnershipIndex.ownerNodeId, input.sourceNodeId),
+                            eq(resourceOwnershipIndex.organizationId, scope),
+                        ),
+                    );
+            }
+        }
+
+        for (const resource of input.resources) {
+            const organizationId = resource.organizationId ?? scope;
+
+            if (organizationId === null) {
+                await this.databaseService.db
+                    .delete(resourceOwnershipIndex)
+                    .where(
+                        and(
+                            isNull(resourceOwnershipIndex.organizationId),
+                            eq(resourceOwnershipIndex.resourceKind, resource.kind),
+                            eq(resourceOwnershipIndex.resourceKey, resource.key),
+                            eq(resourceOwnershipIndex.ownerNodeId, resource.ownerNodeId),
+                        ),
+                    );
+            } else {
+                await this.databaseService.db
+                    .delete(resourceOwnershipIndex)
+                    .where(
+                        and(
+                            eq(resourceOwnershipIndex.organizationId, organizationId),
+                            eq(resourceOwnershipIndex.resourceKind, resource.kind),
+                            eq(resourceOwnershipIndex.resourceKey, resource.key),
+                            eq(resourceOwnershipIndex.ownerNodeId, resource.ownerNodeId),
+                        ),
+                    );
+            }
+
+            await this.databaseService.db.insert(resourceOwnershipIndex).values({
+                clusterId: this.resolveClusterId(),
+                organizationId,
+                resourceKind: resource.kind,
+                resourceKey: resource.key,
+                ownerNodeId: resource.ownerNodeId,
+                ownerServerUrl: resource.ownerServerUrl,
+                priority: resource.priority,
+                status: "active",
+                version: resource.version,
+                updatedAt: new Date(resource.updatedAt),
+                observedAt: new Date(resource.updatedAt),
+                metadata: {
+                    ...(resource.metadata ?? {}),
+                    ownerServerUrl: resource.ownerServerUrl,
+                    endpointPath: resource.endpointPath,
+                    protocol: resource.protocol,
+                    endpointMethod: resource.endpointMethod,
+                    persistentConnectionRequired: resource.persistentConnectionRequired,
+                    abortEndpointPath: resource.abortEndpointPath,
+                },
+            });
+        }
+    }
+
+    async persistNodeHeartbeat(input: {
+        clusterId: string;
+        nodeId: string;
+        organizationId?: string | null;
+        serverUrl?: string | null;
+        metrics: {
+            latencyMs: number;
+            jitterMs: number;
+            packetLossRatio: number;
+            throughputMbps: number;
+            reliabilityScore: number;
+            weight: number;
+            measuredAt: string;
+        };
+    }): Promise<void> {
+        await this.databaseService.db
+            .insert(clusterNodes)
+            .values({
+                clusterId: input.clusterId,
+                nodeId: input.nodeId,
+                serverUrl: input.serverUrl ?? `https://${input.nodeId}.mesh.internal`,
+                status: "active",
+                healthy: true,
+                lastSeenAt: new Date(input.metrics.measuredAt),
+            })
+            .onConflictDoUpdate({
+                target: clusterNodes.nodeId,
+                set: {
+                    clusterId: input.clusterId,
+                    serverUrl: input.serverUrl ?? `https://${input.nodeId}.mesh.internal`,
+                    status: "active",
+                    healthy: true,
+                    lastSeenAt: new Date(input.metrics.measuredAt),
+                    updatedAt: new Date(),
+                },
+            });
+
+        await this.databaseService.db.insert(clusterNodeMetrics).values({
+            clusterId: input.clusterId,
+            nodeId: input.nodeId,
+            organizationId: input.organizationId ?? null,
+            metrics: {
+                cpuUsage: this.clamp01(input.metrics.packetLossRatio),
+                memoryUsage: this.clamp01(1 - input.metrics.reliabilityScore),
+                activeStreams: Math.round(input.metrics.throughputMbps),
+                queueDepth: Math.round(input.metrics.latencyMs + input.metrics.jitterMs),
+                errorRate: this.clamp01(input.metrics.packetLossRatio),
+            },
+            reportedAt: new Date(input.metrics.measuredAt),
+        });
+    }
+
+    async issueJoinGrant(input: {
+        organizationId?: string | null;
+        targetNodeId?: string | null;
+        issuedByUserId: string;
+        ttlSeconds: number;
+        metadata?: Record<string, unknown> | null;
+    }): Promise<{ grantId: string; grantToken: string; clusterId: string; expiresAt: string }> {
+        const clusterId = this.resolveClusterId();
+        const grantToken = randomUUID();
+        const grantTokenHash = this.hashJoinGrantToken(grantToken);
+        const expiresAt = new Date(Date.now() + input.ttlSeconds * 1_000);
+
+        const [created] = await this.databaseService.db
+            .insert(clusterJoinGrants)
+            .values({
+                clusterId,
+                organizationId: input.organizationId ?? null,
+                targetNodeId: input.targetNodeId ?? null,
+                issuedByUserId: input.issuedByUserId,
+                grantTokenHash,
+                status: "issued",
+                expiresAt,
+                metadata: input.metadata ?? null,
+            })
+            .returning({
+                id: clusterJoinGrants.id,
+                clusterId: clusterJoinGrants.clusterId,
+                expiresAt: clusterJoinGrants.expiresAt,
+            });
+
+        if (!created) {
+            throw new Error("Failed to create join grant record");
+        }
+
+        return {
+            grantId: created.id,
+            clusterId: created.clusterId,
+            grantToken,
+            expiresAt: created.expiresAt.toISOString(),
+        };
+    }
+
+    async consumeJoinGrant(input: {
+        grantToken: string;
+        nodeId: string;
+        serverUrl: string;
+        displayName?: string;
+        capabilities?: Record<string, unknown> | null;
+        metadata?: Record<string, unknown> | null;
+    }): Promise<{ grantId: string; clusterId: string; nodeId: string; enrolledAt: string } | null> {
+        const now = new Date();
+        const grantTokenHash = this.hashJoinGrantToken(input.grantToken);
+
+        const [grant] = await this.databaseService.db
+            .select()
+            .from(clusterJoinGrants)
+            .where(and(eq(clusterJoinGrants.grantTokenHash, grantTokenHash), eq(clusterJoinGrants.status, "issued"), gt(clusterJoinGrants.expiresAt, now)))
+            .limit(1);
+
+        if (!grant) {
+            return null;
+        }
+
+        if (grant.targetNodeId && grant.targetNodeId !== input.nodeId) {
+            return null;
+        }
+
+        const consumedAt = new Date();
+
+        const [updatedGrant] = await this.databaseService.db
+            .update(clusterJoinGrants)
+            .set({
+                status: "used",
+                usedAt: consumedAt,
+                updatedAt: consumedAt,
+            })
+            .where(and(eq(clusterJoinGrants.id, grant.id), eq(clusterJoinGrants.status, "issued")))
+            .returning({
+                id: clusterJoinGrants.id,
+                clusterId: clusterJoinGrants.clusterId,
+            });
+
+        if (!updatedGrant) {
+            return null;
+        }
+
+        await this.databaseService.db
+            .insert(clusterNodes)
+            .values({
+                clusterId: updatedGrant.clusterId,
+                nodeId: input.nodeId,
+                serverUrl: input.serverUrl,
+                displayName: input.displayName ?? null,
+                capabilities: input.capabilities ?? null,
+                status: "active",
+                healthy: true,
+                metadata: {
+                    ...(grant.metadata ?? {}),
+                    ...(input.metadata ?? {}),
+                    enrolledVia: "bootstrap_join_grant",
+                    joinGrantId: updatedGrant.id,
+                },
+                enrolledAt: consumedAt,
+                lastSeenAt: consumedAt,
+            })
+            .onConflictDoUpdate({
+                target: clusterNodes.nodeId,
+                set: {
+                    clusterId: updatedGrant.clusterId,
+                    serverUrl: input.serverUrl,
+                    displayName: input.displayName ?? null,
+                    capabilities: input.capabilities ?? null,
+                    status: "active",
+                    healthy: true,
+                    metadata: {
+                        ...(grant.metadata ?? {}),
+                        ...(input.metadata ?? {}),
+                        enrolledVia: "bootstrap_join_grant",
+                        joinGrantId: updatedGrant.id,
+                    },
+                    lastSeenAt: consumedAt,
+                    updatedAt: consumedAt,
+                },
+            });
+
+        return {
+            grantId: updatedGrant.id,
+            clusterId: updatedGrant.clusterId,
+            nodeId: input.nodeId,
+            enrolledAt: consumedAt.toISOString(),
+        };
+    }
+
+    async revokeJoinGrant(input: {
+        grantId: string;
+        revokedByUserId: string;
+        reason?: string | null;
+    }): Promise<{ grantId: string; clusterId: string; revokedAt: string } | null> {
+        const [grant] = await this.databaseService.db
+            .select()
+            .from(clusterJoinGrants)
+            .where(eq(clusterJoinGrants.id, input.grantId))
+            .limit(1);
+
+        if (grant?.status !== "issued") {
+            return null;
+        }
+
+        const revokedAt = new Date();
+        const [revoked] = await this.databaseService.db
+            .update(clusterJoinGrants)
+            .set({
+                status: "revoked",
+                revokedAt,
+                updatedAt: revokedAt,
+                metadata: {
+                    ...(grant.metadata ?? {}),
+                    revokedByUserId: input.revokedByUserId,
+                    revokeReason: input.reason ?? null,
+                },
+            })
+            .where(and(eq(clusterJoinGrants.id, grant.id), eq(clusterJoinGrants.status, "issued")))
+            .returning({
+                id: clusterJoinGrants.id,
+                clusterId: clusterJoinGrants.clusterId,
+            });
+
+        if (!revoked) {
+            return null;
+        }
+
+        return {
+            grantId: revoked.id,
+            clusterId: revoked.clusterId,
+            revokedAt: revokedAt.toISOString(),
+        };
+    }
+
+    async rotateSigningKey(input: {
+        keyId: string;
+        secretMaterial: string;
+        expiresAt?: string | null;
+    }): Promise<{ activeKeyId: string; rotatedKeyId: string; secretMaterial: string }> {
+        const clusterId = this.resolveClusterId();
+        const now = new Date();
+
+        await this.databaseService.db
+            .update(clusterSigningKeys)
+            .set({
+                status: "previous",
+                rotatedAt: now,
+                updatedAt: now,
+            })
+            .where(and(eq(clusterSigningKeys.clusterId, clusterId), eq(clusterSigningKeys.status, "active")));
+
+        await this.databaseService.db.insert(clusterSigningKeys).values({
+            clusterId,
+            kid: input.keyId,
+            algorithm: "HS256",
+            status: "active",
+            secretMaterial: input.secretMaterial,
+            activatedAt: now,
+            expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+            updatedAt: now,
+        });
+
+        return {
+            activeKeyId: input.keyId,
+            rotatedKeyId: input.keyId,
+            secretMaterial: input.secretMaterial,
+        };
+    }
+
+    private resolveClusterId(): string {
+        const fromEnv = process.env.MESH_CLUSTER_ID?.trim();
+        return fromEnv && fromEnv.length > 0 ? fromEnv : "00000000-0000-4000-8000-000000000000";
+    }
+
+    private hashJoinGrantToken(token: string): string {
+        const pepper = process.env.MESH_JOIN_GRANT_HASH_PEPPER?.trim() ?? "mesh-join-grant";
+        return createHash("sha256")
+            .update(`${pepper}:${token}`)
+            .digest("hex");
+    }
+
+    private isMeshResourceKind(value: string): value is MeshResourceLocation["kind"] {
+        return value === "deployment" || value === "stream" || value === "log" || value === "queue" || value === "topic";
+    }
+
+    private toMeshProtocol(value: unknown): MeshResourceLocation["protocol"] | null {
+        return value === "http" || value === "https" || value === "ws" || value === "wss" || value === "sse"
+            ? value
+            : null;
+    }
+
+    private toHttpMethod(value: unknown): MeshResourceLocation["endpointMethod"] {
+        return value === "GET" || value === "POST" || value === "PUT" || value === "PATCH" || value === "DELETE"
+            ? value
+            : "GET";
+    }
+
+    private clamp01(value: number): number {
+        if (Number.isNaN(value)) {
+            return 0;
+        }
+        if (value < 0) {
+            return 0;
+        }
+        if (value > 1) {
+            return 1;
+        }
+        return value;
+    }
+}

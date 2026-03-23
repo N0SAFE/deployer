@@ -9,8 +9,9 @@ import type { ReactNode } from 'react'
  * with feature context for better debugging.
  * 
  * Admin routes:
+ * - /dashboard/admin/servers - Server-centric admin dashboard
  * - /dashboard/admin/users - User management
- * - /dashboard/admin/organizations - Organization management  
+ * - /dashboard/admin/organizations - Organization-centric admin dashboard  
  * - /dashboard/admin/system - System settings
  */
 export default function AdminLayout({ children }: { children: ReactNode }) {

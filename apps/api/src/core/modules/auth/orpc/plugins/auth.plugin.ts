@@ -97,7 +97,7 @@ export class AuthPlugin<TContext extends AuthPluginContext>
         if (rawSessionData && typeof rawSessionData === 'object') {
           // Check if it's wrapped in { response: Response }
           if ('response' in rawSessionData && rawSessionData.response instanceof Response) {
-            const response = rawSessionData.response as Response;
+            const response = rawSessionData.response;
             if (response.ok) {
               const body = await response.json().catch(() => null);
               sessionData = body as UserSession | null;

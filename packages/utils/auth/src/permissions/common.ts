@@ -13,7 +13,7 @@ import {
  * This file provides reusable permission sets that align with the project's
  * dual-layer permission system:
  * 
- * - PLATFORM ROLES: superAdmin, admin, user (global access)
+ * - PLATFORM ROLES: superAdmin, admin, operator, viewer (global access)
  * - ORGANIZATION ROLES: owner, admin, member (org-scoped access)
  * 
  * The permission bundles are derived directly from the config to ensure consistency.
@@ -58,8 +58,11 @@ export const platformSchemaHelpers = {
     /** Schema for admin permissions */
     adminActions: platformSchemas.actions.forRole("admin"),
 
-    /** Schema for user permissions */
-    userActions: platformSchemas.actions.forRole("user"),
+    /** Schema for operator permissions */
+    operatorActions: platformSchemas.actions.forRole("operator"),
+
+    /** Schema for viewer permissions */
+    viewerActions: platformSchemas.actions.forRole("viewer"),
 } as const;
 
 /**

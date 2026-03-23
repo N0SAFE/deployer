@@ -10,6 +10,18 @@ order: 1
 The standard development path in this repository is container-first for consistent runtime behavior across machines.
 </DocCallout>
 
+## What this platform is for
+
+This repository is building a self-hosted deployment platform for running and operating applications across one or many servers.
+
+Core intent:
+
+- deploy from source integrations into Docker runtime
+- route with Traefik + TLS
+- operate with logs, health checks, and rollback
+- support preview environments and multi-service orchestration
+- scale to multi-server and multi-organization operations via federation
+
 ## Prerequisites
 
 - Bun `>= 1.3.1`
@@ -89,8 +101,23 @@ bun run build
 	]}
 />
 
+## First setup flow (state machine)
+
+On a fresh database, v3 exposes a public setup flow so the first platform admin can bootstrap the system:
+
+- `GET /setup/status` — returns current setup snapshot (`awaiting_initial_admin`, `initial_admin_created`, `completed`, etc.)
+- `GET /setup/state-machine` — returns allowed setup states and transitions
+- `POST /setup/initialize` — creates initial super-admin user + initial organization
+
+Expected behavior:
+
+- If no users/orgs exist, `needsSetup = true` and setup can be initialized.
+- If setup already completed, initialize is rejected to prevent duplicate bootstrap.
+- After successful initialize, setup transitions to `completed`.
+
 ## Next reading
 
 - [Architecture Overview](/docs/architecture/architecture)
 - [Development Workflow](/docs/dev/development-workflow)
 - [ORPC Type-Safe API Workflow](/docs/dev/orpc)
+- [Multi-Server & Multi-Org Operations](/docs/deployment/multi-server-multi-org-operations)

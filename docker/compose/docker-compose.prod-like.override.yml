@@ -3,8 +3,16 @@
 # Adds prod-specific configurations: no polling, optimized settings, health checks
 
 services:
-  # Web Production Configuration
+  # API node waits for the load balancer to be healthy before starting
+  api-prod:
+    depends_on:
+      lb-prod:
+        condition: service_healthy
+
+  # Web app waits for the API node AND the load balancer to be healthy
   web-prod:
     depends_on:
       api-prod:
+        condition: service_healthy
+      lb-prod:
         condition: service_healthy

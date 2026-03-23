@@ -31,6 +31,7 @@ const withAuth: MiddlewareFactory = (next: NextProxy) => {
     });
     throw new Error("env is not valid");
   }
+
   return async (request: NextRequest, _next: NextFetchEvent) => {
     debugAuth(`Checking authentication for ${request.nextUrl.pathname}`, {
       path: request.nextUrl.pathname,
@@ -113,7 +114,7 @@ const withAuth: MiddlewareFactory = (next: NextProxy) => {
           AuthSignin(
             {},
             {
-              callbackUrl:
+              redirectTo:
                 request.nextUrl.pathname + (request.nextUrl.search ?? ""),
             },
           ),

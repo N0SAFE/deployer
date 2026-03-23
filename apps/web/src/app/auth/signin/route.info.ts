@@ -10,6 +10,7 @@ export const Route = {
     
   }),
   search: z.object({
+    redirectTo: z.string().optional(),
     callbackUrl: z.string().optional()
   })
 };

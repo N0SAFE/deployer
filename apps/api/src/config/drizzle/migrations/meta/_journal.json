@@ -36,6 +36,20 @@
       "when": 1766860184280,
       "tag": "0004_cool_bruce_banner",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1771861378534,
+      "tag": "0005_chief_blade",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1773233283180,
+      "tag": "0006_ancient_iron_patriot",
+      "breakpoints": true
     }
   ]
 }

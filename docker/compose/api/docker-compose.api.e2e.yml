@@ -1,0 +1,34 @@
+services:
+  # This service is the e2e test runner.
+  # The API under test is started in-process by Vitest/Nest inside this container
+  # (see apps/api/src/e2e/* where createNestApplication() is called).
+  # So there is intentionally no standalone `api` compose service in this file.
+  api-e2e:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-e2e
+    build:
+      context: ../../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.e2e
+      tags:
+        - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-e2e:latest"
+    environment:
+      NODE_ENV: test
+      AUTH_SECRET: ${AUTH_SECRET:-test-auth-secret-key-for-testing-only}
+      BETTER_AUTH_SECRET: ${AUTH_SECRET:-test-auth-secret-key-for-testing-only}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3005}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@test.com}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-testpassword}
+
+      # Testcontainers inside this container talks to host Docker daemon via mounted socket.
+      TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock
+      TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    command: ["sh", "-lc", "cd ./apps/api && bun run test:e2e"]
+
+    restart: "no"

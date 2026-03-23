@@ -83,7 +83,7 @@ During our discussion, we considered:
 
 We chose **complete removal** because:
 1. **Already deprecated**: File is explicitly marked `@deprecated`, signaling intent to remove
-2. **ORPC hooks exist**: Generated hooks in `useUser.orpc-hooks.ts` replace all functionality
+2. **Domain hooks exist**: `src/domains/user/hooks.ts` replaces legacy flat hooks usage
 3. **632 lines of debt**: Significant maintenance burden for dead code
 4. **Confusion risk**: New developers might accidentally import the old hooks
 5. **Clean codebase**: No reason to keep deprecated code that has replacements
@@ -99,11 +99,11 @@ grep -r "useUsers\(" apps/web/src/
 **Step 2: Create Migration Map**
 | Old Import | New Import |
 |------------|------------|
-| `import { useUsers } from '@/hooks/useUsers'` | `import { useUserList } from '@/hooks/useUser.orpc-hooks'` |
-| `import { useUser } from '@/hooks/useUsers'` | `import { useUserById } from '@/hooks/useUser.orpc-hooks'` |
-| `import { useCreateUser } from '@/hooks/useUsers'` | `import { useUserCreate } from '@/hooks/useUser.orpc-hooks'` |
-| `import { useUpdateUser } from '@/hooks/useUsers'` | `import { useUserUpdate } from '@/hooks/useUser.orpc-hooks'` |
-| `import { useDeleteUser } from '@/hooks/useUsers'` | `import { useUserDelete } from '@/hooks/useUser.orpc-hooks'` |
+| `import { useUsers } from '@/hooks/useUsers'` | `import { useUserList } from '@/domains/user/hooks'` |
+| `import { useUser } from '@/hooks/useUsers'` | `import { useUser } from '@/domains/user/hooks'` |
+| `import { useCreateUser } from '@/hooks/useUsers'` | `import { useCreateUser } from '@/domains/user/hooks'` |
+| `import { useUpdateUser } from '@/hooks/useUsers'` | `import { useUpdateUser } from '@/domains/user/hooks'` |
+| `import { useDeleteUser } from '@/hooks/useUsers'` | `import { useDeleteUser } from '@/domains/user/hooks'` |
 
 **Step 3: Update Each Consumer**
 Replace imports and update hook calls to match new API

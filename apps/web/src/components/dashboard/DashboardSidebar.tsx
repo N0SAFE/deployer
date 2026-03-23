@@ -4,6 +4,7 @@ import {
   Building2, 
   Users, 
   Settings, 
+  Server,
   Home, 
   Shield, 
   UserCircle,
@@ -63,6 +64,11 @@ const mainNavItems: NavItem[] = [
 ]
 
 const adminNavItems: NavItem[] = [
+  { 
+    name: 'Servers', 
+    href: '/dashboard/admin/servers',
+    icon: Server,
+  },
   { 
     name: 'Users', 
     href: '/dashboard/admin/users',

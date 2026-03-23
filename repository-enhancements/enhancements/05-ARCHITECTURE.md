@@ -92,7 +92,7 @@ export function usePermissions() {
 ### Current Architecture
 - Manual hook generation via script
 - Generate on-demand with `bun run web -- hooks:generate`
-- Output to `apps/web/src/hooks/orpc/`
+- Output to domain layer under `apps/web/src/domains/<feature>/`
 
 ### Why Runtime Hook Factory?
 
@@ -106,7 +106,7 @@ We chose **runtime hook factory** because:
 2. **Always in sync**: Contract changes immediately reflected in hooks
 3. **Type safety preserved**: TypeScript infers types from contracts at compile time
 4. **Simpler DX**: One less step in the workflow
-5. **Less generated code**: No `.orpc-hooks.ts` files to maintain
+5. **Less generated code**: No legacy generated hook-file artifacts to maintain
 
 #### How It Works
 
@@ -314,7 +314,7 @@ tools/              # CLI tools (separate from packages)
 │   ├── declarative-routing/
 │   └── runthenkill/
 └── codegen/
-    └── orpc-hooks/
+    └── domain-hooks/
 ```
 
 #### Migration Path
@@ -354,7 +354,7 @@ tools/
 │   ├── declarative-routing/
 │   └── runthenkill/
 └── codegen/
-    └── orpc-hooks/
+    └── domain-hooks/
 ```
 
 ### Migration Steps

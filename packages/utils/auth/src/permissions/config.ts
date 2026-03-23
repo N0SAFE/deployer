@@ -1,12 +1,17 @@
+import z from "zod/v4";
 import { PermissionBuilder } from "./system/builder/builder";
 import { defaultStatements as adminDefaultStatements } from "better-auth/plugins/admin/access";
-import { defaultStatements as organizationDefaultStatements } from 'better-auth/plugins/organization/access'
+import { defaultStatements as organizationDefaultStatements } from 'better-auth/plugins/organization/access';
 
 
 /**
  * Permission Configuration for the Deployer Platform
  * 
- * This configuration defines a dual-layer permission system:
+ * This configuration defines platform + scope permission systems.
+ *
+ * Temporary migration scope (T254): runtime execution paths should prioritize
+ * platform roles + project roles. Organization role complexity remains available
+ * but is intentionally deferred for deployment runtime-critical flows.
  * 
  * ============================================================================
  * LAYER 1: PLATFORM ROLES (User's global role)
@@ -16,7 +21,8 @@ import { defaultStatements as organizationDefaultStatements } from 'better-auth/
  * 
  * - superAdmin: Platform-level admin with full access to everything
  * - admin: Standard admin, can manage users and platform settings
- * - user: Default role for regular authenticated users
+ * - operator: Operations-focused role (monitoring + runtime operations)
+ * - viewer: Read-only platform visibility
  * 
  * ============================================================================
  * LAYER 2: ORGANIZATION ROLES (User's role within an organization)
@@ -33,9 +39,9 @@ import { defaultStatements as organizationDefaultStatements } from 'better-auth/
  * ============================================================================
  * 
  * Example scenarios:
- * 1. User with platform role "user" + org role "owner" in Org A:
+ * 1. User with platform role "viewer" + org role "owner" in Org A:
  *    - Can manage Org A fully (owner permissions)
- *    - Cannot access admin panel or other platform features
+ *    - Has read-only platform visibility
  * 
  * 2. User with platform role "admin" + org role "member" in Org B:
  *    - Has limited access within Org B (member permissions)
@@ -53,7 +59,13 @@ import { defaultStatements as organizationDefaultStatements } from 'better-auth/
  * Platform-level permission builder
  * Defines resources and roles for platform-wide access control
  */
-const platformBuilder = new PermissionBuilder()
+const platformRoleMetaShape = z.object({
+    label: z.string(),
+    description: z.string(),
+    color: z.string(),
+});
+
+const platformBuilder = new PermissionBuilder({ metaShape: platformRoleMetaShape })
     .resources(({ actions }) => ({
         // ========================================
         // USER & SESSION MANAGEMENT (Platform-wide)
@@ -118,7 +130,7 @@ const platformBuilder = new PermissionBuilder()
      * Super Admin - Platform administrator with full access
      * Only assigned to initial setup user and critical system admins
      */
-    .role('superAdmin').allPermissions()
+    .role('superAdmin').allPermissions().meta({ label: 'Super Admin', description: 'Full platform access including system configuration', color: 'red' })
     .roles(({ permissions }) => ({
         /**
          * Admin - Standard platform administrator
@@ -133,17 +145,32 @@ const platformBuilder = new PermissionBuilder()
             platformLogs: ['view', 'search', 'export'],
             traefik: ['read'],
             platformDomain: ['list', 'read'],
-        }),
-        
+        }).meta({ label: 'Admin', description: 'Platform administration without system access', color: 'orange' }),
+
         /**
-         * User - Standard authenticated user
-         * Can manage own profile and create organizations
-         * Actual resource access determined by organization membership
+         * Operator - Runtime operations role
+         * Can observe and operate runtime surfaces without full admin powers.
          */
-        user: permissions({
-            user: ['update'], // Own profile only (enforced at app level)
-            session: ['list', 'revoke'], // Own sessions only
-        }),
+        operator: permissions({
+            session: ['list', 'revoke'],
+            system: ['view'],
+            platformAnalytics: ['view', 'export'],
+            platformLogs: ['view', 'search', 'export'],
+            traefik: ['read', 'sync'],
+            platformDomain: ['list', 'read', 'verifySsl'],
+        }).meta({ label: 'Operator', description: 'Runtime operations and observability access', color: 'cyan' }),
+
+        /**
+         * Viewer - Read-only platform visibility
+         */
+        viewer: permissions({
+            system: ['view'],
+            platformAnalytics: ['view'],
+            platformLogs: ['view', 'search'],
+            traefik: ['read'],
+            platformDomain: ['list', 'read'],
+        }).meta({ label: 'Viewer', description: 'Read-only platform access', color: 'slate' }),
+        
     }));
 
 // Export the builder for type inference in generic plugins
@@ -171,7 +198,14 @@ export const {
  * These permissions apply to resources WITHIN an organization.
  * The user's organization role (owner/admin/member) determines access.
  */
-const organizationBuilder = new PermissionBuilder()
+const organizationRoleMetaShape = z.object({
+    label: z.string(),
+    description: z.string(),
+    color: z.string(),
+    icon: z.string(),
+});
+
+const organizationBuilder = new PermissionBuilder({ metaShape: organizationRoleMetaShape })
     .resources(({ actions }) => ({
         // ========================================
         // ORGANIZATION SETTINGS & MEMBERS
@@ -189,7 +223,7 @@ const organizationBuilder = new PermissionBuilder()
      * Owner - Full organization access
      * Can do everything including delete org and transfer ownership
      */
-    .role('owner').allPermissions()
+    .role('owner').allPermissions().meta({ label: 'Owner', description: 'Full organization access including deletion and ownership transfer', color: 'amber', icon: 'crown' })
     .roles(({ permissions }) => ({
         /**
          * Admin - Organization administrator
@@ -200,13 +234,13 @@ const organizationBuilder = new PermissionBuilder()
             invitation: ['cancel', 'create'],
             member: ['create', 'delete', 'update'],
             team: ['create', 'delete', 'update'],
-        }),
+        }).meta({ label: 'Admin', description: 'Organization management without delete or transfer capabilities', color: 'purple', icon: 'shield' }),
         
         /**
          * Member - Standard organization member
          * Can work on projects and services but limited management access
          */
-        member: permissions({}),
+        member: permissions({}).meta({ label: 'Member', description: 'Standard member with project and service access', color: 'slate', icon: 'user' }),
     }));
 
 // Export the builder for type inference in generic plugins
@@ -240,33 +274,6 @@ export const PLATFORM_ROLES = platformBuilder.getRoleNames();
  */
 export type PlatformRole = typeof PLATFORM_ROLES[number];
 
-/**
- * Platform role configuration for display
- */
-export const platformRoleConfig: Record<
-    PlatformRole,
-    { label: string; description: string; level: number; color: string }
-> = {
-    superAdmin: {
-        label: 'Super Admin',
-        description: 'Full platform access including system configuration',
-        level: 3,
-        color: 'red',
-    },
-    admin: {
-        label: 'Admin',
-        description: 'Platform administration without system access',
-        level: 2,
-        color: 'orange',
-    },
-    user: {
-        label: 'User',
-        description: 'Standard user with organization-based access',
-        level: 1,
-        color: 'blue',
-    },
-};
-
 
 
 // ============================================================================
@@ -284,35 +291,162 @@ export const ORGANIZATION_ROLES = organizationBuilder.getRoleNames();
  */
 export type OrganizationRole = typeof ORGANIZATION_ROLES[number];
 
+// ============================================================================
+// PROJECT PERMISSION SYSTEM
+// ============================================================================
+
 /**
- * Organization role configuration for display
+ * Project-level permission builder
+ * Defines resources and roles for project-scoped access control
+ *
+ * These permissions apply to resources WITHIN a project.
+ * The current project role set is: owner | maintainer | deployer | viewer.
  */
-export const organizationRoleConfig: Record<
-    OrganizationRole,
-    { label: string; description: string; level: number; color: string; icon: string }
-> = {
-    owner: {
-        label: 'Owner',
-        description: 'Full organization access including deletion and ownership transfer',
-        level: 3,
-        color: 'amber',
-        icon: 'crown',
-    },
-    admin: {
-        label: 'Admin',
-        description: 'Organization management without delete or transfer capabilities',
-        level: 2,
-        color: 'purple',
-        icon: 'shield',
-    },
-    member: {
-        label: 'Member',
-        description: 'Standard member with project and service access',
-        level: 1,
-        color: 'slate',
-        icon: 'user',
-    },
-};
+const projectRoleMetaShape = z.object({
+    label: z.string(),
+    description: z.string(),
+    color: z.string(),
+});
+
+const projectBuilder = new PermissionBuilder({ metaShape: projectRoleMetaShape })
+    .resources(({ actions }) => ({
+        // ========================================
+        // PROJECT MANAGEMENT
+        // ========================================
+        project: actions([
+            'read',                  // View project details and settings
+            'update',                // Update project name, description, settings
+            'delete',                // Delete the project
+            'manageCollaborators',   // Invite, update, or remove collaborators
+        ] as const),
+
+        // ========================================
+        // SERVICES
+        // ========================================
+        service: actions([
+            'read',     // View service configuration and status
+            'create',   // Add a new service to the project
+            'update',   // Update service configuration
+            'delete',   // Remove a service
+        ] as const),
+
+        // ========================================
+        // DEPLOYMENTS
+        // ========================================
+        deployment: actions([
+            'read',     // View deployment history and status
+            'create',   // Trigger a new deployment
+            'cancel',   // Cancel an in-progress deployment
+            'delete',   // Delete deployment records
+            'rollback', // Roll back to a previous deployment
+        ] as const),
+
+        // ========================================
+        // ENVIRONMENTS
+        // ========================================
+        environment: actions([
+            'read',     // View environment configuration
+            'create',   // Create a new environment
+            'update',   // Update environment settings
+            'delete',   // Delete an environment
+        ] as const),
+
+        // ========================================
+        // LOGS & MONITORING
+        // ========================================
+        logs: actions([
+            'read',     // View service and deployment logs
+            'export',   // Export logs
+        ] as const),
+
+        // ========================================
+        // VARIABLE TEMPLATES
+        // ========================================
+        template: actions([
+            'read',     // View variable templates
+            'create',   // Create a new template
+            'update',   // Update a template
+            'delete',   // Delete a template
+        ] as const),
+    }))
+    // ==========================================
+    // PROJECT ROLES
+    // ==========================================
+    /**
+     * Owner - Full project access
+     * Can do everything including delete the project and manage collaborators
+     */
+    .role('owner').allPermissions().meta({ label: 'Owner', description: 'Full project access including deletion and membership management', color: 'amber' })
+    .roles(({ permissions }) => ({
+        /**
+         * Maintainer - Project administrator
+         * Can manage most things except delete the project
+         */
+        maintainer: permissions({
+            project: ['read', 'update', 'manageCollaborators'],
+            service: ['read', 'create', 'update', 'delete'],
+            deployment: ['read', 'create', 'cancel', 'delete', 'rollback'],
+            environment: ['read', 'create', 'update', 'delete'],
+            logs: ['read', 'export'],
+            template: ['read', 'create', 'update', 'delete'],
+        }).meta({ label: 'Maintainer', description: 'Project management without deletion capabilities', color: 'purple' }),
+
+        /**
+         * Deployer - Development and deployment access
+         * Can deploy and manage services, but cannot manage project settings or collaborators
+         */
+        deployer: permissions({
+            project: ['read'],
+            service: ['read', 'create', 'update'],
+            deployment: ['read', 'create', 'cancel', 'rollback'],
+            environment: ['read', 'update'],
+            logs: ['read', 'export'],
+            template: ['read', 'create', 'update'],
+        }).meta({ label: 'Deployer', description: 'Development and deployment access', color: 'blue' }),
+
+        /**
+         * Viewer - Read-only access
+         * Can view all resources but cannot make any changes
+         */
+        viewer: permissions({
+            project: ['read'],
+            service: ['read'],
+            deployment: ['read'],
+            environment: ['read'],
+            logs: ['read'],
+            template: ['read'],
+        }).meta({ label: 'Viewer', description: 'Read-only access to project resources', color: 'slate' }),
+    }));
+
+// Export the builder for type inference
+export { projectBuilder };
+
+// Build and export project permissions
+export const projectPermissionConfig = projectBuilder.build();
+export const {
+    statement: projectStatement,
+    ac: projectAc,
+    roles: projectRoles,
+    schemas: projectSchemas,
+    rolesConfig: projectRolesConfig,
+    roleMeta: projectRoleMeta,
+} = projectPermissionConfig;
+
+export type ProjectResource = keyof typeof projectStatement;
+
+// ============================================================================
+// PROJECT ROLE EXPORTS
+// ============================================================================
+
+/**
+ * Project collaborator role names derived from the builder configuration
+ */
+export const PROJECT_ROLES = projectBuilder.getRoleNames();
+
+/**
+ * Type representing valid project collaborator roles
+ */
+export type ProjectRole = typeof PROJECT_ROLES[number];
 
 // ============================================================================
 // RESOURCE EXPORTS
@@ -330,7 +464,10 @@ export const PLATFORM_RESOURCES = platformBuilder.getStatementNames();
 export type OrganizationResource = keyof typeof organizationStatement;
 export const ORGANIZATION_RESOURCES = organizationBuilder.getStatementNames();
 
-
+/**
+ * Project resource names derived from the builder configuration
+ */
+export const PROJECT_RESOURCES = projectBuilder.getStatementNames();
 
 /**
  * Type representing all valid actions for a specific platform resource
@@ -342,66 +479,11 @@ export type PlatformActionsForResource<R extends PlatformResource> = typeof plat
  */
 export type OrganizationActionsForResource<R extends OrganizationResource> = typeof organizationStatement[R][number];
 
-
-
-// ============================================================================
-// PERMISSION CHECK HELPERS
-// ============================================================================
-
 /**
- * Check if a platform role has a specific permission
+ * Type representing all valid actions for a specific project resource
  */
-export function hasPlatformPermission(
-    role: PlatformRole,
-    resource: PlatformResource,
-    action: string
-): boolean {
-    // superAdmin has all permissions
-    if (role === 'superAdmin') return true;
-    
-    // Check if the role has the action for the resource using rolesConfig
-    return platformRolesConfig.hasPermission(role, resource, action);
-}
+export type ProjectActionsForResource<R extends ProjectResource> = typeof projectStatement[R][number];
 
-/**
- * Check if an organization role has a specific permission
- */
-export function hasOrganizationPermission(
-    role: OrganizationRole,
-    resource: OrganizationResource,
-    action: string
-): boolean {
-    // owner has all permissions
-    if (role === 'owner') return true;
-    
-    // Check if the role has the action for the resource using rolesConfig
-    return organizationRolesConfig.hasPermission(role, resource, action);
-}
 
-/**
- * Get all permissions for a platform role
- */
-export function getPlatformRolePermissions(role: PlatformRole) {
-    return platformRoles[role];
-}
 
-/**
- * Get all permissions for an organization role
- */
-export function getOrganizationRolePermissions(role: OrganizationRole) {
-    return organizationRoles[role];
-}
 
-/**
- * Check if a role level is higher or equal to another
- */
-export function isPlatformRoleAtLeast(role: PlatformRole, minimumRole: PlatformRole): boolean {
-    return platformRoleConfig[role].level >= platformRoleConfig[minimumRole].level;
-}
-
-/**
- * Check if an organization role level is higher or equal to another
- */
-export function isOrganizationRoleAtLeast(role: OrganizationRole, minimumRole: OrganizationRole): boolean {
-    return organizationRoleConfig[role].level >= organizationRoleConfig[minimumRole].level;
-}

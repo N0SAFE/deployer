@@ -1,0 +1,145 @@
+---
+title: Trust-Aware Update Policy Bridge
+description: Integrates Trust Gate outcomes into rollout and update orchestration decisions.
+order: 42
+---
+
+<DocMeta source="advanced feature adaptation (T231)" scope="canonical" />
+
+## Goal
+
+Ensure update and rollout decisions are security-aware by consuming Trust Gate outcomes as first-class orchestration inputs.
+
+---
+
+## Why this feature exists
+
+Trust checks are most useful when they can alter runtime decisions, not only produce audit events. This bridge converts trust verdicts into deterministic rollout behavior.
+
+---
+
+## Scope (v1)
+
+### In scope
+
+- Typed Trust Gate outcome contract consumed by deployment/update orchestration
+- Policy mapping from trust verdict to action (`allow`, `warn`, `block`, `quarantine`)
+- Environment-aware behavior (stricter in production)
+- Timeline evidence linking trust result to final orchestration decision
+
+### Out of scope (v1)
+
+- third-party runtime attestation brokers
+- adaptive ML-based trust scoring
+
+---
+
+## Bridge contract
+
+```ts
+type TrustOutcome = {
+  decision: "allow" | "warn" | "block";
+  reasonCode: string;
+  severity: "low" | "medium" | "high" | "critical";
+  evidenceRef?: string;
+};
+
+type UpdateBridgeDecision = {
+  orchestrationAction: "proceed" | "proceed_with_warning" | "halt" | "quarantine";
+  reasonCode: string;
+};
+```
+
+---
+
+## Decision mapping
+
+Let $T$ be trust outcome and $E$ target environment tier:
+
+- `allow` → `proceed`
+- `warn` →
+  - `proceed_with_warning` in non-protected tiers
+  - policy-configurable in protected tiers (`proceed_with_warning` or `halt`) **per org/project (no hard global default)**
+- `block` → `halt` (or `quarantine` when policy enabled)
+
+Formalized:
+
+$$
+action = f(T, E, policy)
+$$
+
+where $f$ is deterministic and auditable.
+
+---
+
+## Orchestration integration points
+
+- preflight before queue enqueue
+- pre-rollout phase gate before first replacement/start
+- retry/rollback decision branch when trust state changes during long operations
+
+---
+
+## Failure taxonomy
+
+- `trust_bridge_blocked`
+- `trust_bridge_quarantined`
+- `trust_bridge_policy_conflict`
+- `trust_bridge_outcome_unavailable`
+- `trust_bridge_invalid_state_transition`
+
+---
+
+## Operator UX expectations
+
+- trust verdict card on deployment/update summary
+- explicit mapping display: trust outcome → orchestration action
+- override workflow (if policy permits) with mandatory audit annotation
+- timeline step entries for trust bridge decisions
+
+---
+
+## Test strategy
+
+### Unit
+
+- deterministic mapping function for all trust outcomes
+- environment-tier override behavior
+- policy conflict resolution
+
+### Integration
+
+- enqueue preflight block path
+- rollout halt/quarantine path
+- timeline evidence emission with correlation IDs
+
+### E2E
+
+- protected-tier update blocked on trust `block`
+- warning in staging proceeds with diagnostics
+- operator override accepted/rejected according to policy
+
+---
+
+## Definition of done
+
+- trust outcomes are consumed by orchestration as typed input
+- mapping policy is deterministic, environment-aware, and auditable
+- timeline/log surfaces include trust bridge decisions and reason codes
+- block/warn/quarantine paths are test-covered
+- migration task `T231` is complete
+
+---
+
+## Task mapping
+
+- `T231` — trust-aware update policy bridge
+- `T222` — deployment trust gate foundation
+
+---
+
+## Related docs
+
+- [Deployment Trust Gate](/docs/deployment/deployment-trust-gate)
+- [Migration Task Breakdown](/docs/deployment/migration-task-breakdown)
+- [Benchmark Feature Adaptation Matrix](/docs/deployment/benchmark-feature-adaptation-matrix)

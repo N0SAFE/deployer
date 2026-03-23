@@ -1,0 +1,149 @@
+---
+title: Typed Async Operation Contract
+description: Unified job contract for long-running operations with optional synchronous response mode.
+order: 43
+---
+
+<DocMeta source="advanced feature adaptation (T232)" scope="canonical" />
+
+## Goal
+
+Provide a single typed contract for long-running operations that supports:
+
+- asynchronous execution with job tracking,
+- optional synchronous mode for automation/CLI workflows that need immediate completion.
+
+---
+
+## Scope (v1)
+
+### In scope
+
+- Typed operation envelope (`accepted`, `running`, `succeeded`, `failed`, `timeout`)
+- `mode: async|sync` request flag
+- sync timeout and fallback-to-async semantics
+- stable operation status endpoint and correlation metadata
+
+### Out of scope (v1)
+
+- distributed workflow DAG for multi-operation transactions
+- external workflow engine integration
+
+---
+
+## Contract
+
+```ts
+type OperationMode = "async" | "sync";
+
+type OperationRequest<TInput> = {
+  mode?: OperationMode;
+  syncTimeoutMs?: number;
+  input: TInput;
+};
+
+type OperationAccepted = {
+  operationId: string;
+  status: "accepted" | "running";
+  correlationId: string;
+};
+
+type OperationTerminal<TOutput> = {
+  operationId: string;
+  status: "succeeded" | "failed" | "timeout";
+  output?: TOutput;
+  errorCode?: string;
+  correlationId: string;
+};
+```
+
+---
+
+## Response semantics
+
+Given operation duration $d$ and sync timeout $\tau$:
+
+$$
+response =
+\begin{cases}
+terminal & mode=sync \land d \le \tau \\
+accepted & mode=sync \land d > \tau \\
+accepted & mode=async
+\end{cases}
+$$
+
+When sync times out, behavior is configurable per operation type (e.g., continue asynchronously vs cancel with timeout).
+
+---
+
+## Endpoint behavior expectations
+
+- create operation endpoint accepts `mode` and `syncTimeoutMs`
+- status endpoint returns stable typed state transitions
+- optional watch/stream endpoint for operation progression events
+- cancellation endpoint for cancellable operation classes
+
+---
+
+## Failure taxonomy
+
+- `operation_invalid_mode`
+- `operation_sync_timeout`
+- `operation_failed`
+- `operation_cancelled`
+- `operation_not_found`
+- `operation_state_invalid_transition`
+
+---
+
+## Operator/automation UX
+
+- CLI can request sync mode for fast operations and print terminal output directly
+- CI automation can request async mode and poll/watch by `operationId`
+- UI surfaces operation state timeline with correlation links to deployment logs
+
+---
+
+## Test strategy
+
+### Unit
+
+- mode and timeout validation
+- state transition legality
+- fallback-to-async behavior
+
+### Integration
+
+- sync-complete path
+- sync-timeout-then-async-complete path
+- async polling and watch consistency
+
+### E2E
+
+- CLI-style sync invocation returns terminal for short operation
+- long operation returns accepted then completes via status API
+- failed operation returns stable error code and timeline evidence
+
+---
+
+## Definition of done
+
+- typed async/sync envelope is available for long operations
+- sync timeout fallback behavior is deterministic and documented
+- operation status + correlation model is stable across endpoints
+- failure taxonomy is consistent and test-covered
+- migration task `T232` is complete
+
+---
+
+## Task mapping
+
+- `T232` — typed async operation job contract with optional sync mode
+
+---
+
+## Related docs
+
+- [Migration Task Breakdown](/docs/deployment/migration-task-breakdown)
+- [Benchmark Feature Adaptation Matrix](/docs/deployment/benchmark-feature-adaptation-matrix)
+- [Platform Feature Target](/docs/deployment/platform-feature-target)

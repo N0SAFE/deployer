@@ -5,10 +5,13 @@ import type { Auth } from "@/core/modules/auth/types/auth";
 import { APIError } from "better-auth/api";
 import {
   type Permission,
+  type PlatformRole,
   type RoleName,
   PermissionChecker,
 } from "@repo/auth/permissions";
 import { MODULE_OPTIONS_TOKEN, type AuthModuleOptions } from "../definitions/auth-module-definition";
+
+type SessionUserWithRole = Auth["$Infer"]["Session"]["user"] & { role?: PlatformRole };
 
 /**
  * NestJS guard that handles role and permission-based access control
@@ -36,9 +39,8 @@ import { MODULE_OPTIONS_TOKEN, type AuthModuleOptions } from "../definitions/aut
 @Injectable()
 export class RoleGuard implements CanActivate {
   constructor(
-    @Inject(Reflector)
     private readonly reflector: Reflector,
-    @Inject(MODULE_OPTIONS_TOKEN)
+		@Inject(MODULE_OPTIONS_TOKEN)
 		private readonly options: AuthModuleOptions,
   ) {}
 
@@ -89,7 +91,7 @@ export class RoleGuard implements CanActivate {
       });
     }
 
-    const user = session.user;
+    const user = session.user as SessionUserWithRole;
 
     // Better Auth stores the role in the user object, but it might be optional
     // We need to access it correctly based on the Better Auth admin plugin schema
@@ -148,8 +150,24 @@ export class RoleGuard implements CanActivate {
       }
 
       try {
+        const authApi = this.options.auth.api as {
+          userHasPermission?: (params: {
+            body: {
+              userId: string;
+              permissions: Permission;
+            };
+          }) => Promise<{ success: boolean }>;
+        };
+
+        if (!authApi.userHasPermission) {
+          throw new APIError(500, {
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Permission API is not available on the configured auth instance",
+          });
+        }
+
         // Use Better Auth's userHasPermission API to check permissions
-        const hasPermission = await this.options.auth.api.userHasPermission({
+        const hasPermission = await authApi.userHasPermission({
           body: {
             userId: user.id,
             permissions: requiredPermissions,

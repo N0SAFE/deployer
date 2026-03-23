@@ -293,6 +293,8 @@ const testContracts = oc.prefix("/test/orpc").router({
     ),
 });
 
+export { testContracts as testAuthPatternsContract };
+
 // =============================================================================
 // CONTROLLER
 // =============================================================================

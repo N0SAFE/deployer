@@ -88,7 +88,7 @@ rm apps/web/src/components/shared/RequirePermission.tsx
 
 ### Current State
 - `apps/web/src/hooks/useUsers.ts` (632 lines) - Marked @deprecated
-- `apps/web/src/hooks/orpc/useUser.orpc-hooks.ts` - New generated hooks
+- `apps/web/src/domains/user/hooks.ts` - Domain user hooks
 
 ### Migration Plan
 
@@ -119,7 +119,7 @@ import { useUserProfile, useUpdateProfile } from '@/hooks/useUsers'
 import { 
   useUserFindCurrentProfile, 
   useUserUpdateProfile 
-} from '@/hooks/orpc/useUser.orpc-hooks'
+} from '@/domains/user/hooks'
 ```
 
 **Step 4: Remove deprecated file**

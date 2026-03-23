@@ -1,5 +1,5 @@
 import { Command, CommandRunner } from 'nest-commander';
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import * as schema from '../../config/drizzle/schema';
 import { Roles, ORGANIZATION_ROLES, type OrganizationRole } from '@repo/auth/permissions';
 import { eq } from 'drizzle-orm';
@@ -18,9 +18,9 @@ const SEED_VERSION = 'v1.2.0';
 @Injectable()
 export class SeedCommand extends CommandRunner {
   constructor(
-    @Inject(DATABASE_SERVICE) private readonly databaseService: DatabaseService,
-    @Inject(AUTH_CORE_SERVICE) private readonly authCoreService: AuthCoreService,
-    @Inject(CLI_AUTH_SERVICE_TOKEN) private readonly cliAuthService: CliAuthService,
+    private readonly databaseService: DatabaseService,
+    private readonly authCoreService: AuthCoreService,
+    private readonly cliAuthService: CliAuthService,
   ) {
     super();
   }
@@ -65,7 +65,28 @@ export class SeedCommand extends CommandRunner {
       console.log(`   ⏱️ Auth setup: ${String(Date.now() - start)}ms`);
 
       // Get typed plugins bound to auth headers - this preserves proper typing from the registry
-      const plugins = this.authCoreService.getRegistry().getAll(authContext.headers);
+      const plugins = this.authCoreService.getRegistry().getAll(authContext.headers) as unknown as {
+        admin: {
+          createUser: (data: {
+            name: string;
+            email: string;
+            password: string;
+            data: {
+              role: string;
+              emailVerified: boolean;
+              image: string;
+            };
+          }) => Promise<{ user: { id: string } }>;
+        };
+        organization: {
+          createOrganization: (data: { name: string; slug: string }) => Promise<{
+            id: string;
+            name: string;
+            slug: string;
+          }>;
+          addMember: (organizationId: string, userId: string, role: OrganizationRole) => Promise<unknown>;
+        };
+      };
       const adminPlugin = plugins.admin;
       const orgPlugin = plugins.organization;
 

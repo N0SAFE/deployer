@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 import {
   Card,
   CardContent,
@@ -14,6 +16,13 @@ import { Badge } from '@repo/ui/components/shadcn/badge'
 import { AuthDashboardOrganizationsOrganizationId, AuthDashboardOrganizationsOrganizationIdMembers, AuthDashboardOrganizationsOrganizationIdSettings } from '@/routes'
 import { useParams } from '@/routes/hooks'
 import { useOrganization, useOrganizationMembers } from '@/domains/organization/hooks'
+import {
+  useCheckMyFleetAdmission,
+  useCreateMyFleetAdmissionRequest,
+  useMyFleetAdmissionRequests,
+  useMyFleetAllocations,
+} from '@/domains/fleet/hooks'
+import { Input } from '@repo/ui/components/shadcn/input'
 
 export default function OrganizationDetailPage() {
   const params = useParams(AuthDashboardOrganizationsOrganizationId)
@@ -21,9 +30,50 @@ export default function OrganizationDetailPage() {
 
   const { data: organization, isLoading: isLoadingOrg, error: orgError } = useOrganization(organizationId)
   const { data: membersData, isLoading: isLoadingMembers } = useOrganizationMembers(organizationId)
+  const { data: myFleetAllocationsData, isLoading: isLoadingFleetAllocations } = useMyFleetAllocations()
+  const checkAdmission = useCheckMyFleetAdmission()
+  const createAdmissionRequest = useCreateMyFleetAdmissionRequest()
+  const [requestStatusFilter, setRequestStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'cancelled'>('all')
+  const { data: myAdmissionRequestsData, isLoading: isLoadingMyAdmissionRequests } = useMyFleetAdmissionRequests(
+    {
+      status: requestStatusFilter === 'all' ? undefined : requestStatusFilter,
+    },
+  )
+
+  const [requestedCpuMillicores, setRequestedCpuMillicores] = useState(500)
+  const [requestedMemoryMb, setRequestedMemoryMb] = useState(512)
+  const [requestedServices, setRequestedServices] = useState(1)
+  const [requestedServerNodeId, setRequestedServerNodeId] = useState('')
+  const [requesterNote, setRequesterNote] = useState('')
   
   // Better Auth returns { members: Member[], total: number }
   const members = membersData?.members ?? []
+  const myFleetAllocations = myFleetAllocationsData?.items ?? []
+  const myAdmissionRequests = myAdmissionRequestsData?.items ?? []
+  const visibleFleetAllocations = myFleetAllocations.filter((allocation) => allocation.organizationId === organizationId)
+
+  const handleCheckAdmission = async () => {
+    await checkAdmission.mutateAsync({
+      requestedCpuMillicores: Math.max(0, requestedCpuMillicores),
+      requestedMemoryMb: Math.max(0, requestedMemoryMb),
+      requestedServices: Math.max(0, requestedServices),
+      serverNodeId: requestedServerNodeId.trim() === '' ? undefined : requestedServerNodeId.trim(),
+    })
+  }
+
+  const handleCreateAdmissionRequest = async () => {
+    const trimmedNote = requesterNote.trim()
+
+    await createAdmissionRequest.mutateAsync({
+      requestedCpuMillicores: Math.max(0, requestedCpuMillicores),
+      requestedMemoryMb: Math.max(0, requestedMemoryMb),
+      requestedServices: Math.max(0, requestedServices),
+      requestedServerNodeId: requestedServerNodeId.trim() === '' ? undefined : requestedServerNodeId.trim(),
+      requesterNote: trimmedNote.length > 0 ? trimmedNote : checkAdmission.data?.reason ?? null,
+    })
+
+    setRequesterNote('')
+  }
 
   return (
     <div className="space-y-8">
@@ -99,6 +149,181 @@ export default function OrganizationDetailPage() {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Admission Requests</CardTitle>
+          <CardDescription>
+            Submit and track org-level capacity requests for superadmin review.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <select
+            className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+            value={requestStatusFilter}
+            onChange={(event) => {
+              setRequestStatusFilter(event.target.value as 'all' | 'pending' | 'approved' | 'rejected' | 'cancelled')
+            }}
+          >
+            <option value="all">all statuses</option>
+            <option value="pending">pending</option>
+            <option value="approved">approved</option>
+            <option value="rejected">rejected</option>
+            <option value="cancelled">cancelled</option>
+          </select>
+
+          <Input
+            value={requesterNote}
+            onChange={(event) => {
+              setRequesterNote(event.target.value)
+            }}
+            placeholder="Optional note for reviewer (context, urgency, workload details)"
+          />
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              void handleCreateAdmissionRequest()
+            }}
+            disabled={createAdmissionRequest.isPending}
+          >
+            {createAdmissionRequest.isPending ? 'Submitting...' : 'Submit admission request'}
+          </Button>
+
+          {isLoadingMyAdmissionRequests ? (
+            <div className="space-y-2">
+              {[1, 2].map((index) => (
+                <Skeleton key={index} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : myAdmissionRequests.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No admission requests submitted yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {myAdmissionRequests.slice(0, 8).map((request) => (
+                <div key={request.id} className="rounded border p-3 text-sm">
+                  <p className="font-medium">
+                    {request.status.toUpperCase()} · CPU {request.requestedCpuMillicores}m · RAM {request.requestedMemoryMb}MB · services {request.requestedServices}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    created {new Date(request.createdAt).toLocaleString()}
+                    {request.reviewerNote ? ` · reviewer note: ${request.reviewerNote}` : ''}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Allocated Capacity by Server</CardTitle>
+          <CardDescription>
+            CPU/RAM limits currently assigned to this organization across connected servers.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingFleetAllocations ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((index) => (
+                <Skeleton key={index} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : visibleFleetAllocations.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No CPU/RAM allocation has been assigned yet for this organization.</p>
+          ) : (
+            <div className="space-y-2">
+              {visibleFleetAllocations.map((allocation) => (
+                <div key={allocation.id} className="rounded border p-3">
+                  <p className="text-sm font-medium">{allocation.serverUrl ?? allocation.serverNodeId}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    mode: {allocation.allocationMode} · CPU: {allocation.cpuMillicores}m · RAM: {allocation.memoryMb}MB · max services: {allocation.maxServices ?? '—'}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Capacity Admission Check</CardTitle>
+          <CardDescription>
+            Validate a requested workload against your current org allocation quotas before triggering deployment.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Input
+              type="number"
+              min={0}
+              value={requestedCpuMillicores}
+              onChange={(event) => {
+                setRequestedCpuMillicores(Number(event.target.value) || 0)
+              }}
+              placeholder="Requested CPU millicores"
+            />
+
+            <Input
+              type="number"
+              min={0}
+              value={requestedMemoryMb}
+              onChange={(event) => {
+                setRequestedMemoryMb(Number(event.target.value) || 0)
+              }}
+              placeholder="Requested memory MB"
+            />
+
+            <Input
+              type="number"
+              min={0}
+              value={requestedServices}
+              onChange={(event) => {
+                setRequestedServices(Number(event.target.value) || 0)
+              }}
+              placeholder="Requested services"
+            />
+
+            <Input
+              value={requestedServerNodeId}
+              onChange={(event) => {
+                setRequestedServerNodeId(event.target.value)
+              }}
+              placeholder="Optional server node id (uuid)"
+            />
+          </div>
+
+          <Button
+            type="button"
+            onClick={() => {
+              void handleCheckAdmission()
+            }}
+            disabled={checkAdmission.isPending}
+          >
+            {checkAdmission.isPending ? 'Checking...' : 'Check admission'}
+          </Button>
+
+          {checkAdmission.data ? (
+            <div className="rounded border p-3 text-sm space-y-2">
+              <p>
+                Admission result:{' '}
+                <span className={checkAdmission.data.allowed ? 'text-green-600 font-semibold' : 'text-destructive font-semibold'}>
+                  {checkAdmission.data.allowed ? 'ALLOWED' : 'DENIED'}
+                </span>
+              </p>
+              {checkAdmission.data.reason ? (
+                <p className="text-muted-foreground">{checkAdmission.data.reason}</p>
+              ) : null}
+              <p className="text-xs text-muted-foreground">
+                Evaluated on {new Date(checkAdmission.data.evaluatedAt).toLocaleString()} · candidates {checkAdmission.data.candidates.length}
+              </p>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

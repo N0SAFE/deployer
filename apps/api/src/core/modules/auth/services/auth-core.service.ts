@@ -13,9 +13,11 @@ import type { UserSession } from "../utils/auth-utils";
 import {
 	createPluginRegistry,
 	createPluginMiddlewares,
+	type AppPluginRegistry,
 	type PluginRegistry,
 	type PlatformBuilder,
 	type OrganizationBuilder,
+	type AppMiddlewares,
 } from "../plugin-utils/plugin-wrapper-factory";
 import {
 	createOrpcMiddlewareProxy,
@@ -124,6 +126,7 @@ type OrgOrpcProxy = OrpcMiddlewareProxy<OrganizationMiddlewareDefinition>;
 type WidenPermission<T> = 
 	T extends StrictAdminPermissions ? AdminPermissions :
 	T extends StrictOrgPermissions ? OrgPermissions :
+	T extends Record<string, readonly string[]> ? T | PermissionObject :
 	T;
 
 /**
@@ -138,14 +141,42 @@ type WidenArg<T, TInput, TContext = unknown> =
 	| ((ctx: OrpcMiddlewareOptionsContext<TInput, TContext>) => WidenPermission<Exclude<T, (...args: never[]) => unknown>>);  // Widen the resolver part
 
 /**
- * Extract the first param type from a method for forInput() return type.
+ * Preserve the original strongly-typed return of `.forInput()` from the proxied method.
  */
-type ExtractFirstParam<T> = T extends (arg: infer P, ...rest: never[]) => unknown ? P : never;
+type ExtractForInputReturn<TMethod> = TMethod extends {
+	forInput: (...args: never[]) => infer TForInputReturn;
+}
+	? TForInputReturn
+	: never;
+
+/** Extract first parameter type from a callable method */
+type ExtractFirstParam<TMethod> = TMethod extends (arg: infer TArg, ...rest: never[]) => unknown
+	? TArg
+	: never;
+
+/** Unwrap ValueOrResolver-like unions to their concrete value type */
+type UnwrapValueOrResolver<T> = T extends ((ctx: never) => unknown) | infer TValue ? TValue : T;
 
 /**
- * Unwrap ValueOrResolver to get the value type (not the resolver function).
+ * Replace only the middleware input generic while preserving all other generic parameters.
  */
-type UnwrapValueOrResolver<T> = T extends ((ctx: never) => unknown) | infer V ? V : T;
+type ReplaceMiddlewareInput<TMiddleware, TInput> = TMiddleware extends DecoratedMiddleware<
+	infer TInContext,
+	infer TOutContext,
+	infer TOldInput,
+	infer TOutput,
+	infer TErrorMap,
+	infer TMeta
+>
+	? DecoratedMiddleware<
+			TInContext,
+			TOutContext,
+			(TInput & TOldInput) extends never ? TInput : TInput,
+			TOutput,
+			TErrorMap,
+			TMeta
+	  >
+	: TMiddleware;
 
 /**
  * Transform a proxy method to accept widened permission types.
@@ -168,7 +199,10 @@ type WidenedProxyMethod<TMethod> = TMethod extends (...args: infer TArgs) => inf
 			// forInput() method: returns middleware that uses ORPC's mapInput for auto-typed input
 			// The middleware expects input to BE the first arg's value type (already extracted by mapInput)
 			// Context types preserve ORPCContextWithAuthOnly<true> to maintain typed context.auth
-			forInput(): DecoratedMiddleware<ORPCContextWithAuthOnly<true>, ORPCContextWithAuthOnly<true>, UnwrapValueOrResolver<WidenPermission<ExtractFirstParam<TMethod>>>, any, any, any>;
+			forInput(): ReplaceMiddlewareInput<
+				ExtractForInputReturn<TMethod>,
+				UnwrapValueOrResolver<WidenPermission<ExtractFirstParam<TMethod>>>
+			>;
 		}
 	: TMethod;
 
@@ -320,8 +354,8 @@ class ChecksBuilder {
 const registryCache = new WeakMap<
 	object,
 	{
-		registry: ReturnType<typeof createPluginRegistry>;
-		middlewares: ReturnType<typeof createPluginMiddlewares>;
+		registry: AppPluginRegistry;
+		middlewares: AppMiddlewares;
 	}
 >();
 
@@ -361,6 +395,8 @@ const registryCache = new WeakMap<
  */
 @Injectable()
 export class AuthCoreService<T extends AuthWithPlugins = Auth> {
+	private static latestModuleOptions: AuthModuleOptions<AuthWithPlugins> | null = null;
+
 	// Builder instances (lazy-initialized, shared across application)
 	private _middleware: OrpcMiddlewareBuilder | null = null;
 	private _checks: ChecksBuilder | null = null;
@@ -368,7 +404,21 @@ export class AuthCoreService<T extends AuthWithPlugins = Auth> {
 	constructor(
 		@Inject(MODULE_OPTIONS_TOKEN)
 		private readonly options: AuthModuleOptions<T>,
-	) {}
+	) {
+		AuthCoreService.latestModuleOptions = this.options as AuthModuleOptions<AuthWithPlugins>;
+	}
+
+	getModuleOptions(): AuthModuleOptions<T> {
+		return this.options;
+	}
+
+	static getLatestModuleOptions(): AuthModuleOptions<AuthWithPlugins> {
+		if (!AuthCoreService.latestModuleOptions) {
+			throw new Error("AuthModuleOptions are not available yet.");
+		}
+
+		return AuthCoreService.latestModuleOptions;
+	}
 
 	// ==========================================================================
 	// Plugin Access (With Explicit Headers Parameter)
@@ -400,7 +450,7 @@ export class AuthCoreService<T extends AuthWithPlugins = Auth> {
 	 */
 	plugin<K extends keyof PluginRegistry>(name: K, headers: Headers): PluginRegistry[K] {
 		const registry = this.getRegistry();
-		return registry.create(name, headers) as PluginRegistry[K];
+		return registry.create(name, headers);
 	}
 
 	/**
@@ -445,19 +495,24 @@ export class AuthCoreService<T extends AuthWithPlugins = Auth> {
 	 * Type assertion rationale: T extends AuthWithPlugins, so this is safe.
 	 * The assertion is required due to TypeScript variance restrictions.
 	 */
-	getRegistry(): ReturnType<typeof createPluginRegistry<AuthWithPlugins>> {
+	getRegistry(): AppPluginRegistry {
 		const authConfig = this.options.auth;
 		let cached = registryCache.get(authConfig);
 		
 		if (!cached) {
-			// Safe cast: T extends AuthWithPlugins, guaranteed by class constraint
-			const registry = createPluginRegistry(authConfig as AuthWithPlugins);
-			const middlewares = createPluginMiddlewares(
-				authConfig as AuthWithPlugins,
-				registry
-			);
+			const buildRegistry = createPluginRegistry as unknown as (
+				auth: AuthWithPlugins,
+			) => AppPluginRegistry;
+			const buildMiddlewares = createPluginMiddlewares as unknown as (
+				auth: AuthWithPlugins,
+				registry: AppPluginRegistry,
+			) => AppMiddlewares;
+
+			const registry = buildRegistry(authConfig);
+			const middlewares = buildMiddlewares(authConfig, registry);
 			cached = { registry, middlewares };
 			registryCache.set(authConfig, cached);
+			return registry;
 		}
 		
 		return cached.registry;
@@ -472,19 +527,24 @@ export class AuthCoreService<T extends AuthWithPlugins = Auth> {
 	 * Type assertion rationale: T extends AuthWithPlugins, so this is safe.
 	 * The assertion is required due to TypeScript variance restrictions.
 	 */
-	getMiddlewares(): ReturnType<typeof createPluginMiddlewares<AuthWithPlugins>> {
+	getMiddlewares(): AppMiddlewares {
 		const authConfig = this.options.auth;
 		let cached = registryCache.get(authConfig);
 		
 		if (!cached) {
-			// Safe cast: T extends AuthWithPlugins, guaranteed by class constraint
-			const registry = createPluginRegistry(authConfig as AuthWithPlugins);
-			const middlewares = createPluginMiddlewares(
-				authConfig as AuthWithPlugins,
-				registry
-			);
+			const buildRegistry = createPluginRegistry as unknown as (
+				auth: AuthWithPlugins,
+			) => AppPluginRegistry;
+			const buildMiddlewares = createPluginMiddlewares as unknown as (
+				auth: AuthWithPlugins,
+				registry: AppPluginRegistry,
+			) => AppMiddlewares;
+
+			const registry = buildRegistry(authConfig);
+			const middlewares = buildMiddlewares(authConfig, registry);
 			cached = { registry, middlewares };
 			registryCache.set(authConfig, cached);
+			return middlewares;
 		}
 		
 		return cached.middlewares;
@@ -636,10 +696,18 @@ export class AuthCoreService<T extends AuthWithPlugins = Auth> {
 	 *
 	 * @returns OpenAPI schema object compatible with openapi-merge
 	 */
-	async generateAuthOpenAPISchema() {
+	generateAuthOpenAPISchema() {
 		const auth = this.options.auth as unknown as Auth;
+		const api = auth.api as {
+			generateOpenAPISchema?: (input: Record<string, never>) => unknown;
+		};
+
+		if (!api.generateOpenAPISchema) {
+			throw new Error("Better Auth OpenAPI generator is not available on the configured auth instance.");
+		}
+
 		// Delegates to Better Auth's API method
-		return auth.api.generateOpenAPISchema({});
+		return api.generateOpenAPISchema({});
 	}
 }
 

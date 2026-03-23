@@ -45,7 +45,6 @@ export const AuthContextErrorMap: Record<
 @Injectable()
 export class AuthGuard implements CanActivate {
 	constructor(
-		@Inject(Reflector)
 		private readonly reflector: Reflector,
 		@Inject(MODULE_OPTIONS_TOKEN)
 		private readonly options: AuthModuleOptions,

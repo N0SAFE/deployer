@@ -3,4 +3,5 @@ include:
       - api/docker-compose.api.dev.yml
       - web/docker-compose.web.dev.yml
       - doc/docker-compose.doc.dev.yml
+      - load-balancer/docker-compose.load-balancer.dev.yml
       - docker-compose.dev.override.yml

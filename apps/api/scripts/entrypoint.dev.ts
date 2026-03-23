@@ -7,6 +7,7 @@ import zod from 'zod/v4'
 
 interface EntrypointConfig {
   skipMigrations: boolean
+  enableDevBootstrap: boolean
   diagnosePath: string
   migrateScript: string
   seedScript: string
@@ -168,6 +169,9 @@ function startProcesses(): void {
 function main(): void {
   const config: EntrypointConfig = {
     skipMigrations: process.env.SKIP_MIGRATIONS === 'true',
+    // Dev bootstrap populates users/orgs via default admin + seed command.
+    // Set ENABLE_DEV_BOOTSTRAP=false to keep DB in first-run setup mode.
+    enableDevBootstrap: process.env.ENABLE_DEV_BOOTSTRAP !== 'false',
     diagnosePath: 'scripts/diagnose-build.ts',
     migrateScript: 'db:migrate',
     seedScript: 'db:seed',
@@ -182,12 +186,17 @@ function main(): void {
   
   // Run migrations first (schema must exist before any user creation)
   runMigrationsOnly(config)
-  
-  // Create default admin BEFORE seeding so seed can detect existing admin
-  createDefaultAdmin()
-  
-  // Run seeding after admin creation
-  runSeeding(config)
+
+  if (config.enableDevBootstrap) {
+    // Create default admin BEFORE seeding so seed can detect existing admin
+    createDefaultAdmin()
+
+    // Run seeding after admin creation
+    runSeeding(config)
+  } else {
+    console.log('⏭️  ENABLE_DEV_BOOTSTRAP=false, skipping default admin bootstrap and db seeding')
+    console.log('   Setup should remain enabled until initial user/org are created')
+  }
   
   startProcesses()
 }

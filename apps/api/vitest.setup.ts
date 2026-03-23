@@ -9,6 +9,10 @@ process.env.AUTH_SECRET = 'test-auth-secret-key-for-testing-only';
 process.env.BETTER_AUTH_SECRET = 'test-auth-secret-key-for-testing-only';
 process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3001';
 process.env.API_PORT = '3001';
+process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
+process.env.DEFAULT_ADMIN_EMAIL = 'admin@test.com';
+process.env.DEFAULT_ADMIN_PASSWORD = 'testpassword';
+process.env.NODE_LOCAL_DB_PATH = process.env.NODE_LOCAL_DB_PATH ?? '/tmp/deployer-api-unit-local.db';
 
 // Global test setup for NestJS API
 beforeEach(() => {

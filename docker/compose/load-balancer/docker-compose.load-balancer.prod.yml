@@ -1,0 +1,52 @@
+services:
+  # NestJS Load Balancer for production
+  lb-prod:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-lb-prod
+    build:
+      context: ../../..
+      dockerfile: ./docker/builder/load-balancer/Dockerfile.load-balancer.prod
+      args:
+        - LOAD_BALANCER_PORT=${LB_PORT}
+    restart: unless-stopped
+    ports:
+      - "${LB_PORT}:${LB_PORT}"
+    networks:
+      - app_network_prod
+    # Allow container to reach host services via host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      # Runtime
+      - NODE_ENV=production
+      - LOG_LEVEL=warn
+
+      # Load Balancer
+      - LOAD_BALANCER_PORT=${LB_PORT}
+
+      # Upstream API
+      - API_URL=http://${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-prod:${API_PORT}
+      - APP_URL=http://${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-web-prod:${NEXT_PUBLIC_APP_PORT}
+
+      # Routing / affinity
+      - LB_FORWARD_TOKEN_SECRET=${LB_FORWARD_TOKEN_SECRET:-${LB_ROUTE_SECRET}}
+      - LB_ROUTE_SECRET=${LB_ROUTE_SECRET}
+      - LB_FORWARD_TOKEN_SECRET_PREVIOUS=${LB_FORWARD_TOKEN_SECRET_PREVIOUS:-${LB_ROUTE_SECRET_PREVIOUS:-}}
+      - LB_ROUTE_SECRET_PREVIOUS=${LB_ROUTE_SECRET_PREVIOUS:-}
+      - LB_DIAGNOSTIC_SECRET=${LB_DIAGNOSTIC_SECRET}
+      - LB_DIAGNOSTIC_PATH_FINGERPRINT=${LB_DIAGNOSTIC_PATH_FINGERPRINT:-__lb_diag}
+      - LB_LOCAL_UPSTREAM_URL=${LB_LOCAL_UPSTREAM_URL:-http://${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-prod:${API_PORT}}
+      - LB_ROUTE_KEYRING_REFRESH_MS=${LB_ROUTE_KEYRING_REFRESH_MS:-30000}
+      - LB_REPORT_TTL_MS=${LB_REPORT_TTL_MS:-30000}
+      - LB_LOAD_REPORT_DEDUPE_TTL_MS=${LB_LOAD_REPORT_DEDUPE_TTL_MS:-120000}
+      - LB_LOAD_REPORT_MAX_HOPS=${LB_LOAD_REPORT_MAX_HOPS:-2}
+      - LB_PEER_URLS=${LB_PEER_URLS:-}
+
+      # Mesh identity
+      - MESH_NODE_ID=${MESH_NODE_ID_LB}
+      - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET}
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:${LB_PORT}/health || exit 1
+      start_period: 15s
+      interval: 15s
+      timeout: 15s
+      retries: 5

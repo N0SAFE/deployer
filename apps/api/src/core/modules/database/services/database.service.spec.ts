@@ -1,6 +1,6 @@
 import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DatabaseService } from './database.service';
 import { DATABASE_CONNECTION } from '../database-connection';
 import { logger } from '@repo/logger';
@@ -31,29 +31,30 @@ describe('DatabaseService', () => {
     expect(service).toBeDefined();
   });
 
-  it('should throw error if database connection is not initialized', async () => {
-    const createServiceWithNullDb = () => {
-      const module = Test.createTestingModule({
-        providers: [
-          DatabaseService,
-          {
-            provide: DATABASE_CONNECTION,
-            useValue: null,
-          },
-        ],
-      });
-      return module.compile().then(m => m.get<DatabaseService>(DatabaseService));
-    };
-
-    await expect(createServiceWithNullDb()).rejects.toThrow(
-      'Database connection is not initialized'
-    );
+  it('should create service with null db when DATABASE_CONNECTION is null', async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        DatabaseService,
+        {
+          provide: DATABASE_CONNECTION,
+          useValue: null,
+        },
+      ],
+    }).compile();
+    const nullDbService = module.get<DatabaseService>(DatabaseService);
+    expect(nullDbService).toBeDefined();
+    expect(nullDbService.isConnected).toBe(false);
   });
 
   describe('db getter', () => {
     it('should return database instance', () => {
       const db = service.db;
       expect(db).toBe(mockDatabase);
+    });
+
+    it('should throw ServiceUnavailableException when db is null', () => {
+      service.setConnection(null);
+      expect(() => service.db).toThrow('Database not configured');
     });
   });
 
@@ -84,67 +85,24 @@ describe('DatabaseService', () => {
     });
   });
 
-  describe('getConnectionInfo', () => {
-    const originalEnv = process.env;
+  describe('setConnection', () => {
+    it('should update the internal db and reflect in isConnected', () => {
+      expect(service.isConnected).toBe(true);
+      service.setConnection(null);
+      expect(service.isConnected).toBe(false);
+      service.setConnection(mockDatabase);
+      expect(service.isConnected).toBe(true);
+    });
+  });
 
-    afterEach(() => {
-      process.env = originalEnv;
+  describe('isConnected', () => {
+    it('should return true when a db connection is present', () => {
+      expect(service.isConnected).toBe(true);
     });
 
-    it('should return connection info with sanitized URL from environment', () => {
-      process.env = {
-        ...originalEnv,
-        DATABASE_URL: 'postgresql://user:secret123@localhost:5432/testdb',
-      };
-
-      const result = service.getConnectionInfo();
-
-      expect(result).toEqual({
-        hasConnection: true,
-        databaseUrl: 'postgresql://user:***@localhost:5432/testdb',
-      });
-    });
-
-    it('should use default URL when DATABASE_URL is not set', () => {
-      process.env = { ...originalEnv };
-      delete process.env.DATABASE_URL;
-
-      const result = service.getConnectionInfo();
-
-      expect(result).toEqual({
-        hasConnection: true,
-        databaseUrl: 'postgresql://postgres:***@localhost:5432/mydb',
-      });
-    });
-
-    it('should indicate no connection when database is null', async () => {
-      await Test.createTestingModule({
-        providers: [
-          {
-            provide: DATABASE_CONNECTION,
-            useValue: null,
-          },
-        ],
-      }).compile();
-
-      // Since the constructor throws, we need to test this differently
-      // by mocking the constructor behavior
-      const serviceWithNullDb = {
-        _db: null,
-        getConnectionInfo() {
-          const connectionString = process.env.DATABASE_URL ?? 'postgresql://postgres:password@localhost:5432/mydb';
-          const sanitizedUrl = connectionString.replace(/:([^:]+)@/, ':***@');
-          
-          return {
-            hasConnection: !!this._db,
-            databaseUrl: sanitizedUrl,
-          };
-        }
-      };
-
-      const result = serviceWithNullDb.getConnectionInfo();
-
-      expect(result.hasConnection).toBe(false);
+    it('should return false after setConnection(null)', () => {
+      service.setConnection(null);
+      expect(service.isConnected).toBe(false);
     });
   });
 });

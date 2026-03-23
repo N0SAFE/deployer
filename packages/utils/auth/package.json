@@ -16,7 +16,8 @@
       "default": "./src/react/session/client.ts"
     },
     "./react/session/client": "./src/react/session/client.ts",
-    "./react/session/server": "./src/react/session/server.ts"
+    "./react/session/server": "./src/react/session/server.ts",
+    "./mesh": "./src/mesh/index.ts"
   },
   "scripts": {
     "prettify": "prettier . --write --no-error-on-unmatched-pattern",

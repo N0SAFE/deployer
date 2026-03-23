@@ -102,6 +102,12 @@ export function useOrganization(
       enabled: true,
       allowRemovingAllTeams: true, // Allow removing all teams
     },
+    // Enable dynamic roles stored in the `organization_role` table.
+    // Allows creating / updating / deleting custom roles at runtime via
+    // auth.organization.createRole / updateRole / deleteRole APIs.
+    dynamicAccessControl: {
+      enabled: true,
+    },
     ...options,
   });
 }

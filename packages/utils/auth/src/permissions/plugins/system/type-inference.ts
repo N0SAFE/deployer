@@ -5,6 +5,7 @@
  * by analyzing the actual function signatures at runtime and compile-time.
  */
 
+import { ZodType } from 'zod';
 import type { PermissionBuilder } from '../../system/builder/builder';
 
 // ============================================================================
@@ -26,7 +27,7 @@ import type { PermissionBuilder } from '../../system/builder/builder';
  * ```
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyPermissionBuilder = PermissionBuilder<any, any>;
+export type AnyPermissionBuilder = PermissionBuilder<any, any, any>;
 
 // ============================================================================
 // Permission Builder Type Inference
@@ -41,12 +42,12 @@ export type AnyPermissionBuilder = PermissionBuilder<any, any>;
  * 
  * @example
  * ```typescript
- * type Builder = PermissionBuilder<{ user: ['read'] }, { admin: { user: ['read'] } }>;
+ * type Builder = PermissionBuilder<{ user: ['read'] }, { admin: { user: ['read'] } }, ZodType | undefined>;
  * type Inferred = InferAllFromBuilder<Builder>;
  * // { TStatement: { user: ['read'] }, TRoles: { admin: { user: ['read'] } } }
  * ```
  */
-export type InferAllFromBuilder<T extends AnyPermissionBuilder> = T extends PermissionBuilder<infer S, infer R> ? {
+export type InferAllFromBuilder<T extends AnyPermissionBuilder> = T extends PermissionBuilder<infer S, infer R, ZodType | undefined> ? {
     TStatement: S;
     TRoles: R;
 } : never;
@@ -59,7 +60,7 @@ export type InferAllFromBuilder<T extends AnyPermissionBuilder> = T extends Perm
  * 
  * @example
  * ```typescript
- * type Builder = PermissionBuilder<{ user: ['read'] }, {}>;
+ * type Builder = PermissionBuilder<{ user: ['read'] }, {}, ZodType | undefined>;
  * type Statement = InferStatementFromBuilder<Builder>;
  * // { user: ['read'] }
  * ```
@@ -74,7 +75,7 @@ export type InferStatementFromBuilder<T extends AnyPermissionBuilder> = InferAll
  * 
  * @example
  * ```typescript
- * type Builder = PermissionBuilder<{}, { admin: { user: ['read'] } }>;
+ * type Builder = PermissionBuilder<{}, { admin: { user: ['read'] } }, ZodType | undefined>;
  * type Roles = InferRolesFromBuilder<Builder>;
  * // { admin: { user: ['read'] } }
  * ```

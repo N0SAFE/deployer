@@ -8,6 +8,10 @@
 
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { testEndpoints } from './endpoints'
+import { testInvalidations } from './invalidations'
+import { wrapWithInvalidations } from '@/domains/shared/helpers'
+
+const enhancedTest = wrapWithInvalidations(testEndpoints, testInvalidations)
 
 // ============================================================================
 // QUERY HOOKS (Read Operations)
@@ -52,14 +56,22 @@ export function useFileDownload(filename?: string, options?: { enabled?: boolean
  * Test file upload mutation
  */
 export function useFileUpload() {
-  return useMutation(testEndpoints.fileUpload.mutationOptions({}))
+  return useMutation(
+    testEndpoints.fileUpload.mutationOptions({
+      onSuccess: enhancedTest.fileUpload.withInvalidationOnSuccess(),
+    }),
+  )
 }
 
 /**
  * Test SSE stream mutation
  */
 export function useStreamOutput() {
-  return useMutation(testEndpoints.streamOutput.mutationOptions({}))
+  return useMutation(
+    testEndpoints.streamOutput.mutationOptions({
+      onSuccess: enhancedTest.streamOutput.withInvalidationOnSuccess(),
+    }),
+  )
 }
 
 // ============================================================================

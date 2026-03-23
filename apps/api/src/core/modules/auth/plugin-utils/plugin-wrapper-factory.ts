@@ -115,6 +115,10 @@ export function createPluginRegistry<TAuth extends ApiMethodsWithAdminPlugin<Pla
  * Useful for type annotations
  */
 export type AppPluginRegistry = ReturnType<typeof createPluginRegistry>;
+/**
+ * Type of the middlewares created by createPluginMiddlewares, which use the AppPluginRegistry for plugin instantiation
+ */
+export type AppMiddlewares = ReturnType<typeof createPluginMiddlewares>;
 
 export type InferPluginsFromRegistry<TPluginRegistry extends PluginWrapperRegistry<any, any>> = ReturnType<TPluginRegistry['getAll']>
 

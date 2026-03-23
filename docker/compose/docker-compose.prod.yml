@@ -3,3 +3,4 @@ include:
   - path: ./api/docker-compose.api.prod.yml
   - path: ./web/docker-compose.web.prod.yml
   - path: ./doc/docker-compose.doc.prod.yml
+  - path: ./load-balancer/docker-compose.load-balancer.prod.yml

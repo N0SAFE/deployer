@@ -29,10 +29,17 @@ apps/web/src/
 │   ├── query/             # TanStack Query components (devtools, providers)
 │   └── showcase/          # Feature showcase components
 │
-├── hooks/                 # React hooks
-│   ├── useUser.orpc-hooks.ts      # Contract-generated user hooks (PREFERRED)
-│   ├── useUsers.ts                # Manual user hooks (DEPRECATED)
-│   ├── useOrganization.ts         # Organization management hooks
+├── domains/               # Domain data layer (PREFERRED)
+│   ├── user/
+│   │   ├── endpoints.ts
+│   │   ├── hooks.ts
+│   │   └── invalidations.ts
+│   ├── organization/
+│   │   ├── endpoints.ts
+│   │   ├── hooks.ts
+│   │   └── invalidations.ts
+│   └── ...
+├── hooks/                 # Generic non-domain hooks
 │   ├── usePermissions.ts          # Permission checking hooks
 │   └── useInstallPrompt.ts        # PWA install prompt hook
 │
@@ -116,38 +123,25 @@ if (hasOrganizationPermission('organization.members.invite')) {
 }
 ```
 
-### 2. Data Fetching with ORPC Hooks
+### 2. Data Fetching with Domain Hooks
 
-**Preferred Pattern**: Use contract-generated hooks from `useUser.orpc-hooks.ts`
+**Preferred Pattern**: Use the domain layer under `src/domains/<feature>/`.
 
 ```tsx
-import { userHooks, useUserManagement, useUserList } from '@/hooks/useUser.orpc-hooks'
+import { useUserList, useUser, useUserActions } from '@/domains/user/hooks'
 
-// Basic query
-const { data: users } = userHooks.list.useQuery({
-  pagination: { page: 1, pageSize: 20 }
-})
+const { data: users } = useUserList({ query: {} })
+const { data: user } = useUser(userId)
 
-// Single user
-const { data: user } = userHooks.findById.useQuery({ id: userId })
-
-// Composite hook for management
-const { create, update, delete: deleteUser } = useUserManagement()
-create.mutate({ name: 'John', email: 'john@example.com' })
-
-// List with built-in features
-const { data, pagination, sort, filter } = useUserList({
-  initialPageSize: 20,
-  initialSort: { field: 'name', direction: 'asc' }
-})
+const { create, update, delete: deleteUser } = useUserActions()
+create.mutate({ body: { name: 'John', email: 'john@example.com' } })
 ```
 
 **Benefits**:
-- Automatically synchronized with API contracts
-- Type-safe by design
-- Standardized patterns across all entities
-- Less code to maintain
-- Built-in invalidation strategies
+- Co-locates endpoints, hooks, and invalidation strategy by feature
+- Keeps components free from endpoint/query key details
+- Type-safe through ORPC endpoint `queryOptions` / `mutationOptions`
+- Works for ORPC-backed and custom endpoints with one consistent API
 
 ### 3. Declarative Routing
 
@@ -229,10 +223,10 @@ const { data: session, isLoading } = useSession()
    - Keep related components together (auth components in `components/auth/`)
    - Don't create generic folders like `components/common/`
 
-2. **Prefer Contract-Generated Hooks**
-   - Use `*.orpc-hooks.ts` pattern for all CRUD operations
-   - Avoid manually writing query/mutation hooks
-   - See `useUser.orpc-hooks.ts` as the reference pattern
+2. **Prefer Domain Layer Hooks**
+  - Use `src/domains/<feature>/{endpoints,hooks,invalidations}.ts`
+  - Avoid ad-hoc query/mutation logic in components
+  - See `src/domains/user/` as the reference pattern
 
 3. **No Empty Directories**
    - Remove folders that don't contain files
@@ -254,10 +248,10 @@ const { data: session, isLoading } = useSession()
 
 ### Deprecated Patterns
 
-1. **Manual CRUD Hooks** (`useUsers.ts`)
+1. **Legacy Flat Hooks in `src/hooks/`**
    - **Status**: DEPRECATED
-   - **Migration**: Use `useUser.orpc-hooks.ts` instead
-   - **Reason**: Contract-generated hooks provide better type safety and maintainability
+  - **Migration**: Use domain hooks from `src/domains/<feature>/hooks.ts`
+  - **Reason**: Domain co-location improves maintainability and cache consistency
 
 2. **Components in Wrong Locations**
    - **Status**: CLEANED UP
@@ -271,10 +265,10 @@ const { data: session, isLoading } = useSession()
 
 ### Active Patterns
 
-1. **ORPC Contract-Generated Hooks**
-   - Use `defineInvalidations()` for cache strategy
-   - Use `createCompositeHooks()` for grouped operations
-   - Export specialized hooks like `useUserManagement()`
+1. **Domain Hooks + Explicit Invalidations**
+  - Define endpoint contracts in `endpoints.ts`
+  - Keep invalidation config in `invalidations.ts`
+  - Expose composable hooks from `hooks.ts`
 
 2. **Declarative Routing**
    - Define routes with `makeRoute.create()`
@@ -305,33 +299,27 @@ export const productContract = o.contract({
 })
 ```
 
-2. **Generate Hooks** (in `apps/web/src/hooks/`)
+2. **Create Domain Layer** (in `apps/web/src/domains/product/`)
 ```typescript
-// useProduct.orpc-hooks.ts
-import { createTanstackQueryUtils } from '@/lib/tanstack-query'
-import { appContract } from '@/lib/orpc'
-
-const productQueryUtils = createTanstackQueryUtils(appContract.product)
-
-export const productHooks = {
-  list: productQueryUtils.list,
-  findById: productQueryUtils.findById,
-  create: productQueryUtils.create,
-  // ...
+// endpoints.ts
+import { orpc } from '@/lib/orpc'
+export const productEndpoints = {
+  list: orpc.product.list,
+  findById: orpc.product.findById,
+  create: orpc.product.create,
 }
 
-// Define invalidation strategy
-const productInvalidations = defineInvalidations(productQueryUtils, {
-  create: ['list'],
-  update: ['findById', 'list'],
-  delete: ['list']
-})
+// hooks.ts
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { productEndpoints } from './endpoints'
 
-// Create composite hooks
-export const { useProductManagement, useProductList } = createCompositeHooks(
-  productHooks,
-  productInvalidations
-)
+export function useProductList(input: { query: Record<string, unknown> }) {
+  return useQuery(productEndpoints.list.queryOptions({ input }))
+}
+
+export function useCreateProduct() {
+  return useMutation(productEndpoints.create.mutationOptions())
+}
 ```
 
 3. **Create Route** (in `apps/web/src/app/products/`)
@@ -351,13 +339,13 @@ export const Route = makeRoute.create({
 
 4. **Use in Component**
 ```tsx
-import { productHooks } from '@/hooks/useProduct.orpc-hooks'
+import { useProductList } from '@/domains/product/hooks'
 import { Products } from '@/routes'
 import { useSearchParams } from '@/routes/hooks'
 
 export default function ProductsPage() {
   const { page = 1 } = useSearchParams(Products)
-  const { data } = productHooks.list.useQuery({ page })
+  const { data } = useProductList({ query: { page } })
   
   return <ProductList products={data?.products || []} />
 }
@@ -421,4 +409,4 @@ If you're unsure about the correct pattern to use:
 2. Check this ARCHITECTURE.md document
 3. Prefer contract-generated patterns over manual implementations
 4. Keep permissions in `components/auth/`
-5. Use ORPC hooks from `*.orpc-hooks.ts` files
+5. Use domain hooks from `src/domains/<feature>/hooks.ts`

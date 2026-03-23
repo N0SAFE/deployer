@@ -3,6 +3,7 @@
   "compilerOptions": {
     "baseUrl": "./",
     "outDir": "./dist",
+    "types": ["node", "bun-types"],
     "paths": {
       "@/*": ["./src/*"]
     }

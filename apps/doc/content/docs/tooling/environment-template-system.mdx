@@ -68,6 +68,13 @@ The initializer enforces validation constraints directly from template parameter
 - Forgetting to update descriptions/defaults when behavior changes.
 - Skipping `check-env` before running Docker stacks.
 
+## Dev setup mode toggle
+
+Use `ENABLE_DEV_BOOTSTRAP` to control first-run behavior in development:
+
+- `true` (default): API dev startup creates default admin and runs seed.
+- `false`: startup skips admin+seed bootstrap so the setup flow remains enabled (`needsSetup: true` on fresh DB).
+
 ## Related docs
 
 - [Development Workflow](/docs/dev/development-workflow)

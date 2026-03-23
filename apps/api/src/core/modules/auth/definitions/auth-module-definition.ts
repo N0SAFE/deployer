@@ -1,20 +1,22 @@
 import type { Auth } from "@/auth";
 import { ConfigurableModuleBuilder } from "@nestjs/common";
-import type { 
-	ApiMethodsWithAdminPlugin, 
-	ApiMethodsWithOrganizationPlugin 
-} from "@repo/auth/permissions/plugins";
-import type { 
-	platformBuilder,
-	organizationBuilder 
-} from "@repo/auth/permissions";
+import type { ApiMethodsWithAdminPlugin, ApiMethodsWithOrganizationPlugin, organizationBuilder, platformBuilder } from "@repo/auth/permissions";
 
 /**
- * Auth configuration must have both admin and organization plugins
+ * Preserve Better Auth API as source-of-truth, then add permission plugin APIs on top.
+ *
+ * This keeps Better Auth method signatures intact (e.g. getSession) while exposing
+ * admin + organization permission APIs for DX.
  */
-export type AuthWithPlugins = 
-	ApiMethodsWithAdminPlugin<typeof platformBuilder> & 
-	ApiMethodsWithOrganizationPlugin<typeof organizationBuilder>;
+type PermissionApiExtras<TBaseApi extends object> =
+	& Omit<ApiMethodsWithAdminPlugin<typeof platformBuilder>["api"], keyof TBaseApi>
+	& Omit<ApiMethodsWithOrganizationPlugin<typeof organizationBuilder>["api"], keyof TBaseApi>;
+
+type WithPermissionApis<TAuth extends { api: object }> = Omit<TAuth, "api"> & {
+	api: TAuth["api"] & PermissionApiExtras<TAuth["api"]>;
+};
+
+export type AuthWithPlugins = WithPermissionApis<Auth>;
 
 export interface AuthModuleOptions<A extends AuthWithPlugins = Auth> {
 	auth: A;

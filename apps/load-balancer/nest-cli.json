@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "monorepo": true,
+  "compilerOptions": {
+    "deleteOutDir": false
+  },
+  "projects": {
+    "load-balancer": {
+      "type": "application",
+      "entryFile": "main",
+      "sourceRoot": "apps/load-balancer/src"
+    }
+  }
+}

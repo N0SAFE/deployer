@@ -1,13 +1,20 @@
 import type { Auth } from "@/auth";
 import { createPluginRegistry, type AdminPluginWrapper, type OrganizationPluginWrapper } from "../plugin-utils/plugin-wrapper-factory";
 import { ORPCError } from "@orpc/client";
+import type { PlatformRole } from "@repo/auth/permissions";
+
+type SessionUserWithRole = Auth["$Infer"]["Session"]["user"] & {
+  role?: PlatformRole;
+  banned?: boolean;
+  [key: string]: unknown;
+};
 
 /**
  * User session type from Better Auth
  */
 export interface UserSession {
   session: Auth["$Infer"]["Session"]["session"];
-  user: Auth["$Infer"]["Session"]["user"];
+  user: SessionUserWithRole;
 }
 
 /**
@@ -51,7 +58,7 @@ export class AuthUtils {
     private readonly headers?: Headers
   ) {
     // Create plugin wrappers using the registry with getAll()
-    const registry = createPluginRegistry(auth);
+    const registry = createPluginRegistry(auth as never);
     const plugins = registry.getAll(headers ?? new Headers());
     this._adminUtils = plugins.admin;
     this._orgUtils = plugins.organization;
@@ -145,7 +152,7 @@ export class AuthUtilsEmpty {
 
   constructor(auth: Auth) {
     // Create utilities using registry with getAll()
-    const registry = createPluginRegistry(auth);
+    const registry = createPluginRegistry(auth as never);
     const plugins = registry.getAll(new Headers());
     this._admin = plugins.admin;
     this._org = plugins.organization;

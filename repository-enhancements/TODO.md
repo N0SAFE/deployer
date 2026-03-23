@@ -46,7 +46,7 @@
   - Added `queryKeys` property to `RouterHooks` return type with typed query key factories
   - Generate query keys for each query procedure: `queryKeys.{procedureName}(input)`
   - Export `queryKeys.all` as base key for domain-wide invalidation
-- Updated `apps/web/src/hooks/useUser.orpc-hooks.ts`:
+- Updated `apps/web/src/domains/user/hooks.ts`:
   - Exported `userQueryKeys` from generated hooks
   - Added comprehensive documentation showing Better Auth style usage
 - Updated `apps/web/src/app/dashboard/admin/system/page.tsx`:

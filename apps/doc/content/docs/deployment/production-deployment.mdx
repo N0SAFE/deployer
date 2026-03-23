@@ -63,8 +63,55 @@ Never treat a successful container start as a complete release check. Always val
 - Roll back API and web independently when possible.
 - Re-run smoke tests after rollback confirmation.
 
+## DNS and SSL setup
+
+### SSL certificates
+
+- **Auto Let's Encrypt** via Traefik ACME (default for all services)
+- **Custom certificate upload** per domain/service for enterprise requirements
+
+### DNS configuration
+
+- **Platform-managed mode**: Cloudflare (first supported provider) — platform manages wildcard DNS, preview subdomains, and SSL automatically
+- **Manual mode**: user configures DNS records externally, platform only manages Traefik routes
+
+### Wildcard DNS for preview subdomains
+
+Preview environments need a wildcard DNS record:
+
+```
+*.preview.<base-domain>  →  A/CNAME  →  <node-ip-or-lb>
+```
+
+Traefik handles routing to the correct preview container based on the subdomain.
+
+### Zero-downtime deploy strategies
+
+Configurable per service:
+
+- **Rolling update**: new container starts, old stops after health check passes
+- **Blue-green**: both versions run, Traefik route swaps atomically
+- **Canary**: configurable % of traffic to new version, auto-promote if healthy
+
+## Multi-instance production patterns
+
+For active-active multi-server deployment (no master node), use the canonical fleet operations guide:
+
+- [Multi-Server & Multi-Org Operations](/docs/deployment/multi-server-multi-org-operations)
+
+That document defines:
+
+- symmetric node runtime model (same stack on each server)
+- org-scoped owner resolution and stream continuation behavior
+- trust/enrollment model and durable schema
+- DNS patterns for single-node, small capacity pool, and multi-region topologies
+- execution checklist for architecture hardening tasks
+
 ## Related docs
 
 - [Docker Compose](/docs/docker/docker-compose)
 - [Docker Build Strategies](/docs/docker/docker-build-strategies)
 - [Render Deployment](/docs/deployment/render-deployment)
+- [Active-Active Operator Playbook](/docs/deployment/active-active-operator-playbook)
+- [Platform Feature Target](/docs/deployment/platform-feature-target)
+- [Migration Master Plan](/docs/deployment/migration-master-plan)
