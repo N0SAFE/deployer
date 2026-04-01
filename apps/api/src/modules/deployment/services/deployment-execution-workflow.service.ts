@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import type { DeploymentObservabilityContext } from "@repo/api-contracts/common/deployment";
+import type { DeploymentObservabilityContext } from "@repo/contracts-entities";
 import { DeploymentRepository } from "../repositories/deployment.repository";
 import { RuntimeRunnerRegistryService } from "../runners/runtime-runner-registry.service";
 import type {
@@ -345,6 +345,7 @@ export class DeploymentExecutionWorkflowService {
             const storageBinding = this.resolveStorageBinding(result);
             const runtimeRunnerOptions = this.resolveRuntimeRunnerOptions(result);
             const customRunCommand = this.getResultString(result, "customRunCommand");
+            const runtimeEnvironmentVariables = this.resolveRuntimeEnvironmentVariables(result);
             const convergenceResolution = this.resolveRuntimeConvergenceConfig(result, runtimeRunnerOptions);
             const deployRetryPolicy = this.resolveDeployPhaseRetryPolicy(result);
 
@@ -428,7 +429,11 @@ export class DeploymentExecutionWorkflowService {
                 healthGateConfig: this.resolveHealthGateConfig(result, runtimeRunnerOptions),
                 convergenceConfig: convergenceResolution.config,
                 runtimeRunnerOptions: runtimeRunnerOptions ?? undefined,
-                executorOptions: this.resolveExecutorOptions(runtimeRunnerOptions, customRunCommand),
+                executorOptions: this.resolveExecutorOptions(
+                    runtimeRunnerOptions,
+                    customRunCommand,
+                    runtimeEnvironmentVariables,
+                ),
                 storageBinding,
                 observability,
             };
@@ -765,15 +770,52 @@ export class DeploymentExecutionWorkflowService {
     private resolveExecutorOptions(
         runtimeRunnerOptions: RuntimeRunnerExecutionOptions | null,
         customRunCommand: string | null,
+        runtimeEnvironmentVariables: Record<string, string> | null,
     ) {
         const startupCommand = customRunCommand ?? runtimeRunnerOptions?.startupCommand;
-        if (!startupCommand) {
+        const hasEnvironmentVariables =
+            runtimeEnvironmentVariables !== null && Object.keys(runtimeEnvironmentVariables).length > 0;
+
+        if (!startupCommand && !hasEnvironmentVariables) {
             return undefined;
         }
 
         return {
-            startupCommand,
+            ...(startupCommand ? { startupCommand } : {}),
+            ...(hasEnvironmentVariables
+                ? {
+                      environmentVariables: runtimeEnvironmentVariables,
+                  }
+                : {}),
         };
+    }
+
+    private resolveRuntimeEnvironmentVariables(
+        result: Record<string, unknown> | undefined,
+    ): Record<string, string> | null {
+        const raw = result?.runtimeEnvironmentVariables;
+        if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+            return null;
+        }
+
+        const sanitized = Object.entries(raw as Record<string, unknown>).reduce<Record<string, string>>(
+            (accumulator, [key, value]) => {
+                const normalizedKey = key.trim();
+                if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(normalizedKey)) {
+                    return accumulator;
+                }
+
+                if (typeof value !== "string" || value.includes('\0')) {
+                    return accumulator;
+                }
+
+                accumulator[normalizedKey] = value;
+                return accumulator;
+            },
+            {},
+        );
+
+        return Object.keys(sanitized).length > 0 ? sanitized : null;
     }
 
     private resolveConvergenceSource(

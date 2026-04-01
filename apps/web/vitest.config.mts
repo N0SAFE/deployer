@@ -34,6 +34,7 @@ export default defineConfig(
                 '@repo/env': path.resolve(__dirname, '../../packages/utils/env/src/index.ts'),
                 '@repo/api-contracts': path.resolve(__dirname, '../../packages/contracts/api/index.ts'),
                 '@repo/auth': path.resolve(__dirname, '../../packages/utils/auth/src'),
+                '@repo/orpc-utils': path.resolve(__dirname, '../../packages/utils/orpc/src/index.ts'),
                 '@repo/ui': path.resolve(__dirname, '../../packages/ui/base/src'),
                 '@repo': path.resolve(__dirname, '../../packages'),
             },

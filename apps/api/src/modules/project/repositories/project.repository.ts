@@ -1,14 +1,14 @@
 import { Injectable } from "@nestjs/common";
-import { DatabaseService } from "@/core/modules/database/services/database.service";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import {
     deployments,
     projectCollaborators,
     projects,
     services,
-} from "@/config/drizzle/schema/deployment";
-import { environments, variableTemplates } from "@/config/drizzle/schema/environment";
-import { user } from "@/config/drizzle/schema/auth";
-import { localEventOutbox } from "@/config/drizzle/schema/runtime";
+} from "@/config/drizzle/global/schema/deployment";
+import { environments, variableTemplates } from "@/config/drizzle/global/schema/environment";
+import { user } from "@/config/drizzle/global/schema/auth";
+import { localEventOutbox } from "@/config/drizzle/global/schema/runtime";
 import { and, asc, count, desc, eq, ilike, inArray } from "drizzle-orm";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";
@@ -135,7 +135,7 @@ function transformTemplate(row: TemplateRow) {
 
 @Injectable()
 export class ProjectRepository {
-    constructor(private readonly databaseService: DatabaseService) {}
+    constructor(private readonly databaseService: GlobalDatabaseService) {}
 
     // ========================================
     // PROJECT CRUD

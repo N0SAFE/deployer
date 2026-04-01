@@ -4,13 +4,14 @@ import { appContract } from "@repo/api-contracts";
 import { requireAuth, requireInternalMesh } from "@/core/modules/auth/orpc/middlewares";
 import { CoreEventSyncService } from "@/core/modules/events/services/core-event-sync.service";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology.service";
-import { asyncIterableToObservable, observableToAsyncIterable } from "@/core/utils/observable.utils";
+import { SystemMetricsService } from "@/core/modules/system-metrics/services/system-metrics.service";
 
 @Controller()
 export class SystemMeshController {
     constructor(
         private readonly meshTopologyService: SystemMeshTopologyService,
         private readonly coreEventSyncService: CoreEventSyncService,
+        private readonly systemMetricsService: SystemMetricsService,
     ) {}
 
     private resolveOrganizationScope(
@@ -54,6 +55,15 @@ export class SystemMeshController {
             .use(requireInternalMesh())
             .handler(() => {
                 return this.meshTopologyService.getLocalNode();
+            });
+    }
+
+    @Implement(appContract.core.mesh.getNodeMetrics)
+    getNodeMetrics() {
+        return implement(appContract.core.mesh.getNodeMetrics)
+            .use(requireInternalMesh())
+            .handler(async () => {
+                return this.systemMetricsService.getSnapshot();
             });
     }
 
@@ -102,7 +112,7 @@ export class SystemMeshController {
         return implement(appContract.core.mesh.subscribeEventStream)
             .use(requireAuth())
             .use(requireInternalMesh())
-            .handler(async ({ input }) => {
+            .handler(({ input }) => {
                 return this.coreEventSyncService.streamSync({
                     id: input.params.id,
                     replay: input.query.replay,
@@ -185,15 +195,13 @@ export class SystemMeshController {
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input, context }) => {
-                return observableToAsyncIterable(
-                    this.meshTopologyService.observeTopology({
-                        organizationId: this.resolveOrganizationScope(null, context),
-                        replay: input.query.replay,
-                        replayLimit: input.query.replayLimit,
-                        includeEdges: input.query.includeEdges,
-                        includeNodes: input.query.includeNodes,
-                    }),
-                );
+                return this.meshTopologyService.observeTopology({
+                    organizationId: this.resolveOrganizationScope(null, context),
+                    replay: input.query.replay,
+                    replayLimit: input.query.replayLimit,
+                    includeEdges: input.query.includeEdges,
+                    includeNodes: input.query.includeNodes,
+                });
             });
     }
 
@@ -203,13 +211,11 @@ export class SystemMeshController {
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input, context }) => {
-                return observableToAsyncIterable(
-                    this.meshTopologyService.observeRuntimeEvents({
-                        organizationId: this.resolveOrganizationScope(null, context),
-                        replay: input.query.replay,
-                        replayLimit: input.query.replayLimit,
-                    }),
-                );
+                return this.meshTopologyService.observeRuntimeEvents({
+                    organizationId: this.resolveOrganizationScope(null, context),
+                    replay: input.query.replay,
+                    replayLimit: input.query.replayLimit,
+                });
             });
     }
 
@@ -231,9 +237,7 @@ export class SystemMeshController {
         return implement(appContract.core.mesh.streamSession)
             .use(requireInternalMesh())
             .handler(({ input }) => {
-                return observableToAsyncIterable(
-                    this.meshTopologyService.observeSession(asyncIterableToObservable(input)),
-                );
+                return this.meshTopologyService.observeSession(input);
             });
     }
 
@@ -298,6 +302,15 @@ export class SystemMeshController {
             .use(requireInternalMesh())
             .handler(async ({ input }) => {
                 return this.meshTopologyService.consumeJoinGrant(input);
+            });
+    }
+
+    @Implement(appContract.core.mesh.registerNode)
+    registerNode() {
+        return implement(appContract.core.mesh.registerNode)
+            .use(requireInternalMesh())
+            .handler(async ({ input }) => {
+                return this.meshTopologyService.registerNodeInCluster(input);
             });
     }
 

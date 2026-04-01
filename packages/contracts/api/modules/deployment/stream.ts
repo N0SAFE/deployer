@@ -11,7 +11,7 @@ import {
     deploymentLogSchema,
     deploymentStreamSchema,
     deploymentStreamEventTypeSchema,
-} from "@repo/api-contracts/common/deployment";
+} from "@repo/contracts-entities";
 
 const streamEventMetaShape = {
     sequence: z.number().int().nonnegative().optional(),
@@ -306,7 +306,23 @@ export const deploymentStreamContract = route({
             .params((p) => p`/${p("id", z.uuid())}/stream`)
             .query(streamReplayQuerySchema),
     )
-    .output((b) => b.streamed(deploymentProgressEventSchema))
+    .output((b) => b.observable(deploymentProgressEventSchema))
+    .build();
+
+/** GET /deployments/internal/{id}/stream — internal mesh stream access */
+export const deploymentInternalStreamContract = route({
+    method: "GET",
+    path: "/internal/{id}/stream",
+    summary: "Stream deployment progress events for internal mesh routing",
+    description:
+        "Internal-only deployment stream endpoint used by mesh nodes to proxy deployment lifecycle events without raw fetch parsing helpers.",
+})
+    .input((b) =>
+        b
+            .params((p) => p`/internal/${p("id", z.uuid())}/stream`)
+            .query(streamReplayQuerySchema),
+    )
+    .output((b) => b.observable(deploymentProgressEventSchema))
     .build();
 
 /** GET /deployments/services/{serviceId}/stream — subscribe to all deployments for a service */
@@ -321,7 +337,7 @@ export const serviceDeploymentsStreamContract = route({
             .params((p) => p`/services/${p("serviceId", z.uuid())}/stream`)
             .query(streamReplayQuerySchema),
     )
-    .output((b) => b.streamed(serviceDeploymentEventSchema))
+    .output((b) => b.observable(serviceDeploymentEventSchema))
     .build();
 
 /** GET /deployments/stream/query — subscribe to filtered deployment events */
@@ -333,6 +349,6 @@ export const deploymentQueryStreamContract = route({
         "Subscribe to deployment events filtered by deploymentId/serviceId/projectId, with optional replay.",
 })
     .input((b) => b.query(deploymentQueryFiltersSchema))
-    .output((b) => b.streamed(deploymentQueryEventSchema))
+    .output((b) => b.observable(deploymentQueryEventSchema))
     .build();
 

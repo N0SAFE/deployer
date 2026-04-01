@@ -46,6 +46,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@repo/ui/components/shadcn/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/shadcn/tabs'
 import {
   Table,
   TableBody,
@@ -60,7 +61,7 @@ import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
 import { Building2, Users, Mail, AlertCircle, Network, PlugZap, Unplug } from 'lucide-react'
 import Image from 'next/image'
-import Link from 'next/link'
+import { AuthDashboardAdminOrganizationsOrganizationId } from '@/routes'
 import { toast } from 'sonner'
 
 type MeshRoutePlanHistoryEntry = {
@@ -156,6 +157,8 @@ export default function AdminSystemPage() {
   const meshEventStreams = meshEventStreamsData?.data ?? []
   const activeMeshEventStreams = meshEventStreams.filter((stream) => stream.isActive).length
   const isMeshStateLoading = meshStreamStatus === 'connecting' && !meshState
+  const surfaceCardClass =
+    'border-slate-200/80 bg-white/85 shadow-sm backdrop-blur supports-backdrop-filter:bg-white/70 dark:border-slate-800 dark:bg-slate-950/45'
 
   const topologyNodes = useMemo(() => {
     const local = localNode
@@ -516,119 +519,30 @@ export default function AdminSystemPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">System Dashboard</h1>
-        <p className="text-muted-foreground">
-          Overview of all organizations, users, and invitations in the system.
+    <div className="container mx-auto max-w-350 py-8 space-y-6">
+      <div className="rounded-xl border border-slate-200/70 bg-linear-to-b from-white to-slate-50/70 p-5 shadow-sm dark:border-slate-800 dark:from-slate-950 dark:to-slate-900/50">
+        <h1 className="text-3xl font-bold tracking-tight">System Dashboard</h1>
+        <p className="mt-1 text-muted-foreground">
+          Overview of organizations, users, invites, and mesh control-plane activity.
         </p>
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+          <Badge variant="secondary" className="gap-1"><Users className="h-3.5 w-3.5" /> {usersLoading ? '…' : users.length} users</Badge>
+          <Badge variant="secondary" className="gap-1"><Building2 className="h-3.5 w-3.5" /> {orgsLoading ? '…' : organizations?.length ?? 0} orgs</Badge>
+          <Badge variant="outline" className="gap-1"><Mail className="h-3.5 w-3.5" /> {invitesLoading ? '…' : pendingInvitations?.length ?? 0} invites</Badge>
+          <Badge variant="outline" className="gap-1"><Network className="h-3.5 w-3.5" /> {isMeshStateLoading ? '…' : peers.length} peers</Badge>
+          <Badge variant="outline" className="gap-1"><AlertCircle className="h-3.5 w-3.5" /> {meshEventStreamsLoading ? '…' : `${activeMeshEventStreams}/${meshEventStreams.length}`} streams</Badge>
+        </div>
       </div>
 
-      {/* System Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Total Users
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {usersLoading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              <div className="text-2xl font-bold">{users.length}</div>
-            )}
-          </CardContent>
-        </Card>
+      <Tabs defaultValue="fleet" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-3 md:w-auto">
+          <TabsTrigger value="fleet">Fleet & Capacity</TabsTrigger>
+          <TabsTrigger value="mesh">Mesh Control</TabsTrigger>
+          <TabsTrigger value="directory">Directory</TabsTrigger>
+        </TabsList>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Organizations
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {orgsLoading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              <div className="text-2xl font-bold">{organizations?.length ?? 0}</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Mail className="h-4 w-4" />
-              Total Invitations
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {invitesLoading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              <div className="text-2xl font-bold">{pendingInvitations?.length ?? 0}</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              Pending Invites
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {invitesLoading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              <div className="text-2xl font-bold">{pendingInvitations?.length ?? 0}</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Network className="h-4 w-4" />
-              Mesh Peers
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isMeshStateLoading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              <div className="text-2xl font-bold">{peers.length}</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Network className="h-4 w-4" />
-              Event Sync
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {meshEventStreamsLoading ? (
-              <Skeleton className="h-8 w-16" />
-            ) : (
-              <div className="space-y-1">
-                <div className="text-2xl font-bold">{activeMeshEventStreams}</div>
-                <p className="text-xs text-muted-foreground">
-                  {activeMeshEventStreams} active / {meshEventStreams.length} known streams
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
+        <TabsContent value="fleet" className="space-y-6">
+      <Card className={surfaceCardClass}>
         <CardHeader>
           <CardTitle>Superadmin Capacity Manager (Phase 1)</CardTitle>
           <CardDescription>
@@ -992,7 +906,11 @@ export default function AdminSystemPage() {
         </CardContent>
       </Card>
 
-      <Card>
+        </TabsContent>
+
+        <TabsContent value="mesh" className="space-y-6">
+
+      <Card className={surfaceCardClass}>
         <CardHeader>
           <CardTitle>Mesh Control Plane (Temporary)</CardTitle>
           <CardDescription>
@@ -1336,8 +1254,12 @@ export default function AdminSystemPage() {
         </CardContent>
       </Card>
 
+        </TabsContent>
+
+        <TabsContent value="directory" className="space-y-6">
+
       {/* Organizations Table */}
-      <Card>
+      <Card className={surfaceCardClass}>
         <CardHeader>
           <CardTitle>All Organizations</CardTitle>
           <CardDescription>
@@ -1377,12 +1299,9 @@ export default function AdminSystemPage() {
                     <TableCell>@{org.slug}</TableCell>
                     <TableCell>{new Date(org.createdAt).toLocaleDateString()}</TableCell>
                     <TableCell>
-                      <Link
-                        href={`/dashboard/organizations/${org.id}`}
-                        className="text-sm text-primary hover:underline"
-                      >
-                        View Details
-                      </Link>
+                      <AuthDashboardAdminOrganizationsOrganizationId.Link organizationId={org.id} className="text-sm text-primary hover:underline">
+                        View details
+                      </AuthDashboardAdminOrganizationsOrganizationId.Link>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1398,7 +1317,7 @@ export default function AdminSystemPage() {
 
       {/* Pending Invitations Table */}
       {(pendingInvitations?.length ?? 0) > 0 && (
-        <Card>
+        <Card className={surfaceCardClass}>
           <CardHeader>
             <CardTitle>Pending Invitations</CardTitle>
             <CardDescription>
@@ -1449,7 +1368,7 @@ export default function AdminSystemPage() {
       )}
 
       {/* Recent Users Table */}
-      <Card>
+      <Card className={surfaceCardClass}>
         <CardHeader>
           <CardTitle>Recent Users</CardTitle>
           <CardDescription>
@@ -1517,6 +1436,9 @@ export default function AdminSystemPage() {
           )}
         </CardContent>
       </Card>
+
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

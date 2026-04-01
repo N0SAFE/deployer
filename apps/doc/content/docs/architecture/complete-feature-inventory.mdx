@@ -241,7 +241,7 @@ These are containers managed as part of the deployment pipeline — coupled to a
 | Docker disk usage (images, containers, volumes, build cache) | 🔴 | `dockerode.df()` |
 | Docker system prune (all stopped containers + dangling images + unused volumes + build cache) | 🔴 | Multi-step prune orchestration |
 | Docker events stream (all daemon events in real time) | 🔴 | `dockerode.getEvents()` → SSE |
-| Swarm mode management | 🔴 | Out of scope for MVP — platform uses single-node Docker per node |
+| Swarm mode management | 🟡 | Canonical multi-node target is manager/worker Swarm; implementation in v3 remains partial |
 
 ---
 

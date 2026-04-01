@@ -2,7 +2,6 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
 import type { AppContract } from "./contract";
-import { withObservableChain } from "./observable-chain";
 
 function resolveRpcUrl(): string {
   if (typeof window !== "undefined") {
@@ -33,6 +32,4 @@ const link = new RPCLink({
   },
 });
 
-const baseClient = createORPCClient<ContractRouterClient<AppContract>>(link);
-
-export const orpc = withObservableChain(baseClient);
+export const orpc = createORPCClient<ContractRouterClient<AppContract>>(link);

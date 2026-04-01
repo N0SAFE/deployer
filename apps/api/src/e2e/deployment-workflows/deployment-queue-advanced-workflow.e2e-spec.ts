@@ -428,6 +428,10 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(replay.replayed).toBe(true);
     expect(replay.replayCount).toBe(1);
 
+    if (!replay.replayJobId) {
+      throw new Error("Expected replay job id for patched replay test");
+    }
+
     const replayJob = context.deploymentQueueLifecycleService.findQueueJobById(replay.replayJobId);
     expect(replayJob).not.toBeNull();
     if (!replayJob) {
@@ -442,9 +446,12 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       requestedBy: context.workerId,
     });
 
-    const replayDeadLetter = parseDeadLetterJob(
-      context.deploymentQueueLifecycleService.findDeadLetterJobById(deadLetter.id),
-    );
+    const replayDeadLetterRaw = context.deploymentQueueLifecycleService.findDeadLetterJobById(deadLetter.id);
+    if (!replayDeadLetterRaw) {
+      throw new Error("Expected dead-letter job lookup to return replay metadata");
+    }
+
+    const replayDeadLetter = parseDeadLetterJob(replayDeadLetterRaw);
     expect(replayDeadLetter.replayCount).toBe(1);
     expect(replayDeadLetter.lastReplayAt).toBeTypeOf("string");
   });
@@ -461,6 +468,9 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
         payload: {
           projectId: context.projectId,
           serviceId: context.serviceId,
+          context: {
+            source: "e2e-dead-letter-pagination",
+          },
         },
       });
 
@@ -529,6 +539,9 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
         payload: {
           projectId: context.projectId,
           serviceId: context.serviceId,
+          context: {
+            source: "e2e-lock-safety",
+          },
         },
       }),
     );
@@ -641,6 +654,9 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       payload: {
         projectId: context.projectId,
         serviceId: context.serviceId,
+        context: {
+          source: "e2e-connectivity",
+        },
       },
     });
 
@@ -810,9 +826,16 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       }),
     );
 
-    const replayJob = parseQueueJob(
-      context.deploymentQueueLifecycleService.findQueueJobById(replay.replayJobId),
-    );
+    if (!replay.replayJobId) {
+      throw new Error("Expected replay job id for scheduled replay test");
+    }
+
+    const replayJobRaw = context.deploymentQueueLifecycleService.findQueueJobById(replay.replayJobId);
+    if (!replayJobRaw) {
+      throw new Error("Expected replay queue job to exist for scheduled replay test");
+    }
+
+    const replayJob = parseQueueJob(replayJobRaw);
     expect(replayJob.status).toBe("queued");
     expect(replayJob.availableAt).toBe(scheduledAt);
 
@@ -849,6 +872,9 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       payload: {
         projectId: context.projectId,
         serviceId: context.serviceId,
+        context: {
+          source: "e2e-type-filter",
+        },
       },
     });
 
@@ -889,6 +915,9 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
         payload: {
           projectId: context.projectId,
           serviceId: context.serviceId,
+          context: {
+            source: "e2e-non-retryable",
+          },
         },
       }),
     );

@@ -60,7 +60,7 @@ async function buildSharedApiRuntimeContext(
 ): Promise<SharedApiRuntimeContext> {
     const runtime = await sharedRuntimeManager.getRuntime(options)
     const serviceMapper = createServiceMapper(runtime)
-    const betterAuth = serviceMapper.get(AuthCoreService).instance as Auth
+    const betterAuth = serviceMapper.get(AuthCoreService).instance
     const tracker = createSharedOrpcResponseTracker()
 
     return {

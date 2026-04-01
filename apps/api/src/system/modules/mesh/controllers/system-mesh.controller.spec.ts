@@ -43,6 +43,7 @@ describe("SystemMeshController", () => {
         planQueuePartitionOwnership: ReturnType<typeof vi.fn>;
         issueJoinGrant: ReturnType<typeof vi.fn>;
         consumeJoinGrant: ReturnType<typeof vi.fn>;
+        registerNodeInCluster: ReturnType<typeof vi.fn>;
         revokeJoinGrant: ReturnType<typeof vi.fn>;
         getTrustKeyringStatus: ReturnType<typeof vi.fn>;
         getTrustKeyringSecrets: ReturnType<typeof vi.fn>;
@@ -57,6 +58,9 @@ describe("SystemMeshController", () => {
         listStreams: ReturnType<typeof vi.fn>;
         getStreamById: ReturnType<typeof vi.fn>;
         streamSync: ReturnType<typeof vi.fn>;
+    };
+    let systemMetricsService: {
+        getSnapshot: ReturnType<typeof vi.fn>;
     };
 
     beforeEach(() => {
@@ -79,6 +83,7 @@ describe("SystemMeshController", () => {
             planQueuePartitionOwnership: vi.fn(),
             issueJoinGrant: vi.fn(),
             consumeJoinGrant: vi.fn(),
+            registerNodeInCluster: vi.fn(),
             revokeJoinGrant: vi.fn(),
             getTrustKeyringStatus: vi.fn(),
             getTrustKeyringSecrets: vi.fn(),
@@ -94,7 +99,10 @@ describe("SystemMeshController", () => {
             getStreamById: vi.fn(),
             streamSync: vi.fn(),
         };
-        controller = new SystemMeshController(service as never, eventSyncService as never);
+        systemMetricsService = {
+            getSnapshot: vi.fn(),
+        };
+        controller = new SystemMeshController(service as never, eventSyncService as never, systemMetricsService as never);
     });
 
     it("should expose all ORPC handlers", () => {
@@ -120,6 +128,7 @@ describe("SystemMeshController", () => {
             "planQueuePartition",
             "issueJoinGrant",
             "consumeJoinGrant",
+            "registerNode",
             "revokeJoinGrant",
             "trustKeyringStatus",
             "trustKeyringSecrets",

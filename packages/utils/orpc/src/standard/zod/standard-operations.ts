@@ -139,6 +139,25 @@ export class ZodStandardOperations<
     }
 
     /**
+     * Build an object schema from the entity shape without object-level refinements.
+     *
+     * Zod v4 forbids calling `.omit()`/`.partial()` directly on object schemas that
+     * contain refinements. Route input builders frequently need structural transforms,
+     * so we intentionally operate on a shape-cloned object schema for those cases.
+     */
+    private cloneEntityObjectSchema(): z.ZodObject<z.ZodRawShape> {
+        return z.object(this.entitySchema.shape);
+    }
+
+    /**
+     * Safe helper for omitting fields from entity schema even when the source entity
+     * schema has object-level refinements.
+     */
+    private omitEntityFields(keys: Set<string>): z.ZodObject<z.ZodRawShape> {
+        return this.cloneEntityObjectSchema().omit(this.buildOmitRecord(keys));
+    }
+
+    /**
      * Helper to check if a schema has config
      */
     private isConfigSchema(value: unknown): value is ZodConfigSchema<unknown> {
@@ -267,7 +286,7 @@ export class ZodStandardOperations<
                 ...((options?.omitFields ?? []) as string[]),
             ]);
 
-            return this.entitySchema.omit(this.buildOmitRecord(omitKeys));
+            return this.omitEntityFields(omitKeys);
         })();
 
         return this.createBuilder({
@@ -298,7 +317,7 @@ export class ZodStandardOperations<
         } else {
             const omitKeys = new Set<string>([...(this.hasTimestamps ? ["createdAt", "updatedAt"] : []), ...(this.hasSoftDelete ? ["deletedAt"] : []), ...(options.omitFields as string[])]);
 
-            bodySchema = this.entitySchema.omit(this.buildOmitRecord(omitKeys));
+            bodySchema = this.omitEntityFields(omitKeys);
         }
 
         return this.createBuilder({
@@ -331,7 +350,7 @@ export class ZodStandardOperations<
                 ...((options?.omitFields ?? []) as string[]),
             ]);
 
-            bodySchema = this.entitySchema.omit(this.buildOmitRecord(omitKeys)).partial();
+            bodySchema = this.omitEntityFields(omitKeys).partial();
         }
 
         return this.createBuilder({
@@ -449,7 +468,7 @@ export class ZodStandardOperations<
                 ...(options.omitFields as string[]),
             ]);
 
-            itemSchema = this.entitySchema.omit(this.buildOmitRecord(omitKeys));
+            itemSchema = this.omitEntityFields(omitKeys);
         } else {
             // Default: omit id and timestamps (same behaviour as create())
             const defaultOmitKeys = new Set<string>([
@@ -458,7 +477,7 @@ export class ZodStandardOperations<
                 ...(this.hasSoftDelete ? ["deletedAt"] : []),
             ]);
 
-            itemSchema = this.entitySchema.omit(this.buildOmitRecord(defaultOmitKeys));
+            itemSchema = this.omitEntityFields(defaultOmitKeys);
         }
 
         return this.createBuilder({
@@ -735,7 +754,7 @@ export class ZodStandardOperations<
                 ...(options.omitFields as string[]),
             ]);
 
-            bodySchema = this.entitySchema.omit(this.buildOmitRecord(omitKeys));
+            bodySchema = this.omitEntityFields(omitKeys);
         }
 
         return this.createBuilder({

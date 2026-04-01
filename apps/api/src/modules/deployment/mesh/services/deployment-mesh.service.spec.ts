@@ -216,6 +216,70 @@ describe("DeploymentMeshService", () => {
         expect(result.responses.some((item) => item.found)).toBe(true);
     });
 
+    it("enforces bounded fanout collection and reports lag/retry/drop metrics", async () => {
+        const { handle } = createMockHandle();
+        const topicService = {
+            registerNamespace: vi.fn(() => handle),
+        } as unknown as SystemMeshTopicService;
+
+        const topologyService = {
+            getLocalNode: vi.fn(() => ({ nodeId: "00000000-0000-4000-8000-000000000001" })),
+            listPeerSessions: vi.fn(() => ({
+                items: [
+                    { state: "connected" },
+                    { state: "connected" },
+                ],
+            })),
+        } as unknown as SystemMeshTopologyService;
+
+        const service = new DeploymentMeshService(topicService, topologyService);
+        service.onModuleInit();
+
+        service.registerResolveDeploymentHandler(() => ({
+            payload: {
+                found: false,
+                ownerNodeId: "00000000-0000-4000-8000-000000000010",
+                ownerServerUrl: "https://node-a.mesh.internal",
+                metadata: null,
+            },
+        }));
+
+        service.registerResolveDeploymentHandler(() => ({
+            payload: {
+                found: false,
+                ownerNodeId: "00000000-0000-4000-8000-000000000011",
+                ownerServerUrl: "https://node-b.mesh.internal",
+                metadata: null,
+            },
+        }));
+
+        service.registerResolveDeploymentHandler(() => ({
+            payload: {
+                found: false,
+                ownerNodeId: "00000000-0000-4000-8000-000000000012",
+                ownerServerUrl: "https://node-c.mesh.internal",
+                metadata: null,
+            },
+        }));
+
+        const result = await service.resolveDeploymentAcrossInstances(
+            {
+                deploymentId: "00000000-0000-4000-8000-000000000001",
+                key: "deployment:00000000-0000-4000-8000-000000000001",
+            },
+            {
+                timeoutMs: 200,
+                maxCollectedResponses: 1,
+            },
+        );
+
+        expect(result.responses).toHaveLength(1);
+        expect(result.metrics.expectedResponders).toBe(3);
+        expect(result.metrics.droppedResponses).toBeGreaterThanOrEqual(2);
+        expect(result.metrics.retryResponses).toBeGreaterThanOrEqual(1);
+        expect(result.metrics.maxLagMs).toBeGreaterThanOrEqual(0);
+    });
+
     it("searches deployments across instances and deduplicates by deploymentId", async () => {
         const { handle } = createMockHandle();
         const topicService = {

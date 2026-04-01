@@ -1,0 +1,144 @@
+---
+title: Environment-Linked Service Dependencies
+description: Configure per-environment service dependency behavior with explicit link target and provisioning policies.
+---
+
+Service dependencies are now configured as **environment-scoped contracts** in entities, with explicit rules for:
+
+- any-to-any dependency linking (graph links come from the dependency graph view)
+- dependency link target (same environment, fixed environment, or input-derived)
+- dependency instance provisioning (shared service, per source instance, or on-demand pool)
+- builder-shaped target filtering (AND/OR/NOT, multi-source inputs)
+
+This allows scenarios such as:
+
+- each preview app instance gets a dedicated dependency instance,
+- multiple preview app instances share a single DB service,
+- preview service linking to a staging DB service intentionally.
+
+## Entity contracts (source of truth)
+
+Defined in `packages/contracts/entities/src/entities/configuration.schema.ts`:
+
+- `serviceDependencyLinkPolicySchema`
+- `serviceDependencyTargetFilterSchema`
+- `serviceEnvironmentExecutionOverrideSchema`
+- `serviceEnvironmentExecutionOverrideByEnvSchema`
+
+Cross-environment target validation is enforced in:
+
+- `packages/contracts/entities/src/contracts/platform-domain.builder.ts`
+
+## Core model
+
+Per environment (for each service override):
+
+- `dependencyBehavior`: attachment + startup/health requirements
+  - `targetSelection.strategy` (`filter-first` | `direct-only` | `preferred-then-filter`)
+  - `targetSelection.filter` (builder condition tree)
+- `dependencyLinkPolicy.target`:
+  - `same-environment`
+  - `fixed-environment` (`targetEnvironment` required)
+  - `derived-environment` (`fromInputKey`, `fallbackEnvironment`)
+- `dependencyLinkPolicy.provisioning`:
+  - `shared-service` (`sharingScope`, `reuseKey`)
+  - `per-source-instance` (`instanceNameTemplate`, optional caps)
+  - `on-demand-pool` (`poolRef`, warm/scale-to-zero knobs)
+  - every mode includes `noMatchPolicy` (default: `create-new-instance`)
+
+## Complete target filtering (builder shape)
+
+`targetSelection.filter` is a tree of nodes:
+
+- **condition node**: `{ source, key, operator, value | valuesFromInputKey }`
+- **builder node**: `{ mode: "builder", all, any, not, minShouldMatch }`
+
+Supported `source` values:
+
+- `project-environment`
+- `source-service-environment`
+- `source-service-provider-tags`
+- `source-service-input`
+- `target-service-tags`
+- `target-service-provider-tags`
+- `target-service-metadata`
+- `runtime-input`
+
+Supported `operator` values:
+
+- canonical operator set from `@repo/orpc-utils` (`ALL_FILTER_OPERATORS`)
+
+This keeps dependency-target filter semantics aligned with the same builder/filter vocabulary used by API list contracts.
+
+This allows rich selection logic such as:
+
+- `(env == preview AND source provider tag contains needs-shared-db)`
+- `AND (target tag in [db, stateful] OR target provider tag in [postgres, mysql])`
+- `AND NOT target metadata state == draining`
+
+## Example patterns
+
+### 1) Share one preview DB across all preview instances of a service
+
+- `target.mode = "same-environment"`
+- `provisioning.provisioningMode = "shared-service"`
+- `provisioning.sharingScope = "environment"`
+- `provisioning.reuseKey = "db:${service}:${env}:shared"`
+
+Result: all preview instances attach to one shared preview DB per environment.
+
+### 2) Isolated DB per preview instance
+
+- `target.mode = "same-environment"`
+- `provisioning.provisioningMode = "per-source-instance"`
+- `instanceNameTemplate` includes preview identity (branch/PR/hash)
+
+Result: each preview service instance gets its own isolated dependency instance.
+
+### 3) Preview app linked to staging DB
+
+- `target.mode = "fixed-environment"`
+- `target.targetEnvironment = "staging"`
+- provisioning can be `shared-service` or `on-demand-pool` depending on policy
+
+Result: preview workload intentionally consumes staging dependency service.
+
+### 4) Shared preview dependency selected from input type
+
+- `target.mode = "derived-environment"`
+- `target.fromInputKey = "previewInputType"`
+- `target.fallbackEnvironment = "preview"`
+- `provisioning.provisioningMode = "shared-service"`
+
+Result: dependency target and sharing behavior are selected from deployment/runtime input, with deterministic fallback.
+
+### 5) Shared preview DB gated by provider tag/spec input
+
+- Keep dependency graph links as-is (any-to-any).
+- Use `dependencyBehavior.targetSelection.filter` builder nodes to constrain which dependency service is valid (for example provider tags like `db:shared-preview` or `tier:staging-compatible`).
+- Use `provisioning.reuseKey` to force grouping semantics across matching preview instances.
+- Use `valuesFromInputKey` for dynamic grouping based on runtime/deployment input type.
+
+Result: multiple preview instances can share the same dependency only when provider tags/spec inputs match policy.
+
+### 6) If no service matches filter, start a new dependency instance
+
+- `targetSelection.strategy = "filter-first"`
+- filter evaluated against env + source service inputs + provider tags + runtime inputs
+- `dependencyLinkPolicy.provisioning.noMatchPolicy = "create-new-instance"`
+
+Result: selection first attempts shared/matching dependencies; if none match, orchestration provisions a fresh dependency instance.
+
+## Validation guarantees
+
+The schema layer guarantees:
+
+- dependency link rules are explicit and typed per environment,
+- fixed target environments must exist in project environment configuration,
+- preview/development overrides cannot target or fallback to production dependency environments,
+- preview/development overrides are rejected when those environments are disabled at project level,
+- filter semantics support nested AND/OR/NOT with typed input sources,
+- no-match behavior is explicit and defaults to provisioning a new instance,
+- incompatible combinations are rejected at validation time.
+
+That means behavior is driven by contracts, not ad-hoc runtime assumptions.

@@ -1,3 +1,5 @@
+import type { EnvName } from '@repo/contracts-common';
+
 /**
  * Service Context System
  * 
@@ -56,7 +58,7 @@ export interface ServiceContext {
     containerName: string;
     containerPort: number;
     containerId?: string;
-    environment: 'production' | 'staging' | 'preview' | 'development';
+    environment: EnvName;
     status?: string;
   };
   

@@ -18,6 +18,8 @@
  */
 
 import React, { use, Suspense } from 'react'
+import { useRouter } from 'next/navigation'
+import queryString from 'query-string'
 import { z } from 'zod'
 import type {
     Session,
@@ -27,6 +29,11 @@ import type {
     SchemasConfig,
     UnwrappedPageProps,
     BasePageProps,
+    RouteNavigationInput,
+    RouteNavigationOptions,
+    RouteRuntimeConfig,
+    PageRouteHelpers,
+    RouteSearchPatch,
 } from '../types'
 
 // ============================================================================
@@ -102,16 +109,173 @@ function asPageComponent<T>(component: React.ComponentType<T>): React.ComponentT
  */
 function extractAdditionalProps<T extends object>(
     props: T
-): Omit<T, 'params' | 'searchParams' | 'children'> {
-    const { params, searchParams, children, ...rest } = props as T & {
+): Omit<T, 'params' | 'searchParams' | 'children' | 'route'> {
+    const { params, searchParams, children, route, ...rest } = props as T & {
         params?: unknown
         searchParams?: unknown
         children?: unknown
+        route?: unknown
     }
     void params
     void searchParams
     void children
-    return rest as Omit<T, 'params' | 'searchParams' | 'children'>
+    void route
+    return rest as Omit<T, 'params' | 'searchParams' | 'children' | 'route'>
+}
+
+function normalizeRecord(value: unknown): Record<string, unknown> {
+    if (typeof value === 'object' && value !== null) {
+        return value as Record<string, unknown>
+    }
+    return {}
+}
+
+function fallbackBuildUrl(
+    path: string,
+    search?: Record<string, unknown>
+): string {
+    const query = queryString.stringify(search ?? {}, {
+        skipNull: true,
+        skipEmptyString: true,
+    })
+    return query ? `${path}?${query}` : path
+}
+
+function useClientRouteHelpers<
+    Params extends z.ZodType,
+    Search extends z.ZodType,
+>(
+    params: z.output<Params>,
+    validatedSearch: z.output<Search>,
+    runtime: RouteRuntimeConfig<Params, Search> | undefined,
+    router: ReturnType<typeof useRouter>
+): {
+    search: z.output<Search>
+    route: PageRouteHelpers<Params, Search>
+} {
+    const searchState = validatedSearch
+
+    const buildUrl = React.useCallback(
+        (nextParams?: z.input<Params>, nextSearch?: z.input<Search>) => {
+            if (runtime?.buildUrl) {
+                return runtime.buildUrl(nextParams, nextSearch)
+            }
+
+            const pathname =
+                runtime?.routePath ??
+                (typeof window !== 'undefined' ? window.location.pathname : '')
+
+            return fallbackBuildUrl(pathname, normalizeRecord(nextSearch))
+        },
+        [runtime]
+    )
+
+    const push = React.useCallback(
+        (
+            input?: RouteNavigationInput<Params, Search>,
+            options?: RouteNavigationOptions
+        ) => {
+            const href = buildUrl(
+                (input?.params ?? (params as z.input<Params>)),
+                (input?.search ??
+                    (searchState as unknown as z.input<Search>))
+            )
+            router.push(href, { scroll: options?.scroll })
+            return href
+        },
+        [buildUrl, params, router, searchState]
+    )
+
+    const replace = React.useCallback(
+        (
+            input?: RouteNavigationInput<Params, Search>,
+            options?: RouteNavigationOptions
+        ) => {
+            const href = buildUrl(
+                (input?.params ?? (params as z.input<Params>)),
+                (input?.search ??
+                    (searchState as unknown as z.input<Search>))
+            )
+            router.replace(href, { scroll: options?.scroll })
+            return href
+        },
+        [buildUrl, params, router, searchState]
+    )
+
+        const searchUpdate = React.useCallback(
+            (patch: RouteSearchPatch<Search> | null) => {
+            const next = {
+                ...normalizeRecord(searchState),
+            }
+
+            if (patch && typeof patch === 'object') {
+                for (const [key, value] of Object.entries(patch)) {
+                    if (value === null || value === undefined) {
+                        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+                        delete next[key]
+                    } else {
+                        next[key] = value
+                    }
+                }
+            }
+
+            const href = buildUrl(params as z.input<Params>, next as z.input<Search>)
+            router.replace(href, { scroll: false })
+                return Promise.resolve(href)
+        },
+        [buildUrl, params, router, searchState]
+    )
+
+    const searchReplace = React.useCallback(
+            (value: z.input<Search> | null) => {
+            const href = buildUrl(
+                params as z.input<Params>,
+                (value ?? ({} as z.input<Search>))
+            )
+            router.replace(href, { scroll: false })
+                return Promise.resolve(href)
+        },
+        [buildUrl, params, router]
+    )
+
+        const searchReset = React.useCallback(() => {
+        const href = buildUrl(params as z.input<Params>, {} as z.input<Search>)
+        router.replace(href, { scroll: false })
+            return Promise.resolve(href)
+    }, [buildUrl, params, router])
+
+    const route = React.useMemo<PageRouteHelpers<Params, Search>>(
+        () => ({
+            routePath: runtime?.routePath,
+            routeName: runtime?.routeName,
+            params,
+            search: searchState as unknown as z.output<Search>,
+            urlBuilder: buildUrl,
+            buildUrl,
+            push,
+            replace,
+            setSearch: searchReplace,
+            searchUpdate,
+            searchReplace,
+            searchReset,
+        }),
+        [
+            buildUrl,
+            params,
+            push,
+            replace,
+            runtime?.routeName,
+            runtime?.routePath,
+            searchReplace,
+            searchReset,
+            searchState,
+            searchUpdate,
+        ]
+    )
+
+    const search = (searchState as unknown as z.output<Search>) ?? validatedSearch
+
+    return { search, route }
 }
 
 // ============================================================================
@@ -148,24 +312,34 @@ export function createPage<
     AdditionalProps extends object = object,
 >(
     schemas: SchemasConfig<Params, Search>,
-    Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps>
+    Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps>,
+    runtime?: RouteRuntimeConfig<Params, Search>
 ): React.ComponentType<NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps> {
     type WrapperProps = NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps
     
     // Inner component that unwraps promises using React.use()
     // Must be inside Suspense boundary for SSG/prerendering compatibility
     function InnerComponent(props: WrapperProps): React.ReactNode {
+        const router = useRouter()
+
         // Use React.use() to unwrap promises on the client
         const rawParams = use(props.params)
         const rawSearchParams = use(props.searchParams)
         const params = schemas.params.parse(rawParams) as z.output<Params>
-        const searchParams = schemas.search.parse(rawSearchParams) as z.output<Search>
+        const validatedSearchParams = schemas.search.parse(rawSearchParams) as z.output<Search>
+        const { search, route } = useClientRouteHelpers(
+            params,
+            validatedSearchParams,
+            runtime,
+            router
+        )
         const additionalProps = extractAdditionalProps(props)
         
         const componentProps: UnwrappedPageProps<Params, Search> & AdditionalProps = {
             ...(additionalProps as AdditionalProps),
             params,
-            searchParams,
+            searchParams: search,
+            route,
         }
         
         return <Component {...componentProps} />
@@ -246,7 +420,8 @@ export function createSessionPage<
         AdditionalProps & 
         ClientSessionProps<S>
     >,
-    _options?: SessionOptions
+    _options?: SessionOptions,
+    runtime?: RouteRuntimeConfig<Params, Search>
 ): React.ComponentType<NextPagePropsInternal<Params, Search> & BasePageProps & Omit<AdditionalProps, keyof ClientSessionProps<S>>> {
     // _options is kept for API consistency with server.tsx but not needed on client
     void _options
@@ -258,18 +433,26 @@ export function createSessionPage<
     function InnerComponent(props: WrapperProps): React.ReactNode {
         const authAdapter = getClientAuthAdapter()
         const sessionHook = authAdapter.useSession()
+        const router = useRouter()
         
         // Use React.use() to unwrap promises
         const rawParams = use(props.params)
         const rawSearchParams = use(props.searchParams)
         const params = schemas.params.parse(rawParams) as z.output<Params>
-        const searchParams = schemas.search.parse(rawSearchParams) as z.output<Search>
+        const validatedSearchParams = schemas.search.parse(rawSearchParams) as z.output<Search>
+        const { search, route } = useClientRouteHelpers(
+            params,
+            validatedSearchParams,
+            runtime,
+            router
+        )
         const additionalProps = extractAdditionalProps(props)
         
         const componentProps = {
             ...(additionalProps as AdditionalProps),
             params,
-            searchParams,
+            searchParams: search,
+            route,
             session: sessionHook.data ?? null,
             isLoading: sessionHook.isPending,
             refetch: () => { void sessionHook.refetch() },
@@ -414,11 +597,13 @@ export function createPageWrappers<S extends Session = Session>(
                 AdditionalProps & 
                 ClientSessionProps<S>
             >,
-            options?: SessionOptions
+            options?: SessionOptions,
+            runtime?: RouteRuntimeConfig<Params, Search>
         ) => createSessionPage<Params, Search, AdditionalProps, S>(
             schemas,
             Component,
-            options
+            options,
+            runtime
         ),
     }
 }
@@ -433,4 +618,5 @@ export type {
     SchemasConfig,
     UnwrappedPageProps,
     BasePageProps,
+    RouteRuntimeConfig,
 } from '../types'

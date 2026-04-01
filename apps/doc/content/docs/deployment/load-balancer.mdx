@@ -1,12 +1,20 @@
 ---
 title: Load Balancer Architecture
-description: How the custom load balancer works — request lifecycle, cross-node routing, diagnostic routes, shared secrets, and port conventions across single and multi-instance deployments.
+description: Optional advanced custom load balancer pattern (redirect/token model) for specialized cross-node routing scenarios.
 order: 5
 ---
 
+<DocCallout title="Status" tone="warning">
+This page documents an optional advanced pattern.
+
+The canonical v3 baseline is **Traefik + Docker Swarm service routing** (manager/worker model), which is sufficient for standard HTTP/S ingress and load balancing.
+</DocCallout>
+
 ## Overview
 
-Every node in the cluster runs a **full local stack**: Traefik, the custom LB app, the NestJS API, and the Next.js Web. There is no single shared load balancer.
+When enabled, the custom LB pattern adds an application-layer redirect/token hop for owner-aware routing and diagnostics.
+
+In the default architecture, this component is not required: Traefik with Swarm service discovery handles ingress and balancing directly.
 
 ```
 Each physical node / VPS
@@ -16,11 +24,13 @@ Each physical node / VPS
 └── Next.js Web      :3000        — SSR dashboard
 ```
 
-**Key principle**: Traefik handles intra-node routing only (it knows nothing about other nodes). The custom LB app is the cross-node brain — it redirects requests to the correct node when a service lives elsewhere, and load-balances across replicas.
+**Key principle (optional mode)**: Traefik still terminates ingress, while the custom LB app performs owner-aware redirect/token routing for specific cross-node request classes.
 
 ---
 
 ## Responsibility split
+
+When custom LB mode is enabled:
 
 | Traffic type | Who handles it | Mechanism |
 |---|---|---|

@@ -168,18 +168,20 @@ export function requireInternalMesh() {
 
             const request =
                 typeof context === "object" && "request" in context
-                    ? (context as { request?: Request }).request
+                    ? (context as { request?: { headers?: Headers | IncomingHttpHeaders | Record<string, string | string[] | undefined> } }).request
                     : undefined;
 
-            if (!request) {
+            if (!request?.headers) {
                 throw new ORPCError("FORBIDDEN", {
                     message: "Mesh endpoint requires request context",
                 });
             }
 
+            const webHeaders = toWebHeaders(request.headers);
+
             const headerValue =
-                request.headers.get("x-mesh-internal-key") ??
-                request.headers.get("X-Mesh-Internal-Key");
+                webHeaders.get("x-mesh-internal-key") ??
+                webHeaders.get("X-Mesh-Internal-Key");
 
             if (!headerValue) {
                 throw new ORPCError("FORBIDDEN", {

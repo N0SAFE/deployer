@@ -6,7 +6,7 @@ import {
     templateVersionMigrationListResultSchema,
     templateVersionMigrationPreviewInputSchema,
     templateVersionMigrationPreviewResultSchema,
-} from "@repo/api-contracts/common/template";
+} from "@repo/contracts-entities";
 
 export const templateListVersionMigrationsContract = route({
     method: "GET",

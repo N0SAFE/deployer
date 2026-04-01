@@ -2,7 +2,11 @@
  * Project Domain - Cache Invalidation Configuration
  */
 
-import { defineInvalidations, type InvalidationConfig } from '../shared/helpers'
+import {
+  defineInvalidations,
+  type CallableInvalidationConfig,
+  type InvalidationConfig,
+} from '../shared/helpers'
 import { projectEndpoints } from './endpoints'
 
 type ProjectEndpoints = typeof projectEndpoints
@@ -13,7 +17,7 @@ function resolveProjectId(input: unknown): string | undefined {
   return c.id ?? c.params?.id
 }
 
-const projectInvalidationsConfig = {
+const projectInvalidationsConfig: InvalidationConfig<ProjectEndpoints> = {
   create: ({ keys }) => [keys.list()],
 
   update: ({ input, keys }) => {
@@ -157,9 +161,9 @@ const projectInvalidationsConfig = {
         ]
       : []
   },
-} satisfies InvalidationConfig<ProjectEndpoints>
+}
 
-// ts-ignore TS7056: 20+ endpoint types causes type serialization to exceed limit; functionally correct
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-export const projectInvalidations = defineInvalidations(projectEndpoints, projectInvalidationsConfig)
+export const projectInvalidations: CallableInvalidationConfig<
+  ProjectEndpoints,
+  typeof projectInvalidationsConfig
+> = defineInvalidations(projectEndpoints, projectInvalidationsConfig)

@@ -25,6 +25,8 @@
   "dependencies": {
     "@orpc/contract": "catalog:orpc",
     "@orpc/shared": "catalog:orpc",
+    "@repo/contracts-common": "*",
+    "@repo/contracts-entities": "*",
     "@repo/orpc-utils": "*",
     "@repo/provider-schema": "*",
     "@repo/auth": "*",

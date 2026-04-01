@@ -1,15 +1,16 @@
 import { Injectable } from "@nestjs/common";
-import { DatabaseService } from "@/core/modules/database/services/database.service";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import {
     deployments,
     deploymentLogs,
     deploymentRollbacks,
     deploymentStreams,
     projects,
+    serviceDependencies,
     services,
-} from "@/config/drizzle/schema/deployment";
-import { localEventOutbox } from "@/config/drizzle/schema/runtime";
-import { and, count, desc, eq, type SQL } from "drizzle-orm";
+} from "@/config/drizzle/global/schema/deployment";
+import { localEventOutbox } from "@/config/drizzle/global/schema/runtime";
+import { and, asc, count, desc, eq, type SQL } from "drizzle-orm";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";
 import type { DeploymentListInput } from "@repo/api-contracts/modules/deployment/list";
@@ -17,8 +18,7 @@ import type { DeploymentTriggerInput } from "@repo/api-contracts/modules/deploym
 import type {
     DeploymentStreamListInput,
 } from "@repo/api-contracts/modules/deployment/stream";
-import type { DeploymentStream } from "@repo/api-contracts/common/deployment";
-import { deploymentStreamSchema } from "@repo/api-contracts/common/deployment";
+import { deploymentStreamSchema, type DeploymentStream } from "@repo/contracts-entities";
 
 const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
 
@@ -142,7 +142,7 @@ function toStreamDto(row: DeploymentStreamRow) {
 
 @Injectable()
 export class DeploymentRepository {
-    constructor(private readonly databaseService: DatabaseService) {}
+    constructor(private readonly databaseService: GlobalDatabaseService) {}
 
     async findMany(input: DeploymentListInput) {
         const db = this.databaseService.db;
@@ -150,29 +150,71 @@ export class DeploymentRepository {
         const sort = input.sortBy ?? "createdAt";
         const direction = input.sortDirection ?? "desc";
 
-        const result = await listBuilder(filter)
-            .filter({
-                serviceId: (entry) => entry.common.eq(deployments.serviceId),
-                status: (entry) => entry.common.eq(deployments.status),
-                environment: (entry) => entry.common.eq(deployments.environment),
-                sourceType: (entry) => entry.common.eq(deployments.sourceType),
-            })
-            .order(
-                sort,
-                direction,
-                {
-                    createdAt: deployments.createdAt,
-                    updatedAt: deployments.updatedAt,
-                    status: deployments.status,
-                },
-                deployments.createdAt,
-            )
-            .pagination({ limit: input.limit, offset: input.offset })
-            .execute(db, deployments);
+        const conditions: SQL[] = [];
+
+        if (filter.serviceId?.operator === "eq" && typeof filter.serviceId.value === "string") {
+            conditions.push(eq(deployments.serviceId, filter.serviceId.value));
+        }
+
+        if (filter.status?.operator === "eq" && typeof filter.status.value === "string") {
+            conditions.push(eq(deployments.status, filter.status.value));
+        }
+
+        if (filter.environment?.operator === "eq" && typeof filter.environment.value === "string") {
+            conditions.push(eq(deployments.environment, filter.environment.value));
+        }
+
+        if (filter.sourceType?.operator === "eq" && typeof filter.sourceType.value === "string") {
+            conditions.push(eq(deployments.sourceType, filter.sourceType.value));
+        }
+
+        if (filter.projectId?.operator === "eq" && typeof filter.projectId.value === "string") {
+            conditions.push(eq(services.projectId, filter.projectId.value));
+        }
+
+        const whereClause =
+            conditions.length === 0
+                ? undefined
+                : conditions.length === 1
+                  ? conditions[0]
+                  : and(...conditions);
+
+        const sortColumn =
+            sort === "updatedAt"
+                ? deployments.updatedAt
+                : sort === "status"
+                  ? deployments.status
+                  : deployments.createdAt;
+        const orderClause = direction === "asc" ? asc(sortColumn) : desc(sortColumn);
+
+        const dataQuery = db
+            .select({ deployment: deployments })
+            .from(deployments)
+            .leftJoin(services, eq(services.id, deployments.serviceId));
+
+        const countQuery = db
+            .select({ count: count() })
+            .from(deployments)
+            .leftJoin(services, eq(services.id, deployments.serviceId));
+
+        const [rows, totalResult] = await Promise.all([
+            (whereClause ? dataQuery.where(whereClause) : dataQuery)
+                .orderBy(orderClause)
+                .limit(input.limit)
+                .offset(input.offset),
+            whereClause ? countQuery.where(whereClause) : countQuery,
+        ]);
+
+        const total = totalResult[0]?.count ?? 0;
 
         return {
-            data: result.data.map(toDto),
-            meta: result.meta,
+            data: rows.map((row) => toDto(row.deployment)),
+            meta: {
+                total,
+                limit: input.limit,
+                offset: input.offset,
+                hasMore: input.offset + input.limit < total,
+            },
         };
     }
 
@@ -248,6 +290,27 @@ export class DeploymentRepository {
                     (row.metadata as Record<string, unknown> | null) ?? null,
             },
         };
+    }
+
+    async getServiceDependencies(serviceId: string): Promise<
+        {
+            dependsOnServiceId: string;
+            isRequired: boolean;
+            dependsOnProjectId: string;
+        }[]
+    > {
+        const db = this.databaseService.db;
+        const rows = await db
+            .select({
+                dependsOnServiceId: serviceDependencies.dependsOnServiceId,
+                isRequired: serviceDependencies.isRequired,
+                dependsOnProjectId: services.projectId,
+            })
+            .from(serviceDependencies)
+            .innerJoin(services, eq(services.id, serviceDependencies.dependsOnServiceId))
+            .where(eq(serviceDependencies.serviceId, serviceId));
+
+        return rows;
     }
 
     async create(data: DeploymentCreateInput) {

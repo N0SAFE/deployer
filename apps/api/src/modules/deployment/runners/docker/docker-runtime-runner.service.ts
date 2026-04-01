@@ -31,6 +31,9 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
         const { deployment, artifact, healthGateConfig, storageBinding, executorOptions, convergenceConfig } = input;
         const sanitizedExecutorLabels = this.sanitizeExecutorLabels(executorOptions?.labels);
         const sanitizedStartupCommand = this.sanitizeStartupCommand(executorOptions?.startupCommand);
+        const sanitizedEnvironmentVariables = this.sanitizeEnvironmentVariables(
+            executorOptions?.environmentVariables,
+        );
         const resolvedConvergenceConfig = this.resolveRuntimeConvergenceConfig(convergenceConfig);
         const fallbackName = `deployer-${deployment.serviceId.slice(0, 12)}-${deployment.deploymentId.slice(0, 8)}`;
         const containerName = artifact.containerName ?? deployment.deploymentContainerName ?? fallbackName;
@@ -67,6 +70,9 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
                 },
                 ...(sanitizedStartupCommand
                     ? { Cmd: ["sh", "-lc", sanitizedStartupCommand] }
+                    : {}),
+                ...(sanitizedEnvironmentVariables.length > 0
+                    ? { Env: sanitizedEnvironmentVariables }
                     : {}),
                 ...(Object.keys(hostConfig).length > 0 ? { HostConfig: hostConfig } : {}),
             });
@@ -194,6 +200,30 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
         }
 
         return normalized;
+    }
+
+    private sanitizeEnvironmentVariables(
+        environmentVariables: Record<string, string> | undefined,
+    ): string[] {
+        if (!environmentVariables) {
+            return [];
+        }
+
+        const sanitized: string[] = [];
+        for (const [rawKey, rawValue] of Object.entries(environmentVariables)) {
+            const key = rawKey.trim();
+            if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) || key.length > 128) {
+                continue;
+            }
+
+            if (typeof rawValue !== "string" || /[\u0000]/.test(rawValue)) {
+                continue;
+            }
+
+            sanitized.push(`${key}=${rawValue}`);
+        }
+
+        return sanitized;
     }
 
     private materializeStorageBinding(storageBinding: DeploymentStorageBinding | null | undefined): {

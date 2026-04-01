@@ -1,4 +1,4 @@
-import type { MeshNodeLifecycleState, MeshPartitionConsistencyMode } from "@repo/api-contracts/common/mesh";
+import type { MeshNodeLifecycleState, MeshPartitionConsistencyMode } from "@repo/contracts-entities";
 
 // ---------------------------------------------------------------------------
 // T107 — Partition / Failover Policy

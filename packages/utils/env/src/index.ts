@@ -118,7 +118,6 @@ export const apiEnvSchema = zod
         // Database — optional: if omitted, the node config file (SQLite) is the source of truth.
         // The API will start in "setup mode" until a DATABASE_URL is available from either source.
         DATABASE_URL: zod.string().min(1).optional(),
-        MIGRATIONS_FOLDER: zod.string().default("./src/config/drizzle/migrations"),
 
         // API
         API_PORT: zod.coerce.number().int().min(1).max(65535).default(DEFAULT_API_PORT),
@@ -156,7 +155,16 @@ export const apiEnvSchema = zod
         MESH_NODE_ID: zod.string().optional(),
         MESH_CLUSTER_ID: zod.string().optional(),
         MESH_NODE_SERVER_URL: zod.url().optional(),
+        MESH_BOOTSTRAP_PEERS: zod.string().optional(),
         MESH_STREAM_SHARED_SECRET: zod.string().optional(),
+        MESH_SYNC_INTERVAL_MS: zod.coerce.number().int().optional(),
+        MESH_PING_SAMPLES: zod.coerce.number().int().optional(),
+        MESH_PING_TIMEOUT_MS: zod.coerce.number().int().optional(),
+        MESH_PEER_MIN: zod.coerce.number().int().optional(),
+        MESH_PEER_MAX: zod.coerce.number().int().optional(),
+        MESH_PEER_IMPROVEMENT_THRESHOLD: zod.coerce.number().optional(),
+        MESH_PEER_MAX_REPLACEMENTS: zod.coerce.number().int().optional(),
+        MESH_PEER_LATENCY_BUDGET_MS: zod.coerce.number().int().optional(),
         MESH_CONTROL_ENVELOPE_SIGNING_KEY: zod.string().optional(),
         MESH_CONTROL_ENVELOPE_SIGNING_KID: zod.string().optional(),
         MESH_CONTROL_ENVELOPE_TRUST_REQUIRED: booleanEnv().optional().default(false),

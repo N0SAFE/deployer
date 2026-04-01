@@ -11,8 +11,6 @@ services:
       args:
         - NODE_ENV=development
     restart: unless-stopped
-    mem_limit: 2g
-    memswap_limit: 2g
     ports:
       - "${NEXT_PUBLIC_DOC_PORT:-3020}:${NEXT_PUBLIC_DOC_PORT:-3020}"
     develop:

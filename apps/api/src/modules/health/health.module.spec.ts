@@ -5,8 +5,8 @@ import { HealthModule } from '@/modules/health/health.module';
 import { HealthController } from '@/modules/health/controllers/health.controller';
 import { HealthService } from '@/modules/health/services/health.service';
 import { HealthRepository } from '@/modules/health/repositories/health.repository';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
-import { DATABASE_CONNECTION } from '@/core/modules/database/database-connection';
+import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service';
+import { GLOBAL_DATABASE_CONNECTION } from '@/core/modules/database/database-connection';
 
 describe('HealthModule', () => {
   let module: TestingModule;
@@ -22,7 +22,7 @@ describe('HealthModule', () => {
         return 'test-value';
       }),
     })
-    .overrideProvider(DATABASE_CONNECTION)
+    .overrideProvider(GLOBAL_DATABASE_CONNECTION)
     .useValue({
       execute: vi.fn(),
       insert: vi.fn().mockReturnThis(),
@@ -38,7 +38,7 @@ describe('HealthModule', () => {
       orderBy: vi.fn().mockReturnThis(),
       set: vi.fn().mockReturnThis(),
     })
-    .overrideProvider(DatabaseService)
+    .overrideProvider(GlobalDatabaseService)
     .useValue({
       db: {
         execute: vi.fn(),

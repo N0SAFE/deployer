@@ -4,7 +4,7 @@ import {
     templateResolveResultSchema,
     templateSetResolveInputSchema,
     templateSetResolveResultSchema,
-} from "@repo/api-contracts/common/template";
+} from "@repo/contracts-entities";
 
 export const templateResolveContract = route({
     method: "POST",

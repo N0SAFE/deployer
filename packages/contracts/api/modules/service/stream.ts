@@ -94,5 +94,5 @@ export const serviceQueryStreamContract = route({
         "Subscribe to service lifecycle events with fuzzy search and custom filters (serviceId/projectId/type/isActive/eventTypes).",
 })
     .input((b) => b.query(serviceStreamQueryFiltersSchema))
-    .output((b) => b.streamed(serviceStreamEventSchema))
+    .output((b) => b.observable(serviceStreamEventSchema))
     .build();

@@ -559,7 +559,7 @@ CREATE TYPE ssl_provider AS ENUM ('letsencrypt', 'custom', 'none');
     DatabaseModule  AuthModule    DeploymentModule
           │                             │
           ▼                             ▼
-    DatabaseService              projects / services
+       GlobalDatabaseService              projects / services
           │                          tables
           ▼
     Drizzle ORM → PostgreSQL

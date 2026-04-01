@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { DatabaseService } from "../../../core/modules/database/services/database.service";
-import { user } from "@/config/drizzle/schema/auth";
+import { GlobalDatabaseService } from "../../../core/modules/database/services/global-database.service";
+import { user } from "@/config/drizzle/global/schema/auth";
 import { eq, and, count, gte, lte, gt, lt } from "drizzle-orm";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";
@@ -19,7 +19,7 @@ export type GetUserOutput = User | null;
 
 @Injectable()
 export class UserRepository {
-    constructor(private readonly databaseService: DatabaseService) {}
+    constructor(private readonly databaseService: GlobalDatabaseService) {}
 
     /**
      * Transform user object for API response (serialize dates)

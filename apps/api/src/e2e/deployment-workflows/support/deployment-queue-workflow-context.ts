@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type {
   DeploymentQueueClaimResult,
+  DeploymentDeadLetterJob,
   DeploymentDeadLetterListInput,
   DeploymentDeadLetterListResult,
   DeploymentDeadLetterReplayInput,
@@ -12,7 +13,7 @@ import type {
   DeploymentQueueHeartbeatInput,
   DeploymentQueueJob,
   DeploymentQueueTransitionResult,
-} from "@repo/api-contracts/common/deployment";
+} from "@repo/contracts-entities";
 import { DeploymentQueueLifecycleService } from "@/modules/deployment/queue/deployment-queue-lifecycle.service";
 import { getSharedApiRuntimeContext } from "@/e2e/utils/shared-api-runtime";
 
@@ -54,6 +55,7 @@ export interface DeploymentQueueLifecyclePort {
     offset: number;
   }): { items: DeploymentQueueJob[]; total: number; hasMore: boolean };
   listDeadLetterJobs(input: DeploymentDeadLetterListInput): DeploymentDeadLetterListResult;
+  findDeadLetterJobById(deadLetterJobId: string): DeploymentDeadLetterJob | null;
   replayDeadLetterJob(input: DeploymentDeadLetterReplayInput): DeploymentDeadLetterReplayResult;
   findQueueJobById(jobId: string): DeploymentQueueJob | null;
 }

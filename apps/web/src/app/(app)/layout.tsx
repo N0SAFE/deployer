@@ -8,7 +8,6 @@ import Loader from '@repo/ui/components/atomics/atoms/Loader'
  * 
  * This layout is for public/general pages that use the main navigation bar:
  * - Home page (/)
- * - Showcase (/showcase)
  * - Any other pages that should have the top navbar
  * 
  * The dashboard has its own separate route group with sidebar navigation.

@@ -1,12 +1,11 @@
 import "reflect-metadata";
 import { type MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
 import { DatabaseModule } from "./core/modules/database/database.module";
-import { LocalDatabaseModule } from "./core/modules/local-database/local-database.module";
 import { HealthModule } from "./modules/health/health.module";
 import { UserModule } from "./modules/user/user.module";
 import { PushModule } from "./modules/push/push.module";
 import { ORPCModule } from "@orpc/nest";
-import { DATABASE_CONNECTION } from "./core/modules/database/database-connection";
+import { GLOBAL_DATABASE_CONNECTION } from "./core/modules/database/database-connection";
 import { AuthModule } from "./core/modules/auth/auth.module";
 import { AuthCoreService } from "./core/modules/auth/services/auth-core.service";
 import { LoggerMiddleware } from "./core/middlewares/logger.middleware";
@@ -51,12 +50,11 @@ declare module "@orpc/nest" {
 @Module({
     imports: [
         EnvModule,
-        LocalDatabaseModule,
         DatabaseModule,
         AuthModule.forRootAsync({
             imports: [DatabaseModule, EnvModule],
             useFactory: createBetterAuth,
-            inject: [DATABASE_CONNECTION, EnvService],
+            inject: [GLOBAL_DATABASE_CONNECTION, EnvService],
             disableBodyParser: false,
             disableGlobalAuthGuard: true,
         }),

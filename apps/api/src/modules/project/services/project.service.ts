@@ -8,7 +8,6 @@ import {
 } from "@nestjs/common";
 import { EMPTY, type Observable, concat, defer, from, map, mergeMap } from "rxjs";
 import { filter as rxFilter } from "rxjs/operators";
-import { observableToAsyncIterable } from "@/core/utils/observable.utils";
 import { CoreEventSyncService } from "@/core/modules/events";
 import { runtimeConfigurationAccessor } from "@/core/modules/configuration/services/runtime-configuration-accessor";
 import { ProjectRepository } from "../repositories/project.repository";
@@ -891,7 +890,7 @@ export class ProjectService {
         },
         replay: boolean,
         replayLimit: number,
-    ): AsyncIterable<{ eventName: string; payload: unknown; replayed?: boolean; emittedAt?: string }> {
+    ): Observable<{ eventName: string; payload: unknown; replayed?: boolean; emittedAt?: string }> {
         const filters = definition.filters ?? {};
         const scopedProjectId = definition.scope === "project" ? definition.scopeId ?? undefined : undefined;
 
@@ -906,15 +905,13 @@ export class ProjectService {
             replayLimit,
         });
 
-        return observableToAsyncIterable(
-            source$.pipe(
-                map((event) => ({
-                    eventName: event.type,
-                    payload: event,
-                    replayed: event.replayed,
-                    emittedAt: event.emittedAt,
-                })),
-            ),
+        return source$.pipe(
+            map((event) => ({
+                eventName: event.type,
+                payload: event,
+                replayed: event.replayed,
+                emittedAt: event.emittedAt,
+            })),
         );
     }
 

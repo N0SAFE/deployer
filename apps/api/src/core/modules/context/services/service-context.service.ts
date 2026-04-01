@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { EnvName } from '@repo/contracts-common';
 import type {
   ServiceContext,
   ProjectContext,
@@ -47,7 +48,7 @@ export class ServiceContextService {
       containerName: string;
       containerPort: number;
       containerId?: string;
-      environment: 'production' | 'staging' | 'preview' | 'development';
+      environment: EnvName;
       status?: string;
     };
     project: {

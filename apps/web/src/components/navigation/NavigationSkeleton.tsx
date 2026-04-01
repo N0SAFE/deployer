@@ -2,26 +2,10 @@
 
 import React from 'react'
 import { Button } from '@repo/ui/components/shadcn/button'
-import {
-    Home,
-    Showcase,
-    ShowcaseClient,
-    ShowcaseServer,
-} from '@/routes'
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@repo/ui/components/shadcn/dropdown-menu'
+import { Home } from '@/routes'
 import {
     Home as HomeIcon,
-    Database,
     Server,
-    Monitor,
-    ChevronDown,
 } from 'lucide-react'
 import { validateEnvPath } from '#/env'
 
@@ -52,7 +36,7 @@ const NavigationSkeleton: React.FC = () => {
                         <div className="bg-primary text-primary-foreground flex h-8 w-8 items-center justify-center rounded-md">
                             <HomeIcon className="h-4 w-4" />
                         </div>
-                        <span className="font-bold">NestJS App</span>
+                        <span className="font-bold">Deployer</span>
                     </Home.Link>
                 </div>
 
@@ -69,63 +53,6 @@ const NavigationSkeleton: React.FC = () => {
                     </Home.Link>
 
                     {/* Dashboard link hidden in skeleton (requires session) */}
-
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="flex items-center space-x-2"
-                            >
-                                <Database className="h-4 w-4" />
-                                <span>Showcase</span>
-                                <ChevronDown className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Data Examples</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem asChild>
-                                <Showcase.Link className="flex w-full items-center space-x-2">
-                                    <Database className="h-4 w-4" />
-                                    <div>
-                                        <div className="font-medium">
-                                            Overview
-                                        </div>
-                                        <div className="text-muted-foreground text-sm">
-                                            All examples
-                                        </div>
-                                    </div>
-                                </Showcase.Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                                <ShowcaseClient.Link className="flex w-full items-center space-x-2">
-                                    <Monitor className="h-4 w-4" />
-                                    <div>
-                                        <div className="font-medium">
-                                            Client Side
-                                        </div>
-                                        <div className="text-muted-foreground text-sm">
-                                            React Query examples
-                                        </div>
-                                    </div>
-                                </ShowcaseClient.Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                                <ShowcaseServer.Link className="flex w-full items-center space-x-2">
-                                    <Server className="h-4 w-4" />
-                                    <div>
-                                        <div className="font-medium">
-                                            Server Side
-                                        </div>
-                                        <div className="text-muted-foreground text-sm">
-                                            SSR examples
-                                        </div>
-                                    </div>
-                                </ShowcaseServer.Link>
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
                     {docsUrl && (
                         <a href={docsUrl} target="_blank" rel="noreferrer">
                             <Button

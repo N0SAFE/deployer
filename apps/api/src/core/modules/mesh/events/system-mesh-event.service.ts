@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { BaseEventService } from "@/core/modules/events/base-event.service";
 import { observableToAsyncIterable } from "@/core/utils/observable.utils";
-import type { MeshRuntimeEvent, MeshTopologyEvent } from "@repo/api-contracts/common/mesh";
+import type { MeshRuntimeEvent, MeshTopologyEvent } from "@repo/contracts-entities";
 import {
     systemMeshEventContracts,
     type SystemMeshEventContracts,

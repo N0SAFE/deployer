@@ -1,11 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { eq } from "drizzle-orm";
-import { DatabaseService } from "@/core/modules/database/services/database.service";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
-import { coreEventStreams } from "@/config/drizzle/schema/events";
+import { coreEventStreams } from "@/config/drizzle/global/schema/events";
 import type { CoreEventStreamListInput } from "@repo/api-contracts";
-import type { CoreEventStreamDefinition } from "@repo/api-contracts/common/event-stream";
-import { coreEventStreamDefinitionSchema } from "@repo/api-contracts/common/event-stream";
+import { coreEventStreamDefinitionSchema, type CoreEventStreamDefinition } from "@repo/contracts-entities";
 
 type CoreEventStreamRow = typeof coreEventStreams.$inferSelect;
 
@@ -23,7 +22,7 @@ function toDto(row: CoreEventStreamRow): CoreEventStreamDefinition {
 
 @Injectable()
 export class CoreEventStreamRepository {
-    constructor(private readonly databaseService: DatabaseService) {}
+    constructor(private readonly databaseService: GlobalDatabaseService) {}
 
     async findMany(input: CoreEventStreamListInput): Promise<{
         data: CoreEventStreamDefinition[];

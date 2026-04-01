@@ -6,7 +6,7 @@ import {
     coreEventStreamDefinitionSchema,
     coreEventScopeSchema,
     coreSyncedEventEnvelopeSchema,
-} from "@repo/api-contracts/common/event-stream";
+} from "@repo/contracts-entities";
 
 const coreEventStreamOps = standard.zod(coreEventStreamDefinitionSchema, "coreEventStream");
 
@@ -71,7 +71,7 @@ export const coreEventSyncStreamContract = route({
             .params((p) => p`/sync/${p("id", z.uuid())}/stream`)
             .query(coreStreamReplayQuerySchema),
     )
-    .output((b) => b.streamed(coreSyncedEventEnvelopeSchema))
+    .output((b) => b.observable(coreSyncedEventEnvelopeSchema))
     .build();
 
 export const eventSyncContract = oc.tag("Core Event Sync").prefix("/events").router({

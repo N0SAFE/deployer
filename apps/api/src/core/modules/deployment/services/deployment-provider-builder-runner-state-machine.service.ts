@@ -395,7 +395,7 @@ export class DeploymentProviderBuilderRunnerStateMachineService {
 
     private mergePolicy(
         basePolicy: DeploymentStateMachinePolicy,
-        ...patches: Array<DeploymentStateMachinePolicyPatchInput | undefined>
+        ...patches: (DeploymentStateMachinePolicyPatchInput | undefined)[]
     ): DeploymentStateMachinePolicy {
         let currentPolicy = basePolicy;
         for (const patchCandidate of patches) {

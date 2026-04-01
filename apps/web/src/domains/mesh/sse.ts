@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { MeshRuntimeEvent } from "@repo/api-contracts/common/mesh";
+import type { MeshRuntimeEvent } from "@repo/contracts-entities";
 
 type MeshStreamStatus = "connecting" | "connected" | "disconnected" | "error";
 

@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { and, desc, eq } from "drizzle-orm";
-import { coreEventLogs } from "@/config/drizzle/schema/events";
-import { DatabaseService } from "@/core/modules/database/services/database.service";
+import { coreEventLogs } from "@/config/drizzle/global/schema/events";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 
 export interface CoreEventLogPersistInput {
     namespace: string;
@@ -25,7 +25,7 @@ export interface CoreEventLogRecord {
 
 @Injectable()
 export class CoreEventLogRepository {
-    constructor(private readonly databaseService: DatabaseService) {}
+    constructor(private readonly databaseService: GlobalDatabaseService) {}
 
     async insertMany(logs: CoreEventLogPersistInput[]): Promise<void> {
         if (logs.length === 0) {

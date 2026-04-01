@@ -1,6 +1,6 @@
 import z from "zod/v4";
 import { route } from "@repo/orpc-utils";
-import { templateVariableSchema, variableTemplateSchema } from "@repo/api-contracts/common/project";
+import { templateVariableSchema, variableTemplateSchema } from "@repo/contracts-entities";
 
 const idParam = z.object({ id: z.uuid() });
 const templateParams = z.object({ id: z.uuid(), templateId: z.uuid() });

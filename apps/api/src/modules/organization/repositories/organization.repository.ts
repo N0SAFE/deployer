@@ -3,12 +3,12 @@ import { and, asc, eq, SQL } from 'drizzle-orm';
 import { listBuilder } from '@/core/utils/drizzle-filter.utils';
 import type { OrganizationListAllInput } from '@repo/api-contracts/modules/organization/listAll';
 import type { OrganizationListMembersInput } from '@repo/api-contracts/modules/organization/listMembers';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
-import { organization, member, user } from '@/config/drizzle/schema/auth';
+import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service';
+import { organization, member, user } from '@/config/drizzle/global/schema/auth';
 
 @Injectable()
 export class OrganizationRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly databaseService: GlobalDatabaseService) {}
 
   /**
    * List all organizations with pagination, sorting, and filtering

@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { and, asc, eq, gt, inArray } from "drizzle-orm";
-import { coreDomainEventEnvelopeSchema } from "@repo/api-contracts/common/event-stream";
-import { localEventOutbox } from "@/config/drizzle/schema/runtime";
-import { DatabaseService } from "@/core/modules/database/services/database.service";
+import { coreDomainEventEnvelopeSchema } from "@repo/contracts-entities";
+import { localEventOutbox } from "@/config/drizzle/global/schema/runtime";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { DeploymentRepository } from "../repositories/deployment.repository";
 
 export interface DeploymentReadModelProjection {
@@ -31,7 +31,7 @@ export class DeploymentReadModelProjectorService {
     private lastProcessedCreatedAt: Date | null = null;
 
     constructor(
-        private readonly databaseService: DatabaseService,
+        private readonly databaseService: GlobalDatabaseService,
         private readonly deploymentRepository: DeploymentRepository,
     ) {}
 

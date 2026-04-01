@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { InjectQueue } from "@nestjs/bull";
 import type { Job, JobOptions, Queue } from "bull";
-import type { DeploymentQueueJob } from "@repo/api-contracts/common/deployment";
+import type { DeploymentQueueJob } from "@repo/contracts-entities";
 import {
     deploymentBullEnqueueInputSchema,
     deploymentBullEnqueueOutputSchema,

@@ -47,47 +47,55 @@ flowchart LR
 Keep contract definitions in shared packages, implementations in API, and UI data orchestration in web domain hooks.
 </DocCallout>
 
-## Docker Topology — single node
+## Docker topology — Swarm baseline
 
-Every node runs its own full stack. There is no single central load balancer or shared Redis.
+The canonical v3 target is a Docker Swarm cluster with manager/worker roles.
 
-- `traefik` container: reverse proxy — SSL termination, intra-node routing, deployed service subdomains
-- `lb` container: custom load balancer app — cross-node redirect, diagnostic analytics gate
-- `api` container: NestJS backend — business logic, Docker + Traefik config, mesh peer
-- `web` container: Next.js frontend — SSR dashboard
-- `postgres` container: **shared across the cluster** — all nodes point at the same DB
-- `redis` container: **per-node local** — BullMQ jobs and log stream pub/sub; never shared
+- **Manager node(s)**: orchestrator control plane (Raft), service scheduling, stack/service updates.
+- **Control-plane services** (`traefik`, `api`, `web`): deployed as Swarm services and managed from managers.
+- **Worker node(s)**: execute scheduled service tasks/replicas.
+- **Shared PostgreSQL**: primary source of truth for platform state.
+- **Mesh (ORPC EventIterator over HTTP/SSE)**: cross-node event/resource coordination between API nodes.
 
 ## Multi-node topology
 
-In a multi-node cluster each node has the full stack above. Nodes are connected by:
+In a multi-node Swarm cluster, nodes are connected by:
 
-1. **Shared PostgreSQL** — single primary + read replicas; source of truth for users, orgs, deployments, cluster topology, signing keys
-2. **Mesh (ORPC EventIterator over HTTP/SSE)** — gossip-ring topology (K neighbors, transitive) between API nodes for domain events, resource lookup, topology sync, and multi-DB sync
-3. **LB gossip** — LB apps exchange load reports (cpu, mem, active streams) so each LB can score candidate nodes
-4. **Internal DNS (CoreDNS)** — cross-node service discovery for deployed user services
+1. **Swarm control plane** — manager quorum + worker membership.
+2. **Shared PostgreSQL** — users, orgs, projects, deployments, topology metadata.
+3. **Mesh** — distributed event/resource coordination across API nodes.
+4. **Traefik ingress** — Swarm-aware routing and balancing for platform and deployed HTTP services.
+5. **Optional custom LB app** — only for advanced owner-aware routing/diagnostic scenarios.
 
 ```mermaid
 graph LR
-    subgraph "NODE-A"
-        TA["Traefik A"] --> LBA["LB A"]
-        LBA --> APIA["API A"]
-        TA --> WebA["Web A"]
-    end
-    subgraph "NODE-B"
-        TB["Traefik B"] --> LBB["LB B"]
-        LBB --> APIB["API B"]
-        TB --> WebB["Web B"]
-    end
+	subgraph "SWARM MANAGERS"
+		M1["Manager A"]
+		M2["Manager B"]
+		Tr["Traefik Service"]
+		ApiA["API Replica A"]
+		ApiB["API Replica B"]
+		Web["Web Service"]
+	end
 
-    PG[("PostgreSQL\nShared")]
-    APIA <-->|"Mesh events"| APIB
-    LBA <-->|"Gossip\nload reports"| LBB
-    APIA --> PG
-    APIB --> PG
+	subgraph "SWARM WORKERS"
+		W1["Worker A"]
+		W2["Worker B"]
+		App["User Service Replicas"]
+	end
+
+	PG[("PostgreSQL\nShared")]
+
+	M1 <-->|"Swarm Raft"| M2
+	M1 --> W1
+	M1 --> W2
+	Tr --> App
+	ApiA <-->|"Mesh events"| ApiB
+	ApiA --> PG
+	ApiB --> PG
 ```
 
-See [Load Balancer Architecture](/docs/deployment/load-balancer) for the full cross-node request lifecycle.
+See [Production Deployment](/docs/deployment/production-deployment) for the baseline rollout model.
 
 ## Implementation order (for architecture-impacting changes)
 
@@ -116,10 +124,12 @@ See [Load Balancer Architecture](/docs/deployment/load-balancer) for the full cr
 
 - [Platform Product Specification](/docs/architecture/platform-product-spec)
 - [Tech Stack](/docs/architecture/tech-stack)
+- [Mesh-Consumer Boundary Pattern](/docs/architecture/mesh-consumer-boundary-pattern)
+- [Mesh Peer Selection Algorithm](/docs/architecture/mesh-peer-selection-algorithm)
 - [Development Workflow](/docs/dev/development-workflow)
 - [ORPC Type-Safe API Workflow](/docs/dev/orpc)
 - [Event System & Stream Sync](/docs/dev/event-system-streams)
-- [Load Balancer Architecture](/docs/deployment/load-balancer)
+- [Load Balancer Architecture](/docs/deployment/load-balancer) *(optional advanced pattern)*
 - [Cluster Signing Keys & Shared Secrets](/docs/deployment/cluster-signing-keys)
 - [Instance Port Conventions](/docs/deployment/instance-ports)
 - [Multi-server Multi-org Operations](/docs/deployment/multi-server-multi-org-operations)

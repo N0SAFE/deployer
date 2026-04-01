@@ -33,7 +33,7 @@
  */
 import { and, or, asc, desc, count, eq, ne, like, ilike, gt, gte, lt, lte, type AnyColumn, type SQL, type InferSelectModel } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
-import type { Database } from "@/core/modules/database/services/database.service";
+import type { GlobalDatabase as Database } from "@/core/modules/database/services/global-database.service";
 
 /**
  * Constraint for filter objects with recursive _and/_or logical nesting.

@@ -10,6 +10,7 @@ interface EntrypointConfig {
   diagnosePath: string
   migrateScript: string
   seedScript: string
+  cliEntrypoint: string
 }
 
 /**
@@ -102,20 +103,36 @@ function runSeeding(config: EntrypointConfig): void {
  * Create default admin user if needed
  */
 function createDefaultAdmin(): void {
-  // In production, use the compiled script from dist/
-  const createAdminScript = 'dist/create-default-admin.js'
+  const cliEntrypoint = 'dist/cli.js'
 
-  if (!existsSync(createAdminScript)) {
-    console.log('⚠️  create-default-admin script not found at', createAdminScript, ', skipping')
+  if (!existsSync(cliEntrypoint)) {
+    console.log('⚠️  cli entrypoint not found at', cliEntrypoint, ', skipping')
     return
   }
 
   try {
     console.log('👤 Creating default admin user if needed...')
-    execSync(`bun --bun ${createAdminScript}`, { stdio: 'inherit' })
+    execSync(`bun --bun ${cliEntrypoint} create-default-admin`, { stdio: 'inherit' })
   } catch (error) {
     console.error('⚠️  Failed to create default admin user:', error)
     // Don't exit - this is not critical
+  }
+}
+
+/**
+ * Register current mesh node in global DB (idempotent)
+ */
+function registerMeshNode(config: EntrypointConfig): void {
+  if (!existsSync(config.cliEntrypoint)) {
+    console.log('⚠️  cli entrypoint not found at', config.cliEntrypoint, ', skipping')
+    return
+  }
+
+  try {
+    console.log('🌐 Registering mesh node in global DB...')
+    execSync(`bun --bun ${config.cliEntrypoint} register-mesh-node`, { stdio: 'inherit' })
+  } catch (error) {
+    console.error('⚠️  Mesh node registration failed (continuing):', error)
   }
 }
 
@@ -143,6 +160,7 @@ function main(): void {
     diagnosePath: 'scripts/diagnose-build.ts',
     migrateScript: 'db:migrate:prod',
     seedScript: 'db:seed:prod',
+    cliEntrypoint: 'dist/cli.js',
   }
 
   const mode = process.env.ENABLE_SEEDING === 'true' ? 'Production-Like (with mock data)' : 'Production'
@@ -158,6 +176,9 @@ function main(): void {
   
   // Create default admin BEFORE seeding so seed can detect existing admin
   createDefaultAdmin()
+
+  // Register this API node in global mesh metadata on every startup
+  registerMeshNode(config)
   
   // Run seeding after admin creation (only in production-like mode)
   runSeeding(config)

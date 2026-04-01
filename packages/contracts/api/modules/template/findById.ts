@@ -1,5 +1,5 @@
 import { standard } from "@repo/orpc-utils";
-import { deploymentTemplateSchema } from "@repo/api-contracts/common/template";
+import { deploymentTemplateSchema } from "@repo/contracts-entities";
 
 const templateOps = standard.zod(deploymentTemplateSchema, "deploymentTemplate");
 

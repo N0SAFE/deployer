@@ -13,6 +13,7 @@
 import 'server-only'
 
 import React from 'react'
+import queryString from 'query-string'
 import { z } from 'zod'
 import type {
     Session,
@@ -21,6 +22,11 @@ import type {
     SchemasConfig,
     UnwrappedPageProps,
     BasePageProps,
+    RouteNavigationInput,
+    RouteNavigationOptions,
+    RouteRuntimeConfig,
+    PageRouteHelpers,
+    RouteSearchPatch,
 } from '../types'
 
 // ============================================================================
@@ -112,16 +118,122 @@ function asPageComponent<T>(component: React.ComponentType<T>): React.ComponentT
  */
 function extractAdditionalProps<T extends object>(
     props: T
-): Omit<T, 'params' | 'searchParams' | 'children'> {
-    const { params, searchParams, children, ...rest } = props as T & {
+): Omit<T, 'params' | 'searchParams' | 'children' | 'route'> {
+    const { params, searchParams, children, route, ...rest } = props as T & {
         params?: unknown
         searchParams?: unknown
         children?: unknown
+        route?: unknown
     }
     void params
     void searchParams
     void children
-    return rest as Omit<T, 'params' | 'searchParams' | 'children'>
+    void route
+    return rest as Omit<T, 'params' | 'searchParams' | 'children' | 'route'>
+}
+
+function normalizeRecord(value: unknown): Record<string, unknown> {
+    if (typeof value === 'object' && value !== null) {
+        return value as Record<string, unknown>
+    }
+    return {}
+}
+
+function isObjectLike(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null
+}
+
+function buildFallbackUrl(
+    path: string,
+    search?: Record<string, unknown>
+): string {
+    const query = queryString.stringify(search ?? {}, {
+        skipNull: true,
+        skipEmptyString: true,
+    })
+    return query ? `${path}?${query}` : path
+}
+
+function createServerRouteHelpers<
+    Params extends z.ZodType,
+    Search extends z.ZodType,
+>(
+    params: z.output<Params>,
+    search: z.output<Search>,
+    runtime: RouteRuntimeConfig<Params, Search> | undefined
+): PageRouteHelpers<Params, Search> {
+    const buildUrl = (
+        nextParams?: z.input<Params>,
+        nextSearch?: z.input<Search>
+    ) => {
+        if (runtime?.buildUrl) {
+            return runtime.buildUrl(nextParams, nextSearch)
+        }
+
+        return buildFallbackUrl(runtime?.routePath ?? '', normalizeRecord(nextSearch))
+    }
+
+    const navigate = (
+        input?: RouteNavigationInput<Params, Search>,
+        options?: RouteNavigationOptions
+    ) => {
+        // same method surface as client; server implementation only computes URL
+        void options
+        return buildUrl(
+            (input?.params ?? (params as z.input<Params>)),
+            (input?.search ?? (search as z.input<Search>))
+        )
+    }
+
+    const replace = (
+        input?: RouteNavigationInput<Params, Search>,
+        options?: RouteNavigationOptions
+    ) => {
+        // same method surface as client; server implementation only computes URL
+        void options
+        return navigate(input)
+    }
+
+    const setSearch = (value: z.input<Search> | null) => {
+        const nextSearch = value ?? ({} as z.input<Search>)
+        return Promise.resolve(buildUrl(params as z.input<Params>, nextSearch))
+    }
+
+    const searchUpdate = (patch: RouteSearchPatch<Search> | null) => {
+        const currentSearch = isObjectLike(search)
+            ? (search as Record<string, unknown>)
+            : {}
+        const patchRecord = patch && isObjectLike(patch)
+            ? (patch as Record<string, unknown>)
+            : {}
+
+        const nextSearch = {
+            ...currentSearch,
+            ...patchRecord,
+        } as z.input<Search>
+
+        return Promise.resolve(buildUrl(params as z.input<Params>, nextSearch))
+    }
+
+    const searchReplace = (value: z.input<Search> | null) => setSearch(value)
+
+    const searchReset = () =>
+        Promise.resolve(buildUrl(params as z.input<Params>, {} as z.input<Search>))
+
+    return {
+        routePath: runtime?.routePath,
+        routeName: runtime?.routeName,
+        params,
+        search,
+        urlBuilder: buildUrl,
+        buildUrl,
+        push: navigate,
+        replace,
+        setSearch,
+        searchUpdate,
+        searchReplace,
+        searchReset,
+    }
 }
 
 // ============================================================================
@@ -154,7 +266,8 @@ export function createPage<
     AdditionalProps extends object = object,
 >(
     schemas: SchemasConfig<Params, Search>,
-    Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps>
+    Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps>,
+    runtime?: RouteRuntimeConfig<Params, Search>
 ): React.ComponentType<NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps> {
     type WrapperProps = NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps
     
@@ -163,12 +276,14 @@ export function createPage<
         const rawSearchParams = await props.searchParams
         const params = schemas.params.parse(rawParams) as z.output<Params>
         const searchParams = schemas.search.parse(rawSearchParams) as z.output<Search>
+        const route = createServerRouteHelpers(params, searchParams, runtime)
         const additionalProps = extractAdditionalProps(props)
         
         const componentProps: UnwrappedPageProps<Params, Search> & AdditionalProps = {
             ...(additionalProps as AdditionalProps),
             params,
             searchParams,
+            route,
         }
         
         return <Component {...componentProps} />
@@ -236,6 +351,7 @@ export function createSessionPage<
     schemas: SchemasConfig<Params, Search>,
     Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps & { session: S | null }>,
     options?: SessionOptions,
+    runtime?: RouteRuntimeConfig<Params, Search>,
     /**
      * Optional: Function to check if auth cookie exists.
      * If not provided, session will always be fetched.
@@ -266,12 +382,14 @@ export function createSessionPage<
         const rawSearchParams = await props.searchParams
         const params = schemas.params.parse(rawParams) as z.output<Params>
         const searchParams = schemas.search.parse(rawSearchParams) as z.output<Search>
+        const route = createServerRouteHelpers(params, searchParams, runtime)
         const additionalProps = extractAdditionalProps(props)
         
         const componentProps = {
             ...(additionalProps as AdditionalProps),
             params,
             searchParams,
+            route,
             session,
         } as UnwrappedPageProps<Params, Search> & AdditionalProps & { session: S | null }
 
@@ -386,11 +504,13 @@ export function createPageWrappers<S extends Session = Session>(
         >(
             schemas: SchemasConfig<Params, Search>,
             Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps & { session: S | null }>,
-            options?: SessionOptions
+            options?: SessionOptions,
+            runtime?: RouteRuntimeConfig<Params, Search>
         ) => createSessionPage<Params, Search, AdditionalProps, S>(
             schemas,
             Component,
             options,
+            runtime,
             config.checkAuthCookie
         ),
     }
@@ -443,4 +563,9 @@ export type {
     SchemasConfig,
     UnwrappedPageProps,
     BasePageProps,
+    RouteRuntimeConfig,
+    PageRouteHelpers,
+    RouteNavigationInput,
+    RouteNavigationOptions,
+    RouteSearchPatch,
 } from '../types'

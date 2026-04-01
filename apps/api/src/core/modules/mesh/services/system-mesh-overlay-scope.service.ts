@@ -4,7 +4,7 @@ import type {
     MeshResourceLocation,
     MeshRuntimeEvent,
     MeshTopologyEvent,
-} from "@repo/api-contracts/common/mesh";
+} from "@repo/contracts-entities";
 
 @Injectable()
 export class SystemMeshOverlayScopeService {

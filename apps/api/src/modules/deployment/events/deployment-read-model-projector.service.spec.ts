@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { DatabaseService } from "@/core/modules/database/services/database.service";
+import type { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import type { DeploymentRepository } from "../repositories/deployment.repository";
 import { DeploymentReadModelProjectorService } from "./deployment-read-model-projector.service";
 
@@ -37,7 +37,7 @@ function createEventRow(input: {
 
 describe("DeploymentReadModelProjectorService", () => {
     let selectQueue: unknown[][];
-    let mockDb: DatabaseService;
+    let mockDb: GlobalDatabaseService;
     let mockRepository: DeploymentRepository;
     let service: DeploymentReadModelProjectorService;
 
@@ -56,7 +56,7 @@ describe("DeploymentReadModelProjectorService", () => {
                     })),
                 })),
             },
-        } as unknown as DatabaseService;
+        } as unknown as GlobalDatabaseService;
 
         mockRepository = {
             findLogs: vi.fn(async () => []),

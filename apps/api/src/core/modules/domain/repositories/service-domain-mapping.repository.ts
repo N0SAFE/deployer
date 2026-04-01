@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { eq, and, ne, isNull } from 'drizzle-orm';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
+import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service';
 import {
   serviceDomainMappings,
   projectDomains,
   organizationDomains,
-} from '@/config/drizzle/schema/domain';
+} from '@/config/drizzle/global/schema/domain';
 
 type ServiceDomainMapping = typeof serviceDomainMappings.$inferSelect;
 type InsertServiceDomainMapping = typeof serviceDomainMappings.$inferInsert;
@@ -14,7 +14,7 @@ type InsertServiceDomainMapping = typeof serviceDomainMappings.$inferInsert;
 export class ServiceDomainMappingRepository {
   private readonly logger = new Logger(ServiceDomainMappingRepository.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly databaseService: GlobalDatabaseService) {}
 
   /**
    * Create a new service domain mapping
@@ -268,7 +268,7 @@ export class ServiceDomainMappingRepository {
     subdomain: string | null;
     basePath: string | null;
   }[]> {
-    const { services } = await import('@/config/drizzle/schema');
+    const { services } = await import('@/config/drizzle/global/schema');
     
     const conditions = [
       eq(serviceDomainMappings.projectDomainId, projectDomainId),

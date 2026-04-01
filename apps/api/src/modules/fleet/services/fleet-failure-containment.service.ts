@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { DependencyTemplateConfig } from "@repo/api-contracts/common/template";
+import type { DependencyTemplateConfig } from "@repo/contracts-entities";
 import type { ServiceDag } from "./service-dag.service";
 
 export interface FailureDomain {

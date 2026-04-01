@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { PreviewTemplateConfig } from "@repo/api-contracts/common/template";
+import type { PreviewTemplateConfig } from "@repo/contracts-entities";
 
 export type PreviewCleanupTrigger = "merge" | "close" | "ttl_expired";
 

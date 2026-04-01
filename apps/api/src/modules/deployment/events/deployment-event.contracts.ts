@@ -5,7 +5,7 @@ import {
     deploymentPhaseSchema,
     deploymentLogSchema,
     deploymentSchema,
-} from "@repo/api-contracts/common/deployment";
+} from "@repo/contracts-entities";
 
 export const deploymentEventContracts = {
     deploymentTriggered: contractBuilder()

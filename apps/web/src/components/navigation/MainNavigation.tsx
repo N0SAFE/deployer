@@ -4,28 +4,14 @@ import React from 'react'
 import { usePathname } from 'next/navigation'
 import { Button } from '@repo/ui/components/shadcn/button'
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@repo/ui/components/shadcn/dropdown-menu'
-import {
     Home,
     AuthSignin,
     AuthDashboard,
-    Showcase,
-    ShowcaseClient,
-    ShowcaseServer,
 } from '@/routes'
 import { useSession } from '@/lib/auth'
 import {
     Home as HomeIcon,
-    Database,
     Server,
-    Monitor,
-    ChevronDown,
     LayoutDashboard,
 } from 'lucide-react'
 import SignOutButton from '../signout/signoutButton'
@@ -55,7 +41,7 @@ const MainNavigation: React.FC = () => {
                         <div className="bg-primary text-primary-foreground flex h-8 w-8 items-center justify-center rounded-md">
                             <HomeIcon className="h-4 w-4" />
                         </div>
-                        <span className="font-bold">NestJS App</span>
+                        <span className="font-bold">Deployer</span>
                     </Home.Link>
                 </div>
 
@@ -84,67 +70,6 @@ const MainNavigation: React.FC = () => {
                             </Button>
                         </AuthDashboard.Link>
                     )}
-
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button
-                                variant={
-                                    pathname.startsWith('/showcase')
-                                        ? 'default'
-                                        : 'ghost'
-                                }
-                                size="sm"
-                                className="flex items-center space-x-2"
-                            >
-                                <Database className="h-4 w-4" />
-                                <span>Showcase</span>
-                                <ChevronDown className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Data Examples</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem asChild>
-                                <Showcase.Link className="flex w-full items-center space-x-2">
-                                    <Database className="h-4 w-4" />
-                                    <div>
-                                        <div className="font-medium">
-                                            Overview
-                                        </div>
-                                        <div className="text-muted-foreground text-sm">
-                                            All examples
-                                        </div>
-                                    </div>
-                                </Showcase.Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                                <ShowcaseClient.Link className="flex w-full items-center space-x-2">
-                                    <Monitor className="h-4 w-4" />
-                                    <div>
-                                        <div className="font-medium">
-                                            Client Side
-                                        </div>
-                                        <div className="text-muted-foreground text-sm">
-                                            React Query examples
-                                        </div>
-                                    </div>
-                                </ShowcaseClient.Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                                <ShowcaseServer.Link className="flex w-full items-center space-x-2">
-                                    <Server className="h-4 w-4" />
-                                    <div>
-                                        <div className="font-medium">
-                                            Server Side
-                                        </div>
-                                        <div className="text-muted-foreground text-sm">
-                                            SSR examples
-                                        </div>
-                                    </div>
-                                </ShowcaseServer.Link>
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
                     {docsUrl && (
                         <a href={docsUrl} target="_blank" rel="noreferrer">
                             <Button

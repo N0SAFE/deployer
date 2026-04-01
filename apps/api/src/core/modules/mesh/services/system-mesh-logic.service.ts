@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { MeshPeerConnection, MeshPeerLinkMetrics, MeshResourceLocation } from "@repo/api-contracts/common/mesh";
+import type { MeshPeerConnection, MeshPeerLinkMetrics, MeshResourceLocation } from "@repo/contracts-entities";
 
 export interface MeshLogicConfig {
     reconnectBaseDelayMs: number;
@@ -14,10 +14,10 @@ export class SystemMeshLogicService {
 
     constructor() {
         this.config = {
-            reconnectBaseDelayMs: this.readNumberEnv("MESH_RECONNECT_BASE_DELAY_MS", 500, { min: 50 }),
-            reconnectMaxDelayMs: this.readNumberEnv("MESH_RECONNECT_MAX_DELAY_MS", 30_000, { min: 100 }),
-            reconnectMultiplier: this.readNumberEnv("MESH_RECONNECT_MULTIPLIER", 2, { min: 1.1 }),
-            reconnectJitterRatio: this.readNumberEnv("MESH_RECONNECT_JITTER_RATIO", 0.2, { min: 0, max: 0.9 }),
+            reconnectBaseDelayMs: 500,
+            reconnectMaxDelayMs: 30_000,
+            reconnectMultiplier: 2,
+            reconnectJitterRatio: 0.2,
         };
     }
 
@@ -87,28 +87,5 @@ export class SystemMeshLogicService {
         }
 
         return Math.min(1, Math.max(0, value / max));
-    }
-
-    private readNumberEnv(
-        envName: string,
-        fallback: number,
-        constraints?: { min?: number; max?: number },
-    ): number {
-        const raw = process.env[envName];
-        const parsed = typeof raw === "string" && raw.trim().length > 0 ? Number(raw) : fallback;
-
-        if (!Number.isFinite(parsed)) {
-            return fallback;
-        }
-
-        if (typeof constraints?.min === "number" && parsed < constraints.min) {
-            return constraints.min;
-        }
-
-        if (typeof constraints?.max === "number" && parsed > constraints.max) {
-            return constraints.max;
-        }
-
-        return parsed;
     }
 }

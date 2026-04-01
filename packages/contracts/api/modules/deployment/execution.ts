@@ -7,7 +7,7 @@ import {
     deploymentExecutionCheckpointSchema,
     deploymentExecutionResumeInputSchema,
     deploymentExecutionResumeResultSchema,
-} from "@repo/api-contracts/common/deployment";
+} from "@repo/contracts-entities";
 
 export const deploymentCancelExecutionContract = route({
     method: "POST",

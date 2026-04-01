@@ -3,7 +3,7 @@
  * These types help with TypeScript inference when working with contracts
  */
 
-import type { userSchema } from "./common/user";
+import type { userSchema } from "@repo/contracts-entities";
 import type { z } from "zod/v4";
 
 // Base user type

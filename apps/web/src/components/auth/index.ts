@@ -1,4 +1,4 @@
-// Permission-aware components for the Permission System Showcase
+// Permission-aware components for the app permission system
 // These components conditionally render children based on user permissions
 
 // Platform Role component - checks user's global platform role

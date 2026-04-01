@@ -18,7 +18,7 @@ import {
     deploymentQueueListInputSchema,
     deploymentQueueListResultSchema,
     deploymentQueueTransitionResultSchema,
-} from "@repo/api-contracts/common/deployment";
+} from "@repo/contracts-entities";
 
 export const deploymentQueueEnqueueJobContract = route({
     method: "POST",

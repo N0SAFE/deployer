@@ -3,10 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { nanoid } from 'nanoid';
 import { eq } from 'drizzle-orm';
 import { Roles } from '@repo/auth/permissions';
-import * as schema from '../../config/drizzle/schema';
+import * as schema from '../../config/drizzle/global/schema';
 import { AuthCoreService } from '../../core/modules/auth/services/auth-core.service';
-import { DatabaseService } from '../../core/modules/database/services/database.service';
-import { DATABASE_SERVICE, AUTH_CORE_SERVICE, CONFIG_SERVICE } from '../tokens';
+import { GlobalDatabaseService } from '../../core/modules/database/services/global-database.service';
 
 // Temporary seed user email for when other auth methods fail
 const TEMP_SEED_USER_EMAIL = '__seed_temp_user__@internal.seed';
@@ -41,7 +40,7 @@ export interface CliAuthContext {
 @Injectable()
 export class CliAuthService {
   constructor(
-    private readonly databaseService: DatabaseService,
+    private readonly databaseService: GlobalDatabaseService,
     private readonly authCoreService: AuthCoreService,
     private readonly configService: ConfigService,
   ) {}
@@ -296,7 +295,22 @@ export class CliAuthService {
       .limit(1);
     
     if (existingUser.length > 0 && existingUser[0]) {
-      console.log(`✅ Dev auth user already exists: ${devAuthEmail} (ID: ${existingUser[0].id})`);
+      const existing = existingUser[0];
+
+      if (existing.role !== Roles.superAdmin) {
+        await this.databaseService.db
+          .update(schema.user)
+          .set({
+            role: Roles.superAdmin,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.user.id, existing.id));
+
+        console.log(`✅ Upgraded dev auth user role to superAdmin: ${devAuthEmail} (ID: ${existing.id})`);
+        return;
+      }
+
+      console.log(`✅ Dev auth user already exists: ${devAuthEmail} (ID: ${existing.id})`);
       return;
     }
 
@@ -305,7 +319,7 @@ export class CliAuthService {
 
     try {
       // Use type-safe Roles accessor
-      const superAdminRole = Roles.admin;
+      const superAdminRole = Roles.superAdmin;
       
       // BOOTSTRAP: Create user directly in database since admin plugin needs this user to exist first
       const userId = nanoid();
@@ -371,7 +385,22 @@ export class CliAuthService {
       .limit(1);
     
     if (existingUser.length > 0 && existingUser[0]) {
-      console.log(`✅ Default admin user already exists: ${defaultAdminEmail} (ID: ${existingUser[0].id})`);
+      const existing = existingUser[0];
+
+      if (existing.role !== Roles.superAdmin) {
+        await this.databaseService.db
+          .update(schema.user)
+          .set({
+            role: Roles.superAdmin,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.user.id, existing.id));
+
+        console.log(`✅ Upgraded default admin user role to superAdmin: ${defaultAdminEmail} (ID: ${existing.id})`);
+      } else {
+        console.log(`✅ Default admin user already exists: ${defaultAdminEmail} (ID: ${existing.id})`);
+      }
+
       // Return env password if available (user might need it for auth)
       return envPassword ?? null;
     }
@@ -380,8 +409,8 @@ export class CliAuthService {
     const password = envPassword ?? nanoid(16);
 
     try {
-      // Use type-safe Roles accessor - admin role for default admin
-      const adminRole = Roles.admin;
+      // Use type-safe Roles accessor - super admin role for default admin bootstrap
+      const adminRole = Roles.superAdmin;
       
       // Create user directly in database (bootstrap operation)
       const userId = nanoid();

@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { and, eq, inArray } from "drizzle-orm";
-import { DatabaseService } from "../../../core/modules/database/services/database.service";
-import { member } from "@/config/drizzle/schema/auth";
-import { orgRoleRules } from "@/config/drizzle/schema/permissions";
+import { GlobalDatabaseService } from "../../../core/modules/database/services/global-database.service";
+import { member } from "@/config/drizzle/global/schema/auth";
+import { orgRoleRules } from "@/config/drizzle/global/schema/permissions";
 import type { ResourceRule } from "@repo/auth/permissions";
 
 /**
@@ -15,7 +15,7 @@ import type { ResourceRule } from "@repo/auth/permissions";
  */
 @Injectable()
 export class PermissionRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly databaseService: GlobalDatabaseService) {}
 
   // ─────────────────────────────────────────────────────────────────────────
   // MemberRoleLoader — reads Better Auth's `member` table (read-only)

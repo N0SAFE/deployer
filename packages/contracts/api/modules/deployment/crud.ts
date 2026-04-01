@@ -8,7 +8,7 @@ import {
     sourceTypeSchema,
     deploymentLogSchema,
     deploymentRollbackSchema,
-} from "@repo/api-contracts/common/deployment";
+} from "@repo/contracts-entities";
 
 const deploymentOps = standard.zod(deploymentSchema, "deployment");
 

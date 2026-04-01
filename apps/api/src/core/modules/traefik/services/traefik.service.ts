@@ -16,7 +16,7 @@ import type {
   ValidationResult,
   ValidationError,
 } from '../interfaces';
-import type { traefikServiceConfigs } from '@/config/drizzle/schema/traefik';
+import type { traefikServiceConfigs } from '@/config/drizzle/global/schema/traefik';
 import type { InferSelectModel } from 'drizzle-orm';
 
 type TraefikServiceConfig = InferSelectModel<typeof traefikServiceConfigs>;

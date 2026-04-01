@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { eq, and, ne } from 'drizzle-orm';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
+import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service';
 import {
   organizationDomains,
   verificationStatusEnum,
   verificationMethodEnum,
-} from '@/config/drizzle/schema/domain';
+} from '@/config/drizzle/global/schema/domain';
 
 type OrganizationDomain = typeof organizationDomains.$inferSelect;
 type InsertOrganizationDomain = typeof organizationDomains.$inferInsert;
@@ -14,7 +14,7 @@ type InsertOrganizationDomain = typeof organizationDomains.$inferInsert;
 export class OrganizationDomainRepository {
   private readonly logger = new Logger(OrganizationDomainRepository.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly databaseService: GlobalDatabaseService) {}
 
   /**
    * Create a new organization domain

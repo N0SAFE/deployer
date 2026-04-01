@@ -1,4 +1,22 @@
 services:
+  api-mesh-dev:
+    build:
+      context: ../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.dev
+    image: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev:latest
+    pull_policy: never
+    deploy:
+      replicas: 0
+
+  api-cli-builder:
+    build:
+      context: ../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.cli.dev
+    image: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-cli:latest
+    pull_policy: never
+    deploy:
+      replicas: 0
+
   api-db-mesh-dev:
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-db-mesh-dev
     image: postgres:17-alpine
@@ -19,20 +37,134 @@ services:
         aliases:
           - api-db-mesh-dev
 
-  api-mesh-dev-1:
-    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-1
-    build:
-      context: ../..
-      dockerfile: ./docker/builder/api/Dockerfile.api.dev
+  # One-shot migration job (runs once, then exits)
+  api-db-migrate-mesh-dev:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-db-migrate-mesh-dev
+    image: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-cli:latest
+    pull_policy: build
     depends_on:
       api-db-mesh-dev:
         condition: service_healthy
+    restart: "no"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@api-db-mesh-dev:5432/${DB_DATABASE:-nestjs_api}
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-fallback-key}
+      - API_PORT=${MESH_API_PORT_1:-3301}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - APP_URL=${APP_URL:-http://web-mesh-dev:3000}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - PASSKEY_RPID=${PASSKEY_RPID:-localhost}
+      - PASSKEY_RPNAME=${PASSKEY_RPNAME:-NestJS App}
+      - PASSKEY_ORIGIN=${PASSKEY_ORIGIN:-http://localhost:3000}
+      - UPLOADS_DIR=${UPLOADS_DIR:-/app/apps/api/uploads}
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      - TURBO_TOKEN=${TURBO_TOKEN}
+      - TURBO_TEAM=${TURBO_TEAM}
+    volumes:
+      - api_local_db_data_dev:/app/data
+    networks:
+      mesh_network_dev:
+        aliases:
+          - api-db-migrate-mesh-dev
+
+  # One-shot default admin bootstrap (runs after migration)
+  api-default-admin-mesh-dev:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-default-admin-mesh-dev
+    image: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-cli:latest
+    pull_policy: build
+    command: ["sh", "-c", "cd apps/api && bun x dotenv -e .env -- bun src/cli.ts create-default-admin"]
+    depends_on:
+      api-db-mesh-dev:
+        condition: service_healthy
+      api-db-migrate-mesh-dev:
+        condition: service_completed_successfully
+    restart: "no"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@api-db-mesh-dev:5432/${DB_DATABASE:-nestjs_api}
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-fallback-key}
+      - API_PORT=${MESH_API_PORT_1:-3301}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - APP_URL=${APP_URL:-http://web-mesh-dev:3000}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - PASSKEY_RPID=${PASSKEY_RPID:-localhost}
+      - PASSKEY_RPNAME=${PASSKEY_RPNAME:-NestJS App}
+      - PASSKEY_ORIGIN=${PASSKEY_ORIGIN:-http://localhost:3000}
+      - UPLOADS_DIR=${UPLOADS_DIR:-/app/apps/api/uploads}
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      - TURBO_TOKEN=${TURBO_TOKEN}
+      - TURBO_TEAM=${TURBO_TEAM}
+    networks:
+      mesh_network_dev:
+        aliases:
+          - api-default-admin-mesh-dev
+
+  # One-shot seed job (runs after default admin bootstrap)
+  api-db-seed-mesh-dev:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-db-seed-mesh-dev
+    image: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-cli:latest
+    pull_policy: build
+    command: ["sh", "-c", "cd apps/api && bun x dotenv -e .env -- bun run db:seed"]
+    depends_on:
+      api-db-mesh-dev:
+        condition: service_healthy
+      api-db-migrate-mesh-dev:
+        condition: service_completed_successfully
+      api-default-admin-mesh-dev:
+        condition: service_completed_successfully
+    restart: "no"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@api-db-mesh-dev:5432/${DB_DATABASE:-nestjs_api}
+      - AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET:-fallback-auth-secret}
+      - DEV_AUTH_KEY=${DEV_AUTH_KEY:-dev-fallback-key}
+      - API_PORT=${MESH_API_PORT_1:-3301}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - APP_URL=${APP_URL:-http://web-mesh-dev:3000}
+      - AUTH_BASE_DOMAIN=${AUTH_BASE_DOMAIN:-http://localhost}
+      - PASSKEY_RPID=${PASSKEY_RPID:-localhost}
+      - PASSKEY_RPNAME=${PASSKEY_RPNAME:-NestJS App}
+      - PASSKEY_ORIGIN=${PASSKEY_ORIGIN:-http://localhost:3000}
+      - UPLOADS_DIR=${UPLOADS_DIR:-/app/apps/api/uploads}
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      - ENABLE_SEEDING=true
+      - TURBO_TOKEN=${TURBO_TOKEN}
+      - TURBO_TEAM=${TURBO_TEAM}
+    volumes:
+      - api_local_db_data_dev:/app/data
+    networks:
+      mesh_network_dev:
+        aliases:
+          - api-db-seed-mesh-dev
+
+  api-mesh-dev-1:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-1
+    image: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev:latest
+    pull_policy: build
+    depends_on:
+      api-db-mesh-dev:
+        condition: service_healthy
+      api-db-migrate-mesh-dev:
+        condition: service_completed_successfully
+      api-default-admin-mesh-dev:
+        condition: service_completed_successfully
+      api-db-seed-mesh-dev:
+        condition: service_completed_successfully
     restart: unless-stopped
-    mem_limit: 6g
-    memswap_limit: 6g
     ports:
       - "${MESH_API_PORT_1:-3301}:3301"
+    command: ["sh", "-c", "cd apps/api && bun src/cli.ts migrate --target local && bun run dev"]
     volumes:
+      - api_local_db_data_dev:/app/data
       - bun_cache_mesh_dev:/root/.bun/install/cache
       - turbo_cache_mesh_dev:/root/.cache/turbo
       - api_uploads_mesh_dev_1:/app/apps/api/uploads
@@ -58,10 +190,13 @@ services:
       - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
       - ENABLE_SEEDING=true
       - CHOKIDAR_USEPOLLING=true
+      - NODE_LOCAL_DB_PATH=/app/data/local-node-1.db
       - TURBO_TOKEN=${TURBO_TOKEN}
       - TURBO_TEAM=${TURBO_TEAM}
       - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
       - MESH_NODE_ID=${MESH_NODE_ID_NODE_1:-22222222-2222-4222-8222-222222222222}
+      - MESH_NODE_SERVER_URL=${MESH_NODE_SERVER_URL_NODE_1:-http://api-mesh-dev-1:3301}
+      - MESH_BOOTSTRAP_PEERS=${MESH_BOOTSTRAP_PEERS_NODE_1:-33333333-3333-4333-8333-333333333333@ws://api-mesh-dev-2:3302/mesh,77777777-7777-4777-8777-777777777777@ws://api-mesh-dev-6:3306/mesh}
       - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-dev-mesh-stream-secret}
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3301/health || exit 1
@@ -76,18 +211,23 @@ services:
 
   api-mesh-dev-2:
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-2
-    build:
-      context: ../..
-      dockerfile: ./docker/builder/api/Dockerfile.api.dev
+    image: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev:latest
+    pull_policy: build
     depends_on:
       api-db-mesh-dev:
         condition: service_healthy
+      api-db-migrate-mesh-dev:
+        condition: service_completed_successfully
+      api-default-admin-mesh-dev:
+        condition: service_completed_successfully
+      api-db-seed-mesh-dev:
+        condition: service_completed_successfully
     restart: unless-stopped
-    mem_limit: 6g
-    memswap_limit: 6g
     ports:
       - "${MESH_API_PORT_2:-3302}:3302"
+    command: ["sh", "-c", "cd apps/api && bun src/cli.ts migrate --target local && bun run dev"]
     volumes:
+      - api_local_db_data_dev:/app/data
       - bun_cache_mesh_dev:/root/.bun/install/cache
       - turbo_cache_mesh_dev:/root/.cache/turbo
       - api_uploads_mesh_dev_2:/app/apps/api/uploads
@@ -113,10 +253,13 @@ services:
       - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
       - ENABLE_SEEDING=true
       - CHOKIDAR_USEPOLLING=true
+      - NODE_LOCAL_DB_PATH=/app/data/local-node-2.db
       - TURBO_TOKEN=${TURBO_TOKEN}
       - TURBO_TEAM=${TURBO_TEAM}
       - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
       - MESH_NODE_ID=${MESH_NODE_ID_NODE_2:-33333333-3333-4333-8333-333333333333}
+      - MESH_NODE_SERVER_URL=${MESH_NODE_SERVER_URL_NODE_2:-http://api-mesh-dev-2:3302}
+      - MESH_BOOTSTRAP_PEERS=${MESH_BOOTSTRAP_PEERS_NODE_2:-22222222-2222-4222-8222-222222222222@ws://api-mesh-dev-1:3301/mesh,44444444-4444-4444-8444-444444444444@ws://api-mesh-dev-3:3303/mesh}
       - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-dev-mesh-stream-secret}
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3302/health || exit 1
@@ -131,18 +274,23 @@ services:
 
   api-mesh-dev-3:
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-3
-    build:
-      context: ../..
-      dockerfile: ./docker/builder/api/Dockerfile.api.dev
+    image: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev:latest
+    pull_policy: build
     depends_on:
       api-db-mesh-dev:
         condition: service_healthy
+      api-db-migrate-mesh-dev:
+        condition: service_completed_successfully
+      api-default-admin-mesh-dev:
+        condition: service_completed_successfully
+      api-db-seed-mesh-dev:
+        condition: service_completed_successfully
     restart: unless-stopped
-    mem_limit: 6g
-    memswap_limit: 6g
     ports:
       - "${MESH_API_PORT_3:-3303}:3303"
+    command: ["sh", "-c", "cd apps/api && bun src/cli.ts migrate --target local && bun run dev"]
     volumes:
+      - api_local_db_data_dev:/app/data
       - bun_cache_mesh_dev:/root/.bun/install/cache
       - turbo_cache_mesh_dev:/root/.cache/turbo
       - api_uploads_mesh_dev_3:/app/apps/api/uploads
@@ -168,10 +316,13 @@ services:
       - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
       - ENABLE_SEEDING=true
       - CHOKIDAR_USEPOLLING=true
+      - NODE_LOCAL_DB_PATH=/app/data/local-node-3.db
       - TURBO_TOKEN=${TURBO_TOKEN}
       - TURBO_TEAM=${TURBO_TEAM}
       - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
       - MESH_NODE_ID=${MESH_NODE_ID_NODE_3:-44444444-4444-4444-8444-444444444444}
+      - MESH_NODE_SERVER_URL=${MESH_NODE_SERVER_URL_NODE_3:-http://api-mesh-dev-3:3303}
+      - MESH_BOOTSTRAP_PEERS=${MESH_BOOTSTRAP_PEERS_NODE_3:-33333333-3333-4333-8333-333333333333@ws://api-mesh-dev-2:3302/mesh,55555555-5555-4555-8555-555555555555@ws://api-mesh-dev-4:3304/mesh}
       - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-dev-mesh-stream-secret}
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3303/health || exit 1
@@ -186,18 +337,23 @@ services:
 
   api-mesh-dev-4:
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-4
-    build:
-      context: ../..
-      dockerfile: ./docker/builder/api/Dockerfile.api.dev
+    image: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev:latest
+    pull_policy: build
     depends_on:
       api-db-mesh-dev:
         condition: service_healthy
+      api-db-migrate-mesh-dev:
+        condition: service_completed_successfully
+      api-default-admin-mesh-dev:
+        condition: service_completed_successfully
+      api-db-seed-mesh-dev:
+        condition: service_completed_successfully
     restart: unless-stopped
-    mem_limit: 6g
-    memswap_limit: 6g
     ports:
       - "${MESH_API_PORT_4:-3304}:3304"
+    command: ["sh", "-c", "cd apps/api && bun src/cli.ts migrate --target local && bun run dev"]
     volumes:
+      - api_local_db_data_dev:/app/data
       - bun_cache_mesh_dev:/root/.bun/install/cache
       - turbo_cache_mesh_dev:/root/.cache/turbo
       - api_uploads_mesh_dev_4:/app/apps/api/uploads
@@ -223,10 +379,13 @@ services:
       - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
       - ENABLE_SEEDING=true
       - CHOKIDAR_USEPOLLING=true
+      - NODE_LOCAL_DB_PATH=/app/data/local-node-4.db
       - TURBO_TOKEN=${TURBO_TOKEN}
       - TURBO_TEAM=${TURBO_TEAM}
       - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
       - MESH_NODE_ID=${MESH_NODE_ID_NODE_4:-55555555-5555-4555-8555-555555555555}
+      - MESH_NODE_SERVER_URL=${MESH_NODE_SERVER_URL_NODE_4:-http://api-mesh-dev-4:3304}
+      - MESH_BOOTSTRAP_PEERS=${MESH_BOOTSTRAP_PEERS_NODE_4:-44444444-4444-4444-8444-444444444444@ws://api-mesh-dev-3:3303/mesh,66666666-6666-4666-8666-666666666666@ws://api-mesh-dev-5:3305/mesh}
       - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-dev-mesh-stream-secret}
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3304/health || exit 1
@@ -241,18 +400,23 @@ services:
 
   api-mesh-dev-5:
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-5
-    build:
-      context: ../..
-      dockerfile: ./docker/builder/api/Dockerfile.api.dev
+    image: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev:latest
+    pull_policy: build
     depends_on:
       api-db-mesh-dev:
         condition: service_healthy
+      api-db-migrate-mesh-dev:
+        condition: service_completed_successfully
+      api-default-admin-mesh-dev:
+        condition: service_completed_successfully
+      api-db-seed-mesh-dev:
+        condition: service_completed_successfully
     restart: unless-stopped
-    mem_limit: 6g
-    memswap_limit: 6g
     ports:
       - "${MESH_API_PORT_5:-3305}:3305"
+    command: ["sh", "-c", "cd apps/api && bun src/cli.ts migrate --target local && bun run dev"]
     volumes:
+      - api_local_db_data_dev:/app/data
       - bun_cache_mesh_dev:/root/.bun/install/cache
       - turbo_cache_mesh_dev:/root/.cache/turbo
       - api_uploads_mesh_dev_5:/app/apps/api/uploads
@@ -278,10 +442,13 @@ services:
       - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
       - ENABLE_SEEDING=true
       - CHOKIDAR_USEPOLLING=true
+      - NODE_LOCAL_DB_PATH=/app/data/local-node-5.db
       - TURBO_TOKEN=${TURBO_TOKEN}
       - TURBO_TEAM=${TURBO_TEAM}
       - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
       - MESH_NODE_ID=${MESH_NODE_ID_NODE_5:-66666666-6666-4666-8666-666666666666}
+      - MESH_NODE_SERVER_URL=${MESH_NODE_SERVER_URL_NODE_5:-http://api-mesh-dev-5:3305}
+      - MESH_BOOTSTRAP_PEERS=${MESH_BOOTSTRAP_PEERS_NODE_5:-55555555-5555-4555-8555-555555555555@ws://api-mesh-dev-4:3304/mesh,77777777-7777-4777-8777-777777777777@ws://api-mesh-dev-6:3306/mesh}
       - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-dev-mesh-stream-secret}
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3305/health || exit 1
@@ -296,18 +463,23 @@ services:
 
   api-mesh-dev-6:
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-6
-    build:
-      context: ../..
-      dockerfile: ./docker/builder/api/Dockerfile.api.dev
+    image: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev:latest
+    pull_policy: build
     depends_on:
       api-db-mesh-dev:
         condition: service_healthy
+      api-db-migrate-mesh-dev:
+        condition: service_completed_successfully
+      api-default-admin-mesh-dev:
+        condition: service_completed_successfully
+      api-db-seed-mesh-dev:
+        condition: service_completed_successfully
     restart: unless-stopped
-    mem_limit: 6g
-    memswap_limit: 6g
     ports:
       - "${MESH_API_PORT_6:-3306}:3306"
+    command: ["sh", "-c", "cd apps/api && bun src/cli.ts migrate --target local && bun run dev"]
     volumes:
+      - api_local_db_data_dev:/app/data
       - bun_cache_mesh_dev:/root/.bun/install/cache
       - turbo_cache_mesh_dev:/root/.cache/turbo
       - api_uploads_mesh_dev_6:/app/apps/api/uploads
@@ -333,10 +505,13 @@ services:
       - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-adminadmin}
       - ENABLE_SEEDING=true
       - CHOKIDAR_USEPOLLING=true
+      - NODE_LOCAL_DB_PATH=/app/data/local-node-6.db
       - TURBO_TOKEN=${TURBO_TOKEN}
       - TURBO_TEAM=${TURBO_TEAM}
       - MESH_CLUSTER_ID=${MESH_CLUSTER_ID:-11111111-1111-4111-8111-111111111111}
       - MESH_NODE_ID=${MESH_NODE_ID_NODE_6:-77777777-7777-4777-8777-777777777777}
+      - MESH_NODE_SERVER_URL=${MESH_NODE_SERVER_URL_NODE_6:-http://api-mesh-dev-6:3306}
+      - MESH_BOOTSTRAP_PEERS=${MESH_BOOTSTRAP_PEERS_NODE_6:-66666666-6666-4666-8666-666666666666@ws://api-mesh-dev-5:3305/mesh,22222222-2222-4222-8222-222222222222@ws://api-mesh-dev-1:3301/mesh}
       - MESH_STREAM_SHARED_SECRET=${MESH_STREAM_SHARED_SECRET:-dev-mesh-stream-secret}
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3306/health || exit 1
@@ -364,11 +539,10 @@ services:
       api-mesh-dev-1:
         condition: service_healthy
     restart: unless-stopped
-    mem_limit: 4g
-    memswap_limit: 4g
     ports:
       - "${NEXT_PUBLIC_APP_PORT:-3000}:${NEXT_PUBLIC_APP_PORT:-3000}"
     volumes:
+      - api_local_db_data_dev:/app/data
       - bun_cache_mesh_dev:/root/.bun/install/cache
       - turbo_cache_mesh_dev:/root/.cache/turbo
     environment:
@@ -402,6 +576,8 @@ networks:
 volumes:
   api_db_data_mesh_dev:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_db_data_mesh_dev
+  api_local_db_data_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_local_db_data_dev
   bun_cache_mesh_dev:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_bun_cache_mesh_dev
   turbo_cache_mesh_dev:

@@ -1,0 +1,54 @@
+--- src/core/modules/mesh/services/system-mesh-config.service.ts
++++ src/core/modules/mesh/services/system-mesh-config.service.ts
+@@ -1,4 +1,4 @@
+-import { Injectable } from "@nestjs/common";
++import { Injectable, OnModuleInit, Logger } from "@nestjs/common";
+ import { EnvService } from "@/config/env/env.service";
+ import { NodeMeshConfigRepository } from "../repositories/node-mesh-config.repository";
+ import { NodeConfigRepository } from "@/modules/setup/repositories/node-config.repository";
+@@ -13,13 +13,44 @@
+ }
+ 
+ @Injectable()
+-export class SystemMeshConfigService {
++export class SystemMeshConfigService implements OnModuleInit {
++    private readonly logger = new Logger(SystemMeshConfigService.name);
++
+     constructor(
+         private readonly envService: EnvService,
+         private readonly nodeConfigRepo: NodeConfigRepository,
+         private readonly nodeMeshConfigRepo: NodeMeshConfigRepository,
+     ) {}
+ 
++    async onModuleInit() {
++        try {
++            const existing = this.nodeMeshConfigRepo.find();
++            if (!existing) {
++                this.logger.log("Initializing local mesh configuration defaults...");
++                
++                const envClusterId = this.envService.get("MESH_CLUSTER_ID" as any)?.toString().trim();
++                const envNodeServerUrl = this.envService.get("MESH_NODE_SERVER_URL" as any)?.toString().trim();
++                const envBootstrapPeers = this.envService.get("MESH_BOOTSTRAP_PEERS" as any)?.toString().trim();
++                
++                this.nodeMeshConfigRepo.upsert({
++                    clusterId: envClusterId || randomUUID(),
++                    nodeServerUrl: envNodeServerUrl || null,
++                    bootstrapPeersEncrypted: envBootstrapPeers || null,
++                    syncIntervalMs: 10000,
++                    trustStrictMinAckRatio: "1",
++                    trustStrictMaxAckAgeSeconds: 300,
++                    trustStrictRolloutWaveSize: 3,
++                    trustStrictAutoRollback: false,
++                    controlEnvelopeTrustRequired: false,
++                    createdAt: new Date().toISOString(),
++                    updatedAt: new Date().toISOString(),
++                });
++            }
++        } catch (error) {
++            this.logger.error(`Failed to initialize mesh defaults: ${error instanceof Error ? error.message : String(error)}`);
++        }
++    }
++
+     getNodeId(): string {
+         const dbConfig = this.nodeConfigRepo.find();
+         if (dbConfig?.nodeId) return dbConfig.nodeId;

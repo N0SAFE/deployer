@@ -213,13 +213,9 @@ vi.mock('@/routes', () => {
         AuthSignup: createRouteMock('AuthSignup'),
         AuthDashboard: createRouteMock('AuthDashboard'),
         AuthDashboardProfile: createRouteMock('AuthDashboardProfile'),
-        AuthDashboardDemo: createRouteMock('AuthDashboardDemo'),
         AuthDashboardOrganizations: createRouteMock('AuthDashboardOrganizations'),
         AuthDashboardOrganizationsNew: createRouteMock('AuthDashboardOrganizationsNew'),
         AuthDashboardOrganizationsOrganizationId: createRouteMock('AuthDashboardOrganizationsOrganizationId'),
-        Showcase: createRouteMock('Showcase'),
-        ShowcaseClient: createRouteMock('ShowcaseClient'),
-        ShowcaseServer: createRouteMock('ShowcaseServer'),
         Home: createRouteMock('Home'),
         
         // API route functions
@@ -275,13 +271,9 @@ vi.mock('@/routes/index', () => {
         AuthSignup: createRouteMock('AuthSignup'),
         AuthDashboard: createRouteMock('AuthDashboard'),
         AuthDashboardProfile: createRouteMock('AuthDashboardProfile'),
-        AuthDashboardDemo: createRouteMock('AuthDashboardDemo'),
         AuthDashboardOrganizations: createRouteMock('AuthDashboardOrganizations'),
         AuthDashboardOrganizationsNew: createRouteMock('AuthDashboardOrganizationsNew'),
         AuthDashboardOrganizationsOrganizationId: createRouteMock('AuthDashboardOrganizationsOrganizationId'),
-        Showcase: createRouteMock('Showcase'),
-        ShowcaseClient: createRouteMock('ShowcaseClient'),
-        ShowcaseServer: createRouteMock('ShowcaseServer'),
         Home: createRouteMock('Home'),
         
         // API route functions

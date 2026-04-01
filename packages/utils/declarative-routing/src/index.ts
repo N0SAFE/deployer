@@ -104,6 +104,11 @@ export type {
     RouteBuilderParams,
     RouteBuilderSearch,
     ParsedData,
+    RouteNavigationInput,
+    RouteNavigationOptions,
+    RouteSearchPatch,
+    RouteRuntimeConfig,
+    PageRouteHelpers,
 } from './types'
 
 // ============================================================================

@@ -7,7 +7,7 @@
  * @module domain/interfaces/service-mapping
  */
 
-import type { serviceDomainMappings } from '@/config/drizzle/schema';
+import type { serviceDomainMappings } from '@/config/drizzle/global/schema';
 
 // ============================================================================
 // DATABASE TYPES (re-exports for convenience)

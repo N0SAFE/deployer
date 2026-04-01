@@ -9,7 +9,7 @@ import {
     type MeshControlEnvelope,
     type MeshResourceLocation,
     type MeshResourceLookupResult,
-} from "@repo/api-contracts/common/mesh";
+} from "@repo/contracts-entities";
 import { SystemMeshTopologyService } from "./system-mesh-topology.service";
 
 const meshTopicEventPayloadSchema = z.object({

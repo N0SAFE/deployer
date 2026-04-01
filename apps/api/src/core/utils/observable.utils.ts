@@ -1,5 +1,4 @@
 import type { Observable } from "rxjs";
-import { Observable as RxObservable } from "rxjs";
 
 function toError(value: unknown): Error {
     if (value instanceof Error) {
@@ -85,34 +84,3 @@ export function observableToAsyncIterable<T>(observable: Observable<T>): AsyncIt
     };
 }
 
-export function asyncIterableToObservable<T>(iterable: AsyncIterable<T>): Observable<T> {
-    return new RxObservable<T>((subscriber) => {
-        let cancelled = false;
-
-        const run = async () => {
-            try {
-                for await (const value of iterable) {
-                    if (cancelled || subscriber.closed) {
-                        return;
-                    }
-
-                    subscriber.next(value);
-                }
-
-                if (!subscriber.closed) {
-                    subscriber.complete();
-                }
-            } catch (error: unknown) {
-                if (!subscriber.closed) {
-                    subscriber.error(toError(error));
-                }
-            }
-        };
-
-        void run();
-
-        return () => {
-            cancelled = true;
-        };
-    });
-}

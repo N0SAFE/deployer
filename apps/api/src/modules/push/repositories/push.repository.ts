@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { DatabaseService } from "@/core/modules/database/services/database.service";
-import { pushSubscription, userVapidKeys } from "@/config/drizzle/schema/auth";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
+import { pushSubscription, userVapidKeys } from "@/config/drizzle/global/schema/auth";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import type { InferSelectModel } from "drizzle-orm";
@@ -10,7 +10,7 @@ export type UserVapidKeysEntity = InferSelectModel<typeof userVapidKeys>;
 
 @Injectable()
 export class PushRepository {
-    constructor(private readonly databaseService: DatabaseService) {}
+    constructor(private readonly databaseService: GlobalDatabaseService) {}
 
     /**
      * Find VAPID keys for a user

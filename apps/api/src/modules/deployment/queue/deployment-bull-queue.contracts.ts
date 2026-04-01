@@ -1,5 +1,5 @@
 import * as z from "zod/v4";
-import { deploymentQueueJobSchema } from "@repo/api-contracts/common/deployment";
+import { deploymentQueueJobSchema } from "@repo/contracts-entities";
 
 export const deploymentBullEnqueueInputSchema = deploymentQueueJobSchema.extend({
     payload: deploymentQueueJobSchema.shape.payload.extend({

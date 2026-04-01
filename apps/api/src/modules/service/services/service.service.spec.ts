@@ -61,7 +61,7 @@ describe('ServiceService', () => {
             update: vi.fn(),
             delete: vi.fn(),
             toggleActive: vi.fn(),
-            getDependencies: vi.fn(),
+            getDependencies: vi.fn().mockResolvedValue([]),
             addDependency: vi.fn(),
             removeDependency: vi.fn(),
             dependencyExists: vi.fn(),
@@ -327,6 +327,62 @@ describe('ServiceService', () => {
             mockRepository.dependencyExists.mockResolvedValue(true);
 
             await expect(service.addDependency('service-1', 'service-2', false, 'requester-1')).rejects.toThrow(ConflictException);
+        });
+
+        it('should reject dependencies across different projects', async () => {
+            const service2 = { ...mockService, id: 'service-2', projectId: 'proj-2' };
+            mockRepository.findById.mockImplementation((id: string) => {
+                if (id === 'service-1') return Promise.resolve(mockService);
+                if (id === 'service-2') return Promise.resolve(service2);
+                return Promise.resolve(null);
+            });
+            mockRepository.dependencyExists.mockResolvedValue(false);
+
+            await expect(service.addDependency('service-1', 'service-2', true, 'requester-1')).rejects.toThrow(BadRequestException);
+            expect(mockRepository.addDependency).not.toHaveBeenCalled();
+        });
+
+        it('should reject dependencies that introduce a cycle', async () => {
+            const service2 = { ...mockService, id: 'service-2' };
+            const service3 = { ...mockService, id: 'service-3' };
+
+            mockRepository.findById.mockImplementation((id: string) => {
+                if (id === 'service-1') return Promise.resolve(mockService);
+                if (id === 'service-2') return Promise.resolve(service2);
+                if (id === 'service-3') return Promise.resolve(service3);
+                return Promise.resolve(null);
+            });
+            mockRepository.dependencyExists.mockResolvedValue(false);
+            mockRepository.getDependencies.mockImplementation((id: string) => {
+                if (id === 'service-2') {
+                    return Promise.resolve([
+                        {
+                            id: 'dep-2-3',
+                            serviceId: 'service-2',
+                            dependsOnServiceId: 'service-3',
+                            isRequired: true,
+                            createdAt: now,
+                        },
+                    ]);
+                }
+
+                if (id === 'service-3') {
+                    return Promise.resolve([
+                        {
+                            id: 'dep-3-1',
+                            serviceId: 'service-3',
+                            dependsOnServiceId: 'service-1',
+                            isRequired: true,
+                            createdAt: now,
+                        },
+                    ]);
+                }
+
+                return Promise.resolve([]);
+            });
+
+            await expect(service.addDependency('service-1', 'service-2', true, 'requester-1')).rejects.toThrow(BadRequestException);
+            expect(mockRepository.addDependency).not.toHaveBeenCalled();
         });
     });
 

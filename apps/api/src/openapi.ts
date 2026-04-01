@@ -1,7 +1,7 @@
 import { OpenAPIGenerator } from "@orpc/openapi";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { appContract } from "@repo/api-contracts";
-import { userSchema } from "@repo/api-contracts/common/user";
+import { userSchema } from "@repo/contracts-entities";
 
 export function generateSpec() {
     const generator = new OpenAPIGenerator({

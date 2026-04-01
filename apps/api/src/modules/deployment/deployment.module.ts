@@ -19,6 +19,8 @@ import { CoreEventSyncService } from "@/core/modules/events";
 import { DeploymentProvidersModule } from "./providers/providers.module";
 import { DeploymentRunnersModule } from "./runners/runners.module";
 import { DeploymentMeshService } from "./mesh/services/deployment-mesh.service";
+import { DeploymentStreamBridgeService } from "./mesh/services/deployment-stream-bridge.service";
+import { DeploymentStreamOrchestratorService } from "./mesh/services/deployment-stream-orchestrator.service";
 import { DeploymentMeshHandlerRegistrar } from "./mesh/registrars/deployment-mesh-handler-registrar.service";
 import { PreviewEnvOverlayService } from "./preview/preview-env-overlay.service";
 import { DeploymentStorageProvidersModule } from "./storage/storage-providers.module";
@@ -50,6 +52,8 @@ import { DeploymentArtifactBuilderService } from "./builders/deployment-artifact
         DeploymentBullQueueService,
         DeploymentQueueEventService,
         DeploymentMeshService,
+        DeploymentStreamBridgeService,
+        DeploymentStreamOrchestratorService,
         DeploymentMeshHandlerRegistrar,
         DeploymentQueueProcessor,
         DeploymentArtifactBuilderService,

@@ -6,7 +6,7 @@ import {
     deploymentCreateCompiledPlanSnapshotInputSchema,
     deploymentCreateCompiledPlanSnapshotResultSchema,
     deploymentListCompiledPlanSnapshotsResultSchema,
-} from "@repo/api-contracts/common/deployment";
+} from "@repo/contracts-entities";
 
 export const deploymentCreateCompiledPlanSnapshotContract = route({
     method: "POST",

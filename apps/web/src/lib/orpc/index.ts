@@ -6,13 +6,13 @@ import {
 import { ContractRouterClient } from "@orpc/contract";
 import { validateEnvPath } from "#/env";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
+import { createObservableQueryUtils, type ObservableQueryUtils } from "@repo/orpc-utils";
 import { ContextPlugin } from "./plugins/context-plugin";
 import { MasterTokenPlugin } from "./plugins/masterTokenClient";
 import { CookieHeadersPlugin } from "./plugins/cookie-headers-plugin";
 import { RedirectOnUnauthorizedPlugin } from "./plugins/redirect-on-unauthorized-plugin";
 import { StandardLinkPlugin } from "@orpc/client/standard";
-import { FileUploadOpenAPILink, WithFileUploadsClient } from "./links/file-upload-link";
-import { withObservableChain } from "./utils/observable-chain";
+import { FileUploadOpenAPILink } from "./links/file-upload-link";
 import { addCacheOperations } from "@/domains/shared/cache-operations";
 
 const Plugins = [
@@ -34,7 +34,9 @@ type PluginsContext = {
     : never
   : never;
 
-export function createORPCClientWithCookies() {
+type ORPCClient = ContractRouterClient<AppContract, PluginsContext>;
+
+export function createORPCClientWithCookies(): ORPCClient {
   // Use FileUploadOpenAPILink instead of OpenAPILink to handle file uploads with progress
   const link = new FileUploadOpenAPILink<PluginsContext>(appContract, {
     // Use direct API URLs, bypassing Next.js proxy
@@ -60,16 +62,9 @@ export function createORPCClientWithCookies() {
     plugins: Plugins,
   });
 
-  const client =
-    createORPCClient<
-      ContractRouterClient<
-        AppContract,
-        typeof link extends FileUploadOpenAPILink<infer C> ? C : never
-      >
-    >(link);
+  const client = createORPCClient<ContractRouterClient<AppContract, PluginsContext>>(link);
 
-  // Apply the type transformation to add FileUploadContext to routes with file inputs
-  return client as WithFileUploadsClient<typeof client>;
+  return client;
 }
 
 // Create TanStack Query utils directly from the client
@@ -80,9 +75,16 @@ const client = createORPCClientWithCookies();
 
 const baseOrpc = createTanstackQueryUtils(client);
 
+type EnhancedOrpc = ReturnType<typeof addCacheOperations<typeof baseOrpc>>;
+type OrpcClient = ObservableQueryUtils<EnhancedOrpc>;
+
+function createOrpcInternal(): OrpcClient {
+  return createObservableQueryUtils(addCacheOperations(baseOrpc));
+}
+
 // Enhance with cache operations for type-safe cache manipulation
 // This adds .cache property to all query endpoints with get/set/update/invalidate/remove methods
-export const orpc = withObservableChain(addCacheOperations(baseOrpc));
+export const orpc: OrpcClient = createOrpcInternal();
 
 // Export appContract for type checking and testing
 export { appContract };

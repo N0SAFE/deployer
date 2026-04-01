@@ -1,6 +1,6 @@
 import z from "zod/v4";
 import { route } from "@repo/orpc-utils";
-import { environmentTypeSchema, projectEnvironmentSchema } from "@repo/api-contracts/common/project";
+import { environmentTypeSchema, projectEnvironmentSchema } from "@repo/contracts-entities";
 
 const idParam = z.object({ id: z.uuid() });
 const envParams = z.object({ id: z.uuid(), environmentId: z.uuid() });

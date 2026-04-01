@@ -1,12 +1,12 @@
 import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { DatabaseService } from './database.service';
-import { DATABASE_CONNECTION } from '../database-connection';
+import { GlobalDatabaseService } from './global-database.service';
+import { GLOBAL_DATABASE_CONNECTION } from '../database-connection';
 import { logger } from '@repo/logger';
 
-describe('DatabaseService', () => {
-  let service: DatabaseService;
+describe('GlobalDatabaseService', () => {
+  let service: GlobalDatabaseService;
   let mockDatabase: any;
 
   beforeEach(async () => {
@@ -16,32 +16,32 @@ describe('DatabaseService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        DatabaseService,
+        GlobalDatabaseService,
         {
-          provide: DATABASE_CONNECTION,
+          provide: GLOBAL_DATABASE_CONNECTION,
           useValue: mockDatabase,
         },
       ],
     }).compile();
 
-    service = module.get<DatabaseService>(DatabaseService);
+    service = module.get<GlobalDatabaseService>(GlobalDatabaseService);
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  it('should create service with null db when DATABASE_CONNECTION is null', async () => {
+  it('should create service with null db when GLOBAL_DATABASE_CONNECTION is null', async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        DatabaseService,
+        GlobalDatabaseService,
         {
-          provide: DATABASE_CONNECTION,
+          provide: GLOBAL_DATABASE_CONNECTION,
           useValue: null,
         },
       ],
     }).compile();
-    const nullDbService = module.get<DatabaseService>(DatabaseService);
+    const nullDbService = module.get<GlobalDatabaseService>(GlobalDatabaseService);
     expect(nullDbService).toBeDefined();
     expect(nullDbService.isConnected).toBe(false);
   });

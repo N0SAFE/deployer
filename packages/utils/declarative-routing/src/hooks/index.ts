@@ -31,9 +31,16 @@ export {
     usePush,
     useParams,
     useSearchParams,
+    useSearchState,
     useSearchParamState,
     emptySchema,
 } from '../hooks'
 
 export type { RouteBuilder } from '../hooks'
+export type {
+    SearchPatch,
+    SearchStateOptions,
+    SearchStateUpdater,
+    SearchStateHelpers,
+} from '../hooks'
 export { z } from '../hooks'

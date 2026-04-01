@@ -76,6 +76,74 @@ export type BasePageProps = {
 }
 
 /**
+ * Navigation input accepted by route helper methods.
+ */
+export type RouteNavigationInput<
+    Params extends z.ZodType,
+    Search extends z.ZodType,
+> = {
+    params?: z.input<Params>
+    search?: z.input<Search>
+}
+
+/**
+ * Navigation options used by push/replace helpers.
+ */
+export type RouteNavigationOptions = {
+    scroll?: boolean
+}
+
+/**
+ * Partial search patch used by searchUpdate helper.
+ */
+export type RouteSearchPatch<Search extends z.ZodType> =
+    z.input<Search> extends Record<string, unknown>
+        ? Partial<z.input<Search>>
+        : z.input<Search>
+
+/**
+ * Runtime route configuration injected by route builders into page wrappers.
+ */
+export type RouteRuntimeConfig<
+    Params extends z.ZodType,
+    Search extends z.ZodType,
+> = {
+    routePath: string
+    routeName: string
+    buildUrl: (params?: z.input<Params>, search?: z.input<Search>) => string
+}
+
+/**
+ * Route helper API exposed to wrapped page components.
+ *
+ * Client and server wrappers expose the same method names,
+ * but can execute different behaviors.
+ */
+export type PageRouteHelpers<
+    Params extends z.ZodType,
+    Search extends z.ZodType,
+> = {
+    routePath?: string
+    routeName?: string
+    params: z.output<Params>
+    search: z.output<Search>
+    urlBuilder: (params?: z.input<Params>, search?: z.input<Search>) => string
+    buildUrl: (params?: z.input<Params>, search?: z.input<Search>) => string
+    push: (
+        input?: RouteNavigationInput<Params, Search>,
+        options?: RouteNavigationOptions
+    ) => string
+    replace: (
+        input?: RouteNavigationInput<Params, Search>,
+        options?: RouteNavigationOptions
+    ) => string
+    setSearch: (value: z.input<Search> | null) => Promise<string>
+    searchUpdate: (patch: RouteSearchPatch<Search> | null) => Promise<string>
+    searchReplace: (value: z.input<Search> | null) => Promise<string>
+    searchReset: () => Promise<string>
+}
+
+/**
  * Next.js page props (Promise-based params/searchParams)
  */
 export type NextPageProps = {
@@ -103,6 +171,7 @@ export type UnwrappedPageProps<
 > = {
     params: z.output<Params>
     searchParams: z.output<Search>
+    route?: PageRouteHelpers<Params, Search>
 } & BasePageProps
 
 /**

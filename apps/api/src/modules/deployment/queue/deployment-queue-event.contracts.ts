@@ -5,7 +5,7 @@ import {
     deploymentDeadLetterJobSchema,
     deploymentQueueJobTypeSchema,
     deploymentQueueJobStatusSchema,
-} from "@repo/api-contracts/common/deployment";
+} from "@repo/contracts-entities";
 
 export const deploymentQueueEventFilterSchema = z.object({
     queue: z.literal("deployment").default("deployment"),

@@ -1,0 +1,134 @@
+---
+title: Mesh Peer Selection Algorithm
+description: Target algorithm for latency-aware peer selection and adaptive mesh topology.
+order: 6
+---
+
+<DocMeta source="docs/mesh/mesh-peer-selection-algorithm.md" scope="canonical" />
+
+## Mesh peer selection and adaptive topology
+
+Canonical file: `v3/docs/mesh/mesh-peer-selection-algorithm.md`.
+
+> **Added**: 2026-03-31  \
+> **Type**: Task  \
+> **Confidence**: Hypothesis 🔬  \
+> **Scope**: v3
+
+### Summary
+Defines the target mesh peer-selection and adaptive topology algorithm that chooses low-latency, low-load peers and rebalances in real time.
+
+### Context
+The mesh layer currently favors first-seen peers. For multi-node resilience and efficient event propagation, peer selection must be latency-aware, load-aware, and adaptive to fleet size and capacity while staying authenticated and stable under churn.
+
+### Details / Implementation
+
+#### Goals
+- Prefer lowest-latency peers under load constraints.
+- Adapt peer degree to fleet size and node capacity.
+- Re-evaluate peers periodically and on change triggers.
+- Use authenticated mesh pings (internal ORPC) and avoid public contracts.
+
+#### Definitions
+- **Candidate**: any active mesh node with valid auth handshake.
+- **Peer**: a chosen node with which a persistent mesh stream/bridge is maintained.
+- **Latency budget**: target RTT threshold (configurable).
+- **Capacity index**: normalized node capacity score (CPU/RAM class and headroom).
+
+#### Phase 1 — Discovery & authenticated ping
+1. Query fleet registry for active nodes (control-plane or mesh discovery service).
+2. For each candidate, perform authenticated ORPC mesh ping:
+	 - Measure RTT and jitter (p50, p95, p99).
+	 - Capture load metrics (CPU, memory pressure, queue backlog, stream count).
+3. Discard candidates that fail authentication or exceed failure budget.
+
+#### Phase 2 — Scoring
+Normalize metrics to $[0, 1]$ where lower is better (except capacity where higher is better).
+
+Let:
+- $L$ = normalized latency score
+- $J$ = normalized jitter score
+- $Q$ = normalized queue backlog
+- $S$ = normalized stream load
+- $M$ = normalized memory pressure
+- $C$ = normalized capacity index (higher is better)
+- $F$ = failure penalty score
+
+Score function (lower is better):
+
+$$
+Score = w_L L + w_J J + w_Q Q + w_S S + w_M M + w_F F + w_C (1 - C)
+$$
+
+Weights are configurable and default to latency-first behavior:
+
+$$
+\sum w = 1,\quad w_L \ge 0.35
+$$
+
+#### Phase 3 — Peer degree computation
+Compute target peer count $k$ based on fleet size $N$, capacity index $C$, and median latency $\tilde{L}$:
+
+$$
+K_{base} = \lceil a + b\cdot\log_2(N) \rceil
+$$
+
+$$
+K_{capacity} = \lceil K_{base} \cdot (0.6 + 0.4C) \rceil
+$$
+
+$$
+K_{latency} = \lceil K_{base} \cdot (1 - \tilde{L} / L_{budget}) \rceil
+$$
+
+$$
+k = clamp(minPeers, maxPeers, \max(K_{base}, K_{capacity}, K_{latency}))
+$$
+
+- $a, b$ are config knobs (default $a=1, b=2$).
+- $L_{budget}$ is a config latency budget (default 80ms).
+- `clamp` enforces configured bounds.
+
+#### Phase 4 — Peer selection
+1. Sort candidates by ascending $Score$.
+2. Select first $k$ as peers.
+3. Apply hysteresis to avoid flapping:
+	 - Keep existing peers unless a candidate exceeds improvement threshold $\delta$.
+	 - Replace at most $r$ peers per cycle (configurable).
+
+#### Phase 5 — Rebalancing cadence
+Re-evaluate peers under either:
+- **Adaptive timer** (default):
+	- Shorter interval when jitter or load volatility exceeds threshold.
+	- Longer interval when system is stable.
+- **Change triggers**:
+	- Node joins/leaves
+	- Latency delta $> \theta_{latency}$
+	- Load delta $> \theta_{load}$
+
+#### Phase 6 — Fleet health checks
+At each re-evaluation, issue a low-overhead fleet-wide ping sweep to refresh RTT baselines and adjust $Score$ inputs.
+
+#### Pseudocode (illustrative)
+```text
+candidates = discoverNodes()
+metrics = pingAll(candidates)
+filtered = filterAuthAndFailures(metrics)
+scoreMap = score(filtered)
+k = computePeerDegree(filtered, config)
+nextPeers = choosePeers(scoreMap, k, hysteresis)
+rebalance(nextPeers)
+```
+
+### Affected Files / Locations
+- `v3/apps/api/src/core/modules/mesh/` — mesh runtime and discovery services (target implementation area)
+- `v3/apps/api/src/core/modules/mesh/services/base-mesh.service.ts` — candidate for peer selection orchestration
+
+### Known Limitations / Caveats
+- This document defines the **target** algorithm; it is **not yet implemented**.
+- RTT/metrics collection must be rate-limited to avoid overload in large fleets.
+- Capacity indices require consistent node telemetry reporting.
+
+### Related Documentation
+- [Architecture Overview](/docs/architecture/architecture)
+- [Event System & Stream Sync](/docs/dev/event-system-streams)

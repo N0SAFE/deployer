@@ -15,8 +15,6 @@ services:
         - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
         - NEXT_PUBLIC_APP_PORT=${NEXT_PUBLIC_APP_PORT:-3000}
     restart: always
-    mem_limit: 4g
-    memswap_limit: 4g
     ports:
       - "${NEXT_PUBLIC_APP_PORT:-3000}:${NEXT_PUBLIC_APP_PORT:-3000}"
     develop:
@@ -130,9 +128,11 @@ services:
       - NEXT_PUBLIC_DEBUG=${NEXT_PUBLIC_DEBUG}
       
       # Development Tools - Hot Reloading
-      - WATCHPACK_POLLING=true
-      - CHOKIDAR_USEPOLLING=true
-      - NEXT_WEBPACK_USEPOLLING=1
+      # Keep polling disabled by default (compose sync + native fs events);
+      # can be re-enabled via env override if a host filesystem requires it.
+      - WATCHPACK_POLLING=${WATCHPACK_POLLING:-false}
+      - CHOKIDAR_USEPOLLING=${CHOKIDAR_USEPOLLING:-false}
+      - NEXT_WEBPACK_USEPOLLING=${NEXT_WEBPACK_USEPOLLING:-0}
       
       # Turbo Remote Cache
       - TURBO_TOKEN=${TURBO_TOKEN}

@@ -23,21 +23,19 @@ export const SESSION_QUERY_KEY = DEFAULT_SESSION_QUERY_KEY
 // The enhanced useSession hook will:
 // 1. Subscribe to React Query cache via useSyncExternalStore (picks up HydrationBoundary data)
 // 2. Fall back to Better Auth's useSession (client-side fetch)
-export const authClient = createSessionAwareAuthClient(originalAuthClient, {
+export const authClient: typeof originalAuthClient = createSessionAwareAuthClient(originalAuthClient, {
     sessionQueryKey: SESSION_QUERY_KEY,
 })
 
 // Re-export common auth client methods and types
-export const {
-    signIn,
-    signUp,
-    getSession,
-    useSession,
-    $store,
-    $fetch,
-    $ERROR_CODES,
-    $Infer,
-} = authClient
+export const signIn: typeof authClient.signIn = authClient.signIn
+export const signUp: typeof authClient.signUp = authClient.signUp
+export const getSession: typeof authClient.getSession = authClient.getSession
+export const useSession: typeof authClient.useSession = authClient.useSession
+export const $store: typeof authClient.$store = authClient.$store
+export const $fetch: typeof authClient.$fetch = authClient.$fetch
+export const $ERROR_CODES: typeof authClient.$ERROR_CODES = authClient.$ERROR_CODES
+export const $Infer: typeof authClient.$Infer = authClient.$Infer
 
 // Create the masterTokenSignOut by wrapping the original signOut with the plugin's factory
 // The plugin provides $masterTokenSignOut as a factory that takes the original signOut

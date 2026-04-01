@@ -8,7 +8,7 @@ import {
     type MeshQueueTransitionAppendInput,
     type MeshQueueTransitionAppendResult,
     type MeshQueueTransitionLogEntry,
-} from "@repo/api-contracts/common/mesh";
+} from "@repo/contracts-entities";
 import { contractBuilder } from "@/core/modules/events/event-contract.builder";
 import { BaseMeshService } from "@/core/modules/mesh/services/base-mesh.service";
 import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic.service";

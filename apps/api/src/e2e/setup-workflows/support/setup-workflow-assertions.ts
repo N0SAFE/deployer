@@ -5,7 +5,7 @@ import {
   type NodeConfigStatus,
   type SetupStateMachine,
   type SetupStateSnapshot,
-} from "@repo/api-contracts/common/setup";
+} from "@repo/contracts-entities";
 import { expect } from "vitest";
 
 export function parseSetupSnapshot(value: unknown): SetupStateSnapshot {

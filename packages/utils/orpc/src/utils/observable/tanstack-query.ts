@@ -1,4 +1,4 @@
-import type { NestedClient } from "@orpc/client";
+import type { Client, ClientContext, NestedClient } from "@orpc/client";
 import {
   createTanstackQueryUtils,
   type CreateRouterUtilsOptions,
@@ -25,34 +25,24 @@ type RuntimeProcedureWithCall = {
 
 type TanstackProcedureUtilsLike = {
   call: unknown;
-  experimental_liveKey: unknown;
-  experimental_streamedKey: unknown;
-  experimental_liveOptions: unknown;
-  experimental_streamedOptions: unknown;
 };
 
 type ExtractProcedureInput<TProcedure> = TProcedure extends {
-  call: (...args: infer TArgs) => unknown;
+  call: Client<infer _TContext, infer TInput, infer _TOutput, infer _TError>;
 }
-  ? TArgs[0]
+  ? TInput
   : never;
 
-type ExtractProcedureOutput<TProcedure> = Awaited<
-  TProcedure extends {
-    call: (...args: unknown[]) => infer TOutput;
-  }
-    ? TOutput
-    : never
->;
+type ExtractProcedureOutput<TProcedure> = TProcedure extends {
+  call: Client<infer _TContext, infer _TInput, infer TOutput, infer _TError>;
+}
+  ? TOutput
+  : never;
 
 type ExtractProcedureContext<TProcedure> = TProcedure extends {
-  call: (...args: infer TArgs) => unknown;
+  call: Client<infer TContext, infer _TInput, infer _TOutput, infer _TError>;
 }
-  ? TArgs[1] extends { context?: infer TContext }
-    ? TContext
-    : TArgs[1] extends { context: infer TContext }
-      ? TContext
-      : Record<never, never>
+  ? TContext
   : Record<never, never>;
 
 type ExtractStreamValue<TOutput> = TOutput extends AsyncIterable<infer TChunk>
@@ -197,7 +187,8 @@ function getBoundMethod(target: object, methodName: string): ((...args: unknown[
     return undefined;
   }
 
-  return (...args: unknown[]) => source.apply(target, args);
+  const callable = source as (...args: unknown[]) => unknown;
+  return (...args: unknown[]) => Reflect.apply(callable, target, args);
 }
 
 function isTanstackUtilsLike(value: unknown): value is object {
@@ -467,7 +458,7 @@ function enhanceObservableQueryUtils<TOrpc extends object>(orpc: TOrpc): Observa
                 queryKey: key,
                 queryFn: async (queryContext) => {
                   const result = await callProcedure(target, input, queryContext.signal, context);
-                  const source$ = toObservable(result);
+                  const source$ = toObservable<unknown>(result);
                   const transformed$ = queryFnOptions?.pipe
                     ? applyPipeTransform(source$, queryFnOptions.pipe)
                     : source$;
@@ -495,7 +486,7 @@ function enhanceObservableQueryUtils<TOrpc extends object>(orpc: TOrpc): Observa
                 queryKey: key,
                 queryFn: async (queryContext: QueryFunctionContext) => {
                   const result = await callProcedure(target, input, queryContext.signal, context);
-                  const source$ = toObservable(result);
+                  const source$ = toObservable<unknown>(result);
                   const transformed$ = queryFnOptions?.pipe
                     ? applyPipeTransform(source$, queryFnOptions.pipe)
                     : source$;
@@ -519,7 +510,7 @@ function enhanceObservableQueryUtils<TOrpc extends object>(orpc: TOrpc): Observa
   return wrap(orpc) as ObservableRouterQueryUtils<TOrpc>;
 }
 
-export function createObservableQueryUtils<TClient extends NestedClient<any>>(
+export function createObservableQueryUtils<TClient extends NestedClient<ClientContext>>(
   client: TClient,
   options?: CreateRouterUtilsOptions<TClient>,
 ): ObservableRouterQueryUtils<RouterUtils<TClient>>;
@@ -528,10 +519,10 @@ export function createObservableQueryUtils<TOrpc extends object>(
 ): ObservableRouterQueryUtils<TOrpc>;
 export function createObservableQueryUtils(
   orpcOrClient: object,
-  options?: CreateRouterUtilsOptions<NestedClient<any>>,
+  options?: CreateRouterUtilsOptions<NestedClient<ClientContext>>,
 ): ObservableRouterQueryUtils<object> {
   const baseUtils = options !== undefined || !isTanstackUtilsLike(orpcOrClient)
-    ? createTanstackQueryUtils(orpcOrClient as NestedClient<any>, options)
+    ? createTanstackQueryUtils(orpcOrClient as NestedClient<ClientContext>, options)
     : orpcOrClient;
 
   return enhanceObservableQueryUtils(baseUtils);

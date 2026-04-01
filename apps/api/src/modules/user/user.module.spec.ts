@@ -6,8 +6,8 @@ import { UserModule } from '@/modules/user/user.module';
 import { UserController } from '@/modules/user/controllers/user.controller';
 import { UserService } from '@/modules/user/services/user.service';
 import { UserRepository } from '@/modules/user/repositories/user.repository';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
-import { DATABASE_CONNECTION } from '@/core/modules/database/database-connection';
+import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service';
+import { GLOBAL_DATABASE_CONNECTION } from '@/core/modules/database/database-connection';
 
 describe('UserModule', () => {
   let module: TestingModule;
@@ -23,7 +23,7 @@ describe('UserModule', () => {
         return 'test-value';
       }),
     })
-    .overrideProvider(DATABASE_CONNECTION)
+    .overrideProvider(GLOBAL_DATABASE_CONNECTION)
     .useValue({
       insert: vi.fn().mockReturnThis(),
       select: vi.fn().mockReturnThis(),
@@ -38,7 +38,7 @@ describe('UserModule', () => {
       orderBy: vi.fn().mockReturnThis(),
       set: vi.fn().mockReturnThis(),
     })
-    .overrideProvider(DatabaseService)
+    .overrideProvider(GlobalDatabaseService)
     .useValue({
       db: {
         insert: vi.fn().mockReturnThis(),

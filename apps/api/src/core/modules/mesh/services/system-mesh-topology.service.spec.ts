@@ -5,15 +5,17 @@ import { from } from "rxjs";
 import { SystemMeshTopologyService } from "./system-mesh-topology.service";
 import { SystemMeshLogicService } from "./system-mesh-logic.service";
 import { SystemMeshOverlayScopeService } from "./system-mesh-overlay-scope.service";
+import { EnvService } from "@/config/env/env.service";
 import type { SystemMeshEventService } from "../events/system-mesh-event.service";
 import type { SystemMeshClusterRepository } from "../repositories/system-mesh-cluster.repository";
-import type { MeshTopologyEvent } from "@repo/api-contracts/common/mesh";
+import type { MeshTopologyEvent } from "@repo/contracts-entities";
 import { getMockEnv } from "@repo/env/mock";
 
 describe("SystemMeshTopologyService", () => {
     let service: SystemMeshTopologyService;
     let meshLogicService: SystemMeshLogicService;
     let meshOverlayScopeService: SystemMeshOverlayScopeService;
+    let envService: EnvService;
     let meshEventService: Pick<
         SystemMeshEventService,
         | "emitRuntime"
@@ -66,11 +68,13 @@ describe("SystemMeshTopologyService", () => {
 
         meshLogicService = new SystemMeshLogicService();
         meshOverlayScopeService = new SystemMeshOverlayScopeService();
+        envService = new EnvService();
 
         service = new SystemMeshTopologyService(
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
         );
     });
 
@@ -107,6 +111,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as SystemMeshClusterRepository,
         );
 
@@ -124,6 +130,68 @@ describe("SystemMeshTopologyService", () => {
         expect(lookup.primary?.ownerNodeId).toBe("22222222-2222-4222-8222-222222222222");
     });
 
+    it("infers remote-to-remote links from cluster sync to expose cluster-wide topology", async () => {
+        const remoteNodeA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+        const remoteNodeB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+        const now = new Date("2026-03-01T10:00:00.000Z").toISOString();
+
+        const repositoryMock: Pick<
+            SystemMeshClusterRepository,
+            "loadAllResourceLocations" | "persistResourceIndexUpsert" | "persistNodeHeartbeat" | "loadActiveClusterNodes"
+        > = {
+            loadAllResourceLocations: vi.fn(async () => []),
+            persistResourceIndexUpsert: vi.fn(async () => undefined),
+            persistNodeHeartbeat: vi.fn(async () => undefined),
+            loadActiveClusterNodes: vi.fn(async () => [
+                {
+                    nodeId: remoteNodeA,
+                    serverUrl: "http://api-mesh-dev-2:3302",
+                    status: "active" as const,
+                    healthy: true,
+                    lastSeenAt: now,
+                },
+                {
+                    nodeId: remoteNodeB,
+                    serverUrl: "http://api-mesh-dev-3:3303",
+                    status: "active" as const,
+                    healthy: true,
+                    lastSeenAt: now,
+                },
+            ]),
+        };
+
+        const syncedService = new SystemMeshTopologyService(
+            meshEventService as SystemMeshEventService,
+            meshLogicService,
+            meshOverlayScopeService,
+            envService,
+            undefined,
+            repositoryMock as unknown as SystemMeshClusterRepository,
+        );
+
+        await syncedService.onModuleInit();
+
+        const peers = syncedService.listPeers().items;
+        expect(
+            peers.some(
+                (connection) =>
+                    connection.sourceNodeId === remoteNodeA &&
+                    connection.targetNodeId === remoteNodeB &&
+                    (connection.metadata as Record<string, unknown> | null)?.inferredFromClusterSync === true,
+            ),
+        ).toBe(true);
+        expect(
+            peers.some(
+                (connection) =>
+                    connection.sourceNodeId === remoteNodeB &&
+                    connection.targetNodeId === remoteNodeA &&
+                    (connection.metadata as Record<string, unknown> | null)?.inferredFromClusterSync === true,
+            ),
+        ).toBe(true);
+
+        syncedService.onModuleDestroy();
+    });
+
     it("persists resource index upserts through durable repository", async () => {
         const repositoryMock: Pick<SystemMeshClusterRepository, "loadAllResourceLocations" | "persistResourceIndexUpsert" | "persistNodeHeartbeat"> = {
             loadAllResourceLocations: vi.fn(async () => []),
@@ -135,6 +203,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as SystemMeshClusterRepository,
         );
 
@@ -180,6 +250,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as unknown as SystemMeshClusterRepository,
         );
 
@@ -215,6 +287,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as unknown as SystemMeshClusterRepository,
         );
 
@@ -250,6 +324,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as unknown as SystemMeshClusterRepository,
         );
 
@@ -432,6 +508,7 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
         );
 
         const outputs: Array<{ type: string; code?: string }> = [];
@@ -463,6 +540,7 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
         );
 
         expect(() =>
@@ -504,6 +582,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as unknown as SystemMeshClusterRepository,
         );
 
@@ -599,6 +679,7 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
         );
 
         const envelopeBase = {
@@ -653,6 +734,7 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
         );
 
         const status = strictService.getTrustKeyringStatus();
@@ -680,6 +762,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as unknown as SystemMeshClusterRepository,
         );
 
@@ -718,6 +802,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as unknown as SystemMeshClusterRepository,
         );
 
@@ -825,6 +911,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as unknown as SystemMeshClusterRepository,
         );
 
@@ -933,6 +1021,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as unknown as SystemMeshClusterRepository,
         );
 
@@ -1016,6 +1106,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as unknown as SystemMeshClusterRepository,
         );
 
@@ -1116,6 +1208,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as unknown as SystemMeshClusterRepository,
         );
 
@@ -1209,6 +1303,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as unknown as SystemMeshClusterRepository,
         );
 
@@ -1277,6 +1373,7 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
         );
 
         const result = strictService.setTrustStrictMode({
@@ -1309,6 +1406,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as unknown as SystemMeshClusterRepository,
         );
 
@@ -1390,6 +1489,7 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
         );
 
         expect(() =>
@@ -1408,6 +1508,7 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
         );
 
         strictService.setTrustStrictMode({
@@ -1434,6 +1535,7 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
         );
 
         strictService.setTrustStrictMode({
@@ -1474,6 +1576,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as unknown as SystemMeshClusterRepository,
         );
 
@@ -1550,6 +1654,7 @@ describe("SystemMeshTopologyService", () => {
         expect(readiness.rollbackRecommended).toBe(true);
 
         const rolledBack = strictService.rollbackTrustStrictMode({
+            force: false,
             setByRole: "superAdmin",
             reason: "convergence_slo_breach",
         });
@@ -1585,6 +1690,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as unknown as SystemMeshClusterRepository,
         );
 
@@ -1699,6 +1806,8 @@ describe("SystemMeshTopologyService", () => {
             meshEventService as SystemMeshEventService,
             meshLogicService,
             meshOverlayScopeService,
+            envService,
+            undefined,
             repositoryMock as unknown as SystemMeshClusterRepository,
         );
 
@@ -3217,6 +3326,7 @@ describe("SystemMeshTopologyService", () => {
                 meshEventService as SystemMeshEventService,
                 meshLogicService,
                 meshOverlayScopeService,
+                envService,
             );
         };
 

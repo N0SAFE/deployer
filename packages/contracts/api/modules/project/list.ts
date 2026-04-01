@@ -1,5 +1,5 @@
 import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
-import { projectSchema } from "@repo/api-contracts/common/project";
+import { projectSchema } from "@repo/contracts-entities";
 
 // Create standard operations builder for projects
 const projectOps = standard.zod(projectSchema, "project");

@@ -232,7 +232,7 @@
         "generate:directus:types": "turbo run generate:directus:types",
         "docker:dev": "bun --bun run dev",
         "docker:prod": "bun --bun run start",
-        "mesh:dev": "dotenv -e .env -- docker compose -f ./docker/compose/docker-compose.mesh-6.dev.yml up --build",
+        "mesh:dev": "dotenv -e .env -- docker compose -f ./docker/compose/docker-compose.mesh-6.dev.yml up",
         "mesh:dev:down": "docker compose -f ./docker/compose/docker-compose.mesh-6.dev.yml down",
         "mesh:dev:down:volumes": "docker compose -f ./docker/compose/docker-compose.mesh-6.dev.yml down --volumes",
         "mesh:dev:logs": "docker compose -f ./docker/compose/docker-compose.mesh-6.dev.yml logs -f",
@@ -317,6 +317,7 @@
         "typescript": "catalog:build"
     },
     "dependencies": {
-        "detect-libc": "^2.1.2"
+        "detect-libc": "^2.1.2",
+        "systeminformation": "^5.31.5"
     }
 }

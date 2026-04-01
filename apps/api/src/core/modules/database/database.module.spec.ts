@@ -1,8 +1,8 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DatabaseModule } from './database.module';
-import { DatabaseService } from './services/database.service';
-import { DATABASE_CONNECTION } from './database-connection';
+import { GlobalDatabaseService } from './services/global-database.service';
+import { GLOBAL_DATABASE_CONNECTION } from './database-connection';
 
 describe('DatabaseModule', () => {
   let module: TestingModule;
@@ -11,7 +11,7 @@ describe('DatabaseModule', () => {
     module = await Test.createTestingModule({
       imports: [DatabaseModule],
     })
-    .overrideProvider(DATABASE_CONNECTION)
+    .overrideProvider(GLOBAL_DATABASE_CONNECTION)
     .useValue({
       execute: vi.fn(),
     })
@@ -22,13 +22,13 @@ describe('DatabaseModule', () => {
     expect(module).toBeDefined();
   });
 
-  it('should provide DatabaseService', () => {
-    const databaseService = module.get<DatabaseService>(DatabaseService);
+  it('should provide GlobalDatabaseService', () => {
+    const databaseService = module.get<GlobalDatabaseService>(GlobalDatabaseService);
     expect(databaseService).toBeDefined();
   });
 
-  it('should provide DATABASE_CONNECTION', () => {
-    const connection = module.get(DATABASE_CONNECTION);
+  it('should provide GLOBAL_DATABASE_CONNECTION', () => {
+    const connection = module.get(GLOBAL_DATABASE_CONNECTION);
     expect(connection).toBeDefined();
   });
 });

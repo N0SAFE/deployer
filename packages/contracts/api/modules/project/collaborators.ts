@@ -1,6 +1,6 @@
 import z from "zod/v4";
 import { route } from "@repo/orpc-utils";
-import { collaboratorSchema, inviteCollaboratorSchema, projectRoleSchema } from "@repo/api-contracts/common/project";
+import { collaboratorSchema, inviteCollaboratorSchema, projectRoleSchema } from "@repo/contracts-entities";
 
 const idParam = z.object({ id: z.uuid() });
 

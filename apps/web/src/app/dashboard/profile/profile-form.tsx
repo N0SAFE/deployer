@@ -103,7 +103,9 @@ export function ProfileForm({ initialSession }: ProfileFormProps) {
   }
   
   const user = currentSession.user
-  const isAdmin = user.role === 'admin' || user.role === 'superAdmin'
+  const userRole =
+    'role' in user && typeof user.role === 'string' ? user.role : 'viewer'
+  const isAdmin = userRole === 'admin' || userRole === 'superAdmin'
 
   return (
     <div className="grid gap-6 md:grid-cols-3">
@@ -143,7 +145,7 @@ export function ProfileForm({ initialSession }: ProfileFormProps) {
                 {isAdmin && (
                   <Badge variant="default" className="flex items-center gap-1">
                     <Shield className="h-3 w-3" />
-                    {user.role === 'superAdmin' ? 'Super Admin' : 'Admin'}
+                    {userRole === 'superAdmin' ? 'Super Admin' : 'Admin'}
                   </Badge>
                 )}
                 {user.emailVerified && (
@@ -248,7 +250,7 @@ export function ProfileForm({ initialSession }: ProfileFormProps) {
             <div>
               <p className="text-sm font-medium">Role</p>
               <p className="text-xs text-muted-foreground capitalize">
-                {user.role ?? 'User'}
+                {userRole}
               </p>
             </div>
           </div>

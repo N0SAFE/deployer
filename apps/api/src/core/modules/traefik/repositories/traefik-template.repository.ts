@@ -1,16 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { eq, and } from 'drizzle-orm';
-import { DatabaseService } from '../../database/services/database.service';
+import { GlobalDatabaseService } from '../../database/services/global-database.service';
 import {
   providerTraefikTemplates,
   serviceTraefikTemplates,
   type ProviderTraefikTemplate,
   type ServiceTraefikTemplate,
-} from '@/config/drizzle/schema/traefik';
+} from '@/config/drizzle/global/schema/traefik';
 
 @Injectable()
 export class TraefikTemplateRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly databaseService: GlobalDatabaseService) {}
 
   /**
    * Get provider template by type

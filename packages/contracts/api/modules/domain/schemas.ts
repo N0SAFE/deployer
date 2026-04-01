@@ -1,12 +1,17 @@
 import z from "zod/v4";
+import {
+  SSL_PROVIDER_VALUES,
+  VERIFICATION_METHOD_VALUES,
+  VERIFICATION_STATUS_VALUES,
+} from "@repo/contracts-common";
 
 // ==========================================
 // ENUMS
 // ==========================================
 
-export const verificationStatusSchema = z.enum(['pending', 'verified', 'failed']);
-export const verificationMethodSchema = z.enum(['txt_record', 'cname_record']);
-export const sslProviderSchema = z.enum(['letsencrypt', 'custom', 'none']);
+export const verificationStatusSchema = z.enum(VERIFICATION_STATUS_VALUES);
+export const verificationMethodSchema = z.enum(VERIFICATION_METHOD_VALUES);
+export const sslProviderSchema = z.enum(SSL_PROVIDER_VALUES);
 
 // ==========================================
 // ORGANIZATION DOMAIN SCHEMAS

@@ -11,7 +11,7 @@ import type {
   organizationDomains,
   verificationStatusEnum,
   verificationMethodEnum,
-} from '@/config/drizzle/schema/domain';
+} from '@/config/drizzle/global/schema/domain';
 
 // ============================================================================
 // DATABASE TYPES (re-exports for convenience)

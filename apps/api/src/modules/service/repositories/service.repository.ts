@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
-import { DatabaseService } from "@/core/modules/database/services/database.service";
-import { services, serviceDependencies } from "@/config/drizzle/schema/deployment";
-import { localEventOutbox } from "@/config/drizzle/schema/runtime";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
+import { services, serviceDependencies } from "@/config/drizzle/global/schema/deployment";
+import { localEventOutbox } from "@/config/drizzle/global/schema/runtime";
 import { and, eq, ilike } from "drizzle-orm";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { TraefikConfigBuilder } from "@/core/modules/traefik/config-builder/builders";
@@ -26,7 +26,7 @@ function toDto(row: ServiceRow) {
 
 @Injectable()
 export class ServiceRepository {
-    constructor(private readonly databaseService: DatabaseService) {}
+    constructor(private readonly databaseService: GlobalDatabaseService) {}
 
     async list(input: ServiceListInput) {
         const db = this.databaseService.db;

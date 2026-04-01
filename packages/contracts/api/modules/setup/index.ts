@@ -8,7 +8,7 @@ import {
     setupInitializeResultSchema,
     setupStateMachineSchema,
     setupStateSnapshotSchema,
-} from "@repo/api-contracts/common/setup";
+} from "@repo/contracts-entities";
 
 export const setupGetStatusContract = route({
     method: "GET",

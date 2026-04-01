@@ -6,8 +6,6 @@ import {
     coreEventScopeSchema,
     coreEventStreamDefinitionSchema,
     coreSyncedEventEnvelopeSchema,
-} from "@repo/api-contracts/common/event-stream";
-import {
     meshResourceIndexUpsertInputSchema,
     meshResourceIndexUpsertResultSchema,
     meshResourceLookupInputSchema,
@@ -26,15 +24,24 @@ import {
     meshPeerDisconnectResultSchema,
     meshPeerHeartbeatInputSchema,
     meshPeerHeartbeatResultSchema,
-    meshPeerSessionSchema,
+    meshPeerSessionsListResultSchema,
+    meshPeersListResultSchema,
     meshRuntimeEventSchema,
+    meshRuntimeStreamQuerySchema,
     meshNodeStateSchema,
-    meshPeerConnectionSchema,
+    meshControlEnvelopePublishResultSchema,
+    meshStreamReplayQuerySchema,
+    meshStreamRoutePlanInputSchema,
+    meshStreamRoutePlanResultSchema,
+    meshTopologyStreamQuerySchema,
     meshTopologyEventSchema,
+    systemMetricsSnapshotSchema,
     meshJoinGrantIssueInputSchema,
     meshJoinGrantIssueResultSchema,
     meshJoinGrantConsumeInputSchema,
     meshJoinGrantConsumeResultSchema,
+    meshRegisterNodeInputSchema,
+    meshRegisterNodeResultSchema,
     meshJoinGrantRevokeInputSchema,
     meshJoinGrantRevokeResultSchema,
     meshTrustKeyringRotateInputSchema,
@@ -49,7 +56,7 @@ import {
     meshTrustStrictRollbackResultSchema,
     meshTrustStrictRolloutPlanQuerySchema,
     meshTrustStrictRolloutPlanResultSchema,
-} from "@repo/api-contracts/common/mesh";
+} from "@repo/contracts-entities";
 
 const meshEventStreamOps = standard.zod(coreEventStreamDefinitionSchema, "meshEventStream");
 
@@ -95,45 +102,6 @@ export type MeshEventStreamListInput = ComputeInputSchema<typeof meshEventStream
 
 export const meshEventStreamListConfigSchemas = meshEventStreamListConfig;
 
-const meshStreamReplayQuerySchema = z.object({
-    replay: z.coerce.boolean().default(true),
-    replayLimit: z.coerce.number().int().min(1).max(500).default(1),
-});
-
-const meshStreamRoutePlanInputSchema = z.object({
-    organizationId: z.uuid().nullable().optional(),
-    streamId: z.uuid(),
-    desiredBranches: z.coerce.number().int().min(1).max(6).default(1),
-    includeCandidates: z.coerce.boolean().default(true),
-});
-
-const meshStreamRoutePlanBranchSchema = z.object({
-    ownerNodeId: z.uuid(),
-    ownerServerUrl: z.string().url(),
-    endpointPath: z.string().min(1),
-    protocol: z.enum(["http", "https", "ws", "wss", "sse"]),
-    priority: z.number().int().min(1),
-    estimatedWeight: z.number().min(0),
-});
-
-const meshStreamRoutePlanResultSchema = z.object({
-    streamId: z.uuid(),
-    selected: z.array(meshStreamRoutePlanBranchSchema),
-    candidates: z.array(meshStreamRoutePlanBranchSchema),
-});
-
-const meshTopologyStreamQuerySchema = z.object({
-    replay: z.coerce.boolean().default(true),
-    replayLimit: z.coerce.number().int().min(1).max(1_000).default(100),
-    includeEdges: z.coerce.boolean().default(true),
-    includeNodes: z.coerce.boolean().default(true),
-});
-
-const meshRuntimeStreamQuerySchema = z.object({
-    replay: z.coerce.boolean().default(true),
-    replayLimit: z.coerce.number().int().min(1).max(1_000).default(100),
-});
-
 export const meshGetLocalNodeContract = route({
     method: "GET",
     path: "/node/local",
@@ -142,12 +110,20 @@ export const meshGetLocalNodeContract = route({
     .output((b) => b.body(meshNodeStateSchema))
     .build();
 
+export const meshGetNodeMetricsContract = route({
+    method: "GET",
+    path: "/node/metrics",
+    summary: "Get local system metrics snapshot for mesh peer selection",
+})
+    .output((b) => b.body(systemMetricsSnapshotSchema))
+    .build();
+
 export const meshListPeersContract = route({
     method: "GET",
     path: "/peers",
     summary: "List active mesh peers and link metrics",
 })
-    .output((b) => b.body(z.object({ items: z.array(meshPeerConnectionSchema) })))
+    .output((b) => b.body(meshPeersListResultSchema))
     .build();
 
 export const meshListPeerSessionsContract = route({
@@ -155,7 +131,7 @@ export const meshListPeerSessionsContract = route({
     path: "/peers/sessions",
     summary: "List mesh peer sessions and reconnect status",
 })
-    .output((b) => b.body(z.object({ items: z.array(meshPeerSessionSchema) })))
+    .output((b) => b.body(meshPeerSessionsListResultSchema))
     .build();
 
 export const meshListEventStreamsContract = meshEventStreamOps.list(meshEventStreamListConfig).build();
@@ -179,7 +155,7 @@ export const meshStreamSubscribeContract = route({
             .params((p) => p`/streams/${p("id", z.uuid())}/subscribe`)
             .query(meshStreamReplayQuerySchema),
     )
-    .output((b) => b.streamed(coreSyncedEventEnvelopeSchema))
+    .output((b) => b.observable(coreSyncedEventEnvelopeSchema))
     .build();
 
 export const meshPlanStreamRouteContract = route({
@@ -249,7 +225,7 @@ export const meshTopologyStreamContract = route({
     summary: "Stream topology updates and weighted edge changes",
 })
     .input((b) => b.query(meshTopologyStreamQuerySchema))
-    .output((b) => b.streamed(meshTopologyEventSchema))
+    .output((b) => b.observable(meshTopologyEventSchema))
     .build();
 
 export const meshRuntimeStreamContract = route({
@@ -258,7 +234,7 @@ export const meshRuntimeStreamContract = route({
     summary: "Stream unified mesh runtime events from a single channel",
 })
     .input((b) => b.query(meshRuntimeStreamQuerySchema))
-    .output((b) => b.streamed(meshRuntimeEventSchema))
+    .output((b) => b.observable(meshRuntimeEventSchema))
     .build();
 
 export const meshControlEnvelopePublishContract = route({
@@ -267,15 +243,7 @@ export const meshControlEnvelopePublishContract = route({
     summary: "Publish a typed mesh control envelope to peers",
 })
     .input((b) => b.body(meshControlEnvelopeSchema))
-    .output((b) =>
-        b.body(
-            z.object({
-                accepted: z.boolean(),
-                envelopeId: z.uuid(),
-                forwardedTo: z.array(z.uuid()),
-            }),
-        ),
-    )
+    .output((b) => b.body(meshControlEnvelopePublishResultSchema))
     .build();
 
 export const meshSessionStreamContract = route({
@@ -283,8 +251,8 @@ export const meshSessionStreamContract = route({
     path: "/session/stream",
     summary: "Bidirectional mesh session stream with auth-first handshake over a single kept-alive connection",
 })
-    .input((b) => b.body.streamed(meshDuplexStreamInputSchema))
-    .output((b) => b.streamed(meshDuplexStreamOutputSchema))
+    .input((b) => b.body.observable(meshDuplexStreamInputSchema))
+    .output((b) => b.observable(meshDuplexStreamOutputSchema))
     .build();
 
 export const meshLookupResourceContract = route({
@@ -330,6 +298,15 @@ export const meshConsumeJoinGrantContract = route({
 })
     .input((b) => b.body(meshJoinGrantConsumeInputSchema))
     .output((b) => b.body(meshJoinGrantConsumeResultSchema))
+    .build();
+
+export const meshRegisterNodeContract = route({
+    method: "POST",
+    path: "/enrollment/register",
+    summary: "Register or refresh a mesh node in global cluster membership",
+})
+    .input((b) => b.body(meshRegisterNodeInputSchema))
+    .output((b) => b.body(meshRegisterNodeResultSchema))
     .build();
 
 export const meshRevokeJoinGrantContract = route({
@@ -411,6 +388,7 @@ export const meshTrustStrictRollbackContract = route({
 
 export const meshContract = oc.tag("Core Mesh").prefix("/mesh").router({
     getLocalNode: meshGetLocalNodeContract,
+    getNodeMetrics: meshGetNodeMetricsContract,
     listPeers: meshListPeersContract,
     listPeerSessions: meshListPeerSessionsContract,
     listEventStreams: meshListEventStreamsContract,
@@ -431,6 +409,7 @@ export const meshContract = oc.tag("Core Mesh").prefix("/mesh").router({
     planQueuePartition: meshPlanQueuePartitionContract,
     issueJoinGrant: meshIssueJoinGrantContract,
     consumeJoinGrant: meshConsumeJoinGrantContract,
+    registerNode: meshRegisterNodeContract,
     revokeJoinGrant: meshRevokeJoinGrantContract,
     trustKeyringStatus: meshTrustKeyringStatusContract,
     trustKeyringSecrets: meshTrustKeyringSecretsContract,

@@ -6,6 +6,12 @@ order: 26
 
 <DocMeta source="fleet architecture + platform usage synthesis" scope="canonical" />
 
+<DocCallout title="Scope note" tone="warning">
+The default v3 production baseline is Docker Swarm manager/worker orchestration with Traefik-first ingress.
+
+This page focuses on advanced federation and optional active-active custom LB patterns.
+</DocCallout>
+
 ## What this platform is used for
 
 This platform is a self-hosted deployment control plane for teams that want a Vercel/Render-like workflow on their own infrastructure.
@@ -435,7 +441,7 @@ Use policy + runtime signals together:
 - org isolation policy (shared vs dedicated)
 - dependency locality
 
-## Active-active load balancer architecture (no master)
+## Optional pattern: active-active custom load balancer architecture (no master)
 
 > **Added**: 2026-03-02  
 > **Type**: Pattern  
@@ -445,6 +451,8 @@ Use policy + runtime signals together:
 ### Summary
 
 All nodes run the same stack and can accept traffic; no dedicated master node is required.
+
+Use this only when you explicitly need redirect/token-based owner-aware routing beyond standard Traefik + Swarm behavior.
 
 ### Runtime topology per node
 

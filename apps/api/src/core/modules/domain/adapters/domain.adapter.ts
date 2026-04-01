@@ -1,4 +1,4 @@
-import type { organizationDomains, projectDomains, serviceDomainMappings } from '@/config/drizzle/schema/domain';
+import type { organizationDomains, projectDomains, serviceDomainMappings } from '@/config/drizzle/global/schema/domain';
 import type { z } from 'zod';
 import type {
   organizationDomainSchema,

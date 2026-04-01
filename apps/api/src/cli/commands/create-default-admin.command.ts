@@ -1,5 +1,5 @@
 import { Command, CommandRunner } from 'nest-commander';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { EnvService } from '@/config/env/env.service';
 import { apiEnvSchema } from '@repo/env';
 import zod from 'zod/v4';
@@ -23,7 +23,9 @@ export class CreateDefaultAdminCommand extends CommandRunner {
   private readonly commandEnvService: EnvService<CreateDefaultAdminEnv>;
   
   constructor(
+    @Inject(CLI_AUTH_SERVICE_TOKEN)
     private readonly cliAuthService: CliAuthService,
+    @Inject(ENV_SERVICE)
     private readonly envService: EnvService,
   ) {
     super();

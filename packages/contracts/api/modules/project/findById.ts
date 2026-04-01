@@ -1,5 +1,5 @@
 import { standard } from "@repo/orpc-utils";
-import { projectSchema, projectWithStatsSchema } from "@repo/api-contracts/common/project";
+import { projectSchema, projectWithStatsSchema } from "@repo/contracts-entities";
 
 const projectOps = standard.zod(projectSchema, "project");
 

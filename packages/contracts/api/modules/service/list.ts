@@ -1,6 +1,6 @@
 import * as z from "zod";
 import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
-import { serviceSchema } from "@repo/api-contracts/common/service";
+import { serviceSchema } from "@repo/contracts-entities";
 
 const serviceOps = standard.zod(serviceSchema, "service");
 

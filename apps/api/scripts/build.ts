@@ -48,11 +48,8 @@ function copyMigrations(): void {
 /**
  * Run Bun build for NestJS application
  * Builds main.ts and cli.ts entry points with splitting and minification
- * Builds create-default-admin.ts separately as a standalone bundle
  */
 async function runBuild(): Promise<void> {
-  const scriptsDir = path.join(__dirname)
-  
   // Main entrypoints with code splitting
   const mainEntrypoints = [
     path.join(srcDir, 'main.ts'),
@@ -82,29 +79,6 @@ async function runBuild(): Promise<void> {
 
   if (!mainResult.success) {
     console.error('❌ Main build failed')
-    process.exit(1)
-  }
-
-  // Build create-default-admin.ts as standalone (no splitting to avoid hash conflicts)
-  console.log('🔨 Building create-default-admin script...')
-  
-  const adminConfig = {
-    entrypoints: [path.join(scriptsDir, 'create-default-admin.ts')],
-    outdir: distDir,
-    minify: true,
-    splitting: false, // No splitting for standalone script
-    target: 'bun' as const,
-    external: [
-      "class-transformer",
-      "@nestjs/microservices",
-      "@nestjs/platform-socket.io",
-    ]
-  } as BuildConfig
-
-  const adminResult = await build(adminConfig)
-
-  if (!adminResult.success) {
-    console.error('❌ Admin script build failed')
     process.exit(1)
   }
 

@@ -6,7 +6,7 @@ import {
     deploymentNodeLifecycleEventListInputSchema,
     deploymentNodeLifecycleEventListResultSchema,
     deploymentNodeLifecycleEventSchema,
-} from "@repo/api-contracts/common/deployment";
+} from "@repo/contracts-entities";
 
 export const deploymentEmitNodeLifecycleEventContract = route({
     method: "POST",
@@ -50,5 +50,5 @@ export const deploymentNodeLifecycleEventsStreamContract = route({
                 }),
             ),
     )
-    .output((b) => b.streamed(deploymentNodeLifecycleEventSchema))
+    .output((b) => b.observable(deploymentNodeLifecycleEventSchema))
     .build();

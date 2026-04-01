@@ -6,7 +6,6 @@ import { filter as rxjsFilter, map as rxjsMap } from "rxjs";
 import { createObservableQueryUtils, type ObservablePipeTransform } from "@repo/orpc-utils";
 import { orpc } from "@/lib/orpc/client";
 import type { LogEvent } from "@/lib/orpc/contract";
-import { OBSERVABLE_CHAIN_PRESERVE_ASYNC_ITERATOR_SYMBOL } from "@/lib/orpc/observable-chain";
 
 const MAX_LINES = 120;
 const DEFAULT_INPUT = {
@@ -116,10 +115,6 @@ function resolvePanelStatusFromLifecycle(isCompleted: boolean, errorMessage: str
 
   return "streaming";
 }
-
-const PRESERVE_ITERATOR_CONTEXT: Record<PropertyKey, unknown> = {
-  [OBSERVABLE_CHAIN_PRESERVE_ASYNC_ITERATOR_SYMBOL]: true,
-};
 
 function StreamPanelCard({
   title,
@@ -515,7 +510,6 @@ export function EventIteratorTerminalTabsPanel() {
       try {
         const iteratorSourceResult: unknown = await orpc.streamLogs(
           { ...DEFAULT_INPUT },
-          { context: PRESERVE_ITERATOR_CONTEXT },
         );
 
         if (!isAsyncIterable(iteratorSourceResult)) {

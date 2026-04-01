@@ -11,7 +11,8 @@ export class UserController {
 
     @Implement(userContract.list)
     list() {
-        return implement(userContract.list).use(requireAuth()).handler(async ({ input }) => {
+        return implement(userContract.list).use(requireAuth()).handler(async ({ input, context }) => {
+            const user = context.auth.user
             const result = await this.userService.getUsers(input.query);
             return {
                 data: result.data.map((user) => ({

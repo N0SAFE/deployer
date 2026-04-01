@@ -3,7 +3,6 @@ import { Implement, implement } from "@orpc/nest";
 import { projectContract } from "@repo/api-contracts";
 import { ProjectService } from "../services/project.service";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
-import { observableToAsyncIterable } from "@/core/utils/observable.utils";
 
 @Controller()
 export class ProjectController {
@@ -381,7 +380,7 @@ export class ProjectController {
         return implement(projectContract.streamQuery)
             .use(requireAuth())
             .handler(({ input }) => {
-                return observableToAsyncIterable(projectService.streamQueryEvents(input.query));
+                return projectService.streamQueryEvents(input.query);
             });
     }
 }

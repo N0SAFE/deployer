@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import type { PlatformRole } from '@repo/auth'
 import { useAdminListUsers, useAdminActions } from '@/domains/admin/hooks'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Badge } from '@repo/ui/components/shadcn/badge'
@@ -41,6 +42,9 @@ import { Ban, ShieldCheck, UserX, RefreshCw } from 'lucide-react'
 
 export default function AdminUsersPage() {
   const [page, setPage] = useState(0)
+  const [search, setSearch] = useState('')
+  const [roleFilter, setRoleFilter] = useState<'all' | PlatformRole>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'banned'>('all')
   const [banDialogOpen, setBanDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<{ id: string; name: string } | null>(null)
   const [banReason, setBanReason] = useState('')
@@ -61,7 +65,7 @@ export default function AdminUsersPage() {
     isLoading: actionLoading,
   } = useAdminActions()
 
-  const handleRoleChange = (userId: string, role: 'user' | 'admin') => {
+  const handleRoleChange = (userId: string, role: PlatformRole) => {
     setRole({ userId, role })
   }
 
@@ -100,9 +104,29 @@ export default function AdminUsersPage() {
   const users = usersData?.users ?? []
   const hasNextPage = users.length === pageSize
 
+  const filteredUsers = useMemo(() => {
+    const query = search.trim().toLowerCase()
+
+    return users.filter((user) => {
+      const matchesSearch =
+        query.length === 0 ||
+        `${user.name} ${user.email}`.toLowerCase().includes(query)
+
+      const matchesRole = roleFilter === 'all' || user.role === roleFilter
+      const matchesStatus =
+        statusFilter === 'all' ||
+        (statusFilter === 'active' ? !user.banned : user.banned)
+
+      return matchesSearch && matchesRole && matchesStatus
+    })
+  }, [roleFilter, search, statusFilter, users])
+
+  const surfaceCardClass =
+    'border-slate-200/80 bg-white/85 shadow-sm backdrop-blur supports-backdrop-filter:bg-white/70 dark:border-slate-800 dark:bg-slate-950/45'
+
   if (isLoading && page === 0) {
     return (
-      <div className="container mx-auto py-8 space-y-6">
+      <div className="container mx-auto max-w-350 py-8 space-y-6">
         <div>
           <Skeleton className="h-9 w-64 mb-2" />
           <Skeleton className="h-5 w-96" />
@@ -124,13 +148,18 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto max-w-350 py-8 space-y-6">
+      <div className="rounded-xl border border-slate-200/70 bg-linear-to-b from-white to-slate-50/70 p-5 shadow-sm dark:border-slate-800 dark:from-slate-950 dark:to-slate-900/50">
+        <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
           <p className="text-muted-foreground mt-1">
             Manage platform users, roles, and access permissions
           </p>
+          <div className="mt-4 flex flex-wrap gap-2 text-xs">
+            <Badge variant="secondary">{users.length} loaded</Badge>
+            <Badge variant="outline">{filteredUsers.length} visible</Badge>
+          </div>
         </div>
         <Button
           variant="outline"
@@ -142,14 +171,54 @@ export default function AdminUsersPage() {
         >
           <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
         </Button>
+        </div>
       </div>
 
-      <Card>
+      <Card className={surfaceCardClass}>
         <CardHeader>
-          <CardTitle>All Users</CardTitle>
-          <CardDescription>
-            View and manage all users registered on the platform
-          </CardDescription>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <CardTitle>All Users</CardTitle>
+              <CardDescription>
+                View and manage all users registered on the platform
+              </CardDescription>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Input
+                placeholder="Search name or email..."
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value)
+                }}
+              />
+              <Select value={roleFilter} onValueChange={(value) => {
+                setRoleFilter(value as 'all' | PlatformRole)
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All roles</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
+                  <SelectItem value="operator">Operator</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="superAdmin">Super Admin</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={(value) => {
+                setStatusFilter(value as 'all' | 'active' | 'banned')
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All status</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="banned">Banned</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -163,22 +232,22 @@ export default function AdminUsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.length === 0 ? (
+              {filteredUsers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                    No users found
+                    No users match your filters
                   </TableCell>
                 </TableRow>
               ) : (
-                users.map((user) => (
+                filteredUsers.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
                       <Select
-                        value={user.role ?? 'user'}
+                        value={user.role ?? 'viewer'}
                         onValueChange={(role) => {
-                          handleRoleChange(user.id, role as 'user' | 'admin')
+                          handleRoleChange(user.id, role as PlatformRole)
                         }}
                         disabled={actionLoading.setRole}
                       >
@@ -186,7 +255,8 @@ export default function AdminUsersPage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="user">User</SelectItem>
+                          <SelectItem value="viewer">Viewer</SelectItem>
+                          <SelectItem value="operator">Operator</SelectItem>
                           <SelectItem value="admin">Admin</SelectItem>
                           <SelectItem value="superAdmin">Super Admin</SelectItem>
                         </SelectContent>
@@ -253,7 +323,7 @@ export default function AdminUsersPage() {
 
           <div className="flex items-center justify-between mt-4 pt-4 border-t">
             <div className="text-sm text-muted-foreground">
-              Showing {page * pageSize + 1} to {page * pageSize + users.length} users
+              Showing {filteredUsers.length} of {users.length} loaded users (page {page + 1})
             </div>
             <div className="flex gap-2">
               <Button

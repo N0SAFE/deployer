@@ -84,7 +84,7 @@ export const projectStreamQueryFiltersSchema = z
         replay: z.coerce.boolean().default(false),
         replayLimit: z.coerce.number().int().min(1).max(500).default(100),
     })
-    .refine((value) => Boolean(value.projectId || value.ownerId || value.fuzzy), {
+    .refine((value) => Boolean(value.projectId ?? value.ownerId ?? value.fuzzy), {
         message: "At least one stream selector is required (projectId, ownerId, or fuzzy)",
     });
 
@@ -98,5 +98,5 @@ export const projectQueryStreamContract = route({
         "Subscribe to project lifecycle/collaboration/environment events with fuzzy search and custom filters.",
 })
     .input((b) => b.query(projectStreamQueryFiltersSchema))
-    .output((b) => b.streamed(projectStreamEventSchema))
+    .output((b) => b.observable(projectStreamEventSchema))
     .build();

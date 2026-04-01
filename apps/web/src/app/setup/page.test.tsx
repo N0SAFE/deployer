@@ -184,8 +184,8 @@ describe("Setup page", () => {
 
     render(<SetupPageLoose params={{}} searchParams={{}} />);
 
-    expect(screen.getByText("Initial setup")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Initialize platform" })).toBeInTheDocument();
+    expect(screen.getByText("Create first administrator")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create administrator" })).toBeInTheDocument();
     expect(mocks.replace).not.toHaveBeenCalled();
   });
 });

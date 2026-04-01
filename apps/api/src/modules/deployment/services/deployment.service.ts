@@ -14,7 +14,6 @@ import {
     merge,
     mergeMap,
 } from "rxjs";
-import { observableToAsyncIterable } from "@/core/utils/observable.utils";
 import { CoreEventSyncService } from "@/core/modules/events";
 import { createHash, randomUUID } from "crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -35,16 +34,14 @@ import type { DeploymentListInput } from "@repo/api-contracts/modules/deployment
 import type { DeploymentTriggerInput } from "@repo/api-contracts/modules/deployment/crud";
 import type { PlatformRole, ProjectRole } from "@repo/auth";
 import type {
-    DeploymentStatus,
-} from "@repo/api-contracts/common/deployment";
-import type { DeploymentLog } from "@repo/api-contracts/common/deployment";
-import type {
     DeploymentProgressEvent,
     DeploymentQueryEvent,
     DeploymentStreamListInput,
     ServiceDeploymentEvent,
 } from "@repo/api-contracts/modules/deployment/stream";
 import type {
+    DeploymentStatus,
+    DeploymentLog,
     DeploymentCompileRollbackEdgesInput,
     DeploymentCompileRollbackEdgesResult,
     DeploymentCompiledPlan,
@@ -98,7 +95,7 @@ import type {
     DeploymentListCompiledPlanSnapshotsResult,
     DeploymentPhaseTransitionsCatalog,
     DeploymentStreamEventType,
-} from "@repo/api-contracts/common/deployment";
+} from "@repo/contracts-entities";
 
 const CANCELLABLE_STATUSES = ["pending", "queued", "building", "deploying"] as const;
 
@@ -310,6 +307,17 @@ export class DeploymentService implements OnModuleInit {
             throw new NotFoundException(`Service '${input.serviceId}' not found`);
         }
 
+        const serviceDependencies = await this.deploymentRepository.getServiceDependencies(input.serviceId);
+        const crossProjectDependency = serviceDependencies.find(
+            (dependency) => dependency.dependsOnProjectId !== runtimeConfigurationSeed.projectId,
+        );
+
+        if (crossProjectDependency) {
+            throw new BadRequestException(
+                `Service dependency '${crossProjectDependency.dependsOnServiceId}' belongs to a different project and cannot be deployed together`,
+            );
+        }
+
         const resolvedRuntimeConfiguration = runtimeConfigurationAccessor.resolveForDeployment({
             serviceId: input.serviceId,
             projectId: runtimeConfigurationSeed.projectId,
@@ -438,6 +446,7 @@ export class DeploymentService implements OnModuleInit {
             payload: {
                 deploymentId: deployment.id,
                 serviceId: deployment.serviceId,
+                projectId: runtimeConfigurationSeed.projectId,
                 environment: deployment.environment,
                 observability: {
                     correlationId,
@@ -456,6 +465,16 @@ export class DeploymentService implements OnModuleInit {
                     },
                     ...(sourceCheckout ? { sourceCheckout } : {}),
                     storageBinding,
+                    dependencyGraph: {
+                        serviceId: input.serviceId,
+                        dependencies: serviceDependencies.map((dependency) => ({
+                            dependsOnServiceId: dependency.dependsOnServiceId,
+                            isRequired: dependency.isRequired,
+                        })),
+                        requiredServiceIds: serviceDependencies
+                            .filter((dependency) => dependency.isRequired)
+                            .map((dependency) => dependency.dependsOnServiceId),
+                    },
                     runtimeConfiguration: resolvedRuntimeConfiguration.effective,
                 },
             },
@@ -598,6 +617,8 @@ export class DeploymentService implements OnModuleInit {
             },
         });
 
+        const rollbackProjectId = await this.deploymentRepository.getServiceProjectId(rollback.serviceId);
+
         await this.emitLifecycleQueued(rollback, fromDeployment.status, "Rollback deployment queued");
 
         this.enqueueQueueJob({
@@ -606,6 +627,7 @@ export class DeploymentService implements OnModuleInit {
             payload: {
                 deploymentId: rollback.id,
                 serviceId: rollback.serviceId,
+                ...(rollbackProjectId ? { projectId: rollbackProjectId } : {}),
                 environment: rollback.environment,
                 observability: {
                     correlationId: randomUUID(),
@@ -2226,7 +2248,7 @@ export class DeploymentService implements OnModuleInit {
         },
         replay: boolean,
         replayLimit: number,
-    ): AsyncIterable<{ eventName: string; payload: unknown; replayed?: boolean; emittedAt?: string }> {
+    ): Observable<{ eventName: string; payload: unknown; replayed?: boolean; emittedAt?: string }> {
         const filters = definition.filters ?? {};
 
         const scopedDeploymentId =
@@ -2251,16 +2273,14 @@ export class DeploymentService implements OnModuleInit {
             replayLimit,
         });
 
-        return observableToAsyncIterable(
-            source$.pipe(
-                rxFilter((event) => !eventTypes || eventTypes.has(event.type)),
-                map((event) => ({
-                    eventName: event.type,
-                    payload: event,
-                    replayed: event.replayed,
-                    emittedAt: event.emittedAt,
-                })),
-            ),
+        return source$.pipe(
+            rxFilter((event) => !eventTypes || eventTypes.has(event.type)),
+            map((event) => ({
+                eventName: event.type,
+                payload: event,
+                replayed: event.replayed,
+                emittedAt: event.emittedAt,
+            })),
         );
     }
 

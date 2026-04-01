@@ -25,7 +25,7 @@ import { getCookieCache, getSessionCookie } from 'better-auth/cookies'
 import { cookies } from 'next/headers'
 import { unstable_rethrow } from 'next/navigation'
 import { validateEnvSafe } from '#/env'
-import type { Session } from '@repo/auth'
+import type { Session } from '@/lib/auth'
 
 // Validate environment variables
 const env = validateEnvSafe(process.env).data

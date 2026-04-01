@@ -1,6 +1,7 @@
 import { DashboardSidebar, DashboardLoadingSkeleton } from '@/components/dashboard'
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@repo/ui/components/shadcn/sidebar'
 import { Separator } from '@repo/ui/components/shadcn/separator'
+import { Badge } from '@repo/ui/components/shadcn/badge'
 import { DashboardBreadcrumbs } from '@/components/dashboard/DashboardBreadcrumbs'
 import { createSessionLayout } from '@repo/declarative-routing/layout-wrappers/server'
 import { SessionHydrationProvider } from '@/utils/providers/SessionHydrationProvider'
@@ -32,18 +33,25 @@ export default createSessionLayout(({ children }) => {
     <SessionHydrationProvider>
       <SidebarProvider>
         <DashboardSidebar />
-        <SidebarInset>
+        <SidebarInset className="bg-linear-to-b from-primary/[0.035] via-background to-background">
           {/* Header with trigger and breadcrumbs */}
-          <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <DashboardBreadcrumbs />
+          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/70 bg-background/85 px-4 backdrop-blur-xl">
+            <div className="flex min-w-0 items-center gap-2">
+              <SidebarTrigger className="-ml-1" />
+              <Separator orientation="vertical" className="mr-1 h-4" />
+              <DashboardBreadcrumbs />
+            </div>
+            <div className="hidden items-center gap-2 md:flex">
+              <Badge variant="secondary" className="border border-border/70">
+                Projects + Deployments
+              </Badge>
+            </div>
           </header>
           
           {/* Main content with error boundary */}
           <main className="flex-1 overflow-y-auto">
             <QueryErrorBoundary context="Dashboard">
-              <div className="container mx-auto px-4 py-6 max-w-7xl">
+              <div className="mx-auto w-full max-w-screen-2xl px-4 py-7 xl:px-6">
                 {children}
               </div>
             </QueryErrorBoundary>

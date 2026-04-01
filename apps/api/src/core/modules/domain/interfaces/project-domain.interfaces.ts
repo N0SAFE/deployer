@@ -7,7 +7,7 @@
  * @module domain/interfaces/project-domain
  */
 
-import type { projectDomains } from '@/config/drizzle/schema/domain';
+import type { projectDomains } from '@/config/drizzle/global/schema/domain';
 
 // ============================================================================
 // DATABASE TYPES (re-exports for convenience)

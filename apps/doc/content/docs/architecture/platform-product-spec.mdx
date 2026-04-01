@@ -145,14 +145,21 @@ Platform manages start order and waits for health check gates between dependent 
 - **Scope**: ALL internal platform events distributed through mesh
 - Enables multi-DB sync, cross-node event delivery, and distributed coordination
 
-## Load balancer
+## Swarm orchestration baseline
 
-- **Design**: Redirect-based (307) + signed forward token — NOT a proxy
-- **Score formula**: `0.4*(1-cpu) + 0.2*(1-memory) + 0.15*(1-streamPressure) + 0.15*(1-queuePressure) + 0.1*(1-errorRate) + ownerBonus(0.2) + priorityBonus`
-- **Gossip**: max 2 hops, dedup by reportId, TTL 30s
-- **Tokens**: `v1.<b64payload>.<hmac-sha256>` — route hint, forward token, diagnostic key
+- **Runtime model**: Docker Swarm manager/worker cluster
+- **Manager nodes**: orchestration state, scheduling, service updates
+- **Worker nodes**: execution capacity for service replicas
+- **Control-plane management**: all stack/service changes are initiated via manager nodes
 
-See [Load Balancer Architecture](/docs/deployment/load-balancer) for full details.
+## Ingress and traffic management
+
+- **Canonical ingress**: Traefik (Swarm provider) + service labels
+- **Default balancing**: Swarm service replicas + Traefik routing (no custom redirect app required for standard HTTP/S)
+- **Replica policy target**: when at least two schedulable nodes exist, critical user-facing services should run with at least two replicas spread across nodes
+- **Optional advanced path**: custom LB redirect/token model for specialized owner-aware stream routing and diagnostics
+
+See [Load Balancer Architecture](/docs/deployment/load-balancer) only when enabling that optional advanced pattern.
 
 ## Storage
 
@@ -229,7 +236,7 @@ Heavily configurable:
 
 ### Node join flow
 
-- **Path A**: Join existing cluster — connect via path + super admin login + one-time token
+- **Path A**: Join existing cluster — connect via path + super admin login + one-time token + Swarm join workflow
 - **Path B**: Fresh setup — provide DB connection → create first super admin
 
 ### Node removal
@@ -239,7 +246,7 @@ Heavily configurable:
 
 ### Migration
 
-Automatic with manual override — LB handles rebalancing.
+Automatic with manual override — Swarm service updates and placement policies handle rebalancing.
 
 ### Platform self-update
 
@@ -315,6 +322,6 @@ Same ORPC contracts exposed externally with **API key authentication** — usabl
 - [Architecture Overview](/docs/architecture/architecture)
 - [Tech Stack](/docs/architecture/tech-stack)
 - [Platform Feature Target](/docs/deployment/platform-feature-target)
-- [Load Balancer Architecture](/docs/deployment/load-balancer)
+- [Load Balancer Architecture](/docs/deployment/load-balancer) *(optional advanced pattern)*
 - [Multi-server Operations](/docs/deployment/multi-server-multi-org-operations)
 - [Event System & Streams](/docs/dev/event-system-streams)

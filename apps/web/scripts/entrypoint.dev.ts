@@ -96,7 +96,7 @@ function startProcesses(): void {
     shell: true,
     env: {
       ...process.env,
-      NODE_OPTIONS: '--max_old_space_size=1024 --inspect',
+      NODE_OPTIONS: '--max_old_space_size=3072 --inspect',
     },
   })
 
@@ -111,9 +111,16 @@ function startProcesses(): void {
 
   let exitRequested = false
 
-  const handleExit = (code: number | null) => {
+  const handleExit = (
+    processName: 'nextjs' | 'declarative-routing',
+    code: number | null,
+    signal: NodeJS.Signals | null,
+  ) => {
     if (!exitRequested) {
       exitRequested = true
+      console.error(
+        `[entrypoint] Child process exited: ${processName} (code=${code ?? 'null'}, signal=${signal ?? 'null'})`,
+      )
       console.log('Process exited, cleaning up...')
       nextProcess.kill()
       routingProcess.kill()
@@ -121,8 +128,25 @@ function startProcesses(): void {
     }
   }
 
-  nextProcess.on('exit', handleExit)
-  routingProcess.on('exit', handleExit)
+  nextProcess.on('exit', (code, signal) => {
+    handleExit('nextjs', code, signal)
+  })
+  routingProcess.on('exit', (code, signal) => {
+    handleExit('declarative-routing', code, signal)
+  })
+
+  nextProcess.on('error', (error) => {
+    if (!exitRequested) {
+      console.error(`[entrypoint] nextjs process error: ${error.message}`)
+      handleExit('nextjs', 1, null)
+    }
+  })
+  routingProcess.on('error', (error) => {
+    if (!exitRequested) {
+      console.error(`[entrypoint] declarative-routing process error: ${error.message}`)
+      handleExit('declarative-routing', 1, null)
+    }
+  })
 
   process.on('SIGINT', () => {
     if (!exitRequested) {

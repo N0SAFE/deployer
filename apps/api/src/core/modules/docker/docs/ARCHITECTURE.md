@@ -217,7 +217,7 @@ Layer 0: Infrastructure Foundation
 │   └── DockerService (pure Docker operations)
 │
 ├── DatabaseModule (@Global)
-│   └── DatabaseService (Drizzle connection)
+│   └── GlobalDatabaseService (Drizzle connection)
 │
 └── ConstantsModule
     └── ConstantsService (configuration)

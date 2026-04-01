@@ -31,6 +31,20 @@ const pathLabels: Record<string, string> = {
   profile: 'Profile',
   demo: 'Demo',
   settings: 'Settings',
+  projects: 'Projects',
+  deployments: 'Deployments',
+  docker: 'Docker',
+  containers: 'Containers',
+  logs: 'Logs',
+  shell: 'Shell',
+  images: 'Images',
+  volumes: 'Volumes',
+  networks: 'Networks',
+  stacks: 'Stacks',
+  registry: 'Registry',
+  activity: 'Activity',
+  events: 'Activity',
+  terminal: 'Shell',
 }
 
 function formatSegmentLabel(segment: string): string {

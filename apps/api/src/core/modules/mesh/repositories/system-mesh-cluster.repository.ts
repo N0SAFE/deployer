@@ -1,15 +1,49 @@
 import { Injectable } from "@nestjs/common";
 import { createHash, randomUUID } from "node:crypto";
-import { and, eq, gt, inArray, isNull } from "drizzle-orm";
-import { clusterJoinGrants, clusterNodeMetrics, clusterNodes, clusterSigningKeys, resourceOwnershipIndex } from "@/config/drizzle/schema";
-import { DatabaseService } from "@/core/modules/database/services/database.service";
-import type { MeshResourceIndexUpsertInput, MeshResourceLocation } from "@repo/api-contracts/common/mesh";
+import { and, asc, eq, gt, inArray, isNull } from "drizzle-orm";
+import { clusterJoinGrants, clusterNodeMetrics, clusterNodes, clusterSigningKeys, resourceOwnershipIndex } from "@/config/drizzle/global/schema";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
+import type { MeshResourceIndexUpsertInput, MeshResourceLocation } from "@repo/contracts-entities";
 
 @Injectable()
 export class SystemMeshClusterRepository {
-    constructor(private readonly databaseService: DatabaseService) {}
+    private static readonly DEFAULT_CLUSTER_ID = "00000000-0000-4000-8000-000000000000";
+
+    constructor(private readonly databaseService: GlobalDatabaseService) {}
+
+    async loadActiveClusterNodes(input?: {
+        clusterId?: string;
+    }): Promise<{
+        nodeId: string;
+        serverUrl: string;
+        status: "active" | "suspect" | "draining" | "revoked";
+        healthy: boolean;
+        lastSeenAt: string | null;
+    }[]> {
+        const clusterId = input?.clusterId ?? await this.resolveClusterId();
+
+        const rows = await this.databaseService.db
+            .select({
+                nodeId: clusterNodes.nodeId,
+                serverUrl: clusterNodes.serverUrl,
+                status: clusterNodes.status,
+                healthy: clusterNodes.healthy,
+                lastSeenAt: clusterNodes.lastSeenAt,
+            })
+            .from(clusterNodes)
+            .where(eq(clusterNodes.clusterId, clusterId));
+
+        return rows.map((row) => ({
+            nodeId: row.nodeId,
+            serverUrl: row.serverUrl,
+            status: row.status,
+            healthy: row.healthy,
+            lastSeenAt: row.lastSeenAt ? row.lastSeenAt.toISOString() : null,
+        }));
+    }
 
     async loadSigningKeys(): Promise<{ keyId: string; algorithm: "HS256"; secretMaterial: string; status: "active" | "previous" }[]> {
+        const clusterId = await this.resolveClusterId();
         const rows = await this.databaseService.db
             .select({
                 keyId: clusterSigningKeys.kid,
@@ -20,7 +54,7 @@ export class SystemMeshClusterRepository {
             .from(clusterSigningKeys)
             .where(
                 and(
-                    eq(clusterSigningKeys.clusterId, this.resolveClusterId()),
+                    eq(clusterSigningKeys.clusterId, clusterId),
                     inArray(clusterSigningKeys.status, ["active", "previous"]),
                     isNull(clusterSigningKeys.revokedAt),
                 ),
@@ -84,6 +118,7 @@ export class SystemMeshClusterRepository {
     }
 
     async persistResourceIndexUpsert(input: MeshResourceIndexUpsertInput): Promise<void> {
+        const clusterId = await this.resolveClusterId();
         const scope = input.organizationId ?? null;
 
         if (input.replaceExistingForSource) {
@@ -136,7 +171,7 @@ export class SystemMeshClusterRepository {
             }
 
             await this.databaseService.db.insert(resourceOwnershipIndex).values({
-                clusterId: this.resolveClusterId(),
+                clusterId,
                 organizationId,
                 resourceKind: resource.kind,
                 resourceKey: resource.key,
@@ -161,7 +196,6 @@ export class SystemMeshClusterRepository {
     }
 
     async persistNodeHeartbeat(input: {
-        clusterId: string;
         nodeId: string;
         organizationId?: string | null;
         serverUrl?: string | null;
@@ -175,10 +209,12 @@ export class SystemMeshClusterRepository {
             measuredAt: string;
         };
     }): Promise<void> {
+        const clusterId = await this.resolveClusterId();
+
         await this.databaseService.db
             .insert(clusterNodes)
             .values({
-                clusterId: input.clusterId,
+                clusterId,
                 nodeId: input.nodeId,
                 serverUrl: input.serverUrl ?? `https://${input.nodeId}.mesh.internal`,
                 status: "active",
@@ -188,7 +224,7 @@ export class SystemMeshClusterRepository {
             .onConflictDoUpdate({
                 target: clusterNodes.nodeId,
                 set: {
-                    clusterId: input.clusterId,
+                    clusterId,
                     serverUrl: input.serverUrl ?? `https://${input.nodeId}.mesh.internal`,
                     status: "active",
                     healthy: true,
@@ -198,7 +234,7 @@ export class SystemMeshClusterRepository {
             });
 
         await this.databaseService.db.insert(clusterNodeMetrics).values({
-            clusterId: input.clusterId,
+            clusterId,
             nodeId: input.nodeId,
             organizationId: input.organizationId ?? null,
             metrics: {
@@ -219,7 +255,7 @@ export class SystemMeshClusterRepository {
         ttlSeconds: number;
         metadata?: Record<string, unknown> | null;
     }): Promise<{ grantId: string; grantToken: string; clusterId: string; expiresAt: string }> {
-        const clusterId = this.resolveClusterId();
+        const clusterId = await this.resolveClusterId();
         const grantToken = randomUUID();
         const grantTokenHash = this.hashJoinGrantToken(grantToken);
         const expiresAt = new Date(Date.now() + input.ttlSeconds * 1_000);
@@ -395,7 +431,7 @@ export class SystemMeshClusterRepository {
         secretMaterial: string;
         expiresAt?: string | null;
     }): Promise<{ activeKeyId: string; rotatedKeyId: string; secretMaterial: string }> {
-        const clusterId = this.resolveClusterId();
+        const clusterId = await this.resolveClusterId();
         const now = new Date();
 
         await this.databaseService.db
@@ -425,13 +461,72 @@ export class SystemMeshClusterRepository {
         };
     }
 
-    private resolveClusterId(): string {
-        const fromEnv = process.env.MESH_CLUSTER_ID?.trim();
-        return fromEnv && fromEnv.length > 0 ? fromEnv : "00000000-0000-4000-8000-000000000000";
+    async registerOrUpdateNode(input: {
+        nodeId: string;
+        serverUrl: string;
+        displayName?: string | null;
+        capabilities?: Record<string, unknown> | null;
+        metadata?: Record<string, unknown> | null;
+        clusterId?: string | null;
+    }): Promise<{ clusterId: string; nodeId: string; status: "registered" | "updated"; enrolledAt: string }> {
+        const clusterId = input.clusterId ?? await this.resolveClusterId();
+        const enrolledAt = new Date();
+
+        const [existing] = await this.databaseService.db
+            .select({ nodeId: clusterNodes.nodeId })
+            .from(clusterNodes)
+            .where(eq(clusterNodes.nodeId, input.nodeId))
+            .limit(1);
+
+        await this.databaseService.db
+            .insert(clusterNodes)
+            .values({
+                clusterId,
+                nodeId: input.nodeId,
+                serverUrl: input.serverUrl,
+                displayName: input.displayName ?? null,
+                capabilities: input.capabilities ?? null,
+                status: "active",
+                healthy: true,
+                metadata: input.metadata ?? null,
+                enrolledAt,
+                lastSeenAt: enrolledAt,
+            })
+            .onConflictDoUpdate({
+                target: clusterNodes.nodeId,
+                set: {
+                    clusterId,
+                    serverUrl: input.serverUrl,
+                    displayName: input.displayName ?? null,
+                    capabilities: input.capabilities ?? null,
+                    status: "active",
+                    healthy: true,
+                    metadata: input.metadata ?? null,
+                    lastSeenAt: enrolledAt,
+                    updatedAt: enrolledAt,
+                },
+            });
+
+        return {
+            clusterId,
+            nodeId: input.nodeId,
+            status: existing ? "updated" : "registered",
+            enrolledAt: enrolledAt.toISOString(),
+        };
+    }
+
+    private async resolveClusterId(): Promise<string> {
+        const [existing] = await this.databaseService.db
+            .select({ clusterId: clusterNodes.clusterId })
+            .from(clusterNodes)
+            .orderBy(asc(clusterNodes.createdAt))
+            .limit(1);
+
+        return existing?.clusterId ?? SystemMeshClusterRepository.DEFAULT_CLUSTER_ID;
     }
 
     private hashJoinGrantToken(token: string): string {
-        const pepper = process.env.MESH_JOIN_GRANT_HASH_PEPPER?.trim() ?? "mesh-join-grant";
+        const pepper = "mesh-join-grant";
         return createHash("sha256")
             .update(`${pepper}:${token}`)
             .digest("hex");

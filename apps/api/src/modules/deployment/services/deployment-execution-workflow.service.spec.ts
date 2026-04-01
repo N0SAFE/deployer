@@ -297,6 +297,32 @@ describe("DeploymentExecutionWorkflowService", () => {
         );
     });
 
+    it("forwards runtime environment variables into executor options", async () => {
+        await service.persistBuildExecutionResult("deployment-1", {
+            runtimeRunner: "docker",
+            containerImage: "ghcr.io/acme/web:latest",
+            runtimeEnvironmentVariables: {
+                NODE_ENV: "production",
+                API_URL: "https://api.example.test",
+                "invalid key": "ignored",
+            },
+            customRunCommand: "node server.js",
+        });
+
+        expect(runtimeRunnerRegistryService.execute).toHaveBeenCalledWith(
+            "docker",
+            expect.objectContaining({
+                executorOptions: {
+                    startupCommand: "node server.js",
+                    environmentVariables: {
+                        NODE_ENV: "production",
+                        API_URL: "https://api.example.test",
+                    },
+                },
+            }),
+        );
+    });
+
     it("retries deploy phase runtime execution based on deploy health policy", async () => {
         runtimeRunnerRegistryService.execute
             .mockRejectedValueOnce(new Error("deploy attempt 1 failed"))

@@ -2,16 +2,19 @@
 
 import { 
   Building2, 
+  ChevronRight,
   Users, 
   Settings, 
   Server,
+  Container,
+  FolderKanban,
+  Rocket,
   Home, 
   Shield, 
   UserCircle,
   LayoutDashboard,
   ChevronUp,
   LogOut,
-  Beaker,
 } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
@@ -27,11 +30,20 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarRail,
   SidebarSeparator,
 } from '@repo/ui/components/shadcn/sidebar'
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from '@repo/ui/components/shadcn/collapsible'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,62 +55,88 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@repo/ui/components/shadcn/avatar'
 
 interface NavItem {
-  name: string
-  href: string
+  title: string
+  url: string
   icon: React.ElementType
   exact?: boolean
+  items?: Array<{ title: string; url: string }>
 }
 
 const mainNavItems: NavItem[] = [
   { 
-    name: 'Overview', 
-    href: '/dashboard',
+    title: 'Overview', 
+    url: '/dashboard',
     icon: LayoutDashboard,
     exact: true,
   },
   { 
-    name: 'Organizations', 
-    href: '/dashboard/organizations',
+    title: 'Projects',
+    url: '/dashboard/projects',
+    icon: FolderKanban,
+  },
+  {
+    title: 'Deployments',
+    url: '/dashboard/deployments',
+    icon: Rocket,
+  },
+  {
+    title: 'Services',
+    url: '/dashboard/services',
+    icon: Server,
+  },
+  {
+    title: 'Docker',
+    url: '/dashboard/docker',
+    icon: Container,
+    items: [
+      { title: 'Overview', url: '/dashboard/docker' },
+      { title: 'Containers', url: '/dashboard/docker/containers' },
+      { title: 'Logs', url: '/dashboard/docker/logs' },
+      { title: 'Shell', url: '/dashboard/docker/shell' },
+      { title: 'Stacks', url: '/dashboard/docker/stacks' },
+      { title: 'Images', url: '/dashboard/docker/images' },
+      { title: 'Volumes', url: '/dashboard/docker/volumes' },
+      { title: 'Networks', url: '/dashboard/docker/networks' },
+      { title: 'Registry', url: '/dashboard/docker/registry' },
+      { title: 'Queu', url: '/dashboard/docker/queu' },
+      { title: 'Activity', url: '/dashboard/docker/activity' },
+    ],
+  },
+  {
+    title: 'Organizations', 
+    url: '/dashboard/admin/organizations',
     icon: Building2,
   },
 ]
 
 const adminNavItems: NavItem[] = [
   { 
-    name: 'Servers', 
-    href: '/dashboard/admin/servers',
+    title: 'Servers', 
+    url: '/dashboard/admin/servers',
     icon: Server,
   },
   { 
-    name: 'Users', 
-    href: '/dashboard/admin/users',
+    title: 'Users', 
+    url: '/dashboard/admin/users',
     icon: Users,
   },
   { 
-    name: 'Organizations', 
-    href: '/dashboard/admin/organizations',
+    title: 'Organizations', 
+    url: '/dashboard/admin/organizations',
     icon: Building2,
   },
   { 
-    name: 'System', 
-    href: '/dashboard/admin/system',
+    title: 'System', 
+    url: '/dashboard/admin/system',
     icon: Settings,
   },
 ]
 
 const accountNavItems: NavItem[] = [
   { 
-    name: 'Profile', 
-    href: '/dashboard/profile',
+    title: 'Profile', 
+    url: '/dashboard/profile',
     icon: UserCircle,
-  },
-]
-
-const devNavItems: NavItem[] = [
-  { 
-    name: 'Demo', 
-    href: '/dashboard/demo',
-    icon: Beaker,
   },
 ]
 
@@ -118,13 +156,16 @@ export function DashboardSidebar() {
   
   // Check if user has admin role
   const isAdmin = session?.user.role === 'admin' || session?.user.role === 'superAdmin'
-  const isDev = process.env.NODE_ENV === 'development'
 
-  const isActive = (item: NavItem) => {
+  const isActive = (item: Pick<NavItem, 'url' | 'exact'>) => {
     if (item.exact) {
-      return pathname === item.href
+      return pathname === item.url
     }
-    return pathname.startsWith(item.href)
+    return pathname.startsWith(item.url)
+  }
+
+  const hasActiveChild = (item: NavItem) => {
+    return item.items?.some((subItem) => pathname.startsWith(subItem.url)) ?? false
   }
 
   const handleSignOut = async () => {
@@ -146,8 +187,8 @@ export function DashboardSidebar() {
                   <Home className="size-4" />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold">Dashboard</span>
-                  <span className="text-xs text-muted-foreground">Manage your workspace</span>
+                  <span className="font-semibold">Deployer v3</span>
+                  <span className="text-xs text-muted-foreground">Platform Console</span>
                 </div>
               </HomeRoute.Link>
             </SidebarMenuButton>
@@ -162,14 +203,44 @@ export function DashboardSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNavItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.name}>
-                    <Link href={item.href}>
-                      <item.icon />
-                      <span>{item.name}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <Collapsible
+                  key={item.title}
+                  asChild
+                  defaultOpen={isActive(item) || hasActiveChild(item)}
+                  className="group/collapsible"
+                >
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.title}>
+                      <Link href={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    {item.items?.length ? (
+                      <>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuAction className="group-data-[state=open]/collapsible:rotate-90">
+                            <ChevronRight />
+                            <span className="sr-only">Toggle</span>
+                          </SidebarMenuAction>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
+                            {item.items.map((subItem) => (
+                              <SidebarMenuSubItem key={subItem.title}>
+                                <SidebarMenuSubButton asChild isActive={pathname === subItem.url || pathname.startsWith(`${subItem.url}/`)}>
+                                  <Link href={subItem.url}>
+                                    <span>{subItem.title}</span>
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            ))}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </>
+                    ) : null}
+                  </SidebarMenuItem>
+                </Collapsible>
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
@@ -185,11 +256,11 @@ export function DashboardSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {adminNavItems.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.name}>
-                      <Link href={item.href}>
+                  <SidebarMenuItem key={item.url}>
+                    <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.title}>
+                      <Link href={item.url}>
                         <item.icon />
-                        <span>{item.name}</span>
+                        <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -205,11 +276,11 @@ export function DashboardSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {accountNavItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.name}>
-                    <Link href={item.href}>
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.title}>
+                    <Link href={item.url}>
                       <item.icon />
-                      <span>{item.name}</span>
+                      <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -217,30 +288,6 @@ export function DashboardSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        {/* Development Section - Only in dev mode */}
-        {isDev && (
-          <SidebarGroup>
-            <SidebarGroupLabel>
-              <Beaker className="size-3 mr-1" />
-              Development
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {devNavItems.map((item) => (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.name}>
-                      <Link href={item.href}>
-                        <item.icon />
-                        <span>{item.name}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
       </SidebarContent>
 
       <SidebarSeparator />

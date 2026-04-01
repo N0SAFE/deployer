@@ -202,6 +202,74 @@ describe("DeploymentQueueProcessor", () => {
         );
     });
 
+    it("hydrates runtime runner network mode from runtime configuration when absent from source options", async () => {
+        deploymentService.claimQueueJobByIdempotencyKey.mockResolvedValue(claimedJob);
+
+        await processor.processDeploy(
+            createBullJob("bull-6b", "deploy:job:1", {
+                context: {
+                    sourceCheckout: {
+                        provider: "custom",
+                        containerImage: "ghcr.io/acme/api:latest",
+                        runtimeRunner: "docker",
+                    },
+                    runtimeConfiguration: {
+                        environmentDomains: {
+                            network: {
+                                DEPLOYER_NETWORK_MODE: "bridge",
+                            },
+                        },
+                    },
+                },
+            }) as never,
+        );
+
+        expect(deploymentService.completeQueueJob).toHaveBeenCalledWith(
+            "queue-job-1",
+            expect.objectContaining({
+                result: expect.objectContaining({
+                    runtimeRunnerOptions: expect.objectContaining({
+                        networkMode: "bridge",
+                    }),
+                }),
+            }),
+        );
+    });
+
+    it("forwards runtime environment variables from runtime configuration context", async () => {
+        deploymentService.claimQueueJobByIdempotencyKey.mockResolvedValue(claimedJob);
+
+        await processor.processDeploy(
+            createBullJob("bull-6c", "deploy:job:1", {
+                context: {
+                    sourceCheckout: {
+                        provider: "custom",
+                        containerImage: "ghcr.io/acme/api:latest",
+                        runtimeRunner: "docker",
+                    },
+                    runtimeConfiguration: {
+                        environment: {
+                            NODE_ENV: "production",
+                            API_URL: "https://api.example.test",
+                        },
+                    },
+                },
+            }) as never,
+        );
+
+        expect(deploymentService.completeQueueJob).toHaveBeenCalledWith(
+            "queue-job-1",
+            expect.objectContaining({
+                result: expect.objectContaining({
+                    runtimeEnvironmentVariables: {
+                        NODE_ENV: "production",
+                        API_URL: "https://api.example.test",
+                    },
+                }),
+            }),
+        );
+    });
+
     it("retries build phase according to execution plan build health policy", async () => {
         deploymentService.claimQueueJobByIdempotencyKey.mockResolvedValue(claimedJob);
         const uploadDir = mkdtempSync(path.join("/tmp", "deployer-upload-retry-build-"));

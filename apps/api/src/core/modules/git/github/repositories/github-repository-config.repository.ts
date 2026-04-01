@@ -15,8 +15,8 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { DatabaseService } from '@/core/modules/database/services/database.service';
-import { githubRepositoryConfigs } from '@/config/drizzle/schema/github-provider';
+import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service';
+import { githubRepositoryConfigs } from '@/config/drizzle/global/schema/github-provider';
 import { eq, and, or, SQL } from 'drizzle-orm';
 
 // Type inference from schema
@@ -27,7 +27,7 @@ type GithubRepositoryConfigInsert = typeof githubRepositoryConfigs.$inferInsert;
 export class GithubRepositoryConfigRepository {
   private readonly logger = new Logger(GithubRepositoryConfigRepository.name);
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly databaseService: GlobalDatabaseService) {}
 
   /**
    * Find config by ID

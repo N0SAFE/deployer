@@ -13,6 +13,7 @@ import {
 } from "./crud";
 import {
     deploymentStreamContract,
+    deploymentInternalStreamContract,
     serviceDeploymentsStreamContract,
     deploymentQueryStreamContract,
     deploymentStreamsListContract,
@@ -77,6 +78,7 @@ export const deploymentContract = oc.tag("Deployment").prefix("/deployments").ro
     getLogs: deploymentGetLogsContract,
     delete: deploymentDeleteContract,
     stream: deploymentStreamContract,
+    streamInternal: deploymentInternalStreamContract,
     streamService: serviceDeploymentsStreamContract,
     streamQuery: deploymentQueryStreamContract,
     streamsList: deploymentStreamsListContract,

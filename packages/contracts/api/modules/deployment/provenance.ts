@@ -5,7 +5,7 @@ import {
     deploymentTemplateProvenanceSchema,
     deploymentTemplateProvenanceUpsertInputSchema,
     deploymentTemplateProvenanceUpsertResultSchema,
-} from "@repo/api-contracts/common/deployment";
+} from "@repo/contracts-entities";
 
 export const deploymentGetTemplateProvenanceContract = route({
     method: "GET",

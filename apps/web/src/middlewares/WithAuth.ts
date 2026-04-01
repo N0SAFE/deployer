@@ -20,7 +20,6 @@ const debugAuthError = createDebug("middleware/auth/error");
 
 const env = validateEnvSafe(process.env).data;
 
-const showcaseRegexpAndChildren = /^\/showcase(\/.*)?$/;
 const dashboardRegexpAndChildren = /^\/dashboard(\/.*)?$/;
 
 const withAuth: MiddlewareFactory = (next: NextProxy) => {
@@ -133,7 +132,6 @@ export const matcher: Matcher = [
       nextjsRegexpPageOnly,
       {
         or: [
-          showcaseRegexpAndChildren,
           dashboardRegexpAndChildren,
           "/settings",
           "/profile",

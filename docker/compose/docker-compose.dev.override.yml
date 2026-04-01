@@ -9,17 +9,10 @@ services:
       lb-dev:
         condition: service_healthy
 
-  api-dev-2:
-    depends_on:
-      lb-dev:
-        condition: service_healthy
-
   # Web app waits for all API nodes AND the load balancer to be healthy
   web-dev:
     depends_on:
       api-dev:
-        condition: service_healthy
-      api-dev-2:
         condition: service_healthy
       lb-dev:
         condition: service_healthy

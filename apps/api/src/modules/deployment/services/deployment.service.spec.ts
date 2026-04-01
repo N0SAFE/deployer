@@ -2,6 +2,7 @@ import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { firstValueFrom, take, toArray } from 'rxjs';
 import { DeploymentService } from './deployment.service';
 import { DeploymentEventService } from '../events/deployment-event.service';
 import { SourceProviderRegistryService } from '../providers/source-provider-registry.service';
@@ -146,6 +147,7 @@ describe('DeploymentService', () => {
             findServiceIdsByProject: vi.fn(),
             getServiceProjectId: vi.fn(),
             getRuntimeConfigurationSeed: vi.fn(),
+            getServiceDependencies: vi.fn(),
         };
 
         mockProjectAccessService = {
@@ -409,6 +411,7 @@ describe('DeploymentService', () => {
                 resourceLimits: null,
             },
         });
+        mockRepository.getServiceDependencies.mockResolvedValue([]);
         mockProjectAccessService.findProjectById.mockResolvedValue({ id: 'proj-1', ownerId: 'user-1' });
         mockProjectAccessService.findCollaboratorByUserAndProject.mockResolvedValue(null);
 
@@ -576,8 +579,14 @@ describe('DeploymentService', () => {
                 payload: {
                     deploymentId: 'deploy-1',
                     serviceId: 'service-1',
+                    projectId: 'proj-1',
                     environment: 'production',
                     context: {
+                        dependencyGraph: {
+                            serviceId: 'service-1',
+                            dependencies: [],
+                            requiredServiceIds: [],
+                        },
                         sourceCheckout: {
                             provider: 'github',
                             repositoryUrl: 'https://github.com/acme/repo',
@@ -585,6 +594,67 @@ describe('DeploymentService', () => {
                         },
                     },
                 },
+            });
+        });
+
+        it('should reject deployment when service dependency graph crosses project boundaries', async () => {
+            mockRepository.getServiceDependencies.mockResolvedValue([
+                {
+                    dependsOnServiceId: 'service-2',
+                    isRequired: true,
+                    dependsOnProjectId: 'proj-2',
+                },
+            ]);
+
+            const input = {
+                serviceId: 'service-1',
+                environment: 'production',
+                sourceType: 'github',
+                sourceConfig: { repositoryUrl: 'https://github.com/acme/repo', branch: 'main' },
+            } as any;
+
+            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(BadRequestException);
+            expect(mockRepository.create).not.toHaveBeenCalled();
+        });
+
+        it('should propagate required dependency ids into deployment queue context', async () => {
+            mockRepository.getServiceDependencies.mockResolvedValue([
+                {
+                    dependsOnServiceId: 'service-2',
+                    isRequired: true,
+                    dependsOnProjectId: 'proj-1',
+                },
+                {
+                    dependsOnServiceId: 'service-3',
+                    isRequired: false,
+                    dependsOnProjectId: 'proj-1',
+                },
+            ]);
+            mockRepository.create.mockResolvedValue(mockDeployment);
+            mockGitService.validateRepository.mockResolvedValue(true);
+
+            await service.triggerDeployment(
+                {
+                    serviceId: 'service-1',
+                    environment: 'production',
+                    sourceType: 'github',
+                    sourceConfig: { repositoryUrl: 'https://github.com/acme/repo', branch: 'main' },
+                } as any,
+                'user-1',
+            );
+
+            const jobs: Array<{ payload?: { context?: { dependencyGraph?: unknown } } }> = Array.from(
+                (service as any).queueJobs.values(),
+            );
+
+            expect(jobs).toHaveLength(1);
+            expect(jobs[0]?.payload?.context?.dependencyGraph).toEqual({
+                serviceId: 'service-1',
+                dependencies: [
+                    { dependsOnServiceId: 'service-2', isRequired: true },
+                    { dependsOnServiceId: 'service-3', isRequired: false },
+                ],
+                requiredServiceIds: ['service-2'],
             });
         });
 
@@ -1562,10 +1632,22 @@ describe('DeploymentService', () => {
                 }),
             );
 
-            const jobs = Array.from((service as any).queueJobs.values());
-            expect(jobs.some((job: any) => job.type === 'rollback' && job.payload.deploymentId === 'deploy-3')).toBe(
+            type QueueJobLike = {
+                type: string;
+                payload: {
+                    deploymentId?: string;
+                    projectId?: string;
+                };
+            };
+
+            const jobs = Array.from(
+                (service as unknown as { queueJobs: Map<string, QueueJobLike> }).queueJobs.values(),
+            );
+            expect(jobs.some((job) => job.type === 'rollback' && job.payload.deploymentId === 'deploy-3')).toBe(
                 true,
             );
+            const rollbackJob = jobs.find((job) => job.type === 'rollback');
+            expect(rollbackJob?.payload?.projectId).toBe('proj-1');
         });
 
         it('should throw NotFoundException when from-deployment not found', async () => {
@@ -2110,25 +2192,19 @@ describe('DeploymentService', () => {
                 replayLimit: 10,
             });
 
-            const iterator = iterable[Symbol.asyncIterator]();
-            const first = await iterator.next();
-            const second = await iterator.next();
+            const [first, second] = await firstValueFrom(iterable.pipe(take(2), toArray()));
 
-            expect(first.done).toBe(false);
-            expect(first.value).toMatchObject({
+            expect(first).toMatchObject({
                 type: 'statusChanged',
                 sequence: 1,
                 replayed: true,
             });
 
-            expect(second.done).toBe(false);
-            expect(second.value).toMatchObject({
+            expect(second).toMatchObject({
                 type: 'statusChanged',
                 sequence: 2,
                 replayed: false,
             });
-
-            await iterator.return?.();
         });
 
         it('should resume sequence from cursor and filter live events by type/aggregate', async () => {
@@ -2153,19 +2229,15 @@ describe('DeploymentService', () => {
                 cursor: 9,
             });
 
-            const iterator = iterable[Symbol.asyncIterator]();
-            const first = await iterator.next();
+            const first = await firstValueFrom(iterable);
 
-            expect(first.done).toBe(false);
-            expect(first.value).toMatchObject({
+            expect(first).toMatchObject({
                 type: 'statusChanged',
                 deploymentId: 'deploy-allowed',
                 sequence: 10,
                 cursor: '10',
                 replayed: false,
             });
-
-            await iterator.return?.();
         });
     });
 });

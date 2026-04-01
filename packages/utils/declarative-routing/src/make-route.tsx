@@ -28,6 +28,7 @@ import type {
     PutInfo,
     SchemasConfig,
     SessionOptions,
+    RouteRuntimeConfig,
 } from './types'
 
 // ============================================================================
@@ -294,7 +295,8 @@ export type PageWrapperFactory = {
         AdditionalProps extends object = object,
     >(
         schemas: SchemasConfig<Params, Search>,
-        Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps>
+        Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps>,
+        runtime?: RouteRuntimeConfig<Params, Search>
     ) => React.ComponentType<{
         params: Promise<z.output<Params>>
         searchParams: Promise<z.output<Search>>
@@ -306,7 +308,8 @@ export type PageWrapperFactory = {
         AdditionalProps extends object = object,
     >(
         schemas: SchemasConfig<Params, Search>,
-        Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps>
+        Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps>,
+        runtime?: RouteRuntimeConfig<Params, Search>
     ) => React.ComponentType<{
         params: Promise<z.output<Params>>
         searchParams: Promise<z.output<Search>>
@@ -320,7 +323,8 @@ export type PageWrapperFactory = {
     >(
         schemas: SchemasConfig<Params, Search>,
         Component: React.ComponentType<UnwrappedPageProps<Params, Search> & AdditionalProps & { session: S | null }>,
-        options?: SessionOptions
+        options?: SessionOptions,
+        runtime?: RouteRuntimeConfig<Params, Search>
     ) => React.ComponentType<{
         params: Promise<z.output<Params>>
         searchParams: Promise<z.output<Search>>
@@ -475,6 +479,11 @@ export function createRouteFactory(config: RouteFactoryConfig) {
         info: RouteInfo<Params, Search>
     ): RouteBuilder<Params, Search> {
         const buildUrl = createUrlBuilder(route, info)
+        const routeRuntime: RouteRuntimeConfig<Params, Search> = {
+            routePath: route,
+            routeName: info.name,
+            buildUrl,
+        }
 
         const urlBuilder = buildUrl as RouteBuilder<Params, Search>
 
@@ -543,7 +552,8 @@ export function createRouteFactory(config: RouteFactoryConfig) {
             
             const WrappedPage = pageWrappers.createPage<Params, Search, AdditionalProps>(
                 schemas,
-                component
+                component,
+                routeRuntime
             )
             
             ;(WrappedPage as ComponentWithDisplayName).displayName = `Page(${(component as ComponentWithDisplayName).displayName ?? (component as ComponentWithDisplayName).name ?? 'Component'})`
@@ -559,7 +569,8 @@ export function createRouteFactory(config: RouteFactoryConfig) {
             
             const WrappedPage = pageWrappers.createClientPage<Params, Search, AdditionalProps>(
                 schemas,
-                component
+                component,
+                routeRuntime
             )
             
             ;(WrappedPage as ComponentWithDisplayName).displayName = `ClientPage(${(component as ComponentWithDisplayName).displayName ?? (component as ComponentWithDisplayName).name ?? 'Component'})`
@@ -579,7 +590,8 @@ export function createRouteFactory(config: RouteFactoryConfig) {
             const WrappedPage = pageWrappers.createSessionPage<Params, Search, SessionOmittedProps, S>(
                 schemas,
                 component as React.ComponentType<UnwrappedPageProps<Params, Search> & SessionOmittedProps & { session: S | null }>,
-                options
+                options,
+                routeRuntime
             )
             
             ;(WrappedPage as ComponentWithDisplayName).displayName = `SessionPage(${(component as ComponentWithDisplayName).displayName ?? (component as ComponentWithDisplayName).name ?? 'Component'})`

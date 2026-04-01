@@ -73,6 +73,17 @@ const executionPlanSchema = z.object({
         .optional(),
 });
 
+const runtimeConfigurationContextSchema = z
+    .object({
+        environment: z.record(z.string(), z.string()).optional(),
+        environmentDomains: z
+            .object({
+                network: z.record(z.string(), z.string()).optional(),
+            })
+            .optional(),
+    })
+    .passthrough();
+
 type DeploymentExecutionPlan = z.infer<typeof executionPlanSchema>;
 
 interface PhaseRetryPolicy {
@@ -156,8 +167,16 @@ export class DeploymentQueueProcessor {
                 (typeof executionPlan?.runner === "string" && executionPlan.runner.trim().length > 0
                     ? executionPlan.runner
                     : null) ?? this.extractRuntimeRunnerFromPayload(job.data.payload);
-            const runtimeRunnerOptions =
+            const runtimeRunnerOptionsFromPayload =
                 executionPlan?.runtimeRunnerOptions ?? this.extractRuntimeRunnerOptionsFromPayload(job.data.payload);
+            const runtimeRunnerOptionsFromRuntimeConfiguration =
+                this.extractRuntimeRunnerOptionsFromRuntimeConfiguration(job.data.payload);
+            const runtimeRunnerOptions = this.mergeRuntimeRunnerOptions(
+                runtimeRunnerOptionsFromPayload,
+                runtimeRunnerOptionsFromRuntimeConfiguration,
+            );
+            const runtimeEnvironmentVariables =
+                this.extractRuntimeEnvironmentVariablesFromRuntimeConfiguration(job.data.payload);
             const buildStartedAt = new Date();
             const containerImage = await this.resolveContainerImageWithPolicy({
                 deploymentId: job.data.deploymentId,
@@ -183,6 +202,7 @@ export class DeploymentQueueProcessor {
                     buildStartedAt: buildStartedAt.toISOString(),
                     buildCompletedAt: buildCompletedAt.toISOString(),
                     ...(runtimeRunnerOptions ? { runtimeRunnerOptions } : {}),
+                    ...(runtimeEnvironmentVariables ? { runtimeEnvironmentVariables } : {}),
                     ...(executionPlan?.healthChecks?.runtime?.maxRetries
                         ? { healthCheckMaxRetries: executionPlan.healthChecks.runtime.maxRetries }
                         : {}),
@@ -379,6 +399,132 @@ export class DeploymentQueueProcessor {
         );
 
         return parsedOptions.success ? parsedOptions.data : null;
+    }
+
+    private mergeRuntimeRunnerOptions(
+        primary: RuntimeRunnerOptions | null,
+        fallback: RuntimeRunnerOptions | null,
+    ): RuntimeRunnerOptions | null {
+        if (!primary) {
+            return fallback;
+        }
+
+        if (!fallback) {
+            return primary;
+        }
+
+        return {
+            ...fallback,
+            ...primary,
+            ...(fallback.dockerfile || primary.dockerfile
+                ? {
+                      dockerfile: {
+                          ...(fallback.dockerfile ?? {}),
+                          ...(primary.dockerfile ?? {}),
+                      },
+                  }
+                : {}),
+            ...(fallback.dockerCompose || primary.dockerCompose
+                ? {
+                      dockerCompose: {
+                          ...(fallback.dockerCompose ?? {}),
+                          ...(primary.dockerCompose ?? {}),
+                      },
+                  }
+                : {}),
+            ...(fallback.nixpacks || primary.nixpacks
+                ? {
+                      nixpacks: {
+                          ...(fallback.nixpacks ?? {}),
+                          ...(primary.nixpacks ?? {}),
+                      },
+                  }
+                : {}),
+            ...(fallback.buildpack || primary.buildpack
+                ? {
+                      buildpack: {
+                          ...(fallback.buildpack ?? {}),
+                          ...(primary.buildpack ?? {}),
+                      },
+                  }
+                : {}),
+            ...(fallback.railpack || primary.railpack
+                ? {
+                      railpack: {
+                          ...(fallback.railpack ?? {}),
+                          ...(primary.railpack ?? {}),
+                      },
+                  }
+                : {}),
+        };
+    }
+
+    private extractRuntimeConfigurationFromPayload(
+        payload: DeploymentBullJobPayload | undefined,
+    ): z.infer<typeof runtimeConfigurationContextSchema> | null {
+        const parsedRuntimeConfiguration = runtimeConfigurationContextSchema.safeParse(
+            payload?.context?.runtimeConfiguration,
+        );
+
+        return parsedRuntimeConfiguration.success ? parsedRuntimeConfiguration.data : null;
+    }
+
+    private extractRuntimeRunnerOptionsFromRuntimeConfiguration(
+        payload: DeploymentBullJobPayload | undefined,
+    ): RuntimeRunnerOptions | null {
+        const runtimeConfiguration = this.extractRuntimeConfigurationFromPayload(payload);
+        if (!runtimeConfiguration) {
+            return null;
+        }
+
+        const networkModeCandidates = [
+            runtimeConfiguration.environmentDomains?.network?.DEPLOYER_NETWORK_MODE,
+            runtimeConfiguration.environmentDomains?.network?.DEPLOYMENT_NETWORK_MODE,
+            runtimeConfiguration.environmentDomains?.network?.NETWORK_MODE,
+            runtimeConfiguration.environment?.DEPLOYER_NETWORK_MODE,
+            runtimeConfiguration.environment?.DEPLOYMENT_NETWORK_MODE,
+            runtimeConfiguration.environment?.NETWORK_MODE,
+        ];
+
+        const networkMode = networkModeCandidates.find(
+            (candidate): candidate is string =>
+                typeof candidate === "string" && candidate.trim().length > 0,
+        );
+
+        if (!networkMode) {
+            return null;
+        }
+
+        const parsedOptions = runtimeRunnerOptionsSchema.safeParse({ networkMode });
+        return parsedOptions.success ? parsedOptions.data : null;
+    }
+
+    private extractRuntimeEnvironmentVariablesFromRuntimeConfiguration(
+        payload: DeploymentBullJobPayload | undefined,
+    ): Record<string, string> | null {
+        const runtimeConfiguration = this.extractRuntimeConfigurationFromPayload(payload);
+        if (!runtimeConfiguration?.environment) {
+            return null;
+        }
+
+        const environmentVariables = Object.entries(runtimeConfiguration.environment).reduce<Record<string, string>>(
+            (accumulator, [key, value]) => {
+                const normalizedKey = key.trim();
+                if (!normalizedKey || normalizedKey.includes('\0')) {
+                    return accumulator;
+                }
+
+                if (typeof value !== "string" || value.includes('\0')) {
+                    return accumulator;
+                }
+
+                accumulator[normalizedKey] = value;
+                return accumulator;
+            },
+            {},
+        );
+
+        return Object.keys(environmentVariables).length > 0 ? environmentVariables : null;
     }
 
     private extractExecutionPlanFromPayload(

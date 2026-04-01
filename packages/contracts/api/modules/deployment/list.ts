@@ -1,5 +1,6 @@
 import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
-import { deploymentSchema, deploymentStatusSchema, deploymentEnvironmentSchema, sourceTypeSchema } from "@repo/api-contracts/common/deployment";
+import { deploymentSchema, deploymentStatusSchema, deploymentEnvironmentSchema, sourceTypeSchema } from "@repo/contracts-entities";
+import z from "zod/v4";
 
 const deploymentOps = standard.zod(deploymentSchema, "deployment");
 
@@ -10,6 +11,10 @@ const deploymentListConfig = createFilterConfig(deploymentOps)
         defaultDirection: "desc",
     })
     .withFiltering({
+        projectId: {
+            schema: z.uuid(),
+            operators: ["eq"] as const,
+        },
         serviceId: {
             schema: deploymentSchema.shape.serviceId,
             operators: ["eq"] as const,

@@ -18,12 +18,14 @@ order: 90
 ## Platform terms
 
 - **Cluster**: A group of 1+ nodes running the deployer platform, sharing a PostgreSQL database.
-- **Node**: A single VPS/server running the full deployer stack (Traefik, LB, API, Web, Redis).
+- **Node**: A single VPS/server participating in the Docker Swarm cluster.
+- **Manager node**: A Swarm control-plane node that owns orchestration state and scheduling decisions.
+- **Worker node**: A Swarm execution node that runs scheduled service replicas/tasks.
 - **Organization**: A tenant boundary within a cluster; owns projects and has configurable instance allocation.
 - **Project**: A logical grouping of related services (e.g. frontend + backend + worker). Owns its own Docker network.
 - **Service**: A single deployable unit within a project (four types: web, worker, cron, one-shot).
 - **Mesh**: ORPC EventIterator over HTTP/SSE gossip-ring network connecting all API nodes for event distribution.
-- **Load Balancer (LB)**: Per-node redirect-based (307) request router using weighted scoring and signed tokens.
+- **Load Balancer (LB)**: Optional advanced redirect/token routing component; not required for the default Traefik + Swarm ingress path.
 - **Preview environment**: Auto-created per PR/branch with deterministic subdomains, scale-to-zero, and LRU eviction.
 - **Config-as-code**: `deployer.yaml` file in user repos that bidirectionally syncs with the dashboard via PRs.
 - **Cascade deploy**: When a dependency service redeploys, dependent services auto-redeploy (configurable per edge).

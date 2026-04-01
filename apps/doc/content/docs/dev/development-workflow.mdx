@@ -44,6 +44,18 @@ bun run web -- dr:build
 
 - Keep API consumption in domain hooks; avoid ad-hoc raw fetch in UI components.
 
+## Project environment policy
+
+- `production` is the mandatory base environment for every project.
+- Additional environments are custom and configured from user intent.
+- `preview` and `development` are special environment names that must be explicitly enabled per project.
+- `preview` supports granular dependency configuration including shared dependency instances.
+- `development` targets local-machine initiated cloud runtime with per-service local/cloud behavior controls.
+
+For the complete model, security constraints, lifecycle states, and rollout plan, see:
+
+- [`Cloud Development Mode (Project Environments)`](/docs/dev/cloud-development-mode)
+
 ## Testing
 
 ```bash

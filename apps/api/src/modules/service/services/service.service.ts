@@ -1,13 +1,12 @@
 import {
     Injectable,
-    OnModuleInit,
     NotFoundException,
     ConflictException,
     BadRequestException,
 } from "@nestjs/common";
+import type { OnModuleInit } from "@nestjs/common";
 import { EMPTY, type Observable, concat, defer, from, map, mergeMap } from "rxjs";
 import { filter as rxFilter } from "rxjs/operators";
-import { observableToAsyncIterable } from "@/core/utils/observable.utils";
 import { CoreEventSyncService } from "@/core/modules/events";
 import { ProjectAccessService } from "@/core/modules/project/services/project-access.service";
 import { runtimeConfigurationAccessor } from "@/core/modules/configuration/services/runtime-configuration-accessor";
@@ -71,7 +70,7 @@ export class ServiceService implements OnModuleInit {
         input: ServiceCreateInput,
         requesterId: string,
     ) {
-        await this.assertProjectAccess(input.projectId, requesterId, ["owner", "admin", "developer"]);
+        await this.assertProjectAccess(input.projectId, requesterId, ["owner", "maintainer", "deployer"]);
 
         const resolvedRuntimeConfiguration = runtimeConfigurationAccessor.resolveStrict({
             scope: "project",
@@ -135,7 +134,7 @@ export class ServiceService implements OnModuleInit {
     }
 
     async updateService(id: string, input: Omit<ServiceUpdateInput, 'id'>, requesterId: string) {
-        const existing = await this.assertServiceAccess(id, requesterId, ["owner", "admin", "developer"]);
+        const existing = await this.assertServiceAccess(id, requesterId, ["owner", "maintainer", "deployer"]);
 
         const resolvedRuntimeConfiguration = runtimeConfigurationAccessor.resolveStrict({
             scope: "service",
@@ -207,7 +206,7 @@ export class ServiceService implements OnModuleInit {
     }
 
     async deleteService(id: string, requesterId: string) {
-        const existing = await this.assertServiceAccess(id, requesterId, ["owner", "admin"]);
+        const existing = await this.assertServiceAccess(id, requesterId, ["owner", "maintainer"]);
         await this.serviceRepository.delete(id);
 
         this.serviceEventService.emit(
@@ -222,7 +221,7 @@ export class ServiceService implements OnModuleInit {
     }
 
     async toggleActive(id: string, isActive: boolean, requesterId: string) {
-        const existing = await this.assertServiceAccess(id, requesterId, ["owner", "admin", "developer"]);
+        await this.assertServiceAccess(id, requesterId, ["owner", "maintainer", "deployer"]);
         const updated = await this.serviceRepository.toggleActive(id, isActive);
         if (!updated) {
             throw new NotFoundException(`Service ${id} not found`);
@@ -247,17 +246,63 @@ export class ServiceService implements OnModuleInit {
         return { dependencies };
     }
 
+    private async wouldIntroduceDependencyCycle(
+        serviceId: string,
+        dependsOnServiceId: string,
+    ): Promise<boolean> {
+        const queue: string[] = [dependsOnServiceId];
+        const visited = new Set<string>();
+
+        while (queue.length > 0) {
+            const currentServiceId = queue.shift();
+            if (!currentServiceId || visited.has(currentServiceId)) {
+                continue;
+            }
+
+            if (currentServiceId === serviceId) {
+                return true;
+            }
+
+            visited.add(currentServiceId);
+
+            const dependencies = await this.serviceRepository.getDependencies(currentServiceId);
+            for (const dependency of dependencies ?? []) {
+                const downstreamServiceId = dependency?.dependsOnServiceId;
+                if (
+                    typeof downstreamServiceId === "string" &&
+                    downstreamServiceId.length > 0 &&
+                    !visited.has(downstreamServiceId)
+                ) {
+                    queue.push(downstreamServiceId);
+                }
+            }
+        }
+
+        return false;
+    }
+
     async addDependency(serviceId: string, dependsOnServiceId: string, isRequired: boolean, requesterId: string) {
         if (serviceId === dependsOnServiceId) {
             throw new BadRequestException("A service cannot depend on itself");
         }
-        await this.assertServiceAccess(serviceId, requesterId, ["owner", "admin", "developer"]);
-        await this.getServiceById(dependsOnServiceId);
+
+        const service = await this.assertServiceAccess(serviceId, requesterId, ["owner", "maintainer", "deployer"]);
+        const dependsOnService = await this.getServiceById(dependsOnServiceId);
+
+        if (service.projectId !== dependsOnService.projectId) {
+            throw new BadRequestException("Service dependencies must reference services in the same project");
+        }
 
         const exists = await this.serviceRepository.dependencyExists(serviceId, dependsOnServiceId);
         if (exists) {
             throw new ConflictException("Dependency already exists");
         }
+
+        const introducesCycle = await this.wouldIntroduceDependencyCycle(serviceId, dependsOnServiceId);
+        if (introducesCycle) {
+            throw new BadRequestException("Dependency introduces a cycle in the service graph");
+        }
+
         const created = await this.serviceRepository.addDependency(serviceId, dependsOnServiceId, isRequired);
         this.serviceEventService.emit(
             "serviceDependencyAdded",
@@ -273,7 +318,7 @@ export class ServiceService implements OnModuleInit {
     }
 
     async removeDependency(serviceId: string, dependencyId: string, requesterId: string) {
-        await this.assertServiceAccess(serviceId, requesterId, ["owner", "admin", "developer"]);
+        await this.assertServiceAccess(serviceId, requesterId, ["owner", "maintainer", "deployer"]);
         await this.serviceRepository.removeDependency(dependencyId, serviceId);
 
         this.serviceEventService.emit(
@@ -503,7 +548,7 @@ export class ServiceService implements OnModuleInit {
         },
         replay: boolean,
         replayLimit: number,
-    ): AsyncIterable<{ eventName: string; payload: unknown; replayed?: boolean; emittedAt?: string }> {
+    ): Observable<{ eventName: string; payload: unknown; replayed?: boolean; emittedAt?: string }> {
         const filters = definition.filters ?? {};
         const scopedServiceId = definition.scope === "service" ? definition.scopeId ?? undefined : undefined;
         const scopedProjectId = definition.scope === "project" ? definition.scopeId ?? undefined : undefined;
@@ -521,15 +566,13 @@ export class ServiceService implements OnModuleInit {
             replayLimit,
         });
 
-        return observableToAsyncIterable(
-            source$.pipe(
-                map((event) => ({
-                    eventName: event.type,
-                    payload: event,
-                    replayed: event.replayed,
-                    emittedAt: event.emittedAt,
-                })),
-            ),
+        return source$.pipe(
+            map((event) => ({
+                eventName: event.type,
+                payload: event,
+                replayed: event.replayed,
+                emittedAt: event.emittedAt,
+            })),
         );
     }
 }

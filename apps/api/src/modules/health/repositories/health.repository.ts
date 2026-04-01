@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { DatabaseService } from '../../../core/modules/database/services/database.service';
+import { GlobalDatabaseService } from '../../../core/modules/database/services/global-database.service';
 
 @Injectable()
 export class HealthRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly databaseService: GlobalDatabaseService) {}
 
   /**
    * Check database health

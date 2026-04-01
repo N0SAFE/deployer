@@ -1,9 +1,10 @@
 import * as z from "zod";
 import { oc } from "@orpc/contract";
 import { standard } from "@repo/orpc-utils";
-import { serviceSchema } from "@repo/api-contracts/common/service";
+import { serviceSchema } from "@repo/contracts-entities";
 
 const serviceOps = standard.zod(serviceSchema, "service");
+const serviceObjectSchema = z.object(serviceSchema.shape);
 
 export const serviceFindByIdContract = serviceOps
     .read()
@@ -12,7 +13,7 @@ export const serviceFindByIdContract = serviceOps
 
 export const serviceDeleteContract = serviceOps.delete().build();
 
-export const serviceCreateInputSchema = serviceSchema
+export const serviceCreateInputSchema = serviceObjectSchema
     .omit({ id: true, isActive: true, createdAt: true, updatedAt: true })
     .partial({
         description: true,
@@ -38,7 +39,7 @@ export const serviceCreateContract = serviceOps
     .input(serviceCreateInputSchema)
     .build();
 
-export const serviceUpdateInputSchema = serviceSchema
+export const serviceUpdateInputSchema = serviceObjectSchema
     .omit({ id: true, projectId: true, createdAt: true, updatedAt: true })
     .partial()
     .extend({ id: serviceSchema.shape.id });

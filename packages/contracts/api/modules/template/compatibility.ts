@@ -4,7 +4,7 @@ import {
     templateCompatibilityMatrixSchema,
     templateCompatibilityValidationInputSchema,
     templateCompatibilityValidationResultSchema,
-} from "@repo/api-contracts/common/template";
+} from "@repo/contracts-entities";
 
 export const templateGetCompatibilityMatrixContract = route({
     method: "GET",

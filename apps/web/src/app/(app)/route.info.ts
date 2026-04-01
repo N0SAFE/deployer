@@ -8,9 +8,5 @@ export const Route = {
   name: "Home",
   params: z.object({
   }),
-  // Example: Define valid anchors for this route using z.enum
-  // These can be used with: Home.Link({ anchor: 'features' })
-  // or Home.immediate(router, undefined, undefined, 'features')
-  anchors: z.enum(['features', 'about', 'contact']),
 };
 

@@ -1,9 +1,9 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
-import type { OnModuleInit } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
+import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { Observable } from "rxjs";
+import { from, Observable } from "rxjs";
 import { filter, map } from "rxjs/operators";
-import { asyncIterableToObservable, observableToAsyncIterable } from "@/core/utils/observable.utils";
+import { observableToAsyncIterable } from "@/core/utils/observable.utils";
 import { EnvService } from "@/config/env/env.service";
 import {
     meshDuplexStreamInputSchema,
@@ -13,6 +13,10 @@ import {
     meshNodeStateSchema,
     meshPeerConnectionSchema,
     type MeshControlEnvelope,
+    type MeshJoinGrantConsumeInput,
+    type MeshJoinGrantConsumeResult,
+    type MeshJoinGrantIssueResult,
+    type MeshJoinGrantRevokeResult,
     type MeshResourceIndexUpsertInput,
     type MeshResourceIndexUpsertResult,
     type MeshResourceKind,
@@ -24,6 +28,7 @@ import {
     type MeshMembershipReconcileInput,
     type MeshMembershipReconcileResult,
     type MeshMembershipSnapshot,
+    type MeshNodeRole,
     type MeshPeerConnectInput,
     type MeshPeerConnectResult,
     type MeshPeerDisconnectInput,
@@ -45,194 +50,42 @@ import {
     type MeshQueueTransitionListResult,
     type MeshQueueTransitionLogEntry,
     type MeshQueueTransitionPayload,
+    type MeshRegisterNodeResult,
+    type MeshRegisterNodeInput,
     meshQueueTransitionLogEntrySchema,
-} from "@repo/api-contracts/common/mesh";
+    type MeshRuntimeEventReason,
+    type MeshStreamRoutePlanBranch,
+    type MeshStreamRoutePlanInput,
+    type MeshStreamRoutePlanResult,
+    type MeshTopologyStreamInput,
+    type MeshTrustKey,
+    type MeshTrustSecretKey,
+    type MeshTrustKeyringRotateCommandInput,
+    type MeshTrustKeyringConvergenceStatusResult,
+    type MeshTrustKeyringRotateResult,
+    type MeshTrustKeyringSecretsResult,
+    type MeshTrustKeyringStatusResult,
+    type MeshTrustStrictModeSetCommandInput,
+    type MeshTrustStrictModeSetResult,
+    type MeshTrustStrictReadinessResult,
+    type MeshTrustStrictRollbackCommandInput,
+    type MeshTrustStrictRollbackResult,
+    type MeshTrustStrictRolloutPlanInput,
+    type MeshTrustStrictRolloutPlanResult,
+    type MeshJoinGrantIssueCommandInput,
+    type MeshJoinGrantRevokeCommandInput,
+} from "@repo/contracts-entities";
 import { SystemMeshEventService } from "../events/system-mesh-event.service";
 import { SystemMeshClusterRepository } from "../repositories/system-mesh-cluster.repository";
 import { SystemMeshLogicService } from "./system-mesh-logic.service";
 import { SystemMeshOverlayScopeService } from "./system-mesh-overlay-scope.service";
+import { SystemMeshConfigService } from "./system-mesh-config.service";
 import { MeshPartitionPolicy, type PartitionPolicyResult } from "./mesh-partition-policy";
-
-interface TopologyStreamInput {
-    organizationId?: string | null;
-    replay: boolean;
-    replayLimit: number;
-    includeEdges: boolean;
-    includeNodes: boolean;
-}
-
-interface MeshStreamRoutePlanInput {
-    organizationId?: string | null;
-    streamId: string;
-    desiredBranches: number;
-    includeCandidates: boolean;
-}
-
-interface MeshJoinGrantIssueInput {
-    organizationId?: string | null;
-    targetNodeId?: string | null;
-    ttlSeconds: number;
-    issuedByUserId: string;
-    issuedByRole?: string | null;
-    metadata?: Record<string, unknown> | null;
-}
-
-interface MeshJoinGrantIssueResult {
-    grantId: string;
-    clusterId: string;
-    grantToken: string;
-    expiresAt: string;
-    status: "issued";
-}
-
-interface MeshJoinGrantConsumeInput {
-    grantToken: string;
-    nodeId: string;
-    serverUrl: string;
-    displayName?: string;
-    capabilities?: Record<string, unknown> | null;
-    metadata?: Record<string, unknown> | null;
-}
-
-interface MeshJoinGrantConsumeResult {
-    accepted: boolean;
-    grantId: string;
-    clusterId: string;
-    nodeId: string;
-    enrolledAt: string;
-}
-
-interface MeshJoinGrantRevokeInput {
-    grantId: string;
-    reason?: string | null;
-    revokedByUserId: string;
-    revokedByRole?: string | null;
-}
-
-interface MeshJoinGrantRevokeResult {
-    revoked: boolean;
-    grantId: string;
-    clusterId: string;
-    status: "revoked";
-    revokedAt: string;
-}
-
-interface MeshTrustKeyInfo {
-    keyId: string;
-    algorithm: "HS256";
-    status: "active" | "previous";
-}
-
-interface MeshTrustKeyringStatusResult {
-    activeKeyId: string | null;
-    keys: MeshTrustKeyInfo[];
-}
-
-interface MeshTrustKeyringSecretsResult {
-    activeKeyId: string | null;
-    keys: {
-        keyId: string;
-        algorithm: "HS256";
-        status: "active" | "previous";
-        secretMaterial: string;
-    }[];
-}
-
-interface MeshTrustKeyringRotateInput {
-    keyId?: string;
-    secretMaterial?: string;
-    expiresAt?: string | null;
-    rotatedByRole?: string | null;
-}
-
-interface MeshTrustKeyringRotateResult {
-    activeKeyId: string;
-    rotatedKeyId: string;
-    secretMaterial: string;
-    keys: MeshTrustKeyInfo[];
-}
-
-interface MeshTrustKeyringConvergenceStatusResult {
-    activeKeyId: string | null;
-    converged: boolean;
-    expectedAcks: number;
-    receivedAcks: number;
-    pendingNodeIds: string[];
-    lastRotatedAt: string | null;
-}
-
-interface MeshTrustStrictReadinessResult {
-    ready: boolean;
-    strictConfigured: boolean;
-    strictEnforced: boolean;
-    activeKeyId: string | null;
-    converged: boolean;
-    expectedAcks: number;
-    receivedAcks: number;
-    ackRatio: number;
-    minAckRatio: number;
-    maxAckAgeSeconds: number;
-    lastRotationAgeSeconds: number | null;
-    rollbackRecommended: boolean;
-    rollbackTriggers: string[];
-    reasons: string[];
-}
-
-interface MeshTrustStrictModeSetInput {
-    enabled: boolean;
-    setByRole?: string | null;
-}
-
-interface MeshTrustStrictModeSetResult extends MeshTrustStrictReadinessResult {
-    requested: boolean;
-}
-
-interface MeshTrustStrictRollbackInput {
-    force?: boolean;
-    reason?: string;
-    setByRole?: string | null;
-}
-
-interface MeshTrustStrictRollbackResult extends MeshTrustStrictReadinessResult {
-    requested: boolean;
-    rolledBack: boolean;
-}
-
-interface MeshTrustStrictRolloutPlanInput {
-    waveSize?: number;
-}
-
-interface MeshTrustStrictRolloutPlanResult {
-    activeKeyId: string | null;
-    strictConfigured: boolean;
-    strictEnforced: boolean;
-    waveSize: number;
-    ackedNodeIds: string[];
-    pendingNodeIds: string[];
-    waves: { index: number; nodeIds: string[] }[];
-    rollbackRecommended: boolean;
-    rollbackTriggers: string[];
-}
-
-interface MeshStreamRoutePlanBranch {
-    ownerNodeId: string;
-    ownerServerUrl: string;
-    endpointPath: string;
-    protocol: "http" | "https" | "ws" | "wss" | "sse";
-    priority: number;
-    estimatedWeight: number;
-}
-
-interface MeshStreamRoutePlanResult {
-    streamId: string;
-    selected: MeshStreamRoutePlanBranch[];
-    candidates: MeshStreamRoutePlanBranch[];
-}
 
 interface QueuePartitionCandidate {
     nodeId: string;
     ownerServerUrl: string | null;
-    role: "edge" | "relay" | "partition-owner" | "observer";
+    role: MeshNodeRole;
     local: boolean;
 }
 
@@ -243,17 +96,23 @@ interface QueueTransitionApplyState {
     entry: MeshQueueTransitionLogEntry;
 }
 
-type RuntimeReason =
-    | "bootstrap"
-    | "session_connected"
-    | "session_disconnected"
-    | "session_heartbeat"
-    | "membership_reconciled"
-    | "topology_event"
-    | "control_envelope";
+interface MeshTrustSigningKeyRecord {
+    keyId: string;
+    algorithm: "HS256";
+    secret: string;
+    status: "active" | "previous";
+}
+
+interface ClusterSyncNodeRecord {
+    nodeId: string;
+    serverUrl: string;
+    status: "active" | "suspect" | "draining" | "revoked";
+    healthy: boolean;
+    lastSeenAt: string | null;
+}
 
 @Injectable()
-export class SystemMeshTopologyService implements OnModuleInit {
+export class SystemMeshTopologyService implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(SystemMeshTopologyService.name);
     private readonly controlEnvelopeHandlers = new Set<(envelope: MeshControlEnvelope) => void>();
     private readonly localNode: MeshNodeState;
@@ -269,25 +128,23 @@ export class SystemMeshTopologyService implements OnModuleInit {
     private readonly queueTransitionBySourceAndTransitionId = new Map<string, MeshQueueTransitionLogEntry>();
     private readonly queueTransitionSequenceByNode = new Map<string, number>();
     private readonly topologyHistoryLimit = 5_000;
-    private readonly trustKeys = new Map<string, { keyId: string; algorithm: "HS256"; secret: string; status: "active" | "previous" }>();
+    private readonly trustKeys = new Map<string, MeshTrustSigningKeyRecord>();
     private readonly trustKeyAcksByKeyId = new Map<string, Set<string>>();
     private readonly trustKeyExpectedPeersByKeyId = new Map<string, Set<string>>();
     private readonly trustKeyLastRotatedAt = new Map<string, string>();
     private strictTrustModeRequested = false;
     private activeTrustKeyId: string | null = null;
     private membershipVersion = 1;
+    private bootstrapRegistrationAttempted = false;
+    private syncTimer: ReturnType<typeof setInterval> | null = null;
 
-    private env(): EnvService {
-        return new EnvService();
-    }
-
-    private resolveUuidFromEnv(envName: "MESH_NODE_ID" | "MESH_CLUSTER_ID"): string {
-        const value = this.env().get(envName);
+    private resolveUuidFromEnv(envName: "MESH_NODE_ID"): string {
+        const value = this.envService.get(envName);
         if (!value) {
             return randomUUID();
         }
 
-        const trimmed = String(value).trim();
+        const trimmed = value.trim();
         const uuidLikeRegex =
             /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -298,12 +155,15 @@ export class SystemMeshTopologyService implements OnModuleInit {
         private readonly meshEventService: SystemMeshEventService,
         private readonly meshLogicService: SystemMeshLogicService,
         private readonly meshOverlayScopeService: SystemMeshOverlayScopeService,
+        private readonly envService: EnvService,
+        @Optional()
+        private readonly meshConfigService?: SystemMeshConfigService,
         @Optional()
         private readonly clusterRepository?: SystemMeshClusterRepository,
     ) {
         const now = new Date().toISOString();
-        const configuredNodeId = this.resolveUuidFromEnv("MESH_NODE_ID");
-        const configuredClusterId = this.resolveUuidFromEnv("MESH_CLUSTER_ID");
+        const configuredNodeId = this.meshConfigService?.getNodeId() ?? this.resolveUuidFromEnv("MESH_NODE_ID");
+        const configuredClusterId = this.meshConfigService?.getClusterId() ?? randomUUID();
         this.localNode = meshNodeStateSchema.parse({
             nodeId: configuredNodeId,
             clusterId: configuredClusterId,
@@ -355,6 +215,7 @@ export class SystemMeshTopologyService implements OnModuleInit {
         }
 
         if (!this.clusterRepository) {
+            this.startPeriodicMeshSync();
             return;
         }
 
@@ -376,6 +237,17 @@ export class SystemMeshTopologyService implements OnModuleInit {
                     error instanceof Error ? error.message : "unknown error"
                 }`,
             );
+        }
+
+        await this.registerLocalNodeOnStartup();
+        await this.syncPeersFromClusterRepository("startup");
+        this.startPeriodicMeshSync();
+    }
+
+    onModuleDestroy(): void {
+        if (this.syncTimer) {
+            clearInterval(this.syncTimer);
+            this.syncTimer = null;
         }
     }
 
@@ -717,16 +589,11 @@ export class SystemMeshTopologyService implements OnModuleInit {
         };
     }
 
-    async issueJoinGrant(input: MeshJoinGrantIssueInput): Promise<MeshJoinGrantIssueResult> {
-        if (!this.clusterRepository) {
-            throw new BadRequestException("Mesh cluster repository is required to issue bootstrap join grants");
-        }
+    async issueJoinGrant(input: MeshJoinGrantIssueCommandInput): Promise<MeshJoinGrantIssueResult> {
+        const clusterRepository = this.requireClusterRepository("issue bootstrap join grants");
+        this.assertSuperAdminRole(input.issuedByRole, "issue bootstrap join grants");
 
-        if (!this.isSuperAdminRole(input.issuedByRole)) {
-            throw new BadRequestException("Only super-admin can issue bootstrap join grants");
-        }
-
-        const issued = await this.clusterRepository.issueJoinGrant({
+        const issued = await clusterRepository.issueJoinGrant({
             organizationId: input.organizationId ?? null,
             targetNodeId: input.targetNodeId ?? null,
             issuedByUserId: input.issuedByUserId,
@@ -744,11 +611,9 @@ export class SystemMeshTopologyService implements OnModuleInit {
     }
 
     async consumeJoinGrant(input: MeshJoinGrantConsumeInput): Promise<MeshJoinGrantConsumeResult> {
-        if (!this.clusterRepository) {
-            throw new BadRequestException("Mesh cluster repository is required to consume bootstrap join grants");
-        }
+        const clusterRepository = this.requireClusterRepository("consume bootstrap join grants");
 
-        const consumed = await this.clusterRepository.consumeJoinGrant(input);
+        const consumed = await clusterRepository.consumeJoinGrant(input);
         if (!consumed) {
             throw new NotFoundException("Join grant is invalid, expired, revoked, or already used");
         }
@@ -762,16 +627,38 @@ export class SystemMeshTopologyService implements OnModuleInit {
         };
     }
 
-    async revokeJoinGrant(input: MeshJoinGrantRevokeInput): Promise<MeshJoinGrantRevokeResult> {
-        if (!this.clusterRepository) {
-            throw new BadRequestException("Mesh cluster repository is required to revoke bootstrap join grants");
+    async registerNodeInCluster(input: MeshRegisterNodeInput): Promise<MeshRegisterNodeResult> {
+        const clusterRepository = this.requireClusterRepository("register cluster nodes");
+        if (!("registerOrUpdateNode" in clusterRepository)) {
+            throw new BadRequestException("Mesh cluster repository is required to register cluster nodes");
         }
 
-        if (!this.isSuperAdminRole(input.revokedByRole)) {
-            throw new BadRequestException("Only super-admin can revoke bootstrap join grants");
+        const registered = await clusterRepository.registerOrUpdateNode({
+            nodeId: input.nodeId,
+            serverUrl: input.serverUrl,
+            displayName: input.displayName ?? null,
+            capabilities: input.capabilities ?? null,
+            metadata: input.metadata ?? null,
+        });
+
+        if (input.nodeId === this.localNode.nodeId && this.localNode.clusterId !== registered.clusterId) {
+            this.localNode.clusterId = registered.clusterId;
         }
 
-        const revoked = await this.clusterRepository.revokeJoinGrant({
+        return {
+            accepted: true,
+            clusterId: registered.clusterId,
+            nodeId: registered.nodeId,
+            status: registered.status,
+            enrolledAt: registered.enrolledAt,
+        };
+    }
+
+    async revokeJoinGrant(input: MeshJoinGrantRevokeCommandInput): Promise<MeshJoinGrantRevokeResult> {
+        const clusterRepository = this.requireClusterRepository("revoke bootstrap join grants");
+        this.assertSuperAdminRole(input.revokedByRole, "revoke bootstrap join grants");
+
+        const revoked = await clusterRepository.revokeJoinGrant({
             grantId: input.grantId,
             revokedByUserId: input.revokedByUserId,
             reason: input.reason ?? null,
@@ -804,27 +691,23 @@ export class SystemMeshTopologyService implements OnModuleInit {
         };
     }
 
-    async rotateTrustKey(input: MeshTrustKeyringRotateInput): Promise<MeshTrustKeyringRotateResult> {
-        if (!this.clusterRepository || !("rotateSigningKey" in this.clusterRepository)) {
+    async rotateTrustKey(input: MeshTrustKeyringRotateCommandInput): Promise<MeshTrustKeyringRotateResult> {
+        const clusterRepository = this.requireClusterRepository("rotate trust keys");
+        if (!("rotateSigningKey" in clusterRepository)) {
             throw new BadRequestException("Mesh cluster repository is required to rotate trust keys");
         }
+        this.assertSuperAdminRole(input.rotatedByRole, "rotate mesh trust keys");
 
-        if (!this.isSuperAdminRole(input.rotatedByRole)) {
-            throw new BadRequestException("Only super-admin can rotate mesh trust keys");
-        }
+        const keyId = input.keyId?.trim() ?? `mesh-k-${String(Date.now())}`;
+        const secretMaterial = input.secretMaterial?.trim() ?? `${randomUUID()}${randomUUID()}`;
 
-        const keyId = input.keyId?.trim() || `mesh-k-${Date.now()}`;
-        const secretMaterial = input.secretMaterial?.trim() || `${randomUUID()}${randomUUID()}`;
-
-        const rotated = await this.clusterRepository.rotateSigningKey({
+        const rotated = await clusterRepository.rotateSigningKey({
             keyId,
             secretMaterial,
             expiresAt: input.expiresAt ?? null,
         });
 
-        const snapshotKeys = this.clusterRepository.loadSigningKeys
-            ? await this.clusterRepository.loadSigningKeys()
-            : [];
+        const snapshotKeys = await clusterRepository.loadSigningKeys();
 
         const payloadKeys = snapshotKeys.length > 0
             ? snapshotKeys
@@ -980,10 +863,8 @@ export class SystemMeshTopologyService implements OnModuleInit {
         };
     }
 
-    setTrustStrictMode(input: MeshTrustStrictModeSetInput): MeshTrustStrictModeSetResult {
-        if (!this.isSuperAdminRole(input.setByRole)) {
-            throw new BadRequestException("Only super-admin can set strict mesh trust mode");
-        }
+    setTrustStrictMode(input: MeshTrustStrictModeSetCommandInput): MeshTrustStrictModeSetResult {
+        this.assertSuperAdminRole(input.setByRole, "set strict mesh trust mode");
 
         if (!input.enabled && this.isStrictTrustPinnedFromEnv()) {
             throw new BadRequestException("Strict mesh trust mode is pinned by environment and cannot be disabled at runtime");
@@ -1017,10 +898,8 @@ export class SystemMeshTopologyService implements OnModuleInit {
         };
     }
 
-    rollbackTrustStrictMode(input: MeshTrustStrictRollbackInput): MeshTrustStrictRollbackResult {
-        if (!this.isSuperAdminRole(input.setByRole)) {
-            throw new BadRequestException("Only super-admin can rollback strict mesh trust mode");
-        }
+    rollbackTrustStrictMode(input: MeshTrustStrictRollbackCommandInput): MeshTrustStrictRollbackResult {
+        this.assertSuperAdminRole(input.setByRole, "rollback strict mesh trust mode");
 
         if (this.isStrictTrustPinnedFromEnv()) {
             throw new BadRequestException("Strict mesh trust mode is pinned by environment and cannot be rolled back at runtime");
@@ -1163,7 +1042,7 @@ export class SystemMeshTopologyService implements OnModuleInit {
     }
 
     streamSession(inputStream: AsyncIterable<MeshDuplexStreamInput>): AsyncIterable<MeshDuplexStreamOutput> {
-        return observableToAsyncIterable(this.observeSession(asyncIterableToObservable(inputStream)));
+        return observableToAsyncIterable(this.observeSession(from(inputStream)));
     }
 
     observeSession(input$: Observable<MeshDuplexStreamInput>): Observable<MeshDuplexStreamOutput> {
@@ -1360,31 +1239,29 @@ export class SystemMeshTopologyService implements OnModuleInit {
                             return;
                         }
 
-                        if (parsed.data.type === "disconnect") {
-                            if (!activeSessionId) {
-                                emit({
-                                    type: "error",
-                                    code: "invalid_sequence",
-                                    message: "Cannot disconnect before auth",
-                                    retryable: false,
-                                });
-                                cleanupSession();
-                                terminate();
-                                return;
-                            }
-
-                            const disconnected = this.disconnectPeer(activeSessionId, {
-                                reason: parsed.data.reason,
-                                allowReconnect: parsed.data.allowReconnect,
-                            });
-
+                        if (!activeSessionId) {
                             emit({
-                                type: "disconnected",
-                                session: disconnected.session,
+                                type: "error",
+                                code: "invalid_sequence",
+                                message: "Cannot disconnect before auth",
+                                retryable: false,
                             });
-                            activeSessionId = null;
+                            cleanupSession();
                             terminate();
+                            return;
                         }
+
+                        const disconnected = this.disconnectPeer(activeSessionId, {
+                            reason: parsed.data.reason,
+                            allowReconnect: parsed.data.allowReconnect,
+                        });
+
+                        emit({
+                            type: "disconnected",
+                            session: disconnected.session,
+                        });
+                        activeSessionId = null;
+                        terminate();
                     } catch (error) {
                         emit({
                             type: "error",
@@ -1628,7 +1505,6 @@ export class SystemMeshTopologyService implements OnModuleInit {
         if (this.clusterRepository) {
             void this.clusterRepository
                 .persistNodeHeartbeat({
-                    clusterId: this.localNode.clusterId,
                     nodeId: resolvedPeerNodeId,
                     organizationId: this.resolveSessionOrganizationId(sessionId),
                     serverUrl:
@@ -1637,7 +1513,7 @@ export class SystemMeshTopologyService implements OnModuleInit {
                             : null,
                     metrics: connection.metrics,
                 })
-                .catch((error) => {
+                .catch((error: unknown) => {
                     this.logger.warn(
                         `Failed to persist cluster node heartbeat metrics: ${
                             error instanceof Error ? error.message : "unknown error"
@@ -1655,11 +1531,11 @@ export class SystemMeshTopologyService implements OnModuleInit {
         };
     }
 
-    streamTopology(input: TopologyStreamInput): AsyncIterable<MeshTopologyEvent> {
+    streamTopology(input: MeshTopologyStreamInput): AsyncIterable<MeshTopologyEvent> {
         return observableToAsyncIterable(this.observeTopology(input));
     }
 
-    observeTopology(input: TopologyStreamInput): Observable<MeshTopologyEvent> {
+    observeTopology(input: MeshTopologyStreamInput): Observable<MeshTopologyEvent> {
         return this.meshEventService.observeTopology({
             clusterId: this.localNode.clusterId,
             replay: input.replay,
@@ -2026,7 +1902,7 @@ export class SystemMeshTopologyService implements OnModuleInit {
 
     private isTopologyEventVisibleByTypeAndOrganization(
         event: MeshTopologyEvent,
-        input: TopologyStreamInput,
+        input: MeshTopologyStreamInput,
     ): boolean {
         const typeAllowed =
             (input.includeNodes && (event.type === "node_upserted" || event.type === "node_removed")) ||
@@ -2093,8 +1969,47 @@ export class SystemMeshTopologyService implements OnModuleInit {
         }
     }
 
+    private resolveRawEnvValue(name: string): string | null {
+        const raw = process.env[name];
+        if (typeof raw !== "string") {
+            return null;
+        }
+
+        const trimmed = raw.trim();
+        return trimmed.length > 0 ? trimmed : null;
+    }
+
+    private resolveBooleanEnvValue(name: string): boolean | null {
+        const raw = this.resolveRawEnvValue(name);
+        if (!raw) {
+            return null;
+        }
+
+        const normalized = raw.toLowerCase();
+        if (normalized === "true") {
+            return true;
+        }
+
+        if (normalized === "false") {
+            return false;
+        }
+
+        return null;
+    }
+
+    private resolveNumberEnvValue(name: string): number | null {
+        const raw = this.resolveRawEnvValue(name);
+        if (!raw) {
+            return null;
+        }
+
+        const parsed = Number(raw);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
     private isValidStreamCredential(credential: string): boolean {
-        const configuredCredential = this.env().get("MESH_STREAM_SHARED_SECRET")?.toString().trim();
+        const configuredCredential = this.meshConfigService?.getStreamSharedSecret()
+            ?? this.resolveRawEnvValue("MESH_STREAM_SHARED_SECRET");
         if (!configuredCredential) {
             return credential.trim().length > 0;
         }
@@ -2215,7 +2130,7 @@ export class SystemMeshTopologyService implements OnModuleInit {
         this.emitRuntimeState("topology_event", event);
     }
 
-    private emitRuntimeState(reason: RuntimeReason, topologyEvent: MeshTopologyEvent | null): void {
+    private emitRuntimeState(reason: MeshRuntimeEventReason, topologyEvent: MeshTopologyEvent | null): void {
         const state = this.getRealtimeState();
         const event: MeshRuntimeEvent = {
             type: "mesh_state",
@@ -2342,7 +2257,7 @@ export class SystemMeshTopologyService implements OnModuleInit {
 
     private resolveNodeServerUrl(nodeId: string): string | null {
         if (nodeId === this.localNode.nodeId) {
-            const localServerUrl = this.env().get("MESH_NODE_SERVER_URL")?.toString().trim();
+            const localServerUrl = this.meshConfigService?.getNodeServerUrl() ?? null;
             return localServerUrl && localServerUrl.length > 0 ? localServerUrl : null;
         }
 
@@ -2356,19 +2271,451 @@ export class SystemMeshTopologyService implements OnModuleInit {
     }
 
     private loadEnvTrustKey(): void {
-        const envSecret = this.env().get("MESH_CONTROL_ENVELOPE_SIGNING_KEY")?.toString().trim();
-        if (!envSecret) {
+        const configuredTrustKeys = this.meshConfigService?.getControlEnvelopeTrustKeys();
+        if (!configuredTrustKeys || configuredTrustKeys.size === 0) {
+            const envSigningKey = this.resolveRawEnvValue("MESH_CONTROL_ENVELOPE_SIGNING_KEY");
+            if (!envSigningKey) {
+                return;
+            }
+
+            const envSigningKid = this.resolveRawEnvValue("MESH_CONTROL_ENVELOPE_SIGNING_KID") ?? "mesh-k1";
+            this.trustKeys.set(envSigningKid, {
+                keyId: envSigningKid,
+                algorithm: "HS256",
+                secret: envSigningKey,
+                status: "active",
+            });
+            this.activeTrustKeyId = envSigningKid;
             return;
         }
 
-        const keyId = this.env().get("MESH_CONTROL_ENVELOPE_SIGNING_KID")?.toString().trim() || "env-active";
-        this.trustKeys.set(keyId, {
-            keyId,
-            algorithm: "HS256",
-            secret: envSecret,
-            status: "active",
+        for (const [keyId, key] of configuredTrustKeys.entries()) {
+            if (key.algorithm !== "HS256") {
+                continue;
+            }
+
+            const status = key.status === "active" ? "active" : "previous";
+            this.trustKeys.set(keyId, {
+                keyId,
+                algorithm: "HS256",
+                secret: key.secret,
+                status,
+            });
+
+            if (status === "active") {
+                this.activeTrustKeyId = keyId;
+            }
+        }
+    }
+
+    private resolveLocalNodeServerUrl(): string {
+        const configured = this.meshConfigService?.getNodeServerUrl();
+        if (typeof configured === "string" && configured.trim().length > 0) {
+            return configured.trim();
+        }
+
+        const apiUrl = this.envService.get("APP_URL")?.toString().trim();
+        if (apiUrl) {
+            try {
+                return new URL(apiUrl).origin;
+            } catch {
+                return apiUrl;
+            }
+        }
+
+        const apiPort = this.envService.get("API_PORT");
+        return `http://127.0.0.1:${String(apiPort)}`;
+    }
+
+    private async registerLocalNodeOnStartup(): Promise<void> {
+        if (this.bootstrapRegistrationAttempted) {
+            return;
+        }
+
+        this.bootstrapRegistrationAttempted = true;
+
+        if (!this.clusterRepository || !("registerOrUpdateNode" in this.clusterRepository)) {
+            return;
+        }
+
+        try {
+            const registered = await this.clusterRepository.registerOrUpdateNode({
+                nodeId: this.localNode.nodeId,
+                serverUrl: this.resolveLocalNodeServerUrl(),
+                metadata: {
+                    source: "startup-registration",
+                },
+            });
+
+            if (this.localNode.clusterId !== registered.clusterId) {
+                this.localNode.clusterId = registered.clusterId;
+            }
+        } catch (error) {
+            this.logger.warn(
+                `Failed to register local mesh node on startup: ${
+                    error instanceof Error ? error.message : "unknown error"
+                }`,
+            );
+        }
+    }
+
+    private startPeriodicMeshSync(): void {
+        const intervalMs = this.meshConfigService?.getSyncIntervalMs() ?? 10_000;
+
+        if (this.syncTimer) {
+            clearInterval(this.syncTimer);
+        }
+
+        this.syncTimer = setInterval(() => {
+            void this.syncPeersFromClusterRepository("interval");
+            this.reconcileHeartbeatFreshness();
+        }, intervalMs);
+    }
+
+    private async syncPeersFromClusterRepository(reason: "startup" | "interval"): Promise<void> {
+        if (!this.clusterRepository || !("loadActiveClusterNodes" in this.clusterRepository)) {
+            return;
+        }
+
+        try {
+            const nodes = (await this.clusterRepository.loadActiveClusterNodes()) as ClusterSyncNodeRecord[];
+            const syncTimestamp = new Date().toISOString();
+
+            let synced = 0;
+
+            for (const node of nodes) {
+                if (node.nodeId === this.localNode.nodeId || node.status === "revoked") {
+                    continue;
+                }
+
+                this.upsertRemoteNodeFromClusterRecord(node, syncTimestamp);
+
+                const endpointUrl = this.toMeshEndpointUrl(node.serverUrl);
+                const activeSessionId = this.activeSessionByEndpointUrl.get(endpointUrl);
+                const activeSession = activeSessionId ? this.peerSessions.get(activeSessionId) : null;
+
+                if (!activeSession || activeSession.state === "closed") {
+                    const connected = this.connectPeer({
+                        endpointUrl,
+                        serverUrl: node.serverUrl,
+                        metadata: {
+                            bootstrap: true,
+                            source: "cluster_nodes",
+                            syncReason: reason,
+                        },
+                    });
+
+                    this.heartbeatPeer(connected.session.sessionId, {
+                        peerNodeId: node.nodeId,
+                        latencyMs: 40,
+                        jitterMs: 8,
+                        packetLossRatio: node.healthy ? 0.002 : 0.35,
+                        throughputMbps: node.healthy ? 800 : 50,
+                        reliabilityScore: node.healthy ? 0.995 : 0.6,
+                    });
+                    synced += 1;
+                    continue;
+                }
+
+                if (!activeSession.peerNodeId || activeSession.peerNodeId !== node.nodeId) {
+                    this.heartbeatPeer(activeSession.sessionId, {
+                        peerNodeId: node.nodeId,
+                        latencyMs: 45,
+                        jitterMs: 10,
+                        packetLossRatio: node.healthy ? 0.005 : 0.4,
+                        throughputMbps: node.healthy ? 700 : 30,
+                        reliabilityScore: node.healthy ? 0.99 : 0.5,
+                    });
+                    synced += 1;
+                    continue;
+                }
+
+                const existingConnection = [...this.peerConnections.values()].find(
+                    (connection) =>
+                        connection.sourceNodeId === this.localNode.nodeId &&
+                        connection.targetNodeId === node.nodeId,
+                );
+
+                const baselineLatency = Math.max(
+                    1,
+                    Math.min(
+                        existingConnection?.metrics.latencyMs ?? 40,
+                        node.healthy ? 250 : 2_000,
+                    ),
+                );
+                const baselineJitter = Math.max(
+                    1,
+                    Math.min(
+                        existingConnection?.metrics.jitterMs ?? 8,
+                        node.healthy ? 80 : 400,
+                    ),
+                );
+                const baselinePacketLoss = node.healthy
+                    ? Math.min(existingConnection?.metrics.packetLossRatio ?? 0.005, 0.05)
+                    : Math.max(existingConnection?.metrics.packetLossRatio ?? 0.2, 0.2);
+                const baselineThroughput = Math.max(
+                    1,
+                    existingConnection?.metrics.throughputMbps ?? (node.healthy ? 700 : 30),
+                );
+                const baselineReliability = node.healthy
+                    ? Math.max(existingConnection?.metrics.reliabilityScore ?? 0.99, 0.8)
+                    : Math.min(existingConnection?.metrics.reliabilityScore ?? 0.5, 0.7);
+
+                this.heartbeatPeer(activeSession.sessionId, {
+                    peerNodeId: node.nodeId,
+                    latencyMs: baselineLatency,
+                    jitterMs: baselineJitter,
+                    packetLossRatio: baselinePacketLoss,
+                    throughputMbps: baselineThroughput,
+                    reliabilityScore: baselineReliability,
+                });
+                synced += 1;
+            }
+
+            const inferredLinks = this.refreshInferredClusterPeerConnections(nodes, reason, syncTimestamp);
+
+            if (synced > 0 || inferredLinks > 0) {
+                this.logger.log(
+                    `Mesh DB sync (${reason}): reconciled ${String(synced)} peer session(s), inferred ${String(inferredLinks)} cluster link(s)`,
+                );
+            }
+        } catch (error) {
+            this.logger.warn(
+                `Mesh DB sync (${reason}) failed: ${error instanceof Error ? error.message : "unknown error"}`,
+            );
+        }
+    }
+
+    private upsertRemoteNodeFromClusterRecord(node: ClusterSyncNodeRecord, nowIso: string): void {
+        const existing = this.remoteNodes.get(node.nodeId);
+        const lifecycleState = this.resolveLifecycleStateFromClusterRecord(node);
+
+        const nextNode: MeshNodeState = meshNodeStateSchema.parse({
+            nodeId: node.nodeId,
+            clusterId: this.localNode.clusterId,
+            region: existing?.region ?? "cluster",
+            roles: existing?.roles ?? ["relay"],
+            lifecycleState,
+            routingMode: existing?.routingMode ?? "balanced",
+            consistencyMode: existing?.consistencyMode ?? this.localNode.consistencyMode,
+            version: existing?.version ?? "cluster-sync",
+            startedAt: existing?.startedAt ?? nowIso,
+            lastSeenAt: this.normalizeClusterSeenTimestamp(node.lastSeenAt, nowIso),
+            metadata: {
+                ...(existing?.metadata && typeof existing.metadata === "object" ? existing.metadata : {}),
+                serverUrl: node.serverUrl,
+                source: "cluster_nodes_sync",
+            },
         });
-        this.activeTrustKeyId = keyId;
+
+        const changed =
+            !existing ||
+            existing.lifecycleState !== nextNode.lifecycleState ||
+            existing.lastSeenAt !== nextNode.lastSeenAt ||
+            ((existing.metadata as Record<string, unknown> | null)?.serverUrl ?? null) !==
+                ((nextNode.metadata as Record<string, unknown> | null)?.serverUrl ?? null);
+
+        this.remoteNodes.set(node.nodeId, nextNode);
+
+        if (changed) {
+            this.recordTopologyEvent({
+                type: "node_upserted",
+                node: nextNode,
+                timestamp: nowIso,
+            });
+        }
+    }
+
+    private normalizeClusterSeenTimestamp(lastSeenAt: string | null, fallbackIso: string): string {
+        if (!lastSeenAt) {
+            return fallbackIso;
+        }
+
+        const parsed = new Date(lastSeenAt);
+        return Number.isNaN(parsed.getTime()) ? fallbackIso : parsed.toISOString();
+    }
+
+    private resolveLifecycleStateFromClusterRecord(node: ClusterSyncNodeRecord): MeshNodeState["lifecycleState"] {
+        if (node.status === "draining") {
+            return "leaving";
+        }
+
+        if (node.status === "suspect" || !node.healthy) {
+            return "suspect";
+        }
+
+        return "healthy";
+    }
+
+    private refreshInferredClusterPeerConnections(
+        nodes: ClusterSyncNodeRecord[],
+        reason: "startup" | "interval",
+        nowIso: string,
+    ): number {
+        let inferredCount = 0;
+        let changed = false;
+
+        for (const [connectionId, connection] of this.peerConnections.entries()) {
+            const inferred =
+                connection.metadata &&
+                typeof connection.metadata === "object" &&
+                (connection.metadata as Record<string, unknown>).inferredFromClusterSync === true;
+
+            if (!inferred) {
+                continue;
+            }
+
+            this.peerConnections.delete(connectionId);
+            changed = true;
+        }
+
+        const activeNodes = nodes.filter((node) => node.status !== "revoked");
+        const knownNodes: ClusterSyncNodeRecord[] = [
+            {
+                nodeId: this.localNode.nodeId,
+                serverUrl: this.resolveNodeServerUrl(this.localNode.nodeId) ?? this.resolveLocalNodeServerUrl(),
+                status: "active",
+                healthy: true,
+                lastSeenAt: this.localNode.lastSeenAt,
+            },
+            ...activeNodes.filter((node) => node.nodeId !== this.localNode.nodeId),
+        ];
+
+        for (const source of knownNodes) {
+            for (const target of knownNodes) {
+                if (source.nodeId === target.nodeId) {
+                    continue;
+                }
+
+                if (source.nodeId === this.localNode.nodeId) {
+                    continue;
+                }
+
+                const existingLiveEdge = [...this.peerConnections.values()].find(
+                    (connection) =>
+                        connection.sourceNodeId === source.nodeId &&
+                        connection.targetNodeId === target.nodeId,
+                );
+
+                if (existingLiveEdge) {
+                    continue;
+                }
+
+                const metrics = this.meshLogicService.computeWeightedMetrics({
+                    latencyMs: source.healthy && target.healthy ? 40 : 120,
+                    jitterMs: source.healthy && target.healthy ? 8 : 24,
+                    packetLossRatio: source.healthy && target.healthy ? 0.005 : 0.03,
+                    throughputMbps: source.healthy && target.healthy ? 800 : 220,
+                    reliabilityScore: source.healthy && target.healthy ? 0.99 : 0.85,
+                    weight: 0,
+                    measuredAt: nowIso,
+                });
+
+                const inferredConnection = meshPeerConnectionSchema.parse({
+                    connectionId: this.deriveDeterministicConnectionId(source.nodeId, target.nodeId),
+                    sourceNodeId: source.nodeId,
+                    targetNodeId: target.nodeId,
+                    state: source.healthy && target.healthy ? "up" : "degraded",
+                    metrics,
+                    activePathRank: 1,
+                    lastHeartbeatAt: nowIso,
+                    metadata: {
+                        inferredFromClusterSync: true,
+                        syncReason: reason,
+                        sourceServerUrl: source.serverUrl,
+                        targetServerUrl: target.serverUrl,
+                    },
+                });
+
+                this.peerConnections.set(inferredConnection.connectionId, inferredConnection);
+                this.recordTopologyEvent({
+                    type: "edge_upserted",
+                    edge: inferredConnection,
+                    timestamp: nowIso,
+                });
+                inferredCount += 1;
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            this.recomputePathRanks();
+            this.bumpMembershipVersion();
+            this.emitRuntimeState("topology_event", null);
+        }
+
+        return inferredCount;
+    }
+
+    private deriveDeterministicConnectionId(sourceNodeId: string, targetNodeId: string): string {
+        const digest = createHash("sha256")
+            .update(`${sourceNodeId}->${targetNodeId}`)
+            .digest("hex")
+            .slice(0, 32)
+            .split("");
+
+        digest[12] = "4";
+        const variantNibble = Number.parseInt(digest[16] ?? "0", 16);
+        digest[16] = ((variantNibble & 0x3) | 0x8).toString(16);
+
+        const compact = digest.join("");
+        return `${compact.slice(0, 8)}-${compact.slice(8, 12)}-${compact.slice(12, 16)}-${compact.slice(16, 20)}-${compact.slice(20, 32)}`;
+    }
+
+    private reconcileHeartbeatFreshness(): void {
+        const nowMs = Date.now();
+        let changed = false;
+
+        for (const [connectionId, connection] of this.peerConnections.entries()) {
+            const measuredAt = connection.metrics.measuredAt;
+            const measuredMs = measuredAt ? Date.parse(measuredAt) : Number.NaN;
+            if (!Number.isFinite(measuredMs)) {
+                continue;
+            }
+
+            const ageMs = nowMs - measuredMs;
+            let nextState = connection.state;
+            if (ageMs > 30_000) {
+                nextState = "down";
+            } else if (ageMs > 12_000) {
+                nextState = "degraded";
+            }
+
+            if (nextState === connection.state) {
+                continue;
+            }
+
+            const nextEdge: MeshPeerConnection = {
+                ...connection,
+                state: nextState,
+                metrics: connection.metrics,
+            };
+
+            this.peerConnections.set(connectionId, nextEdge);
+            this.recordTopologyEvent({
+                type: "edge_upserted",
+                edge: nextEdge,
+                timestamp: new Date().toISOString(),
+            });
+            changed = true;
+        }
+
+        if (changed) {
+            this.recomputePathRanks();
+            this.bumpMembershipVersion();
+            this.emitRuntimeState("session_heartbeat", null);
+        }
+    }
+
+    private toMeshEndpointUrl(serverUrl: string): string {
+        try {
+            const parsed = new URL(serverUrl);
+            const protocol = parsed.protocol === "https:" ? "wss:" : "ws:";
+            const pathname = parsed.pathname.endsWith("/") ? `${parsed.pathname}mesh` : `${parsed.pathname}/mesh`;
+            return `${protocol}//${parsed.host}${pathname}`;
+        } catch {
+            return serverUrl;
+        }
     }
 
     private ensureTrustedControlEnvelope(envelope: MeshControlEnvelope): MeshControlEnvelope {
@@ -2435,10 +2782,6 @@ export class SystemMeshTopologyService implements OnModuleInit {
             throw new BadRequestException("Mesh control envelope keyId and signature are required");
         }
 
-        if (envelope.algorithm && envelope.algorithm !== "HS256") {
-            throw new BadRequestException(`Unsupported mesh control envelope algorithm '${envelope.algorithm}'`);
-        }
-
         const trustKey = this.trustKeys.get(envelope.keyId);
         if (!trustKey) {
             throw new BadRequestException(`Unknown mesh control envelope key '${envelope.keyId}'`);
@@ -2496,7 +2839,7 @@ export class SystemMeshTopologyService implements OnModuleInit {
         this.activeTrustKeyId = active?.keyId ?? null;
     }
 
-    private listTrustKeys(): MeshTrustKeyInfo[] {
+    private listTrustKeys(): MeshTrustKey[] {
         return [...this.trustKeys.values()]
             .map((key) => ({
                 keyId: key.keyId,
@@ -2511,12 +2854,7 @@ export class SystemMeshTopologyService implements OnModuleInit {
             });
     }
 
-    private listTrustSecretKeys(): {
-        keyId: string;
-        algorithm: "HS256";
-        status: "active" | "previous";
-        secretMaterial: string;
-    }[] {
+    private listTrustSecretKeys(): MeshTrustSecretKey[] {
         return [...this.trustKeys.values()]
             .map((key) => ({
                 keyId: key.keyId,
@@ -2550,8 +2888,9 @@ export class SystemMeshTopologyService implements OnModuleInit {
     }
 
     private resolveTrustMinAckRatio(): number {
-        const raw = this.env().get("MESH_TRUST_STRICT_MIN_ACK_RATIO")?.toString().trim();
-        const parsed = raw ? Number(raw) : Number.NaN;
+        const parsed = this.meshConfigService?.getTrustStrictMinAckRatio()
+            ?? this.resolveNumberEnvValue("MESH_TRUST_STRICT_MIN_ACK_RATIO")
+            ?? Number.NaN;
         if (!Number.isFinite(parsed)) {
             return 1;
         }
@@ -2560,8 +2899,9 @@ export class SystemMeshTopologyService implements OnModuleInit {
     }
 
     private resolveTrustMaxAckAgeSeconds(): number {
-        const raw = this.env().get("MESH_TRUST_STRICT_MAX_ACK_AGE_SECONDS")?.toString().trim();
-        const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+        const parsed = this.meshConfigService?.getTrustStrictMaxAckAgeSeconds()
+            ?? this.resolveNumberEnvValue("MESH_TRUST_STRICT_MAX_ACK_AGE_SECONDS")
+            ?? Number.NaN;
         if (!Number.isFinite(parsed) || parsed < 1) {
             return 300;
         }
@@ -2592,8 +2932,9 @@ export class SystemMeshTopologyService implements OnModuleInit {
             return Math.max(1, Math.floor(explicitWaveSize));
         }
 
-        const raw = this.env().get("MESH_TRUST_STRICT_ROLLOUT_WAVE_SIZE")?.toString().trim();
-        const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+        const parsed = this.meshConfigService?.getTrustStrictRolloutWaveSize()
+            ?? this.resolveNumberEnvValue("MESH_TRUST_STRICT_ROLLOUT_WAVE_SIZE")
+            ?? Number.NaN;
         if (!Number.isFinite(parsed) || parsed < 1) {
             return 3;
         }
@@ -2601,39 +2942,10 @@ export class SystemMeshTopologyService implements OnModuleInit {
         return parsed;
     }
 
-    private readBooleanEnv(name: string): boolean {
-        const raw = this.env().get(name as never);
-
-        if (typeof raw === "boolean") {
-            return raw;
-        }
-
-        if (typeof raw === "number") {
-            return raw !== 0;
-        }
-
-        if (typeof raw === "string") {
-            const normalized = raw.trim().toLowerCase();
-            if (normalized.length === 0) {
-                return false;
-            }
-
-            if (["1", "true", "yes", "on"].includes(normalized)) {
-                return true;
-            }
-
-            if (["0", "false", "no", "off"].includes(normalized)) {
-                return false;
-            }
-
-            return true;
-        }
-
-        return false;
-    }
-
     private isStrictTrustAutoRollbackEnabled(): boolean {
-        return this.readBooleanEnv("MESH_TRUST_STRICT_AUTO_ROLLBACK");
+        return this.meshConfigService?.getTrustStrictAutoRollback()
+            ?? this.resolveBooleanEnvValue("MESH_TRUST_STRICT_AUTO_ROLLBACK")
+            ?? false;
     }
 
     private maybeAutoRollbackStrictTrust(cause: string): void {
@@ -2689,11 +3001,27 @@ export class SystemMeshTopologyService implements OnModuleInit {
     }
 
     private isStrictTrustPinnedFromEnv(): boolean {
-        return this.readBooleanEnv("MESH_CONTROL_ENVELOPE_TRUST_REQUIRED");
+        return this.meshConfigService?.getControlEnvelopeTrustRequired()
+            ?? this.resolveBooleanEnvValue("MESH_CONTROL_ENVELOPE_TRUST_REQUIRED")
+            ?? false;
     }
 
     private isStrictTrustConfigured(): boolean {
         return this.isStrictTrustPinnedFromEnv() || this.strictTrustModeRequested;
+    }
+
+    private requireClusterRepository(action: string): SystemMeshClusterRepository {
+        if (!this.clusterRepository) {
+            throw new BadRequestException(`Mesh cluster repository is required to ${action}`);
+        }
+
+        return this.clusterRepository;
+    }
+
+    private assertSuperAdminRole(role: string | null | undefined, action: string): void {
+        if (!this.isSuperAdminRole(role)) {
+            throw new BadRequestException(`Only super-admin can ${action}`);
+        }
     }
 
     private isSuperAdminRole(role: string | null | undefined): boolean {

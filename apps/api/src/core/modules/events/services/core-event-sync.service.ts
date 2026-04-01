@@ -1,14 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import { Observable, combineLatest, merge } from "rxjs";
-import { filter as rxFilter, map, startWith, tap as rxTap } from "rxjs/operators";
+import { EMPTY, Observable, combineLatest, defer, firstValueFrom, from, merge } from "rxjs";
+import { filter as rxFilter, map, mergeMap, startWith, tap as rxTap, toArray } from "rxjs/operators";
 import type {
     CoreEventStreamListInput,
 } from "@repo/api-contracts";
 import type {
     CoreEventStreamDefinition,
     CoreSyncedEventEnvelope,
-} from "@repo/api-contracts/common/event-stream";
+} from "@repo/contracts-entities";
 import type { BaseEventService } from "../base-event.service";
 import type { EventContracts, EventInput, EventOutput } from "../event-contract.builder";
 import { CoreEventStreamRepository } from "../repositories/core-event-stream.repository";
@@ -28,7 +28,7 @@ export interface CoreEventAdapterInput {
 
 export type CoreEventNamespaceAdapter = (
     input: CoreEventAdapterInput,
-) => AsyncIterable<CoreEventAdapterEvent>;
+) => Observable<CoreEventAdapterEvent>;
 
 type ContractsOf<TService extends BaseEventService<any>> =
     TService extends BaseEventService<infer TContracts extends EventContracts> ? TContracts : never;
@@ -390,7 +390,13 @@ export class CoreEventSyncQueryBuilder<TRow extends CoreEventQueryRow = CoreEven
         return this;
     }
 
-    async *execute(): AsyncGenerator<TRow> {
+    execute(): Observable<TRow> {
+        return defer(() => from(this.resolveRows())).pipe(
+            mergeMap((rows) => from(rows)),
+        );
+    }
+
+    private async resolveRows(): Promise<TRow[]> {
         const fromAlias = this.fromSource.alias ?? this.fromSource.namespace;
         const baseEvents = await this.service.collectNamespaceEvents(
             this.fromSource,
@@ -436,9 +442,7 @@ export class CoreEventSyncQueryBuilder<TRow extends CoreEventQueryRow = CoreEven
             rows = nextRows;
         }
 
-        for (const row of rows) {
-            yield row as TRow;
-        }
+        return rows as TRow[];
     }
 }
 
@@ -535,71 +539,43 @@ export class CoreEventSyncService {
         eventService: TService,
         options?: RegisterNamespaceEventServiceOptions<TService>,
     ): void {
-        const adapter: CoreEventNamespaceAdapter = async function* ({ definition }) {
+        const adapter: CoreEventNamespaceAdapter = ({ definition }) => {
             const subscriptions =
                 options?.resolveSubscriptions?.(definition) ??
                 defaultSubscriptionsFromFilters<TService>(definition);
 
             if (subscriptions.length === 0) {
-                return;
+                return EMPTY;
             }
 
-            interface IteratorItem {
-                iterator: AsyncIterator<unknown>;
-                selection: NamespaceEventSubscription<TService>;
-            }
+            const streams = subscriptions.map((selection) =>
+                eventService
+                    .subscribe$(
+                        selection.eventName,
+                        selection.input as never,
+                    )
+                    .pipe(
+                        map((value) => {
+                            const eventName =
+                                typeof selection.mapEventName === "function"
+                                    ? selection.mapEventName(selection.eventName)
+                                    : (selection.mapEventName ?? selection.eventName);
 
-            const iterators: IteratorItem[] = subscriptions.map((selection) => ({
-                iterator: eventService.subscribe(
-                    selection.eventName,
-                    selection.input as never,
-                ) as AsyncIterator<unknown>,
-                selection,
-            }));
+                            const payload = selection.mapPayload
+                                ? selection.mapPayload(value as never)
+                                : value;
 
-            try {
-                while (iterators.length > 0) {
-                    const nextResult = await Promise.race(
-                        iterators.map((item, index) =>
-                            item.iterator.next().then((result) => ({ index, result })),
-                        ),
-                    );
-
-                    const item = iterators[nextResult.index];
-                    if (!item) {
-                        continue;
-                    }
-
-                    if (nextResult.result.done) {
-                        iterators.splice(nextResult.index, 1);
-                        continue;
-                    }
-
-                    const eventName =
-                        typeof item.selection.mapEventName === "function"
-                            ? item.selection.mapEventName(item.selection.eventName)
-                            : (item.selection.mapEventName ?? item.selection.eventName);
-
-                    const payload = item.selection.mapPayload
-                        ? item.selection.mapPayload(nextResult.result.value as never)
-                        : nextResult.result.value;
-
-                    yield {
+                            return {
                         eventName,
                         payload,
                         replayed: false,
                         emittedAt: new Date().toISOString(),
-                    };
-                }
-            } finally {
-                await Promise.all(
-                    iterators.map((item) =>
-                        typeof item.iterator.return === "function"
-                            ? item.iterator.return()
-                            : Promise.resolve(undefined),
+                            } satisfies CoreEventAdapterEvent;
+                        }),
                     ),
-                );
-            }
+            );
+
+            return merge(...streams);
         };
 
         this.namespaceAdapters.set(namespace, adapter);
@@ -712,31 +688,34 @@ export class CoreEventSyncService {
         return definition;
     }
 
-    async streamSync(input: {
+    streamSync(input: {
         id: string;
         replay: boolean;
         replayLimit?: number;
-    }): Promise<AsyncIterable<CoreSyncedEventEnvelope>> {
-        const definition = await this.getStreamById(input.id);
-        if (!definition.isActive) {
-            throw new BadRequestException(`Core event stream '${definition.id}' is inactive`);
-        }
+    }): Observable<CoreSyncedEventEnvelope> {
+        return defer(() => from(this.getStreamById(input.id))).pipe(
+            mergeMap((definition) => {
+                if (!definition.isActive) {
+                    throw new BadRequestException(`Core event stream '${definition.id}' is inactive`);
+                }
 
-        const adapter = this.namespaceAdapters.get(definition.namespace);
-        if (!adapter) {
-            throw new BadRequestException(
-                `No core event namespace adapter registered for '${definition.namespace}'`,
-            );
-        }
+                const adapter = this.namespaceAdapters.get(definition.namespace);
+                if (!adapter) {
+                    throw new BadRequestException(
+                        `No core event namespace adapter registered for '${definition.namespace}'`,
+                    );
+                }
 
-        const replayLimit = input.replayLimit ?? 1;
-        const source = adapter({
-            definition,
-            replay: input.replay,
-            replayLimit,
-        });
+                const replayLimit = input.replayLimit ?? 1;
+                const source = adapter({
+                    definition,
+                    replay: input.replay,
+                    replayLimit,
+                });
 
-        return this.withEnvelope(definition, source);
+                return this.withEnvelope(definition, source);
+            }),
+        );
     }
 
     async collectNamespaceEvents(
@@ -759,12 +738,9 @@ export class CoreEventSyncService {
             replayLimit: effectiveReplayLimit,
         });
 
-        const events: CoreSyncedEventEnvelope[] = [];
-        for await (const envelope of this.withEnvelope(definition, stream)) {
-            events.push(envelope);
-        }
-
-        return events;
+        return firstValueFrom(
+            this.withEnvelope(definition, stream).pipe(toArray()),
+        );
     }
 
     private toVirtualDefinition(source: CoreEventQueryNamespaceInput): CoreEventStreamDefinition {
@@ -786,24 +762,29 @@ export class CoreEventSyncService {
         };
     }
 
-    private async *withEnvelope(
+    private withEnvelope(
         definition: CoreEventStreamDefinition,
-        source: AsyncIterable<CoreEventAdapterEvent>,
-    ): AsyncGenerator<CoreSyncedEventEnvelope> {
-        let sequence = 0;
+        source: Observable<CoreEventAdapterEvent>,
+    ): Observable<CoreSyncedEventEnvelope> {
+        return defer(() => {
+            let sequence = 0;
 
-        for await (const event of source) {
-            sequence += 1;
-            yield {
-                streamId: definition.id,
-                namespace: definition.namespace,
-                eventName: event.eventName,
-                payload: event.payload,
-                sequence,
-                replayed: event.replayed,
-                emittedAt: event.emittedAt ?? new Date().toISOString(),
-            };
-        }
+            return source.pipe(
+                map((event) => {
+                    sequence += 1;
+
+                    return {
+                        streamId: definition.id,
+                        namespace: definition.namespace,
+                        eventName: event.eventName,
+                        payload: event.payload,
+                        sequence,
+                        replayed: event.replayed,
+                        emittedAt: event.emittedAt ?? new Date().toISOString(),
+                    } satisfies CoreSyncedEventEnvelope;
+                }),
+            );
+        });
     }
 }
 

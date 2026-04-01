@@ -271,7 +271,7 @@ projects (1) ──┬──> services (n)
    DatabaseModule  EventsModule  ConfigModule
         │
         ▼
-   DatabaseService
+      GlobalDatabaseService
         │
         ▼
    Drizzle ORM → PostgreSQL

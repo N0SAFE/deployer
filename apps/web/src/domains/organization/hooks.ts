@@ -6,13 +6,12 @@ import { useRouter } from "next/navigation";
 import { organizationEndpoints } from "./endpoints";
 import { organizationInvalidations } from "./invalidations";
 import { wrapWithInvalidations } from "@/domains/shared/helpers";
-
-// Use Better Auth $Infer types
 import { authClient } from "@/lib/auth/options";
+import type { OrganizationRole } from "@repo/auth";
+
 type Organization = typeof authClient.$Infer.Organization;
 type OrganizationMember = typeof authClient.$Infer.Member;
 type ActiveOrganization = typeof authClient.$Infer.ActiveOrganization;
-import type { OrganizationRole } from "@repo/auth"
 
 // ============================================================================
 // ENHANCED ENDPOINTS WITH INVALIDATIONS

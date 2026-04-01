@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { DatabaseService } from "@/core/modules/database/services/database.service";
+import type { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { LocalEventOutboxDispatcherService } from "./local-event-outbox-dispatcher.service";
 
 type OutboxRow = {
@@ -47,7 +47,7 @@ function createDatabaseServiceMock(options?: { failFirstUpdate?: boolean }) {
     };
 
     return {
-        databaseService: { db } as unknown as DatabaseService,
+        databaseService: { db } as unknown as GlobalDatabaseService,
         selectQueue,
         insertValues,
         updateSets,

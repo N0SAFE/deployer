@@ -1,4 +1,3 @@
-import { eventIterator } from "@orpc/contract";
 import { route } from "@repo/orpc-utils/builder";
 import * as z from "zod";
 
@@ -20,14 +19,14 @@ export const testStreamOutputContract = route({
       message: z.string().default("Hello"),
     })
   )
-  .output(
-    eventIterator(
+  .output((b) =>
+    b.observable(
       z.object({
         index: z.number(),
         message: z.string(),
         timestamp: z.number(),
-      })
-    )
+      }),
+    ),
   )
   .build();
 

@@ -4,7 +4,7 @@ import {
     deploymentRetryPolicyListInputSchema,
     deploymentRetryPolicyResolveInputSchema,
     deploymentRetryPolicyResolveResultSchema,
-} from "@repo/api-contracts/common/deployment";
+} from "@repo/contracts-entities";
 
 export const deploymentListRetryPoliciesContract = route({
     method: "GET",

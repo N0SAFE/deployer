@@ -13,18 +13,18 @@ import type {
     SetupStateMachine,
     SetupStateSnapshot,
     SetupStep,
-} from "@repo/api-contracts/common/setup";
-import { DatabaseService } from "@/core/modules/database/services/database.service";
+} from "@repo/contracts-entities";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { AuthCoreService } from "@/core/modules/auth/services/auth-core.service";
-import * as schema from "@/config/drizzle/schema";
-import { organization, user } from "@/config/drizzle/schema/auth";
+import * as schema from "@/config/drizzle/global/schema";
+import { organization, user } from "@/config/drizzle/global/schema/auth";
 import { NodeConfigRepository } from "../repositories/node-config.repository";
 import { slugify } from "@/core/utils/slug.utils";
 
 @Injectable()
 export class SetupService {
     constructor(
-        private readonly databaseService: DatabaseService,
+        private readonly databaseService: GlobalDatabaseService,
         private readonly authCoreService: AuthCoreService,
         private readonly nodeConfigRepository: NodeConfigRepository,
     ) {}

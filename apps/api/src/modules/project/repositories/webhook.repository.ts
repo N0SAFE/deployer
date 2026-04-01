@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { DatabaseService } from "@/core/modules/database/services/database.service";
-import { webhooks } from "@/config/drizzle/schema/deployment";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
+import { webhooks } from "@/config/drizzle/global/schema/deployment";
 import { eq, and } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
@@ -24,7 +24,7 @@ export type WebhookUpdateInput = Partial<
 
 @Injectable()
 export class WebhookRepository {
-    constructor(private readonly databaseService: DatabaseService) {}
+    constructor(private readonly databaseService: GlobalDatabaseService) {}
 
     async findById(id: string): Promise<WebhookRow | null> {
         const db = this.databaseService.db;

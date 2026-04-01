@@ -1,0 +1,142 @@
+# DB-First Configuration Shift (Mesh + Runtime)
+
+> **Status**: In progress  
+> **Started**: 2026-03-31  
+> **Scope**: `v3/apps/api` (`drizzle`, `database`, `local-database`, `mesh`, `@repo/env`)  
+> **Tracking**: `T274` in `apps/doc/content/docs/deployment/migration-task-breakdown.mdx`
+
+## Why this exists
+
+This document is the persistent execution context for moving runtime/mesh configuration from environment variables to a DB-first model.
+
+Goal: boot with minimal env, complete configuration in-app, and persist operational settings in the correct data plane:
+
+- **Local SQLite**: node-specific and sensitive config.
+- **Global Postgres**: cluster-wide policy and shared runtime behavior.
+
+## Problem statement
+
+Current behavior still relies on many `MESH_*` environment variables for runtime behavior and topology defaults, which creates drift and harder operational mutation.
+
+Target behavior:
+
+1. Node can start with minimal env.
+2. Node identity/config live in local DB.
+3. Shared mesh policy lives in global DB.
+4. Mesh reads config from services backed by DB, not from ad-hoc env reads (except strict bootstrap secrets where unavoidable).
+
+## Source plan (full context capture)
+
+Planned work items:
+
+1. Restructure Drizzle layout into shared custom types + global schema/migrations + local schema/migrations; update exports/import paths.
+2. Split DB module responsibilities into `GlobalDatabaseService` and `LocalDatabaseService` wiring by consumer.
+3. Extend local SQLite schema for node config + sensitive local overrides (encrypted columns).
+4. Extend global Postgres schema for cluster-wide mesh policy.
+5. Implement `LocalConfigService` and `GlobalConfigService` (read/update APIs + caching).
+6. First boot: generate node ID in local DB, initialize defaults, mesh reads DB.
+7. Setup-mode flow to configure through app UI/API.
+8. Move mesh topology/logic services to DB-backed config services; trim env usage.
+9. Remove non-bootstrap mesh env keys from env schema.
+10. Make `db:generate`/`db:push`/`db:migrate` support both global + local flows.
+11. Keep docs updated in same change sets.
+
+## Decisions already locked
+
+- Local SQLite stores node-specific config and sensitive values (encrypted columns).
+- Global Postgres stores shared cluster mesh policy.
+- Node ID is generated and persisted in local DB.
+- Setup mode remains the path for first-time configuration.
+
+## Current code baseline (before refactor)
+
+- Drizzle layout:
+  - `src/config/drizzle/schema/*` (global)
+  - `src/config/drizzle/local-schema/*` (local)
+  - `src/config/drizzle/custom-types/*` (shared)
+  - `src/config/drizzle/migrations/*` (global migrations)
+- Config files:
+  - `drizzle.config.ts` -> `schema/index.ts`, `migrations`
+  - `drizzle.config.local.ts` -> `local-schema/index.ts`, `local-migrations` (directory not yet materialized)
+- DB modules:
+  - `DatabaseModule` builds Postgres connection and already can resolve `DATABASE_URL` from local `node_config` fallback.
+  - `LocalDatabaseModule` initializes local SQLite and creates local tables if missing.
+
+## Execution log
+
+### 2026-03-31 — Initialization
+
+- Captured full plan context in this canonical doc.
+- Linked execution to migration checklist task `T274`.
+- Confirmed current Drizzle/database layout and scripts before refactor.
+
+### 2026-03-31 — Implementation slice 1 (in progress)
+
+**Objective**: normalize Drizzle directory names to explicit global/local/shared layout while keeping runtime behavior stable.
+
+Planned concrete edits:
+
+- Rename folders:
+  - `schema` -> `global-schema`
+  - `local-schema` -> `local-schema` (kept, explicit)
+  - `custom-types` -> `shared/custom-types`
+  - `migrations` -> `global-migrations`
+- Update imports and Drizzle config paths.
+- Keep API behavior unchanged; this is structural groundwork only.
+
+### 2026-03-31 — Implementation slice 2 (completed)
+
+**Objective**: enforce single database module architecture with dual connections/services.
+
+Implemented:
+
+- Consolidated DB wiring into one module: `core/modules/database/database.module.ts`.
+- Added explicit dual service model in `core/modules/database/services/`:
+  - `global-database.service.ts` (Postgres/global)
+  - `local-database.service.ts` (SQLite/local)
+- Added local config data-access service inside database module scope:
+  - `local-config.service.ts`
+- Added dual connection tokens in `database-connection.ts`:
+  - `GLOBAL_DATABASE_CONNECTION`, `GLOBAL_DATABASE_POOL`, `LOCAL_DATABASE_CONNECTION`
+  - legacy aliases preserved for compatibility (`DATABASE_CONNECTION`, `DATABASE_POOL`).
+- Removed `core/modules/local-database/*` module files and removed `LocalDatabaseModule` imports from app/setup module wiring.
+
+Result:
+
+- One module (`DatabaseModule`) now provides two DB connections and two DB services as requested.
+
+### 2026-03-31 — Legacy shim cleanup
+
+- Removed legacy shim/service files:
+  - `src/core/modules/database/services/database.service.ts`
+  - `src/core/modules/database/services/local-config.service.ts`
+- `DatabaseModule` no longer imports or provides legacy `DatabaseService`/`LocalConfigService`.
+- Global Postgres connection fallback now reads `node_config.database_url` directly via `LocalDatabaseService` + local schema table access.
+- All `src/**` consumers were migrated to `GlobalDatabaseService` imports (`@/core/modules/database/services/global-database.service`) while preserving `.db` usage behavior.
+
+### 2026-03-31 — Legacy DB shim removal (follow-up)
+
+- Confirmed removal of legacy shim references in `v3/apps/api/src/**`:
+  - no `DatabaseService` class usage,
+  - no `LocalConfigService` usage,
+  - no imports pointing to `services/database.service` or `services/local-config.service`.
+- `DatabaseModule` remains the single dual-connection module (`GlobalDatabaseService` + `LocalDatabaseService`) with global connection fallback resolved from local `node_config` through `LocalDatabaseService`.
+
+## Risk and validation notes
+
+- **Primary risk**: path breakage across many imports.
+- **Mitigation**: perform path-only changes first, run focused type-check/tests immediately after.
+- **Validation gates for each slice**:
+  1. Type-check in `v3/apps/api` passes.
+  2. DB tooling scripts resolve new schema/migration paths.
+  3. No runtime behavior change unless explicitly documented in this file.
+
+## Follow-up checkpoints
+
+After slice 1:
+
+- add local/global config services,
+- migrate mesh env reads to DB reads,
+- trim env schema to bootstrap-only keys,
+- update setup flow and migration scripts,
+- keep this doc updated with per-slice diffs and evidence.

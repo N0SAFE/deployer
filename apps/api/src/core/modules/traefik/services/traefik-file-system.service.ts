@@ -22,7 +22,7 @@ import type {
 import type { InferSelectModel } from 'drizzle-orm';
 import type {
   traefikServiceConfigs,
-} from '@/config/drizzle/schema/traefik';
+} from '@/config/drizzle/global/schema/traefik';
 
 // Inferred types from database schema
 type TraefikServiceConfig = InferSelectModel<typeof traefikServiceConfigs>;

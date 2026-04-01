@@ -1,0 +1,19 @@
+🎯 API Development Entrypoint Started
+
+🔍 Validating environment variables...
+✅ Environment validation passed
+
+Found package.json - running migrations
+📦 Running database migrations...
+[33m[Nest] 632634  - [39m03/24/2026, 12:45:22 PM [33m   WARN[39m [38;5;3m[EnvService] [39m[33mConfigService is NOT injected - will use process.env fallback[39m
+[33m[Nest] 632634  - [39m03/24/2026, 12:45:22 PM [33m   WARN[39m [38;5;3m[EnvService] [39m[33mEnvironment validation failed, using raw process.env snapshot[39m
+👤 Creating default admin user if needed...
+🌱 Running database seeding...
+[33m[Nest] 633547  - [39m03/24/2026, 12:45:23 PM [33m   WARN[39m [38;5;3m[EnvService] [39m[33mConfigService is NOT injected - will use process.env fallback[39m
+[33m[Nest] 633547  - [39m03/24/2026, 12:45:23 PM [33m   WARN[39m [38;5;3m[EnvService] [39m[33mEnvironment validation failed, using raw process.env snapshot[39m
+🚀 Starting API and Drizzle Studio...
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/drizzle.config.ts'
+Error  Please provide required params for Postgres driver:
+    [x] url: ''
+Process exited, cleaning up...

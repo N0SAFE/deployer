@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { LocalDatabaseService } from "@/core/modules/local-database/local-database.service";
-import { nodeConfig } from "@/config/drizzle/local-schema";
+import { LocalDatabaseService } from "@/core/modules/database/services/local-database.service";
+import { nodeConfig } from "@/config/drizzle/local/schema";
 
 export type NodeConfigRow = typeof nodeConfig.$inferSelect;
 

@@ -10,7 +10,7 @@ import {
   deploymentQueueTransitionResultSchema,
   type DeploymentDeadLetterJob,
   type DeploymentQueueJob,
-} from "@repo/api-contracts/common/deployment";
+} from "@repo/contracts-entities";
 import { expect } from "vitest";
 
 export function parseQueueJob(value: unknown): DeploymentQueueJob {

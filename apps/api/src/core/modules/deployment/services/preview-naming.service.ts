@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { createHash } from "node:crypto";
-import type { PreviewTemplateConfig } from "@repo/api-contracts/common/template";
+import type { PreviewTemplateConfig } from "@repo/contracts-entities";
 import { slugify } from "@/core/utils/slug.utils";
 
 export interface PreviewNamingInput {

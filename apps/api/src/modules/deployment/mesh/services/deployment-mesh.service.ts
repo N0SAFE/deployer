@@ -181,6 +181,7 @@ export class DeploymentMeshService extends BaseMeshService<typeof deploymentMesh
             organizationId?: string | null;
             timeoutMs?: number;
             stopOnFirstFound?: boolean;
+            maxCollectedResponses?: number;
         },
     ): Promise<MeshCallManyResult<ResolveDeploymentResponsePayload>> {
         return this.callMany(
@@ -191,6 +192,7 @@ export class DeploymentMeshService extends BaseMeshService<typeof deploymentMesh
             {
                 organizationId: options?.organizationId ?? null,
                 timeoutMs: options?.timeoutMs ?? 1_500,
+                maxCollectedResponses: options?.maxCollectedResponses,
                 stopWhen: options?.stopOnFirstFound
                     ? (response) => response.found
                     : undefined,
@@ -242,6 +244,7 @@ export class DeploymentMeshService extends BaseMeshService<typeof deploymentMesh
             organizationId?: string | null;
             timeoutMs?: number;
             stopOnFirstMatch?: boolean;
+            maxCollectedResponses?: number;
         },
     ): Promise<{ items: DeploymentSummary[]; total: number; stoppedEarly: boolean }> {
         const result = await this.callMany<
@@ -258,6 +261,7 @@ export class DeploymentMeshService extends BaseMeshService<typeof deploymentMesh
             {
                 organizationId: options?.organizationId ?? null,
                 timeoutMs: options?.timeoutMs ?? 1_500,
+                maxCollectedResponses: options?.maxCollectedResponses,
                 stopWhen: options?.stopOnFirstMatch
                     ? (response) => response.items.length > 0
                     : undefined,
@@ -279,6 +283,7 @@ export class DeploymentMeshService extends BaseMeshService<typeof deploymentMesh
         options?: {
             organizationId?: string | null;
             timeoutMs?: number;
+            maxCollectedResponses?: number;
         },
     ): Promise<{ items: DeploymentSummary[]; total: number }> {
         const result = await this.callMany<
@@ -295,6 +300,7 @@ export class DeploymentMeshService extends BaseMeshService<typeof deploymentMesh
             {
                 organizationId: options?.organizationId ?? null,
                 timeoutMs: options?.timeoutMs ?? 1_500,
+                maxCollectedResponses: options?.maxCollectedResponses,
             },
         );
 

@@ -13,6 +13,17 @@ export interface MeshCallManyOptions<TResponse> {
     timeoutMs?: number;
     organizationId?: string | null;
     stopWhen?: (response: TResponse, collected: TResponse[]) => boolean;
+    maxCollectedResponses?: number;
+}
+
+export interface MeshCallManyMetrics {
+    expectedResponders: number;
+    receivedResponses: number;
+    droppedResponses: number;
+    retryResponses: number;
+    maxLagMs: number;
+    avgLagMs: number;
+    timedOut: boolean;
 }
 
 export interface MeshCallManyResult<TResponse> {
@@ -20,6 +31,7 @@ export interface MeshCallManyResult<TResponse> {
     responses: TResponse[];
     stoppedEarly: boolean;
     reason: "timeout" | "killer_switch";
+    metrics: MeshCallManyMetrics;
 }
 
 type UnsubscribeFn = () => void;
@@ -199,13 +211,28 @@ export abstract class BaseMeshService<TContracts extends EventContracts> {
         const correlationId = randomUUID();
         const organizationId = options?.organizationId ?? null;
         const timeoutMs = options?.timeoutMs ?? 1_500;
+        const maxCollectedResponses =
+            typeof options?.maxCollectedResponses === "number" &&
+                Number.isInteger(options.maxCollectedResponses) &&
+                options.maxCollectedResponses > 0
+                ? options.maxCollectedResponses
+                : 256;
+        const expectedResponders = this.resolveExpectedResponders();
 
         const responses: TResPayload[] = [];
+        const responderHitCount = new Map<string, number>();
+        let droppedResponses = 0;
+        let retryResponses = 0;
+        let lagTotalMs = 0;
+        let lagSamples = 0;
+        let maxLagMs = 0;
+        let timedOut = false;
         let stoppedEarly = false;
         let reason: "timeout" | "killer_switch" = "timeout";
 
         await new Promise<void>((resolve) => {
             const timeout = setTimeout(() => {
+                timedOut = true;
                 responseSubscription.unsubscribe();
                 resolve();
             }, timeoutMs);
@@ -220,11 +247,33 @@ export abstract class BaseMeshService<TContracts extends EventContracts> {
                 )
                 .subscribe((event) => {
                     const envelope = event as unknown as ResponseEnvelope<TResPayload>;
-                    responses.push(envelope.payload);
+                    const hitCount = (responderHitCount.get(envelope.responderNodeId) ?? 0) + 1;
+                    responderHitCount.set(envelope.responderNodeId, hitCount);
+                    if (hitCount > 1) {
+                        retryResponses += 1;
+                    }
+
+                    const emittedAtMs = Date.parse(envelope.emittedAt);
+                    if (!Number.isNaN(emittedAtMs)) {
+                        const lagMs = Math.max(0, Date.now() - emittedAtMs);
+                        lagTotalMs += lagMs;
+                        lagSamples += 1;
+                        if (lagMs > maxLagMs) {
+                            maxLagMs = lagMs;
+                        }
+                    }
+
+                    if (responses.length >= maxCollectedResponses) {
+                        droppedResponses += 1;
+                    } else {
+                        responses.push(envelope.payload);
+                    }
 
                     const explicitStop = envelope.stopPropagation === true;
                     const predicateStop = options?.stopWhen?.(envelope.payload, responses) ?? false;
-                    if (explicitStop || predicateStop) {
+                    const expectedResponderReached =
+                        expectedResponders !== null && responses.length >= expectedResponders;
+                    if (explicitStop || predicateStop || expectedResponderReached) {
                         stoppedEarly = true;
                         reason = "killer_switch";
                         this.broadcastKillSwitch(cancelTopic, correlationId, organizationId, "caller_stop");
@@ -254,7 +303,31 @@ export abstract class BaseMeshService<TContracts extends EventContracts> {
             responses,
             stoppedEarly,
             reason,
+            metrics: {
+                expectedResponders: expectedResponders ?? 0,
+                receivedResponses: responses.length,
+                droppedResponses,
+                retryResponses,
+                maxLagMs,
+                avgLagMs: lagSamples > 0 ? Math.round(lagTotalMs / lagSamples) : 0,
+                timedOut,
+            },
         };
+    }
+
+    private resolveExpectedResponders(): number | null {
+        const topology = this.meshTopologyService as unknown as {
+            listPeerSessions?: () => { items: { state?: string | null }[] };
+        };
+
+        if (typeof topology.listPeerSessions !== "function") {
+            return null;
+        }
+
+        const peerSessions = topology.listPeerSessions?.().items ?? [];
+        const connectedPeers = peerSessions.filter((session) => session.state === "connected").length;
+
+        return Math.max(1, connectedPeers + 1);
     }
 
     private broadcastKillSwitch<KCancel extends keyof TContracts>(

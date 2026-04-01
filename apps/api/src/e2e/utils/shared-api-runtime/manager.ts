@@ -12,11 +12,11 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { Pool } from 'pg'
 import { Wait } from 'testcontainers'
 import { getMockEnv } from '@repo/env/mock'
-import * as schema from '@/config/drizzle/schema'
-import { DatabaseService } from '@/core/modules/database/services/database.service'
+import * as schema from '@/config/drizzle/global/schema'
+import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service'
 import {
-    DATABASE_CONNECTION,
-    DATABASE_POOL,
+    GLOBAL_DATABASE_CONNECTION,
+    GLOBAL_DATABASE_POOL,
 } from '@/core/modules/database/database-connection'
 import { TraefikFileSystemService } from '@/core/modules/traefik/services/traefik-file-system.service'
 import { sharedRequestOverride } from './request-override'
@@ -232,7 +232,7 @@ async function waitForDatabaseReady(databaseUrl: string): Promise<void> {
 
 async function migrateDatabaseSchema(databaseUrl: string): Promise<void> {
     const migrationsFolder = fileURLToPath(
-        new URL('../../../config/drizzle/migrations', import.meta.url)
+        new URL('../../../config/drizzle/global/migrations', import.meta.url)
     )
     const pool = new Pool({ connectionString: databaseUrl })
 
@@ -278,14 +278,14 @@ async function assertRuntimeDatabaseBinding(
     moduleRef: TestingModule,
     expectedDatabaseUrl: string
 ): Promise<void> {
-    const databaseService = moduleRef.get(DatabaseService)
+    const databaseService = moduleRef.get(GlobalDatabaseService)
     if (!databaseService.isConnected) {
-        throw new Error('DatabaseService is not connected after app bootstrap')
+        throw new Error('GlobalDatabaseService is not connected after app bootstrap')
     }
 
     await databaseService.db.execute('SELECT 1')
 
-    const pool = moduleRef.get<Pool | null>(DATABASE_POOL, { strict: false })
+    const pool = moduleRef.get<Pool | null>(GLOBAL_DATABASE_POOL, { strict: false })
     const actualConnectionString = (
         pool as unknown as { options?: { connectionString?: string } } | null
     )?.options?.connectionString
@@ -817,9 +817,9 @@ export class SharedApiRuntimeManager {
                     })
                         .overrideProvider(REQUEST)
                         .useValue(sharedRequestOverride)
-                        .overrideProvider(DATABASE_POOL)
+                        .overrideProvider(GLOBAL_DATABASE_POOL)
                         .useValue(runtimePool)
-                        .overrideProvider(DATABASE_CONNECTION)
+                        .overrideProvider(GLOBAL_DATABASE_CONNECTION)
                         .useValue(runtimeConnection)
 
                     const moduleBuilderContext = {

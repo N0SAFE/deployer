@@ -7,9 +7,33 @@ import {
     projectNotificationConfigSchema,
     projectResourceConfigSchema,
     projectSecurityConfigSchema,
-} from "@repo/api-contracts/common/project";
+} from "@repo/contracts-entities";
 
 const idParam = z.object({ id: z.uuid() });
+
+const projectGeneralConfigUpdateInputSchema = idParam.extend(
+    z.object(projectGeneralConfigSchema.shape).partial().shape,
+);
+
+const projectEnvironmentConfigUpdateInputSchema = idParam.extend(
+    z.object(projectEnvironmentConfigSchema.shape).partial().shape,
+);
+
+const projectDeploymentConfigUpdateInputSchema = idParam.extend(
+    z.object(projectDeploymentConfigSchema.shape).partial().shape,
+);
+
+const projectSecurityConfigUpdateInputSchema = idParam.extend(
+    z.object(projectSecurityConfigSchema.shape).partial().shape,
+);
+
+const projectResourceConfigUpdateInputSchema = idParam.extend(
+    z.object(projectResourceConfigSchema.shape).partial().shape,
+);
+
+const projectNotificationConfigUpdateInputSchema = idParam.extend(
+    z.object(projectNotificationConfigSchema.shape).partial().shape,
+);
 
 // ============================================================================
 // General Configuration
@@ -25,7 +49,7 @@ export const projectGetGeneralConfigContract = route()
 export const projectUpdateGeneralConfigContract = route()
     .method("PUT")
     .path("/:id/config/general")
-    .input(idParam.extend(projectGeneralConfigSchema.partial().shape))
+    .input(projectGeneralConfigUpdateInputSchema)
     .output(projectGeneralConfigSchema)
     .build();
 
@@ -43,7 +67,7 @@ export const projectGetEnvironmentConfigContract = route()
 export const projectUpdateEnvironmentConfigContract = route()
     .method("PUT")
     .path("/:id/config/environment")
-    .input(idParam.extend(projectEnvironmentConfigSchema.partial().shape))
+    .input(projectEnvironmentConfigUpdateInputSchema)
     .output(projectEnvironmentConfigSchema)
     .build();
 
@@ -61,7 +85,7 @@ export const projectGetDeploymentConfigContract = route()
 export const projectUpdateDeploymentConfigContract = route()
     .method("PUT")
     .path("/:id/config/deployment")
-    .input(idParam.extend(projectDeploymentConfigSchema.partial().shape))
+    .input(projectDeploymentConfigUpdateInputSchema)
     .output(projectDeploymentConfigSchema)
     .build();
 
@@ -79,7 +103,7 @@ export const projectGetSecurityConfigContract = route()
 export const projectUpdateSecurityConfigContract = route()
     .method("PUT")
     .path("/:id/config/security")
-    .input(idParam.extend(projectSecurityConfigSchema.partial().shape))
+    .input(projectSecurityConfigUpdateInputSchema)
     .output(projectSecurityConfigSchema)
     .build();
 
@@ -97,7 +121,7 @@ export const projectGetResourceConfigContract = route()
 export const projectUpdateResourceConfigContract = route()
     .method("PUT")
     .path("/:id/config/resource")
-    .input(idParam.extend(projectResourceConfigSchema.partial().shape))
+    .input(projectResourceConfigUpdateInputSchema)
     .output(projectResourceConfigSchema)
     .build();
 
@@ -115,6 +139,6 @@ export const projectGetNotificationConfigContract = route()
 export const projectUpdateNotificationConfigContract = route()
     .method("PUT")
     .path("/:id/config/notification")
-    .input(idParam.extend(projectNotificationConfigSchema.partial().shape))
+    .input(projectNotificationConfigUpdateInputSchema)
     .output(projectNotificationConfigSchema)
     .build();

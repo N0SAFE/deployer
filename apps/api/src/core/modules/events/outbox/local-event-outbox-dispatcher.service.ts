@@ -2,9 +2,9 @@ import { Injectable, Logger } from "@nestjs/common";
 import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { and, asc, eq, isNotNull, lte, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import { localEventOutbox } from "@/config/drizzle/schema/runtime";
-import { DatabaseService } from "@/core/modules/database/services/database.service";
-import { coreDomainEventEnvelopeSchema } from "@repo/api-contracts/common/event-stream";
+import { localEventOutbox } from "@/config/drizzle/global/schema/runtime";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
+import { coreDomainEventEnvelopeSchema } from "@repo/contracts-entities";
 
 const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
 
@@ -15,7 +15,7 @@ export class LocalEventOutboxDispatcherService implements OnModuleInit, OnModule
     private readonly maxRetries = 8;
     private ticker: ReturnType<typeof setInterval> | null = null;
 
-    constructor(private readonly databaseService: DatabaseService) {}
+    constructor(private readonly databaseService: GlobalDatabaseService) {}
 
     onModuleInit(): void {
         this.ticker = setInterval(() => {
@@ -80,7 +80,7 @@ export class LocalEventOutboxDispatcherService implements OnModuleInit, OnModule
             .where(eq(localEventOutbox.id, outboxId))
             .limit(1);
 
-        if (!row || row.state !== "pending") {
+        if (row?.state !== "pending") {
             return;
         }
 

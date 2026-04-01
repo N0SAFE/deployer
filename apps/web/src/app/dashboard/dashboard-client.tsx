@@ -162,7 +162,7 @@ export function DashboardOverviewClient({ isAdmin, userRole }: DashboardOverview
               {organizations.map((org) => (
                 <Link
                   key={org.id}
-                  href={`/dashboard/organizations/${org.id}`}
+                  href={`/dashboard/admin/organizations/${org.id}`}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors"
                 >
                   <div className="flex items-center gap-3">
@@ -200,13 +200,13 @@ export function DashboardOverviewClient({ isAdmin, userRole }: DashboardOverview
         <CardContent className="space-y-2">
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
-              <Link href="/dashboard/organizations/new">
+              <Link href="/dashboard/admin/organizations/new">
                 <Building2 className="h-4 w-4 mr-2" />
                 Create Organization
               </Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/dashboard/organizations">
+              <Link href="/dashboard/admin/organizations">
                 <Users className="h-4 w-4 mr-2" />
                 View All Organizations
               </Link>

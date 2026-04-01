@@ -1,19 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { NotFoundException } from "@nestjs/common";
 import z from "zod/v4";
-import { firstValueFrom } from "rxjs";
-import { map as rxMap, take } from "rxjs/operators";
+import { firstValueFrom, from } from "rxjs";
+import { map as rxMap, take, toArray } from "rxjs/operators";
 import { BaseEventService } from "../base-event.service";
 import { contractBuilder } from "../event-contract.builder";
 import { CoreEventSyncService } from "./core-event-sync.service";
-
-async function collectAsync<T>(iterable: AsyncIterable<T>): Promise<T[]> {
-    const values: T[] = [];
-    for await (const value of iterable) {
-        values.push(value);
-    }
-    return values;
-}
 
 const typedContracts = {
     statusChanged: contractBuilder()
@@ -99,23 +91,22 @@ describe("CoreEventSyncService", () => {
 
         service
             .namespace("deployment")
-            .fromAdapter(async function* () {
-                await Promise.resolve();
-                yield { eventName: "statusChanged", payload: { deploymentId: "d-1" }, replayed: true };
+            .fromAdapter(() => {
+                return from([
+                    { eventName: "statusChanged", payload: { deploymentId: "d-1" }, replayed: true },
+                ]);
             })
             .register();
 
-        const stream = await service.streamSync({
+        const stream$ = service.streamSync({
             id: definition.id,
             replay: true,
             replayLimit: 10,
         });
 
-        const iterator = stream[Symbol.asyncIterator]();
-        const first = await iterator.next();
+        const first = await firstValueFrom(stream$.pipe(take(1)));
 
-        expect(first.done).toBe(false);
-        expect(first.value).toMatchObject({
+        expect(first).toMatchObject({
             streamId: definition.id,
             namespace: "deployment",
             eventName: "statusChanged",
@@ -131,49 +122,51 @@ describe("CoreEventSyncService", () => {
 
         service
             .namespace("deployment")
-            .fromAdapter(async function* ({ replayLimit }) {
+            .fromAdapter(({ replayLimit }) => {
                 capturedReplayLimit = replayLimit;
-                await Promise.resolve();
-                yield { eventName: "statusChanged", payload: { deploymentId: "d-1" }, replayed: true };
+                return from([
+                    { eventName: "statusChanged", payload: { deploymentId: "d-1" }, replayed: true },
+                ]);
             })
             .register();
 
-        const stream = await service.streamSync({
+        const stream$ = service.streamSync({
             id: definition.id,
             replay: true,
         });
 
-        const iterator = stream[Symbol.asyncIterator]();
-        await iterator.next();
+        await firstValueFrom(stream$.pipe(take(1)));
 
         expect(capturedReplayLimit).toBe(1);
     });
 
     it("should support fluent namespace query with inner join", async () => {
-        service.registerNamespaceAdapter("deployment", async function* () {
-            await Promise.resolve();
-            yield {
-                eventName: "deployment.updated",
-                payload: { deploymentId: "dep-1", status: "success" },
-                replayed: true,
-            };
-            yield {
-                eventName: "deployment.updated",
-                payload: { deploymentId: "dep-2", status: "failed" },
-                replayed: true,
-            };
+        service.registerNamespaceAdapter("deployment", () => {
+            return from([
+                {
+                    eventName: "deployment.updated",
+                    payload: { deploymentId: "dep-1", status: "success" },
+                    replayed: true,
+                },
+                {
+                    eventName: "deployment.updated",
+                    payload: { deploymentId: "dep-2", status: "failed" },
+                    replayed: true,
+                },
+            ]);
         });
 
-        service.registerNamespaceAdapter("traefik", async function* () {
-            await Promise.resolve();
-            yield {
-                eventName: "route.synced",
-                payload: { deploymentId: "dep-1", host: "app.example.com" },
-                replayed: true,
-            };
+        service.registerNamespaceAdapter("traefik", () => {
+            return from([
+                {
+                    eventName: "route.synced",
+                    payload: { deploymentId: "dep-1", host: "app.example.com" },
+                    replayed: true,
+                },
+            ]);
         });
 
-        const rows = await collectAsync(
+        const rows = await firstValueFrom(
             service
                 .query({ namespace: "deployment", alias: "d" })
                 .join({
@@ -191,7 +184,8 @@ describe("CoreEventSyncService", () => {
                 })
                 .replay(true)
                 .replayLimit(20)
-                .execute(),
+                .execute()
+                .pipe(toArray()),
         );
 
         expect(rows).toHaveLength(1);
@@ -202,30 +196,32 @@ describe("CoreEventSyncService", () => {
     });
 
     it("should support fluent namespace query with left join", async () => {
-        service.registerNamespaceAdapter("deployment", async function* () {
-            await Promise.resolve();
-            yield {
-                eventName: "deployment.updated",
-                payload: { deploymentId: "dep-1" },
-                replayed: true,
-            };
-            yield {
-                eventName: "deployment.updated",
-                payload: { deploymentId: "dep-2" },
-                replayed: true,
-            };
+        service.registerNamespaceAdapter("deployment", () => {
+            return from([
+                {
+                    eventName: "deployment.updated",
+                    payload: { deploymentId: "dep-1" },
+                    replayed: true,
+                },
+                {
+                    eventName: "deployment.updated",
+                    payload: { deploymentId: "dep-2" },
+                    replayed: true,
+                },
+            ]);
         });
 
-        service.registerNamespaceAdapter("traefik", async function* () {
-            await Promise.resolve();
-            yield {
-                eventName: "route.synced",
-                payload: { deploymentId: "dep-1" },
-                replayed: true,
-            };
+        service.registerNamespaceAdapter("traefik", () => {
+            return from([
+                {
+                    eventName: "route.synced",
+                    payload: { deploymentId: "dep-1" },
+                    replayed: true,
+                },
+            ]);
         });
 
-        const rows = await collectAsync(
+        const rows = await firstValueFrom(
             service
                 .query({ namespace: "deployment", alias: "d" })
                 .join({
@@ -241,7 +237,8 @@ describe("CoreEventSyncService", () => {
                         );
                     },
                 })
-                .execute(),
+                .execute()
+                .pipe(toArray()),
         );
 
         expect(rows).toHaveLength(2);
@@ -266,13 +263,12 @@ describe("CoreEventSyncService", () => {
             .select("statusChanged", { deploymentId: "dep-typed-1" })
             .register();
 
-        const stream = await service.streamSync({
+        const stream$ = service.streamSync({
             id: definition.id,
             replay: false,
         });
 
-        const iterator = stream[Symbol.asyncIterator]();
-        const pending = iterator.next();
+        const pending = firstValueFrom(stream$.pipe(take(1)));
 
         typedService.emit(
             "statusChanged",
@@ -281,14 +277,11 @@ describe("CoreEventSyncService", () => {
         );
 
         const first = await pending;
-        expect(first.done).toBe(false);
-        expect(first.value).toMatchObject({
+        expect(first).toMatchObject({
             namespace: "deployment",
             eventName: "statusChanged",
             payload: { deploymentId: "dep-typed-1", status: "success" },
         });
-
-        await iterator.return?.();
     });
 
     it("should support typed fluent select/join/query without registration", async () => {

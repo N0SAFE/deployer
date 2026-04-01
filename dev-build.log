@@ -1,0 +1,497 @@
+$ dotenv -e .env -- docker compose -f ./docker/compose/docker-compose.dev.yml up --watch --build
+time="2026-03-24T12:27:29+01:00" level=warning msg="The \"TURBO_TOKEN\" variable is not set. Defaulting to a blank string."
+time="2026-03-24T12:27:29+01:00" level=warning msg="The \"TURBO_TEAM\" variable is not set. Defaulting to a blank string."
+time="2026-03-24T12:27:29+01:00" level=warning msg="The \"TURBO_TOKEN\" variable is not set. Defaulting to a blank string."
+time="2026-03-24T12:27:29+01:00" level=warning msg="The \"TURBO_TEAM\" variable is not set. Defaulting to a blank string."
+time="2026-03-24T12:27:29+01:00" level=warning msg="The \"NEXT_PUBLIC_DEBUG\" variable is not set. Defaulting to a blank string."
+time="2026-03-24T12:27:29+01:00" level=warning msg="The \"TURBO_TOKEN\" variable is not set. Defaulting to a blank string."
+time="2026-03-24T12:27:29+01:00" level=warning msg="The \"TURBO_TEAM\" variable is not set. Defaulting to a blank string."
+time="2026-03-24T12:27:29+01:00" level=warning msg="The \"NEXT_PUBLIC_DEBUG\" variable is not set. Defaulting to a blank string."
+time="2026-03-24T12:27:29+01:00" level=warning msg="The \"TURBO_TOKEN\" variable is not set. Defaulting to a blank string."
+time="2026-03-24T12:27:29+01:00" level=warning msg="The \"TURBO_TEAM\" variable is not set. Defaulting to a blank string."
+time="2026-03-24T12:27:29+01:00" level=warning msg="The \"TURBO_TOKEN\" variable is not set. Defaulting to a blank string."
+time="2026-03-24T12:27:29+01:00" level=warning msg="The \"TURBO_TEAM\" variable is not set. Defaulting to a blank string."
+ Image compose-web-dev Building 
+ Image compose-doc-dev Building 
+ Image compose-lb-dev Building 
+ Image compose-api-dev Building 
+ Image compose-api-dev-2 Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 3.19kB done
+#1 DONE 0.0s
+
+#2 [api-dev-2 internal] load build definition from Dockerfile.api.dev
+#2 ...
+
+#3 [doc-dev internal] load build definition from Dockerfile.doc.dev
+#3 transferring dockerfile: 5.27kB done
+#3 DONE 0.2s
+
+#4 [lb-dev internal] load build definition from Dockerfile.load-balancer.dev
+#4 transferring dockerfile: 5.33kB 0.0s done
+#4 DONE 0.2s
+
+#2 [api-dev-2 internal] load build definition from Dockerfile.api.dev
+#2 transferring dockerfile: 5.32kB done
+#2 DONE 0.4s
+
+#5 [web-dev internal] load build definition from Dockerfile.web.dev
+#5 transferring dockerfile: 6.04kB done
+#5 DONE 0.4s
+
+#6 [api-dev-2] resolve image config for docker-image://docker.io/docker/dockerfile:1-labs
+#6 DONE 1.6s
+
+#7 [web-dev] docker-image://docker.io/docker/dockerfile:1-labs@sha256:4c116b618ed48404d579b5467127b20986f2a6b29e4b9be2fee841f632db6a86
+#7 resolve docker.io/docker/dockerfile:1-labs@sha256:4c116b618ed48404d579b5467127b20986f2a6b29e4b9be2fee841f632db6a86 0.0s done
+#7 CACHED
+
+#8 [web-dev internal] load metadata for docker.io/oven/bun:1.3.9-alpine
+#8 DONE 0.8s
+
+#9 [doc-dev internal] load .dockerignore
+#9 transferring context: 814B done
+#9 DONE 0.1s
+
+#10 [web-dev base 1/4] FROM docker.io/oven/bun:1.3.9-alpine@sha256:9028ee7a60a04777190f0c3129ce49c73384d3fc918f3e5c75f5af188e431981
+#10 resolve docker.io/oven/bun:1.3.9-alpine@sha256:9028ee7a60a04777190f0c3129ce49c73384d3fc918f3e5c75f5af188e431981 0.0s done
+#10 DONE 0.0s
+
+#11 [web-dev internal] load build context
+#11 transferring context: 305.76kB 0.3s done
+#11 transferring context: 305.76kB 0.3s done
+#11 DONE 0.4s
+
+#9 [api-dev internal] load .dockerignore
+#9 transferring context: 814B done
+#9 DONE 0.1s
+
+#12 [api-dev-2 internal] load metadata for docker.io/library/node:22-alpine
+#12 DONE 1.4s
+
+#13 [web-dev base 2/4] RUN apk add --no-cache libc6-compat curl bash python3 make g++ gcc musl-dev tar
+#13 CACHED
+
+#14 [web-dev base 3/4] RUN --mount=type=cache,target=/root/.bun bun install -g turbo@^2 node-gyp
+#14 CACHED
+
+#15 [web-dev base 4/4] WORKDIR /app
+#15 CACHED
+
+#16 [web-dev pruner 1/3] WORKDIR /app
+#16 CACHED
+
+#10 [api-dev base 1/4] FROM docker.io/oven/bun:1.3.9-alpine@sha256:9028ee7a60a04777190f0c3129ce49c73384d3fc918f3e5c75f5af188e431981
+#10 resolve docker.io/oven/bun:1.3.9-alpine@sha256:9028ee7a60a04777190f0c3129ce49c73384d3fc918f3e5c75f5af188e431981 0.0s done
+#10 DONE 0.0s
+
+#11 [api-dev internal] load build context
+#11 transferring context: 305.76kB 0.3s done
+#11 DONE 0.4s
+
+#14 [doc-dev base 3/4] RUN --mount=type=cache,target=/root/.bun bun install -g turbo@^2 node-gyp
+#14 CACHED
+
+#15 [doc-dev base 4/4] WORKDIR /app
+#15 CACHED
+
+#13 [doc-dev base 2/4] RUN apk add --no-cache libc6-compat curl bash python3 make g++ gcc musl-dev tar
+#13 CACHED
+
+#17 [api-dev-2] FROM docker.io/library/node:22-alpine@sha256:8094c002d08262dba12645a3b4a15cd6cd627d30bc782f53229a2ec13ee22a00
+#17 resolve docker.io/library/node:22-alpine@sha256:8094c002d08262dba12645a3b4a15cd6cd627d30bc782f53229a2ec13ee22a00 0.0s done
+#17 DONE 0.0s
+
+#18 [api-dev-2 base 4/6] RUN ln -sf /usr/local/bin/node /usr/bin/node &&     ln -sf /usr/local/bin/npm /usr/bin/npm &&     ln -sf /usr/local/bin/npx /usr/bin/npx
+#18 CACHED
+
+#19 [api-dev-2 base 6/6] WORKDIR /app
+#19 CACHED
+
+#20 [api-dev-2 base 3/6] COPY --from=node:22-alpine /usr/local /usr/local
+#20 CACHED
+
+#21 [api-dev-2 base 2/6] RUN apk add --no-cache curl wget bash git python3 make g++ tar libc6-compat
+#21 CACHED
+
+#22 [api-dev-2 base 5/6] RUN --mount=type=cache,target=/root/.bun bun install -g turbo@^2 @nestjs/cli node-gyp
+#22 CACHED
+
+#23 [api-dev-2 pruner 1/3] WORKDIR /app
+#23 CACHED
+
+#18 [lb-dev base 4/6] RUN ln -sf /usr/local/bin/node /usr/bin/node &&     ln -sf /usr/local/bin/npm /usr/bin/npm &&     ln -sf /usr/local/bin/npx /usr/bin/npx
+#18 CACHED
+
+#19 [lb-dev base 6/6] WORKDIR /app
+#19 CACHED
+
+#20 [lb-dev base 3/6] COPY --from=node:22-alpine /usr/local /usr/local
+#20 CACHED
+
+#22 [lb-dev base 5/6] RUN --mount=type=cache,target=/root/.bun bun install -g turbo@^2 @nestjs/cli node-gyp
+#22 CACHED
+
+#21 [lb-dev base 2/6] RUN apk add --no-cache curl wget bash git python3 make g++ tar libc6-compat
+#21 CACHED
+
+#24 [lb-dev pruner 2/3] COPY . .
+#24 ...
+
+#25 [doc-dev pruner 2/3] COPY . .
+#25 DONE 13.2s
+
+#24 [api-dev pruner 2/3] COPY . .
+#24 DONE 13.1s
+
+#26 [api-dev pruner 3/3] RUN --mount=type=cache,target=/root/.bun     bun x turbo prune api --docker
+#26 1.390 
+#26 1.391 Attention:
+#26 1.391 Turborepo now collects completely anonymous telemetry regarding usage.
+#26 1.391 This information is used to shape the Turborepo roadmap and prioritize features.
+#26 1.391 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+#26 1.391 https://turborepo.dev/docs/telemetry
+#26 1.391 
+#26 1.402 • turbo 2.8.20
+#26 2.763 Generating pruned monorepo for api in /app/out
+#26 2.870  - Added @repo/api-contracts
+#26 2.894  - Added @repo/auth
+#26 2.905  - Added @repo/config-eslint
+#26 2.907  - Added @repo/config-prettier
+#26 2.915  - Added @repo/config-typescript
+#26 2.918  - Added @repo/config-vitest
+#26 2.924  - Added @repo/env
+#26 2.933  - Added @repo/logger
+#26 2.952  - Added @repo/orpc-utils
+#26 2.957  - Added @repo/provider-schema
+#26 3.411  - Added api
+#26 ...
+
+#27 [lb-dev pruner 3/3] RUN --mount=type=cache,target=/root/.bun     bun x turbo prune load-balancer --docker
+#27 1.405 
+#27 1.405 Attention:
+#27 1.405 Turborepo now collects completely anonymous telemetry regarding usage.
+#27 1.405 This information is used to shape the Turborepo roadmap and prioritize features.
+#27 1.405 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+#27 1.405 https://turborepo.dev/docs/telemetry
+#27 1.405 
+#27 1.407 • turbo 2.8.20
+#27 2.592 Generating pruned monorepo for load-balancer in /app/out
+#27 2.670  - Added @repo/api-contracts
+#27 2.783  - Added @repo/auth
+#27 2.791  - Added @repo/config-eslint
+#27 2.794  - Added @repo/config-prettier
+#27 2.805  - Added @repo/config-typescript
+#27 2.837  - Added @repo/config-vitest
+#27 2.847  - Added @repo/env
+#27 2.905  - Added @repo/orpc-utils
+#27 2.926  - Added @repo/provider-schema
+#27 2.963  - Added load-balancer
+#27 DONE 3.6s
+
+#28 [doc-dev pruner 3/3] RUN --mount=type=cache,target=/root/.bun     bun x turbo prune doc --docker
+#28 1.406 
+#28 1.406 Attention:
+#28 1.406 Turborepo now collects completely anonymous telemetry regarding usage.
+#28 1.406 This information is used to shape the Turborepo roadmap and prioritize features.
+#28 1.406 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+#28 1.406 https://turborepo.dev/docs/telemetry
+#28 1.406 
+#28 1.412 • turbo 2.8.20
+#28 2.986 Generating pruned monorepo for doc in /app/out
+#28 2.998  - Added @repo/config-eslint
+#28 3.009  - Added @repo/config-prettier
+#28 3.036  - Added @repo/config-typescript
+#28 3.056  - Added @repo/config-vitest
+#28 3.081  - Added @repo/env
+#28 3.137  - Added doc
+#28 DONE 3.7s
+
+#29 [web-dev pruner 3/3] RUN --mount=type=cache,target=/root/.bun     bun x turbo prune web --docker
+#29 1.408 
+#29 1.408 Attention:
+#29 1.408 Turborepo now collects completely anonymous telemetry regarding usage.
+#29 1.408 This information is used to shape the Turborepo roadmap and prioritize features.
+#29 1.408 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+#29 1.408 https://turborepo.dev/docs/telemetry
+#29 1.408 
+#29 1.414 • turbo 2.8.20
+#29 2.822 Generating pruned monorepo for web in /app/out
+#29 2.879  - Added @repo/api-contracts
+#29 2.958  - Added @repo/auth
+#29 2.991  - Added @repo/cli-declarative-routing
+#29 2.999  - Added @repo/config-eslint
+#29 3.009  - Added @repo/config-prettier
+#29 3.027  - Added @repo/config-tailwind
+#29 3.041  - Added @repo/config-typescript
+#29 3.058  - Added @repo/config-vitest
+#29 3.100  - Added @repo/declarative-routing
+#29 3.102  - Added @repo/env
+#29 3.109  - Added @repo/logger
+#29 3.147  - Added @repo/orpc-utils
+#29 3.159  - Added @repo/provider-schema
+#29 3.165  - Added @repo/types
+#29 3.208  - Added @repo/ui
+#29 3.367  - Added web
+#29 DONE 4.2s
+
+#26 [api-dev pruner 3/3] RUN --mount=type=cache,target=/root/.bun     bun x turbo prune api --docker
+#26 DONE 4.1s
+
+#30 [lb-dev source-copier 2/3] COPY --from=pruner /app/out/json/ /tmp/prune-structure/
+#30 CACHED
+
+#31 [api-dev-2 source-copier 2/3] COPY --from=pruner /app/out/json/ /tmp/prune-structure/
+#31 CACHED
+
+#32 [web-dev source-copier 2/3] COPY --from=pruner /app/out/json/ /tmp/prune-structure/
+#32 CACHED
+
+#33 [doc-dev source-copier 2/3] COPY --from=pruner /app/out/json/ /tmp/prune-structure/
+#33 CACHED
+
+#34 [doc-dev source-copier 3/3] RUN --mount=type=bind,from=pruner,source=/app,target=/mnt/pruner     cp /mnt/pruner/package.json /mnt/pruner/turbo.json /app/ 2>/dev/null || true &&     cp /mnt/pruner/bun.lock* /app/ 2>/dev/null || true &&     cp /mnt/pruner/bunfig.toml /app/ 2>/dev/null || true &&     for appPkg in $(find /tmp/prune-structure/apps -name "package.json" -type f 2>/dev/null); do         appDir=$(dirname "$appPkg" | sed 's|/tmp/prune-structure/||');         if [ -d "/mnt/pruner/$appDir" ]; then             mkdir -p "/app/$appDir" &&             cp -r /mnt/pruner/$appDir/. /app/$appDir/ 2>/dev/null || true;         fi;     done &&     for pkgJson in $(find /tmp/prune-structure/packages -name "package.json" -type f 2>/dev/null); do         pkgDir=$(dirname "$pkgJson" | sed 's|/tmp/prune-structure/||');         if [ -d "/mnt/pruner/$pkgDir" ]; then             mkdir -p "/app/$pkgDir" &&             cp -r /mnt/pruner/$pkgDir/. /app/$pkgDir/ 2>/dev/null || true;         fi;     done
+#34 DONE 1.5s
+
+#35 [api-dev-2 source-copier 3/3] RUN --mount=type=bind,from=pruner,source=/app,target=/mnt/pruner     cp /mnt/pruner/package.json /mnt/pruner/turbo.json /app/ 2>/dev/null || true &&     cp /mnt/pruner/bun.lock* /app/ 2>/dev/null || true &&     cp /mnt/pruner/bunfig.toml /app/ 2>/dev/null || true &&     for appPkg in $(find /tmp/prune-structure/apps -name "package.json" -type f 2>/dev/null); do         appDir=$(dirname "$appPkg" | sed 's|/tmp/prune-structure/||');         if [ -d "/mnt/pruner/$appDir" ]; then             mkdir -p "/app/$appDir" &&             cp -r /mnt/pruner/$appDir/. /app/$appDir/ 2>/dev/null || true;         fi;     done &&     for pkgJson in $(find /tmp/prune-structure/packages -name "package.json" -type f 2>/dev/null); do         pkgDir=$(dirname "$pkgJson" | sed 's|/tmp/prune-structure/||');         if [ -d "/mnt/pruner/$pkgDir" ]; then             mkdir -p "/app/$pkgDir" &&             cp -r /mnt/pruner/$pkgDir/. /app/$pkgDir/ 2>/dev/null || true;         fi;     done
+#35 ...
+
+#36 [lb-dev source-copier 3/3] RUN --mount=type=bind,from=pruner,source=/app,target=/mnt/pruner     cp /mnt/pruner/package.json /mnt/pruner/turbo.json /app/ 2>/dev/null || true &&     cp /mnt/pruner/bun.lock* /app/ 2>/dev/null || true &&     cp /mnt/pruner/bunfig.toml /app/ 2>/dev/null || true &&     for appPkg in $(find /tmp/prune-structure/apps -name "package.json" -type f 2>/dev/null); do         appDir=$(dirname "$appPkg" | sed 's|/tmp/prune-structure/||');         if [ -d "/mnt/pruner/$appDir" ]; then             mkdir -p "/app/$appDir" &&             cp -r /mnt/pruner/$appDir/. /app/$appDir/ 2>/dev/null || true;         fi;     done &&     for pkgJson in $(find /tmp/prune-structure/packages -name "package.json" -type f 2>/dev/null); do         pkgDir=$(dirname "$pkgJson" | sed 's|/tmp/prune-structure/||');         if [ -d "/mnt/pruner/$pkgDir" ]; then             mkdir -p "/app/$pkgDir" &&             cp -r /mnt/pruner/$pkgDir/. /app/$pkgDir/ 2>/dev/null || true;         fi;     done
+#36 DONE 1.6s
+
+#35 [api-dev source-copier 3/3] RUN --mount=type=bind,from=pruner,source=/app,target=/mnt/pruner     cp /mnt/pruner/package.json /mnt/pruner/turbo.json /app/ 2>/dev/null || true &&     cp /mnt/pruner/bun.lock* /app/ 2>/dev/null || true &&     cp /mnt/pruner/bunfig.toml /app/ 2>/dev/null || true &&     for appPkg in $(find /tmp/prune-structure/apps -name "package.json" -type f 2>/dev/null); do         appDir=$(dirname "$appPkg" | sed 's|/tmp/prune-structure/||');         if [ -d "/mnt/pruner/$appDir" ]; then             mkdir -p "/app/$appDir" &&             cp -r /mnt/pruner/$appDir/. /app/$appDir/ 2>/dev/null || true;         fi;     done &&     for pkgJson in $(find /tmp/prune-structure/packages -name "package.json" -type f 2>/dev/null); do         pkgDir=$(dirname "$pkgJson" | sed 's|/tmp/prune-structure/||');         if [ -d "/mnt/pruner/$pkgDir" ]; then             mkdir -p "/app/$pkgDir" &&             cp -r /mnt/pruner/$pkgDir/. /app/$pkgDir/ 2>/dev/null || true;         fi;     done
+#35 DONE 1.0s
+
+#37 [web-dev source-copier 3/3] RUN --mount=type=bind,from=pruner,source=/app,target=/mnt/pruner     cp /mnt/pruner/package.json /mnt/pruner/turbo.json /app/ 2>/dev/null || true &&     cp /mnt/pruner/bun.lock* /app/ 2>/dev/null || true &&     cp /mnt/pruner/bunfig.toml /app/ 2>/dev/null || true &&     for appPkg in $(find /tmp/prune-structure/apps -name "package.json" -type f 2>/dev/null); do         appDir=$(dirname "$appPkg" | sed 's|/tmp/prune-structure/||');         if [ -d "/mnt/pruner/$appDir" ]; then             mkdir -p "/app/$appDir" &&             cp -r /mnt/pruner/$appDir/. /app/$appDir/ 2>/dev/null || true;         fi;     done &&     for pkgJson in $(find /tmp/prune-structure/packages -name "package.json" -type f 2>/dev/null); do         pkgDir=$(dirname "$pkgJson" | sed 's|/tmp/prune-structure/||');         if [ -d "/mnt/pruner/$pkgDir" ]; then             mkdir -p "/app/$pkgDir" &&             cp -r /mnt/pruner/$pkgDir/. /app/$pkgDir/ 2>/dev/null || true;         fi;     done
+#37 DONE 1.0s
+
+#38 [doc-dev runner 4/6] RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer     cd /mnt/installer && tar cf - node_modules | tar xf - -C /app --owner=root --group=root &&     find /mnt/installer/apps -name node_modules -type d 2>/dev/null | while read dir; do         relDir=$(echo "$dir" | sed 's|/mnt/installer/||');         mkdir -p "/app/$(dirname $relDir)" &&         cd /mnt/installer && tar cf - "$relDir" | tar xf - -C /app --owner=root --group=root;     done &&     find /mnt/installer/packages -name node_modules -type d 2>/dev/null | while read dir; do         relDir=$(echo "$dir" | sed 's|/mnt/installer/||');         mkdir -p "/app/$(dirname $relDir)" &&         cd /mnt/installer && tar cf - "$relDir" | tar xf - -C /app --owner=root --group=root;     done
+#38 CACHED
+
+#39 [doc-dev runner 2/7] RUN ln -sf $(which bun) /usr/local/bin/npm
+#39 CACHED
+
+#40 [doc-dev source-copier 3/3] RUN --mount=type=bind,from=pruner,source=/app,target=/mnt/pruner     cp /mnt/pruner/package.json /mnt/pruner/turbo.json /app/ 2>/dev/null || true &&     cp /mnt/pruner/bun.lock* /app/ 2>/dev/null || true &&     cp /mnt/pruner/bunfig.toml /app/ 2>/dev/null || true &&     for appPkg in $(find /tmp/prune-structure/apps -name "package.json" -type f 2>/dev/null); do         appDir=$(dirname "$appPkg" | sed 's|/tmp/prune-structure/||');         if [ -d "/mnt/pruner/$appDir" ]; then             mkdir -p "/app/$appDir" &&             cp -r /mnt/pruner/$appDir/. /app/$appDir/ 2>/dev/null || true;         fi;     done &&     for pkgJson in $(find /tmp/prune-structure/packages -name "package.json" -type f 2>/dev/null); do         pkgDir=$(dirname "$pkgJson" | sed 's|/tmp/prune-structure/||');         if [ -d "/mnt/pruner/$pkgDir" ]; then             mkdir -p "/app/$pkgDir" &&             cp -r /mnt/pruner/$pkgDir/. /app/$pkgDir/ 2>/dev/null || true;         fi;     done
+#40 CACHED
+
+#41 [doc-dev installer 1/5] RUN apk add --no-cache libc6-compat
+#41 CACHED
+
+#42 [doc-dev runner 5/6] COPY --parents --chmod=a+w .turbo/ **/.turbo/ ./
+#42 CACHED
+
+#43 [doc-dev installer 4/6] COPY --from=pruner /app/bun.lock ./bun.lock
+#43 CACHED
+
+#44 [doc-dev installer 2/5] WORKDIR /app
+#44 CACHED
+
+#45 [doc-dev installer 5/6] COPY --from=pruner /app/apps/doc/source.config.ts ./apps/doc/source.config.ts
+#45 CACHED
+
+#46 [doc-dev installer 3/6] COPY --from=pruner /app/out/json/ .
+#46 CACHED
+
+#47 [doc-dev runner 3/6] COPY --from=source-copier /app/ .
+#47 CACHED
+
+#48 [doc-dev installer 6/6] RUN --mount=type=cache,target=/root/.bun     --mount=type=cache,target=/root/.cache     bun install --frozen-lockfile || bun install
+#48 CACHED
+
+#49 [doc-dev runner 6/6] RUN --mount=type=cache,target=/root/.bun     echo "🔨 Building doc dependencies..." &&     bun x turbo run build --filter=doc... --filter=!doc
+#49 CACHED
+
+#50 [doc-dev] exporting to image
+#50 exporting layers done
+#50 exporting manifest sha256:6159b2de58b8c97434fda17fc06f178c4fa305fb39b1ad4a415def36861fd1bd done
+#50 exporting config sha256:78468bd29a9021f2bb21aa94591a5ced25d9165630294cb49d5b38a0306e4063 done
+#50 exporting attestation manifest sha256:1ee4657891645fbb46f2f54b00d094b836b737b9d3def9236d514c826216bc97 0.0s done
+#50 exporting manifest list sha256:ef738312315f50f37876690ffdb9d45442f2f072de8fb336000f1d1891999d5c
+#50 exporting manifest list sha256:ef738312315f50f37876690ffdb9d45442f2f072de8fb336000f1d1891999d5c 0.0s done
+#50 naming to docker.io/library/compose-doc-dev:latest done
+#50 unpacking to docker.io/library/compose-doc-dev:latest 0.0s done
+#50 naming to docker.io/library/compose-doc-dev:dev done
+#50 unpacking to docker.io/library/compose-doc-dev:dev 0.0s done
+#50 DONE 0.1s
+
+#51 [lb-dev installer 4/5] COPY --from=pruner /app/bun.lock ./bun.lock
+#51 CACHED
+
+#52 [lb-dev runner 3/4] COPY --from=source-copier /app/ .
+#52 CACHED
+
+#53 [lb-dev installer 1/5] RUN apk add --no-cache libc6-compat
+#53 CACHED
+
+#54 [lb-dev installer 5/5] RUN --mount=type=cache,target=/root/.bun     --mount=type=cache,target=/root/.cache     bun install --frozen-lockfile || bun install
+#54 CACHED
+
+#55 [lb-dev installer 3/5] COPY --from=pruner /app/out/json/ .
+#55 CACHED
+
+#56 [lb-dev runner 2/4] RUN ln -sf $(which bun) /usr/local/bin/npm
+#56 CACHED
+
+#57 [lb-dev installer 2/5] WORKDIR /app
+#57 CACHED
+
+#58 [lb-dev runner 4/4] RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer     cd /mnt/installer && tar cf - node_modules | tar xf - -C /app --owner=root --group=root &&     find /mnt/installer/apps -name node_modules -type d 2>/dev/null | while read dir; do         relDir=$(echo "$dir" | sed 's|/mnt/installer/||');         mkdir -p "/app/$(dirname $relDir)" &&         cd /mnt/installer && tar cf - "$relDir" | tar xf - -C /app --owner=root --group=root;     done &&     find /mnt/installer/packages -name node_modules -type d 2>/dev/null | while read dir; do         relDir=$(echo "$dir" | sed 's|/mnt/installer/||');         mkdir -p "/app/$(dirname $relDir)" &&         cd /mnt/installer && tar cf - "$relDir" | tar xf - -C /app --owner=root --group=root;     done
+#58 CACHED
+
+#59 [lb-dev] exporting to image
+#59 exporting layers done
+#59 exporting manifest sha256:f72247ca0e2fbb5937b9272216562cecc02028c11add2a05166300074df4401c done
+#59 exporting config sha256:51661a85416efda6b202c72af7f486698116a708ae3387d184f72d99cabc67ff done
+#59 exporting attestation manifest sha256:22df8f6b96e356792ae41b3fbccc69462bf0bc7bda76af1605066e2c4b270f75 0.0s done
+#59 exporting manifest list sha256:7d17540ea08cee78a39725642a73108d1fbbe67954b0f510c4345f3fbc0a9c1f done
+#59 naming to docker.io/library/compose-lb-dev:latest done
+#59 unpacking to docker.io/library/compose-lb-dev:latest 0.0s done
+#59 naming to docker.io/library/compose-lb-dev:dev done
+#59 unpacking to docker.io/library/compose-lb-dev:dev done
+#59 DONE 0.1s
+
+#60 [doc-dev] resolving provenance for metadata file
+#60 DONE 0.1s
+
+#61 [api-dev installer 3/5] COPY --from=pruner /app/out/json/ .
+#61 CACHED
+
+#62 [api-dev installer 4/5] COPY --from=pruner /app/bun.lock ./bun.lock
+#62 CACHED
+
+#53 [api-dev installer 1/5] RUN apk add --no-cache libc6-compat
+#53 CACHED
+
+#57 [api-dev installer 2/5] WORKDIR /app
+#57 CACHED
+
+#63 [api-dev installer 5/5] RUN --mount=type=cache,target=/root/.bun     --mount=type=cache,target=/root/.cache     bun install --frozen-lockfile || bun install
+#63 CACHED
+
+#56 [api-dev runner 2/4] RUN ln -sf $(which bun) /usr/local/bin/npm
+#56 CACHED
+
+#64 [web-dev runner 7/7] RUN --mount=type=cache,target=/root/.bun     echo "🔨 Building web dependencies (including declarative-routing)..." &&     bun x turbo run build --filter=web... --filter=!web &&     echo "✅ Build complete. Checking declarative-routing binary..." &&     ls -la packages/bin/declarative-routing/dist/ || echo "⚠️  declarative-routing dist/ not found!" &&     echo "📦 Verifying local declarative-routing binary..." &&     cd apps/web && bun /app/packages/bin/declarative-routing/dist/index.js --version || echo "⚠️  declarative-routing binary not executable!" &&     echo "🛣️  Generating declarative routes for web app (using LOCAL forked package)..." &&     bun /app/packages/bin/declarative-routing/dist/index.js build &&     echo "✅ Routes generated. Verifying routes/index.ts exists..." &&     ls -la src/routes/index.ts && cd /app || (echo "⚠️  routes/index.ts not found!" && cd /app)
+#64 CACHED
+
+#65 [web-dev] exporting to image
+#65 exporting layers 0.0s done
+#65 exporting manifest sha256:478f29078d03512a044bce2d5ffe335604a385679c88d6320fa5effc9bfd5d6a done
+#65 exporting config sha256:18b79e8c011ccd9c9470adda32253b1eaaad572cb3c028a799db3d2e21d39ae3 done
+#65 exporting attestation manifest sha256:f1f6568bc6c25528ac686eb18d80e73320276999e231933763c083d3bac0b97f 0.0s done
+#65 exporting manifest list sha256:32354adf5fd873326dc556bdd0c9944ccb64ca0fc063f45f93e61e8ac158afff
+#65 exporting manifest list sha256:32354adf5fd873326dc556bdd0c9944ccb64ca0fc063f45f93e61e8ac158afff done
+#65 naming to docker.io/library/compose-web-dev:latest
+#65 naming to docker.io/library/compose-web-dev:latest done
+#65 unpacking to docker.io/library/compose-web-dev:latest 0.2s done
+#65 naming to docker.io/library/compose-web-dev:dev done
+#65 unpacking to docker.io/library/compose-web-dev:dev done
+#65 DONE 0.3s
+
+#66 [lb-dev] resolving provenance for metadata file
+#66 DONE 0.0s
+
+#67 [api-dev runner 3/6] COPY --from=source-copier /app/ .
+#67 DONE 0.4s
+
+#68 [web-dev] resolving provenance for metadata file
+#68 DONE 0.0s
+
+#69 [api-dev-2 runner 4/6] RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer     cd /mnt/installer && tar cf - node_modules | tar xf - -C /app --owner=root --group=root &&     find /mnt/installer/apps -name node_modules -type d 2>/dev/null | while read dir; do         relDir=$(echo "$dir" | sed 's|/mnt/installer/||');         mkdir -p "/app/$(dirname $relDir)" &&         cd /mnt/installer && tar cf - "$relDir" | tar xf - -C /app --owner=root --group=root;     done &&     find /mnt/installer/packages -name node_modules -type d 2>/dev/null | while read dir; do         relDir=$(echo "$dir" | sed 's|/mnt/installer/||');         mkdir -p "/app/$(dirname $relDir)" &&         cd /mnt/installer && tar cf - "$relDir" | tar xf - -C /app --owner=root --group=root;     done
+#69 DONE 15.5s
+
+#70 [api-dev-2 runner 5/6] COPY --parents --chmod=a+w .turbo/ **/.turbo/ ./
+#70 DONE 9.3s
+
+#71 [api-dev-2 runner 6/6] RUN --mount=type=cache,target=/root/.bun     bun x turbo run build --filter=api... --filter=!api
+#71 0.533 
+#71 0.533 Attention:
+#71 0.533 Turborepo now collects completely anonymous telemetry regarding usage.
+#71 0.533 This information is used to shape the Turborepo roadmap and prioritize features.
+#71 0.533 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+#71 0.533 https://turborepo.dev/docs/telemetry
+#71 0.533 
+#71 0.533 • turbo 2.8.9
+#71 0.956 • Packages in scope: @repo/api-contracts, @repo/auth, @repo/config-eslint, @repo/config-prettier, @repo/config-typescript, @repo/config-vitest, @repo/env, @repo/logger, @repo/orpc-utils, @repo/provider-schema
+#71 0.956 • Running build in 10 packages
+#71 0.956 • Remote caching disabled
+#71 1.028 @repo/config-vitest:build: cache miss, executing 729cb6e4b9865625
+#71 1.034 @repo/config-vitest:build: $ tsc
+#71 3.594 @repo/config-prettier:build: cache miss, executing 5ecc9a4b363fc4a9
+#71 3.611 @repo/config-prettier:build: $ bun scripts/build.ts
+#71 3.699 @repo/config-prettier:build: Building 2 files from /app/packages/configs/prettier/src...
+#71 3.700 @repo/config-prettier:build: 🎬 Building ESM format to /app/packages/configs/prettier/dist/esm...
+#71 3.701 @repo/config-prettier:build: 🎬 Building CJS format to /app/packages/configs/prettier/dist/cjs...
+#71 3.712 @repo/config-prettier:build: ✅ ESM build successful
+#71 3.712 @repo/config-prettier:build: ✅ CJS build successful
+#71 3.712 @repo/config-prettier:build: ✅ Successfully built 2 files to dist/esm and dist/cjs
+#71 3.737 @repo/api-contracts:build: cache miss, executing a94da0549314c5cf
+#71 3.743 @repo/api-contracts:build: $ bun scripts/build.ts
+#71 3.787 @repo/api-contracts:build: Building ORPC API contracts...
+#71 3.858 @repo/api-contracts:build: ✓ API contracts built successfully
+#71 3.858 @repo/api-contracts:build:   Output directory: /app/packages/contracts/api/dist
+#71 3.878 
+#71 3.878  Tasks:    3 successful, 3 total
+#71 3.878 Cached:    0 cached, 3 total
+#71 3.878   Time:    3.328s 
+#71 3.878 
+#71 DONE 4.2s
+
+#72 [api-dev] exporting to image
+#72 exporting layers
+#72 ...
+
+#73 [api-dev-2] exporting to image
+#73 exporting layers 70.9s done
+#73 exporting manifest sha256:31d4f8d4c4ab1b4faf831ac7a72d2c338a3cce40e9af642ddec4e80ddf5933c6 0.0s done
+#73 exporting config sha256:6f1ce5573bb312b53eb86ee53b201d382fb92f7d9436df25ecc58dbf6df80e6f 0.0s done
+#73 exporting attestation manifest sha256:e4f24d38abf63fd5b8a13147cc9825cc405f83ce0f718c21e36c804d568d2b4e 0.0s done
+#73 exporting manifest list sha256:f2908c67634f54cc125c5e2853bacdea8e2fdcf93cb9e81549dc7bcc7347064d 0.0s done
+#73 naming to docker.io/library/compose-api-dev-2:latest
+#73 ...
+
+#72 [api-dev] exporting to image
+#72 exporting layers 70.9s done
+#72 exporting manifest sha256:087cb455c47cd222a2c883c9225df28a0e5e0e2f3f85e72196bcf18854884c6d 0.0s done
+#72 exporting config sha256:a506f30ffadc20d9cad7309ac745fde04e16e553c67e433b746d51ae9c7c247f 0.0s done
+#72 exporting attestation manifest sha256:b582c0b87c37f43faf6a67bd082c459af73f586c3d478d042deaf4cbe8b7be40
+#72 exporting attestation manifest sha256:b582c0b87c37f43faf6a67bd082c459af73f586c3d478d042deaf4cbe8b7be40 0.0s done
+#72 exporting manifest list sha256:645f5fe256a6d793c9e77af342da97904ee2a50df10c00f0b61313eceb029f05 0.0s done
+#72 naming to docker.io/library/compose-api-dev:latest done
+#72 unpacking to docker.io/library/compose-api-dev:latest
+#72 ...
+
+#73 [api-dev-2] exporting to image
+#73 naming to docker.io/library/compose-api-dev-2:latest done
+#73 unpacking to docker.io/library/compose-api-dev-2:latest
+#73 ...
+
+#72 [api-dev] exporting to image
+#72 unpacking to docker.io/library/compose-api-dev:latest 51.1s done
+#72 naming to docker.io/library/compose-api-dev:dev done
+#72 unpacking to docker.io/library/compose-api-dev:dev 0.1s done
+#72 DONE 122.8s
+
+#73 [api-dev-2] exporting to image
+#73 unpacking to docker.io/library/compose-api-dev-2:latest 51.1s done
+#73 naming to docker.io/library/compose-api-dev-2:dev 0.0s done
+#73 unpacking to docker.io/library/compose-api-dev-2:dev 0.1s done
+#73 DONE 122.8s
+
+#74 [api-dev-2] resolving provenance for metadata file
+#74 DONE 0.4s
+
+#75 [api-dev] resolving provenance for metadata file
+#75 DONE 0.4s
+ Image compose-api-dev-2 Built 
+ Image compose-doc-dev Built 
+ Image compose-api-dev Built 
+ Image compose-web-dev Built 
+ Image compose-lb-dev Built 
+ Container compose-api-db-dev Running 
+ Container compose-doc-dev Recreate 
+ Container compose-lb-dev Recreate 
+ Container compose-lb-dev Error response from daemon: Conflict. The container name "/6a5c04b64a12_compose-lb-dev" is already in use by container "65bcaa046a2e0b569b0f30d7e840674c8cb9dd01ed7155057904dd18a153a2cd". You have to remove (or rename) that container to be able to reuse that name. 
+ Container compose-doc-dev Error response from daemon: Conflict. The container name "/1bc684116a07_compose-doc-dev" is already in use by container "84e4551bf2a9945ca42421b6a6b0188925c258f227746da348e8602f1d088ff8". You have to remove (or rename) that container to be able to reuse that name. 
+Error response from daemon: Conflict. The container name "/6a5c04b64a12_compose-lb-dev" is already in use by container "65bcaa046a2e0b569b0f30d7e840674c8cb9dd01ed7155057904dd18a153a2cd". You have to remove (or rename) that container to be able to reuse that name.
+error: script "dev" exited with code 1

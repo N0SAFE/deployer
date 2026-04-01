@@ -33,3 +33,58 @@ Testing and checks:
 
 - Use shared UI from `@repo/ui` where possible.
 - Client API access should use generated ORPC hooks.
+
+## UI Information Presentation Rule (Top info cards are disallowed)
+
+> **Added**: 2026-03-30  
+> **Type**: Pattern  
+> **Confidence**: Verified ✅  
+> **Scope**: `apps/web`
+
+### Summary
+
+Do **not** use a top-of-screen KPI/info-card strip (4-up stat cards directly below the page title) as the default information pattern.
+
+### Context
+
+In dense dashboard screens, top metric card strips push actionable controls below the fold and duplicate information that is better understood in-context near the relevant section/table.
+
+### Details / Implementation
+
+Use this preferred structure instead:
+
+1. **Context-first header**
+  - Title + one concise subtitle + current status sentence.
+  - Keep primary actions visible (top-right) and mirrored in sticky footer actions when forms are long.
+
+2. **Section-first information placement**
+  - Put metrics next to the section they affect (services stats in services section, dependency stats in dependencies section).
+  - Prefer compact inline indicators (`Badge`, muted text rows, compact key/value lines) over decorative standalone cards.
+
+3. **Action-oriented summary blocks (not decorative cards)**
+  - Use lightweight callouts/toolbars near interactive controls (bulk actions, filters, policy scope selectors).
+  - Keep summary text concise and decision-oriented.
+
+4. **Responsive behavior**
+  - Prioritize controls and context in first viewport.
+  - Avoid large summary grids that consume vertical space before interaction areas.
+
+### Anti-pattern (forbidden)
+
+- A full-width top grid of metric cards immediately below the page title used as the main information display pattern.
+
+### Affected Files / Locations
+
+- `v3/apps/web/src/app/dashboard/projects/[projectId]/configuration/page.tsx` — should avoid relying on top summary card strip as primary information architecture.
+- `v3/apps/web/src/app/dashboard/projects/[projectId]/configuration/environments/[environmentId]/page.tsx` — same rule applies for environment editor screens.
+
+### Evidence
+
+- `v3/apps/web/src/app/dashboard/projects/[projectId]/configuration/page.tsx#L518-L565`
+- `v3/apps/web/src/app/dashboard/projects/[projectId]/configuration/environments/[environmentId]/page.tsx#L624-L672`
+- `v3/docs/qa/web-rebuild/feature-mapping-v1-v2-to-v3.md#L25` (showcase/demo surfaces removed in v3; current config UI is the practical reference surface)
+
+### Known Limitations / Caveats
+
+- Small inline metric chips are allowed when they directly support nearby decisions.
+- Temporary exception allowed only for true executive overview pages explicitly requested by product/user.

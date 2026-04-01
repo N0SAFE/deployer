@@ -1,4 +1,4 @@
-import type { DeploymentObservabilityContext } from "@repo/api-contracts/common/deployment";
+import type { DeploymentObservabilityContext } from "@repo/contracts-entities";
 import type { DeploymentStorageBinding } from "../storage/base/storage-provider.interface";
 
 export interface BuildArtifactResult {
@@ -17,6 +17,7 @@ export interface HealthGateConfig {
 export interface RuntimeExecutorOptions {
     labels?: Record<string, string>;
     startupCommand?: string;
+    environmentVariables?: Record<string, string>;
 }
 
 export interface RuntimeConvergenceConfig {

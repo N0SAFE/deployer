@@ -5,7 +5,7 @@ import {
     templateSetValidationResultSchema,
     templateValidationInputSchema,
     templateValidationResultSchema,
-} from "@repo/api-contracts/common/template";
+} from "@repo/contracts-entities";
 
 export const templateValidateStructuralContract = route({
     method: "POST",

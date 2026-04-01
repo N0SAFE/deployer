@@ -8,4 +8,4 @@ export const authClient = createAuthClientFactory({
     fetchOptions: {
         credentials: 'include',
     },
-} satisfies BetterAuthClientOptions)
+} satisfies BetterAuthClientOptions) as ReturnType<typeof createAuthClientFactory>

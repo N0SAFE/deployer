@@ -4,7 +4,7 @@ import {
     deploymentCompileRollbackEdgesResultSchema,
     deploymentPlanCompileInputSchema,
     deploymentPlanCompileResultSchema,
-} from "@repo/api-contracts/common/deployment";
+} from "@repo/contracts-entities";
 
 export const deploymentCompilePlanContract = route({
     method: "POST",

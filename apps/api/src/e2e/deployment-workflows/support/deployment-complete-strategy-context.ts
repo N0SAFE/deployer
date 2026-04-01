@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { SharedApiRuntimeContext } from "@/e2e/utils/shared-api-runtime";
-import { DatabaseService } from "@/core/modules/database/services/database.service";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { ProjectService } from "@/modules/project/services/project.service";
 import { ServiceService } from "@/modules/service/services/service.service";
 import { DeploymentService } from "@/modules/deployment/services/deployment.service";
 import { TraefikService } from "@/core/modules/traefik/services/traefik.service";
-import { user } from "@/config/drizzle/schema/auth";
+import { user } from "@/config/drizzle/global/schema/auth";
 
 export interface DeploymentCompleteStrategyContext {
   ownerId: string;
@@ -16,7 +16,7 @@ export interface DeploymentCompleteStrategyContext {
   traefikService: TraefikService;
 }
 
-async function seedTestOwner(databaseService: DatabaseService): Promise<string> {
+async function seedTestOwner(databaseService: GlobalDatabaseService): Promise<string> {
   const ownerId = `e2e-owner-${randomUUID()}`;
   const now = new Date();
 
@@ -36,7 +36,7 @@ async function seedTestOwner(databaseService: DatabaseService): Promise<string> 
 export async function createDeploymentCompleteStrategyContext(
   context: SharedApiRuntimeContext,
 ): Promise<DeploymentCompleteStrategyContext> {
-  const databaseService = context.serviceMapper.get(DatabaseService);
+  const databaseService = context.serviceMapper.get(GlobalDatabaseService);
   const ownerId = await seedTestOwner(databaseService);
 
   return {

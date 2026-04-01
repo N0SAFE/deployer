@@ -1,537 +1,454 @@
 'use client'
 
-import Link from 'next/link'
+import { useMemo, useState } from 'react'
 import { useMeshSseState } from '@/domains/mesh/sse'
-import { useOrganizations } from '@/domains/organization/hooks'
-import { useEffect, useMemo, useState } from 'react'
+import { FleetLatencyMap, type FleetMapLink, type FleetMapNode } from './_components/fleet-latency-map'
+import { Badge } from '@repo/ui/components/shadcn/badge'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
 } from '@repo/ui/components/shadcn/card'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@repo/ui/components/shadcn/table'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Separator } from '@repo/ui/components/shadcn/separator'
-import { Building2, Cpu, ExternalLink, MemoryStick, Network, Server, Shield, Trash2 } from 'lucide-react'
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from '@repo/ui/components/shadcn/dialog'
+import { Activity, Network, Timer, TriangleAlert } from 'lucide-react'
 
-type QuotaRecord = {
-  organizationId: string
-  organizationName: string
-  serverKey: string
-  serverLabel: string
-  cpuMillicores: number
-  ramMb: number
-  updatedAt: string
+const MAP_ANCHOR: [number, number] = [48.8566, 2.3522]
+
+function hashNodeId(nodeId: string): number {
+	let hash = 0
+	for (let index = 0; index < nodeId.length; index += 1) {
+		hash = ((hash << 5) - hash + nodeId.charCodeAt(index)) | 0
+	}
+	return Math.abs(hash)
 }
 
-const QUOTA_STORAGE_KEY = 'superadmin:organization-server-quotas:v1'
-
-function deriveServerLabel(endpointUrl: string, peerNodeId: string | null): string {
-  try {
-    const parsed = new URL(endpointUrl)
-    const nodeSuffix = peerNodeId ? ` (${peerNodeId.slice(0, 8)})` : ''
-    return `${parsed.origin}${nodeSuffix}`
-  } catch {
-    return peerNodeId ? `${endpointUrl} (${peerNodeId.slice(0, 8)})` : endpointUrl
-  }
+function deriveNodeCoordinates(nodeId: string): [number, number] {
+	const hash = hashNodeId(nodeId)
+	const radius = 1 + (hash % 2400) / 1000
+	const angle = ((hash % 360) * Math.PI) / 180
+	return [MAP_ANCHOR[0] + Math.sin(angle) * radius, MAP_ANCHOR[1] + Math.cos(angle) * radius]
 }
 
-function toServerKey(endpointUrl: string): string {
-  try {
-    return new URL(endpointUrl).origin
-  } catch {
-    return endpointUrl
-  }
+function averageCenter(nodes: FleetMapNode[]): [number, number] {
+	if (nodes.length === 0) {
+		return MAP_ANCHOR
+	}
+
+	const totals = nodes.reduce(
+		(accumulator, node) => {
+			accumulator.latitude += node.coordinates[0]
+			accumulator.longitude += node.coordinates[1]
+			return accumulator
+		},
+		{ latitude: 0, longitude: 0 },
+	)
+
+	return [totals.latitude / nodes.length, totals.longitude / nodes.length]
 }
 
 export default function AdminServersPage() {
-  const { state: meshEvent, status, lastError } = useMeshSseState()
-  const { data: organizations, isLoading: organizationsLoading } = useOrganizations()
+	const { state: meshEvent, status, lastError } = useMeshSseState()
 
-  const localNode = meshEvent?.localNode
-  const sessions = meshEvent?.sessions ?? []
-  const snapshot = meshEvent?.snapshot
-  const peers = meshEvent?.peers ?? []
+	const localNode = meshEvent?.localNode
+	const sessions = useMemo(() => meshEvent?.sessions ?? [], [meshEvent?.sessions])
+	const snapshot = meshEvent?.snapshot
+	const peers = useMemo(() => meshEvent?.peers ?? [], [meshEvent?.peers])
 
-  const [selectedOrganizationId, setSelectedOrganizationId] = useState('')
-  const [selectedServerKey, setSelectedServerKey] = useState('')
-  const [cpuMillicores, setCpuMillicores] = useState('500')
-  const [ramMb, setRamMb] = useState('512')
-  const [quotas, setQuotas] = useState<QuotaRecord[]>([])
+	const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+	const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null)
+	const [selectionMode, setSelectionMode] = useState<'node' | 'link'>('node')
+	const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false)
 
-  const serverOptions = useMemo(() => {
-    const map = new Map<string, { key: string; label: string; sessionState: string }>()
+	const nodes = useMemo<FleetMapNode[]>(() => {
+		const nodeMap = new Map<string, FleetMapNode>()
 
-    for (const session of sessions) {
-      const key = toServerKey(session.endpointUrl)
-      map.set(key, {
-        key,
-        label: deriveServerLabel(session.endpointUrl, session.peerNodeId),
-        sessionState: session.state,
-      })
-    }
+		if (localNode) {
+			nodeMap.set(localNode.nodeId, {
+				nodeId: localNode.nodeId,
+				label: `Local ${localNode.nodeId.slice(0, 8)}`,
+				role: localNode.roles[0] ?? 'edge',
+				lifecycleState: localNode.lifecycleState,
+				sessionState: 'connected',
+				isLocal: true,
+				coordinates: deriveNodeCoordinates(localNode.nodeId),
+			})
+		}
 
-    if (localNode) {
-      map.set(localNode.nodeId, {
-        key: localNode.nodeId,
-        label: `Local instance (${localNode.nodeId.slice(0, 8)})`,
-        sessionState: 'connected',
-      })
-    }
+		for (const node of snapshot?.nodes ?? []) {
+			nodeMap.set(node.nodeId, {
+				nodeId: node.nodeId,
+				label: `Peer ${node.nodeId.slice(0, 8)}`,
+				role: node.roles[0] ?? 'relay',
+				lifecycleState: node.lifecycleState,
+				sessionState: 'connected',
+				isLocal: false,
+				coordinates: deriveNodeCoordinates(node.nodeId),
+			})
+		}
 
-    return Array.from(map.values())
-  }, [localNode, sessions])
+		for (const session of sessions) {
+			const peerNodeId = session.peerNodeId ?? `session:${session.sessionId}`
+			if (nodeMap.has(peerNodeId)) {
+				continue
+			}
 
-  useEffect(() => {
-    const stored = globalThis.localStorage?.getItem(QUOTA_STORAGE_KEY)
-    if (!stored) {
-      return
-    }
+			nodeMap.set(peerNodeId, {
+				nodeId: peerNodeId,
+				label: session.peerNodeId ? `Peer ${session.peerNodeId.slice(0, 8)}` : `Session ${session.sessionId.slice(0, 8)}`,
+				role: 'peer',
+				lifecycleState: session.state === 'connected' ? 'healthy' : 'suspect',
+				sessionState: session.state,
+				isLocal: false,
+				coordinates: deriveNodeCoordinates(peerNodeId),
+			})
+		}
 
-    try {
-      const parsed = JSON.parse(stored) as QuotaRecord[]
-      if (Array.isArray(parsed)) {
-        setQuotas(parsed)
-      }
-    } catch {
-      // ignore corrupted local storage payload
-    }
-  }, [])
+		return Array.from(nodeMap.values())
+	}, [localNode, sessions, snapshot?.nodes])
 
-  useEffect(() => {
-    globalThis.localStorage?.setItem(QUOTA_STORAGE_KEY, JSON.stringify(quotas))
-  }, [quotas])
+	const links = useMemo<FleetMapLink[]>(() => {
+		const meshLinks: FleetMapLink[] = peers.map((peer) => ({
+			id: peer.connectionId,
+			sourceNodeId: peer.sourceNodeId,
+			targetNodeId: peer.targetNodeId,
+			latencyMs: peer.metrics.latencyMs,
+			jitterMs: peer.metrics.jitterMs,
+			packetLossRatio: peer.metrics.packetLossRatio,
+			reliabilityScore: peer.metrics.reliabilityScore,
+			throughputMbps: peer.metrics.throughputMbps,
+			state: peer.state,
+		}))
 
-  useEffect(() => {
-    const firstOrganization = organizations?.[0]
-    if (!selectedOrganizationId && firstOrganization) {
-      setSelectedOrganizationId(firstOrganization.id)
-    }
-  }, [organizations, selectedOrganizationId])
+		if (meshLinks.length > 0 || !localNode) {
+			return meshLinks
+		}
 
-  useEffect(() => {
-    const firstServer = serverOptions[0]
-    if (!selectedServerKey && firstServer) {
-      setSelectedServerKey(firstServer.key)
-    }
-  }, [selectedServerKey, serverOptions])
+		return sessions.map((session) => ({
+			id: `session:${session.sessionId}`,
+			sourceNodeId: localNode.nodeId,
+			targetNodeId: session.peerNodeId ?? `session:${session.sessionId}`,
+			latencyMs: 60,
+			jitterMs: 14,
+			packetLossRatio: 0.01,
+			reliabilityScore: 0.92,
+			throughputMbps: 180,
+			state: session.state,
+		}))
+	}, [localNode, peers, sessions])
 
-  const metricsByTargetNode = useMemo(() => {
-    const map = new Map<string, { latencyMs: number; jitterMs: number; packetLossRatio: number; reliabilityScore: number }>()
+	const mapCenter = useMemo(() => averageCenter(nodes), [nodes])
 
-    for (const peer of peers) {
-      map.set(peer.targetNodeId, {
-        latencyMs: peer.metrics.latencyMs,
-        jitterMs: peer.metrics.jitterMs,
-        packetLossRatio: peer.metrics.packetLossRatio,
-        reliabilityScore: peer.metrics.reliabilityScore,
-      })
-    }
+	const effectiveSelectedNodeId = selectedNodeId ?? nodes[0]?.nodeId ?? null
+	const effectiveSelectedLinkId = selectedLinkId ?? links[0]?.id ?? null
 
-    return map
-  }, [peers])
+	const selectedNode = useMemo(
+		() => nodes.find((node) => node.nodeId === effectiveSelectedNodeId) ?? null,
+		[effectiveSelectedNodeId, nodes],
+	)
 
-  const orgVisibilityRows = useMemo(() => {
-    const grouped = new Map<string, QuotaRecord[]>()
+	const selectedLink = useMemo(
+		() => links.find((link) => link.id === effectiveSelectedLinkId) ?? null,
+		[effectiveSelectedLinkId, links],
+	)
 
-    for (const quota of quotas) {
-      const existing = grouped.get(quota.organizationId) ?? []
-      existing.push(quota)
-      grouped.set(quota.organizationId, existing)
-    }
+	const selectedNodeLinks = useMemo(
+		() =>
+			selectedNode
+				? links.filter(
+						(link) => link.sourceNodeId === selectedNode.nodeId || link.targetNodeId === selectedNode.nodeId,
+					)
+				: [],
+		[links, selectedNode],
+	)
 
-    return Array.from(grouped.entries()).map(([organizationId, records]) => ({
-      organizationId,
-      organizationName: records[0]?.organizationName ?? organizationId,
-      records,
-    }))
-  }, [quotas])
+	const avgLatency = useMemo(() => {
+		if (links.length === 0) return 0
+		return Math.round(links.reduce((sum, item) => sum + item.latencyMs, 0) / links.length)
+	}, [links])
 
-  const handleSaveQuota = () => {
-    if (!selectedOrganizationId || !selectedServerKey || !organizations) {
-      return
-    }
+	const healthStats = useMemo(() => {
+		if (links.length === 0) {
+			return {
+				avgJitter: 0,
+				avgLossPct: 0,
+				avgReliabilityPct: 0,
+				p95Latency: 0,
+				highLatencyCount: 0,
+				highLossCount: 0,
+			}
+		}
 
-    const organization = organizations.find((org) => org.id === selectedOrganizationId)
-    const server = serverOptions.find((entry) => entry.key === selectedServerKey)
+		const latencyValues = links.map((link) => link.latencyMs).sort((a, b) => a - b)
+		const p95Index = Math.min(latencyValues.length - 1, Math.floor(latencyValues.length * 0.95))
+		const avgJitter = links.reduce((sum, link) => sum + link.jitterMs, 0) / links.length
+		const avgLossRatio = links.reduce((sum, link) => sum + link.packetLossRatio, 0) / links.length
+		const avgReliabilityRatio = links.reduce((sum, link) => sum + link.reliabilityScore, 0) / links.length
 
-    if (!organization || !server) {
-      return
-    }
+		return {
+			avgJitter: Math.round(avgJitter),
+			avgLossPct: Number((avgLossRatio * 100).toFixed(2)),
+			avgReliabilityPct: Number((avgReliabilityRatio * 100).toFixed(1)),
+			p95Latency: latencyValues[p95Index] ?? 0,
+			highLatencyCount: links.filter((link) => link.latencyMs >= 90).length,
+			highLossCount: links.filter((link) => link.packetLossRatio >= 0.02).length,
+		}
+	}, [links])
 
-    const parsedCpu = Number(cpuMillicores)
-    const parsedRam = Number(ramMb)
+	const hotLinks = useMemo(
+		() =>
+			[...links]
+				.sort((a, b) => {
+					const scoreA = a.latencyMs + a.jitterMs + a.packetLossRatio * 1000
+					const scoreB = b.latencyMs + b.jitterMs + b.packetLossRatio * 1000
+					return scoreB - scoreA
+				})
+				.slice(0, 4),
+		[links],
+	)
 
-    if (!Number.isFinite(parsedCpu) || parsedCpu <= 0 || !Number.isFinite(parsedRam) || parsedRam <= 0) {
-      return
-    }
+	const surfaceCardClass =
+		'border-slate-200/80 bg-white/85 shadow-sm backdrop-blur supports-backdrop-filter:bg-white/70 dark:border-slate-800 dark:bg-slate-950/45'
 
-    setQuotas((previous) => {
-      const withoutExisting = previous.filter(
-        (entry) => !(entry.organizationId === organization.id && entry.serverKey === server.key),
-      )
+	return (
+		<div className="container mx-auto max-w-350 space-y-6 py-8">
+			<div className="rounded-xl border border-slate-200/70 bg-linear-to-b from-white to-slate-50/70 p-5 shadow-sm dark:border-slate-800 dark:from-slate-950 dark:to-slate-900/50">
+				<h1 className="text-3xl font-bold tracking-tight">Servers & Fleet Map</h1>
+				<p className="mt-1 text-muted-foreground">
+					Real-time mesh topology with latency paths and live node/link telemetry.
+				</p>
+				<div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+					<Badge variant="secondary">{nodes.length} nodes</Badge>
+					<Badge variant="secondary">{links.length} links</Badge>
+					<Badge variant="outline">avg latency {avgLatency}ms</Badge>
+					<Badge variant={status === 'connected' ? 'default' : status === 'error' ? 'destructive' : 'secondary'}>
+						stream {status}
+					</Badge>
+				</div>
+			</div>
 
-      const next: QuotaRecord = {
-        organizationId: organization.id,
-        organizationName: organization.name,
-        serverKey: server.key,
-        serverLabel: server.label,
-        cpuMillicores: parsedCpu,
-        ramMb: parsedRam,
-        updatedAt: new Date().toISOString(),
-      }
+			{lastError ? (
+				<Card className={surfaceCardClass}>
+					<CardHeader>
+						<CardTitle className="text-destructive">Mesh stream error</CardTitle>
+						<CardDescription>{lastError}</CardDescription>
+					</CardHeader>
+				</Card>
+			) : null}
 
-      return [next, ...withoutExisting]
-    })
-  }
+			<div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+				<Card className={`${surfaceCardClass} min-h-[70vh] xl:min-h-[74vh] flex flex-col`}>
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2"><Network className="h-5 w-5" /> Fleet latency map</CardTitle>
+						<CardDescription>Click a node or link to inspect live details.</CardDescription>
+					</CardHeader>
+					<CardContent className="min-h-0 flex-1">
+						<FleetLatencyMap
+							nodes={nodes}
+							links={links}
+							center={mapCenter}
+							selectedNodeId={effectiveSelectedNodeId}
+							selectedLinkId={effectiveSelectedLinkId}
+							onNodeSelect={(nodeId) => {
+								setSelectedNodeId(nodeId)
+								setSelectionMode('node')
+								setIsSelectionModalOpen(true)
+							}}
+							onLinkSelect={(linkId) => {
+								setSelectedLinkId(linkId)
+								setSelectionMode('link')
+								setIsSelectionModalOpen(true)
+							}}
+						/>
+					</CardContent>
+				</Card>
 
-  const handleDeleteQuota = (organizationId: string, serverKey: string) => {
-    setQuotas((previous) => previous.filter((entry) => !(entry.organizationId === organizationId && entry.serverKey === serverKey)))
-  }
+				<div className="space-y-6">
+					<Card className={surfaceCardClass}>
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" /> Live status</CardTitle>
+						</CardHeader>
+						<CardContent className="space-y-3 text-sm">
+							<div className="flex items-center justify-between rounded-md border border-slate-200/80 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+								<span className="text-muted-foreground">Stream</span>
+								<Badge variant={status === 'connected' ? 'default' : status === 'error' ? 'destructive' : 'secondary'}>{status}</Badge>
+							</div>
+							<div className="flex items-center justify-between rounded-md border border-slate-200/80 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+								<span className="text-muted-foreground">Membership version</span>
+								<span className="font-semibold">v{meshEvent?.snapshot.version ?? 0}</span>
+							</div>
+							<div className="flex items-center justify-between rounded-md border border-slate-200/80 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+								<span className="text-muted-foreground">Sessions</span>
+								<span className="font-semibold">{sessions.length}</span>
+							</div>
+						</CardContent>
+					</Card>
 
-  return (
-    <div className="container mx-auto py-8 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Super Admin Fleet Manager</h1>
-        <p className="text-muted-foreground">
-          Connect servers, assign organization CPU/RAM quotas per server, and expose allowed capacity clearly.
-        </p>
-      </div>
+					<Card className={surfaceCardClass}>
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2"><Timer className="h-5 w-5" /> Global latency & reliability</CardTitle>
+							<CardDescription>Aggregated health indicators across all active links.</CardDescription>
+						</CardHeader>
+						<CardContent className="text-sm">
+							<div className="grid grid-cols-2 gap-3">
+								<div className="rounded-md border border-slate-200/80 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+									<p className="text-xs text-muted-foreground">Avg jitter</p>
+									<p className="text-lg font-semibold">{healthStats.avgJitter}ms</p>
+								</div>
+								<div className="rounded-md border border-slate-200/80 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+									<p className="text-xs text-muted-foreground">P95 latency</p>
+									<p className="text-lg font-semibold">{healthStats.p95Latency}ms</p>
+								</div>
+								<div className="rounded-md border border-slate-200/80 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+									<p className="text-xs text-muted-foreground">Avg loss</p>
+									<p className="text-lg font-semibold">{healthStats.avgLossPct}%</p>
+								</div>
+								<div className="rounded-md border border-slate-200/80 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+									<p className="text-xs text-muted-foreground">Avg reliability</p>
+									<p className="text-lg font-semibold">{healthStats.avgReliabilityPct}%</p>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Server className="h-4 w-4" /> Local Server
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground font-mono break-all">{localNode?.nodeId ?? 'n/a'}</p>
-          </CardContent>
-        </Card>
+					<Card className={surfaceCardClass}>
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2"><TriangleAlert className="h-5 w-5" /> Hot links to inspect</CardTitle>
+							<CardDescription>Highest-risk links ranked by latency, jitter and packet loss.</CardDescription>
+						</CardHeader>
+						<CardContent className="text-sm">
+							{hotLinks.length === 0 ? (
+								<p className="text-muted-foreground">No active links yet.</p>
+							) : (
+								<div className="space-y-2">
+									<div className="flex gap-2 text-xs">
+										<Badge variant={healthStats.highLatencyCount > 0 ? 'destructive' : 'outline'}>
+											{healthStats.highLatencyCount} high-latency
+										</Badge>
+										<Badge variant={healthStats.highLossCount > 0 ? 'destructive' : 'outline'}>
+											{healthStats.highLossCount} high-loss
+										</Badge>
+									</div>
+									{hotLinks.map((link) => (
+										<button
+											key={link.id}
+											type="button"
+											onClick={() => {
+												setSelectedLinkId(link.id)
+												setSelectionMode('link')
+												setIsSelectionModalOpen(true)
+											}}
+											className="flex w-full items-center justify-between rounded-md border border-slate-200/80 bg-white/70 px-2.5 py-2 text-left transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/70 dark:hover:bg-slate-800"
+										>
+											<div className="space-y-0.5">
+												<p className="font-mono text-[11px]">{link.sourceNodeId.slice(0, 8)} → {link.targetNodeId.slice(0, 8)}</p>
+												<p className="text-[11px] text-muted-foreground">jitter {link.jitterMs}ms · loss {(link.packetLossRatio * 100).toFixed(2)}%</p>
+											</div>
+											<span className="text-xs font-semibold text-amber-600 dark:text-amber-300">{link.latencyMs}ms</span>
+										</button>
+									))}
+								</div>
+							)}
+						</CardContent>
+					</Card>
+				</div>
+			</div>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Network className="h-4 w-4" /> Connected Servers
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{serverOptions.length}</p>
-          </CardContent>
-        </Card>
+			<Dialog open={isSelectionModalOpen} onOpenChange={setIsSelectionModalOpen}>
+				<DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+					<DialogHeader>
+						<DialogTitle>
+							{selectionMode === 'node' ? 'Server details' : 'Connection details'}
+						</DialogTitle>
+						<DialogDescription>
+							{selectionMode === 'node'
+								? 'Inspect node state and all connected links.'
+								: 'Inspect latency, reliability, and transfer telemetry for this link.'}
+						</DialogDescription>
+					</DialogHeader>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Shield className="h-4 w-4" /> Mesh Stream
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Badge variant={status === 'connected' ? 'default' : status === 'error' ? 'destructive' : 'secondary'}>
-              {status}
-            </Badge>
-          </CardContent>
-        </Card>
+					{selectionMode === 'node' ? (
+						!selectedNode ? (
+							<p className="text-sm text-muted-foreground">No node selected.</p>
+						) : (
+							<div className="space-y-4 text-sm">
+								<div className="rounded-md border border-slate-200/80 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+									<p className="font-semibold">{selectedNode.label}</p>
+									<p className="font-mono text-xs break-all text-muted-foreground">{selectedNode.nodeId}</p>
+									<div className="mt-2 flex flex-wrap gap-2">
+										<Badge variant={selectedNode.isLocal ? 'default' : 'secondary'}>
+											{selectedNode.isLocal ? 'local' : 'peer'}
+										</Badge>
+										<Badge variant="outline">{selectedNode.role}</Badge>
+										<Badge variant="outline">{selectedNode.lifecycleState}</Badge>
+										<Badge variant="outline">{selectedNode.sessionState}</Badge>
+									</div>
+								</div>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Building2 className="h-4 w-4" /> Organizations
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{organizations?.length ?? 0}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Configured Quotas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{quotas.length}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Architecture guardrails (current scope)</CardTitle>
-          <CardDescription>
-            One instance uses one database, and the load balancer uses its host instance database. Super admin manages server links + org quotas only.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-
-      {lastError ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-destructive">Mesh stream error</CardTitle>
-            <CardDescription>{lastError}</CardDescription>
-          </CardHeader>
-        </Card>
-      ) : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Connected server inventory</CardTitle>
-          <CardDescription>
-            Server-level transport and quality view used by super admin to decide allocations.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Server</TableHead>
-                <TableHead>Session</TableHead>
-                <TableHead>State</TableHead>
-                <TableHead>Endpoint / Key</TableHead>
-                <TableHead>Link Quality</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {serverOptions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    No connected server yet. Use Mesh Control Panel to connect a peer.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                sessions.map((session) => {
-                  const metrics = session.peerNodeId ? metricsByTargetNode.get(session.peerNodeId) : undefined
-
-                  return (
-                  <TableRow key={session.sessionId}>
-                    <TableCell className="font-mono text-xs break-all">{deriveServerLabel(session.endpointUrl, session.peerNodeId)}</TableCell>
-                    <TableCell className="font-mono text-xs break-all">{session.sessionId.slice(0, 8)}</TableCell>
-                    <TableCell>
-                      <Badge variant={session.state === 'connected' ? 'default' : session.state === 'reconnecting' ? 'secondary' : 'outline'}>
-                        {session.state}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs break-all">{toServerKey(session.endpointUrl)}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {metrics
-                        ? `lat ${metrics.latencyMs}ms · jit ${metrics.jitterMs}ms · loss ${(metrics.packetLossRatio * 100).toFixed(1)}% · rel ${(metrics.reliabilityScore * 100).toFixed(0)}%`
-                        : 'No telemetry yet'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button asChild variant="outline" size="sm" className="gap-2">
-                        <Link href="/dashboard/admin/system">
-                          Open mesh panel
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                )})
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Organization → Server quota manager</CardTitle>
-          <CardDescription>
-            Set allowed CPU/RAM for each organization on each connected server.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-            <div className="space-y-2 lg:col-span-2">
-              <Label htmlFor="organization-select">Organization</Label>
-              <select
-                id="organization-select"
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                value={selectedOrganizationId}
-                onChange={(event) => {
-                  setSelectedOrganizationId(event.target.value)
-                }}
-                disabled={organizationsLoading || !organizations || organizations.length === 0}
-              >
-                {(organizations ?? []).map((organization) => (
-                  <option key={organization.id} value={organization.id}>
-                    {organization.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2 lg:col-span-2">
-              <Label htmlFor="server-select">Server</Label>
-              <select
-                id="server-select"
-                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                value={selectedServerKey}
-                onChange={(event) => {
-                  setSelectedServerKey(event.target.value)
-                }}
-                disabled={serverOptions.length === 0}
-              >
-                {serverOptions.map((server) => (
-                  <option key={server.key} value={server.key}>
-                    {server.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-end">
-              <Button
-                type="button"
-                className="w-full"
-                onClick={handleSaveQuota}
-                disabled={!selectedOrganizationId || !selectedServerKey}
-              >
-                Save quota
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="cpu-input" className="flex items-center gap-2">
-                <Cpu className="h-4 w-4" /> CPU limit (millicores)
-              </Label>
-              <Input
-                id="cpu-input"
-                type="number"
-                min={100}
-                step={100}
-                value={cpuMillicores}
-                onChange={(event) => {
-                  setCpuMillicores(event.target.value)
-                }}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="ram-input" className="flex items-center gap-2">
-                <MemoryStick className="h-4 w-4" /> RAM limit (MB)
-              </Label>
-              <Input
-                id="ram-input"
-                type="number"
-                min={128}
-                step={128}
-                value={ramMb}
-                onChange={(event) => {
-                  setRamMb(event.target.value)
-                }}
-              />
-            </div>
-          </div>
-
-          <Separator />
-
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Organization</TableHead>
-                <TableHead>Server</TableHead>
-                <TableHead>CPU (millicores)</TableHead>
-                <TableHead>RAM (MB)</TableHead>
-                <TableHead>Updated</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {quotas.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    No quotas configured yet.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                quotas.map((quota) => (
-                  <TableRow key={`${quota.organizationId}:${quota.serverKey}`}>
-                    <TableCell className="font-medium">{quota.organizationName}</TableCell>
-                    <TableCell className="text-xs font-mono break-all">{quota.serverLabel}</TableCell>
-                    <TableCell>{quota.cpuMillicores}</TableCell>
-                    <TableCell>{quota.ramMb}</TableCell>
-                    <TableCell>{new Date(quota.updatedAt).toLocaleString()}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          handleDeleteQuota(quota.organizationId, quota.serverKey)
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Organization visibility preview</CardTitle>
-          <CardDescription>
-            What organizations will see as allowed CPU/RAM by server.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {orgVisibilityRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No organization allocation is visible yet.</p>
-          ) : (
-            orgVisibilityRows.map((orgGroup) => (
-              <div key={orgGroup.organizationId} className="rounded border p-4 space-y-3">
-                <p className="font-semibold">{orgGroup.organizationName}</p>
-                <div className="space-y-2">
-                  {orgGroup.records.map((record) => (
-                    <div
-                      key={`${record.organizationId}:${record.serverKey}`}
-                      className="flex items-center justify-between gap-3 rounded border p-3 text-sm"
-                    >
-                      <span className="font-mono text-xs break-all">{record.serverLabel}</span>
-                      <span className="text-muted-foreground">
-                        CPU {record.cpuMillicores}m · RAM {record.ramMb}MB
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Metric usage panel (current source)</CardTitle>
-          <CardDescription>
-            Current panel displays mesh link quality telemetry. Per-server CPU/RAM usage snapshots will be wired from persisted server metrics next.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Membership revision: <span className="font-semibold">{snapshot?.version ?? 0}</span>
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  )
+								<div className="space-y-2">
+									<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Connected links</p>
+									{selectedNodeLinks.length === 0 ? (
+										<p className="text-muted-foreground">No active links for this node.</p>
+									) : (
+										<div className="space-y-2">
+											{selectedNodeLinks.map((link) => (
+												<button
+													key={link.id}
+													type="button"
+													onClick={() => {
+														setSelectedLinkId(link.id)
+														setSelectionMode('link')
+													}}
+													className="flex w-full items-center justify-between rounded-md border border-slate-200/80 bg-white/70 px-2.5 py-2 text-left transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/70 dark:hover:bg-slate-800"
+												>
+													<span className="font-mono text-[11px]">{link.sourceNodeId.slice(0, 8)} → {link.targetNodeId.slice(0, 8)}</span>
+													<span className="text-xs text-muted-foreground">{link.latencyMs}ms</span>
+												</button>
+											))}
+										</div>
+									)}
+								</div>
+							</div>
+						)
+					) : !selectedLink ? (
+						<p className="text-sm text-muted-foreground">No link selected.</p>
+					) : (
+						<div className="space-y-4 text-sm">
+							<div className="rounded-md border border-slate-200/80 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/60">
+								<p className="font-semibold">{selectedLink.sourceNodeId.slice(0, 8)} → {selectedLink.targetNodeId.slice(0, 8)}</p>
+								<div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+									<div className="rounded bg-blue-500/10 px-2 py-1.5 text-blue-700 dark:text-blue-300">
+										<p>Latency</p>
+										<p className="font-semibold">{selectedLink.latencyMs}ms</p>
+									</div>
+									<div className="rounded bg-purple-500/10 px-2 py-1.5 text-purple-700 dark:text-purple-300">
+										<p>Reliability</p>
+										<p className="font-semibold">{(selectedLink.reliabilityScore * 100).toFixed(1)}%</p>
+									</div>
+									<div className="rounded bg-emerald-500/10 px-2 py-1.5 text-emerald-700 dark:text-emerald-300">
+										<p>Throughput</p>
+										<p className="font-semibold">{Math.round(selectedLink.throughputMbps ?? 0)} Mbps</p>
+									</div>
+									<div className="rounded bg-amber-500/10 px-2 py-1.5 text-amber-700 dark:text-amber-300">
+										<p>Packet loss</p>
+										<p className="font-semibold">{(selectedLink.packetLossRatio * 100).toFixed(2)}%</p>
+									</div>
+								</div>
+								<div className="mt-2">
+									<Badge variant={selectedLink.state === 'active' || selectedLink.state === 'up' ? 'default' : 'secondary'}>{selectedLink.state}</Badge>
+								</div>
+							</div>
+						</div>
+					)}
+				</DialogContent>
+			</Dialog>
+		</div>
+	)
 }

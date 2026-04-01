@@ -6,7 +6,7 @@ import {
     deploymentPhaseTransitionsCatalogSchema,
     deploymentPhaseTransitionValidationInputSchema,
     deploymentPhaseTransitionValidationResultSchema,
-} from "@repo/api-contracts/common/deployment";
+} from "@repo/contracts-entities";
 
 export const deploymentListPhaseTransitionsContract = route({
     method: "GET",

@@ -262,6 +262,10 @@ describe("DockerRuntimeRunnerService", () => {
                     "deployer.runner.compose_profiles": "prod,canary",
                 },
                 startupCommand: "node server.js",
+                environmentVariables: {
+                    NODE_ENV: "production",
+                    API_URL: "https://api.example.test",
+                },
             },
             storageBinding: null,
         });
@@ -272,6 +276,10 @@ describe("DockerRuntimeRunnerService", () => {
                     "deployer.runner.compose_profiles": "prod,canary",
                 }),
                 Cmd: ["sh", "-lc", "node server.js"],
+                Env: expect.arrayContaining([
+                    "NODE_ENV=production",
+                    "API_URL=https://api.example.test",
+                ]),
             }),
         );
     });
@@ -303,6 +311,10 @@ describe("DockerRuntimeRunnerService", () => {
                     "deployer.runner.too_long": "x".repeat(513),
                 },
                 startupCommand: "   node server.js --port 3000   ",
+                environmentVariables: {
+                    NODE_ENV: "production",
+                    "BAD KEY": "ignored",
+                },
             },
             storageBinding: null,
         });
@@ -313,6 +325,7 @@ describe("DockerRuntimeRunnerService", () => {
                     "deployer.runner.valid": "value",
                 }),
                 Cmd: ["sh", "-lc", "node server.js --port 3000"],
+                Env: ["NODE_ENV=production"],
             }),
         );
 
