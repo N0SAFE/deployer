@@ -11,7 +11,7 @@ export class HealthService {
    getHealth() {
         return {
             status: "ok",
-            timestamp: new Date().toISOString(),
+            timestamp: new Date(),
             service: "nestjs-api",
         };
     }
@@ -27,7 +27,7 @@ export class HealthService {
 
         return {
             status: isReady ? "ready" : "not-ready",
-            timestamp: new Date().toISOString(),
+            timestamp: new Date(),
             service: "nestjs-api",
         };
     }
@@ -38,7 +38,7 @@ export class HealthService {
     getLiveness() {
         return {
             status: "alive",
-            timestamp: new Date().toISOString(),
+            timestamp: new Date(),
             service: "nestjs-api",
         };
     }
@@ -55,7 +55,7 @@ export class HealthService {
 
         return {
             status: isHealthy ? "ok" : "degraded",
-            timestamp: new Date().toISOString(),
+            timestamp: new Date(),
             service: "nestjs-api",
             uptime,
             memory,

@@ -6,7 +6,8 @@ import { and, eq, ilike } from "drizzle-orm";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { TraefikConfigBuilder } from "@/core/modules/traefik/config-builder/builders";
 import type { ServiceListInput } from "@repo/api-contracts/modules/service/list";
-import type { ServiceCreateInput, ServiceUpdateInput } from "@repo/api-contracts/modules/service/crud";
+import type { ServiceCreateInput } from "@repo/api-contracts/modules/service/crud/create";
+import type { ServiceUpdateInput } from "@repo/api-contracts/modules/service/crud/update";
 import * as crypto from "node:crypto";
 
 const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";

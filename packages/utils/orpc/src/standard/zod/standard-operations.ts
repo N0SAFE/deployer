@@ -98,7 +98,7 @@ export type ZodEntityOperationOptions<TEntitySchema extends ZodEntitySchema, TId
  *   id: z.uuid(),
  *   name: z.string(),
  *   email: z.string().email(),
- *   createdAt: z.string().datetime(),
+ *   createdAt: z.date(),
  * });
  *
  * const userOps = new ZodStandardOperations({
@@ -117,13 +117,37 @@ export class ZodStandardOperations<
     TIdField extends string = "id",
     TIdSchema extends z.ZodType = InferIdSchema<TEntity, TIdField>,
 > extends BaseStandardOperations<TEntity, TIdField, TIdSchema> {
+    private getEntityShapeOrNull(): z.ZodRawShape | null {
+        const candidate = (this.entitySchema as unknown as { shape?: unknown }).shape;
+        if (candidate && typeof candidate === "object") {
+            return candidate as z.ZodRawShape;
+        }
+        return null;
+    }
+
+    private requireEntityObjectShape(feature: string): z.ZodRawShape {
+        const shape = this.getEntityShapeOrNull();
+        if (shape) {
+            return shape;
+        }
+
+        throw new Error(
+            `standard.zod(${this.entityName}) requires an object schema for '${feature}'. `
+            + `Received a non-object schema. Use an object entity schema for object-shape operations `
+            + `or provide explicit schemas/options for this route.`,
+        );
+    }
+
     public getEntitySchema(): TEntity {
         return this.entitySchema;
     }
 
     protected getDefaultIdSchema(): TIdSchema {
-        const shape = this.entitySchema.shape;
-        return (shape[this.idField] ?? z.string()) as TIdSchema;
+        const shape = this.getEntityShapeOrNull();
+        if (!shape) {
+            return z.string() as unknown as TIdSchema;
+        }
+        return (shape[this.idField] ?? z.string()) as unknown as TIdSchema;
     }
 
     /**
@@ -132,7 +156,7 @@ export class ZodStandardOperations<
      * called with a key that is absent from the object shape.
      */
     private buildOmitRecord(keys: Set<string>): Record<string, true> {
-        const schemaShape = this.entitySchema.shape as Record<string, unknown>;
+        const schemaShape = this.requireEntityObjectShape("buildOmitRecord") as Record<string, unknown>;
         return Object.fromEntries(
             [...keys].filter((k) => k in schemaShape).map((k) => [k, true])
         ) as Record<string, true>;
@@ -146,7 +170,7 @@ export class ZodStandardOperations<
      * so we intentionally operate on a shape-cloned object schema for those cases.
      */
     private cloneEntityObjectSchema(): z.ZodObject<z.ZodRawShape> {
-        return z.object(this.entitySchema.shape);
+        return z.object(this.requireEntityObjectShape("cloneEntityObjectSchema"));
     }
 
     /**
@@ -687,7 +711,8 @@ export class ZodStandardOperations<
     }
 
     check<TFieldName extends keyof TEntity['shape'], TFieldSchema extends z.ZodType = z.ZodString>(fieldName: TFieldName, fieldSchema?: TFieldSchema) {
-        const schema = fieldSchema ?? (this.entitySchema.shape as TEntity['shape'])[fieldName] ?? z.string();
+        const shape = this.getEntityShapeOrNull() as TEntity['shape'] | null;
+        const schema = fieldSchema ?? (shape ? shape[fieldName] : undefined) ?? z.string();
 
         return this.createBuilder({
             method: "GET",
@@ -1306,7 +1331,7 @@ export class ZodStandardOperations<
 
         // Build overrides object from entity shape
         const overrideShape: Record<string, z.ZodType> = {};
-        const shape = this.entitySchema.shape;
+        const shape = this.requireEntityObjectShape("cloneWithOverrides");
 
         for (const key of options.overrideFields) {
             const fieldSchema = shape[key as string];
@@ -1343,8 +1368,24 @@ export function zodStandard<TEntity extends ZodEntitySchema, TIdField extends st
     entitySchema: TEntity,
     entityName: string,
     options?: Omit<ZodEntityOperationOptions<TEntity, TIdField, TIdSchema>, "entitySchema" | "entityName">,
-): ZodStandardOperations<TEntity, TIdField, TIdSchema> {
-    return new ZodStandardOperations({ entitySchema, entityName, ...options });
+): ZodStandardOperations<TEntity, TIdField, TIdSchema>;
+
+export function zodStandard(
+    entitySchema: z.ZodType,
+    entityName: string,
+    options?: Omit<ZodEntityOperationOptions<ZodEntitySchema, string, z.ZodType>, "entitySchema" | "entityName">,
+): ZodStandardOperations<ZodEntitySchema, string, z.ZodType>;
+
+export function zodStandard(
+    entitySchema: z.ZodType,
+    entityName: string,
+    options?: Omit<ZodEntityOperationOptions<ZodEntitySchema, string, z.ZodType>, "entitySchema" | "entityName">,
+): ZodStandardOperations<ZodEntitySchema, string, z.ZodType> {
+    return new ZodStandardOperations({
+        entitySchema: entitySchema as unknown as ZodEntitySchema,
+        entityName,
+        ...(options ?? {}),
+    });
 }
 
 /**

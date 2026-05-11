@@ -1,8 +1,9 @@
 import { Test, type TestingModule } from '@nestjs/testing';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { DatabaseModule } from './database.module';
-import { GlobalDatabaseService } from './services/global-database.service';
 import { GLOBAL_DATABASE_CONNECTION } from './database-connection';
+import { GlobalDatabaseService } from './global/global-database.service';
+import { LocalDatabaseService } from './local/local-database.service';
 
 describe('DatabaseModule', () => {
   let module: TestingModule;
@@ -10,10 +11,6 @@ describe('DatabaseModule', () => {
   beforeEach(async () => {
     module = await Test.createTestingModule({
       imports: [DatabaseModule],
-    })
-    .overrideProvider(GLOBAL_DATABASE_CONNECTION)
-    .useValue({
-      execute: vi.fn(),
     })
     .compile();
   });
@@ -23,12 +20,27 @@ describe('DatabaseModule', () => {
   });
 
   it('should provide GlobalDatabaseService', () => {
-    const databaseService = module.get<GlobalDatabaseService>(GlobalDatabaseService);
-    expect(databaseService).toBeDefined();
+    const globalDatabaseService = module.get(GlobalDatabaseService);
+    expect(globalDatabaseService).toBeDefined();
+  });
+  
+  it('should provide LocalDatabaseService', () => {
+    const localDatabaseService = module.get(LocalDatabaseService);
+    expect(localDatabaseService).toBeDefined();
   });
 
   it('should provide GLOBAL_DATABASE_CONNECTION', () => {
-    const connection = module.get(GLOBAL_DATABASE_CONNECTION);
-    expect(connection).toBeDefined();
+    const globalConnection = module.get(GLOBAL_DATABASE_CONNECTION);
+    expect(globalConnection).toBeDefined();
+  });
+  
+  it('should provide GLOBAL_DATABASE_POOL', () => {
+    const pool = module.get('GLOBAL_DATABASE_POOL');
+    expect(pool).toBeDefined();
+  });
+  
+  it('should provide LOCAL_DATABASE_CONNECTION', () => {
+    const localConnection = module.get('LOCAL_DATABASE_CONNECTION');
+    expect(localConnection).toBeDefined();
   });
 });

@@ -1,24 +1,71 @@
 import { oc } from "@orpc/contract";
-import * as z from "zod";
-import { serviceListContract, serviceListConfigSchemas, type ServiceListInput } from "./list";
-import { serviceFindByIdContract, serviceCreateContract, serviceUpdateContract, serviceDeleteContract, serviceToggleActiveContract, serviceGetDependenciesContract, serviceAddDependencyContract, serviceRemoveDependencyContract } from "./crud";
-import { serviceQueryStreamContract } from "./stream";
+import {
+    serviceCrudContract,
+    serviceListContract,
+    serviceListConfigSchemas,
+    serviceFindByIdContract,
+    serviceCreateInputSchema,
+    serviceCreateContract,
+    serviceUpdateInputSchema,
+    serviceUpdateContract,
+    serviceDeleteContract,
+    type ServiceListInput,
+    type ServiceCreateInput,
+    type ServiceUpdateInput,
+} from "./crud";
+import { serviceLifecycleContract, serviceToggleActiveContract } from "./lifecycle";
+import {
+    serviceDependenciesContract,
+    serviceGetDependenciesContract,
+    serviceAddDependencyContract,
+    serviceRemoveDependencyContract,
+} from "./dependencies";
+import {
+    serviceStreamsContract,
+    serviceQueryStreamContract,
+    serviceStreamEventTypeSchema,
+    serviceStreamEventSchema,
+    serviceStreamQueryFiltersSchema,
+    type ServiceStreamEvent,
+    type ServiceStreamQueryInput,
+} from "./streams";
 
 export const serviceContract = oc.tag("Service").prefix("/services").router({
-    list: serviceListContract,
-    findById: serviceFindByIdContract,
-    create: serviceCreateContract,
-    update: serviceUpdateContract,
-    delete: serviceDeleteContract,
-    toggleActive: serviceToggleActiveContract,
-    getDependencies: serviceGetDependenciesContract,
-    addDependency: serviceAddDependencyContract,
-    removeDependency: serviceRemoveDependencyContract,
-    streamQuery: serviceQueryStreamContract,
+    crud: serviceCrudContract,
+    lifecycle: serviceLifecycleContract,
+    dependencies: serviceDependenciesContract,
+    streams: serviceStreamsContract,
 });
 
 export type ServiceContract = typeof serviceContract;
 
-export * from "./list";
-export * from "./crud";
-export * from "./stream";
+export {
+    serviceCrudContract,
+    serviceListContract,
+    serviceListConfigSchemas,
+    serviceFindByIdContract,
+    serviceCreateInputSchema,
+    serviceCreateContract,
+    serviceUpdateInputSchema,
+    serviceUpdateContract,
+    serviceDeleteContract,
+    serviceLifecycleContract,
+    serviceToggleActiveContract,
+    serviceDependenciesContract,
+    serviceGetDependenciesContract,
+    serviceAddDependencyContract,
+    serviceRemoveDependencyContract,
+    serviceStreamsContract,
+    serviceQueryStreamContract,
+    serviceStreamEventTypeSchema,
+    serviceStreamEventSchema,
+    serviceStreamQueryFiltersSchema,
+};
+
+export type {
+    ServiceListInput,
+    ServiceCreateInput,
+    ServiceUpdateInput,
+    ServiceStreamEvent,
+    ServiceStreamQueryInput,
+};

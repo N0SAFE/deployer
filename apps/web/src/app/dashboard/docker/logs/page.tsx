@@ -1,15 +1,30 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { DockerContainerDetailModalTrigger } from '../_components/docker-container-detail-modal'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { DockerContainerDetailModalTrigger } from '../_components/container-detail-modal'
+import { DockerInlineLoadingState } from '../_components/docker-loading-states'
 import { DockerSelectionToggle } from '../_components/docker-page-utilities'
-import { useDockerContainerList, useDockerDeploymentList, useDockerMeshSseState, useDockerServiceList } from '@/domains/docker/mock-hooks'
+import {
+  useContainerLiveUpdate,
+  useDockerContainerList,
+  useDockerRuntimeSseState,
+  useDockerServiceList,
+} from '@/domains/docker/hooks'
+import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
+import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
 import { Toggle } from '@repo/ui/components/shadcn/toggle'
 import { Pause, Play, Search, WrapText } from 'lucide-react'
+import { buildLogContainerLabel, formatDate, parseContainerIdentity } from './_lib/container-identity'
+import { useContainerStreamLogs } from './_hooks/use-container-stream-logs'
+import { useFilteredLogs } from './_hooks/use-filtered-logs'
+import { usePersistedLogGroups } from './_hooks/use-persisted-log-groups'
+import { useRuntimeEventLogs } from './_hooks/use-runtime-event-logs'
+import { useServiceEnvironmentGroups } from './_hooks/use-service-environment-groups'
+import type { ContainerLogGroup, LogLineProjection } from './_models/logs.types'
 
 const DEPLOYMENT_LIST_INPUT = {
   query: {
@@ -18,107 +33,11 @@ const DEPLOYMENT_LIST_INPUT = {
   },
 } as const
 
-interface LogLineProjection {
-  id: string
-  containerId: string | null
-  containerName: string
-  source: 'deployment' | 'mesh'
-  status: string
-  message: string
-  timestamp: string
-}
-
-interface ContainerLogGroup {
-  id: string
-  name: string
-  containers: string[]
-}
-
-interface ServiceEnvironmentNode {
-  environment: string
-  containers: string[]
-}
-
-interface ServiceEnvironmentGroup {
-  serviceId: string
-  serviceName: string
-  environments: ServiceEnvironmentNode[]
-  containers: string[]
-}
-
-const LOG_GROUPS_STORAGE_KEY = 'docker:logs:container-groups'
-
-function shortId(id: string): string {
-  return id.slice(0, 8)
-}
-
-function formatDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleString()
-}
-
-function truncateMiddle(value: string, maxLength = 9): string {
-  const normalized = value.trim()
-  if (!normalized) return 'unknown'
-  if (normalized.length <= maxLength) return normalized
-
-  const prefixLength = Math.floor((maxLength - 3) / 2)
-  const suffixLength = maxLength - 3 - prefixLength
-
-  return `${normalized.slice(0, prefixLength)}...${normalized.slice(-suffixLength)}`
-}
-
-function buildLogContainerLabel(serviceName: string, environment: string, replicaTag: string): string {
-  return `${truncateMiddle(serviceName)}:${truncateMiddle(environment)}:${truncateMiddle(replicaTag)}`
-}
-
-function parseContainerIdentity(containerName: string): {
-  serviceName: string
-  environment: string
-  replicaTag: string
-} {
-  const segments = containerName
-    .split('-')
-    .map((segment) => segment.trim())
-    .filter((segment) => segment.length > 0)
-
-  if (segments.length === 0) {
-    return {
-      serviceName: containerName,
-      environment: 'unknown',
-      replicaTag: 'primary',
-    }
-  }
-
-  const working = [...segments]
-  const lastSegment = working[working.length - 1]
-  let replicaTag = 'primary'
-
-  if (lastSegment && /^\d+$/.test(lastSegment)) {
-    replicaTag = `r${lastSegment}`
-    working.pop()
-  } else if (lastSegment && /^(?:r|replica)[-_]?\d+$/i.test(lastSegment)) {
-    const replicaNumber = lastSegment.match(/\d+/)?.[0]
-    if (replicaNumber) {
-      replicaTag = `r${replicaNumber}`
-      working.pop()
-    }
-  }
-
-  const environment = working.length > 1 ? (working[working.length - 1] ?? 'unknown') : 'unknown'
-  const serviceSegments = working.length > 1 ? working.slice(0, -1) : working
-  const serviceName = serviceSegments.join('-') || containerName
-
-  return {
-    serviceName,
-    environment,
-    replicaTag,
-  }
-}
+const debugDockerLogsPage = createContextFilterDebugLogger('DockerLogsPage', 'docker-web-logs')
 
 export default function DashboardDockerLogsPage() {
   const logsViewportRef = useRef<HTMLDivElement | null>(null)
+  const hasInitializedBottomRef = useRef(false)
 
   const [logsSearchTerm, setLogsSearchTerm] = useState('')
   const [containerSearchTerm, setContainerSearchTerm] = useState('')
@@ -126,8 +45,6 @@ export default function DashboardDockerLogsPage() {
   const [logsContainerFilter, setLogsContainerFilter] = useState('all')
   const [logsViewMode, setLogsViewMode] = useState<'single' | 'multi' | 'grouped'>('grouped')
   const [selectedContainerNames, setSelectedContainerNames] = useState<Set<string>>(new Set())
-  const [containerGroups, setContainerGroups] = useState<ContainerLogGroup[]>([])
-  const [activeGroupId, setActiveGroupId] = useState<string>('all')
   const [newGroupName, setNewGroupName] = useState('')
   const [isPaused, setIsPaused] = useState(false)
   const [isAssembledByService, setIsAssembledByService] = useState(true)
@@ -137,18 +54,93 @@ export default function DashboardDockerLogsPage() {
   const [pausedSnapshot, setPausedSnapshot] = useState<LogLineProjection[] | null>(null)
   const [clearedAt, setClearedAt] = useState<number | null>(null)
 
-  const { data: deploymentData } = useDockerDeploymentList(DEPLOYMENT_LIST_INPUT)
-  const { data: containerEntityData } = useDockerContainerList(DEPLOYMENT_LIST_INPUT)
-  const { data: serviceData } = useDockerServiceList(DEPLOYMENT_LIST_INPUT)
-  const { state: meshState, status: meshSseStatus } = useDockerMeshSseState()
+  const {
+    containerGroups,
+    setContainerGroups,
+    activeGroupId,
+    setActiveGroupId,
+    activeGroup,
+  } = usePersistedLogGroups()
 
-  const deployments = deploymentData?.data ?? []
+  const { runtimeEventLogs } = useRuntimeEventLogs()
+
+  const containerListQuery = useDockerContainerList(DEPLOYMENT_LIST_INPUT)
+  const serviceListQuery = useDockerServiceList(DEPLOYMENT_LIST_INPUT)
+
+  const handleContainerLiveUpdate = useCallback(() => {
+    void containerListQuery.refetch()
+    return serviceListQuery.refetch()
+  }, [containerListQuery, serviceListQuery])
+
+  useContainerLiveUpdate(handleContainerLiveUpdate, {
+    cooldownMs: 900,
+  })
+
+  const { data: containerEntityData } = containerListQuery
+  const { data: serviceData } = serviceListQuery
+  const { status: runtimeSseStatus } = useDockerRuntimeSseState()
+
   const containerEntities = containerEntityData?.data ?? []
+  const containerEntityById = useMemo(
+    () => new Map(containerEntities.map((container) => [container.id, container])),
+    [containerEntities],
+  )
+  const containerEntityByName = useMemo(
+    () => new Map(containerEntities.map((container) => [container.name, container])),
+    [containerEntities],
+  )
   const services = serviceData?.data ?? []
 
   const serviceNameById = useMemo(() => {
     return new Map(services.map((service) => [service.id, service.name]))
   }, [services])
+
+  const activeContainerStreamEntity = useMemo(() => {
+    const candidates: string[] = []
+
+    if (logsContainerFilter !== 'all') {
+      candidates.push(logsContainerFilter)
+    }
+
+    const selected = Array.from(selectedContainerNames).sort((a, b) => a.localeCompare(b))
+    candidates.push(...selected)
+
+    const allByName = containerEntities
+      .map((container) => container.name)
+      .filter((name): name is string => Boolean(name))
+      .sort((a, b) => a.localeCompare(b))
+
+    candidates.push(...allByName)
+
+    for (const name of candidates) {
+      const match = containerEntityByName.get(name)
+      if (match) {
+        return match
+      }
+    }
+
+    return null
+  }, [containerEntities, containerEntityByName, logsContainerFilter, selectedContainerNames])
+
+  const { containerStreamLogs } = useContainerStreamLogs(activeContainerStreamEntity, isPaused)
+
+  useEffect(() => {
+    debugDockerLogsPage('activeStreamTarget', {
+      runtimeSseStatus,
+      paused: isPaused,
+      logsContainerFilter,
+      selectedContainerCount: selectedContainerNames.size,
+      activeContainerStreamEntityId: activeContainerStreamEntity?.id ?? null,
+      activeContainerStreamEntityName: activeContainerStreamEntity?.name ?? null,
+    })
+  }, [
+    activeContainerStreamEntity?.id,
+    activeContainerStreamEntity?.name,
+    isPaused,
+    logsContainerFilter,
+    runtimeSseStatus,
+    selectedContainerNames,
+  ])
 
   const logContainerLabelByName = useMemo(() => {
     const labels = new Map<string, string>()
@@ -168,63 +160,24 @@ export default function DashboardDockerLogsPage() {
       registerLabel(container.name, serviceName, container.environment)
     }
 
-    for (const deployment of deployments) {
-      const containerName = deployment.containerName ?? `deployment-${shortId(deployment.id)}`
-      const serviceName = deployment.serviceId ? serviceNameById.get(deployment.serviceId) ?? null : null
-      registerLabel(containerName, serviceName, deployment.environment)
-    }
-
     registerLabel('mesh-control-plane', 'mesh-control-plane', 'system')
 
     return labels
-  }, [containerEntities, deployments, serviceNameById])
+  }, [containerEntities, serviceNameById])
 
   const logs = useMemo<LogLineProjection[]>(() => {
-    const projected: LogLineProjection[] = []
-    const containerIdByName = new Map(containerEntities.map((container) => [container.name, container.id]))
-
-    for (const deployment of deployments.slice(0, 120)) {
-      const containerName = deployment.containerName ?? `deployment-${shortId(deployment.id)}`
-      const status = deployment.status
-      const environment = deployment.environment
-      const sourceType = deployment.sourceType
-
-      const message =
-        status === 'failed'
-          ? `Deployment failed for ${containerName} on ${environment} (${sourceType})`
-          : status === 'success'
-            ? `Deployment completed for ${containerName} on ${environment} (${sourceType})`
-            : `Deployment ${status} for ${containerName} on ${environment} (${sourceType})`
-
-      projected.push({
-        id: deployment.id,
-        containerId: containerIdByName.get(containerName) ?? null,
-        containerName,
-        source: 'deployment',
-        status,
-        message,
-        timestamp: deployment.updatedAt,
-      })
-    }
-
-    if (meshState) {
-      projected.push({
-        id: `mesh-state-${String(meshState.revision)}`,
-        containerId: null,
-        containerName: 'mesh-control-plane',
-        source: 'mesh',
-        status: meshSseStatus,
-        message: `Mesh ${meshState.reason.replaceAll('_', ' ')} · ${String(meshState.sessions.length)} sessions · ${String(meshState.peers.length)} peers`,
-        timestamp: meshState.emittedAt,
-      })
-    }
-
-    return projected.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-  }, [containerEntities, deployments, meshSseStatus, meshState])
+    return [...runtimeEventLogs, ...containerStreamLogs]
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+  }, [containerStreamLogs, runtimeEventLogs])
 
   const logContainers = useMemo(() => {
-    return Array.from(new Set(logs.map((log) => log.containerName))).sort((a, b) => a.localeCompare(b))
-  }, [logs])
+    const knownContainers = containerEntities
+      .map((container) => container.name)
+      .filter((name): name is string => Boolean(name))
+
+    return Array.from(new Set([...knownContainers, ...logs.map((log) => log.containerName)]))
+      .sort((a, b) => a.localeCompare(b))
+  }, [containerEntities, logs])
 
   const allContainers = useMemo(() => {
     return containerEntities
@@ -234,172 +187,31 @@ export default function DashboardDockerLogsPage() {
   }, [containerEntities])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const raw = window.localStorage.getItem(LOG_GROUPS_STORAGE_KEY)
-    if (!raw) return
-
-    try {
-      const parsed = JSON.parse(raw) as ContainerLogGroup[]
-      if (Array.isArray(parsed)) {
-        setContainerGroups(
-          parsed
-            .filter((group) => group && typeof group.id === 'string' && typeof group.name === 'string' && Array.isArray(group.containers))
-            .map((group) => ({
-              id: group.id,
-              name: group.name,
-              containers: group.containers.filter((container): container is string => typeof container === 'string'),
-            })),
-        )
-      }
-    } catch {
-      // ignore invalid persisted data
-    }
-  }, [])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem(LOG_GROUPS_STORAGE_KEY, JSON.stringify(containerGroups))
-  }, [containerGroups])
-
-  const activeGroup = useMemo(() => {
-    if (activeGroupId === 'all') return null
-    return containerGroups.find((group) => group.id === activeGroupId) ?? null
-  }, [activeGroupId, containerGroups])
-
-  const serviceEnvironmentGroups = useMemo<ServiceEnvironmentGroup[]>(() => {
-    const grouped = new Map<string, { serviceId: string; serviceName: string; environments: Map<string, string[]> }>()
-
-    for (const container of containerEntities) {
-      const containerName = container.name
-      if (!containerName) continue
-
-      const serviceId = container.serviceId ?? 'unknown-service'
-      const serviceName = serviceNameById.get(serviceId) ?? serviceId
-      const environment = container.environment ?? 'unknown'
-      const key = `${serviceId}:${serviceName}`
-
-      const current = grouped.get(key) ?? {
-        serviceId,
-        serviceName,
-        environments: new Map<string, string[]>(),
-      }
-
-      const environmentContainers = current.environments.get(environment) ?? []
-      environmentContainers.push(containerName)
-      current.environments.set(environment, environmentContainers)
-
-      grouped.set(key, current)
+    if (logsContainerFilter === 'all') {
+      return
     }
 
-    const tree = Array.from(grouped.values())
-      .map((group) => {
-        const environments = Array.from(group.environments.entries())
-          .map(([environment, containers]) => ({
-            environment,
-            containers: Array.from(new Set(containers)).sort((a, b) => a.localeCompare(b)),
-          }))
-          .sort((a, b) => a.environment.localeCompare(b.environment))
-
-        return {
-          serviceId: group.serviceId,
-          serviceName: group.serviceName,
-          environments,
-          containers: environments.flatMap((environmentGroup) => environmentGroup.containers),
-        }
-      })
-      .sort((a, b) => a.serviceName.localeCompare(b.serviceName))
-
-    const normalized = containerSearchTerm.trim().toLowerCase()
-    if (!normalized) {
-      return tree
+    if (!logContainers.includes(logsContainerFilter)) {
+      setLogsContainerFilter('all')
     }
+  }, [logContainers, logsContainerFilter])
 
-    return tree
-      .map((group) => {
-        const serviceMatches =
-          group.serviceName.toLowerCase().includes(normalized)
-          || group.serviceId.toLowerCase().includes(normalized)
+  const { serviceEnvironmentGroups, visibleContainerNames } = useServiceEnvironmentGroups(
+    containerEntities,
+    serviceNameById,
+    containerSearchTerm,
+  )
 
-        const environments = group.environments
-          .map((environmentGroup) => {
-            if (serviceMatches) {
-              return environmentGroup
-            }
-
-            const environmentMatches = environmentGroup.environment.toLowerCase().includes(normalized)
-            if (environmentMatches) {
-              return environmentGroup
-            }
-
-            const matchedContainers = environmentGroup.containers.filter((containerName) =>
-              containerName.toLowerCase().includes(normalized),
-            )
-
-            if (matchedContainers.length === 0) {
-              return null
-            }
-
-            return {
-              environment: environmentGroup.environment,
-              containers: matchedContainers,
-            }
-          })
-          .filter((environmentGroup): environmentGroup is ServiceEnvironmentNode => environmentGroup !== null)
-
-        if (!serviceMatches && environments.length === 0) {
-          return null
-        }
-
-        return {
-          ...group,
-          environments,
-          containers: environments.flatMap((environmentGroup) => environmentGroup.containers),
-        }
-      })
-      .filter((group): group is ServiceEnvironmentGroup => group !== null)
-  }, [containerEntities, containerSearchTerm, serviceNameById])
-
-  const visibleContainerNames = useMemo(() => {
-    return serviceEnvironmentGroups.flatMap((group) => group.containers)
-  }, [serviceEnvironmentGroups])
-
-  const filteredLogs = useMemo(() => {
-    const normalized = logsSearchTerm.trim().toLowerCase()
-    const activeSingleContainer =
-      logsViewMode === 'single' && selectedContainerNames.size === 1
-        ? Array.from(selectedContainerNames)[0]
-        : null
-
-    return logs.filter((log) => {
-      if (logsSourceFilter !== 'all' && log.source !== logsSourceFilter) {
-        return false
-      }
-      if (logsContainerFilter !== 'all' && log.containerName !== logsContainerFilter) {
-        return false
-      }
-      if (selectedContainerNames.size > 0 && !selectedContainerNames.has(log.containerName)) {
-        return false
-      }
-      if (activeSingleContainer && log.containerName !== activeSingleContainer) {
-        return false
-      }
-      if (activeGroup && !activeGroup.containers.includes(log.containerName)) {
-        return false
-      }
-      if (clearedAt && new Date(log.timestamp).getTime() < clearedAt) {
-        return false
-      }
-      if (!normalized) {
-        return true
-      }
-
-      return (
-        log.containerName.toLowerCase().includes(normalized)
-        || log.message.toLowerCase().includes(normalized)
-        || log.status.toLowerCase().includes(normalized)
-      )
-    })
-  }, [activeGroup, clearedAt, logs, logsContainerFilter, logsSearchTerm, logsSourceFilter, logsViewMode, selectedContainerNames])
+  const filteredLogs = useFilteredLogs({
+    logs,
+    logsSearchTerm,
+    logsSourceFilter,
+    logsContainerFilter,
+    logsViewMode,
+    selectedContainerNames,
+    activeGroup,
+    clearedAt,
+  })
 
   useEffect(() => {
     if (!isPaused) {
@@ -410,9 +222,47 @@ export default function DashboardDockerLogsPage() {
   const displayedLogs = isPaused ? (pausedSnapshot ?? filteredLogs) : filteredLogs
 
   useEffect(() => {
-    if (!isAutoScroll || !logsViewportRef.current) return
-    logsViewportRef.current.scrollTop = logsViewportRef.current.scrollHeight
-  }, [displayedLogs, isAutoScroll])
+    debugDockerLogsPage('renderedLogsCounters', {
+      runtimeEventLogs: runtimeEventLogs.length,
+      containerStreamLogs: containerStreamLogs.length,
+      mergedLogs: logs.length,
+      filteredLogs: filteredLogs.length,
+      displayedLogs: displayedLogs.length,
+      logsSourceFilter,
+      logsContainerFilter,
+      logsViewMode,
+      search: logsSearchTerm,
+      activeGroupId,
+      selectedContainerCount: selectedContainerNames.size,
+    })
+  }, [
+    activeGroupId,
+    containerStreamLogs.length,
+    displayedLogs.length,
+    filteredLogs.length,
+    logs.length,
+    logsContainerFilter,
+    logsSearchTerm,
+    logsSourceFilter,
+    logsViewMode,
+    runtimeEventLogs.length,
+    selectedContainerNames,
+  ])
+
+  useEffect(() => {
+    if (displayedLogs.length === 0) {
+      hasInitializedBottomRef.current = false
+      return
+    }
+
+    const viewport = logsViewportRef.current
+    if (!viewport || !isAutoScroll || hasInitializedBottomRef.current) {
+      return
+    }
+
+    viewport.scrollTop = viewport.scrollHeight
+    hasInitializedBottomRef.current = true
+  }, [displayedLogs.length, isAutoScroll])
 
   const createGroupFromSelection = () => {
     const trimmed = newGroupName.trim()
@@ -475,11 +325,13 @@ export default function DashboardDockerLogsPage() {
   const selectedVisibleContainersCount = visibleContainerNames.filter((containerName) => selectedContainerNames.has(containerName)).length
   const allVisibleContainersSelected = visibleContainerNames.length > 0 && selectedVisibleContainersCount === visibleContainerNames.length
   const someVisibleContainersSelected = selectedVisibleContainersCount > 0 && selectedVisibleContainersCount < visibleContainerNames.length
+  const isLogsLoading = (containerListQuery.isLoading || serviceListQuery.isLoading) && containerEntities.length === 0
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="overflow-hidden rounded-2xl border border-border/60 bg-card/50 backdrop-blur-xl">
+    <div className="flex h-full min-h-0 flex-col gap-6">
+      {isLogsLoading ? <DockerInlineLoadingState label="Loading container tree and runtime log channels…" /> : null}
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/50 backdrop-blur-xl">
           <div className="border-b border-border/60 px-3 py-3">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -561,7 +413,7 @@ export default function DashboardDockerLogsPage() {
             </div>
           </div>
 
-          <div className="max-h-[52vh] space-y-1 overflow-auto px-2 py-2 text-xs">
+          <div className="min-h-0 flex-1 space-y-1 overflow-auto px-2 py-2 text-xs">
             {isAssembledByService ? (
               <>
                 {serviceEnvironmentGroups.map((group) => {
@@ -678,7 +530,15 @@ export default function DashboardDockerLogsPage() {
                 })}
 
                 {serviceEnvironmentGroups.length === 0 ? (
-                  <p className="px-2 py-4 text-xs text-muted-foreground">No service groups match your filter.</p>
+                  isLogsLoading ? (
+                    <div className="space-y-1.5 px-2 py-2">
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <Skeleton key={`docker-logs-tree-loading-${String(index)}`} className="h-7 w-full" />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="px-2 py-4 text-xs text-muted-foreground">No service groups match your filter.</p>
+                  )
                 ) : null}
               </>
             ) : (
@@ -722,7 +582,15 @@ export default function DashboardDockerLogsPage() {
                   )
                 })}
                 {visibleContainerNames.length === 0 ? (
-                  <p className="px-2 py-4 text-xs text-muted-foreground">No containers match your filter.</p>
+                  isLogsLoading ? (
+                    <div className="space-y-1.5 px-2 py-2">
+                      {Array.from({ length: 5 }).map((_, index) => (
+                        <Skeleton key={`docker-logs-flat-loading-${String(index)}`} className="h-7 w-full" />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="px-2 py-4 text-xs text-muted-foreground">No containers match your filter.</p>
+                  )
                 ) : null}
               </>
             )}
@@ -749,13 +617,13 @@ export default function DashboardDockerLogsPage() {
           </div>
         </aside>
 
-        <section className="overflow-hidden rounded-2xl border border-border/60 bg-card/50 backdrop-blur-xl">
+        <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/50 backdrop-blur-xl">
           <div className="border-b border-border/60 bg-background/70 px-4 py-2.5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-xs">
                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
                 <span className="font-medium">Live</span>
-                <Badge variant="outline" className="text-[10px]">{meshSseStatus}</Badge>
+                <Badge variant="outline" className="text-[10px]">{runtimeSseStatus}</Badge>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -883,8 +751,8 @@ export default function DashboardDockerLogsPage() {
                 }}
               >
                 <option value="all">All sources</option>
-                <option value="deployment">Deployments</option>
-                <option value="mesh">Mesh</option>
+                <option value="runtime">Runtime stream</option>
+                <option value="container">Container logs stream</option>
               </select>
               <select
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
@@ -928,11 +796,14 @@ export default function DashboardDockerLogsPage() {
 
           <div
             ref={logsViewportRef}
-            className={`max-h-[72vh] overflow-auto bg-[#070b14] px-4 py-3 font-mono text-green-300 ${isWrapEnabled ? 'whitespace-pre-wrap wrap-break-word' : 'whitespace-pre'}`}
-            style={{ fontSize: `${String(fontSizePx)}px` }}
+            className={`min-h-0 flex-1 overflow-auto bg-[#070b14] px-4 py-3 font-mono text-green-300 ${isWrapEnabled ? 'whitespace-pre-wrap wrap-break-word' : 'whitespace-pre'}`}
+            style={{
+              fontSize: `${String(fontSizePx)}px`,
+              overflowAnchor: isAutoScroll ? 'auto' : 'none',
+            }}
           >
             {displayedLogs.map((log) => (
-              <p key={log.id} className="mb-0.5">
+              <p key={log.id} className="mb-0.5" style={{ overflowAnchor: 'none' }}>
                 <span className="text-emerald-400">[{formatDate(log.timestamp)}]</span>{' '}
                 <span className="text-slate-200">
                   [
@@ -943,7 +814,11 @@ export default function DashboardDockerLogsPage() {
 
                     if (log.containerId) {
                       return (
-                        <DockerContainerDetailModalTrigger id={log.containerId} className="text-slate-200 underline-offset-4 hover:underline text-left">
+                        <DockerContainerDetailModalTrigger
+                          id={log.containerId}
+                          container={containerEntityById.get(log.containerId)}
+                          className="text-slate-200 underline-offset-4 hover:underline text-left"
+                        >
                           {displayLabel}
                         </DockerContainerDetailModalTrigger>
                       )
@@ -958,8 +833,18 @@ export default function DashboardDockerLogsPage() {
               </p>
             ))}
             {displayedLogs.length === 0 ? (
-              <p className="text-slate-400">No logs match the current filters.</p>
+              isLogsLoading ? (
+                <p className="text-slate-400" style={{ overflowAnchor: 'none' }}>Connecting runtime log streams…</p>
+              ) : (
+              <p className="text-slate-400" style={{ overflowAnchor: 'none' }}>No logs match the current filters.</p>
+              )
             ) : null}
+
+            <div
+              aria-hidden
+              className="pointer-events-none h-px"
+              style={{ overflowAnchor: isAutoScroll ? 'auto' : 'none' }}
+            />
           </div>
 
           <div className="border-t border-border/60 px-4 py-2">

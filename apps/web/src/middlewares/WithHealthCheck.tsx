@@ -10,13 +10,25 @@ import { nextjsRegexpPageOnly, nextNoApi } from './utils/static'
 import { orpc } from '@/lib/orpc'
 import { toAbsoluteUrl } from '@/lib/utils'
 import { InternalMiddlewareErrorHealthCheck } from '@/routes'
-import { createDebug } from '@/lib/debug'
+import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 
-const debugHealthCheck = createDebug('middleware/healthcheck')
-const debugHealthCheckError = createDebug('middleware/healthcheck/error')
+const debugHealthCheck = createContextFilterDebugLogger('WithHealthCheck', 'middleware:[WithHealthCheck]')
+const debugHealthCheckError = createContextFilterDebugLogger('WithHealthCheck', 'middleware:[WithHealthCheck]:error')
 
 const NODE_ENV = validateEnvPath(process.env.NODE_ENV, 'NODE_ENV')
 const errorPageRenderingPath = '/middleware/error/healthCheck'
+const HEALTH_CHECK_TIMEOUT_MS = 3000
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    return Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+            globalThis.setTimeout(() => {
+                reject(new Error(`Health check timed out after ${String(timeoutMs)}ms`))
+            }, timeoutMs)
+        }),
+    ])
+}
 
 const withHealthCheck: MiddlewareFactory = (next: NextProxy) => {
     return async (request: NextRequest, _next: NextFetchEvent) => {
@@ -31,11 +43,14 @@ const withHealthCheck: MiddlewareFactory = (next: NextProxy) => {
                     'Checking API health via ORPC in development mode'
                 )
                 try {
-                    const data = await orpc.health.check.call(
-                        {},
-                        {
-                            context: { cookie: request.cookies.toString() },
-                        }
+                    const data = await withTimeout(
+                        orpc.health.check.call(
+                            {},
+                            {
+                                context: { cookie: request.cookies.toString() },
+                            }
+                        ),
+                        HEALTH_CHECK_TIMEOUT_MS
                     )
                     debugHealthCheck('Health check response received', { data })
 
@@ -78,6 +93,15 @@ const withHealthCheck: MiddlewareFactory = (next: NextProxy) => {
                         error: e,
                         errorData,
                     })
+
+                    // Fail open in development to avoid freezing all client navigations
+                    // when API health endpoint is slow/unavailable.
+                    if (request.nextUrl.pathname !== errorPageRenderingPath) {
+                        debugHealthCheck(
+                            'Fail-open: continuing request despite health check error to prevent navigation stall'
+                        )
+                        return await next(request, _next)
+                    }
 
                     if (request.nextUrl.pathname === errorPageRenderingPath) {
                         debugHealthCheck('Already on error page, proceeding')

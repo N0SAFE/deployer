@@ -48,6 +48,8 @@ services:
       
       # API Configuration
       - API_PORT=${API_PORT}
+      - APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER:-}
+      - DOCKER_HOST=unix:///var/run/docker.sock
       
       # Web app URLs
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
@@ -84,6 +86,8 @@ services:
       - turbo_cache_prod:/root/.cache/turbo
       # Persistent uploads directory for media files
       - api_uploads_prod:/app/apps/api/uploads
+      # Docker daemon socket for dockerode-backed runtime operations
+      - /var/run/docker.sock:/var/run/docker.sock
 
 networks:
   app_network_prod:

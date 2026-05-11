@@ -8,9 +8,7 @@ export class ApiSessionAuthService {
 
     private get apiBaseUrl(): string {
         const candidate =
-            this.envService.get("API_URL")?.trim() ??
-            this.envService.get("APP_URL")?.trim() ??
-            "http://localhost:3005";
+            this.envService.get("API_URL").trim()
 
         try {
             return new URL(candidate).origin;

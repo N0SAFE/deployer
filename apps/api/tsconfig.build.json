@@ -1,4 +1,8 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts", "vitest.config.mts"]
+  "exclude": ["node_modules", "test", "dist", "**/*spec.ts", "vitest.config.mts"],
+  "compilerOptions": {
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+  }
 }

@@ -32,6 +32,8 @@ export interface FleetMapLink {
   reliabilityScore: number
   throughputMbps?: number
   state: string
+  inferred: boolean
+  measuredAt: string
 }
 
 function latencyColor(latencyMs: number): string {
@@ -44,6 +46,25 @@ function latencyColor(latencyMs: number): string {
   }
 
   return '#ef4444'
+}
+
+const LINK_PALETTE = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#14b8a6', '#eab308', '#ec4899', '#06b6d4']
+
+function linkColor(link: FleetMapLink): string {
+  if (link.inferred) {
+    return '#94a3b8'
+  }
+
+  if (link.state !== 'active' && link.state !== 'up' && link.state !== 'connected') {
+    return '#ef4444'
+  }
+
+  if (link.latencyMs >= 120 || link.packetLossRatio >= 0.03) {
+    return latencyColor(link.latencyMs)
+  }
+
+  const paletteIndex = stableHash(`${pairKey(link.sourceNodeId, link.targetNodeId)}:${link.id}`) % LINK_PALETTE.length
+  return LINK_PALETTE[paletteIndex] ?? '#22c55e'
 }
 
 function stableHash(value: string): number {
@@ -126,7 +147,7 @@ export function FleetLatencyMap({
 }: FleetLatencyMapProps) {
   return (
     <div className="h-full overflow-hidden rounded-lg border border-slate-200/80 bg-white/70 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
-      <Map center={center} zoom={4} className="h-full! w-full" scrollWheelZoom>
+      <Map center={center} zoom={4} className="h-full! w-full" scrollWheelZoom preferCanvas>
         <MapTileLayer />
         <MapZoomControl />
 
@@ -143,7 +164,7 @@ export function FleetLatencyMap({
           const siblingIndex = siblings.findIndex((other) => other.id === link.id)
           const centeredSiblingOffset = siblingIndex - (siblings.length - 1) / 2
 
-          const color = latencyColor(link.latencyMs)
+          const color = linkColor(link)
           const curvedPositions = buildCurvedPositions(
             source.coordinates,
             target.coordinates,
@@ -157,11 +178,11 @@ export function FleetLatencyMap({
               positions={curvedPositions}
               fill={false}
               color={color}
-              opacity={selectedLinkId && selectedLinkId !== link.id ? 0.35 : 0.9}
-              weight={selectedLinkId === link.id ? 6 : 4}
+              opacity={selectedLinkId && selectedLinkId !== link.id ? 0.3 : 0.9}
+              weight={selectedLinkId === link.id ? 3 : 1.6}
               lineCap="round"
               lineJoin="round"
-              dashArray={link.latencyMs > 150 ? '6 5' : undefined}
+              dashArray={link.inferred || link.latencyMs > 150 ? '6 5' : undefined}
               eventHandlers={{
                 click: () => onLinkSelect?.(link.id),
               }}
@@ -169,6 +190,7 @@ export function FleetLatencyMap({
               <MapTooltip>
                 <div className="space-y-1 text-xs">
                   <p className="font-semibold">{source.label} → {target.label}</p>
+                  {link.inferred ? <p className="text-amber-600 dark:text-amber-300">inferred topology edge</p> : null}
                   <p>
                     latency {link.latencyMs}ms · jitter {link.jitterMs}ms · loss {(link.packetLossRatio * 100).toFixed(1)}%
                   </p>

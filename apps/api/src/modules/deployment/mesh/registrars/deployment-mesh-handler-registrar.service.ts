@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestj
 import type { DeploymentListInput } from "@repo/api-contracts/modules/deployment/list";
 import type { DeploymentSummary } from "../services/deployment-mesh.service";
 import { DeploymentMeshService } from "../services/deployment-mesh.service";
-import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology.service";
+import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { DeploymentService } from "../../services/deployment.service";
 
 @Injectable()

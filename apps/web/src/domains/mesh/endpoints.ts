@@ -7,6 +7,7 @@ import { orpc } from "@/lib/orpc";
  */
 export const meshEndpoints = {
   getLocalNode: orpc.core.mesh.getLocalNode,
+  streamEvents: orpc.core.mesh.streamEvents,
   listPeers: orpc.core.mesh.listPeers,
   listPeerSessions: orpc.core.mesh.listPeerSessions,
   listEventStreams: orpc.core.mesh.listEventStreams,

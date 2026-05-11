@@ -4,19 +4,11 @@ import { meshRuntimeEventSchema, meshTopologyEventSchema } from "@repo/contracts
 
 export const systemMeshEventContracts = {
     runtime: contractBuilder()
-        .input(
-            z.object({
-                clusterId: z.uuid(),
-            }),
-        )
+        .input(z.object({}))
         .output(meshRuntimeEventSchema)
         .build(),
     topology: contractBuilder()
-        .input(
-            z.object({
-                clusterId: z.uuid(),
-            }),
-        )
+        .input(z.object({}))
         .output(meshTopologyEventSchema)
         .build(),
 } as const;

@@ -1,5 +1,5 @@
 import { oc } from "@orpc/contract";
-import { route } from "@repo/orpc-utils/builder";
+import { standard } from "@repo/orpc-utils";
 import z from "zod/v4";
 
 export const fleetAllocationModeSchema = z.enum(["dedicated_full", "dedicated_slice", "shared_slice"]);
@@ -14,7 +14,6 @@ export const fleetNodeMetricSchema = z.object({
 });
 
 export const fleetServerSummarySchema = z.object({
-    clusterId: z.uuid(),
     nodeId: z.uuid(),
     serverUrl: z.string(),
     displayName: z.string().nullable(),
@@ -33,7 +32,6 @@ export const fleetServerSummarySchema = z.object({
 
 export const fleetOrgServerAllocationSchema = z.object({
     id: z.uuid(),
-    clusterId: z.uuid(),
     organizationId: z.string(),
     organizationName: z.string().nullable(),
     serverNodeId: z.uuid(),
@@ -113,7 +111,6 @@ const fleetAdmissionCheckResultSchema = z.object({
 
 const fleetAdmissionRequestSchema = z.object({
     id: z.uuid(),
-    clusterId: z.uuid(),
     organizationId: z.string(),
     organizationName: z.string().nullable(),
     status: fleetAdmissionRequestStatusSchema,
@@ -131,99 +128,90 @@ const fleetAdmissionRequestSchema = z.object({
     updatedAt: z.date(),
 });
 
-export const fleetListServersContract = route({
-    method: "GET",
-    path: "/servers",
-    summary: "List connected fleet servers with metrics and allocated capacities",
-})
+const fleetServerSummaryOps = standard.zod(fleetServerSummarySchema, "fleetServerSummary");
+const fleetOrgServerAllocationOps = standard.zod(
+    fleetOrgServerAllocationSchema,
+    "fleetOrgServerAllocation",
+);
+const fleetAdmissionCheckOps = standard.zod(fleetAdmissionCheckResultSchema, "fleetAdmissionCheck");
+const fleetAdmissionRequestOps = standard.zod(fleetAdmissionRequestSchema, "fleetAdmissionRequest");
+const fleetAllocationDeleteResultSchema = z.object({ deleted: z.boolean() });
+const fleetAllocationDeleteOps = standard.zod(
+    fleetAllocationDeleteResultSchema,
+    "fleetAllocationDelete",
+);
+
+export const fleetListServersContract = fleetServerSummaryOps
+    .list()
+    .path("/servers")
     .output((b) => b.body(z.object({ items: z.array(fleetServerSummarySchema) })))
     .build();
 
-export const fleetListAllocationsContract = route({
-    method: "GET",
-    path: "/allocations",
-    summary: "List organization-to-server capacity allocations",
-})
+export const fleetListAllocationsContract = fleetOrgServerAllocationOps
+    .list()
+    .path("/allocations")
     .input((b) => b.query(listFleetAllocationsQuerySchema))
     .output((b) => b.body(z.object({ items: z.array(fleetOrgServerAllocationSchema) })))
     .build();
 
-export const fleetListMyAllocationsContract = route({
-    method: "GET",
-    path: "/allocations/me",
-    summary: "List organization-to-server capacity allocations for the authenticated active organization",
-})
+export const fleetListMyAllocationsContract = fleetOrgServerAllocationOps
+    .list()
+    .path("/allocations/me")
     .output((b) => b.body(z.object({ items: z.array(fleetOrgServerAllocationSchema) })))
     .build();
 
-export const fleetUpsertAllocationContract = route({
-    method: "POST",
-    path: "/allocations/upsert",
-    summary: "Create or update an organization-to-server capacity allocation",
-})
+export const fleetUpsertAllocationContract = fleetOrgServerAllocationOps
+    .create()
+    .path("/allocations/upsert")
     .input((b) => b.body(upsertFleetAllocationInputSchema))
     .output((b) => b.body(fleetOrgServerAllocationSchema))
     .build();
 
-export const fleetDeleteAllocationContract = route({
-    method: "POST",
-    path: "/allocations/delete",
-    summary: "Delete an organization-to-server capacity allocation",
-})
+export const fleetDeleteAllocationContract = fleetAllocationDeleteOps
+    .create()
+    .path("/allocations/delete")
     .input((b) => b.body(deleteFleetAllocationInputSchema))
-    .output((b) => b.body(z.object({ deleted: z.boolean() })))
+    .output((b) => b.body(fleetAllocationDeleteResultSchema))
     .build();
 
-export const fleetCheckMyAdmissionContract = route({
-    method: "POST",
-    path: "/allocations/me/admission-check",
-    summary: "Check whether the authenticated active organization has enough allocated capacity",
-})
+export const fleetCheckMyAdmissionContract = fleetAdmissionCheckOps
+    .create()
+    .path("/allocations/me/admission-check")
     .input((b) => b.body(fleetAdmissionCheckInputSchema))
     .output((b) => b.body(fleetAdmissionCheckResultSchema))
     .build();
 
-export const fleetCreateMyAdmissionRequestContract = route({
-    method: "POST",
-    path: "/allocations/me/requests",
-    summary: "Create an org-scoped admission request for additional/explicit server capacity",
-})
+export const fleetCreateMyAdmissionRequestContract = fleetAdmissionRequestOps
+    .create()
+    .path("/allocations/me/requests")
     .input((b) => b.body(createFleetAdmissionRequestInputSchema))
     .output((b) => b.body(fleetAdmissionRequestSchema))
     .build();
 
-export const fleetListMyAdmissionRequestsContract = route({
-    method: "GET",
-    path: "/allocations/me/requests",
-    summary: "List org-scoped admission requests for the authenticated active organization",
-})
+export const fleetListMyAdmissionRequestsContract = fleetAdmissionRequestOps
+    .list()
+    .path("/allocations/me/requests")
     .input((b) => b.query(z.object({ status: fleetAdmissionRequestStatusSchema.optional() })))
     .output((b) => b.body(z.object({ items: z.array(fleetAdmissionRequestSchema) })))
     .build();
 
-export const fleetListAdmissionRequestsContract = route({
-    method: "GET",
-    path: "/allocations/requests",
-    summary: "List admission requests across organizations (superadmin)",
-})
+export const fleetListAdmissionRequestsContract = fleetAdmissionRequestOps
+    .list()
+    .path("/allocations/requests")
     .input((b) => b.query(listFleetAdmissionRequestsQuerySchema))
     .output((b) => b.body(z.object({ items: z.array(fleetAdmissionRequestSchema) })))
     .build();
 
-export const fleetResolveAdmissionRequestContract = route({
-    method: "POST",
-    path: "/allocations/requests/resolve",
-    summary: "Resolve an admission request (approve/reject/cancel) as superadmin",
-})
+export const fleetResolveAdmissionRequestContract = fleetAdmissionRequestOps
+    .create()
+    .path("/allocations/requests/resolve")
     .input((b) => b.body(resolveFleetAdmissionRequestInputSchema))
     .output((b) => b.body(fleetAdmissionRequestSchema))
     .build();
 
-export const fleetSetServerCapacityContract = route({
-    method: "POST",
-    path: "/servers/capacity",
-    summary: "Set the declared maximum CPU/memory capacity for a fleet server node (superadmin)",
-})
+export const fleetSetServerCapacityContract = fleetServerSummaryOps
+    .create()
+    .path("/servers/capacity")
     .input((b) =>
         b.body(
             z.object({

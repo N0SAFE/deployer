@@ -6,13 +6,26 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
  * Managed by the local SQLite database — no Postgres required.
  */
 export const nodeConfig = sqliteTable("node_config", {
-    id: integer("id").primaryKey({ autoIncrement: false }).notNull().$default(() => 1),
-    /** Connection URL for the global Postgres database */
-    databaseUrl: text("database_url"),
+    id: integer("id")
+        .primaryKey({ autoIncrement: false })
+        .notNull()
+        .$default(() => 1),
+
     /** UUID identifying this node in the mesh */
     nodeId: text("node_id").notNull(),
+
+    /** Bootstrap strategy: "local" or "remote" */
+    strategy: text("strategy", { enum: ["local", "remote"] }).notNull(),
+
+    /** Mesh bootstrap URL snapshot, stored locally for reconnect order */
+    meshUrlsSnapshot: text("mesh_urls_snapshot", { mode: "json" }).$type<string[]>(),
+    
+    /** stored database url */
+    databaseUrl: text("database_url").notNull(),
+
     /** ISO-8601 timestamp when the node was first configured */
     configuredAt: text("configured_at").notNull(),
+
     /** ISO-8601 timestamp of last update to this row */
     updatedAt: text("updated_at").notNull(),
 });

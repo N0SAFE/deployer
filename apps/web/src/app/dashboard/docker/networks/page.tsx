@@ -1,10 +1,14 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { z } from 'zod'
 import { DockerBatchOperationsBar, DockerSavedViewSelect } from '../_components/docker-operations-controls'
+import { DockerInlineLoadingState, DockerTableLoadingRows } from '../_components/docker-loading-states'
+import { DockerTablePagination } from '../_components/docker-table-pagination'
 import { DockerActiveFilterChips, DockerColumnSettings, DockerExportActions, DockerSelectionToggle } from '../_components/docker-page-utilities'
 import { DockerNetworkDetailModalTrigger } from '../_components/docker-network-detail-modal'
-import { useDockerFleetServers, useDockerNetworkList } from '@/domains/docker/mock-hooks'
+import { useDockerDataTable } from '../_components/use-docker-data-table'
+import { useDockerFleetServers, useDockerNetworkEventsStream, useDockerNetworkList } from '@/domains/docker/hooks'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
@@ -20,6 +24,7 @@ import {
 import { Separator } from '@repo/ui/components/shadcn/separator'
 import { Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useSafeQueryStatesFromZod } from '@/utils/useSafeQueryStatesFromZod'
 
 const NETWORK_LIST_INPUT = {
   query: {
@@ -27,6 +32,15 @@ const NETWORK_LIST_INPUT = {
     offset: 0,
   },
 } as const
+
+const NETWORK_LIST_QUERY_SCHEMA = z.object({
+  q: z.string().default(''),
+  view: z.enum(['all', 'bridge', 'with-containers']).default('all'),
+  sortBy: z.enum(['name', 'services', 'project']).default('services'),
+  sortDirection: z.enum(['asc', 'desc']).default('desc'),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(10).max(100).default(20),
+})
 
 interface NetworkProjection {
   id: string
@@ -58,10 +72,7 @@ export default function DashboardDockerNetworksPage() {
   const [newNetworkDriver, setNewNetworkDriver] = useState<'bridge' | 'overlay' | 'host'>('bridge')
   const [newNetworkSubnet, setNewNetworkSubnet] = useState('172.28.0.0/16')
   const [localNetworks, setLocalNetworks] = useState<NetworkProjection[]>([])
-  const [savedView, setSavedView] = useState<'all' | 'bridge' | 'with-containers'>('all')
-  const [sortBy, setSortBy] = useState<'name' | 'services' | 'project'>('services')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
-  const [searchTerm, setSearchTerm] = useState('')
+  const [listQuery, setListQuery] = useSafeQueryStatesFromZod(NETWORK_LIST_QUERY_SCHEMA)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
@@ -71,11 +82,17 @@ export default function DashboardDockerNetworksPage() {
     Active: true,
     Domains: true,
   })
-  const { data: networkData } = useDockerNetworkList(NETWORK_LIST_INPUT)
-  const { data: fleetServersData } = useDockerFleetServers()
+  const { data: networkData, isLoading: isNetworkLoading } = useDockerNetworkList(NETWORK_LIST_INPUT)
+  const { data: fleetServersData, isLoading: isFleetServersLoading } = useDockerFleetServers()
+  useDockerNetworkEventsStream({ query: {} })
 
   const networkEntities = networkData?.data ?? []
   const fleetServers = fleetServersData?.items ?? []
+
+  const searchTerm = listQuery.q
+  const savedView = listQuery.view
+  const sortBy = listQuery.sortBy
+  const sortDirection = listQuery.sortDirection
 
   const networks = useMemo<NetworkProjection[]>(() => {
     const fromApi = networkEntities
@@ -139,17 +156,40 @@ export default function DashboardDockerNetworksPage() {
       return network.name.toLowerCase().includes(query) || network.projectId.toLowerCase().includes(query)
     })
 
-    return filtered.sort((a, b) => {
-      const multiplier = sortDirection === 'asc' ? 1 : -1
-      if (sortBy === 'name') return a.name.localeCompare(b.name) * multiplier
-      if (sortBy === 'project') return a.projectId.localeCompare(b.projectId) * multiplier
-      return (a.serviceCount - b.serviceCount) * multiplier
-    })
-  }, [networks, savedView, searchTerm, sortBy, sortDirection])
+    return filtered
+  }, [networks, savedView, searchTerm])
 
-  const allVisibleSelected = filteredNetworks.length > 0 && filteredNetworks.every((network) => selectedIds.has(network.id))
-  const selectedVisibleCount = filteredNetworks.filter((network) => selectedIds.has(network.id)).length
-  const someVisibleSelected = selectedVisibleCount > 0 && selectedVisibleCount < filteredNetworks.length
+  const networkSorters = useMemo(
+    () => ({
+      name: (network: NetworkProjection) => network.name,
+      services: (network: NetworkProjection) => network.serviceCount,
+      project: (network: NetworkProjection) => network.projectId,
+    }),
+    [],
+  )
+
+  const networkTable = useDockerDataTable({
+    data: filteredNetworks,
+    sortBy,
+    sortDirection,
+    page: listQuery.page,
+    pageSize: listQuery.pageSize,
+    sorters: networkSorters,
+  })
+
+  useEffect(() => {
+    if (networkTable.page !== listQuery.page) {
+      setListQuery({ page: networkTable.page })
+    }
+  }, [listQuery.page, networkTable.page, setListQuery])
+
+  const visibleNetworks = networkTable.rows
+
+  const allVisibleSelected = visibleNetworks.length > 0 && visibleNetworks.every((network) => selectedIds.has(network.id))
+  const selectedVisibleCount = visibleNetworks.filter((network) => selectedIds.has(network.id)).length
+  const someVisibleSelected = selectedVisibleCount > 0 && selectedVisibleCount < visibleNetworks.length
+  const tableColumnCount = 1 + Object.values(visibleColumns).filter(Boolean).length + 1
+  const isInitialLoading = (isNetworkLoading || isFleetServersLoading) && networks.length === 0
 
   return (
     <div className="space-y-6">
@@ -167,7 +207,7 @@ export default function DashboardDockerNetworksPage() {
                 <Input
                   value={searchTerm}
                   onChange={(event) => {
-                    setSearchTerm(event.target.value)
+                    setListQuery({ q: event.target.value, page: 1 })
                   }}
                   placeholder="Search networks..."
                   className="h-9 border-border/70 bg-background/70 pl-9"
@@ -178,7 +218,7 @@ export default function DashboardDockerNetworksPage() {
                 storageKey="docker:networks:saved-view"
                 value={savedView}
                 onChange={(value) => {
-                  setSavedView(value as 'all' | 'bridge' | 'with-containers')
+                  setListQuery({ view: value as 'all' | 'bridge' | 'with-containers', page: 1 })
                 }}
                 options={[
                   { value: 'all', label: 'All' },
@@ -191,7 +231,7 @@ export default function DashboardDockerNetworksPage() {
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={sortBy}
                 onChange={(event) => {
-                  setSortBy(event.target.value as 'name' | 'services' | 'project')
+                  setListQuery({ sortBy: event.target.value as 'name' | 'services' | 'project', page: 1 })
                 }}
               >
                 <option value="services">Sort: Services</option>
@@ -203,7 +243,7 @@ export default function DashboardDockerNetworksPage() {
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={sortDirection}
                 onChange={(event) => {
-                  setSortDirection(event.target.value as 'asc' | 'desc')
+                  setListQuery({ sortDirection: event.target.value as 'asc' | 'desc', page: 1 })
                 }}
               >
                 <option value="desc">Desc</option>
@@ -256,6 +296,12 @@ export default function DashboardDockerNetworksPage() {
 
         {actionFeedback ? <div className="border-b border-border/60 bg-muted/20 px-4 py-2 text-xs text-muted-foreground">{actionFeedback}</div> : null}
 
+        {isInitialLoading ? (
+          <div className="px-4 py-3">
+            <DockerInlineLoadingState label="Loading network topology and fleet status…" />
+          </div>
+        ) : null}
+
         <div className="p-4">
 
           <DockerBatchOperationsBar
@@ -284,7 +330,7 @@ export default function DashboardDockerNetworksPage() {
                       indeterminate={someVisibleSelected}
                       onPressedChange={(pressed) => {
                         if (pressed) {
-                          setSelectedIds(new Set(filteredNetworks.map((network) => network.id)))
+                          setSelectedIds(new Set(visibleNetworks.map((network) => network.id)))
                         } else {
                           setSelectedIds(new Set())
                         }
@@ -302,7 +348,9 @@ export default function DashboardDockerNetworksPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredNetworks.map((network) => (
+              {isInitialLoading ? (
+                <DockerTableLoadingRows columns={tableColumnCount} rows={6} />
+              ) : visibleNetworks.map((network) => (
                 <TableRow key={network.id}>
                   <TableCell>
                     <div className="flex h-7 items-center gap-1">
@@ -350,7 +398,7 @@ export default function DashboardDockerNetworksPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filteredNetworks.length === 0 ? (
+              {!isInitialLoading && filteredNetworks.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     No network projections yet.
@@ -359,6 +407,23 @@ export default function DashboardDockerNetworksPage() {
               ) : null}
             </TableBody>
           </Table>
+          </div>
+
+          <div className="mt-2">
+            <DockerTablePagination
+              page={networkTable.page}
+              pageSize={networkTable.pageSize}
+              totalRows={networkTable.totalRows}
+              totalPages={networkTable.totalPages}
+              from={networkTable.from}
+              to={networkTable.to}
+              onPageChange={(nextPage) => {
+                setListQuery({ page: nextPage })
+              }}
+              onPageSizeChange={(nextPageSize) => {
+                setListQuery({ pageSize: nextPageSize, page: 1 })
+              }}
+            />
           </div>
 
           <div className="mt-3 grid gap-2 md:grid-cols-3">

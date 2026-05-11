@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { AppModule } from "@/app.module";
 import type { Request, Response } from "express";
 import { LoggerMiddleware } from "./core/middlewares/logger.middleware";
+import { InternalErrorContextMiddleware } from "./core/middlewares/internal-error/internal-error-context.middleware";
 
 describe("AppModule", () => {
     let appModule: AppModule;
@@ -24,7 +25,7 @@ describe("AppModule", () => {
 
             appModule.configure(mockConsumer);
 
-            expect(mockConsumer.apply).toHaveBeenCalledWith(LoggerMiddleware);
+            expect(mockConsumer.apply).toHaveBeenCalledWith(InternalErrorContextMiddleware, LoggerMiddleware);
             expect(mockConsumer.forRoutes).toHaveBeenCalledWith("*");
         });
     });

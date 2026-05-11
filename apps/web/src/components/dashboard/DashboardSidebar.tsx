@@ -98,7 +98,6 @@ const mainNavItems: NavItem[] = [
       { title: 'Volumes', url: '/dashboard/docker/volumes' },
       { title: 'Networks', url: '/dashboard/docker/networks' },
       { title: 'Registry', url: '/dashboard/docker/registry' },
-      { title: 'Queu', url: '/dashboard/docker/queu' },
       { title: 'Activity', url: '/dashboard/docker/activity' },
     ],
   },

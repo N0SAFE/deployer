@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useMeshSseState } from '@/domains/mesh/sse'
+import { useMeshSseState } from '@/domains/mesh/hooks'
 import { FleetLatencyMap, type FleetMapLink, type FleetMapNode } from './_components/fleet-latency-map'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import {
@@ -125,29 +125,22 @@ export default function AdminServersPage() {
 			reliabilityScore: peer.metrics.reliabilityScore,
 			throughputMbps: peer.metrics.throughputMbps,
 			state: peer.state,
+			inferred:
+				Boolean(peer.metadata) &&
+				typeof peer.metadata === 'object' &&
+				(peer.metadata as Record<string, unknown>).inferredFromClusterSync === true,
+			measuredAt: peer.metrics.measuredAt,
 		}))
 
-		if (meshLinks.length > 0 || !localNode) {
-			return meshLinks
-		}
+		return meshLinks
+	}, [peers])
 
-		return sessions.map((session) => ({
-			id: `session:${session.sessionId}`,
-			sourceNodeId: localNode.nodeId,
-			targetNodeId: session.peerNodeId ?? `session:${session.sessionId}`,
-			latencyMs: 60,
-			jitterMs: 14,
-			packetLossRatio: 0.01,
-			reliabilityScore: 0.92,
-			throughputMbps: 180,
-			state: session.state,
-		}))
-	}, [localNode, peers, sessions])
+	const liveTelemetryLinks = useMemo(() => links.filter((link) => !link.inferred), [links])
 
 	const mapCenter = useMemo(() => averageCenter(nodes), [nodes])
 
 	const effectiveSelectedNodeId = selectedNodeId ?? nodes[0]?.nodeId ?? null
-	const effectiveSelectedLinkId = selectedLinkId ?? links[0]?.id ?? null
+	const effectiveSelectedLinkId = selectedLinkId ?? liveTelemetryLinks[0]?.id ?? links[0]?.id ?? null
 
 	const selectedNode = useMemo(
 		() => nodes.find((node) => node.nodeId === effectiveSelectedNodeId) ?? null,
@@ -170,12 +163,12 @@ export default function AdminServersPage() {
 	)
 
 	const avgLatency = useMemo(() => {
-		if (links.length === 0) return 0
-		return Math.round(links.reduce((sum, item) => sum + item.latencyMs, 0) / links.length)
-	}, [links])
+		if (liveTelemetryLinks.length === 0) return 0
+		return Math.round(liveTelemetryLinks.reduce((sum, item) => sum + item.latencyMs, 0) / liveTelemetryLinks.length)
+	}, [liveTelemetryLinks])
 
 	const healthStats = useMemo(() => {
-		if (links.length === 0) {
+		if (liveTelemetryLinks.length === 0) {
 			return {
 				avgJitter: 0,
 				avgLossPct: 0,
@@ -186,32 +179,32 @@ export default function AdminServersPage() {
 			}
 		}
 
-		const latencyValues = links.map((link) => link.latencyMs).sort((a, b) => a - b)
+		const latencyValues = liveTelemetryLinks.map((link) => link.latencyMs).sort((a, b) => a - b)
 		const p95Index = Math.min(latencyValues.length - 1, Math.floor(latencyValues.length * 0.95))
-		const avgJitter = links.reduce((sum, link) => sum + link.jitterMs, 0) / links.length
-		const avgLossRatio = links.reduce((sum, link) => sum + link.packetLossRatio, 0) / links.length
-		const avgReliabilityRatio = links.reduce((sum, link) => sum + link.reliabilityScore, 0) / links.length
+		const avgJitter = liveTelemetryLinks.reduce((sum, link) => sum + link.jitterMs, 0) / liveTelemetryLinks.length
+		const avgLossRatio = liveTelemetryLinks.reduce((sum, link) => sum + link.packetLossRatio, 0) / liveTelemetryLinks.length
+		const avgReliabilityRatio = liveTelemetryLinks.reduce((sum, link) => sum + link.reliabilityScore, 0) / liveTelemetryLinks.length
 
 		return {
 			avgJitter: Math.round(avgJitter),
 			avgLossPct: Number((avgLossRatio * 100).toFixed(2)),
 			avgReliabilityPct: Number((avgReliabilityRatio * 100).toFixed(1)),
 			p95Latency: latencyValues[p95Index] ?? 0,
-			highLatencyCount: links.filter((link) => link.latencyMs >= 90).length,
-			highLossCount: links.filter((link) => link.packetLossRatio >= 0.02).length,
+			highLatencyCount: liveTelemetryLinks.filter((link) => link.latencyMs >= 90).length,
+			highLossCount: liveTelemetryLinks.filter((link) => link.packetLossRatio >= 0.02).length,
 		}
-	}, [links])
+	}, [liveTelemetryLinks])
 
 	const hotLinks = useMemo(
 		() =>
-			[...links]
+			[...liveTelemetryLinks]
 				.sort((a, b) => {
 					const scoreA = a.latencyMs + a.jitterMs + a.packetLossRatio * 1000
 					const scoreB = b.latencyMs + b.jitterMs + b.packetLossRatio * 1000
 					return scoreB - scoreA
 				})
 				.slice(0, 4),
-		[links],
+		[liveTelemetryLinks],
 	)
 
 	const surfaceCardClass =
@@ -227,6 +220,7 @@ export default function AdminServersPage() {
 				<div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
 					<Badge variant="secondary">{nodes.length} nodes</Badge>
 					<Badge variant="secondary">{links.length} links</Badge>
+					<Badge variant="outline">{liveTelemetryLinks.length} live telemetry</Badge>
 					<Badge variant="outline">avg latency {avgLatency}ms</Badge>
 					<Badge variant={status === 'connected' ? 'default' : status === 'error' ? 'destructive' : 'secondary'}>
 						stream {status}
@@ -408,8 +402,13 @@ export default function AdminServersPage() {
 													}}
 													className="flex w-full items-center justify-between rounded-md border border-slate-200/80 bg-white/70 px-2.5 py-2 text-left transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/70 dark:hover:bg-slate-800"
 												>
-													<span className="font-mono text-[11px]">{link.sourceNodeId.slice(0, 8)} → {link.targetNodeId.slice(0, 8)}</span>
-													<span className="text-xs text-muted-foreground">{link.latencyMs}ms</span>
+															<div className="space-y-0.5">
+																<span className="font-mono text-[11px]">{link.sourceNodeId.slice(0, 8)} → {link.targetNodeId.slice(0, 8)}</span>
+																{link.inferred ? (
+																	<p className="text-[10px] text-amber-600 dark:text-amber-300">inferred topology link</p>
+																) : null}
+															</div>
+															<span className="text-xs text-muted-foreground">{link.latencyMs}ms</span>
 												</button>
 											))}
 										</div>
@@ -423,6 +422,15 @@ export default function AdminServersPage() {
 						<div className="space-y-4 text-sm">
 							<div className="rounded-md border border-slate-200/80 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/60">
 								<p className="font-semibold">{selectedLink.sourceNodeId.slice(0, 8)} → {selectedLink.targetNodeId.slice(0, 8)}</p>
+								{selectedLink.inferred ? (
+									<p className="mt-1 text-xs text-amber-600 dark:text-amber-300">
+										Inferred topology link. Live heartbeat telemetry is not available for this edge yet.
+									</p>
+								) : (
+									<p className="mt-1 text-xs text-muted-foreground">
+										Live streamed telemetry · measured at {new Date(selectedLink.measuredAt).toLocaleTimeString()}
+									</p>
+								)}
 								<div className="mt-2 grid grid-cols-2 gap-2 text-xs">
 									<div className="rounded bg-blue-500/10 px-2 py-1.5 text-blue-700 dark:text-blue-300">
 										<p>Latency</p>
@@ -443,6 +451,7 @@ export default function AdminServersPage() {
 								</div>
 								<div className="mt-2">
 									<Badge variant={selectedLink.state === 'active' || selectedLink.state === 'up' ? 'default' : 'secondary'}>{selectedLink.state}</Badge>
+									{selectedLink.inferred ? <Badge variant="outline" className="ml-2">inferred</Badge> : null}
 								</div>
 							</div>
 						</div>

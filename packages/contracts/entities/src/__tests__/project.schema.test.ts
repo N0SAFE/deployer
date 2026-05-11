@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   projectEnvironmentSettingsSchema,
   projectSettingsSchema,
-} from '../entities/project.schema'
+} from '../entities/project'
 
 describe('project schema validation', () => {
   const baseEnvironment = {

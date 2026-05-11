@@ -64,6 +64,46 @@ describe('Schema-first API', () => {
     expect(route).toBeDefined();
   });
 
+  it('supports input union with raw schemas', () => {
+    const route = new RouteBuilder({ method: 'POST', path: '/users/search' })
+      .input((b) => b.union([
+        z.object({ mode: z.literal('email'), email: z.email() }),
+        z.object({ mode: z.literal('id'), id: z.uuid() }),
+      ]))
+      .output(z.object({ ok: z.literal(true) }))
+      .build();
+
+    expect(route).toBeDefined();
+  });
+
+  it('supports input union with builder variants', () => {
+    const route = new RouteBuilder({ method: 'POST', path: '/users/search' })
+      .input((b) => b.union([
+        b.body(z.object({ mode: z.literal('email'), email: z.email() })),
+        b.body(z.object({ mode: z.literal('id'), id: z.uuid() })),
+      ]))
+      .output(z.object({ ok: z.literal(true) }))
+      .build();
+
+    expect(route).toBeDefined();
+  });
+
+  it('supports input union with detailed variants (params + body)', () => {
+    const route = new RouteBuilder({ method: 'POST' })
+      .input((b) => b.union([
+        b
+          .params((p) => p`/orgs/${p('orgId', z.uuid())}/users`)
+          .body(z.object({ mode: z.literal('email'), email: z.email() })),
+        b
+          .params((p) => p`/orgs/${p('orgId', z.uuid())}/users`)
+          .body(z.object({ mode: z.literal('id'), id: z.uuid() })),
+      ]))
+      .output(z.object({ ok: z.literal(true) }))
+      .build();
+
+    expect(route).toBeDefined();
+  });
+
   it('supports streamed body via body.streamed', () => {
     const route = new RouteBuilder({ method: 'GET', path: '/events' })
       .output((b) => b.streamed(z.object({ event: z.string() })))

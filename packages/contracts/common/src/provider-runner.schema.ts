@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import z from 'zod'
 
 export const organizationPlanSchema = z.enum(['enterprise', 'team', 'free'])
 export type OrganizationPlan = z.infer<typeof organizationPlanSchema>

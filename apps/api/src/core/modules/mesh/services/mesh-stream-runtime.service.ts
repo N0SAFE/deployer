@@ -4,7 +4,6 @@ import { createORPCClient } from "@orpc/client";
 import type { ContractRouterClient } from "@orpc/contract";
 import { OpenAPILink } from "@orpc/openapi-client/fetch";
 import { appContract, type AppContract } from "@repo/api-contracts";
-import { signMeshToken } from "@repo/auth/mesh";
 import { EnvService } from "@/config/env/env.service";
 import {
     eq,
@@ -12,8 +11,9 @@ import {
     meshStreamResourceSchema,
     path,
     SystemMeshResourceDiscoveryService,
-} from "@/core/modules/mesh/services/system-mesh-resource-discovery.service";
+} from "@/core/modules/mesh/services/system-mesh-resource-discovery/system-mesh-resource-discovery.service";
 import { SystemMeshConfigService } from "@/core/modules/mesh/services/system-mesh-config.service";
+import { MeshInternalRequestService } from "@/core/modules/mesh/services/mesh-internal-request.service";
 
 const streamFields = meshFields(meshStreamResourceSchema);
 
@@ -35,6 +35,7 @@ export class MeshStreamRuntimeService {
         private readonly meshResourceDiscoveryService: SystemMeshResourceDiscoveryService,
         private readonly meshConfigService: SystemMeshConfigService,
         private readonly envService: EnvService,
+        private readonly meshInternalRequestService: MeshInternalRequestService,
     ) {}
 
     openInternalBridge<TEvent>(input: MeshOpenInternalBridgeInput<TEvent>): Observable<TEvent> | null {
@@ -70,7 +71,7 @@ export class MeshStreamRuntimeService {
             })
             .firstRemote();
 
-        if (!remote || !remote.ownerServerUrl) {
+        if (!remote?.ownerServerUrl) {
             return null;
         }
 
@@ -147,26 +148,9 @@ export class MeshStreamRuntimeService {
             headers.cookie = cookie;
         }
 
-        const meshInternalKey = this.resolveMeshInternalCredential(request);
-
-        if (meshInternalKey && meshInternalKey.length > 0) {
-            headers["x-mesh-internal-key"] = meshInternalKey;
-        }
+        const internalHeaders = this.meshInternalRequestService.buildInternalHeaders({ request });
+        Object.assign(headers, internalHeaders);
 
         return headers;
-    }
-
-    private resolveMeshInternalCredential(request: Request): string | null {
-        const configuredSecret = this.meshConfigService.getStreamSharedSecret();
-        if (configuredSecret && configuredSecret.length > 0) {
-            return signMeshToken(configuredSecret);
-        }
-
-        const forwarded =
-            request.headers.get("x-mesh-internal-key") ??
-            request.headers.get("X-Mesh-Internal-Key") ??
-            null;
-
-        return forwarded && forwarded.length > 0 ? forwarded : null;
     }
 }

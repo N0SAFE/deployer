@@ -72,7 +72,11 @@ describe("CoreEventSyncService", () => {
             delete: vi.fn(),
         };
 
-        service = new CoreEventSyncService(repository as never);
+        const streamPool = {
+            observePooledStream: vi.fn((_key: string, factory: () => unknown) => factory()),
+        };
+
+        service = new CoreEventSyncService(repository as never, streamPool as never);
     });
 
     it("should list streams via repository", async () => {

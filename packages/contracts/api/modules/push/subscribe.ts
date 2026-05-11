@@ -1,5 +1,5 @@
-import { route } from "@repo/orpc-utils/builder";
-import * as z from "zod";
+import z from "zod/v4";
+import { standard } from "@repo/orpc-utils";
 
 const subscriptionKeysSchema = z.object({
   p256dh: z.string(),
@@ -19,12 +19,11 @@ export const subscribeOutputSchema = z.object({
   createdAt: z.date(),
 });
 
-export const subscribeContract = route({
-    method: "POST",
-    path: "/subscribe",
-    summary: "Subscribe to push notifications",
-    description: "Subscribe the current user to push notifications",
-  })
-  .input(subscribeInputSchema)
+const pushSubscribeOps = standard.zod(subscribeOutputSchema, "pushSubscribe");
+
+export const subscribeContract = pushSubscribeOps
+  .create()
+  .path("/subscribe")
+  .input((b) => b.body(subscribeInputSchema))
   .output(subscribeOutputSchema)
   .build();

@@ -1,9 +1,8 @@
 import { Command, CommandRunner } from 'nest-commander';
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { EnvService } from '@/config/env/env.service';
 import { apiEnvSchema } from '@repo/env';
 import zod from 'zod/v4';
-import { CLI_AUTH_SERVICE_TOKEN, ENV_SERVICE } from '../tokens';
 import { CliAuthService } from '../services/cli-auth.service';
 
 // Extend the API schema with command-specific environment variables
@@ -23,9 +22,7 @@ export class CreateDefaultAdminCommand extends CommandRunner {
   private readonly commandEnvService: EnvService<CreateDefaultAdminEnv>;
   
   constructor(
-    @Inject(CLI_AUTH_SERVICE_TOKEN)
     private readonly cliAuthService: CliAuthService,
-    @Inject(ENV_SERVICE)
     private readonly envService: EnvService,
   ) {
     super();

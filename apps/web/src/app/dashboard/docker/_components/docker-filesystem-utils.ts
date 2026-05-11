@@ -1,6 +1,6 @@
 'use client'
 
-import type { DockerFileEntry } from '@/mocks/platform/types'
+import type { DockerFileEntry } from '@repo/contracts-entities'
 
 export interface DockerDirectoryEntryView {
   name: string

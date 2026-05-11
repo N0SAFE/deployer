@@ -1,7 +1,6 @@
 {
   "extends": "@repo/config-typescript/config/test.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@": ["./src"]
     }

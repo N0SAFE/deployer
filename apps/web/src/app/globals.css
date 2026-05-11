@@ -265,3 +265,31 @@ body {
     -moz-osx-font-smoothing: grayscale;
     }
 }
+
+@layer components {
+  .resizable-table {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  .resizable-table th {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .resizable-table th,
+  .resizable-table td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body[data-resizing='true'] {
+    cursor: col-resize !important;
+    user-select: none !important;
+  }
+
+  body[data-resizing='true'] * {
+    cursor: col-resize !important;
+  }
+}

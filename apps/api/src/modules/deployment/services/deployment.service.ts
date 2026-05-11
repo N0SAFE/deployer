@@ -108,7 +108,7 @@ type StreamEventWithMeta<T extends object> = T & {
     sequence: number;
     cursor: string;
     replayed: boolean;
-    emittedAt: string;
+    emittedAt: Date;
 };
 
 const BASE_PHASE_TRANSITIONS: DeploymentPhaseTransition[] = [
@@ -544,7 +544,7 @@ export class DeploymentService implements OnModuleInit {
             },
         );
         this.deploymentEventService.emit("logAppended", { deploymentId: id }, cancelLog);
-        return { deploymentId: id, cancelledAt: cancelledAt.toISOString() };
+        return { deploymentId: id, cancelledAt };
     }
 
     async rollbackDeployment(
@@ -914,7 +914,11 @@ export class DeploymentService implements OnModuleInit {
 
         for (const item of deployments) {
             const deployment = item.deployment;
-            events.push({ type: "deploymentTriggered", deployment, emittedAt: deployment.createdAt });
+            events.push({
+                type: "deploymentTriggered",
+                deployment,
+                emittedAt: this.toDate(deployment.createdAt),
+            });
             events.push({
                 type: "statusChanged",
                 deploymentId: deployment.id,
@@ -922,7 +926,7 @@ export class DeploymentService implements OnModuleInit {
                 ...(item.projectId ? { projectId: item.projectId } : {}),
                 status: deployment.status,
                 environment: deployment.environment,
-                emittedAt: deployment.updatedAt,
+                emittedAt: this.toDate(deployment.updatedAt),
             });
 
             if (deployment.phase) {
@@ -931,7 +935,7 @@ export class DeploymentService implements OnModuleInit {
                     deploymentId: deployment.id,
                     phase: deployment.phase,
                     phaseProgress: deployment.phaseProgress ?? 0,
-                    emittedAt: deployment.updatedAt,
+                    emittedAt: this.toDate(deployment.updatedAt),
                 });
             }
 
@@ -942,7 +946,7 @@ export class DeploymentService implements OnModuleInit {
                     ...(typeof deployment.metadata?.cancelReason === "string"
                         ? { reason: deployment.metadata.cancelReason }
                         : {}),
-                    emittedAt: deployment.updatedAt,
+                    emittedAt: this.toDate(deployment.updatedAt),
                 });
             }
 
@@ -951,13 +955,17 @@ export class DeploymentService implements OnModuleInit {
                     type: "rollbackStarted",
                     fromDeploymentId: deployment.metadata.rollbackFrom,
                     rollbackDeploymentId: deployment.id,
-                    emittedAt: deployment.updatedAt,
+                    emittedAt: this.toDate(deployment.updatedAt),
                 });
             }
         }
 
         for (const item of logs) {
-            events.push({ type: "logAppended", log: item.log, emittedAt: item.log.timestamp });
+            events.push({
+                type: "logAppended",
+                log: item.log,
+                emittedAt: this.toDate(item.log.timestamp),
+            });
         }
 
         return events.filter((event) => this.matchesStreamQueryFilters(event, filters));
@@ -2141,14 +2149,17 @@ export class DeploymentService implements OnModuleInit {
                 const existingEmittedAt =
                     typeof event === "object" &&
                     "emittedAt" in event &&
-                    typeof (event as { emittedAt?: unknown }).emittedAt === "string"
-                        ? (event as { emittedAt: string }).emittedAt
-                        : undefined;
-                const emittedAt = existingEmittedAt ?? new Date().toISOString();
+                    (event as { emittedAt?: unknown }).emittedAt instanceof Date
+                        ? ((event as { emittedAt: Date }).emittedAt)
+                        : typeof event === "object" &&
+                            "emittedAt" in event &&
+                            typeof (event as { emittedAt?: unknown }).emittedAt === "string"
+                          ? new Date((event as { emittedAt: string }).emittedAt)
+                          : undefined;
+                const emittedAt = existingEmittedAt ?? new Date();
 
                 if (hasValidSince) {
-                    const eventDate = new Date(emittedAt);
-                    if (!Number.isFinite(eventDate.getTime()) || eventDate < sinceDate) {
+                    if (!Number.isFinite(emittedAt.getTime()) || emittedAt < sinceDate) {
                         return null;
                     }
                 }
@@ -2191,11 +2202,10 @@ export class DeploymentService implements OnModuleInit {
             const eventTime = this.resolveEventTimestamp(event);
             if (eventTime) {
                 const sinceDate = new Date(filters.since);
-                const eventDate = new Date(eventTime);
                 if (
                     Number.isFinite(sinceDate.getTime()) &&
-                    Number.isFinite(eventDate.getTime()) &&
-                    eventDate < sinceDate
+                    Number.isFinite(eventTime.getTime()) &&
+                    eventTime < sinceDate
                 ) {
                     return false;
                 }
@@ -2229,12 +2239,12 @@ export class DeploymentService implements OnModuleInit {
         }
     }
 
-    private resolveEventTimestamp(event: DeploymentQueryEvent): string | undefined {
+    private resolveEventTimestamp(event: DeploymentQueryEvent): Date | undefined {
         switch (event.type) {
             case "deploymentTriggered":
-                return event.deployment.createdAt;
+                return this.toDate(event.deployment.createdAt);
             case "logAppended":
-                return event.log.timestamp;
+                return this.toDate(event.log.timestamp);
             default:
                 return event.emittedAt;
         }
@@ -2279,9 +2289,13 @@ export class DeploymentService implements OnModuleInit {
                 eventName: event.type,
                 payload: event,
                 replayed: event.replayed,
-                emittedAt: event.emittedAt,
+                emittedAt: event.emittedAt.toISOString(),
             })),
         );
+    }
+
+    private toDate(value: string | Date): Date {
+        return value instanceof Date ? value : new Date(value);
     }
 
     private buildStateMachineScopeConfig(

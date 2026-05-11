@@ -183,6 +183,16 @@ Rules:
 - [ ] T154 Implement cascade deploy orchestration using existing `service_dependencies` table (trigger policy, health-gate enforcement, configurable enable/disable per dependency edge).
 - [ ] T155 Implement deployment approval gate module (`deployment_approval` table) with per-tier config UI (auto vs manual gate, approval rules per environment tier).
 
+#### Docker standalone-first execution pack (phase boundary lock)
+
+- [ ] T275 Publish and enforce Docker standalone-first scope boundary: core Docker operator workflows must not require deployment/project/service linkage.
+- [ ] T276 Expand Docker contract/API parity for standalone operator capabilities (container lifecycle mutations, image pull/tag/remove/prune and registry search/catalog/tags, network create/connect/disconnect, volume create/inspect/browse/clone/export, stack start/stop/restart/down + compose/env controls).
+- [ ] T277 Remove hard-linked projection dependency from Docker web pages (`containers/images/networks/volumes/stacks/registry`) and keep linked metadata as optional additive enrichment only.
+- [ ] T278 Add focused tests for standalone behavior and graceful degradation when linked enrichment endpoints fail or are disabled.
+- [ ] T279 Introduce Phase-2 linked overlay adapters (deployment/service/project context) behind explicit optional endpoints with non-blocking fallback semantics.
+- [ ] T280 Implement SSE streaming excellence baseline for Docker pages: cursor-resume semantics, heartbeat keepalive, reconnect/backoff strategy, typed error envelopes, and degraded-mode fallback to polling snapshots.
+- [ ] T281 Add Docker streaming reliability test suite (disconnect/reconnect, cursor replay, duplicate delivery idempotency, lag/drop diagnostics, and stream filter fidelity).
+
 #### GitHub provider deep-parity expansion
 
 - [ ] T182 Harden GitHub webhook signature + replay verification: enforce timestamp freshness, delivery-id dedupe TTL, and explicit failure taxonomy (`signature_invalid`, `replay_blocked`, `payload_invalid`).

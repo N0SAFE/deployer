@@ -8,7 +8,6 @@ CREATE TABLE `node_config` (
 --> statement-breakpoint
 CREATE TABLE `node_mesh_config` (
 	`id` integer PRIMARY KEY NOT NULL,
-	`cluster_id` text NOT NULL,
 	`node_server_url` text,
 	`bootstrap_peers_encrypted` text,
 	`sync_interval_ms` integer DEFAULT 10000 NOT NULL,

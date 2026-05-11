@@ -2,7 +2,6 @@
     "extends": "@repo/config-typescript/config/nextjs.json",
     "compilerOptions": {
         "outDir": "dist",
-        "baseUrl": ".",
         "plugins": [
             {
                 "name": "next"
@@ -10,10 +9,7 @@
         ],
         "paths": {
             "@/*": [
-                "src/*"
-            ],
-            "@repo/*": [
-                "../*"
+                "./src/*"
             ]
         }
     },

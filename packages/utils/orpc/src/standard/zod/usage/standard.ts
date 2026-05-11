@@ -155,7 +155,7 @@ export const userFileUploadContract = userOps
             fileId: z.string(),
             totalBytesReceived: z.number().int(),
             chunks: z.number().int(),
-            uploadedAt: z.iso.datetime(),
+            uploadedAt: z.date(),
         }),
     })
     .build();
@@ -203,7 +203,7 @@ export const userChatContract = userOps
     .websocket({
         inputChunkSchema: z.object({
             message: z.string().min(1).max(5000),
-            timestamp: z.iso.datetime(),
+            timestamp: z.date(),
             replyTo: z.string().optional(),
         }),
         outputChunkSchema: z.object({
@@ -213,7 +213,7 @@ export const userChatContract = userOps
                 id: z.string(),
                 name: z.string(),
             }),
-            timestamp: z.iso.datetime(),
+                timestamp: z.date(),
             replyTo: z.string().optional(),
         }),
         path: "/chat" as HTTPPath,
@@ -241,7 +241,7 @@ export const userCollaborativeEditContract = userOps
             documentId: z.string(),
             userId: z.string(),
             userName: z.string(),
-            appliedAt: z.iso.datetime(),
+            appliedAt: z.date(),
         }),
         path: "/collab-edit" as HTTPPath,
     })
@@ -480,7 +480,7 @@ export const userUpdateWithEtagContract = userOps
         b
             .headers({
                 etag: z.string(),
-                "last-modified": z.iso.datetime(),
+                "last-modified": z.date(),
             })
             .body(userSchema),
     )
@@ -565,8 +565,8 @@ export const userListAdvancedContract = userOps
                 search: z.string().min(2).optional(),
                 sortBy: z.enum(["name", "email", "createdAt"]).optional(),
                 sortOrder: z.enum(["asc", "desc"]).optional(),
-                createdAfter: z.iso.datetime().optional(),
-                createdBefore: z.iso.datetime().optional(),
+                createdAfter: z.date().optional(),
+                createdBefore: z.date().optional(),
             }),
         ),
     )
@@ -615,7 +615,7 @@ export const userUpdateWithOptimisticLockingContract = userOps
     .output((b) =>
         b.union([
             b.status(200)
-                .headers({ etag: z.string(), "last-modified": z.iso.datetime() })
+                .headers({ etag: z.string(), "last-modified": z.date() })
                 .body(userSchema)
                 .description("Successfully updated with new ETag"),
             b.status(412)
@@ -736,7 +736,7 @@ export const userProcessContract = userOps
                     z.object({
                         state: z.literal("completed"),
                         user: userSchema,
-                        processedAt: z.iso.datetime(),
+                        processedAt: z.date(),
                     }),
                 )
                 .description("Processing completed successfully"),
@@ -745,7 +745,7 @@ export const userProcessContract = userOps
                     z.object({
                         state: z.literal("processing"),
                         taskId: z.string(),
-                        estimatedCompletion: z.iso.datetime(),
+                        estimatedCompletion: z.date(),
                     }),
                 )
                 .description("Processing started, check back later"),
@@ -1823,7 +1823,7 @@ type UserUpdateOptimistic200 = Extract<UserUpdateOptimisticOutput, { status: 200
 type UserUpdateOptimistic412 = Extract<UserUpdateOptimisticOutput, { status: 412 }>;
 
 // 200 should have etag and last-modified headers
-type UserUpdateOptimistic200HasHeaders = AssertExtends<UserUpdateOptimistic200, { headers: { etag: string; "last-modified": string } }, "200 should have etag and last-modified headers">;
+type UserUpdateOptimistic200HasHeaders = AssertExtends<UserUpdateOptimistic200, { headers: { etag: string; "last-modified": Date } }, "200 should have etag and last-modified headers">;
 const _checkUserUpdateOptimistic200: UserUpdateOptimistic200HasHeaders = true;
 
 // 412 should have currentEtag in body
@@ -1928,7 +1928,7 @@ type UserProcessCompletedHasUser = AssertExtends<UserProcessCompleted, { body: {
 const _checkUserProcessCompleted: UserProcessCompletedHasUser = true;
 
 // Processing should have taskId and estimatedCompletion
-type UserProcessProcessingHasTask = AssertExtends<UserProcessProcessing, { body: { state: "processing"; taskId: string; estimatedCompletion: string } }, "Processing should have taskId">;
+type UserProcessProcessingHasTask = AssertExtends<UserProcessProcessing, { body: { state: "processing"; taskId: string; estimatedCompletion: Date } }, "Processing should have taskId">;
 const _checkUserProcessProcessing: UserProcessProcessingHasTask = true;
 
 // Failed should have error and retryable flag

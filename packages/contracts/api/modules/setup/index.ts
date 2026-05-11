@@ -1,63 +1,69 @@
 import { oc } from "@orpc/contract";
-import { route } from "@repo/orpc-utils/builder";
+import { z } from "zod/v4";
 import {
-    nodeConfigStatusSchema,
-    setupConfigureDatabaseInputSchema,
-    setupConfigureDatabaseResultSchema,
-    setupInitializeInputSchema,
-    setupInitializeResultSchema,
-    setupStateMachineSchema,
     setupStateSnapshotSchema,
+    setupInitializeInputSchema,
+    setupStreamEventSchema,
+    setupProbeDbInputSchema,
+    setupProbeDbResultSchema,
+    setupProbeMeshInputSchema,
+    setupProbeMeshResultSchema,
+    setupRemoteAuthInputSchema,
+    setupRemoteAuthResultSchema,
+    nodeConfigStatusSchema,
 } from "@repo/contracts-entities";
+import { RouteBuilder } from "@repo/orpc-utils";
 
-export const setupGetStatusContract = route({
-    method: "GET",
-    path: "/status",
-    summary: "Get first-setup state-machine snapshot",
-})
-    .output((b) => b.body(setupStateSnapshotSchema))
-    .build();
+// All setup endpoints are public — no session exists yet during setup
+const pub = oc;
 
-export const setupGetStateMachineContract = route({
-    method: "GET",
-    path: "/state-machine",
-    summary: "Get first-setup state machine states and transitions",
-})
-    .output((b) => b.body(setupStateMachineSchema))
-    .build();
+export const setupContract = {
+    // ─── State ──────────────────────────────────────────────────────────────
 
-export const setupInitializeContract = route({
-    method: "POST",
-    path: "/initialize",
-    summary: "Execute first setup flow: create initial admin and organization",
-})
-    .input((b) => b.body(setupInitializeInputSchema))
-    .output((b) => b.body(setupInitializeResultSchema))
-    .build();
+    /** Current wizard state — called on mount */
+    getState: pub
+        .input(z.void())
+        .output(setupStateSnapshotSchema),
 
-export const setupConfigureDatabaseContract = route({
-    method: "POST",
-    path: "/configure-database",
-    summary: "Configure global database connection for this node (step 0 of setup)",
-})
-    .input((b) => b.body(setupConfigureDatabaseInputSchema))
-    .output((b) => b.body(setupConfigureDatabaseResultSchema))
-    .build();
+    /** Persisted node config — is this node already configured? */
+    getNodeStatus: pub
+        .input(z.void())
+        .output(nodeConfigStatusSchema),
 
-export const setupGetNodeStatusContract = route({
-    method: "GET",
-    path: "/node-status",
-    summary: "Get node config file status (no DB required)",
-})
-    .output((b) => b.body(nodeConfigStatusSchema))
-    .build();
+    // ─── Pre-flight probes ───────────────────────────────────────────────────
 
-export const setupContract = oc.tag("Setup").prefix("/setup").router({
-    getStatus: setupGetStatusContract,
-    getStateMachine: setupGetStateMachineContract,
-    initialize: setupInitializeContract,
-    configureDatabase: setupConfigureDatabaseContract,
-    getNodeStatus: setupGetNodeStatusContract,
-});
+    /** Test a PostgreSQL URL before submitting (local flow, Step 2) */
+    probeDatabase: pub
+        .input(setupProbeDbInputSchema)
+        .output(setupProbeDbResultSchema),
 
-export type SetupContract = typeof setupContract;
+    /** Test a mesh URL before submitting (remote flow, Step 2) */
+    probeMesh: pub
+        .input(setupProbeMeshInputSchema)
+        .output(setupProbeMeshResultSchema),
+
+    // ─── Remote auth ─────────────────────────────────────────────────────────
+
+    /**
+     * Authenticate against a remote mesh node.
+     * Returns an authToken (= join grant token) forwarded to `initialize`.
+     */
+    remoteAuth: pub
+        .input(setupRemoteAuthInputSchema)
+        .output(setupRemoteAuthResultSchema),
+
+    // ─── Main submit — SSE stream ────────────────────────────────────────────
+
+    /**
+     * Submit the wizard form.
+     * Returns an AsyncIterable of SetupStreamEvent so the UI can display
+     * live progress cards for each step (provision → migrate → seed → register…).
+     *
+     * The stream ends with a `{ type: "completed", result }` event on success
+     * or `{ type: "error", message }` on fatal failure.
+     */
+    initialize: new RouteBuilder()
+        .input(setupInitializeInputSchema)
+        .output(b => b.observable(setupStreamEventSchema))
+        .build()
+};

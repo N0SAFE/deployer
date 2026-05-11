@@ -32,13 +32,13 @@
     "src"
   ],
   "scripts": {
-    "build": "tsc",
-    "compile": "tsc",
+    "build": "tsgo",
+    "compile": "tsgo",
     "prettify": "prettier . --write --no-error-on-unmatched-pattern",
     "format": "bun run prettify",
     "format:check": "prettier . --check --no-error-on-unmatched-pattern",
     "clean": "rimraf dist",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsgo --noEmit",
     "test": "echo 'vitest-config package ready'"
   },
   "keywords": ["vitest", "testing", "config"],

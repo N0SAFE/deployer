@@ -40,9 +40,10 @@
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "type-check": "tsc --noEmit"
+        "type-check": "tsgo --noEmit"
     },
     "devDependencies": {
+        "@types/node": "catalog:build",
         "@darraghor/eslint-plugin-nestjs-typed": "^7.1.22",
         "@eslint/compat": "^2.0.1",
         "@eslint/js": "catalog:linting",
@@ -67,7 +68,7 @@
         "eslint-plugin-react-refresh": "^0.5.0",
         "globals": "^17.0.0",
         "tailwindcss": "^4.1.16",
-        "typescript": "catalog:build",
+        "@typescript/native-preview": "catalog:build",
         "typescript-eslint": "^8.53.0",
         "vitest": "catalog:testing"
     }

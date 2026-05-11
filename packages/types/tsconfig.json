@@ -3,7 +3,6 @@
   "compilerOptions": {
     "strict": true,
     "moduleResolution": "bundler",
-    "baseUrl": ".",
     "paths": {
       "@repo/ui/*": [
         "./*"

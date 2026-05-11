@@ -16,12 +16,13 @@
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
         "lint": "eslint \"**/*.ts*\"",
-        "type-check": "tsc --noEmit",
+        "type-check": "tsgo --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage"
     },
     "devDependencies": {
+        "@types/node": "catalog:build",
         "eslint": "catalog:linting",
         "@eslint/eslintrc": "^3.3.3",
         "@eslint/js": "catalog:linting",
@@ -29,7 +30,7 @@
         "@repo/config-prettier": "*",
         "@repo/config-typescript": "*",
         "@repo/config-vitest": "*",
-        "typescript": "catalog:build",
+        "@typescript/native-preview": "catalog:build",
         "vitest": "catalog:testing",
         "zod": "catalog:utils",
         "drizzle-orm": "catalog:database"

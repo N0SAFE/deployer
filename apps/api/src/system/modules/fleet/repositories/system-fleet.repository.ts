@@ -47,7 +47,6 @@ export class SystemFleetRepository {
 
         const servers = await db
             .select({
-                clusterId: clusterNodes.clusterId,
                 nodeId: clusterNodes.nodeId,
                 serverUrl: clusterNodes.serverUrl,
                 displayName: clusterNodes.displayName,
@@ -139,7 +138,6 @@ export class SystemFleetRepository {
         return db
             .select({
                 nodeId: clusterNodes.nodeId,
-                clusterId: clusterNodes.clusterId,
                 maxCpuMillicores: clusterNodes.maxCpuMillicores,
                 maxMemoryMb: clusterNodes.maxMemoryMb,
             })
@@ -180,7 +178,6 @@ export class SystemFleetRepository {
         return db
             .select({
                 id: clusterOrgServerAllocations.id,
-                clusterId: clusterOrgServerAllocations.clusterId,
                 organizationId: clusterOrgServerAllocations.organizationId,
                 organizationName: organization.name,
                 serverNodeId: clusterOrgServerAllocations.serverNodeId,
@@ -204,7 +201,6 @@ export class SystemFleetRepository {
 
         const server = await db
             .select({
-                clusterId: clusterNodes.clusterId,
                 nodeId: clusterNodes.nodeId,
             })
             .from(clusterNodes)
@@ -219,7 +215,6 @@ export class SystemFleetRepository {
         await db
             .insert(clusterOrgServerAllocations)
             .values({
-                clusterId: server.clusterId,
                 organizationId: input.organizationId,
                 serverNodeId: input.serverNodeId,
                 allocationMode: input.allocationMode,
@@ -231,7 +226,6 @@ export class SystemFleetRepository {
             })
             .onConflictDoUpdate({
                 target: [
-                    clusterOrgServerAllocations.clusterId,
                     clusterOrgServerAllocations.organizationId,
                     clusterOrgServerAllocations.serverNodeId,
                 ],
@@ -257,7 +251,6 @@ export class SystemFleetRepository {
         const db = this.databaseService.db;
         const server = await db
             .select({
-                clusterId: clusterNodes.clusterId,
                 nodeId: clusterNodes.nodeId,
             })
             .from(clusterNodes)
@@ -273,7 +266,6 @@ export class SystemFleetRepository {
             .delete(clusterOrgServerAllocations)
             .where(
                 and(
-                    eq(clusterOrgServerAllocations.clusterId, server.clusterId),
                     eq(clusterOrgServerAllocations.organizationId, input.organizationId),
                     eq(clusterOrgServerAllocations.serverNodeId, input.serverNodeId),
                 ),
@@ -291,15 +283,13 @@ export class SystemFleetRepository {
             serverNodeId: input.requestedServerNodeId,
         });
 
-        const scopeClusterId = scopeAllocations[0]?.clusterId;
-        if (!scopeClusterId) {
+        if (scopeAllocations.length === 0) {
             throw new Error("Cannot create admission request without at least one allocation scope");
         }
 
         const [created] = await db
             .insert(clusterOrgAdmissionRequests)
             .values({
-            clusterId: scopeClusterId,
             organizationId: input.organizationId,
             status: "pending",
             requestedServerNodeId: input.requestedServerNodeId,
@@ -324,7 +314,6 @@ export class SystemFleetRepository {
         return db
             .select({
                 id: clusterOrgAdmissionRequests.id,
-                clusterId: clusterOrgAdmissionRequests.clusterId,
                 organizationId: clusterOrgAdmissionRequests.organizationId,
                 organizationName: organization.name,
                 status: clusterOrgAdmissionRequests.status,
@@ -365,7 +354,6 @@ export class SystemFleetRepository {
         return db
             .select({
                 id: clusterOrgAdmissionRequests.id,
-                clusterId: clusterOrgAdmissionRequests.clusterId,
                 organizationId: clusterOrgAdmissionRequests.organizationId,
                 organizationName: organization.name,
                 status: clusterOrgAdmissionRequests.status,

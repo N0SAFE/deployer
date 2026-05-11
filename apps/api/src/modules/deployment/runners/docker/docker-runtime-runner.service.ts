@@ -38,6 +38,30 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
         const fallbackName = `deployer-${deployment.serviceId.slice(0, 12)}-${deployment.deploymentId.slice(0, 8)}`;
         const containerName = artifact.containerName ?? deployment.deploymentContainerName ?? fallbackName;
         const containerImage = artifact.containerImage ?? deployment.deploymentContainerImage ?? "nginx:alpine";
+        const managedLabels = {
+            "deployer.managed": "true",
+            "deployer.managed_by": "deployment_service",
+            "deployer.managed_reason": "deployment_execution",
+            "deployer.deployment_id": deployment.deploymentId,
+            "deployer.service_id": deployment.serviceId,
+            ...(deployment.projectId
+                ? {
+                      "deployer.project_id": deployment.projectId,
+                  }
+                : {}),
+            ...(deployment.organizationId
+                ? {
+                      "deployer.organization_id": deployment.organizationId,
+                  }
+                : {}),
+            ...(deployment.networkMode
+                ? {
+                      "deployer.network_mode": deployment.networkMode,
+                  }
+                : {}),
+            "deployer.runtime_runner": this.runnerType,
+            "deployer.image_ref": containerImage,
+        };
         const storageMaterialization = this.materializeStorageBinding(storageBinding);
         const hostConfig = {
             ...(deployment.networkMode ? { NetworkMode: deployment.networkMode } : {}),
@@ -63,10 +87,9 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
                 Image: containerImage,
                 name: containerName,
                 Labels: {
-                    "deployer.deployment_id": deployment.deploymentId,
-                    "deployer.managed": "true",
                     ...storageMaterialization.labels,
                     ...sanitizedExecutorLabels,
+                    ...managedLabels,
                 },
                 ...(sanitizedStartupCommand
                     ? { Cmd: ["sh", "-lc", sanitizedStartupCommand] }
@@ -102,6 +125,17 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
                 routeVerification,
                 healthGate,
                 loadBalancerSync,
+                managedRuntime: {
+                    managedBy: "deployment_service",
+                    managedReason: "deployment_execution",
+                    deploymentId: deployment.deploymentId,
+                    serviceId: deployment.serviceId,
+                    projectId: deployment.projectId ?? null,
+                    organizationId: deployment.organizationId ?? null,
+                    imageRef: containerImage,
+                    networkMode: deployment.networkMode ?? null,
+                    labels: managedLabels,
+                },
             };
         } catch (error) {
             if (createdContainerId) {

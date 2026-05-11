@@ -18,9 +18,9 @@ import {
   useDisconnectMeshPeer,
   useLookupMeshResource,
   useMeshEventStreams,
+  useMeshSseState,
   usePlanMeshStreamRoute,
 } from '@/domains/mesh/hooks'
-import { useMeshSseState } from '@/domains/mesh/sse'
 import {
   Background,
   BackgroundVariant,

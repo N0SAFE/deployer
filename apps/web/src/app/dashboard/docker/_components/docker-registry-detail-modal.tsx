@@ -1,15 +1,15 @@
 'use client'
 
 import { type ReactNode, useMemo, useState } from 'react'
-import { getDockerEntityDetail, useDockerImageList } from '@/domains/docker/mock-hooks'
-import { getMockRegistryRepositories } from '@/mocks/platform/entities/docker.large.mock'
-import type { DockerRegistryRepositoryDetail, DockerRegistryTagDetail } from '@/mocks/platform/types'
+import { useDockerImageList, useDockerRuntimeEntityDetail } from '@/domains/docker/hooks'
+import type { DockerRegistryRepositoryDetail, DockerRegistryTagDetail } from '@repo/contracts-entities'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/shadcn/tabs'
 import { Copy, Download, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import { DockerImageDetailModal } from './docker-image-detail-modal'
+import { DockerDetailLoadingState } from './docker-loading-states'
 import { DockerModalQuickActions } from './docker-modal-quick-actions'
 import { toast } from 'sonner'
 
@@ -29,6 +29,14 @@ interface DockerRegistryDetailModalTriggerProps {
   initialTab?: RegistryDetailTab
 }
 
+function formatBytes(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  if (value < 1024) return `${String(value)} B`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
+  if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`
+  return `${(value / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
 export function DockerRegistryDetailModalTrigger({ id, children, className, initialTab = 'overview' }: DockerRegistryDetailModalTriggerProps) {
   const [open, setOpen] = useState(false)
   const [imageDialogOpen, setImageDialogOpen] = useState(false)
@@ -39,8 +47,52 @@ export function DockerRegistryDetailModalTrigger({ id, children, className, init
   const [selectedTagName, setSelectedTagName] = useState<string | null>(null)
   const { data: imageEntityData } = useDockerImageList(IMAGE_LIST_INPUT)
   const imageEntities = useMemo(() => imageEntityData?.data ?? [], [imageEntityData?.data])
-  const detail = useMemo(() => getDockerEntityDetail('registry', id).registry, [id])
-  const repositories = useMemo(() => (detail ? getMockRegistryRepositories(detail) : []), [detail])
+  const detailQuery = useDockerRuntimeEntityDetail('registries', id, { enabled: open })
+  const detail = detailQuery.data
+  const repositories = useMemo<DockerRegistryRepositoryDetail[]>(() => {
+    if (!detail) return []
+
+    const registryImages = imageEntities.filter((image) => image.registry === detail.name)
+    const repositoryNames = new Set<string>([
+      ...detail.repositories,
+      ...registryImages.map((image) => image.repository),
+    ])
+
+    return [...repositoryNames]
+      .filter((repository) => repository.trim().length > 0)
+      .sort((a, b) => a.localeCompare(b))
+      .map((repository) => {
+        const tagByName = new Map<string, DockerRegistryTagDetail>()
+
+        const repositoryImages = registryImages
+          .filter((image) => image.repository === repository)
+          .sort((a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime())
+
+        for (const image of repositoryImages) {
+          const tagName = image.tag ?? 'latest'
+          if (tagByName.has(tagName)) continue
+
+          tagByName.set(tagName, {
+            name: tagName,
+            digest: image.digest ?? image.id,
+            size: formatBytes(image.sizeBytes),
+            pushedAt: image.lastSeenAt,
+          })
+        }
+
+        const tags = [...tagByName.values()].sort((a, b) => {
+          if (a.name === 'latest') return -1
+          if (b.name === 'latest') return 1
+          return a.name.localeCompare(b.name)
+        })
+
+        return {
+          repository,
+          tags,
+        }
+      })
+  }, [detail, imageEntities])
+  const isDetailLoading = detailQuery.isLoading && !detail
 
   const allTags = useMemo(() => repositories.flatMap((repository) => repository.tags.map((tag) => ({ repository, tag }))), [repositories])
 
@@ -292,6 +344,8 @@ export function DockerRegistryDetailModalTrigger({ id, children, className, init
                 </div>
               </TabsContent>
             </Tabs>
+          ) : isDetailLoading ? (
+            <DockerDetailLoadingState label="Loading registry details…" />
           ) : (
             <p className="text-sm text-muted-foreground">Registry not found.</p>
           )}

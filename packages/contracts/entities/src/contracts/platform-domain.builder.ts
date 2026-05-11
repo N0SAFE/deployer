@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import z from 'zod'
 import {
   dependencyAttachmentModeSchema,
   dependencyFailureModeSchema,
@@ -38,7 +38,7 @@ import {
   serviceEnvironmentExecutionOverrideSchema,
   serviceProviderConfigSchema,
   serviceRunnerConfigSchema,
-} from '../entities/configuration.schema'
+} from '../entities/configuration'
 
 export type PlatformDomainSchemaDeps = {
   envNameSchema?: typeof envNameSchema

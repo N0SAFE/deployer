@@ -1,16 +1,18 @@
-import { route } from "@repo/orpc-utils/builder";
-import * as z from "zod";
+import z from "zod/v4";
+import { standard } from "@repo/orpc-utils";
+
+const testAuthenticatedOps = standard.zod(
+  z.object({ ok: z.boolean(), userId: z.string().optional(), message: z.string().optional() }),
+  "testAuthenticated",
+);
 
 /**
  * Test contract for authenticated ORPC endpoint
  * This contract demonstrates a simple GET request that requires authentication
  */
-export const testAuthenticatedContract = route({
-    method: "GET",
-    path: "/authenticated",
-    summary: "Test authenticated endpoint",
-    description: "A test endpoint that requires authentication via middleware",
-  })
+export const testAuthenticatedContract = testAuthenticatedOps
+  .list()
+  .path("/authenticated")
   .input(z.object({}))
   .output(
     z.object({

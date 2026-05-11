@@ -1,9 +1,10 @@
 'use client'
 
 import { Fragment, type ReactNode, useMemo, useState } from 'react'
-import type { DockerFileEntry } from '@/mocks/platform/types'
+import type { DockerFileEntry } from '@repo/contracts-entities'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@repo/ui/components/shadcn/context-menu'
 import { FolderOpen, Maximize2, Minimize2, X } from 'lucide-react'
 import { getFilesInDirectory, getPathBreadcrumb, getParentPath } from './docker-filesystem-utils'
 
@@ -18,6 +19,7 @@ interface DockerFileBrowserProps {
   onSelectedFilePathChange: (path: string | null) => void
   getFilePreviewContent: (file: DockerFileEntry) => string
   renderRowActions?: (entry: { path: string; type: DockerFileEntry['type'] }) => ReactNode
+  renderRowContextMenu?: (entry: { path: string; type: DockerFileEntry['type']; name: string }) => ReactNode
   onDropUploadFiles?: (files: FileList) => void
 }
 
@@ -32,6 +34,7 @@ export function DockerFileBrowser({
   onSelectedFilePathChange,
   getFilePreviewContent,
   renderRowActions,
+  renderRowContextMenu,
   onDropUploadFiles,
 }: DockerFileBrowserProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(true)
@@ -125,43 +128,63 @@ export function DockerFileBrowser({
               </button>
             ) : null}
 
-            {filesInCurrentDirectory.map((entry) => (
-              <div
-                key={entry.path}
-                className={`px-3 py-2 hover:bg-muted/40 grid grid-cols-[auto_1fr_auto_auto] items-center gap-2 cursor-pointer ${selectedFilePath === entry.path ? 'bg-muted/30' : ''}`}
-                onClick={() => {
-                  if (entry.type === 'dir') {
-                    onCurrentPathChange(entry.path)
-                    onSelectedFilePathChange(null)
-                    return
-                  }
-                  onSelectedFilePathChange(entry.path)
-                  setIsPreviewOpen(true)
-                }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Enter' && event.key !== ' ') return
-                  event.preventDefault()
-                  if (entry.type === 'dir') {
-                    onCurrentPathChange(entry.path)
-                    onSelectedFilePathChange(null)
-                    return
-                  }
-                  onSelectedFilePathChange(entry.path)
-                  setIsPreviewOpen(true)
-                }}
-              >
-                <span className="text-sm" aria-hidden="true">
-                  {entry.type === 'dir' ? <FolderOpen className="h-4 w-4 text-muted-foreground" /> : '📄'}
-                </span>
-                <span className="font-mono text-xs break-all text-left">{entry.name}</span>
-                <Badge variant="outline" className="justify-self-end">{entry.type}</Badge>
-                <div className="flex items-center justify-end gap-1">
-                  {renderRowActions ? renderRowActions({ path: entry.path, type: entry.type }) : null}
+            {filesInCurrentDirectory.map((entry) => {
+              const row = (
+                <div
+                  className={`px-3 py-2 hover:bg-muted/40 grid grid-cols-[auto_1fr_auto_auto] items-center gap-2 cursor-pointer ${selectedFilePath === entry.path ? 'bg-muted/30' : ''}`}
+                  onClick={() => {
+                    if (entry.type === 'dir') {
+                      onCurrentPathChange(entry.path)
+                      onSelectedFilePathChange(null)
+                      return
+                    }
+                    onSelectedFilePathChange(entry.path)
+                    setIsPreviewOpen(true)
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return
+                    event.preventDefault()
+                    if (entry.type === 'dir') {
+                      onCurrentPathChange(entry.path)
+                      onSelectedFilePathChange(null)
+                      return
+                    }
+                    onSelectedFilePathChange(entry.path)
+                    setIsPreviewOpen(true)
+                  }}
+                >
+                  <span className="text-sm" aria-hidden="true">
+                    {entry.type === 'dir' ? <FolderOpen className="h-4 w-4 text-muted-foreground" /> : '📄'}
+                  </span>
+                  <span className="font-mono text-xs break-all text-left">{entry.name}</span>
+                  <Badge variant="outline" className="justify-self-end">{entry.type}</Badge>
+                  <div className="flex items-center justify-end gap-1">
+                    {renderRowActions ? renderRowActions({ path: entry.path, type: entry.type }) : null}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+
+              if (!renderRowContextMenu) {
+                return (
+                  <Fragment key={entry.path}>
+                    {row}
+                  </Fragment>
+                )
+              }
+
+              return (
+                <ContextMenu key={entry.path}>
+                  <ContextMenuTrigger asChild>
+                    {row}
+                  </ContextMenuTrigger>
+                  <ContextMenuContent className="w-56">
+                    {renderRowContextMenu({ path: entry.path, type: entry.type, name: entry.name })}
+                  </ContextMenuContent>
+                </ContextMenu>
+              )
+            })}
 
             {filesInCurrentDirectory.length === 0 ? (
               <p className="px-3 py-6 text-xs text-muted-foreground">{emptyMessage}</p>

@@ -4,6 +4,7 @@ import { DeploymentExecutionWorkflowService } from "./deployment-execution-workf
 describe("DeploymentExecutionWorkflowService", () => {
     let deploymentRepository: {
         findById: ReturnType<typeof vi.fn>;
+        getServiceProjectId: ReturnType<typeof vi.fn>;
         persistBuildArtifacts: ReturnType<typeof vi.fn>;
         insertLog: ReturnType<typeof vi.fn>;
         updateStatus: ReturnType<typeof vi.fn>;
@@ -31,6 +32,7 @@ describe("DeploymentExecutionWorkflowService", () => {
                 containerImage: null,
                 healthCheckUrl: null,
             }),
+            getServiceProjectId: vi.fn().mockResolvedValue("project-1"),
             persistBuildArtifacts: vi.fn().mockResolvedValue(undefined),
             insertLog: vi.fn().mockResolvedValue(undefined),
             updateStatus: vi.fn().mockResolvedValue(undefined),
@@ -63,6 +65,22 @@ describe("DeploymentExecutionWorkflowService", () => {
                     maxRetries: 10,
                     retryIntervalMs: 2000,
                     verifiedAt: new Date().toISOString(),
+                },
+                managedRuntime: {
+                    managedBy: "deployment_service",
+                    managedReason: "deployment_execution",
+                    deploymentId: "deployment-1",
+                    serviceId: "service-1",
+                    projectId: "project-1",
+                    organizationId: null,
+                    imageRef: "nginx:alpine",
+                    networkMode: "bridge",
+                    labels: {
+                        "deployer.managed": "true",
+                        "deployer.deployment_id": "deployment-1",
+                        "deployer.service_id": "service-1",
+                        "deployer.project_id": "project-1",
+                    },
                 },
             }),
         };
@@ -98,6 +116,9 @@ describe("DeploymentExecutionWorkflowService", () => {
         expect(runtimeRunnerRegistryService.execute).toHaveBeenCalledWith(
             "docker",
             expect.objectContaining({
+                deployment: expect.objectContaining({
+                    projectId: "project-1",
+                }),
                 storageBinding: expect.objectContaining({
                     storageType: "volume",
                     mountPath: "/workspace/storage",
@@ -138,6 +159,28 @@ describe("DeploymentExecutionWorkflowService", () => {
             expect.objectContaining({
                 stage: "runner",
                 step: "runtime_completed",
+            }),
+        );
+
+        expect(deploymentRepository.persistBuildArtifacts).toHaveBeenCalledWith(
+            "deployment-1",
+            expect.objectContaining({
+                metadata: expect.objectContaining({
+                    managedRuntimeResources: expect.objectContaining({
+                        ownership: expect.objectContaining({
+                            managedBy: "deployment_service",
+                            deploymentId: "deployment-1",
+                            serviceId: "service-1",
+                            projectId: "project-1",
+                        }),
+                        image: expect.objectContaining({
+                            reference: "nginx:alpine",
+                        }),
+                        network: expect.objectContaining({
+                            mode: "bridge",
+                        }),
+                    }),
+                }),
             }),
         );
     });
@@ -351,6 +394,22 @@ describe("DeploymentExecutionWorkflowService", () => {
                     maxRetries: 10,
                     retryIntervalMs: 2000,
                     verifiedAt: new Date().toISOString(),
+                },
+                managedRuntime: {
+                    managedBy: "deployment_service",
+                    managedReason: "deployment_execution",
+                    deploymentId: "deployment-1",
+                    serviceId: "service-1",
+                    projectId: "project-1",
+                    organizationId: null,
+                    imageRef: "nginx:alpine",
+                    networkMode: "bridge",
+                    labels: {
+                        "deployer.managed": "true",
+                        "deployer.deployment_id": "deployment-1",
+                        "deployer.service_id": "service-1",
+                        "deployer.project_id": "project-1",
+                    },
                 },
             });
 

@@ -165,7 +165,7 @@ describe('StandardOperations - Additional Coverage', () => {
         .output(z.object({ 
           id: z.string(),
           name: z.string(),
-          updatedAt: z.iso.datetime(),
+          updatedAt: z.date(),
         }))
         .build();
 
@@ -214,7 +214,7 @@ describe('StandardOperations - Additional Coverage', () => {
       const extended = ops.count()
         .input((b) => b.query(z.object({ 
           active: z.boolean().optional(),
-          createdAfter: z.iso.datetime().optional(),
+          createdAfter: z.date().optional(),
         })))
         .build();
 

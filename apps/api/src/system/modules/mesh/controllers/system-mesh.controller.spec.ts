@@ -345,7 +345,6 @@ describe("SystemMeshController", () => {
                     generatedAt: new Date().toISOString(),
                     localNode: {
                         nodeId: "00000000-0000-4000-8000-000000000011",
-                        clusterId: "00000000-0000-4000-8000-000000000012",
                         region: "test",
                         roles: ["edge"],
                         lifecycleState: "healthy",
@@ -382,7 +381,6 @@ describe("SystemMeshController", () => {
             generatedAt: new Date().toISOString(),
             localNode: {
                 nodeId: "00000000-0000-4000-8000-000000000111",
-                clusterId: "00000000-0000-4000-8000-000000000112",
                 region: "test",
                 roles: ["edge"],
                 lifecycleState: "healthy",
@@ -423,7 +421,6 @@ describe("SystemMeshController", () => {
         const userId = "user-super-admin";
         service.issueJoinGrant.mockReturnValue({
             grantId: "22222222-2222-4222-8222-222222222222",
-            clusterId: "33333333-3333-4333-8333-333333333333",
             grantToken: "token",
             expiresAt: new Date().toISOString(),
             status: "issued",
@@ -468,7 +465,6 @@ describe("SystemMeshController", () => {
         service.revokeJoinGrant.mockReturnValue({
             revoked: true,
             grantId: "44444444-4444-4444-8444-444444444444",
-            clusterId: "55555555-5555-4555-8555-555555555555",
             status: "revoked",
             revokedAt: new Date().toISOString(),
         });

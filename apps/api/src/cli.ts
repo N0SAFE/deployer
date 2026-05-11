@@ -3,6 +3,7 @@ import { CLIModule } from "./cli/cli.module";
 
 async function bootstrap() {
     await CommandFactory.run(CLIModule, {
+        debug(...params){console.log(params)},
         logger: ["error", "warn"],
         errorHandler: (err: unknown) => {
             // Don't show error for help command exit

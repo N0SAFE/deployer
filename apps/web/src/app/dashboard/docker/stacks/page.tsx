@@ -1,8 +1,11 @@
 'use client'
 
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { z } from 'zod'
 import { DockerBatchOperationsBar, DockerSavedViewSelect } from '../_components/docker-operations-controls'
+import { DockerInlineLoadingState, DockerTableLoadingRows } from '../_components/docker-loading-states'
 import { DockerStackDetailModalTrigger } from '../_components/docker-stack-detail-modal'
+import { DockerTablePagination } from '../_components/docker-table-pagination'
 import {
   DockerActiveFilterChips,
   DockerColumnSettings,
@@ -11,7 +14,8 @@ import {
   DockerExportActions,
   DockerSelectionToggle,
 } from '../_components/docker-page-utilities'
-import { useDockerStackList } from '@/domains/docker/mock-hooks'
+import { useDockerDataTable } from '../_components/use-docker-data-table'
+import { useContainerLiveUpdate, useDockerStackList } from '@/domains/docker/hooks'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
@@ -25,6 +29,7 @@ import {
 } from '@repo/ui/components/shadcn/table'
 import { Separator } from '@repo/ui/components/shadcn/separator'
 import { Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
+import { useSafeQueryStatesFromZod } from '@/utils/useSafeQueryStatesFromZod'
 
 const STACK_LIST_INPUT = {
   query: {
@@ -32,6 +37,15 @@ const STACK_LIST_INPUT = {
     offset: 0,
   },
 } as const
+
+const STACK_LIST_QUERY_SCHEMA = z.object({
+  q: z.string().default(''),
+  view: z.enum(['all', 'healthy', 'failed']).default('all'),
+  sortBy: z.enum(['services', 'name', 'status', 'deployments']).default('services'),
+  sortDirection: z.enum(['asc', 'desc']).default('desc'),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(10).max(100).default(20),
+})
 
 interface StackProjection {
   id: string
@@ -58,10 +72,7 @@ function toBadgeVariant(status: string): 'default' | 'secondary' | 'destructive'
 }
 
 export default function DashboardDockerStacksPage() {
-  const [savedView, setSavedView] = useState<'all' | 'healthy' | 'failed'>('all')
-  const [sortBy, setSortBy] = useState<'services' | 'name' | 'status' | 'deployments'>('services')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
-  const [searchTerm, setSearchTerm] = useState('')
+  const [listQuery, setListQuery] = useSafeQueryStatesFromZod(STACK_LIST_QUERY_SCHEMA)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [expandedStackIds, setExpandedStackIds] = useState<Set<string>>(new Set())
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
@@ -74,7 +85,22 @@ export default function DashboardDockerStacksPage() {
     'Latest status': true,
   })
 
-  const { data: stackData } = useDockerStackList(STACK_LIST_INPUT)
+  const stackListQuery = useDockerStackList(STACK_LIST_INPUT)
+
+  const searchTerm = listQuery.q
+  const savedView = listQuery.view
+  const sortBy = listQuery.sortBy
+  const sortDirection = listQuery.sortDirection
+
+  const handleContainerLiveUpdate = useCallback(() => {
+    void stackListQuery.refetch()
+  }, [stackListQuery])
+
+  useContainerLiveUpdate(handleContainerLiveUpdate, {
+    cooldownMs: 1000,
+  })
+
+  const { data: stackData } = stackListQuery
   const stackEntities = useMemo(() => stackData?.data ?? [], [stackData])
 
   const stacks = useMemo<StackProjection[]>(() => {
@@ -102,22 +128,44 @@ export default function DashboardDockerStacksPage() {
       return stack.name.toLowerCase().includes(query) || stack.projectId.toLowerCase().includes(query)
     })
 
-    return filtered.sort((a, b) => {
-      const multiplier = sortDirection === 'asc' ? 1 : -1
-      if (sortBy === 'name') return a.name.localeCompare(b.name) * multiplier
-      if (sortBy === 'status') return (a.latestDeploymentStatus ?? '').localeCompare(b.latestDeploymentStatus ?? '') * multiplier
-      if (sortBy === 'deployments') return (a.deploymentCount - b.deploymentCount) * multiplier
-      return (a.serviceCount - b.serviceCount) * multiplier
-    })
-  }, [savedView, searchTerm, stacks, sortBy, sortDirection])
+    return filtered
+  }, [savedView, searchTerm, stacks])
 
-  const allVisibleSelected = filteredStacks.length > 0 && filteredStacks.every((stack) => selectedIds.has(stack.id))
-  const selectedVisibleCount = filteredStacks.filter((stack) => selectedIds.has(stack.id)).length
-  const someVisibleSelected = selectedVisibleCount > 0 && selectedVisibleCount < filteredStacks.length
+  const stackSorters = useMemo(
+    () => ({
+      services: (stack: StackProjection) => stack.serviceCount,
+      name: (stack: StackProjection) => stack.name,
+      status: (stack: StackProjection) => stack.latestDeploymentStatus ?? '',
+      deployments: (stack: StackProjection) => stack.deploymentCount,
+    }),
+    [],
+  )
+
+  const stackTable = useDockerDataTable({
+    data: filteredStacks,
+    sortBy,
+    sortDirection,
+    page: listQuery.page,
+    pageSize: listQuery.pageSize,
+    sorters: stackSorters,
+  })
+
+  useEffect(() => {
+    if (stackTable.page !== listQuery.page) {
+      setListQuery({ page: stackTable.page })
+    }
+  }, [listQuery.page, setListQuery, stackTable.page])
+
+  const visibleStacks = stackTable.rows
+
+  const allVisibleSelected = visibleStacks.length > 0 && visibleStacks.every((stack) => selectedIds.has(stack.id))
+  const selectedVisibleCount = visibleStacks.filter((stack) => selectedIds.has(stack.id)).length
+  const someVisibleSelected = selectedVisibleCount > 0 && selectedVisibleCount < visibleStacks.length
   const healthyStacks = filteredStacks.filter((stack) => stack.latestDeploymentStatus === 'healthy').length
   const failedStacks = filteredStacks.filter((stack) => stack.latestDeploymentStatus === 'failed').length
   const visibleColumnCount = Object.values(visibleColumns).filter(Boolean).length
   const totalTableColumns = visibleColumnCount + 2
+  const isInitialLoading = stackListQuery.isLoading && stacks.length === 0
 
   return (
     <div className="space-y-6">
@@ -135,7 +183,7 @@ export default function DashboardDockerStacksPage() {
                 <Input
                   value={searchTerm}
                   onChange={(event) => {
-                    setSearchTerm(event.target.value)
+                    setListQuery({ q: event.target.value, page: 1 })
                   }}
                   placeholder="Search stacks..."
                   className="h-9 border-border/70 bg-background/70 pl-9"
@@ -146,7 +194,7 @@ export default function DashboardDockerStacksPage() {
                 storageKey="docker:stacks:saved-view"
                 value={savedView}
                 onChange={(value) => {
-                  setSavedView(value as 'all' | 'healthy' | 'failed')
+                  setListQuery({ view: value as 'all' | 'healthy' | 'failed', page: 1 })
                 }}
                 options={[
                   { value: 'all', label: 'All' },
@@ -159,7 +207,7 @@ export default function DashboardDockerStacksPage() {
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={sortBy}
                 onChange={(event) => {
-                  setSortBy(event.target.value as 'services' | 'name' | 'status' | 'deployments')
+                  setListQuery({ sortBy: event.target.value as 'services' | 'name' | 'status' | 'deployments', page: 1 })
                 }}
               >
                 <option value="services">Sort: Services</option>
@@ -172,7 +220,7 @@ export default function DashboardDockerStacksPage() {
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={sortDirection}
                 onChange={(event) => {
-                  setSortDirection(event.target.value as 'asc' | 'desc')
+                  setListQuery({ sortDirection: event.target.value as 'asc' | 'desc', page: 1 })
                 }}
               >
                 <option value="desc">Desc</option>
@@ -220,6 +268,12 @@ export default function DashboardDockerStacksPage() {
 
         {actionFeedback ? <div className="border-b border-border/60 bg-muted/20 px-4 py-2 text-xs text-muted-foreground">{actionFeedback}</div> : null}
 
+        {isInitialLoading ? (
+          <div className="px-4 py-3">
+            <DockerInlineLoadingState label="Loading stack topology and service health…" />
+          </div>
+        ) : null}
+
         <div className="p-4">
 
           <DockerBatchOperationsBar
@@ -242,7 +296,7 @@ export default function DashboardDockerStacksPage() {
                       indeterminate={someVisibleSelected}
                       onPressedChange={(pressed) => {
                         if (pressed) {
-                          setSelectedIds(new Set(filteredStacks.map((stack) => stack.id)))
+                          setSelectedIds(new Set(visibleStacks.map((stack) => stack.id)))
                         } else {
                           setSelectedIds(new Set())
                         }
@@ -261,7 +315,9 @@ export default function DashboardDockerStacksPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredStacks.map((stack) => {
+              {isInitialLoading ? (
+                <DockerTableLoadingRows columns={totalTableColumns} rows={6} />
+              ) : visibleStacks.map((stack) => {
                 const stackEntity = stackById.get(stack.id)
                 const isExpanded = expandedStackIds.has(stack.id)
 
@@ -393,7 +449,7 @@ export default function DashboardDockerStacksPage() {
                 </Fragment>
                 )
               })}
-              {filteredStacks.length === 0 ? (
+              {!isInitialLoading && filteredStacks.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={totalTableColumns} className="text-center text-muted-foreground py-8">
                     No stacks detected yet.
@@ -402,6 +458,23 @@ export default function DashboardDockerStacksPage() {
               ) : null}
             </TableBody>
           </Table>
+          </div>
+
+          <div className="mt-2">
+            <DockerTablePagination
+              page={stackTable.page}
+              pageSize={stackTable.pageSize}
+              totalRows={stackTable.totalRows}
+              totalPages={stackTable.totalPages}
+              from={stackTable.from}
+              to={stackTable.to}
+              onPageChange={(nextPage) => {
+                setListQuery({ page: nextPage })
+              }}
+              onPageSizeChange={(nextPageSize) => {
+                setListQuery({ pageSize: nextPageSize, page: 1 })
+              }}
+            />
           </div>
 
           <div className="mt-3 grid gap-2 sm:grid-cols-4">

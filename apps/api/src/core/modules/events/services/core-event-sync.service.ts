@@ -12,6 +12,8 @@ import type {
 import type { BaseEventService } from "../base-event.service";
 import type { EventContracts, EventInput, EventOutput } from "../event-contract.builder";
 import { CoreEventStreamRepository } from "../repositories/core-event-stream.repository";
+import { AbstractDomainEventStreamService } from "./abstract-domain-event-stream.service";
+import { CoreEventStreamPoolService } from "./core-event-stream-pool.service";
 
 export interface CoreEventAdapterEvent {
     eventName: string;
@@ -521,10 +523,16 @@ export class CoreEventNamespaceBuilder<TService extends BaseEventService<any> | 
 }
 
 @Injectable()
-export class CoreEventSyncService {
+export class CoreEventSyncService extends AbstractDomainEventStreamService {
+    protected readonly streamDomain = "core-events-sync";
     private readonly namespaceAdapters = new Map<string, CoreEventNamespaceAdapter>();
 
-    constructor(private readonly repository: CoreEventStreamRepository) {}
+    constructor(
+        private readonly repository: CoreEventStreamRepository,
+        streamPool: CoreEventStreamPoolService,
+    ) {
+        super(streamPool);
+    }
 
     registerNamespaceAdapter(namespace: string, adapter: CoreEventNamespaceAdapter): void {
         this.namespaceAdapters.set(namespace, adapter);
@@ -707,15 +715,26 @@ export class CoreEventSyncService {
                 }
 
                 const replayLimit = input.replayLimit ?? 1;
-                const source = adapter({
+                const streamFactory = () => this.withEnvelope(definition, adapter({
                     definition,
                     replay: input.replay,
                     replayLimit,
-                });
+                }));
 
-                return this.withEnvelope(definition, source);
+                if (input.replay) {
+                    return streamFactory();
+                }
+
+                return this.observeDomainPooledStream(
+                    this.buildLiveStreamPoolKey(definition.id),
+                    streamFactory,
+                );
             }),
         );
+    }
+
+    private buildLiveStreamPoolKey(streamId: string): string {
+        return `core-event-sync-live:${streamId}`;
     }
 
     async collectNamespaceEvents(

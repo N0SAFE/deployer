@@ -48,7 +48,10 @@ const listMembersConfigSchemas = createFilterConfig(memberOps)
   })
   .buildConfig();
 
-export const organizationListMembersContract = memberOps.list(listMembersConfigSchemas).build();
+export const organizationListMembersContract = memberOps
+  .list(listMembersConfigSchemas)
+  .path("/members")
+  .build();
 
 // Infer input type
 export type OrganizationListMembersInput = ComputeInputSchema<typeof listMembersConfigSchemas>;

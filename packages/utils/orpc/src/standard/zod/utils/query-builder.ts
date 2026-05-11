@@ -129,7 +129,7 @@ export class QueryBuilder<TConfig extends QueryConfig = Record<string, never>> {
         return new QueryBuilder({
             ...this.config,
             sorting,
-        }) as QueryBuilder<TConfig & { sorting: TSorting }>;
+        });
     }
 
     /**
@@ -141,7 +141,7 @@ export class QueryBuilder<TConfig extends QueryConfig = Record<string, never>> {
         return new QueryBuilder({
             ...this.config,
             filtering,
-        }) as QueryBuilder<TConfig & { filtering: TFiltering }>;
+        });
     }
 
     /**
@@ -153,7 +153,7 @@ export class QueryBuilder<TConfig extends QueryConfig = Record<string, never>> {
         return new QueryBuilder({
             ...this.config,
             search,
-        }) as QueryBuilder<TConfig & { search: TSearch }>;
+        });
     }
 
     /**
@@ -165,14 +165,14 @@ export class QueryBuilder<TConfig extends QueryConfig = Record<string, never>> {
 
         if (this.config.pagination && hasConfig(this.config.pagination)) {
             const paginationSchema = createPaginationSchema(
-                this.config.pagination as unknown as ZodSchemaWithConfig<Partial<PaginationConfig>>
+                this.config.pagination
             );
             Object.assign(shape, (paginationSchema as unknown as z.ZodObject<z.ZodRawShape>).shape);
         }
 
         if (this.config.sorting && hasConfig(this.config.sorting)) {
             const sortingSchema = createSortingSchema(
-                this.config.sorting as unknown as ZodSchemaWithConfig<Partial<SortingConfig>>
+                this.config.sorting
             );
             Object.assign(shape, (sortingSchema as z.ZodObject<z.ZodRawShape>).shape);
         }
@@ -213,7 +213,7 @@ export class QueryBuilder<TConfig extends QueryConfig = Record<string, never>> {
 
         if (this.config.pagination && hasConfig(this.config.pagination)) {
             shape.meta = createPaginationMetaSchema(
-                this.config.pagination as unknown as ZodSchemaWithConfig<Partial<PaginationConfig>>
+                this.config.pagination
             );
         }
 

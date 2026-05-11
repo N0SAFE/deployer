@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { ENV_NAMES, type EnvName } from '@repo/contracts-common'
 import { MOCK_DEPENDENCIES_BY_PROJECT, MOCK_SERVICE_CONFIGS_BY_PROJECT } from '@/mocks/platform'
-import { useDockerContainerList } from '@/domains/docker/mock-hooks'
+import { useDockerContainerList } from '@/domains/docker/hooks'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
 import {

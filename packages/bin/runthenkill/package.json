@@ -10,7 +10,7 @@
     "prettify": "prettier . --write --no-error-on-unmatched-pattern",
     "format": "bun run prettify",
     "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsgo --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

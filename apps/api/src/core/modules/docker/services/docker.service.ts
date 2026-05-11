@@ -9,6 +9,7 @@ import { EnvService } from "@/config/env/env.service";
 export class DockerService {
     private readonly logger = new Logger(DockerService.name);
     private readonly docker: Docker;
+    private static readonly DEFAULT_DOCKER_SOCKET_PATH = "/var/run/docker.sock";
 
     private static getErrMsg(err: unknown): string {
         if (err instanceof Error) return err.message;
@@ -45,34 +46,217 @@ export class DockerService {
         return typeof val === "object" && val !== null && "pipe" in val && "read" in val && "on" in val;
     }
 
+    private isBufferLike(val: unknown): val is Buffer | Uint8Array {
+        return Buffer.isBuffer(val) || val instanceof Uint8Array;
+    }
+
+    private extractExecOutputPayload(raw: unknown): string | null {
+        if (typeof raw === "string") {
+            return raw;
+        }
+
+        if (this.isBufferLike(raw)) {
+            return Buffer.from(raw).toString("utf8");
+        }
+
+        if (typeof raw !== "object" || raw === null) {
+            return null;
+        }
+
+        const record = raw as Record<string, unknown>;
+        const outputCandidate = record.output;
+
+        if (typeof outputCandidate === "string") {
+            return outputCandidate;
+        }
+
+        if (this.isBufferLike(outputCandidate)) {
+            return Buffer.from(outputCandidate).toString("utf8");
+        }
+
+        const stdoutCandidate = record.stdout;
+        const stderrCandidate = record.stderr;
+
+        const stdout = typeof stdoutCandidate === "string"
+            ? stdoutCandidate
+            : this.isBufferLike(stdoutCandidate)
+                ? Buffer.from(stdoutCandidate).toString("utf8")
+                : "";
+
+        const stderr = typeof stderrCandidate === "string"
+            ? stderrCandidate
+            : this.isBufferLike(stderrCandidate)
+                ? Buffer.from(stderrCandidate).toString("utf8")
+                : "";
+
+        const combined = `${stdout}${stderr}`;
+        return combined.length > 0 ? combined : null;
+    }
+
+    private decodeContainerLogsPayload(raw: Buffer): string {
+        const demultiplexed = this.tryDemultiplexDockerStream(raw);
+        if (demultiplexed) {
+            return demultiplexed.toString("utf8");
+        }
+
+        return raw.toString("utf8");
+    }
+
+    private tryDemultiplexDockerStream(raw: Buffer): Buffer | null {
+        if (raw.length < 8) {
+            return null;
+        }
+
+        const frames: Buffer[] = [];
+        let offset = 0;
+
+        while (offset + 8 <= raw.length) {
+            const streamType = raw[offset];
+            // Docker multiplexed stream types: 0=stdin, 1=stdout, 2=stderr
+            if (streamType !== 0 && streamType !== 1 && streamType !== 2) {
+                return null;
+            }
+
+            const frameLength = raw.readUInt32BE(offset + 4);
+            const payloadStart = offset + 8;
+            const payloadEnd = payloadStart + frameLength;
+
+            if (payloadEnd > raw.length) {
+                return null;
+            }
+
+            frames.push(raw.subarray(payloadStart, payloadEnd));
+            offset = payloadEnd;
+        }
+
+        if (offset !== raw.length || frames.length === 0) {
+            return null;
+        }
+
+        return Buffer.concat(frames);
+    }
+
+    private resolveDockerClientConfig(
+        dockerHost: unknown,
+        dockerPort: unknown,
+    ): { client: Docker; mode: string } {
+        const hasMountedSocket = fs.existsSync(DockerService.DEFAULT_DOCKER_SOCKET_PATH);
+        const parsedEnvPort = typeof dockerPort === "number" ? dockerPort : undefined;
+        const hostRaw = typeof dockerHost === "string" ? dockerHost.trim() : "";
+
+        if (hostRaw.length > 0) {
+            if (hostRaw.startsWith("unix://")) {
+                const socketPath = hostRaw.slice("unix://".length);
+                return {
+                    client: new Docker({ socketPath }),
+                    mode: `DOCKER_HOST unix socket (${socketPath})`,
+                };
+            }
+
+            if (hostRaw.startsWith("/")) {
+                return {
+                    client: new Docker({ socketPath: hostRaw }),
+                    mode: `DOCKER_HOST socket path (${hostRaw})`,
+                };
+            }
+
+            if (
+                (hostRaw === "localhost" || hostRaw === "127.0.0.1" || hostRaw === "::1")
+                && parsedEnvPort === undefined
+                && hasMountedSocket
+            ) {
+                this.logger.warn(
+                    `DOCKER_HOST=${hostRaw} has no DOCKER_PORT. Falling back to mounted Docker socket at ${DockerService.DEFAULT_DOCKER_SOCKET_PATH}.`,
+                );
+                return {
+                    client: new Docker({ socketPath: DockerService.DEFAULT_DOCKER_SOCKET_PATH }),
+                    mode: "mounted Docker socket fallback",
+                };
+            }
+
+            if (
+                hostRaw.startsWith("tcp://")
+                || hostRaw.startsWith("http://")
+                || hostRaw.startsWith("https://")
+            ) {
+                const normalized = hostRaw.startsWith("tcp://")
+                    ? `http://${hostRaw.slice("tcp://".length)}`
+                    : hostRaw;
+
+                const parsedUrl = new URL(normalized);
+                const resolvedPort =
+                    parsedEnvPort
+                    ?? (parsedUrl.port.length > 0 ? Number(parsedUrl.port) : undefined);
+
+                if (
+                    (parsedUrl.hostname === "localhost"
+                        || parsedUrl.hostname === "127.0.0.1"
+                        || parsedUrl.hostname === "::1")
+                    && resolvedPort === undefined
+                    && hasMountedSocket
+                ) {
+                    this.logger.warn(
+                        `DOCKER_HOST=${hostRaw} points to localhost without port. Falling back to mounted Docker socket at ${DockerService.DEFAULT_DOCKER_SOCKET_PATH}.`,
+                    );
+                    return {
+                        client: new Docker({ socketPath: DockerService.DEFAULT_DOCKER_SOCKET_PATH }),
+                        mode: "mounted Docker socket fallback",
+                    };
+                }
+
+                return {
+                    client: new Docker({
+                        host: parsedUrl.hostname,
+                        port: resolvedPort,
+                        protocol: parsedUrl.protocol === "https:" ? "https" : "http",
+                    }),
+                    mode: `DOCKER_HOST URL (${hostRaw})`,
+                };
+            }
+
+            return {
+                client: new Docker({
+                    host: hostRaw,
+                    port: parsedEnvPort,
+                }),
+                mode: `DOCKER_HOST host (${hostRaw})`,
+            };
+        }
+
+        if (hasMountedSocket) {
+            return {
+                client: new Docker({ socketPath: DockerService.DEFAULT_DOCKER_SOCKET_PATH }),
+                mode: "mounted Docker socket",
+            };
+        }
+
+        return {
+            client: new Docker(),
+            mode: "dockerode default connection",
+        };
+    }
+
     constructor(private readonly envService: EnvService) {
         const dockerHost = this.envService.get("DOCKER_HOST");
         const dockerPort = this.envService.get("DOCKER_PORT");
 
-        // Configure Docker connection based on environment
-        if (typeof dockerHost === "string" && dockerHost.length > 0) {
-            // Use DOCKER_HOST if provided
-            this.docker = new Docker({
-                host: dockerHost,
-                port: typeof dockerPort === "number" ? dockerPort : undefined,
-            });
-            this.logger.log(`Connected to Docker via DOCKER_HOST: ${dockerHost}`);
-        } else if (fs.existsSync("/var/run/docker.sock")) {
-            // Check if we're running in a container with mounted Docker socket
+        const { client, mode } = this.resolveDockerClientConfig(dockerHost, dockerPort);
+        this.docker = client;
+
+        if (fs.existsSync(DockerService.DEFAULT_DOCKER_SOCKET_PATH)) {
             try {
-                // Verify socket permissions
-                const socketStats = fs.statSync("/var/run/docker.sock");
-                this.logger.log(`Docker socket found - mode: ${socketStats.mode.toString(8)}, uid: ${String(socketStats.uid)}, gid: ${String(socketStats.gid)}`);
-                this.docker = new Docker({ socketPath: "/var/run/docker.sock" });
-                this.logger.log("Connected to Docker via mounted socket");
+                const socketStats = fs.statSync(DockerService.DEFAULT_DOCKER_SOCKET_PATH);
+                this.logger.log(
+                    `Docker socket found - mode: ${socketStats.mode.toString(8)}, uid: ${String(socketStats.uid)}, gid: ${String(socketStats.gid)}`,
+                );
             } catch (error) {
-                throw new Error(`Docker socket exists at /var/run/docker.sock but is inaccessible: ${DockerService.getErrMsg(error)}`);
+                this.logger.warn(
+                    `Docker socket at ${DockerService.DEFAULT_DOCKER_SOCKET_PATH} is present but stats failed: ${DockerService.getErrMsg(error)}`,
+                );
             }
-        } else {
-            // Fallback to default Docker connection
-            this.logger.warn("Docker socket not found, using default connection");
-            this.docker = new Docker();
         }
+
+        this.logger.log(`Configured Docker client via ${mode}`);
     }
     /**
      * Test Docker connection and log connection status
@@ -130,12 +314,24 @@ CMD ["npm", "start"]
         image: string;
         name: string;
         deploymentId: string;
+        serviceId?: string;
+        projectId?: string;
         envVars?: Record<string, string>;
         ports?: Record<string, string>;
         imagePullPolicy?: "IfNotPresent" | "Always" | "Never";
         registryAuth?: Docker.AuthConfig;
     }): Promise<string> {
-        const { image, name, deploymentId, envVars = {}, ports = {}, imagePullPolicy = "IfNotPresent", registryAuth } = options;
+        const {
+            image,
+            name,
+            deploymentId,
+            serviceId,
+            projectId,
+            envVars = {},
+            ports = {},
+            imagePullPolicy = "IfNotPresent",
+            registryAuth,
+        } = options;
         this.logger.log(`Creating container ${name} from image ${image} (policy=${imagePullPolicy})`);
         // Convert environment variables to Docker format
         const env = Object.entries(envVars).map(([key, value]) => `${key}=${value}`);
@@ -168,6 +364,18 @@ CMD ["npm", "start"]
                 Labels: {
                     "deployer.deployment_id": deploymentId,
                     "deployer.managed": "true",
+                    "deployer.managed_by": "deployment_service",
+                    "deployer.managed_reason": "deployment_execution",
+                    ...(serviceId
+                        ? {
+                              "deployer.service_id": serviceId,
+                          }
+                        : {}),
+                    ...(projectId
+                        ? {
+                              "deployer.project_id": projectId,
+                          }
+                        : {}),
                 },
             });
             await container.start();
@@ -531,6 +739,58 @@ CMD ["npm", "start"]
             throw error;
         }
     }
+
+    async pauseContainer(containerIdOrName: string): Promise<void> {
+        try {
+            const container = this.docker.getContainer(containerIdOrName);
+            await container.pause();
+            this.logger.log(`Paused container ${containerIdOrName}`);
+        } catch (error) {
+            const errorMessage = DockerService.getDockerErrMsg(error).toLowerCase();
+            if (errorMessage.includes("already paused")) {
+                this.logger.log(`Container ${containerIdOrName} already paused`);
+                return;
+            }
+
+            this.logger.error(`Failed to pause container ${containerIdOrName}:`, error);
+            throw error;
+        }
+    }
+
+    async unpauseContainer(containerIdOrName: string): Promise<void> {
+        try {
+            const container = this.docker.getContainer(containerIdOrName);
+            await container.unpause();
+            this.logger.log(`Unpaused container ${containerIdOrName}`);
+        } catch (error) {
+            const errorMessage = DockerService.getDockerErrMsg(error).toLowerCase();
+            if (errorMessage.includes("is not paused") || errorMessage.includes("not paused")) {
+                this.logger.log(`Container ${containerIdOrName} already unpaused`);
+                return;
+            }
+
+            this.logger.error(`Failed to unpause container ${containerIdOrName}:`, error);
+            throw error;
+        }
+    }
+
+    async killContainer(containerIdOrName: string): Promise<void> {
+        try {
+            const container = this.docker.getContainer(containerIdOrName);
+            await container.kill();
+            this.logger.log(`Killed container ${containerIdOrName}`);
+        } catch (error) {
+            const errorMessage = DockerService.getDockerErrMsg(error).toLowerCase();
+            if (errorMessage.includes("is not running") || errorMessage.includes("not running")) {
+                this.logger.log(`Container ${containerIdOrName} already stopped`);
+                return;
+            }
+
+            this.logger.error(`Failed to kill container ${containerIdOrName}:`, error);
+            throw error;
+        }
+    }
+
     async removeContainer(containerId: string): Promise<void> {
         try {
             const container = this.docker.getContainer(containerId);
@@ -651,7 +911,13 @@ CMD ["npm", "start"]
     /**
      * Pull an image from a registry with optional auth and retry/backoff.
      */
-    async pullImage(image: string, registryAuth?: Docker.AuthConfig, retries = 3, backoffMs = 2000): Promise<void> {
+    async pullImage(
+        image: string,
+        registryAuth?: Docker.AuthConfig,
+        retries = 3,
+        backoffMs = 2000,
+        onProgressLine?: (line: string) => void,
+    ): Promise<void> {
         this.logger.log(`Attempting to pull image ${image} (retries=${String(retries)})`);
         let lastErrMsg: string | null = null;
         for (let attempt = 1; attempt <= retries; attempt++) {
@@ -661,7 +927,7 @@ CMD ["npm", "start"]
                     pullOpts.authconfig = registryAuth;
                 }
                 const stream: NodeJS.ReadableStream = await this.docker.pull(image, pullOpts);
-                await this.followStream(stream);
+                await this.followStream(stream, onProgressLine);
                 // Successful pull
                 this.logger.log(`Successfully pulled ${image} on attempt ${String(attempt)}`);
                 return;
@@ -679,7 +945,7 @@ CMD ["npm", "start"]
         throw new Error(`Failed to pull image ${image}: ${lastErrMsg ?? "unknown error"}`);
     }
 
-    private async followStream(stream: NodeJS.ReadableStream): Promise<void> {
+    private async followStream(stream: NodeJS.ReadableStream, onProgressLine?: (line: string) => void): Promise<void> {
         return new Promise((resolve, reject) => {
             this.docker.modem.followProgress(
                 stream,
@@ -691,14 +957,31 @@ CMD ["npm", "start"]
                     }
                 },
                 (event: Record<string, unknown>) => {
-                    if (typeof event.stream === "string") {
-                        this.logger.debug(event.stream.trim());
+                    const streamMessage = typeof event.stream === "string"
+                        ? event.stream.trim()
+                        : "";
+
+                    if (streamMessage.length > 0) {
+                        this.logger.debug(streamMessage);
+                        onProgressLine?.(streamMessage);
                     }
+
                     if (typeof event.status === "string") {
-                        this.logger.debug(event.status);
+                        const status = event.status.trim();
+                        const layerId = typeof event.id === "string" ? event.id.trim() : "";
+                        const progress = typeof event.progress === "string" ? event.progress.trim() : "";
+                        const statusMessage = layerId.length > 0
+                            ? `${layerId}: ${status}${progress.length > 0 ? ` ${progress}` : ""}`
+                            : `${status}${progress.length > 0 ? ` ${progress}` : ""}`;
+
+                        this.logger.debug(statusMessage);
+                        onProgressLine?.(statusMessage);
                     }
+
                     if (event.error) {
-                        this.logger.error(typeof event.error === "string" ? event.error : JSON.stringify(event.error));
+                        const errorMessage = typeof event.error === "string" ? event.error : JSON.stringify(event.error);
+                        this.logger.error(errorMessage);
+                        onProgressLine?.(`error: ${errorMessage}`);
                     }
                 }
             );
@@ -721,9 +1004,36 @@ CMD ["npm", "start"]
             const info = await container.inspect();
             return info;
         } catch (error) {
-            this.logger.error(`Failed to get container info for ${containerIdOrName}:`, error);
+            if (!this.isContainerNotFoundError(error)) {
+                this.logger.error(`Failed to get container info for ${containerIdOrName}:`, error);
+            }
             throw error;
         }
+    }
+
+    private isContainerNotFoundError(error: unknown): boolean {
+        if (typeof error !== "object" || error === null) {
+            return false;
+        }
+
+        const record = error as Record<string, unknown>;
+        if (record.statusCode === 404) {
+            return true;
+        }
+
+        const reason = typeof record.reason === "string" ? record.reason.toLowerCase() : "";
+        if (reason.includes("no such container")) {
+            return true;
+        }
+
+        const jsonMessage =
+            typeof record.json === "object"
+            && record.json !== null
+            && typeof (record.json as Record<string, unknown>).message === "string"
+                ? ((record.json as Record<string, unknown>).message as string).toLowerCase()
+                : "";
+
+        return jsonMessage.includes("no such container");
     }
 
     /**
@@ -735,6 +1045,12 @@ CMD ["npm", "start"]
             await container.stop({ t: 10 });
             this.logger.log(`Stopped container ${containerIdOrName}`);
         } catch (error) {
+            const errorMessage = DockerService.getDockerErrMsg(error).toLowerCase();
+            if (errorMessage.includes("is not running") || errorMessage.includes("not running")) {
+                this.logger.log(`Container ${containerIdOrName} already stopped`);
+                return;
+            }
+
             this.logger.error(`Failed to stop container ${containerIdOrName}:`, error);
             throw error;
         }
@@ -743,12 +1059,19 @@ CMD ["npm", "start"]
     /**
      * Start a container by id or name
      */
-    async startContainer(containerIdOrName: string): Promise<void> {
+    async startContainer(containerIdOrName: string): Promise<Docker.Container> {
         try {
             const container = this.docker.getContainer(containerIdOrName);
             await container.start();
             this.logger.log(`Started container ${containerIdOrName}`);
+            return container;
         } catch (error) {
+            const errorMessage = DockerService.getDockerErrMsg(error).toLowerCase();
+            if (errorMessage.includes("already started") || errorMessage.includes("already running")) {
+                this.logger.log(`Container ${containerIdOrName} already running`);
+                return this.docker.getContainer(containerIdOrName);
+            }
+
             this.logger.error(`Failed to start container ${containerIdOrName}:`, error);
             throw error;
         }
@@ -792,9 +1115,23 @@ CMD ["npm", "start"]
             this.logger.debug(`Created exec instance in container ${containerIdOrName} with ID ${exec.id}`);
             // Start exec and attach streams
             const rawStream: unknown = await exec.start({ hijack: true, stdin: !!input });
-            if (!this.isReadWriteStream(rawStream)) {
+            const inlineOutput = this.extractExecOutputPayload(rawStream);
+            if (inlineOutput !== null) {
+                const execInspect = await exec.inspect();
+                const exitCode = typeof execInspect.ExitCode === "number" ? execInspect.ExitCode : -1;
+                if (exitCode !== 0) {
+                    this.logger.error(`Exec in container ${containerIdOrName} failed (exitCode=${String(exitCode)}): ${inlineOutput}`);
+                    throw new Error(`Command ${cmd.join(" ")} failed with exit code ${String(exitCode)} - output: ${inlineOutput}`);
+                }
+
+                this.logger.debug(`Exec in container ${containerIdOrName} completed with inline payload (exitCode=${String(exitCode)})`);
+                return { exitCode, output: inlineOutput };
+            }
+
+            if (!this.isReadWriteStream(rawStream) && !this.isReadableStream(rawStream)) {
                 throw new Error("exec.start() returned an unexpected non-stream value");
             }
+
             const stream = rawStream;
 
             this.logger.debug(`Started exec instance in container ${containerIdOrName} (stream attached)`);
@@ -825,6 +1162,9 @@ CMD ["npm", "start"]
 
             // If input supplied, write to stdin
             if (input) {
+                if (!this.isReadWriteStream(stream)) {
+                    throw new Error("exec.start() returned a non-writable stream while stdin input was provided");
+                }
                 try {
                     this.logger.debug(`Writing to exec stdin for container ${containerIdOrName}: ${input}`);
                     (stream).write(input);
@@ -883,9 +1223,24 @@ CMD ["npm", "start"]
                     this.logger.debug(`Created exec instance (retry non-hijack) in container ${containerIdOrName} with ID ${execRetry.id}`);
 
                     const rawStreamRetry: unknown = await execRetry.start({ hijack: false, stdin: !!input });
-                    if (!this.isReadWriteStream(rawStreamRetry)) {
+                    const inlineRetryOutput = this.extractExecOutputPayload(rawStreamRetry);
+                    if (inlineRetryOutput !== null) {
+                        const retryInspect = await execRetry.inspect();
+                        const retryExit = typeof retryInspect.ExitCode === "number" ? retryInspect.ExitCode : -1;
+                        if (retryExit === 0) {
+                            this.logger.log(`Non-hijack exec retry succeeded in container ${containerIdOrName} (inline payload)`);
+                            this.logger.debug(`Non-hijack exec output (truncated): ${inlineRetryOutput.slice(0, 2000)}`);
+                            return { exitCode: retryExit, output: inlineRetryOutput };
+                        }
+
+                        this.logger.warn(`Non-hijack exec retry returned non-zero exit code ${String(retryExit)} - falling back to helper container`);
+                        throw new Error(`Non-hijack exec retry failed with exit code ${String(retryExit)}: ${inlineRetryOutput}`);
+                    }
+
+                    if (!this.isReadWriteStream(rawStreamRetry) && !this.isReadableStream(rawStreamRetry)) {
                         throw new Error("exec.start() returned an unexpected non-stream value");
                     }
+
                     const streamRetry = rawStreamRetry;
                     this.logger.debug(`Started exec retry in container ${containerIdOrName} (non-hijack, stream attached)`);
 
@@ -913,6 +1268,9 @@ CMD ["npm", "start"]
                     });
 
                     if (input) {
+                        if (!this.isReadWriteStream(streamRetry)) {
+                            throw new Error("exec retry stream is not writable while stdin input was provided");
+                        }
                         try {
                             (streamRetry).write(input);
                         } catch (w) {
@@ -1074,17 +1432,44 @@ CMD ["npm", "start"]
             const opts = {
                 stdout: options.stdout !== false,
                 stderr: options.stderr !== false,
-                tail: options.tail ?? 200,
+                tail: options.tail ?? "all",
+                since: options.since,
+                until: options.until,
+                timestamps: options.timestamps,
             };
-            const rawLogs: unknown = await container.logs(opts);
+            const rawLogs: unknown = options.follow === true
+                ? await container.logs({ ...opts, follow: true as const })
+                : await container.logs({ ...opts, follow: false as const });
+
+            // Docker API may return non-stream payloads (Buffer/string) for non-follow log requests.
+            if (typeof rawLogs === "string") {
+                return rawLogs;
+            }
+
+            if (this.isBufferLike(rawLogs)) {
+                return this.decodeContainerLogsPayload(Buffer.from(rawLogs));
+            }
+
             if (!this.isReadableStream(rawLogs)) {
                 throw new Error("container.logs() returned an unexpected non-stream value");
             }
             const stream = rawLogs;
-            let logs = "";
-                stream.on("data", (chunk: Buffer) => {
+            const chunks: Buffer[] = [];
+                stream.on("data", (chunk) => {
                     try {
-                        logs += chunk.toString("utf8");
+                        if (typeof chunk === "string") {
+                            chunks.push(Buffer.from(chunk, "utf8"));
+                            return;
+                        }
+
+                        if (Buffer.isBuffer(chunk)) {
+                            chunks.push(chunk);
+                            return;
+                        }
+
+                        if (chunk instanceof Uint8Array) {
+                            chunks.push(Buffer.from(chunk));
+                        }
                     } catch { /* UTF-8 decode error, skip chunk */ }
                 });
             await new Promise<void>((resolve, reject) => {
@@ -1098,7 +1483,8 @@ CMD ["npm", "start"]
                         reject(err);
                     });
             });
-            return logs;
+
+            return this.decodeContainerLogsPayload(Buffer.concat(chunks));
         } catch (error: unknown) {
             this.logger.error(`Failed to fetch logs for container ${containerIdOrName}:`, DockerService.getErrMsg(error));
             throw error;

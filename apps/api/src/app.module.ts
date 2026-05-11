@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { type MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
+import { Logger, type MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
 import { DatabaseModule } from "./core/modules/database/database.module";
 import { HealthModule } from "./modules/health/health.module";
 import { UserModule } from "./modules/user/user.module";
@@ -30,8 +30,14 @@ import { DomainModule } from "./modules/domain/domain.module";
 import { AnalyticsModule } from "./modules/analytics/analytics.module";
 import { ProviderSchemaModule } from "./modules/provider-schema/provider-schema.module";
 import { SystemModule } from "./system/system.module";
-import { SetupModule } from "./modules/setup/setup.module";
+import { CoreInitializationModule } from "./core/modules/setup/initialization.module";
 import { PermissionModule } from "./modules/permission/permission.module";
+import { DockerModule } from "./modules/docker/docker.module";
+import { InternalErrorContextMiddleware } from "./core/middlewares/internal-error/internal-error-context.middleware";
+import { InternalErrorInsightService } from "./core/middlewares/internal-error/internal-error-insight.service";
+import { InternalErrorExceptionFilter } from "./core/middlewares/internal-error/internal-error-exception.filter";
+import { APIErrorExceptionFilter } from "./core/modules/auth/filters/api-error-exception-filter";
+import { SetupModule } from "./modules/setup/setup.module";
 
 declare module "@orpc/nest" {
     /**
@@ -62,7 +68,7 @@ declare module "@orpc/nest" {
         UserModule,
         PushModule,
         TestModule,
-        SetupModule,
+        CoreInitializationModule,
         OrganizationModule,
         ProjectModule,
         ServiceModule,
@@ -72,15 +78,24 @@ declare module "@orpc/nest" {
         DomainModule,
         AnalyticsModule,
         ProviderSchemaModule,
+        DockerModule,
         EventsModule,
         SystemModule,
         PermissionModule,
+        SetupModule,
         ORPCModule.forRootAsync({
-            useFactory: (request: Request, authCoreService: AuthCoreService) => {
+            useFactory: (
+                request: Request,
+                authCoreService: AuthCoreService,
+            ) => {
                 const emptyAuthUtils = authCoreService.createEmptyAuthUtils();
+                const internalErrorInsightService = new InternalErrorInsightService();
 
                 return {
-                    interceptors: [transformNestJSErrorToOrpcError(), logOrpcErrors()],
+                    interceptors: [
+                        transformNestJSErrorToOrpcError(),
+                        logOrpcErrors(new Logger("ORPC Errors"), internalErrorInsightService),
+                    ],
                     plugins: [
                         new SmartCoercionPlugin({
                             schemaConverters: [new ZodToJsonSchemaConverter()],
@@ -96,9 +111,14 @@ declare module "@orpc/nest" {
             inject: [REQUEST, AuthCoreService],
         }),
     ],
+    providers: [
+        InternalErrorInsightService,
+        InternalErrorExceptionFilter,
+        APIErrorExceptionFilter,
+    ],
 })
 export class AppModule implements NestModule {
     configure(consumer: MiddlewareConsumer) {
-        consumer.apply(LoggerMiddleware).forRoutes("*"); // Apply the logger middleware to all routes
+        consumer.apply(InternalErrorContextMiddleware, LoggerMiddleware).forRoutes("*");
     }
 }

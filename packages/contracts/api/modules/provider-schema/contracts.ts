@@ -1,4 +1,4 @@
-import { route } from "@repo/orpc-utils/builder";
+import { standard } from "@repo/orpc-utils";
 import z from "zod/v4";
 import {
     builderMetadataSchema,
@@ -8,11 +8,22 @@ import {
     unknownConfigSchema,
 } from "./schemas";
 
-export const getAllProvidersContract = route({
-    method: "GET",
-    path: "/providers",
-    summary: "Get all registered providers",
-})
+const providerSchemaOps = standard.zod(configSchemaSchema, "providerSchema");
+const builderSchemaOps = standard.zod(configSchemaSchema, "builderSchema");
+const providerValidationOps = standard.zod(
+    providerConfigValidationResultSchema,
+    "providerConfigValidation",
+);
+const builderValidationOps = standard.zod(
+    providerConfigValidationResultSchema,
+    "builderConfigValidation",
+);
+const providerMetadataOps = standard.zod(providerMetadataSchema, "providerMetadata");
+const builderMetadataOps = standard.zod(builderMetadataSchema, "builderMetadata");
+
+export const getAllProvidersContract = providerMetadataOps
+    .list()
+    .path("/providers")
     .input(z.object({}))
     .output(
         z.object({
@@ -22,20 +33,14 @@ export const getAllProvidersContract = route({
     )
     .build();
 
-export const getProviderSchemaContract = route({
-    method: "GET",
-    path: "/providers/{id}/schema",
-    summary: "Get provider configuration schema",
-})
+export const getProviderSchemaContract = providerSchemaOps
+    .read({ idFieldName: "id", idSchema: z.string() })
     .input((b) => b.params((p) => p`/providers/${p("id", z.string())}/schema`))
     .output(configSchemaSchema)
     .build();
 
-export const getCompatibleBuildersContract = route({
-    method: "GET",
-    path: "/providers/{providerId}/builders",
-    summary: "Get compatible builders for a provider",
-})
+export const getCompatibleBuildersContract = builderMetadataOps
+    .list()
     .input((b) => b.params((p) => p`/providers/${p("providerId", z.string())}/builders`))
     .output(
         z.object({
@@ -45,11 +50,9 @@ export const getCompatibleBuildersContract = route({
     )
     .build();
 
-export const getAllBuildersContract = route({
-    method: "GET",
-    path: "/builders",
-    summary: "Get all registered builders",
-})
+export const getAllBuildersContract = builderMetadataOps
+    .list()
+    .path("/builders")
     .input(z.object({}))
     .output(
         z.object({
@@ -59,20 +62,14 @@ export const getAllBuildersContract = route({
     )
     .build();
 
-export const getBuilderSchemaContract = route({
-    method: "GET",
-    path: "/builders/{id}/schema",
-    summary: "Get builder configuration schema",
-})
+export const getBuilderSchemaContract = builderSchemaOps
+    .read({ idFieldName: "id", idSchema: z.string() })
     .input((b) => b.params((p) => p`/builders/${p("id", z.string())}/schema`))
     .output(configSchemaSchema)
     .build();
 
-export const getCompatibleProvidersContract = route({
-    method: "GET",
-    path: "/builders/{builderId}/providers",
-    summary: "Get compatible providers for a builder",
-})
+export const getCompatibleProvidersContract = providerMetadataOps
+    .list()
     .input((b) => b.params((p) => p`/builders/${p("builderId", z.string())}/providers`))
     .output(
         z.object({
@@ -82,12 +79,8 @@ export const getCompatibleProvidersContract = route({
     )
     .build();
 
-export const validateProviderConfigContract = route({
-    method: "POST",
-    path: "/providers/{providerId}/validate",
-    summary: "Validate provider configuration",
-    description: "Validate configuration values against provider schema",
-})
+export const validateProviderConfigContract = providerValidationOps
+    .create()
     .input((b) =>
         b
             .params((p) => p`/providers/${p("providerId", z.string())}/validate`)
@@ -100,11 +93,8 @@ export const validateProviderConfigContract = route({
     .output(providerConfigValidationResultSchema)
     .build();
 
-export const validateBuilderConfigContract = route({
-    method: "POST",
-    path: "/builders/{builderId}/validate",
-    summary: "Validate builder configuration",
-})
+export const validateBuilderConfigContract = builderValidationOps
+    .create()
     .input((b) =>
         b
             .params((p) => p`/builders/${p("builderId", z.string())}/validate`)

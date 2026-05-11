@@ -7,6 +7,7 @@ import { MeshStreamRuntimeService } from "./mesh-stream-runtime.service";
 import { EnvService } from "@/config/env/env.service";
 import { SystemMeshConfigService } from "./system-mesh-config.service";
 import { SystemMeshResourceDiscoveryService } from "./system-mesh-resource-discovery.service";
+import { MeshInternalRequestService } from "./mesh-internal-request.service";
 
 const { createORPCClientMock, openAPILinkConstructorMock } = vi.hoisted(() => {
     return {
@@ -110,6 +111,7 @@ describe("MeshStreamRuntimeService", () => {
                     provide: SystemMeshConfigService,
                     useFactory: () => meshConfigService,
                 },
+                MeshInternalRequestService,
             ],
         }).compile();
 

@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { BaseEventService } from "@/core/modules/events/base-event.service";
+import { BasePooledEventService } from "@/core/modules/events/services/base-pooled-event.service";
+import { CoreEventStreamPoolService } from "@/core/modules/events/services/core-event-stream-pool.service";
 import { observableToAsyncIterable } from "@/core/utils/observable.utils";
 import type { MeshRuntimeEvent, MeshTopologyEvent } from "@repo/contracts-entities";
 import {
@@ -8,37 +9,39 @@ import {
 } from "./system-mesh-event.contracts";
 
 @Injectable()
-export class SystemMeshEventService extends BaseEventService<SystemMeshEventContracts> {
-    constructor() {
-        super("mesh", systemMeshEventContracts);
+export class SystemMeshEventService extends BasePooledEventService<SystemMeshEventContracts> {
+    constructor(streamPool: CoreEventStreamPoolService) {
+        super("mesh", systemMeshEventContracts, streamPool);
     }
 
-    emitRuntime(clusterId: string, event: MeshRuntimeEvent): void {
-        this.emit("runtime", { clusterId }, event);
+    emitRuntime(event: MeshRuntimeEvent): void {
+        this.emit("runtime", {}, event);
     }
 
-    emitTopology(clusterId: string, event: MeshTopologyEvent): void {
-        this.emit("topology", { clusterId }, event);
+    emitTopology(event: MeshTopologyEvent): void {
+        this.emit("topology", {}, event);
     }
 
-    observeRuntime(input: { clusterId: string; replay: boolean; replayLimit: number }) {
-        return this.subscribe$(
+    observeRuntime(input: { replay: boolean; replayLimit: number }) {
+        return this.observePooledEvent$(
             "runtime",
-            { clusterId: input.clusterId },
+            {},
             {
                 replayLimit: input.replayLimit,
                 includePersisted: input.replay,
+                pool: !input.replay,
             },
         );
     }
 
-    observeTopology(input: { clusterId: string; replay: boolean; replayLimit: number }) {
-        return this.subscribe$(
+    observeTopology(input: { replay: boolean; replayLimit: number }) {
+        return this.observePooledEvent$(
             "topology",
-            { clusterId: input.clusterId },
+            {},
             {
                 replayLimit: input.replayLimit,
                 includePersisted: input.replay,
+                pool: !input.replay,
             },
         );
     }
@@ -47,34 +50,42 @@ export class SystemMeshEventService extends BaseEventService<SystemMeshEventCont
      * Observe runtime events strictly after a given sequence cursor.
      * Used for reconnect scenarios: subscriber passes back the last sequence they received.
      */
-    observeRuntimeSince(input: { clusterId: string; afterSequence: number }) {
-        return this.subscribe$(
+    observeRuntimeSince(input: { afterSequence: number }) {
+        return this.observePooledEvent$(
             "runtime",
-            { clusterId: input.clusterId },
-            { afterSequence: input.afterSequence, includePersisted: false },
+            {},
+            {
+                afterSequence: input.afterSequence,
+                includePersisted: false,
+                pool: false,
+            },
         );
     }
 
     /**
      * Observe topology events strictly after a given sequence cursor.
      */
-    observeTopologySince(input: { clusterId: string; afterSequence: number }) {
-        return this.subscribe$(
+    observeTopologySince(input: { afterSequence: number }) {
+        return this.observePooledEvent$(
             "topology",
-            { clusterId: input.clusterId },
-            { afterSequence: input.afterSequence, includePersisted: false },
+            {},
+            {
+                afterSequence: input.afterSequence,
+                includePersisted: false,
+                pool: false,
+            },
         );
     }
 
-    runtimeLastSequence(clusterId: string): number {
-        return this.getLastSequence("runtime", { clusterId });
+    runtimeLastSequence(): number {
+        return this.getLastSequence("runtime", {});
     }
 
-    streamRuntime(input: { clusterId: string; replay: boolean; replayLimit: number }) {
+    streamRuntime(input: { replay: boolean; replayLimit: number }) {
         return observableToAsyncIterable(this.observeRuntime(input));
     }
 
-    streamTopology(input: { clusterId: string; replay: boolean; replayLimit: number }) {
+    streamTopology(input: { replay: boolean; replayLimit: number }) {
         return observableToAsyncIterable(this.observeTopology(input));
     }
 }

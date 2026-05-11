@@ -2,25 +2,6 @@ import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-vi.mock("react-hook-form", () => ({
-  useForm: () => ({
-    control: {},
-    handleSubmit:
-      (callback: (values: { email: string; password: string }) => Promise<void> | void) =>
-      (event?: { preventDefault?: () => void }) => {
-        event?.preventDefault?.();
-        return callback({
-          email: "admin@admin.com",
-          password: "adminadmin",
-        });
-      },
-  }),
-}));
-
-vi.mock("@hookform/resolvers/zod", () => ({
-  zodResolver: vi.fn(),
-}));
-
 const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   redirectAction: vi.fn(),
@@ -51,37 +32,6 @@ vi.mock("@repo/ui/components/shadcn/alert", () => ({
   AlertDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock("@repo/ui/components/shadcn/form", () => ({
-  Form: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  FormControl: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  FormItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  FormLabel: ({ children }: { children: React.ReactNode }) => <label>{children}</label>,
-  FormMessage: () => null,
-  FormField: ({
-    render,
-    name,
-  }: {
-    render: (arg: {
-      field: {
-        name: string;
-        value: string;
-        onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
-        onBlur: () => void;
-        ref: (element: HTMLInputElement | null) => void;
-      };
-    }) => React.ReactNode;
-    name: string;
-  }) =>
-    render({
-      field: {
-        name,
-        value: "",
-        onChange: vi.fn(),
-        onBlur: vi.fn(),
-        ref: vi.fn(),
-      },
-    }),
-}));
 
 vi.mock("@repo/ui/components/atomics/atoms/Icon", () => ({
   Spinner: () => <span>spinner</span>,
@@ -187,6 +137,13 @@ describe("SignIn page", () => {
     mocks.signInEmail.mockResolvedValue({ data: { user: { id: "u1" } } });
 
     render(<SignInPageLoose params={{}} searchParams={{ redirectTo: "/dashboard/services" }} />);
+
+    fireEvent.change(screen.getByLabelText(/email address/i), {
+      target: { value: "admin@admin.com" },
+    });
+    fireEvent.change(screen.getByLabelText(/^password$/i), {
+      target: { value: "adminadmin" },
+    });
 
     fireEvent.click(screen.getByRole("button", { name: /sign in with email/i }));
 

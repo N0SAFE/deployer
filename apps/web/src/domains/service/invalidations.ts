@@ -3,7 +3,7 @@
  */
 
 import { defineInvalidations } from '../shared/helpers'
-import { serviceEndpoints } from './endpoints'
+import { serviceEndpointOperations } from './endpoints'
 
 function resolveServiceId(input: unknown): string | undefined {
   if (!input || typeof input !== 'object') return undefined
@@ -11,7 +11,7 @@ function resolveServiceId(input: unknown): string | undefined {
   return c.id ?? c.params?.id
 }
 
-export const serviceInvalidations = defineInvalidations(serviceEndpoints, {
+export const serviceInvalidations = defineInvalidations(serviceEndpointOperations, {
   create: ({ keys }) => [keys.list()],
 
   update: ({ input, keys }) => {

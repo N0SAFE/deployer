@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import z from 'zod'
 
 export const envNameSchema = z.enum(['production', 'staging', 'preview', 'development'])
 export type EnvName = z.infer<typeof envNameSchema>

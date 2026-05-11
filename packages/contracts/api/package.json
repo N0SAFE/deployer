@@ -20,7 +20,7 @@
     "format:check": "prettier . --check --no-error-on-unmatched-pattern",
     "dev": "bun run build -- --watch",
     "lint": "bunx eslint .",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsgo --noEmit"
   },
   "dependencies": {
     "@orpc/contract": "catalog:orpc",
@@ -44,6 +44,6 @@
     "@repo/config-prettier": "*",
     "eslint": "catalog:linting",
     "@repo/config-typescript": "*",
-    "typescript": "catalog:build"
+    "@typescript/native-preview": "catalog:build"
   }
 }

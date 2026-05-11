@@ -7,7 +7,7 @@ import {
   templateUpdateInputSchema,
   templateMigrationDirectionSchema,
   templateVersionMigrationPreviewInputSchema,
-} from '../entities/template.schema'
+} from '../entities/template'
 
 const providerId = providersCatalog[0]?.id
 const builderId = buildersCatalog[0]?.id

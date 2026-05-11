@@ -5,6 +5,6 @@ const projectOps = standard.zod(projectSchema, "project");
 
 export const projectFindByIdContract = projectOps
     .read()
-    .output((_b) => projectWithStatsSchema.nullable())
+    .output(() => projectWithStatsSchema.nullable())
     .build();
 

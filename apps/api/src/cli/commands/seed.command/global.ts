@@ -1,7 +1,8 @@
-import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service';
-import { CliAuthService, type CliAuthContext } from '../../services/cli-auth.service';
-import { AuthCoreService } from '@/core/modules/auth/services/auth-core.service';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/config/drizzle/global/schema';
+import type { CliAuthService} from '../../services/cli-auth.service';
+import { type CliAuthContext } from '../../services/cli-auth.service';
+import type { AuthCoreService } from '@/core/modules/auth/services/auth-core.service';
 import { eq } from 'drizzle-orm';
 import { Roles, ORGANIZATION_ROLES, type OrganizationRole } from '@repo/auth/permissions';
 
@@ -9,16 +10,16 @@ import { Roles, ORGANIZATION_ROLES, type OrganizationRole } from '@repo/auth/per
 export const SEED_VERSION = 'v1.2.0';
 
 export async function seedGlobal(
-  databaseService: GlobalDatabaseService,
+  globalDb: NodePgDatabase<typeof schema>,
   authCoreService: AuthCoreService,
   cliAuthService: CliAuthService
-): Promise<void> {
+) {
   let authContext: CliAuthContext | null = null;
   console.log(`📦 Applying global seed version ${SEED_VERSION}...`);
 
   try {
     // Check if this seed version has already been applied
-    const existingSeed = await databaseService.db
+    const existingSeed = await globalDb
       .select()
       .from(schema.seedVersion)
       .where(eq(schema.seedVersion.version, SEED_VERSION))
@@ -207,7 +208,7 @@ export async function seedGlobal(
     console.log(`   ⏱️ Members added to test organizations: ${String(Date.now() - start)}ms`);
 
     // Record that this seed version has been applied
-    await databaseService.db.insert(schema.seedVersion).values({
+    await globalDb.insert(schema.seedVersion).values({
       version: SEED_VERSION,
     });
 

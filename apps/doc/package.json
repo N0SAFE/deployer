@@ -12,7 +12,7 @@
     "format": "bun run prettify",
     "format:check": "prettier . --check --no-error-on-unmatched-pattern",
     "lint": "eslint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsgo --noEmit"
   },
   "dependencies": {
     "fumadocs-core": "catalog:doc",
@@ -37,6 +37,6 @@
     "eslint-config-next": "catalog:next",
     "postcss": "catalog:styling",
     "tailwindcss": "catalog:styling",
-    "typescript": "catalog:build"
+    "@typescript/native-preview": "catalog:build"
   }
 }

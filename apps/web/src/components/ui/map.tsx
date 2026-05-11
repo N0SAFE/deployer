@@ -648,10 +648,7 @@ function MapPolyline({
 }: PolylineProps & { ref?: Ref<Polyline> }) {
     return (
         <LeafletPolyline
-            className={cn(
-                "fill-foreground stroke-foreground stroke-2",
-                className
-            )}
+            className={className ?? ""}
             {...props}
         />
     )

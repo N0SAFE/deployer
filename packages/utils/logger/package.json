@@ -12,17 +12,18 @@
     "format": "bun run prettify",
     "format:check": "prettier . --check --no-error-on-unmatched-pattern",
     "lint": "eslint . --fix",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsgo --noEmit"
   },
   "dependencies": {
     "pino": "^10.2.0",
     "pino-pretty": "^13.0.0"
   },
   "devDependencies": {
+    "@types/node": "catalog:build",
     "@repo/config-eslint": "*",
     "@repo/config-prettier": "*",
     "@repo/config-typescript": "*",
     "eslint": "catalog:linting",
-    "typescript": "catalog:build"
+    "@typescript/native-preview": "catalog:build"
   }
 }

@@ -549,6 +549,7 @@ export class RouteBuilder<
      * - `.input(schema)` → Non-detailed: direct schema
      * - `.input(b => schema)` → Non-detailed: callback returns plain schema
      * - `.input(b => b.body(schema).query(querySchema))` → Detailed: callback returns builder
+    * - `.input(b => b.union([schemaA, schemaB]))` → Union: multiple input variants
      * 
      * @example
      * ```typescript
@@ -559,6 +560,12 @@ export class RouteBuilder<
      * // Detailed (builder methods)
      * .input(b => b.body(userSchema).query(querySchema))
      * .input(b => b.params(p => p`/users/${p('id', idSchema)}`).body(userSchema))
+    *
+    * // Union input variants
+    * .input(b => b.union([
+    *   b.body(emailLookupSchema),
+    *   b.body(idLookupSchema),
+    * ]))
      * ```
      */
     input<TNewInput extends AnySchema>(

@@ -13,17 +13,18 @@ import { runtimeConfigurationAccessor } from "@/core/modules/configuration/servi
 import { ServiceRepository } from "../repositories/service.repository";
 import { ServiceEventService } from "./service-event.service";
 import type { ServiceListInput } from "@repo/api-contracts/modules/service/list";
-import type { ServiceCreateInput, ServiceUpdateInput } from "@repo/api-contracts/modules/service/crud";
+import type { ServiceCreateInput } from "@repo/api-contracts/modules/service/crud/create";
+import type { ServiceUpdateInput } from "@repo/api-contracts/modules/service/crud/update";
 import type { ProjectRole } from "@repo/auth";
 import type {
     ServiceStreamEvent,
     ServiceStreamQueryInput,
-} from "@repo/api-contracts/modules/service/stream";
+} from "@repo/api-contracts/modules/service/streams/query";
 
 type StreamEventWithMeta<T extends object> = T & {
     sequence: number;
     replayed: boolean;
-    emittedAt: string;
+    emittedAt: Date;
 };
 
 @Injectable()
@@ -420,7 +421,7 @@ export class ServiceService implements OnModuleInit {
                 name: service.name,
                 serviceType: service.type,
                 isActive: service.isActive,
-                timestamp: service.updatedAt,
+                timestamp: this.toDate(service.updatedAt),
             }));
 
         if (input.eventTypes && input.eventTypes.length > 0) {
@@ -456,60 +457,78 @@ export class ServiceService implements OnModuleInit {
                     name: payload.name,
                     serviceType: payload.type,
                     isActive: payload.isActive,
-                    timestamp: payload.timestamp,
+                    timestamp: this.toDate(payload.timestamp),
                 };
             }
             case "serviceUpdated": {
+                const payload = envelope.payload as {
+                    serviceId: string;
+                    projectId: string;
+                    changedFields: string[];
+                    timestamp: string;
+                };
                 return {
                     type: "serviceUpdated",
-                    ...(envelope.payload as {
-                        serviceId: string;
-                        projectId: string;
-                        changedFields: string[];
-                        timestamp: string;
-                    }),
+                    serviceId: payload.serviceId,
+                    projectId: payload.projectId,
+                    changedFields: payload.changedFields,
+                    timestamp: this.toDate(payload.timestamp),
                 };
             }
             case "serviceDeleted": {
+                const payload = envelope.payload as {
+                    serviceId: string;
+                    projectId: string;
+                    timestamp: string;
+                };
                 return {
                     type: "serviceDeleted",
-                    ...(envelope.payload as {
-                        serviceId: string;
-                        projectId: string;
-                        timestamp: string;
-                    }),
+                    serviceId: payload.serviceId,
+                    projectId: payload.projectId,
+                    timestamp: this.toDate(payload.timestamp),
                 };
             }
             case "serviceActivationChanged": {
+                const payload = envelope.payload as {
+                    serviceId: string;
+                    projectId: string;
+                    isActive: boolean;
+                    timestamp: string;
+                };
                 return {
                     type: "serviceActivationChanged",
-                    ...(envelope.payload as {
-                        serviceId: string;
-                        projectId: string;
-                        isActive: boolean;
-                        timestamp: string;
-                    }),
+                    serviceId: payload.serviceId,
+                    projectId: payload.projectId,
+                    isActive: payload.isActive,
+                    timestamp: this.toDate(payload.timestamp),
                 };
             }
             case "serviceDependencyAdded": {
+                const payload = envelope.payload as {
+                    serviceId: string;
+                    dependsOnServiceId: string;
+                    isRequired: boolean;
+                    timestamp: string;
+                };
                 return {
                     type: "serviceDependencyAdded",
-                    ...(envelope.payload as {
-                        serviceId: string;
-                        dependsOnServiceId: string;
-                        isRequired: boolean;
-                        timestamp: string;
-                    }),
+                    serviceId: payload.serviceId,
+                    dependsOnServiceId: payload.dependsOnServiceId,
+                    isRequired: payload.isRequired,
+                    timestamp: this.toDate(payload.timestamp),
                 };
             }
             case "serviceDependencyRemoved": {
+                const payload = envelope.payload as {
+                    serviceId: string;
+                    dependencyId: string;
+                    timestamp: string;
+                };
                 return {
                     type: "serviceDependencyRemoved",
-                    ...(envelope.payload as {
-                        serviceId: string;
-                        dependencyId: string;
-                        timestamp: string;
-                    }),
+                    serviceId: payload.serviceId,
+                    dependencyId: payload.dependencyId,
+                    timestamp: this.toDate(payload.timestamp),
                 };
             }
             default:
@@ -532,7 +551,7 @@ export class ServiceService implements OnModuleInit {
                     ...event,
                     sequence,
                     replayed,
-                    emittedAt: new Date().toISOString(),
+                    emittedAt: new Date(),
                 } as StreamEventWithMeta<TEvent>;
             }),
         );
@@ -571,8 +590,12 @@ export class ServiceService implements OnModuleInit {
                 eventName: event.type,
                 payload: event,
                 replayed: event.replayed,
-                emittedAt: event.emittedAt,
+                emittedAt: event.emittedAt.toISOString(),
             })),
         );
+    }
+
+    private toDate(value: string | Date): Date {
+        return value instanceof Date ? value : new Date(value);
     }
 }

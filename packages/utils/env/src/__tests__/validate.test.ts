@@ -177,6 +177,7 @@ describe('Web Environment Validation', () => {
       expect(result.REACT_SCAN).toBe(false)
       expect(result.MILLION_LINT).toBe(false)
       expect(result.NEXT_PUBLIC_DEBUG).toEqual({ patterns: [], enableAll: false })
+      expect(result.NEXT_PUBLIC_APP_DEBUG_CONTEXT_FILTER).toBe('')
     })
 
     it('should parse debug scopes', () => {

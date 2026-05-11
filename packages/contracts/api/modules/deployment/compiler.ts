@@ -1,4 +1,4 @@
-import { route } from "@repo/orpc-utils/builder";
+import { standard } from "@repo/orpc-utils";
 import {
     deploymentCompileRollbackEdgesInputSchema,
     deploymentCompileRollbackEdgesResultSchema,
@@ -6,29 +6,29 @@ import {
     deploymentPlanCompileResultSchema,
 } from "@repo/contracts-entities";
 
-export const deploymentCompilePlanContract = route({
-    method: "POST",
-    path: "/compile-plan",
-    summary: "Compile deterministic deployment plan (template + context -> DAG + hash)",
-})
+const deploymentPlanCompileOps = standard.zod(deploymentPlanCompileResultSchema, "deploymentPlanCompile");
+const deploymentRollbackEdgesCompileOps = standard.zod(
+    deploymentCompileRollbackEdgesResultSchema,
+    "deploymentRollbackEdgesCompile",
+);
+
+export const deploymentCompilePlanContract = deploymentPlanCompileOps
+    .create()
+    .path("/compile-plan")
     .input((b) => b.body(deploymentPlanCompileInputSchema))
     .output(deploymentPlanCompileResultSchema)
     .build();
 
-export const deploymentCompilePlanPreviewContract = route({
-    method: "POST",
-    path: "/compile-plan/preview",
-    summary: "Compile deployment plan in preview mode without persistence",
-})
+export const deploymentCompilePlanPreviewContract = deploymentPlanCompileOps
+    .create()
+    .path("/compile-plan/preview")
     .input((b) => b.body(deploymentPlanCompileInputSchema))
     .output(deploymentPlanCompileResultSchema)
     .build();
 
-export const deploymentCompileRollbackEdgesContract = route({
-    method: "POST",
-    path: "/compile-plan/rollback-edges",
-    summary: "Compile rollback edges for a deployment execution graph",
-})
+export const deploymentCompileRollbackEdgesContract = deploymentRollbackEdgesCompileOps
+    .create()
+    .path("/compile-plan/rollback-edges")
     .input((b) => b.body(deploymentCompileRollbackEdgesInputSchema))
     .output(deploymentCompileRollbackEdgesResultSchema)
     .build();

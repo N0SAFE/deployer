@@ -1,0 +1,19 @@
+import { Test, type TestingModule } from '@nestjs/testing';
+import { SetupService } from './initialization.service';
+import { describe, beforeEach, it, expect } from 'vitest';
+
+describe('SetupService', () => {
+  let service: SetupService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [SetupService],
+    }).compile();
+
+    service = module.get<SetupService>(SetupService);
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+});

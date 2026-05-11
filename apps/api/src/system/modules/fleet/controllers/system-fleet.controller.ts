@@ -33,6 +33,18 @@ export class SystemFleetController {
         };
     }
 
+    private toDate(value: string | Date): Date {
+        return value instanceof Date ? value : new Date(value);
+    }
+
+    private toDateOrNull(value: string | Date | null): Date | null {
+        if (!value) {
+            return null;
+        }
+
+        return this.toDate(value);
+    }
+
     @Implement(appContract.core.fleet.listServers)
     listServers() {
         return implement(appContract.core.fleet.listServers)
@@ -40,7 +52,18 @@ export class SystemFleetController {
             .use(requirePlatformRole(["superAdmin", "superadmin"]))
             .handler(async () => {
                 const items = await this.systemFleetService.listServers();
-                return { items };
+                return {
+                    items: items.map((item) => ({
+                        ...item,
+                        lastSeenAt: this.toDateOrNull(item.lastSeenAt),
+                        metrics: item.metrics
+                            ? {
+                                  ...item.metrics,
+                                  reportedAt: this.toDate(item.metrics.reportedAt),
+                              }
+                            : null,
+                    })),
+                };
             });
     }
 
@@ -50,11 +73,25 @@ export class SystemFleetController {
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "superadmin"]))
             .handler(async ({ input }) => {
-                return this.systemFleetService.setServerCapacity({
+                const server = await this.systemFleetService.setServerCapacity({
                     serverNodeId: input.serverNodeId,
                     maxCpuMillicores: input.maxCpuMillicores ?? null,
                     maxMemoryMb: input.maxMemoryMb ?? null,
                 });
+
+                return {
+                    status: 201,
+                    body: {
+                        ...server,
+                        lastSeenAt: this.toDateOrNull(server.lastSeenAt),
+                        metrics: server.metrics
+                            ? {
+                                  ...server.metrics,
+                                  reportedAt: this.toDate(server.metrics.reportedAt),
+                              }
+                            : null,
+                    },
+                };
             });
     }
 
@@ -65,7 +102,12 @@ export class SystemFleetController {
             .use(requirePlatformRole(["superAdmin", "superadmin"]))
             .handler(async ({ input }) => {
                 const items = await this.systemFleetService.listAllocations(input.query ?? {});
-                return { items };
+                return {
+                    items: items.map((item) => ({
+                        ...item,
+                        updatedAt: this.toDate(item.updatedAt),
+                    })),
+                };
             });
     }
 
@@ -80,7 +122,12 @@ export class SystemFleetController {
                 }
 
                 const items = await this.systemFleetService.listAllocations({ organizationId });
-                return { items };
+                return {
+                    items: items.map((item) => ({
+                        ...item,
+                        updatedAt: this.toDate(item.updatedAt),
+                    })),
+                };
             });
     }
 
@@ -91,11 +138,19 @@ export class SystemFleetController {
             .use(requirePlatformRole(["superAdmin", "superadmin"]))
             .handler(async ({ input, context }) => {
                 const actor = this.resolveAuthActor(context);
-                return this.systemFleetService.upsertAllocation({
+                const allocation = await this.systemFleetService.upsertAllocation({
                     ...input,
                     actorUserId: actor.userId,
                     maxServices: input.maxServices ?? null,
                 });
+
+                return {
+                    status: 201,
+                    body: {
+                        ...allocation,
+                        updatedAt: this.toDate(allocation.updatedAt),
+                    },
+                };
             });
     }
 
@@ -109,13 +164,21 @@ export class SystemFleetController {
                     throw new ForbiddenException("Active organization is required to check fleet admission");
                 }
 
-                return this.systemFleetService.checkAdmission({
+                const result = await this.systemFleetService.checkAdmission({
                     organizationId,
                     requestedCpuMillicores: input.requestedCpuMillicores,
                     requestedMemoryMb: input.requestedMemoryMb,
                     requestedServices: input.requestedServices,
                     serverNodeId: input.serverNodeId,
                 });
+
+                return {
+                    status: 201,
+                    body: {
+                        ...result,
+                        evaluatedAt: this.toDate(result.evaluatedAt),
+                    },
+                };
             });
     }
 
@@ -131,7 +194,7 @@ export class SystemFleetController {
 
                 const actor = this.resolveAuthActor(context);
 
-                return this.systemFleetService.createAdmissionRequest({
+                const request = await this.systemFleetService.createAdmissionRequest({
                     organizationId,
                     requesterUserId: actor.userId,
                     requestedCpuMillicores: input.requestedCpuMillicores,
@@ -140,6 +203,16 @@ export class SystemFleetController {
                     requestedServerNodeId: input.requestedServerNodeId,
                     requesterNote: input.requesterNote ?? null,
                 });
+
+                return {
+                    status: 201,
+                    body: {
+                        ...request,
+                        reviewedAt: this.toDateOrNull(request.reviewedAt),
+                        createdAt: this.toDate(request.createdAt),
+                        updatedAt: this.toDate(request.updatedAt),
+                    },
+                };
             });
     }
 
@@ -158,7 +231,14 @@ export class SystemFleetController {
                     status: input.query?.status,
                 });
 
-                return { items };
+                return {
+                    items: items.map((item) => ({
+                        ...item,
+                        reviewedAt: this.toDateOrNull(item.reviewedAt),
+                        createdAt: this.toDate(item.createdAt),
+                        updatedAt: this.toDate(item.updatedAt),
+                    })),
+                };
             });
     }
 
@@ -173,7 +253,14 @@ export class SystemFleetController {
                     status: input.query?.status,
                 });
 
-                return { items };
+                return {
+                    items: items.map((item) => ({
+                        ...item,
+                        reviewedAt: this.toDateOrNull(item.reviewedAt),
+                        createdAt: this.toDate(item.createdAt),
+                        updatedAt: this.toDate(item.updatedAt),
+                    })),
+                };
             });
     }
 
@@ -185,13 +272,23 @@ export class SystemFleetController {
             .handler(async ({ input, context }) => {
                 const actor = this.resolveAuthActor(context);
 
-                return this.systemFleetService.resolveAdmissionRequest({
+                const request = await this.systemFleetService.resolveAdmissionRequest({
                     requestId: input.requestId,
                     decision: input.decision,
                     reviewerUserId: actor.userId,
                     reviewerNote: input.reviewerNote ?? null,
                     decisionServerNodeId: input.decisionServerNodeId ?? null,
                 });
+
+                return {
+                    status: 201,
+                    body: {
+                        ...request,
+                        reviewedAt: this.toDateOrNull(request.reviewedAt),
+                        createdAt: this.toDate(request.createdAt),
+                        updatedAt: this.toDate(request.updatedAt),
+                    },
+                };
             });
     }
 
@@ -201,7 +298,11 @@ export class SystemFleetController {
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "superadmin"]))
             .handler(async ({ input }) => {
-                return this.systemFleetService.deleteAllocation(input);
+                const result = await this.systemFleetService.deleteAllocation(input);
+                return {
+                    status: 201,
+                    body: result,
+                };
             });
     }
 }

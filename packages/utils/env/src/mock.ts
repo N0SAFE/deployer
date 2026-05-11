@@ -50,6 +50,7 @@ const webMockEnv: EnvMockForSchema<typeof webEnvSchema> = {
         "mock-auth-secret-key-for-development-only-change-in-production",
     NEXT_PUBLIC_SHOW_AUTH_LOGS: "false",
     NEXT_PUBLIC_DEBUG: "",
+    NEXT_PUBLIC_APP_DEBUG_CONTEXT_FILTER: "",
     NEXT_PUBLIC_DOC_URL: "http://localhost:3020",
     NEXT_PUBLIC_DOC_PORT: "3020",
     REACT_SCAN: "false",

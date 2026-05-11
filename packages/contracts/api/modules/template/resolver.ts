@@ -1,4 +1,4 @@
-import { route } from "@repo/orpc-utils/builder";
+import { standard } from "@repo/orpc-utils";
 import {
     templateResolveInputSchema,
     templateResolveResultSchema,
@@ -6,20 +6,19 @@ import {
     templateSetResolveResultSchema,
 } from "@repo/contracts-entities";
 
-export const templateResolveContract = route({
-    method: "POST",
-    path: "/resolve",
-    summary: "Resolve template inheritance chain for a single template kind",
-})
+const templateResolveOps = standard.zod(templateResolveResultSchema, "templateResolve");
+const templateSetResolveOps = standard.zod(templateSetResolveResultSchema, "templateSetResolve");
+
+export const templateResolveContract = templateResolveOps
+    .create()
+    .path("/resolve")
     .input((b) => b.body(templateResolveInputSchema))
     .output(templateResolveResultSchema)
     .build();
 
-export const templateResolveSetContract = route({
-    method: "POST",
-    path: "/resolve-set",
-    summary: "Resolve inheritance chains for a full template set",
-})
+export const templateResolveSetContract = templateSetResolveOps
+    .create()
+    .path("/resolve-set")
     .input((b) => b.body(templateSetResolveInputSchema))
     .output(templateSetResolveResultSchema)
     .build();

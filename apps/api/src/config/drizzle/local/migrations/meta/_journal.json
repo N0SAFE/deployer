@@ -8,6 +8,13 @@
       "when": 1774968121442,
       "tag": "0000_sour_king_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1775062346033,
+      "tag": "0001_optimal_prowler",
+      "breakpoints": true
     }
   ]
 }

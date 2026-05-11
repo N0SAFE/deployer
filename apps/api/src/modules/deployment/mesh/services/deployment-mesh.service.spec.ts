@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { DeploymentMeshService } from "./deployment-mesh.service";
-import type { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic.service";
-import type { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology.service";
+import type { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
+import type { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { Subject } from "rxjs";
 
 function createMockHandle() {

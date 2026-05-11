@@ -286,13 +286,13 @@ export function RawAwaitedObservablePanel() {
   );
 }
 
-export function ObservableOptionsQueryPanel() {
+export function LiveObservableOptionsQueryPanel() {
   const [runToken, setRunToken] = useState(0);
 
   const observableQuery = useQuery(
-    streamLogsQueryUtils.experimental_observableOptions({
+    streamLogsQueryUtils.experimental_liveObservableOptions({
       input: { ...DEFAULT_INPUT },
-      queryKey: ["streamLogs", "observable", runToken],
+      queryKey: ["streamLogs", "live-observable", runToken],
     }),
   );
 
@@ -318,7 +318,7 @@ export function ObservableOptionsQueryPanel() {
 
   return (
     <StreamPanelCard
-      title="useQuery + experimental_observableOptions"
+      title="useQuery + experimental_liveObservableOptions"
       subtitle={subtitle}
       logs={logs}
       status={status}

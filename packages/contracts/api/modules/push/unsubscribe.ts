@@ -1,5 +1,5 @@
-import { route } from "@repo/orpc-utils/builder";
-import * as z from "zod";
+import z from "zod/v4";
+import { standard } from "@repo/orpc-utils";
 
 export const unsubscribeInputSchema = z.object({
   endpoint: z.string(),
@@ -9,12 +9,11 @@ export const unsubscribeOutputSchema = z.object({
   success: z.boolean(),
 });
 
-export const unsubscribeContract = route({
-    method: "POST",
-    path: "/unsubscribe",
-    summary: "Unsubscribe from push notifications",
-    description: "Unsubscribe from push notifications for a specific endpoint",
-  })
-  .input(unsubscribeInputSchema)
+const pushUnsubscribeOps = standard.zod(unsubscribeOutputSchema, "pushUnsubscribe");
+
+export const unsubscribeContract = pushUnsubscribeOps
+  .create()
+  .path("/unsubscribe")
+  .input((b) => b.body(unsubscribeInputSchema))
   .output(unsubscribeOutputSchema)
   .build();

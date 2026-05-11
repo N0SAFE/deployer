@@ -9,9 +9,10 @@ import { ProjectEventService } from "./services/project-event.service";
 import { WebhookService } from "./services/webhook.service";
 import { ApiKeyService } from "./services/api-key.service";
 import { ConfigurationCoreModule } from "@/core/modules/configuration/configuration-core.module";
+import { EventsModule } from "@/core/modules/events/events.module";
 
 @Module({
-    imports: [DatabaseModule, ConfigurationCoreModule],
+    imports: [DatabaseModule, ConfigurationCoreModule, EventsModule],
     controllers: [ProjectController],
     providers: [
         ProjectService,

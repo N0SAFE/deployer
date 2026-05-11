@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import z from 'zod'
 
 export const operationsDeploymentStatusSchema = z.enum(['success', 'failed', 'rolled-back', 'in-progress'])
 export type OperationsDeploymentStatus = z.infer<typeof operationsDeploymentStatusSchema>

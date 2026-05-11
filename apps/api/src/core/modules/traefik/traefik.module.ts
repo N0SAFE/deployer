@@ -11,6 +11,7 @@ import { TraefikTemplateRepository } from './repositories/traefik-template.repos
 import { TraefikEventService } from './events/traefik-event.service';
 import { DatabaseModule } from '../database/database.module';
 import { EnvService } from '@/config/env/env.service';
+import { EventsModule } from '@/core/modules/events/events.module';
 
 /**
  * CORE MODULE: Traefik
@@ -34,7 +35,7 @@ import { EnvService } from '@/config/env/env.service';
  * - DatabaseModule: Database access
  */
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, EventsModule],
   providers: [
     // Services
     TraefikTemplateService,

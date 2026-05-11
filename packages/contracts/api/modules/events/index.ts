@@ -1,6 +1,5 @@
-import * as z from "zod";
+import z from "zod/v4";
 import { oc } from "@orpc/contract";
-import { route } from "@repo/orpc-utils/builder";
 import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
 import {
     coreEventStreamDefinitionSchema,
@@ -59,13 +58,10 @@ const coreStreamReplayQuerySchema = z.object({
     replayLimit: z.coerce.number().int().min(1).max(500).default(1),
 });
 
-export const coreEventSyncStreamContract = route({
-    method: "GET",
-    path: "/sync/{id}/stream",
-    summary: "Stream synced events for a core stream definition",
-    description:
-        "Generic core synchronization stream endpoint. Business modules only need to register namespace adapters.",
-})
+const coreEventSyncStreamOps = standard.zod(coreSyncedEventEnvelopeSchema, "coreEventSyncStream");
+
+export const coreEventSyncStreamContract = coreEventSyncStreamOps
+    .list()
     .input((b) =>
         b
             .params((p) => p`/sync/${p("id", z.uuid())}/stream`)

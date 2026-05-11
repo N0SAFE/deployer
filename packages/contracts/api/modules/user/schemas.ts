@@ -7,8 +7,8 @@ export const userSchema = z.object({
   email: z.email(),
   emailVerified: z.boolean(),
   image: z.string().nullable(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
   role: z.enum(PLATFORM_ROLES).optional(),
   banned: z.boolean().optional(),
 });

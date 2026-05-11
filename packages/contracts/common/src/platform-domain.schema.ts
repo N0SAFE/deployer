@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import z from 'zod'
 import { envNameSchema } from './environment.schema'
 
 export const deploymentStatusSchema = z.enum(['pending', 'queued', 'building', 'deploying', 'success', 'failed', 'cancelled'])

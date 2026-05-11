@@ -391,6 +391,7 @@ export function getMockImageVulnerabilities(imageId: string): DockerVulnerabilit
       currentVersion: '2.38-r0',
       fixedVersion: null,
       description: 'Potential remote code execution path in locale parsing for crafted payloads.',
+      scannerSources: ['trivy', 'grype'],
     },
     {
       id: `CVE-2025-${seed}1`,
@@ -399,6 +400,7 @@ export function getMockImageVulnerabilities(imageId: string): DockerVulnerabilit
       currentVersion: '3.0.11-r0',
       fixedVersion: '3.0.13-r0',
       description: 'Potential out-of-bounds read in certificate parsing path.',
+      scannerSources: ['trivy'],
     },
     {
       id: `CVE-2024-${seed}2`,
@@ -407,6 +409,7 @@ export function getMockImageVulnerabilities(imageId: string): DockerVulnerabilit
       currentVersion: '1.2.13-r1',
       fixedVersion: '1.2.13-r2',
       description: 'Compression stream edge case under malformed payloads.',
+      scannerSources: ['grype'],
     },
     {
       id: `CVE-2023-${seed}3`,
@@ -415,6 +418,7 @@ export function getMockImageVulnerabilities(imageId: string): DockerVulnerabilit
       currentVersion: '1.36.0-r2',
       fixedVersion: null,
       description: 'Low-risk information exposure in uncommon shell utility usage.',
+      scannerSources: ['trivy'],
     },
   ]
 }

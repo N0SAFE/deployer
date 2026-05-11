@@ -1,11 +1,41 @@
 'use client'
 
-import { PHASE_PRODUCTION_BUILD } from "next/dist/shared/lib/constants";
-import dynamic from "next/dynamic";
+import { useEffect, useState, type ComponentType } from "react";
+import type { TanStackDevToolsProps } from "./TanStackDevTools";
 
-export const DynamicTanstackDevTools = process.env.NODE_ENV === 'development' && process.env.PHASE !== PHASE_PRODUCTION_BUILD ? dynamic(
-    () => import('./TanStackDevTools').then((mod) => mod.TanStackDevTools),
-    { ssr: false }
-) : dynamic(
-    () => Promise.resolve(() => null)
-)
+export const DynamicTanstackDevTools = () => {
+    const [DevtoolsComponent, setDevtoolsComponent] = useState<ComponentType<TanStackDevToolsProps> | null>(null)
+
+    useEffect(() => {
+        if (process.env.NODE_ENV !== 'development') {
+            return
+        }
+
+        let isMounted = true
+
+        void import('./TanStackDevTools')
+            .then((mod) => {
+                if (!isMounted) {
+                    return
+                }
+
+                setDevtoolsComponent(() => mod.TanStackDevTools)
+            })
+            .catch(() => {
+                // Keep app functional if devtools chunk fails to load.
+                if (isMounted) {
+                    setDevtoolsComponent(null)
+                }
+            })
+
+        return () => {
+            isMounted = false
+        }
+    }, [])
+
+    if (process.env.NODE_ENV !== 'development' || !DevtoolsComponent) {
+        return null
+    }
+
+    return <DevtoolsComponent />
+}

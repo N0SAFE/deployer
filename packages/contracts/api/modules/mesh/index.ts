@@ -1,6 +1,5 @@
 import z from "zod/v4";
 import { oc } from "@orpc/contract";
-import { route } from "@repo/orpc-utils/builder";
 import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
 import {
     coreEventScopeSchema,
@@ -102,54 +101,104 @@ export type MeshEventStreamListInput = ComputeInputSchema<typeof meshEventStream
 
 export const meshEventStreamListConfigSchemas = meshEventStreamListConfig;
 
-export const meshGetLocalNodeContract = route({
-    method: "GET",
-    path: "/node/local",
-    summary: "Get local mesh node state",
-})
+const meshNodeStateOps = standard.zod(meshNodeStateSchema, "meshNodeState");
+const meshSystemMetricsOps = standard.zod(systemMetricsSnapshotSchema, "meshSystemMetrics");
+const meshPeersListOps = standard.zod(meshPeersListResultSchema, "meshPeersList");
+const meshPeerSessionsListOps = standard.zod(meshPeerSessionsListResultSchema, "meshPeerSessionsList");
+const meshEventStreamByIdOps = standard.zod(coreEventStreamDefinitionSchema, "meshEventStreamById");
+const meshStreamSubscribeOps = standard.zod(coreSyncedEventEnvelopeSchema, "meshStreamSubscribe");
+const meshStreamRoutePlanOps = standard.zod(meshStreamRoutePlanResultSchema, "meshStreamRoutePlan");
+const meshPeerConnectOps = standard.zod(meshPeerConnectResultSchema, "meshPeerConnect");
+const meshPeerDisconnectOps = standard.zod(meshPeerDisconnectResultSchema, "meshPeerDisconnect");
+const meshPeerHeartbeatOps = standard.zod(meshPeerHeartbeatResultSchema, "meshPeerHeartbeat");
+const meshMembershipSnapshotOps = standard.zod(meshMembershipSnapshotSchema, "meshMembershipSnapshot");
+const meshMembershipReconcileOps = standard.zod(meshMembershipReconcileResultSchema, "meshMembershipReconcile");
+
+const meshTopologyEventContractEntitySchema = z.object({
+    type: z.string(),
+    timestamp: z.date(),
+});
+
+const meshTopologyEventOps = standard.zod(meshTopologyEventContractEntitySchema, "meshTopologyEvent");
+const meshRuntimeEventOps = standard.zod(meshRuntimeEventSchema, "meshRuntimeEvent");
+const meshControlEnvelopePublishOps = standard.zod(
+    meshControlEnvelopePublishResultSchema,
+    "meshControlEnvelopePublish",
+);
+
+const meshSessionStreamContractEntitySchema = z.object({
+    type: z.string(),
+});
+
+const meshSessionStreamOps = standard.zod(meshSessionStreamContractEntitySchema, "meshSessionStream");
+const meshResourceLookupOps = standard.zod(meshResourceLookupResultSchema, "meshResourceLookup");
+const meshResourceIndexUpsertOps = standard.zod(
+    meshResourceIndexUpsertResultSchema,
+    "meshResourceIndexUpsert",
+);
+const meshQueuePartitionPlanOps = standard.zod(
+    meshQueuePartitionPlanResultSchema,
+    "meshQueuePartitionPlan",
+);
+const meshJoinGrantIssueOps = standard.zod(meshJoinGrantIssueResultSchema, "meshJoinGrantIssue");
+const meshJoinGrantConsumeOps = standard.zod(meshJoinGrantConsumeResultSchema, "meshJoinGrantConsume");
+const meshRegisterNodeOps = standard.zod(meshRegisterNodeResultSchema, "meshRegisterNode");
+const meshJoinGrantRevokeOps = standard.zod(meshJoinGrantRevokeResultSchema, "meshJoinGrantRevoke");
+const meshTrustKeyringStatusOps = standard.zod(meshTrustKeyringStatusResultSchema, "meshTrustKeyringStatus");
+const meshTrustKeyringSecretsOps = standard.zod(meshTrustKeyringSecretsResultSchema, "meshTrustKeyringSecrets");
+const meshTrustKeyringRotateOps = standard.zod(meshTrustKeyringRotateResultSchema, "meshTrustKeyringRotate");
+const meshTrustKeyringConvergenceStatusOps = standard.zod(
+    meshTrustKeyringConvergenceStatusResultSchema,
+    "meshTrustKeyringConvergenceStatus",
+);
+const meshTrustStrictReadinessOps = standard.zod(
+    meshTrustStrictReadinessResultSchema,
+    "meshTrustStrictReadiness",
+);
+const meshTrustStrictModeSetOps = standard.zod(meshTrustStrictModeSetResultSchema, "meshTrustStrictModeSet");
+const meshTrustStrictRolloutPlanOps = standard.zod(
+    meshTrustStrictRolloutPlanResultSchema,
+    "meshTrustStrictRolloutPlan",
+);
+const meshTrustStrictRollbackOps = standard.zod(
+    meshTrustStrictRollbackResultSchema,
+    "meshTrustStrictRollback",
+);
+
+export const meshGetLocalNodeContract = meshNodeStateOps
+    .list()
+    .path("/node/local")
     .output((b) => b.body(meshNodeStateSchema))
     .build();
 
-export const meshGetNodeMetricsContract = route({
-    method: "GET",
-    path: "/node/metrics",
-    summary: "Get local system metrics snapshot for mesh peer selection",
-})
+export const meshGetNodeMetricsContract = meshSystemMetricsOps
+    .list()
+    .path("/node/metrics")
     .output((b) => b.body(systemMetricsSnapshotSchema))
     .build();
 
-export const meshListPeersContract = route({
-    method: "GET",
-    path: "/peers",
-    summary: "List active mesh peers and link metrics",
-})
+export const meshListPeersContract = meshPeersListOps
+    .list()
+    .path("/peers")
     .output((b) => b.body(meshPeersListResultSchema))
     .build();
 
-export const meshListPeerSessionsContract = route({
-    method: "GET",
-    path: "/peers/sessions",
-    summary: "List mesh peer sessions and reconnect status",
-})
+export const meshListPeerSessionsContract = meshPeerSessionsListOps
+    .list()
+    .path("/peers/sessions")
     .output((b) => b.body(meshPeerSessionsListResultSchema))
     .build();
 
 export const meshListEventStreamsContract = meshEventStreamOps.list(meshEventStreamListConfig).build();
 
-export const meshFindEventStreamByIdContract = route({
-    method: "GET",
-    path: "/streams/{id}",
-    summary: "Find an event stream by id through mesh control plane",
-})
+export const meshFindEventStreamByIdContract = meshEventStreamByIdOps
+    .read({ idFieldName: "id", idSchema: z.uuid() })
     .input((b) => b.params((p) => p`/streams/${p("id", z.uuid())}`))
     .output((b) => b.body(coreEventStreamDefinitionSchema))
     .build();
 
-export const meshStreamSubscribeContract = route({
-    method: "GET",
-    path: "/streams/{id}/subscribe",
-    summary: "Subscribe to a stream using mesh lookup metadata and owner stream endpoint",
-})
+export const meshStreamSubscribeContract = meshStreamSubscribeOps
+    .list()
     .input((b) =>
         b
             .params((p) => p`/streams/${p("id", z.uuid())}/subscribe`)
@@ -158,29 +207,22 @@ export const meshStreamSubscribeContract = route({
     .output((b) => b.observable(coreSyncedEventEnvelopeSchema))
     .build();
 
-export const meshPlanStreamRouteContract = route({
-    method: "POST",
-    path: "/streams/plan",
-    summary: "Build weighted branch plan for stream subscription fan-out",
-})
+export const meshPlanStreamRouteContract = meshStreamRoutePlanOps
+    .create()
+    .path("/streams/plan")
     .input((b) => b.body(meshStreamRoutePlanInputSchema))
     .output((b) => b.body(meshStreamRoutePlanResultSchema))
     .build();
 
-export const meshConnectPeerContract = route({
-    method: "POST",
-    path: "/peers/connect",
-    summary: "Connect to a peer or resume an existing peer session",
-})
+export const meshConnectPeerContract = meshPeerConnectOps
+    .create()
+    .path("/peers/connect")
     .input((b) => b.body(meshPeerConnectInputSchema))
     .output((b) => b.body(meshPeerConnectResultSchema))
     .build();
 
-export const meshDisconnectPeerContract = route({
-    method: "POST",
-    path: "/peers/{sessionId}/disconnect",
-    summary: "Disconnect a peer session and optionally schedule reconnect",
-})
+export const meshDisconnectPeerContract = meshPeerDisconnectOps
+    .create()
     .input((b) =>
         b
             .params((p) => p`/peers/${p("sessionId", z.uuid())}/disconnect`)
@@ -189,11 +231,8 @@ export const meshDisconnectPeerContract = route({
     .output((b) => b.body(meshPeerDisconnectResultSchema))
     .build();
 
-export const meshPeerHeartbeatContract = route({
-    method: "POST",
-    path: "/peers/{sessionId}/heartbeat",
-    summary: "Refresh peer session health and weighted connection metrics",
-})
+export const meshPeerHeartbeatContract = meshPeerHeartbeatOps
+    .create()
     .input((b) =>
         b
             .params((p) => p`/peers/${p("sessionId", z.uuid())}/heartbeat`)
@@ -202,186 +241,144 @@ export const meshPeerHeartbeatContract = route({
     .output((b) => b.body(meshPeerHeartbeatResultSchema))
     .build();
 
-export const meshMembershipSnapshotContract = route({
-    method: "GET",
-    path: "/membership/snapshot",
-    summary: "Get local membership snapshot for anti-entropy reconciliation",
-})
+export const meshMembershipSnapshotContract = meshMembershipSnapshotOps
+    .list()
+    .path("/membership/snapshot")
     .output((b) => b.body(meshMembershipSnapshotSchema))
     .build();
 
-export const meshMembershipReconcileContract = route({
-    method: "POST",
-    path: "/membership/reconcile",
-    summary: "Merge remote membership snapshot into local mesh view",
-})
+export const meshMembershipReconcileContract = meshMembershipReconcileOps
+    .create()
+    .path("/membership/reconcile")
     .input((b) => b.body(meshMembershipReconcileInputSchema))
     .output((b) => b.body(meshMembershipReconcileResultSchema))
     .build();
 
-export const meshTopologyStreamContract = route({
-    method: "GET",
-    path: "/topology/stream",
-    summary: "Stream topology updates and weighted edge changes",
-})
+export const meshTopologyStreamContract = meshTopologyEventOps
+    .list()
+    .path("/topology/stream")
     .input((b) => b.query(meshTopologyStreamQuerySchema))
     .output((b) => b.observable(meshTopologyEventSchema))
     .build();
 
-export const meshRuntimeStreamContract = route({
-    method: "GET",
-    path: "/events/stream",
-    summary: "Stream unified mesh runtime events from a single channel",
-})
+export const meshRuntimeStreamContract = meshRuntimeEventOps
+    .list()
+    .path("/events/stream")
     .input((b) => b.query(meshRuntimeStreamQuerySchema))
     .output((b) => b.observable(meshRuntimeEventSchema))
     .build();
 
-export const meshControlEnvelopePublishContract = route({
-    method: "POST",
-    path: "/control/publish",
-    summary: "Publish a typed mesh control envelope to peers",
-})
+export const meshControlEnvelopePublishContract = meshControlEnvelopePublishOps
+    .create()
+    .path("/control/publish")
     .input((b) => b.body(meshControlEnvelopeSchema))
     .output((b) => b.body(meshControlEnvelopePublishResultSchema))
     .build();
 
-export const meshSessionStreamContract = route({
-    method: "POST",
-    path: "/session/stream",
-    summary: "Bidirectional mesh session stream with auth-first handshake over a single kept-alive connection",
-})
+export const meshSessionStreamContract = meshSessionStreamOps
+    .create()
+    .path("/session/stream")
     .input((b) => b.body.observable(meshDuplexStreamInputSchema))
     .output((b) => b.observable(meshDuplexStreamOutputSchema))
     .build();
 
-export const meshLookupResourceContract = route({
-    method: "POST",
-    path: "/lookup",
-    summary: "Resolve resource ownership and direct endpoint routing metadata across mesh",
-})
+export const meshLookupResourceContract = meshResourceLookupOps
+    .create()
+    .path("/lookup")
     .input((b) => b.body(meshResourceLookupInputSchema))
     .output((b) => b.body(meshResourceLookupResultSchema))
     .build();
 
-export const meshUpsertResourceIndexContract = route({
-    method: "POST",
-    path: "/index/upsert",
-    summary: "Upsert resource ownership index entries used for mesh lookup/search",
-})
+export const meshUpsertResourceIndexContract = meshResourceIndexUpsertOps
+    .create()
+    .path("/index/upsert")
     .input((b) => b.body(meshResourceIndexUpsertInputSchema))
     .output((b) => b.body(meshResourceIndexUpsertResultSchema))
     .build();
 
-export const meshPlanQueuePartitionContract = route({
-    method: "POST",
-    path: "/queue/partitions/plan",
-    summary: "Resolve deterministic queue partition owner and forwarding target across mesh nodes",
-})
+export const meshPlanQueuePartitionContract = meshQueuePartitionPlanOps
+    .create()
+    .path("/queue/partitions/plan")
     .input((b) => b.body(meshQueuePartitionPlanInputSchema))
     .output((b) => b.body(meshQueuePartitionPlanResultSchema))
     .build();
 
-export const meshIssueJoinGrantContract = route({
-    method: "POST",
-    path: "/enrollment/grants/issue",
-    summary: "Issue one-time bootstrap join grant for URL-first node enrollment",
-})
+export const meshIssueJoinGrantContract = meshJoinGrantIssueOps
+    .create()
+    .path("/enrollment/grants/issue")
     .input((b) => b.body(meshJoinGrantIssueInputSchema))
     .output((b) => b.body(meshJoinGrantIssueResultSchema))
     .build();
 
-export const meshConsumeJoinGrantContract = route({
-    method: "POST",
-    path: "/enrollment/grants/consume",
-    summary: "Consume one-time bootstrap join grant and enroll node in cluster",
-})
+export const meshConsumeJoinGrantContract = meshJoinGrantConsumeOps
+    .create()
+    .path("/enrollment/grants/consume")
     .input((b) => b.body(meshJoinGrantConsumeInputSchema))
     .output((b) => b.body(meshJoinGrantConsumeResultSchema))
     .build();
 
-export const meshRegisterNodeContract = route({
-    method: "POST",
-    path: "/enrollment/register",
-    summary: "Register or refresh a mesh node in global cluster membership",
-})
+export const meshRegisterNodeContract = meshRegisterNodeOps
+    .create()
+    .path("/enrollment/register")
     .input((b) => b.body(meshRegisterNodeInputSchema))
     .output((b) => b.body(meshRegisterNodeResultSchema))
     .build();
 
-export const meshRevokeJoinGrantContract = route({
-    method: "POST",
-    path: "/enrollment/grants/revoke",
-    summary: "Revoke an issued bootstrap join grant before it is consumed",
-})
+export const meshRevokeJoinGrantContract = meshJoinGrantRevokeOps
+    .create()
+    .path("/enrollment/grants/revoke")
     .input((b) => b.body(meshJoinGrantRevokeInputSchema))
     .output((b) => b.body(meshJoinGrantRevokeResultSchema))
     .build();
 
-export const meshTrustKeyringStatusContract = route({
-    method: "GET",
-    path: "/trust/keyring",
-    summary: "Get current mesh trust keyring status (active + previous keys)",
-})
+export const meshTrustKeyringStatusContract = meshTrustKeyringStatusOps
+    .list()
+    .path("/trust/keyring")
     .output((b) => b.body(meshTrustKeyringStatusResultSchema))
     .build();
 
-export const meshTrustKeyringSecretsContract = route({
-    method: "GET",
-    path: "/trust/keyring/secrets",
-    summary: "Get current mesh trust keyring secret material for internal mesh consumers",
-})
+export const meshTrustKeyringSecretsContract = meshTrustKeyringSecretsOps
+    .list()
+    .path("/trust/keyring/secrets")
     .output((b) => b.body(meshTrustKeyringSecretsResultSchema))
     .build();
 
-export const meshTrustKeyringRotateContract = route({
-    method: "POST",
-    path: "/trust/keyring/rotate",
-    summary: "Rotate active mesh trust key and sync active/previous keyring state",
-})
+export const meshTrustKeyringRotateContract = meshTrustKeyringRotateOps
+    .create()
+    .path("/trust/keyring/rotate")
     .input((b) => b.body(meshTrustKeyringRotateInputSchema))
     .output((b) => b.body(meshTrustKeyringRotateResultSchema))
     .build();
 
-export const meshTrustKeyringConvergenceStatusContract = route({
-    method: "GET",
-    path: "/trust/keyring/convergence",
-    summary: "Get mesh trust key rotation propagation convergence status across peers",
-})
+export const meshTrustKeyringConvergenceStatusContract = meshTrustKeyringConvergenceStatusOps
+    .list()
+    .path("/trust/keyring/convergence")
     .output((b) => b.body(meshTrustKeyringConvergenceStatusResultSchema))
     .build();
 
-export const meshTrustStrictReadinessContract = route({
-    method: "GET",
-    path: "/trust/strict/readiness",
-    summary: "Check whether mesh trust can safely enable strict envelope signature enforcement",
-})
+export const meshTrustStrictReadinessContract = meshTrustStrictReadinessOps
+    .list()
+    .path("/trust/strict/readiness")
     .output((b) => b.body(meshTrustStrictReadinessResultSchema))
     .build();
 
-export const meshTrustStrictModeSetContract = route({
-    method: "POST",
-    path: "/trust/strict/mode",
-    summary: "Set fleet strict trust enforcement mode after readiness gating",
-})
+export const meshTrustStrictModeSetContract = meshTrustStrictModeSetOps
+    .create()
+    .path("/trust/strict/mode")
     .input((b) => b.body(meshTrustStrictModeSetInputSchema))
     .output((b) => b.body(meshTrustStrictModeSetResultSchema))
     .build();
 
-export const meshTrustStrictRolloutPlanContract = route({
-    method: "GET",
-    path: "/trust/strict/rollout-plan",
-    summary: "Get staged strict trust enablement waves and rollback trigger guidance",
-})
+export const meshTrustStrictRolloutPlanContract = meshTrustStrictRolloutPlanOps
+    .list()
+    .path("/trust/strict/rollout-plan")
     .input((b) => b.query(meshTrustStrictRolloutPlanQuerySchema))
     .output((b) => b.body(meshTrustStrictRolloutPlanResultSchema))
     .build();
 
-export const meshTrustStrictRollbackContract = route({
-    method: "POST",
-    path: "/trust/strict/rollback",
-    summary: "Rollback runtime strict trust mode when readiness rollback triggers are active",
-})
+export const meshTrustStrictRollbackContract = meshTrustStrictRollbackOps
+    .create()
+    .path("/trust/strict/rollback")
     .input((b) => b.body(meshTrustStrictRollbackInputSchema))
     .output((b) => b.body(meshTrustStrictRollbackResultSchema))
     .build();

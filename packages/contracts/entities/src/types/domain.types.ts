@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import z from 'zod'
 import { platformDomainSchemas } from '../contracts/platform-domain.builder'
 
 export type MockOrganization = z.infer<typeof platformDomainSchemas.mockOrganizationSchema>

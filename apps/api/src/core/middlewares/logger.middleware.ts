@@ -32,7 +32,18 @@ export class LoggerMiddleware implements NestMiddleware {
             const contentLength = res.get("content-length");
             // Enhanced debug logging with structured data and green-colored path
             const greenPath = `\x1b[32m${url}\x1b[0m`;
-            this.logger.debug(`[${hostname}] "${method} ${greenPath}" ${String(statusCode)} ${statusMessage} ${String(contentLength)} "${referer}" "${userAgent}" "${String(ip)}"`);
+            const statusCodeColorized = (() => {
+                if (statusCode >= 500) return `\x1b[31m${String(statusCode)}\x1b[0m`; // Red for server errors
+                if (statusCode >= 400) return `\x1b[35m${String(statusCode)}\x1b[0m`; // Purple for client errors
+                if (statusCode >= 300) return `\x1b[33m${String(statusCode)}\x1b[0m`; // Yellow for redirects
+                return `\x1b[32m${String(statusCode)}\x1b[0m`; // Green for success
+            })()
+            if (statusCode >= 500) {
+                this.logger.error(`[${hostname}] "${method} ${greenPath}" ${statusCodeColorized} ${statusMessage} ${String(contentLength)} "${referer}" "${userAgent}" "${String(ip)}"`);
+            } else {
+                this.logger.debug(`[${hostname}] "${method} ${greenPath}" ${statusCodeColorized} ${statusMessage} ${String(contentLength)} "${referer}" "${userAgent}" "${String(ip)}"`);
+            }
+            
             // NOTE: Do NOT call res.end() here - it interrupts streaming responses
             // and causes HTTP/2 protocol errors (ERR_HTTP2_PROTOCOL_ERROR)
         });

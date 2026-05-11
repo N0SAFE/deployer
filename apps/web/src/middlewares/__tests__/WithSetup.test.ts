@@ -18,7 +18,7 @@ vi.mock("@/lib/orpc", () => ({
 describe("WithSetup middleware", () => {
   const mockMatcherHandler = vi.fn();
   const mockToAbsoluteUrl = vi.fn((path: string) => `http://localhost:3003${path}`);
-  const mockCreateDebug = vi.fn(() => vi.fn());
+  const mockCreateContextFilterDebugLogger = vi.fn(() => vi.fn());
 
   beforeEach(() => {
     vi.resetModules();
@@ -37,8 +37,8 @@ describe("WithSetup middleware", () => {
       nextNoApi: {},
     }));
 
-    vi.doMock("@/lib/debug", () => ({
-      createDebug: mockCreateDebug,
+    vi.doMock("@/lib/logging/context-filter-debug", () => ({
+      createContextFilterDebugLogger: mockCreateContextFilterDebugLogger,
     }));
 
     vi.doMock("@/routes/index", () => ({

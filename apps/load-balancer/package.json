@@ -10,7 +10,7 @@
     "start": "bun --bun dist/main",
     "clean": "rimraf dist",
     "lint": "eslint . --fix",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsgo --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -44,7 +44,7 @@
     "source-map-support": "catalog:api:nest",
     "ts-node": "catalog:api:nest",
     "tsconfig-paths": "catalog:api:nest",
-    "typescript": "catalog:build",
+    "@typescript/native-preview": "catalog:build",
     "vitest": "catalog:testing"
   }
 }

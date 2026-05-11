@@ -7,16 +7,15 @@ import {
 } from "next/server";
 import { ConfigFactory, Matcher, MiddlewareFactory } from "./utils/types";
 import { nextjsRegexpPageOnly, nextNoApi } from "./utils/static";
-import { matcherHandler } from "./utils/utils";
 import { validateEnvSafe } from "#/env";
 import { toAbsoluteUrl } from "@/lib/utils";
 import { AuthSignin } from "@/routes/index";
-import { createDebug } from "@/lib/debug";
+import { createContextFilterDebugLogger } from "@/lib/logging/context-filter-debug";
 import { getCookieCache, getSessionCookie } from "better-auth/cookies";
 import type { Session } from "@repo/auth";
 
-const debugAuth = createDebug("middleware/auth");
-const debugAuthError = createDebug("middleware/auth/error");
+const debugAuth = createContextFilterDebugLogger("WithAuth", "middleware:[WithAuth]");
+const debugAuthError = createContextFilterDebugLogger("WithAuth", "middleware:[WithAuth]:error");
 
 const env = validateEnvSafe(process.env).data;
 
@@ -91,17 +90,6 @@ const withAuth: MiddlewareFactory = (next: NextProxy) => {
     );
 
     if (isAuth) {
-      const matcher = matcherHandler(request.nextUrl.pathname, [
-        {
-          and: ["/me/customer"],
-        },
-        () => {
-          // No-op function
-        },
-      ]);
-      if (matcher.hit) {
-        return matcher.data; // return the Response associated
-      }
       return next(request, _next); // call the next middleware because the route is good
     } else {
       // User is not authenticated, redirect to login for protected routes

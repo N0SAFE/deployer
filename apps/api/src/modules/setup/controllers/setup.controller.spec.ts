@@ -2,7 +2,7 @@ import type { TestingModule } from "@nestjs/testing";
 import { Test } from "@nestjs/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SetupController } from "./setup.controller";
-import { SetupService } from "../services/setup.service";
+import { InitializationService } from "../services/setup.service";
 
 function createImplementMock() {
     const chainable = {
@@ -26,7 +26,7 @@ describe("SetupController", () => {
     let controller: SetupController;
 
     beforeEach(async () => {
-        const mockSetupService = {
+        const mockInitializationService = {
             getSetupState: vi.fn(),
             getStateMachine: vi.fn(),
             initialize: vi.fn(),
@@ -36,8 +36,8 @@ describe("SetupController", () => {
             controllers: [SetupController],
             providers: [
                 {
-                    provide: SetupService,
-                    useFactory: () => mockSetupService,
+                    provide: InitializationService,
+                    useFactory: () => mockInitializationService,
                 },
             ],
         }).compile();

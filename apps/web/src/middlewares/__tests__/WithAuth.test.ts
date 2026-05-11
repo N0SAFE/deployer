@@ -5,7 +5,7 @@ describe("WithAuth middleware", () => {
   const mockValidateEnvSafe = vi.fn();
   const mockToAbsoluteUrl = vi.fn((path: string) => `http://localhost:3003${path}`);
   const mockMatcherHandler = vi.fn();
-  const mockCreateDebug = vi.fn(() => vi.fn());
+  const mockCreateContextFilterDebugLogger = vi.fn(() => vi.fn());
   const mockGetSessionCookie = vi.fn();
   const mockGetCookieCache = vi.fn();
 
@@ -44,8 +44,8 @@ describe("WithAuth middleware", () => {
       nextNoApi: {},
     }));
 
-    vi.doMock("@/lib/debug", () => ({
-      createDebug: mockCreateDebug,
+    vi.doMock("@/lib/logging/context-filter-debug", () => ({
+      createContextFilterDebugLogger: mockCreateContextFilterDebugLogger,
     }));
 
     vi.doMock("better-auth/cookies", () => ({

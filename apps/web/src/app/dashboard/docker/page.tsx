@@ -1,15 +1,19 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo } from 'react'
-import { DockerContainerDetailModalTrigger } from './_components/docker-container-detail-modal'
+import { useCallback, useMemo } from 'react'
+import { DockerContainerDetailModalTrigger } from './_components/container-detail-modal'
+import { DockerInlineLoadingState, DockerTableLoadingRows } from './_components/docker-loading-states'
 import {
+  useContainerLiveUpdate,
+  useEventTrigger,
   useDockerContainerList,
-  useDockerDeploymentList,
-  useDockerServiceList,
+  useDockerImageList,
   useDockerFleetServers,
-  useDockerMeshEventStreams,
-} from '@/domains/docker/mock-hooks'
+  useDockerRuntimeSnapshot,
+  useDockerRuntimeSseState,
+  useDockerServiceList,
+} from '@/domains/docker/hooks'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
@@ -22,9 +26,9 @@ import {
   TableRow,
 } from '@repo/ui/components/shadcn/table'
 import { Bot, Boxes, Cpu, HardDrive, Network, Shield } from 'lucide-react'
-import type { Deployment } from '@repo/contracts-entities'
+import type { DockerContainer } from '@repo/contracts-entities'
 
-const DEPLOYMENT_LIST_INPUT = {
+const DOCKER_LIST_INPUT = {
   query: {
     limit: 100,
     offset: 0,
@@ -34,13 +38,6 @@ const DEPLOYMENT_LIST_INPUT = {
 const SERVICE_LIST_INPUT = {
   query: {
     limit: 100,
-    offset: 0,
-  },
-} as const
-
-const MESH_STREAM_LIST_INPUT = {
-  query: {
-    limit: 50,
     offset: 0,
   },
 } as const
@@ -69,57 +66,98 @@ interface ContainerProjection {
   id: string
   name: string
   image: string
-  status: Deployment['status']
-  environment: Deployment['environment']
+  status: DockerContainer['status']
+  environment: DockerContainer['environment']
   updatedAt: string
 }
 
+function fallbackImageRefFromId(imageId: string | null): string {
+  if (!imageId) return 'unknown-image'
+  if (imageId.startsWith('sha256:')) {
+    return `sha256:${imageId.slice(7, 19)}`
+  }
+  return imageId.slice(0, 18)
+}
+
 export default function DashboardDockerPage() {
-  const {
-    data: deploymentData,
-    error: deploymentsError,
-  } = useDockerDeploymentList(DEPLOYMENT_LIST_INPUT)
+  const containerListQuery = useDockerContainerList(DOCKER_LIST_INPUT)
+  const imageListQuery = useDockerImageList(DOCKER_LIST_INPUT)
 
-  const {
-    data: containerEntityData,
-  } = useDockerContainerList(DEPLOYMENT_LIST_INPUT)
-
-  const {
-    data: serviceData,
-    error: servicesError,
-  } = useDockerServiceList(SERVICE_LIST_INPUT)
+  const serviceListQuery = useDockerServiceList(SERVICE_LIST_INPUT)
 
   const {
     data: fleetServersData,
     error: fleetServersError,
+    isLoading: isFleetServersLoading,
   } = useDockerFleetServers()
+  const runtimeSnapshotQuery = useDockerRuntimeSnapshot()
+  const { status: runtimeSseStatus } = useDockerRuntimeSseState()
 
-  const {
-    data: meshEventStreamsData,
-  } = useDockerMeshEventStreams(MESH_STREAM_LIST_INPUT)
+  useContainerLiveUpdate(() => {
+    void containerListQuery.refetch()
+    void imageListQuery.refetch()
+    return serviceListQuery.refetch()
+  }, {
+    cooldownMs: 1000,
+  })
 
-  const deployments = deploymentData?.data ?? []
+  const handleNodeRuntimeEvent = useCallback(() => {
+    void serviceListQuery.refetch()
+  }, [serviceListQuery])
+
+  useEventTrigger(
+    (event) => event.source === 'node',
+    handleNodeRuntimeEvent,
+    {
+      cooldownMs: 1000,
+    },
+  )
+
+  const { data: containerEntityData, error: containersError } = containerListQuery
+  const { data: imageEntityData, error: imagesError } = imageListQuery
+  const { data: serviceData, error: servicesError } = serviceListQuery
+
   const containerEntities = containerEntityData?.data ?? []
+  const containerEntityById = useMemo(
+    () => new Map(containerEntities.map((container) => [container.id, container])),
+    [containerEntities],
+  )
+  const imageEntities = imageEntityData?.data ?? []
   const services = serviceData?.data ?? []
   const fleetServers = fleetServersData?.items ?? []
-  const meshEventStreams = meshEventStreamsData?.data ?? []
+  const runtimeCatalog = runtimeSnapshotQuery.data
+
+  const runtimeCatalogGroupCount = runtimeCatalog ? Object.keys(runtimeCatalog).length : 0
+  const runtimeCatalogEntityCount = runtimeCatalog
+    ? runtimeCatalog.containers.length
+      + runtimeCatalog.images.length
+      + runtimeCatalog.networks.length
+      + runtimeCatalog.volumes.length
+      + runtimeCatalog.registries.length
+      + runtimeCatalog.stacks.length
+    : 0
 
   const containers = useMemo<ContainerProjection[]>(() => {
-    const containerIdByName = new Map(containerEntities.map((container) => [container.name, container.id]))
+    const imageById = new Map(imageEntities.map((image) => [image.id, image]))
 
-    return deployments
-      .map((deployment) => ({
-        name: deployment.containerName ?? `deployment-${shortId(deployment.id)}`,
-        id:
-          containerIdByName.get(deployment.containerName ?? `deployment-${shortId(deployment.id)}`)
-          ?? deployment.id,
-        image: deployment.containerImage ?? 'unresolved-image',
-        status: deployment.status,
-        environment: deployment.environment,
-        updatedAt: deployment.updatedAt,
-      }))
+    return containerEntities
+      .map((container) => {
+        const imageEntity = container.imageId ? imageById.get(container.imageId) : null
+        const image = imageEntity
+          ? `${imageEntity.registry}/${imageEntity.repository}${imageEntity.tag ? `:${imageEntity.tag}` : ''}`
+          : fallbackImageRefFromId(container.imageId)
+
+        return {
+          id: container.id,
+          name: container.name,
+          image,
+          status: container.status,
+          environment: container.environment,
+          updatedAt: container.updatedAt,
+        }
+      })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-  }, [containerEntities, deployments])
+  }, [containerEntities, imageEntities])
 
   const networkCount = useMemo(() => {
     return new Set(services.map((service) => service.projectId)).size
@@ -177,15 +215,21 @@ export default function DashboardDockerPage() {
     }
   }, [dockerNodeDiagnostics, fleetServers])
 
-  const hasErrors = deploymentsError ?? servicesError ?? fleetServersError
+  const hasErrors = containersError ?? imagesError ?? servicesError ?? fleetServersError
+  const isOverviewLoading = containerListQuery.isLoading
+    || imageListQuery.isLoading
+    || serviceListQuery.isLoading
+    || runtimeSnapshotQuery.isLoading
+    || isFleetServersLoading
+  const isContainerTableLoading = (containerListQuery.isLoading || imageListQuery.isLoading) && containers.length === 0
 
   return (
     <div className="space-y-6">
       <Alert className="border-border/60 bg-card/30">
         <Bot className="h-4 w-4" />
-        <AlertTitle>Control-plane projection mode</AlertTitle>
+        <AlertTitle>Runtime-first Docker mode</AlertTitle>
         <AlertDescription>
-          This view is powered by typed deployment, service, fleet, and mesh contracts.
+          This view reads live Docker runtime inventory and stream state directly, with no deployment-table projection for container cards.
         </AlertDescription>
       </Alert>
 
@@ -198,6 +242,10 @@ export default function DashboardDockerPage() {
         </Alert>
       ) : null}
 
+      {isOverviewLoading ? (
+        <DockerInlineLoadingState label="Syncing Docker runtime overview from control plane sources…" />
+      ) : null}
+
       <section className="overflow-hidden rounded-2xl border border-border/60 bg-card/50 backdrop-blur-xl">
         <div className="border-b border-border/60 bg-background/70 px-4 py-3">
           <div className="flex items-center justify-between gap-3">
@@ -206,7 +254,7 @@ export default function DashboardDockerPage() {
               <Badge variant="secondary" className="border border-border/70">{containers.length}</Badge>
             </div>
             <div className="text-xs text-muted-foreground">
-              Fleet nodes <span className="font-semibold text-foreground">{fleetServers.length}</span> · Mesh streams <span className="font-semibold text-foreground">{meshEventStreams.length}</span> · Projects <span className="font-semibold text-foreground">{networkCount}</span>
+              Fleet nodes <span className="font-semibold text-foreground">{fleetServers.length}</span> · Runtime groups <span className="font-semibold text-foreground">{runtimeCatalogGroupCount}</span> · Runtime entities <span className="font-semibold text-foreground">{runtimeCatalogEntityCount}</span> · Projects <span className="font-semibold text-foreground">{networkCount}</span>
             </div>
           </div>
         </div>
@@ -235,13 +283,13 @@ export default function DashboardDockerPage() {
               <Link href="/dashboard/docker/registry">Registry</Link>
             </Button>
             <Button asChild variant="outline" size="sm" className="h-8">
-              <Link href="/dashboard/docker/queu">Queu</Link>
+              <Link href="/dashboard/docker/activity">Activity</Link>
             </Button>
           </div>
 
           <div className="border-b border-border/60 px-5 py-3">
             <h2 className="text-sm font-semibold">Recent container snapshots</h2>
-            <p className="text-xs text-muted-foreground">Latest deployment runtime snapshots.</p>
+            <p className="text-xs text-muted-foreground">Latest runtime container snapshots from Docker.</p>
           </div>
           <div className="p-2">
             <Table>
@@ -255,10 +303,15 @@ export default function DashboardDockerPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {containers.slice(0, 12).map((container) => (
+                {isContainerTableLoading ? (
+                  <DockerTableLoadingRows columns={5} rows={6} />
+                ) : containers.slice(0, 12).map((container) => (
                   <TableRow key={container.id}>
                     <TableCell className="font-medium">
-                      <DockerContainerDetailModalTrigger id={container.id}>
+                      <DockerContainerDetailModalTrigger
+                        id={container.id}
+                        container={containerEntityById.get(container.id)}
+                      >
                         {container.name}
                       </DockerContainerDetailModalTrigger>
                     </TableCell>
@@ -270,10 +323,10 @@ export default function DashboardDockerPage() {
                     <TableCell>{formatDate(container.updatedAt)}</TableCell>
                   </TableRow>
                 ))}
-                {containers.length === 0 ? (
+                {!isContainerTableLoading && containers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                      No deployment snapshots yet.
+                      No runtime containers found.
                     </TableCell>
                   </TableRow>
                 ) : null}
@@ -283,7 +336,7 @@ export default function DashboardDockerPage() {
 
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">Fleet nodes <span className="font-semibold text-foreground">{fleetServers.length}</span></div>
-            <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">Mesh streams <span className="font-semibold text-foreground">{meshEventStreams.length}</span></div>
+            <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">Runtime stream <span className="font-semibold text-foreground">{runtimeSseStatus}</span></div>
             <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">Projects with services <span className="font-semibold text-foreground">{networkCount}</span></div>
           </div>
 

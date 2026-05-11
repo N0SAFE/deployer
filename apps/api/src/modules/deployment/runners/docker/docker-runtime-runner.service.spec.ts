@@ -100,6 +100,10 @@ describe("DockerRuntimeRunnerService", () => {
                     Binds: ["deployer-storage-volume:/workspace/storage"],
                 }),
                 Labels: expect.objectContaining({
+                    "deployer.managed": "true",
+                    "deployer.managed_by": "deployment_service",
+                    "deployer.deployment_id": "deployment-1",
+                    "deployer.service_id": "service-1",
                     "deployer.storage.type": "volume",
                     "deployer.storage.update_strategy": "manual_update_button",
                     "deployer.storage.auto_redeploy_on_update": "false",
@@ -211,6 +215,7 @@ describe("DockerRuntimeRunnerService", () => {
             deployment: {
                 deploymentId: "deployment-lb-1",
                 serviceId: "service-lb-1",
+                projectId: "project-lb-1",
                 organizationId: "org-1",
                 deploymentContainerName: null,
                 deploymentContainerImage: null,
@@ -234,6 +239,55 @@ describe("DockerRuntimeRunnerService", () => {
             deploymentId: "deployment-lb-1",
             serviceId: "service-lb-1",
             organizationId: "org-1",
+        });
+    });
+
+    it("returns managed runtime ownership metadata for DB persistence", async () => {
+        const result = await service.executeRuntime({
+            deployment: {
+                deploymentId: "deployment-managed-1",
+                serviceId: "service-managed-1",
+                projectId: "project-managed-1",
+                organizationId: "org-managed-1",
+                deploymentContainerName: null,
+                deploymentContainerImage: null,
+                healthCheckUrl: null,
+                networkMode: "bridge",
+            },
+            artifact: {
+                containerImage: "nginx:alpine",
+                containerName: "runtime-container-managed-1",
+                artifactDigest: null,
+                artifactSizeBytes: null,
+                buildLogsUrl: null,
+            },
+            healthGateConfig: {
+                maxRetries: 3,
+                retryIntervalMs: 200,
+            },
+            storageBinding: null,
+        });
+
+        expect(result.managedRuntime).toMatchObject({
+            managedBy: "deployment_service",
+            deploymentId: "deployment-managed-1",
+            serviceId: "service-managed-1",
+            projectId: "project-managed-1",
+            organizationId: "org-managed-1",
+            imageRef: "nginx:alpine",
+            networkMode: "bridge",
+        });
+        expect(result.managedRuntime?.labels).toMatchObject({
+            "deployer.managed": "true",
+            "deployer.managed_by": "deployment_service",
+            "deployer.managed_reason": "deployment_execution",
+            "deployer.deployment_id": "deployment-managed-1",
+            "deployer.service_id": "service-managed-1",
+            "deployer.project_id": "project-managed-1",
+            "deployer.organization_id": "org-managed-1",
+            "deployer.network_mode": "bridge",
+            "deployer.runtime_runner": "docker",
+            "deployer.image_ref": "nginx:alpine",
         });
     });
 

@@ -273,6 +273,7 @@ export const MOCK_DOCKER_CONTAINERS: DockerContainer[] = (() => {
 
     return {
       id: safeEntityId('ctr', deployment.id),
+      hash: safeEntityId('ctr-hash', `${deployment.projectId}-${deployment.serviceId}-${deployment.containerName ?? deployment.id}`),
       name: deployment.containerName ?? `container-${shortId(deployment.id)}`,
       projectId: deployment.projectId,
       serviceId: deployment.serviceId,
@@ -287,7 +288,14 @@ export const MOCK_DOCKER_CONTAINERS: DockerContainer[] = (() => {
       ports: [{ containerPort: 3000, hostPort: 4000 + index, protocol: 'tcp' }],
       networkIds: networkId ? [networkId] : [],
       volumeIds,
-      logsStreamId: `log-stream-${shortId(deployment.id)}`,
+      managedBy: 'deployment_service',
+      managedReason: 'mock_deployment_seed',
+      managedDeploymentId: deployment.id,
+      managedServiceId: deployment.serviceId,
+      managedProjectId: deployment.projectId,
+      managedImageRef: imageRef,
+      managedNetworkMode: 'bridge',
+      logsStreamId: deployment.id,
       startedAt: deployment.createdAt,
       createdAt: deployment.createdAt,
       updatedAt: deployment.updatedAt,
@@ -409,7 +417,6 @@ export const MOCK_DOCKER_REGISTRIES_ENTITIES: DockerRegistry[] = (() => {
 
 export const MOCK_DOCKER_FLEET_SERVERS: DockerFleetServer[] = [
   {
-    clusterId: '11111111-1111-4111-8111-111111111111',
     nodeId: '22222222-2222-4222-8222-222222222222',
     serverUrl: 'https://fleet-node-a.mock.local',
     displayName: 'Fleet Node A',
@@ -432,7 +439,6 @@ export const MOCK_DOCKER_FLEET_SERVERS: DockerFleetServer[] = [
     },
   },
   {
-    clusterId: '11111111-1111-4111-8111-111111111111',
     nodeId: '33333333-3333-4333-8333-333333333333',
     serverUrl: 'https://fleet-node-b.mock.local',
     displayName: 'Fleet Node B',
@@ -455,7 +461,6 @@ export const MOCK_DOCKER_FLEET_SERVERS: DockerFleetServer[] = [
     },
   },
   {
-    clusterId: '11111111-1111-4111-8111-111111111111',
     nodeId: '44444444-4444-4444-8444-444444444444',
     serverUrl: 'https://fleet-node-c.mock.local',
     displayName: 'Fleet Node C',

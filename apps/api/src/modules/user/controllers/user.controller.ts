@@ -12,7 +12,7 @@ export class UserController {
     @Implement(userContract.list)
     list() {
         return implement(userContract.list).use(requireAuth()).handler(async ({ input, context }) => {
-            const user = context.auth.user
+            context.auth.requireAuth();
             const result = await this.userService.getUsers(input.query);
             return {
                 data: result.data.map((user) => ({
@@ -21,8 +21,8 @@ export class UserController {
                     email: user.email,
                     emailVerified: user.emailVerified,
                     image: user.image,
-                    createdAt: user.createdAt,
-                    updatedAt: user.updatedAt,
+                    createdAt: this.toDate(user.createdAt),
+                    updatedAt: this.toDate(user.updatedAt),
                 })),
                 meta: result.meta,
             };
@@ -41,7 +41,13 @@ export class UserController {
                 return null;
             }
             return {
-                ...user,
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                emailVerified: user.emailVerified,
+                image: user.image,
+                createdAt: this.toDate(user.createdAt),
+                updatedAt: this.toDate(user.updatedAt),
                 role: user.role as typeof PLATFORM_ROLES[number],
                 banned: user.banned ?? undefined,
             };
@@ -64,8 +70,8 @@ export class UserController {
                     email: user.email,
                     emailVerified: user.emailVerified,
                     image: user.image,
-                    createdAt: user.createdAt,
-                    updatedAt: user.updatedAt,
+                    createdAt: this.toDate(user.createdAt),
+                    updatedAt: this.toDate(user.updatedAt),
                 },
             };
         });
@@ -85,8 +91,8 @@ export class UserController {
                 email: user.email,
                 emailVerified: user.emailVerified,
                 image: user.image,
-                createdAt: user.createdAt,
-                updatedAt: user.updatedAt,
+                createdAt: this.toDate(user.createdAt),
+                updatedAt: this.toDate(user.updatedAt),
             };
         });
     }
@@ -119,5 +125,9 @@ export class UserController {
             context.auth.requireAuth();
             return await this.userService.getUserCount();
         });
+    }
+
+    private toDate(value: string | Date): Date {
+        return value instanceof Date ? value : new Date(value);
     }
 }

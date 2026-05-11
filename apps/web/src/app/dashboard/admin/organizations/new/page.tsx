@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useForm } from '@tanstack/react-form'
+import { z } from 'zod'
 import { RequirePlatformRole } from '@/components/auth/RequirePlatformRole'
 import {
   Card,
@@ -22,10 +24,21 @@ import {
   fetchRemoteAuthSession,
   normalizeServerHttpUrl,
 } from '@/domains/mesh/connect-flow'
+import { zodFieldErrors } from '@/lib/forms/zod-field-errors'
 import { toast } from 'sonner'
 import { Network, PlusCircle, ShieldAlert } from 'lucide-react'
 
 type ProvisioningMode = 'prompt' | 'local' | 'connect'
+
+const localOrganizationSchema = z.object({
+  name: z.string().min(1, 'Organization name is required'),
+  slug: z.string().min(1, 'Organization slug is required'),
+  description: z.string().optional(),
+})
+
+const remoteConnectSchema = z.object({
+  remoteServerUrl: z.string().min(1, 'Remote server URL is required'),
+})
 
 export default function CreateOrganizationPage() {
   const router = useRouter()
@@ -34,31 +47,56 @@ export default function CreateOrganizationPage() {
   const connectPeer = useConnectMeshPeer()
 
   const [mode, setMode] = useState<ProvisioningMode>('prompt')
-  const [remoteServerUrl, setRemoteServerUrl] = useState('')
   const [handshakeInProgress, setHandshakeInProgress] = useState(false)
-  
-  const [formData, setFormData] = useState({
-    name: '',
-    slug: '',
-    description: '',
+
+  const [localFormErrors, setLocalFormErrors] = useState<Partial<Record<keyof z.infer<typeof localOrganizationSchema>, string>>>({})
+  const [connectFormErrors, setConnectFormErrors] = useState<Partial<Record<keyof z.infer<typeof remoteConnectSchema>, string>>>({})
+
+  const localForm = useForm({
+    defaultValues: {
+      name: '',
+      slug: '',
+      description: '',
+    },
+    onSubmit: ({ value }) => {
+      setLocalFormErrors({})
+
+      const parsed = localOrganizationSchema.safeParse(value)
+      if (!parsed.success) {
+        setLocalFormErrors(zodFieldErrors(parsed.error))
+        return
+      }
+
+      createOrganization(
+        {
+          name: parsed.data.name,
+          slug: parsed.data.slug,
+        },
+        {
+          onSuccess: (organization) => {
+            router.push(`/dashboard/admin/organizations/${organization.id}`)
+          },
+        },
+      )
+    },
   })
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
-  }
+  const connectForm = useForm({
+    defaultValues: {
+      remoteServerUrl: '',
+    },
+    onSubmit: async ({ value }) => {
+      setConnectFormErrors({})
 
-  const handleSubmit = (e: React.SubmitEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    createOrganization({
-      name: formData.name,
-      slug: formData.slug,
-    }, {
-      onSuccess: (organization) => {
-        router.push(`/dashboard/admin/organizations/${organization.id}`)
+      const parsed = remoteConnectSchema.safeParse(value)
+      if (!parsed.success) {
+        setConnectFormErrors(zodFieldErrors(parsed.error))
+        return
       }
-    })
-  }
+
+      await handleConnectServer(parsed.data.remoteServerUrl)
+    },
+  })
 
   const callbackHandshakeUrl = useMemo(() => {
     if (typeof window === 'undefined') {
@@ -122,7 +160,7 @@ export default function CreateOrganizationPage() {
     }
   }, [connectPeer, handshakeInProgress, router, searchParams])
 
-  const handleConnectServer = async () => {
+  async function handleConnectServer(remoteServerUrl: string) {
     const serverHttpUrl = remoteServerUrl.trim()
     if (!serverHttpUrl) {
       toast.error('Remote server URL is required')
@@ -223,24 +261,46 @@ export default function CreateOrganizationPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="remoteServerUrl">Remote server mesh URL *</Label>
-              <Input
-                id="remoteServerUrl"
-                value={remoteServerUrl}
-                onChange={(e) => { setRemoteServerUrl(e.target.value) }}
-                placeholder="http://server-b:3000"
-                disabled={connectPeer.isPending || handshakeInProgress}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={() => { void handleConnectServer() }} disabled={connectPeer.isPending || handshakeInProgress}>
-                {connectPeer.isPending || handshakeInProgress ? 'Starting handshake...' : 'Connect server'}
-              </Button>
-              <Button variant="outline" onClick={() => { setMode('prompt') }} disabled={connectPeer.isPending || handshakeInProgress}>
-                Back
-              </Button>
-            </div>
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void connectForm.handleSubmit()
+              }}
+            >
+              <connectForm.Field name="remoteServerUrl">
+                {(field) => (
+                  <div className="space-y-2">
+                    <Label htmlFor="remoteServerUrl">Remote server mesh URL *</Label>
+                    <Input
+                      id="remoteServerUrl"
+                      value={field.state.value}
+                      onChange={(event) => {
+                        setConnectFormErrors((previous) => {
+                          if (!previous.remoteServerUrl) return previous
+                          return { ...previous, remoteServerUrl: undefined }
+                        })
+                        field.handleChange(event.target.value)
+                      }}
+                      placeholder="http://server-b:3000"
+                      disabled={connectPeer.isPending || handshakeInProgress}
+                    />
+                    {connectFormErrors.remoteServerUrl ? (
+                      <p className="text-sm font-medium text-destructive">{connectFormErrors.remoteServerUrl}</p>
+                    ) : null}
+                  </div>
+                )}
+              </connectForm.Field>
+
+              <div className="flex gap-2">
+                <Button type="submit" disabled={connectPeer.isPending || handshakeInProgress}>
+                  {connectPeer.isPending || handshakeInProgress ? 'Starting handshake...' : 'Connect server'}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => { setMode('prompt') }} disabled={connectPeer.isPending || handshakeInProgress}>
+                  Back
+                </Button>
+              </div>
+            </form>
           </CardContent>
         </Card>
       ) : null}
@@ -252,47 +312,84 @@ export default function CreateOrganizationPage() {
           <CardTitle>Organization Details</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <Label htmlFor="name">Organization Name *</Label>
-              <Input
-                id="name"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                placeholder="Acme Corporation"
-                required
-                disabled={isPending}
-              />
-              <p className="text-xs text-muted-foreground mt-1">This is your organization&apos;s display name</p>
-            </div>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              void localForm.handleSubmit()
+            }}
+            className="space-y-6"
+          >
+            <localForm.Field name="name">
+              {(field) => (
+                <div>
+                  <Label htmlFor="name">Organization Name *</Label>
+                  <Input
+                    id="name"
+                    value={field.state.value}
+                    onChange={(event) => {
+                      setLocalFormErrors((previous) => {
+                        if (!previous.name) return previous
+                        return { ...previous, name: undefined }
+                      })
+                      field.handleChange(event.target.value)
+                    }}
+                    placeholder="Acme Corporation"
+                    disabled={isPending}
+                  />
+                  {localFormErrors.name ? (
+                    <p className="mt-1 text-sm font-medium text-destructive">{localFormErrors.name}</p>
+                  ) : null}
+                  <p className="text-xs text-muted-foreground mt-1">This is your organization&apos;s display name</p>
+                </div>
+              )}
+            </localForm.Field>
 
-            <div>
-              <Label htmlFor="slug">Organization Slug *</Label>
-              <Input
-                id="slug"
-                name="slug"
-                value={formData.slug}
-                onChange={handleChange}
-                placeholder="acme-corp"
-                required
-                disabled={isPending}
-              />
-              <p className="text-xs text-muted-foreground mt-1">Used in URLs (e.g., /org/acme-corp)</p>
-            </div>
+            <localForm.Field name="slug">
+              {(field) => (
+                <div>
+                  <Label htmlFor="slug">Organization Slug *</Label>
+                  <Input
+                    id="slug"
+                    value={field.state.value}
+                    onChange={(event) => {
+                      setLocalFormErrors((previous) => {
+                        if (!previous.slug) return previous
+                        return { ...previous, slug: undefined }
+                      })
+                      field.handleChange(event.target.value)
+                    }}
+                    placeholder="acme-corp"
+                    disabled={isPending}
+                  />
+                  {localFormErrors.slug ? (
+                    <p className="mt-1 text-sm font-medium text-destructive">{localFormErrors.slug}</p>
+                  ) : null}
+                  <p className="text-xs text-muted-foreground mt-1">Used in URLs (e.g., /org/acme-corp)</p>
+                </div>
+              )}
+            </localForm.Field>
 
-            <div>
-              <Label htmlFor="description">Description</Label>
-              <Input
-                id="description"
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                placeholder="What does your organization do?"
-                disabled={isPending}
-              />
-              <p className="text-xs text-muted-foreground mt-1">Optional brief description of your organization</p>
-            </div>
+            <localForm.Field name="description">
+              {(field) => (
+                <div>
+                  <Label htmlFor="description">Description</Label>
+                  <Input
+                    id="description"
+                    value={field.state.value}
+                    onChange={(event) => {
+                      setLocalFormErrors((previous) => {
+                        if (!previous.description) return previous
+                        return { ...previous, description: undefined }
+                      })
+                      field.handleChange(event.target.value)
+                    }}
+                    placeholder="What does your organization do?"
+                    disabled={isPending}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Optional brief description of your organization</p>
+                </div>
+              )}
+            </localForm.Field>
 
             <div className="flex gap-2 pt-4">
               <Button type="submit" disabled={isPending}>

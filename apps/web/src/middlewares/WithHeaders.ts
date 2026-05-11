@@ -1,9 +1,9 @@
 import { NextFetchEvent, NextProxy, NextRequest } from 'next/server'
 import { Matcher, MiddlewareFactory } from './utils/types'
 import { nextjsRegexpPageOnly } from './utils/static'
-import { createDebug } from '@/lib/debug'
+import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 
-const debugHeaders = createDebug('middleware/headers')
+const debugHeaders = createContextFilterDebugLogger('WithHeaders', 'middleware:[WithHeaders]')
 
 export const withHeaders: MiddlewareFactory = (next: NextProxy) => {
     return async (request: NextRequest, _next: NextFetchEvent) => {

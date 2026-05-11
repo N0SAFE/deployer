@@ -1,7 +1,7 @@
 import {
   EventIteratorTerminalTabsPanel,
+  LiveObservableOptionsQueryPanel,
   ObservableOptionsPipeTabsPanel,
-  ObservableOptionsQueryPanel,
   RawAwaitedObservablePanel,
   StreamedObservableOptionsQueryPanel,
 } from "./log-stream-panel";
@@ -12,7 +12,7 @@ export default function HomePage() {
       <h1 style={{ marginTop: 0 }}>Observable-first ORPC Streaming POC</h1>
       <p style={{ color: "#93c5fd", marginBottom: 20 }}>
         This page compares three observable usages side by side: raw awaited client observable,
-        <code> experimental_observableOptions </code> in <code>useQuery</code>, and
+        <code> experimental_liveObservableOptions </code> in <code>useQuery</code>, and
         <code> experimental_streamedObservableOptions </code> in <code>useQuery</code>.
       </p>
 
@@ -25,7 +25,7 @@ export default function HomePage() {
         }}
       >
         <RawAwaitedObservablePanel />
-        <ObservableOptionsQueryPanel />
+        <LiveObservableOptionsQueryPanel />
         <StreamedObservableOptionsQueryPanel />
       </div>
 

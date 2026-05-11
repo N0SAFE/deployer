@@ -8,11 +8,13 @@ import {
     type MeshQueueTransitionAppendInput,
     type MeshQueueTransitionAppendResult,
     type MeshQueueTransitionLogEntry,
+    type MeshQueueTransitionApplyResult,
 } from "@repo/contracts-entities";
 import { contractBuilder } from "@/core/modules/events/event-contract.builder";
-import { BaseMeshService } from "@/core/modules/mesh/services/base-mesh.service";
-import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic.service";
-import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology.service";
+import { BaseMeshService, MeshCallBuilder, type MeshCallEvent } from "@/core/modules/mesh/services/base-mesh.service";
+import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
+import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
+import { Observable, lastValueFrom } from "rxjs";
 
 const correlationInputSchema = z.object({
     organizationId: z.uuid().nullable().optional(),
@@ -81,7 +83,7 @@ export class MeshQueueTransitionService
             "applyTransitionResponse",
             "applyTransitionCancel",
             { organizationId: null },
-            async ({ payload }: {
+            ({ payload }: {
                 correlationId: string;
                 callerNodeId: string;
                 payload: { entry: MeshQueueTransitionLogEntry };
@@ -108,16 +110,7 @@ export class MeshQueueTransitionService
         }
 
         try {
-            await this.callMany(
-                "applyTransitionRequest",
-                "applyTransitionResponse",
-                "applyTransitionCancel",
-                { entry: local.entry },
-                {
-                    organizationId: null,
-                    timeoutMs: 1_500,
-                },
-            );
+            await lastValueFrom(this.replicateEntry$(local.entry));
         } catch (error) {
             this.serviceLogger.warn(
                 `Queue transition replication timeout for transition '${local.entry.payload.transitionId}': ${error instanceof Error ? error.message : "unknown error"}`,
@@ -127,18 +120,24 @@ export class MeshQueueTransitionService
         return meshQueueTransitionAppendResultSchema.parse(local);
     }
 
-    async replicateEntry(entry: MeshQueueTransitionLogEntry): Promise<void> {
+    replicateEntry$(entry: MeshQueueTransitionLogEntry): Observable<MeshCallEvent<MeshQueueTransitionApplyResult>> {
         const parsedEntry = meshQueueTransitionLogEntrySchema.parse(entry);
 
-        await this.callMany(
+        const replicationCall: MeshCallBuilder<
+            typeof queueTransitionMeshContracts,
+            { entry: MeshQueueTransitionLogEntry },
+            MeshQueueTransitionApplyResult
+        > = this.call(
             "applyTransitionRequest",
             "applyTransitionResponse",
             "applyTransitionCancel",
             { entry: parsedEntry },
-            {
-                organizationId: null,
-                timeoutMs: 1_500,
-            },
         );
+
+        return replicationCall.withOrganizationId(null).withTimeout(1_500).stream();
+    }
+
+    async replicateEntry(entry: MeshQueueTransitionLogEntry): Promise<void> {
+        await lastValueFrom(this.replicateEntry$(entry));
     }
 }

@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import * as z from "zod";
-import { BaseEventService } from "@/core/modules/events/base-event.service";
+import { BasePooledEventService } from "@/core/modules/events/services/base-pooled-event.service";
 import { contractBuilder } from "@/core/modules/events/event-contract.builder";
+import { CoreEventStreamPoolService } from "@/core/modules/events/services/core-event-stream-pool.service";
 
 export const serviceEventContracts = {
     serviceCreated: contractBuilder()
@@ -80,8 +81,8 @@ export const serviceEventContracts = {
 export type ServiceEventContracts = typeof serviceEventContracts;
 
 @Injectable()
-export class ServiceEventService extends BaseEventService<ServiceEventContracts, "service"> {
-    constructor() {
-        super("service", serviceEventContracts);
+export class ServiceEventService extends BasePooledEventService<ServiceEventContracts, "service"> {
+    constructor(streamPool?: CoreEventStreamPoolService) {
+        super("service", serviceEventContracts, streamPool);
     }
 }

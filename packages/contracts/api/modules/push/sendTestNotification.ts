@@ -1,5 +1,5 @@
-import { route } from "@repo/orpc-utils/builder";
-import * as z from "zod";
+import z from "zod/v4";
+import { standard } from "@repo/orpc-utils";
 
 export const sendTestNotificationOutputSchema = z.object({
   success: z.number(),
@@ -7,11 +7,14 @@ export const sendTestNotificationOutputSchema = z.object({
   total: z.number(),
 });
 
-export const sendTestNotificationContract = route({
-    method: "POST",
-    path: "/test",
-    summary: "Send test notification",
-    description: "Send a test push notification to all user devices",
-  })
+const pushSendTestNotificationOps = standard.zod(
+  sendTestNotificationOutputSchema,
+  "pushSendTestNotification",
+);
+
+export const sendTestNotificationContract = pushSendTestNotificationOps
+  .create()
+  .path("/test")
+  .input(z.object({}))
   .output(sendTestNotificationOutputSchema)
   .build();

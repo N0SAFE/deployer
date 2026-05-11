@@ -1,5 +1,4 @@
-import * as z from "zod";
-import { route } from "@repo/orpc-utils/builder";
+import z from "zod/v4";
 import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
 import {
     deploymentConnectivityStatusSchema,
@@ -17,7 +16,7 @@ const streamEventMetaShape = {
     sequence: z.number().int().nonnegative().optional(),
     cursor: z.string().min(1).optional(),
     replayed: z.boolean().optional(),
-    emittedAt: z.string().optional(),
+    emittedAt: z.date().optional(),
     correlationId: z.string().optional(),
     traceId: z.string().optional(),
     spanId: z.string().optional(),
@@ -228,13 +227,13 @@ const deploymentQueryFiltersSchema = z
         projectId: z.uuid().optional(),
         aggregateId: z.uuid().optional(),
         eventType: deploymentStreamEventTypeSchema.optional(),
-        since: z.string().datetime().optional(),
+        since: z.date().optional(),
         cursor: z.coerce.number().int().min(0).optional(),
         replay: z.coerce.boolean().default(false),
         replayLimit: z.coerce.number().int().min(1).max(500).default(100),
     })
     .refine(
-        (value) => Boolean(value.deploymentId || value.serviceId || value.projectId),
+        (value) => Boolean(value.deploymentId ?? value.serviceId ?? value.projectId),
         "At least one stream filter is required (deploymentId, serviceId, or projectId)",
     );
 
@@ -287,20 +286,50 @@ const deploymentStreamListConfig = createFilterConfig(deploymentStreamOps)
     .buildConfig();
 
 export const deploymentStreamListConfigSchemas = deploymentStreamListConfig;
-export const deploymentStreamsListContract = deploymentStreamOps.list(deploymentStreamListConfig).build();
+export const deploymentStreamsListContract = deploymentStreamOps
+    .list(deploymentStreamListConfig)
+    .path("/streams")
+    .build();
 export type DeploymentStreamListInput = ComputeInputSchema<typeof deploymentStreamListConfigSchemas>;
 
-export const deploymentStreamFindByIdContract = deploymentStreamOps.read().build();
+export const deploymentStreamFindByIdContract = deploymentStreamOps
+    .read()
+    .path("/streams/{id}")
+    .build();
+
+const deploymentProgressEventContractEntitySchema = z.object({
+    type: z.string(),
+    emittedAt: z.date().optional(),
+});
+
+const serviceDeploymentEventContractEntitySchema = z.object({
+    type: z.string(),
+    emittedAt: z.date().optional(),
+});
+
+const deploymentQueryEventContractEntitySchema = z.object({
+    type: z.string(),
+    emittedAt: z.date().optional(),
+});
+
+const deploymentProgressEventOps = standard.zod(
+    deploymentProgressEventContractEntitySchema,
+    "deploymentProgressEvent",
+);
+const serviceDeploymentEventOps = standard.zod(
+    serviceDeploymentEventContractEntitySchema,
+    "serviceDeploymentEvent",
+);
+const deploymentQueryEventOps = standard.zod(
+    deploymentQueryEventContractEntitySchema,
+    "deploymentQueryEvent",
+);
 
 // ─── Stream contracts ─────────────────────────────────────────────────────────
 
 /** GET /deployments/{id}/stream — subscribe to a single deployment's lifecycle events */
-export const deploymentStreamContract = route({
-    method: "GET",
-    path: "/{id}/stream",
-    summary: "Stream deployment progress events (SSE)",
-    description: "Subscribe to real-time events for a specific deployment: status changes, phase updates, log lines, and terminal states.",
-})
+export const deploymentStreamContract = deploymentProgressEventOps
+    .read({ idFieldName: "id", idSchema: z.uuid() })
     .input((b) =>
         b
             .params((p) => p`/${p("id", z.uuid())}/stream`)
@@ -310,13 +339,8 @@ export const deploymentStreamContract = route({
     .build();
 
 /** GET /deployments/internal/{id}/stream — internal mesh stream access */
-export const deploymentInternalStreamContract = route({
-    method: "GET",
-    path: "/internal/{id}/stream",
-    summary: "Stream deployment progress events for internal mesh routing",
-    description:
-        "Internal-only deployment stream endpoint used by mesh nodes to proxy deployment lifecycle events without raw fetch parsing helpers.",
-})
+export const deploymentInternalStreamContract = deploymentProgressEventOps
+    .list()
     .input((b) =>
         b
             .params((p) => p`/internal/${p("id", z.uuid())}/stream`)
@@ -326,12 +350,8 @@ export const deploymentInternalStreamContract = route({
     .build();
 
 /** GET /deployments/services/{serviceId}/stream — subscribe to all deployments for a service */
-export const serviceDeploymentsStreamContract = route({
-    method: "GET",
-    path: "/services/{serviceId}/stream",
-    summary: "Stream all deployment events for a service (SSE)",
-    description: "Subscribe to real-time deployment lifecycle events for all deployments of a service.",
-})
+export const serviceDeploymentsStreamContract = serviceDeploymentEventOps
+    .list()
     .input((b) =>
         b
             .params((p) => p`/services/${p("serviceId", z.uuid())}/stream`)
@@ -341,13 +361,9 @@ export const serviceDeploymentsStreamContract = route({
     .build();
 
 /** GET /deployments/stream/query — subscribe to filtered deployment events */
-export const deploymentQueryStreamContract = route({
-    method: "GET",
-    path: "/stream/query",
-    summary: "Stream deployment events with filters (SSE)",
-    description:
-        "Subscribe to deployment events filtered by deploymentId/serviceId/projectId, with optional replay.",
-})
+export const deploymentQueryStreamContract = deploymentQueryEventOps
+    .list()
+    .path("/stream/query")
     .input((b) => b.query(deploymentQueryFiltersSchema))
     .output((b) => b.observable(deploymentQueryEventSchema))
     .build();

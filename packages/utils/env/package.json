@@ -20,7 +20,7 @@
     "prettify": "prettier . --write --no-error-on-unmatched-pattern",
     "format": "bun run prettify",
     "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsgo --noEmit",
     "check": "bun src/cli.ts check",
     "load": "bun src/cli.ts load",
     "mock": "bun src/cli.ts mock",
@@ -31,9 +31,10 @@
     "zod": "catalog:utils"
   },
   "devDependencies": {
+    "@types/node": "catalog:build",
     "@repo/config-prettier": "*",
     "@repo/config-typescript": "*",
-    "typescript": "catalog:build",
+    "@typescript/native-preview": "catalog:build",
     "vitest": "catalog:testing",
     "@vitest/coverage-v8": "catalog:testing"
   }

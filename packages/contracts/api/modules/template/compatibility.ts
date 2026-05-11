@@ -1,4 +1,4 @@
-import { route } from "@repo/orpc-utils/builder";
+import { standard } from "@repo/orpc-utils";
 import z from "zod/v4";
 import {
     templateCompatibilityMatrixSchema,
@@ -6,21 +6,25 @@ import {
     templateCompatibilityValidationResultSchema,
 } from "@repo/contracts-entities";
 
-export const templateGetCompatibilityMatrixContract = route({
-    method: "GET",
-    path: "/compatibility/matrix",
-    summary: "Get template compatibility matrix",
-    description: "Returns compatibility combinations for provider, build strategy, deploy strategy, and environment.",
-})
+const templateCompatibilityMatrixOps = standard.zod(
+    templateCompatibilityMatrixSchema,
+    "templateCompatibilityMatrix",
+);
+const templateCompatibilityValidationOps = standard.zod(
+    templateCompatibilityValidationResultSchema,
+    "templateCompatibilityValidation",
+);
+
+export const templateGetCompatibilityMatrixContract = templateCompatibilityMatrixOps
+    .list()
+    .path("/compatibility/matrix")
     .input(z.object({}))
     .output(templateCompatibilityMatrixSchema)
     .build();
 
-export const templateValidateCompatibilityContract = route({
-    method: "POST",
-    path: "/compatibility/validate",
-    summary: "Validate a template compatibility combination",
-})
+export const templateValidateCompatibilityContract = templateCompatibilityValidationOps
+    .create()
+    .path("/compatibility/validate")
     .input((b) => b.body(templateCompatibilityValidationInputSchema))
     .output(templateCompatibilityValidationResultSchema)
     .build();

@@ -1,0 +1,337 @@
+---
+title: Docker Standalone-First Roadmap
+description: Canonical two-phase plan: deliver full Docker operator capabilities first, then add deployment/project/service linkage as optional enrichment.
+order: 34
+---
+
+> **Added**: 2026-04-05  
+> **Type**: Execution Scope Decision  
+> **Confidence**: Verified ✅  
+> **Scope**: v3 Docker runtime + web operator experience
+
+## Summary
+
+This document locks a strict delivery boundary:
+
+1. **Phase 1** = complete Docker operator surface for the web app, independent from project/service/deployment coupling.
+2. **Phase 2** = additive linkage back to deployments/projects/services for richer context.
+
+If linkage data is unavailable, stale, or delayed, core Docker operations must still work.
+
+---
+
+## Phase boundary rules (non-negotiable)
+
+1. Core Docker pages (`containers`, `images`, `networks`, `volumes`, `stacks`, `registry`, `events`, `logs`, `terminal`) must not require deployment-linked data to function.
+2. Runtime truth for Phase 1 is Docker runtime + mesh/runtime streams.
+3. Linked projections are allowed only behind explicit linked adapters/endpoints and must remain optional.
+4. Phase 2 enrichment must degrade gracefully (no hard fail of core runtime operations).
+
+---
+
+## Capability matrix (Dockhand benchmark vs v3 state)
+
+| Capability area | Dockhand reference signals | v3 contract/API evidence | v3 web evidence | Phase assignment |
+|---|---|---|---|---|
+| Runtime snapshot + event streams | Container stats/events and stream-driven UX present across routes | `runtimeSnapshot` + `stream` in Docker contract/controller | Runtime stream status badge + stream-driven refresh flows | **Phase 1** (already present) |
+| Container inspect/logs/process/files/terminal | Inspect/logs/top/files/exec flows in Dockhand routes | `inspectContainer`, logs/process/file/terminal operations in Docker contract/controller | Container detail modal and tabs wired to Docker domain hooks | **Phase 1** (already present) |
+| Container lifecycle mutations (start/stop/restart/pause/unpause/remove/rename/update) | Explicit `/api/containers/:id/start|stop|restart|pause|unpause`, rename/update, batch update routes | Not currently surfaced in reviewed v3 Docker contract/controller surface | Containers page shows placeholder actions (e.g. simulated prune/check updates) | **Phase 1** (missing; implement) |
+| Image inventory + inspect stream | Image listing/history/inspect surfaces | `listImages`, `inspectImage`, `streamInspectImage` in contract/controller | Images page renders grouped tags and inspect modal | **Phase 1** (already present) |
+| Image lifecycle mutations (pull/tag/remove/prune/push/export/scan/history API parity) | `/api/images/pull`, tag/remove/history/export and scan/push modal flows | Not currently surfaced in reviewed v3 Docker contract/controller surface (beyond list/inspect) | Images page still contains placeholder action feedback for prune/refresh | **Phase 1** (partial/missing; implement) |
+| Network lifecycle (create/remove/connect/disconnect/inspect) | `/api/networks`, `/connect`, `/disconnect`, inspect/delete flows | Only `listNetworks` currently surfaced in contract/controller | Network details UI exists; mutation parity still pending | **Phase 1** (partial/missing; implement) |
+| Volume lifecycle (create/remove/inspect/browse/export/clone) | `/api/volumes/.../inspect|browse|export|clone` flows | Only `listVolumes` currently surfaced in contract/controller | Volume details UI exists; mutation parity still pending | **Phase 1** (partial/missing; implement) |
+| Stack lifecycle + compose/env controls | `/api/stacks/:name/start|stop|restart|down`, compose/env/adopt paths | Only `listStacks` currently surfaced in contract/controller | Stacks page includes explicit “pending API wiring” create flow note | **Phase 1** (partial/missing; implement) |
+| Registry catalog/search/tags/pull workflows | `/api/registry/search|catalog|tags` + pull interactions | `listRegistries` currently surfaced; search/catalog/tag/pull flows not yet surfaced in reviewed contract/controller | Registry UI exists; deeper mutation/search parity pending | **Phase 1** (partial/missing; implement) |
+| Deployment/project/service-linked overlays | Linked metadata context in some views | `listContainersLinked` endpoint exists as linked projection path | Containers page currently requests linked include (`deployment,service,project`) | **Phase 2** (keep optional/additive only) |
+
+---
+
+## Implemented in v3 today (verified page audit)
+
+This section documents **current implemented behavior** (today), separate from the target parity contract below.
+
+| Page/route | Implemented now (verified) | Current gaps / placeholder behavior |
+|---|---|---|
+| `docker/` (overview) | Runtime snapshot + SSE status + fleet/runtime summary + recent container table + deep links to all Docker sections | Overview is mostly read/projection-first; no operator mutations directly from this page |
+| `docker/containers` | Real list from Docker domain hooks (`useDockerContainerLinkedList`), runtime stream badge, image linkage, inspect/logs/process/files/terminal through container detail modal, create-container flow UI | Several top-level actions still feedback-only (`queued` / simulation), not fully wired to concrete lifecycle mutation endpoints |
+| `docker/images` | Real grouped inventory from image + deployment data, inspect modal, run/pull-scan flow integration via create-container modal | Multiple actions remain queued/feedback-first (`prune`, `refresh`, `export`) instead of full backend parity |
+| `docker/networks` | Real network list + network event stream subscription + inspect modal via runtime entity detail | Create/connect/prune/refresh are currently projection/queued UX flows, not full API lifecycle parity |
+| `docker/volumes` | Real volume list + volume event stream + inspect/browse modal surface | Create/clone/prune/refresh remain queued/projection flows; full backend mutation parity still pending |
+| `docker/stacks` | Real stack list + runtime detail modal with service/compose/activity/logs/git tabs | Create and lifecycle controls show explicit pending/queued behavior (including “pending API wiring” create path) |
+| `docker/registry` | Real registry list + deployment-derived usage + inspect modal shell | Catalog/tag/pull/copy/auth actions are still queued/projection behavior; deep registry parity pending |
+| `docker/logs` | Live merged operator log console (deployments + runtime events), grouping/filtering/persistence/download, SSE status surface | No strict backend parity for all dockhand-style control actions yet; operator actions are mostly local UX controls |
+| `docker/shell` + `docker/terminal` | `terminal` route redirects to shell; shell page provides target selection UX; **real interactive terminal session is implemented in container detail modal terminal tab** | Shell page itself uses simulated transcript/connect state (not direct live exec stream) |
+| `docker/activity` + `docker/events` | Activity page consumes runtime snapshot + event trigger stream filters; events route redirects to activity | Advanced incident-correlation and cross-node causal stitching are not yet implemented |
+| `docker/queu` | Queue visibility UI exists | Backed by mock operation progress source (not canonical runtime queue stream) |
+
+### Route coverage notes
+
+- `docker/events` and `docker/terminal` are redirect routes to canonical pages.
+- `docker/details` currently has no concrete page implementation (`page.tsx` absent).
+
+### [2026-04-06] Docker list UX runtime-table upgrade
+
+The core Docker list pages now share a common table behavior contract:
+
+- TanStack Table is used under the hood for sorting + pagination state.
+- Filter/sort/page/page-size state is URL-synced via the existing `nuqs` + Zod utility (`useSafeQueryStatesFromZod`).
+- List pages now support stable deep-linking to list state without local-only control loss on refresh/navigation.
+
+Implemented pages:
+
+- `docker/containers`
+- `docker/images`
+- `docker/networks`
+- `docker/volumes`
+- `docker/stacks`
+- `docker/registry`
+
+### [2026-04-06] Docker loading-state UX hardening (pages + detail views)
+
+Loading UX is now standardized across Docker list pages and detail modals:
+
+- List pages now render explicit loading notices and table-row skeleton placeholders during initial runtime data fetch.
+- Operator pages (`docker`, `docker/activity`, `docker/logs`, `docker/shell`) now show visible loading transitions instead of jumping directly to empty-state copy while queries are still pending.
+- Detail modals (container, image, network, volume, registry, stack) now render dedicated loading placeholders before fallbacking to a not-found message.
+
+This reduces false-negative “empty” impressions during startup/reconnect and keeps transitional states consistent with the rest of v3 dashboard UX.
+
+---
+
+## Exact page functionality contract (Dockhand parity + v3 enhancement ideas)
+
+This section is the exact functional target for Docker pages. “Dockhand parity” is the baseline. “Enhancements” are value-adds to implement after parity (or in parallel if low-risk).
+
+### Containers page (`/dashboard/docker/containers`)
+
+**Must support (Dockhand parity baseline):**
+
+- Container list with search/filter/sort and environment scoping.
+- Lifecycle actions: `start`, `stop`, `pause`, `unpause`, `restart`, `remove`.
+- Bulk operations: batch update stream and bulk action feedback.
+- Create/edit/rename flows for containers.
+- Inspect views: full inspect payload, stats, top/processes.
+- File browser operations: list/read/write/create/delete/rename/chmod/upload/download.
+- Interactive shell/exec session (WebSocket terminal behavior equivalent).
+- Logs access from container context (point-in-time + streaming).
+- Maintenance actions: container prune and update-check workflows.
+
+**Enhancement ideas (v3+):**
+
+- Safe bulk planner (dry-run impact preview before destructive actions).
+- Policy-based guardrails (protected labels/environments require elevated confirmation).
+- Command history and reusable operation presets.
+
+### Images page (`/dashboard/docker/images`)
+
+**Must support (Dockhand parity baseline):**
+
+- Image list grouped by repository/tag with search/filter/sort.
+- Pull image with progress stream.
+- Tag, remove, and prune (`dangling` and full prune variants).
+- Image history/layers view.
+- Export image artifact.
+- Registry-linked actions (push/copy where supported).
+- Security scan initiation and results surface.
+
+**Enhancement ideas (v3+):**
+
+- Digest pin recommendation and mutable-tag risk warnings.
+- SBOM/attestation visibility per image.
+- “Used by runtime” impact graph before prune/delete.
+
+### Networks page (`/dashboard/docker/networks`)
+
+**Must support (Dockhand parity baseline):**
+
+- List/create/inspect/delete networks.
+- Connect and disconnect containers to/from networks.
+- Network prune workflows.
+
+**Enhancement ideas (v3+):**
+
+- Connectivity simulation (“what breaks if network X is removed?”).
+- Network policy templates and reusable environment profiles.
+
+### Volumes page (`/dashboard/docker/volumes`)
+
+**Must support (Dockhand parity baseline):**
+
+- List/create/inspect/delete volumes.
+- Volume clone and export workflows.
+- Volume browse and lock/release semantics for file browser sessions.
+- Volume prune workflows.
+
+**Enhancement ideas (v3+):**
+
+- Snapshot/restore UX for operator recovery.
+- Retention policy automation and orphaned-volume insights.
+
+### Stacks page (`/dashboard/docker/stacks`)
+
+**Must support (Dockhand parity baseline):**
+
+- Stack list + source visibility.
+- Stack lifecycle actions: `start`, `stop`, `restart`, `down`, `delete`.
+- Compose/env workflows: read, edit raw env, validate env, compose retrieval/update.
+- Stack import/adopt/scan paths.
+- Path relocation and path-change checks.
+- Git stack integration signals (deploy stream/status where applicable).
+- Stack-scoped container actions (`start/stop/restart/pause/unpause`).
+
+**Enhancement ideas (v3+):**
+
+- Desired-vs-actual drift diff with safe reconcile plans.
+- Change set preview before apply (compose/env diff + impact summary).
+
+### Registry page (`/dashboard/docker/registry`)
+
+**Must support (Dockhand parity baseline):**
+
+- Registry catalog list and default selection.
+- Registry search.
+- Registry catalog listing per selected registry.
+- Tag listing/pagination for repositories.
+- Image/tag pull/copy workflow from registry to local runtime.
+
+**Enhancement ideas (v3+):**
+
+- Trust gate indicators (signature/provenance policy status).
+- Pull policy controls per environment (allow/warn/block).
+
+### Logs page (`/dashboard/docker/logs`)
+
+**Must support (Dockhand parity baseline):**
+
+- Container selection and point-in-time log retrieval.
+- Live log stream via SSE.
+- Multi-container merged stream view.
+- Tail controls and refresh/reconnect behavior.
+- Favorites/favorite-group persistence for operator workflows.
+
+**Enhancement ideas (v3+):**
+
+- Structured query filters (`level`, `component`, `traceId`) where available.
+- Pattern alerts and anomaly hints for noisy/error-heavy streams.
+
+### Terminal page (`/dashboard/docker/terminal`)
+
+**Must support (Dockhand parity baseline):**
+
+- Container selection.
+- Interactive WebSocket shell sessions.
+- Shell and user selection for exec sessions.
+- Session lifecycle controls (connect/reconnect/disconnect).
+
+**Enhancement ideas (v3+):**
+
+- Session recording/audit envelope for privileged sessions.
+- Guardrails for restricted commands in protected environments.
+
+### Runtime events/activity pages (`/dashboard/docker/events`, `/dashboard/docker/activity`)
+
+**Must support (Dockhand parity baseline equivalent):**
+
+- Runtime event stream subscription and reconnect behavior.
+- Filtering by source/action/resource ID/time window.
+- Event-to-resource navigation (open container/image/network/etc. from event rows).
+
+**Enhancement ideas (v3+):**
+
+- Cross-node timeline stitching with deduplication markers.
+- Incident-mode view that highlights causal chains (event -> action -> state transition).
+
+### Cross-page non-functional requirements (applies to all Docker pages)
+
+- Real-time aware: each page must support live refresh/stream updates without full reload.
+- Failure tolerant: linkage or enrichment failures must not break core runtime operations.
+- Safe by default: destructive actions must use explicit confirmation and clear impact messaging.
+- Auditable: operator actions should emit timeline/audit-friendly metadata.
+- Phase-safe architecture: runtime-first in Phase 1, linked enrichment optional in Phase 2.
+
+### SSE streaming excellence contract (mandatory)
+
+All Docker realtime streams (runtime events, logs, process streams, long-running operation updates) must satisfy this quality bar:
+
+- **Stable delivery semantics**: ordered event emission per stream key with deterministic server sequencing.
+- **Resume support**: cursor-based resume (`lastEventId`/explicit cursor input) to recover after disconnects without data gaps.
+- **Reconnect behavior**: automatic client reconnect with bounded exponential backoff and transparent state recovery.
+- **Heartbeat/keepalive**: periodic heartbeat events to prevent silent dead sockets and to detect stale connections quickly.
+- **At-least-once safe consumption**: duplicate-tolerant client reducers and idempotent event application.
+- **Filter fidelity**: server-side typed filters (`source`, `action`, `resourceId`, `since`, etc.) must be honored consistently for replay and live paths.
+- **Backpressure safety**: bounded buffering and explicit overflow behavior (drop policy + diagnostic event) rather than unbounded memory growth.
+- **Error envelope standardization**: typed stream error payloads with machine-readable codes (`upstream_unavailable`, `cursor_invalid`, `stream_timeout`, `auth_forbidden`, ...).
+- **Observability**: stream metrics for open connections, reconnect count, replay depth, lag, dropped events, and average delivery latency.
+- **Graceful degradation**: if live SSE is unavailable, pages must fall back to polling snapshots with operator-visible degraded-mode indication.
+
+#### SSE acceptance criteria (done definition)
+
+- No event loss across controlled disconnect/reconnect scenarios within retention window.
+- Stream consumers recover from transient network failures without full page reload.
+- Duplicate events do not produce duplicate side effects in UI state.
+- P95 reconnect-to-healthy-stream time stays within defined SLO budget.
+- Stream diagnostics are queryable for incident analysis (lag/drops/retries by stream type).
+
+---
+
+## Execution sequence
+
+1. **Freeze boundary**: treat linked data as optional and prevent it from blocking core pages.
+2. **Close Phase 1 API parity**: add missing Docker mutations and operator endpoints to contracts + API module.
+3. **Close Phase 1 web parity**: replace placeholder/simulated actions with real mutations + stream feedback.
+4. **Harden**: add focused tests for Docker runtime operations and page-level integration behavior.
+5. **Start Phase 2**: reintroduce linked deployment/service/project overlays behind optional enrichment adapters.
+
+---
+
+## Phase 1 done definition
+
+- All major Docker operator actions work without `listContainersLinked` context.
+- If linkage services fail, container/image/network/volume/stack operations still function.
+- No top-level Docker page is blocked by project/service/deployment joins.
+- Runtime and mutation state are observable via stream/timeline feedback.
+
+---
+
+## Evidence
+
+- v3 Docker contract router surface (current exposed operations):
+  - `v3/packages/contracts/api/modules/docker/index.ts#L38-L64`
+- v3 Docker controller exposed handlers:
+  - `v3/apps/api/src/modules/docker/controllers/docker.controller.ts#L11-L195`
+- v3 containers page currently requests linked projection include:
+  - `v3/apps/web/src/app/dashboard/docker/containers/page.tsx#L51`
+- v3 web placeholders indicating parity gaps:
+  - `v3/apps/web/src/app/dashboard/docker/containers/page.tsx#L549-L550`
+  - `v3/apps/web/src/app/dashboard/docker/images/page.tsx#L365`
+  - `v3/apps/web/src/app/dashboard/docker/stacks/page.tsx#L200`
+- Dockhand operator API signals used as benchmark reference:
+  - Containers lifecycle/batch/files/inspect/terminal:
+    - `dockhand/src/routes/containers/+page.svelte#L897-L1018`
+    - `dockhand/src/routes/containers/BatchUpdateModal.svelte#L123-L320`
+    - `dockhand/src/routes/containers/FileBrowserPanel.svelte#L343-L768`
+    - `dockhand/src/routes/containers/ContainerInspectModal.svelte#L234-L293`
+    - `dockhand/src/routes/containers/ContainerTerminal.svelte#L117`
+  - Images pull/prune/remove/tag/history:
+    - `dockhand/src/routes/images/ImagePullProgressPopover.svelte#L107`
+    - `dockhand/src/routes/images/+page.svelte#L488-L586`
+    - `dockhand/src/routes/images/ImageLayersView.svelte#L54`
+  - Networks list/create/connect/disconnect/prune:
+    - `dockhand/src/routes/networks/+page.svelte#L256-L429`
+    - `dockhand/src/routes/networks/ConnectContainerModal.svelte#L68`
+    - `dockhand/src/routes/networks/NetworkInspectModal.svelte#L45`
+  - Volumes list/create/inspect/clone/prune:
+    - `dockhand/src/routes/volumes/+page.svelte#L242-L344`
+    - `dockhand/src/routes/volumes/CloneVolumeModal.svelte#L50`
+    - `dockhand/src/routes/volumes/VolumeInspectModal.svelte#L31`
+  - Stacks lifecycle/compose/env/import/adopt:
+    - `dockhand/src/routes/stacks/+page.svelte#L699-L1101`
+    - `dockhand/src/routes/stacks/StackModal.svelte#L741-L1107`
+    - `dockhand/src/routes/stacks/ImportStackModal.svelte#L113-L240`
+  - Registry search/catalog/tags/image pull:
+    - `dockhand/src/routes/registry/+page.svelte#L170-L437`
+  - Logs and terminal streaming behavior:
+    - `dockhand/src/routes/logs/+page.svelte#L718-L915`
+    - `dockhand/src/routes/logs/LogsPanel.svelte#L201-L410`
+    - `dockhand/src/routes/terminal/+page.svelte#L84`
+    - `dockhand/src/routes/terminal/Terminal.svelte#L190`

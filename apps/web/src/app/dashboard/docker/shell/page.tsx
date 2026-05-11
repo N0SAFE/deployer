@@ -1,9 +1,14 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { DockerContainerDetailModalTrigger } from '../_components/docker-container-detail-modal'
+import { DockerContainerDetailModalTrigger } from '../_components/container-detail-modal'
+import { DockerInlineLoadingState, DockerTableLoadingRows } from '../_components/docker-loading-states'
 import { DockerImageDetailModalTrigger } from '../_components/docker-image-detail-modal'
-import { useDockerContainerList, useDockerDeploymentList, useDockerImageList } from '@/domains/docker/mock-hooks'
+import {
+  useContainerLiveUpdate,
+  useDockerContainerList,
+  useDockerImageList,
+} from '@/domains/docker/hooks'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
@@ -16,18 +21,14 @@ import {
   TableRow,
 } from '@repo/ui/components/shadcn/table'
 import { Play, Search, Square, TerminalSquare } from 'lucide-react'
-import type { Deployment } from '@repo/contracts-entities'
+import type { DockerContainer } from '@repo/contracts-entities'
 
-const DEPLOYMENT_LIST_INPUT = {
+const DOCKER_LIST_INPUT = {
   query: {
     limit: 100,
     offset: 0,
   },
 } as const
-
-function shortId(id: string): string {
-  return id.slice(0, 8)
-}
 
 function formatDate(value: string): string {
   const parsed = new Date(value)
@@ -36,9 +37,9 @@ function formatDate(value: string): string {
 
 function toBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   const normalized = status.toLowerCase()
-  if (normalized === 'success' || normalized === 'active' || normalized === 'healthy') return 'default'
-  if (normalized === 'failed' || normalized === 'error' || normalized === 'down') return 'destructive'
-  if (normalized === 'pending' || normalized === 'queued' || normalized === 'building' || normalized === 'deploying') {
+  if (normalized === 'running' || normalized === 'healthy') return 'default'
+  if (normalized === 'dead' || normalized === 'exited' || normalized === 'failed' || normalized === 'error') return 'destructive'
+  if (normalized === 'restarting' || normalized === 'created' || normalized === 'starting') {
     return 'secondary'
   }
   return 'outline'
@@ -49,13 +50,17 @@ interface ShellTarget {
   containerName: string
   image: string
   imageId: string | null
-  status: Deployment['status']
-  environment: Deployment['environment']
+  status: DockerContainer['status']
+  environment: DockerContainer['environment']
   updatedAt: string
 }
 
-function normalizeImageRef(imageRef: string): string {
-  return imageRef.trim().split('@')[0] ?? imageRef.trim()
+function fallbackImageRefFromId(imageId: string | null): string {
+  if (!imageId) return 'unknown-image'
+  if (imageId.startsWith('sha256:')) {
+    return `sha256:${imageId.slice(7, 19)}`
+  }
+  return imageId.slice(0, 18)
 }
 
 function buildShellTranscript(target: ShellTarget | null): string {
@@ -74,7 +79,7 @@ function buildShellTranscript(target: ShellTarget | null): string {
     '$ pwd',
     '/app',
     '$ printenv NODE_ENV',
-    target.environment,
+    target.environment ?? 'unknown',
     '$ cat /etc/hostname',
     target.containerName,
     '$ echo "attached image"',
@@ -86,36 +91,47 @@ export default function DashboardDockerShellPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedContainer, setSelectedContainer] = useState<string | null>(null)
   const [connectedContainerId, setConnectedContainerId] = useState<string | null>(null)
-  const { data: deploymentData } = useDockerDeploymentList(DEPLOYMENT_LIST_INPUT)
-  const { data: containerEntityData } = useDockerContainerList(DEPLOYMENT_LIST_INPUT)
-  const { data: imageEntityData } = useDockerImageList(DEPLOYMENT_LIST_INPUT)
-  const deployments = useMemo(() => deploymentData?.data ?? [], [deploymentData?.data])
+  const containerListQuery = useDockerContainerList(DOCKER_LIST_INPUT)
+  const imageListQuery = useDockerImageList(DOCKER_LIST_INPUT)
+  const { data: containerEntityData } = containerListQuery
+  const { data: imageEntityData } = imageListQuery
+
+  useContainerLiveUpdate(() => {
+    void imageListQuery.refetch()
+    return containerListQuery.refetch()
+  }, {
+    cooldownMs: 900,
+  })
+
   const containerEntities = useMemo(() => containerEntityData?.data ?? [], [containerEntityData?.data])
+  const containerEntityById = useMemo(
+    () => new Map(containerEntities.map((container) => [container.id, container])),
+    [containerEntities],
+  )
   const imageEntities = useMemo(() => imageEntityData?.data ?? [], [imageEntityData?.data])
 
   const shellTargets = useMemo<ShellTarget[]>(() => {
-    const containerIdByName = new Map(containerEntities.map((container) => [container.name, container.id]))
-    const imageIdByRef = new Map(
-      imageEntities.map((image) => [
-        `${image.registry}/${image.repository}${image.tag ? `:${image.tag}` : ''}`,
-        image.id,
-      ]),
-    )
+    const imageById = new Map(imageEntities.map((image) => [image.id, image]))
 
-    return deployments
-      .map((deployment) => ({
-        containerName: deployment.containerName ?? `deployment-${shortId(deployment.id)}`,
-        id:
-          containerIdByName.get(deployment.containerName ?? `deployment-${shortId(deployment.id)}`)
-          ?? deployment.id,
-        image: deployment.containerImage ?? 'unresolved-image',
-        imageId: imageIdByRef.get(normalizeImageRef(deployment.containerImage ?? '')) ?? null,
-        status: deployment.status,
-        environment: deployment.environment,
-        updatedAt: deployment.updatedAt,
-      }))
+    return containerEntities
+      .map((container) => {
+        const imageEntity = container.imageId ? imageById.get(container.imageId) : null
+        const image = imageEntity
+          ? `${imageEntity.registry}/${imageEntity.repository}${imageEntity.tag ? `:${imageEntity.tag}` : ''}`
+          : fallbackImageRefFromId(container.imageId)
+
+        return {
+          id: container.id,
+          containerName: container.name,
+          image,
+          imageId: container.imageId,
+          status: container.status,
+          environment: container.environment,
+          updatedAt: container.updatedAt,
+        }
+      })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-  }, [containerEntities, deployments, imageEntities])
+  }, [containerEntities, imageEntities])
 
   const filteredTargets = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
@@ -124,7 +140,7 @@ export default function DashboardDockerShellPage() {
       return (
         target.containerName.toLowerCase().includes(query)
         || target.image.toLowerCase().includes(query)
-        || target.environment.toLowerCase().includes(query)
+        || (target.environment ?? '').toLowerCase().includes(query)
       )
     })
   }, [searchTerm, shellTargets])
@@ -138,9 +154,11 @@ export default function DashboardDockerShellPage() {
     () => shellTargets.find((target) => target.id === connectedContainerId) ?? null,
     [connectedContainerId, shellTargets],
   )
+  const isInitialLoading = (containerListQuery.isLoading || imageListQuery.isLoading) && shellTargets.length === 0
 
   return (
     <div className="space-y-6">
+      {isInitialLoading ? <DockerInlineLoadingState label="Loading shell targets from runtime containers…" /> : null}
       <section className="overflow-hidden rounded-2xl border border-border/60 bg-card/50 backdrop-blur-xl">
         <div className="border-b border-border/60 bg-background/70 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -214,14 +232,19 @@ export default function DashboardDockerShellPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTargets.slice(0, 20).map((target) => (
+              {isInitialLoading ? (
+                <DockerTableLoadingRows columns={5} rows={6} />
+              ) : filteredTargets.slice(0, 20).map((target) => (
                 <TableRow
                   key={target.id}
                   className={selectedContainer === target.containerName ? 'bg-muted/60' : undefined}
                   onClick={() => setSelectedContainer(target.containerName)}
                 >
                   <TableCell className="font-medium">
-                    <DockerContainerDetailModalTrigger id={target.id}>
+                    <DockerContainerDetailModalTrigger
+                      id={target.id}
+                      container={containerEntityById.get(target.id)}
+                    >
                       {target.containerName}
                     </DockerContainerDetailModalTrigger>
                   </TableCell>
@@ -241,7 +264,7 @@ export default function DashboardDockerShellPage() {
                   <TableCell>{formatDate(target.updatedAt)}</TableCell>
                 </TableRow>
               ))}
-              {filteredTargets.length === 0 ? (
+              {!isInitialLoading && filteredTargets.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     No container targets available yet.

@@ -19,7 +19,7 @@ function toWebHeaders(headers: Headers | IncomingHttpHeaders | Record<string, st
     return headers;
   }
   // Otherwise, convert from Node.js style headers
-  return fromNodeHeaders(headers as IncomingHttpHeaders);
+  return fromNodeHeaders(headers);
 }
 
 /**
@@ -112,7 +112,7 @@ export class AuthPlugin<TContext extends AuthPluginContext>
           }
           // Raw session data (ideal case)
           else if ('session' in rawSessionData && 'user' in rawSessionData) {
-            sessionData = rawSessionData as UserSession;
+            sessionData = rawSessionData;
           }
         }
       } catch (error) {

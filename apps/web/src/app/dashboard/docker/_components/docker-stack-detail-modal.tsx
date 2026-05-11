@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useMemo, useState } from 'react'
-import { getDockerEntityDetail } from '@/domains/docker/mock-hooks'
+import { useDockerRuntimeEntityDetail } from '@/domains/docker/hooks'
 import {
   getMockStackActivity,
   getMockStackComposeYaml,
@@ -14,6 +14,7 @@ import { Button } from '@repo/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/shadcn/tabs'
 import { toast } from 'sonner'
+import { DockerDetailLoadingState } from './docker-loading-states'
 
 interface DockerStackDetailModalTriggerProps {
   id: string
@@ -25,12 +26,14 @@ export function DockerStackDetailModalTrigger({ id, children, className }: Docke
   const [open, setOpen] = useState(false)
   const [showRawCompose, setShowRawCompose] = useState(false)
   const [opsNotice, setOpsNotice] = useState<string | null>(null)
-  const detail = useMemo(() => getDockerEntityDetail('stacks', id).stack, [id])
+  const detailQuery = useDockerRuntimeEntityDetail('stacks', id, { enabled: open })
+  const detail = detailQuery.data
   const composeYaml = useMemo(() => (detail ? getMockStackComposeYaml(detail) : ''), [detail])
   const activity = useMemo(() => getMockStackActivity(id), [id])
   const logs = useMemo(() => getMockStackLogs(id), [id])
   const serviceGraph = useMemo(() => (detail ? getMockStackServiceGraph(detail) : { nodes: [], edges: [] }), [detail])
   const gitSync = useMemo(() => (detail ? getMockStackGitSyncState(detail) : null), [detail])
+  const isDetailLoading = detailQuery.isLoading && !detail
 
   const orchestrator = useMemo<'compose' | 'swarm' | 'kubernetes'>(() => {
     if (!detail) return 'compose'
@@ -284,6 +287,8 @@ export function DockerStackDetailModalTrigger({ id, children, className }: Docke
                 </div>
               </TabsContent>
             </Tabs>
+          ) : isDetailLoading ? (
+            <DockerDetailLoadingState label="Loading stack details…" />
           ) : (
             <p className="text-sm text-muted-foreground">Stack not found.</p>
           )}

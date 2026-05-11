@@ -321,7 +321,7 @@ export function ServiceDependencyGraphPanel({
 
   const dependencyQueries = useQueries({
     queries: sortedServices.map((service) =>
-      serviceEndpoints.getDependencies.queryOptions({
+      serviceEndpoints.dependencies.list.queryOptions({
         input: {
           params: { id: service.id },
           id: service.id,

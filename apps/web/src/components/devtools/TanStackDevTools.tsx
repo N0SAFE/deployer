@@ -704,21 +704,31 @@ const ConfiguredAuth = () => {
   // Debounced setter to avoid querying on every keystroke
   const debouncedSetUserSearch = React.useRef<NodeJS.Timeout | null>(null);
 
+  const userListInput = React.useMemo(() => {
+    const trimmedSearch = userSearch.trim();
+
+    return {
+      query: {
+        limit: 20,
+        offset: 0,
+        ...(trimmedSearch.length > 0
+          ? {
+              filter: {
+                _or: [
+                  { name: { operator: "ilike", value: trimmedSearch } },
+                  { email: { operator: "ilike", value: trimmedSearch } },
+                ],
+              },
+            }
+          : {}),
+      },
+    };
+  }, [userSearch]);
+
   // Use TanStack Query for user data
   const usersQuery = useQuery(
     orpc.user.list.queryOptions({
-      input: {
-        query: {
-          limit: 20,
-          offset: 0,
-          filter: {
-            _or: [
-              { name: { operator: "ilike", value: userSearch } },
-              { email: { operator: "ilike", value: userSearch } },
-            ],
-          },
-        },
-      },
+      input: userListInput,
       context: {
         headers: devAuthHeaders,
         noRedirectOnUnauthorized: true,

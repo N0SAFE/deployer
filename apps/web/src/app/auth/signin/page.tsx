@@ -5,14 +5,6 @@
 
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
-import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-} from '@repo/ui/components/shadcn/form'
 import { Alert, AlertDescription } from '@repo/ui/components/shadcn/alert'
 import {
     Card,
@@ -22,8 +14,7 @@ import {
     CardTitle,
 } from '@repo/ui/components/shadcn/card'
 import { z } from 'zod'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm } from '@tanstack/react-form'
 import React from 'react'
 import redirect from '@/actions/redirect'
 import { AlertCircle, Spinner } from '@repo/ui/components/atomics/atoms/Icon'
@@ -34,11 +25,13 @@ import { authClient } from '@/lib/auth'
 import { PageTimingLogger } from '@/lib/timing'
 import { useSetupStatus } from '@/domains/setup/hooks'
 import { useRouter } from 'next/navigation'
+import { zodFieldErrors } from '@/lib/forms/zod-field-errors'
 
 // Use the Route wrapper to get type-safe, Suspense-wrapped search params
 export default AuthSignin.Route(({ searchParams }) => {
     const [isLoading, setIsLoading] = React.useState<boolean>(false)
     const [error, setError] = React.useState<string>('')
+    const [fieldErrors, setFieldErrors] = React.useState<Partial<Record<keyof z.infer<typeof loginSchema>, string>>>({})
     const router = useRouter()
     const setupStatus = useSetupStatus()
 
@@ -65,34 +58,50 @@ export default AuthSignin.Route(({ searchParams }) => {
         )
     }
 
-    const form = useForm<z.infer<typeof loginSchema>>({
-        resolver: zodResolver(loginSchema),
+    const form = useForm({
         defaultValues: {
             email: '',
             password: '',
         },
-    })
+        onSubmit: async ({ value }) => {
+            setError('')
+            setFieldErrors({})
 
-    const onSubmit = async (
-        values: z.infer<typeof loginSchema>
-    ): Promise<void> => {
-        setIsLoading(true)
-        setError('')
-        const res = await authClient.signIn.email({
-            email: values.email,
-            password: values.password,
-        })
-        if (res?.error) {
-            console.log(res)
-            // Handle both string and object error types
-            const errorMessage = res.error.message ?? 'Authentication failed'
-            setError(errorMessage)
-            setIsLoading(false)
-        } else {
+            const parsed = loginSchema.safeParse(value)
+            if (!parsed.success) {
+                setFieldErrors(zodFieldErrors(parsed.error))
+                return
+            }
+
+            setIsLoading(true)
+            const res = await authClient.signIn.email({
+                email: parsed.data.email,
+                password: parsed.data.password,
+            })
+
+            if (res?.error) {
+                const errorMessage = res.error.message ?? 'Authentication failed'
+                setError(errorMessage)
+                setIsLoading(false)
+                return
+            }
+
             setIsLoading(false)
             void redirect(searchParams.redirectTo ?? searchParams.callbackUrl ?? '/')
-        }
-    }
+        },
+    })
+
+    const clearFieldError = React.useCallback((key: keyof z.infer<typeof loginSchema>) => {
+        setFieldErrors((previous) => {
+            if (!previous[key]) {
+                return previous
+            }
+
+            const next = { ...previous }
+            delete next[key]
+            return next
+        })
+    }, [])
 
     return (
         <div className="flex flex-1 items-center justify-center">
@@ -115,57 +124,62 @@ export default AuthSignin.Route(({ searchParams }) => {
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <Form {...form}>
                             <form
                                 onSubmit={(e) => {
-                                    void form.handleSubmit(onSubmit)(e)
+                                    e.preventDefault()
+                                    void form.handleSubmit()
                                 }}
                                 className="space-y-6"
                             >
                                 <div className="space-y-4">
-                                    <FormField
-                                        control={form.control}
-                                        name="email"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel htmlFor="email">
+                                    <form.Field name="email">
+                                        {(field) => (
+                                            <div className="space-y-2">
+                                                <label htmlFor="email" className="text-sm font-medium leading-none">
                                                     Email Address
-                                                </FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        placeholder="john@example.com"
-                                                        id="email"
-                                                        type="email"
-                                                        className="h-12"
-                                                        autoComplete="username webauthn"
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
+                                                </label>
+                                                <Input
+                                                    placeholder="john@example.com"
+                                                    id="email"
+                                                    type="email"
+                                                    className="h-12"
+                                                    autoComplete="username webauthn"
+                                                    value={field.state.value}
+                                                    onChange={(event) => {
+                                                        clearFieldError('email')
+                                                        field.handleChange(event.target.value)
+                                                    }}
+                                                />
+                                                {fieldErrors.email ? (
+                                                    <p className="text-sm font-medium text-destructive">{fieldErrors.email}</p>
+                                                ) : null}
+                                            </div>
                                         )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="password"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel htmlFor="password">
+                                    </form.Field>
+
+                                    <form.Field name="password">
+                                        {(field) => (
+                                            <div className="space-y-2">
+                                                <label htmlFor="password" className="text-sm font-medium leading-none">
                                                     Password
-                                                </FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        id="password"
-                                                        type="password"
-                                                        className="h-12"
-                                                        autoComplete="current-password webauthn"
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
+                                                </label>
+                                                <Input
+                                                    id="password"
+                                                    type="password"
+                                                    className="h-12"
+                                                    autoComplete="current-password webauthn"
+                                                    value={field.state.value}
+                                                    onChange={(event) => {
+                                                        clearFieldError('password')
+                                                        field.handleChange(event.target.value)
+                                                    }}
+                                                />
+                                                {fieldErrors.password ? (
+                                                    <p className="text-sm font-medium text-destructive">{fieldErrors.password}</p>
+                                                ) : null}
+                                            </div>
                                         )}
-                                    />
+                                    </form.Field>
 
                                     {error && (
                                         <Alert variant="destructive">
@@ -214,7 +228,6 @@ export default AuthSignin.Route(({ searchParams }) => {
                                     </div>
                                 </div>
                             </form>
-                        </Form>
                 </CardContent>
                 </Card>
                 <div className="text-muted-foreground text-center text-sm">

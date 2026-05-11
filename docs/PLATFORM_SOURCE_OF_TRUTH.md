@@ -325,3 +325,14 @@ This checklist is mandatory for keeping fixtures truthful and migration-safe.
 183. Mesh nodes must perform authenticated latency sampling across available peers and prefer low-latency, low-load peers for connections.
 184. Mesh peer degree must adapt to fleet size, node capacity, and latency budgets while respecting configurable min/max bounds.
 185. Mesh topology must periodically re-evaluate and rebalance peers using hysteresis to avoid flapping and to respond to latency/load changes.
+
+---
+
+## 25) Docker standalone-first delivery boundary
+
+186. Docker operator capabilities must be deliverable as a standalone domain before deployment/project/service linkage is required.
+187. Phase-1 Docker APIs and UI flows must rely on runtime/mesh truth and must not depend on deployment/project/service joins for core operations.
+188. Deployment/project/service-linked Docker projections must remain explicit optional enrichments behind dedicated linked endpoints/adapters.
+189. Phase-2 linkage additions must be additive and resilient: linkage degradation must not break core Docker operator workflows.
+190. External platform capability reviews may inform parity targets, but v3 implementation must remain contract-first and boundary-safe.
+191. Docker realtime surfaces must provide production-grade SSE behavior (ordered delivery, cursor-based resume, heartbeat keepalive, reconnect resilience, and observable lag/drop diagnostics).

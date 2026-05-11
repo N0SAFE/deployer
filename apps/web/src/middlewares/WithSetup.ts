@@ -9,23 +9,36 @@ import { nextjsRegexpPageOnly, nextNoApi } from "./utils/static";
 import { orpc } from "@/lib/orpc";
 import { toAbsoluteUrl } from "@/lib/utils";
 import { Setup } from "@/routes/index";
-import { createDebug } from "@/lib/debug";
+import { createContextFilterDebugLogger } from "@/lib/logging/context-filter-debug";
 
-const debugSetup = createDebug("middleware/setup");
+const debugSetup = createContextFilterDebugLogger("WithSetup", "middleware:[WithSetup]");
 
 const setupRegexpAndChildren = /^\/setup(\/.*)?$/;
+const SETUP_STATUS_TIMEOUT_MS = 3000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      globalThis.setTimeout(() => {
+        reject(new Error(`Setup status check timed out after ${String(timeoutMs)}ms`));
+      }, timeoutMs);
+    }),
+  ]);
+}
 
 const withSetup: MiddlewareFactory = (next: NextProxy) => {
   return async (request: NextRequest, _next: NextFetchEvent) => {
     try {
-      const status = await orpc.setup.getStatus.call(
-        {},
-        {
-          context: { cookie: request.cookies.toString() },
-        },
+      const status = await withTimeout(
+        orpc.setup.getStatus.call(
+          {},
+          {
+            context: { cookie: request.cookies.toString() },
+          },
+        ),
+        SETUP_STATUS_TIMEOUT_MS,
       );
-      
-      console.log("Setup status:", status);
 
       if (status.needsSetup) {
         if (setupRegexpAndChildren.test(request.nextUrl.pathname)) {
@@ -43,7 +56,7 @@ const withSetup: MiddlewareFactory = (next: NextProxy) => {
         );
       }
     } catch (error) {
-      debugSetup("Failed to check setup status, skipping setup gate", {
+      debugSetup("Failed/timed out checking setup status, skipping setup gate", {
         error: error instanceof Error ? error.message : String(error),
       });
     }

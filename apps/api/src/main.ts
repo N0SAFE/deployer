@@ -7,6 +7,8 @@ import { isErrorResult, merge } from "openapi-merge";
 import type {Express} from 'express';
 import { buildAllowedOrigins, normalizeUrl, isLocalhostOrigin } from "./core/utils/cors.utils";
 import { logger } from "@repo/logger";
+import { APIErrorExceptionFilter } from "./core/modules/auth/filters/api-error-exception-filter";
+import { InternalErrorExceptionFilter } from "./core/middlewares/internal-error/internal-error-exception.filter";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -55,6 +57,10 @@ async function bootstrap() {
   });
 
   app.useLogger(["log", "error", "warn", "debug", "verbose"]);
+  app.useGlobalFilters(
+    app.get(APIErrorExceptionFilter),
+    app.get(InternalErrorExceptionFilter),
+  );
 
   // Serve OpenAPI JSON generated from the oRPC app contract
   const http = app.getHttpAdapter().getInstance() as Express

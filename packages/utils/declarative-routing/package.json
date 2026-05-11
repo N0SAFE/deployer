@@ -24,7 +24,7 @@
     "format": "bun run prettify",
     "format:check": "prettier . --check --no-error-on-unmatched-pattern",
     "lint": "eslint . --fix",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsgo --noEmit"
   },
   "dependencies": {
     "nuqs": "catalog:web",
@@ -47,6 +47,7 @@
     }
   },
   "devDependencies": {
+    "@types/node": "catalog:build",
     "@repo/auth": "*",
     "@repo/config-eslint": "*",
     "@repo/config-prettier": "*",
@@ -54,7 +55,7 @@
     "@types/nprogress": "^0.2.3",
     "@types/react": "catalog:react",
     "eslint": "catalog:linting",
-    "typescript": "catalog:build",
+    "@typescript/native-preview": "catalog:build",
     "server-only": "^0.0.1"
   }
 }

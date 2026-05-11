@@ -108,6 +108,10 @@ export class UserRepository {
             .filter({
                 id: (entry) => entry.common.eq(user.id),
                 name: (entry) => {
+                    if (this.shouldSkipStringPatternFilter(entry.operator, entry.value)) {
+                        return undefined;
+                    }
+
                     switch (entry.operator) {
                         case "eq":    return entry.common.eq(user.name);
                         case "like":  return entry.common.like(user.name);
@@ -115,6 +119,10 @@ export class UserRepository {
                     }
                 },
                 email: (entry) => {
+                    if (this.shouldSkipStringPatternFilter(entry.operator, entry.value)) {
+                        return undefined;
+                    }
+
                     switch (entry.operator) {
                         case "eq":    return entry.common.eq(user.email);
                         case "like":  return entry.common.like(user.email);
@@ -186,6 +194,14 @@ export class UserRepository {
         const existingUser = await this.databaseService.db.select({ id: user.id }).from(user).where(eq(user.email, email)).limit(1);
 
         return existingUser.length > 0;
+    }
+
+    private shouldSkipStringPatternFilter(operator: string, value: unknown): boolean {
+        if (operator !== "like" && operator !== "ilike") {
+            return false;
+        }
+
+        return typeof value !== "string" || value.trim().length === 0;
     }
 
     /**

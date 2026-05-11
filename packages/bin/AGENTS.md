@@ -53,7 +53,7 @@ After scaffolding, update the generated files:
     "build": "nest build",
     "start": "node dist/main.js",
     "dev": "nest start --watch",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsgo --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -71,7 +71,7 @@ After scaffolding, update the generated files:
     "@repo/config-typescript": "*",
     "@repo/config-vitest": "*",
     "@types/node": "catalog:build",
-    "typescript": "catalog:build",
+    "@typescript/native-preview": "catalog:build",
     "vitest": "catalog:testing"
   }
 }

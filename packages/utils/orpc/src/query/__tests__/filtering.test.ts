@@ -280,16 +280,20 @@ describe('Filtering', () => {
   describe('createDateFilterSchema', () => {
     it('should create date filter schema for a named field', () => {
       const schema = createDateFilterSchema('createdAt');
+
+      const createdAt = new Date('2024-01-01T00:00:00.000Z')
+      const createdAtGt = new Date('2024-01-01T00:00:00.000Z')
+      const createdAtLte = new Date('2024-12-31T00:00:00.000Z')
       
       const result = schema.parse({
-        createdAt: '2024-01-01T00:00:00Z',
-        createdAt_gt: '2024-01-01T00:00:00Z',
-        createdAt_lte: '2024-12-31T23:59:59Z',
+        createdAt,
+        createdAt_gt: createdAtGt,
+        createdAt_lte: createdAtLte,
       });
       
-      expect(result.createdAt).toBe('2024-01-01T00:00:00Z');
-      expect(result.createdAt_gt).toBe('2024-01-01T00:00:00Z');
-      expect(result.createdAt_lte).toBe('2024-12-31T23:59:59Z');
+      expect(result.createdAt).toBe(createdAt);
+      expect(result.createdAt_gt).toBe(createdAtGt);
+      expect(result.createdAt_lte).toBe(createdAtLte);
     });
   });
 
@@ -413,27 +417,34 @@ describe('Filtering', () => {
     it('should create date filter with comparison operators', () => {
       const filter = createDateFilter(['eq', 'gt', 'gte', 'lt', 'lte']);
       const schema = z.object(filter);
+
+      const value = new Date('2024-01-01T00:00:00.000Z')
+      const valueGt = new Date('2024-01-01T00:00:00.000Z')
+      const valueLte = new Date('2024-12-31T00:00:00.000Z')
       
       const result = schema.parse({
-        value: '2024-01-01T00:00:00Z',
-        value_gt: '2024-01-01T00:00:00Z',
-        value_lte: '2024-12-31T23:59:59Z',
+        value,
+        value_gt: valueGt,
+        value_lte: valueLte,
       });
       
-      expect(result.value).toBe('2024-01-01T00:00:00Z');
-      expect(result.value_gt).toBe('2024-01-01T00:00:00Z');
-      expect(result.value_lte).toBe('2024-12-31T23:59:59Z');
+      expect(result.value).toBe(value);
+      expect(result.value_gt).toBe(valueGt);
+      expect(result.value_lte).toBe(valueLte);
     });
 
     it('should support between operator for dates', () => {
       const filter = createDateFilter(['between']);
       const schema = z.object(filter);
+
+      const start = new Date('2024-01-01T00:00:00.000Z')
+      const end = new Date('2024-12-31T00:00:00.000Z')
       
       const result = schema.parse({
-        value_between: ['2024-01-01T00:00:00Z', '2024-12-31T23:59:59Z'],
+        value_between: [start, end],
       });
       
-      expect(result.value_between).toEqual(['2024-01-01T00:00:00Z', '2024-12-31T23:59:59Z']);
+      expect(result.value_between).toEqual([start, end]);
     });
 
     it('should reject invalid date strings', () => {

@@ -1,7 +1,7 @@
 #!/usr/bin/env -S bun
 
 import { existsSync } from 'fs'
-import { execSync, spawn } from 'child_process'
+import { execSync, spawn, spawnSync } from 'child_process'
 import { validateApiEnv, apiEnvIsValid, validateApiEnvSafe } from '@repo/env'
 import zod from 'zod/v4'
 
@@ -58,7 +58,10 @@ function registerMeshNode(config: EntrypointConfig): void {
 
   try {
     console.log('🌐 Registering mesh node in global DB...')
-    execSync(`bun --bun ${config.registerMeshNodeCommand} register-mesh-node`, { stdio: 'inherit' })
+    spawnSync('bun', ['--bun', config.registerMeshNodeCommand, 'register-mesh-node'], {
+      stdio: 'inherit',
+      shell: true,
+    })
   } catch (error) {
     console.error('⚠️  Mesh node registration failed (continuing):', error)
   }

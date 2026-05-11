@@ -4,9 +4,15 @@
  * Uses Standard Schema instead of Zod
  */
 
-import type { AnySchema } from "../../shared/types";
+import type { AnySchema, UnionTuple } from "../../shared/types";
 import type { ObjectSchema, VoidSchema, SchemaShape, OptionalSchema, ShouldBeOptional } from "../../shared/standard-schema-helpers";
-import { emptyObjectSchema as createEmptyObjectSchema, voidSchema as createVoidSchema, optionalSchema, objectSchema } from "../../shared/standard-schema-helpers";
+import {
+    emptyObjectSchema as createEmptyObjectSchema,
+    voidSchema as createVoidSchema,
+    optionalSchema,
+    objectSchema,
+    unionSchema,
+} from "../../shared/standard-schema-helpers";
 import { AsyncIteratorClass, eventIterator } from "@orpc/contract";
 import type { Schema } from "@orpc/contract";
 import { observable, type Observable } from "../../utils/observable/contract";
@@ -551,6 +557,75 @@ export class DetailedInputBuilder<
 
         const schema = (target as { extend: (shape: Record<string, unknown>) => AnySchema }).extend(shape);
         return new DetailedInputBuilder(this.$params, this.$query, schema, this.$headers, this.$entitySchema, this._pendingPath);
+    }
+
+    /**
+     * Build an input union from raw schemas and/or input builders.
+     *
+     * Mirrors output-side `.union([...])` ergonomics:
+     * - accepts both plain schemas and builder instances
+     * - supports edge case with a single variant
+     * - preserves a shared pending path when all builder variants use the same path template
+     */
+    union<
+        TItems extends readonly [
+            AnySchema | DetailedInputBuilder<AnySchema, AnySchema, AnySchema, AnySchema, TEntitySchema>,
+            ...(AnySchema | DetailedInputBuilder<AnySchema, AnySchema, AnySchema, AnySchema, TEntitySchema>)[],
+        ],
+    >(
+        items: TItems,
+    ): DetailedInputBuilder<AnySchema, AnySchema, AnySchema, AnySchema, TEntitySchema>;
+    union(
+        items: readonly [
+            AnySchema | DetailedInputBuilder<AnySchema, AnySchema, AnySchema, AnySchema, TEntitySchema>,
+            ...(AnySchema | DetailedInputBuilder<AnySchema, AnySchema, AnySchema, AnySchema, TEntitySchema>)[],
+        ],
+    ): DetailedInputBuilder<AnySchema, AnySchema, AnySchema, AnySchema, TEntitySchema> {
+        const schemas = items.map((item) => {
+            const maybeBuilder = item as { schema?: AnySchema };
+            if (typeof item === "object" && item !== null && "schema" in maybeBuilder) {
+                return maybeBuilder.schema as AnySchema;
+            }
+
+            return item;
+        }) as AnySchema[];
+
+        const variantPaths = items
+            .map((item) => {
+                if (typeof item === "object" && item !== null && "_pendingPath" in item) {
+                    return (item as { _pendingPath?: string })._pendingPath;
+                }
+
+                return undefined;
+            })
+            .filter((path): path is string => typeof path === "string" && path.length > 0);
+
+        const resolvedPendingPath =
+            variantPaths.length > 0 && variantPaths.every((path) => path === variantPaths[0])
+                ? variantPaths[0]
+                : this._pendingPath;
+
+        if (schemas.length < 2) {
+            const single = schemas[0] ?? createVoidSchema();
+            return new DetailedInputBuilder(
+                createEmptyObjectSchema(),
+                createEmptyObjectSchema(),
+                single,
+                createEmptyObjectSchema(),
+                this.$entitySchema,
+                resolvedPendingPath,
+            );
+        }
+
+        const unified = unionSchema(schemas as unknown as UnionTuple);
+        return new DetailedInputBuilder(
+            createEmptyObjectSchema(),
+            createEmptyObjectSchema(),
+            unified,
+            createEmptyObjectSchema(),
+            this.$entitySchema,
+            resolvedPendingPath,
+        );
     }
 
     private _resolveObjectSchemaTarget(): AnySchema {

@@ -1,4 +1,4 @@
-import { route } from "@repo/orpc-utils/builder";
+import { standard } from "@repo/orpc-utils";
 import {
     templateVersionMigrationApplyInputSchema,
     templateVersionMigrationApplyResultSchema,
@@ -8,29 +8,36 @@ import {
     templateVersionMigrationPreviewResultSchema,
 } from "@repo/contracts-entities";
 
-export const templateListVersionMigrationsContract = route({
-    method: "GET",
-    path: "/version-migrations",
-    summary: "List available template version transforms",
-})
-    .input(templateVersionMigrationListInputSchema)
+const templateVersionMigrationListOps = standard.zod(
+    templateVersionMigrationListResultSchema,
+    "templateVersionMigrationList",
+);
+const templateVersionMigrationPreviewOps = standard.zod(
+    templateVersionMigrationPreviewResultSchema,
+    "templateVersionMigrationPreview",
+);
+const templateVersionMigrationApplyOps = standard.zod(
+    templateVersionMigrationApplyResultSchema,
+    "templateVersionMigrationApply",
+);
+
+export const templateListVersionMigrationsContract = templateVersionMigrationListOps
+    .list()
+    .path("/version-migrations")
+    .input((b) => b.query(templateVersionMigrationListInputSchema))
     .output(templateVersionMigrationListResultSchema)
     .build();
 
-export const templatePreviewVersionMigrationContract = route({
-    method: "POST",
-    path: "/version-migrations/preview",
-    summary: "Preview a template version migration with safety checks",
-})
+export const templatePreviewVersionMigrationContract = templateVersionMigrationPreviewOps
+    .create()
+    .path("/version-migrations/preview")
     .input((b) => b.body(templateVersionMigrationPreviewInputSchema))
     .output(templateVersionMigrationPreviewResultSchema)
     .build();
 
-export const templateApplyVersionMigrationContract = route({
-    method: "POST",
-    path: "/version-migrations/apply",
-    summary: "Apply a template version migration (or execute dry-run)",
-})
+export const templateApplyVersionMigrationContract = templateVersionMigrationApplyOps
+    .create()
+    .path("/version-migrations/apply")
     .input((b) => b.body(templateVersionMigrationApplyInputSchema))
     .output(templateVersionMigrationApplyResultSchema)
     .build();

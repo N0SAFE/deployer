@@ -8,7 +8,7 @@
 
 ## How to use this file
 
-- Each statement ID (`S001` ... `S177`) maps directly to one statement in `PLATFORM_SOURCE_OF_TRUTH.md`.
+- Each statement ID (`S001` ... `S191`) maps directly to one statement in `PLATFORM_SOURCE_OF_TRUTH.md`.
 - For each statement:
   - complete implementation tasks,
   - validate with tests/checks,
@@ -23,7 +23,7 @@ These tracks split delivery into backend and frontend lanes so API and Web can p
 
 ### API track (contracts, services, controllers, orchestration)
 
-- [ ] Finalize canonical API domain boundaries and module ownership map for statements `S007...S177`.
+- [ ] Finalize canonical API domain boundaries and module ownership map for statements `S007...S191`.
 - [ ] Lock contract-first sequence for each domain: `contracts -> api module -> tests -> web hooks`.
 - [ ] Implement and/or harden project/service/environment invariants (`S007...S022`, `S161...S177`) in contracts + scenario validators.
 - [ ] Implement tenancy + RBAC backend enforcement (`S023...S029`, `S129...S133`) at API boundaries.
@@ -71,7 +71,7 @@ These tracks split delivery into backend and frontend lanes so API and Web can p
 
 - [ ] For each completed API cluster, wire matching Web hooks/domain adapters before marking statement group done.
 - [ ] Keep contract changes and UI form/schema changes in the same PR when affecting shared statement scope.
-- [ ] Update statement-level checklists (`S001...S177`) as soon as API/Web subtasks are completed.
+- [ ] Update statement-level checklists (`S001...S191`) as soon as API/Web subtasks are completed.
 - [ ] Block feature closure if either API or Web lane is missing required acceptance evidence.
 
 ---
@@ -1002,3 +1002,33 @@ These tracks split delivery into backend and frontend lanes so API and Web can p
 - [ ] Implement periodic mesh re-evaluation with hysteresis and change-triggered rebalance.
 - [ ] Add protection against peer flapping (max replacements per cycle, improvement threshold).
 - [ ] Add tests for rebalance stability under fluctuating latency/load conditions.
+
+### S186
+- [ ] Define and publish the Docker standalone-first boundary in canonical docs and execution checklists.
+- [ ] Ensure Docker domain contracts/controllers can serve operator workflows without deployment/project/service joins.
+- [ ] Add validation scenarios proving core Docker pages still operate when linked enrichment paths are unavailable.
+
+### S187
+- [ ] Refactor Phase-1 Docker web/API flows so runtime + mesh data is the primary source for core actions.
+- [ ] Remove hard requirements on linked deployment/service/project includes from core Docker operator pages.
+- [ ] Add tests that core Docker operations remain functional with linkage disabled.
+
+### S188
+- [ ] Keep linked Docker projections behind explicit linked endpoints/adapters (no implicit coupling in core handlers).
+- [ ] Document linked projection contracts as additive enrichment surfaces.
+- [ ] Add tests for linked endpoint behavior and explicit fallback to standalone runtime views.
+
+### S189
+- [ ] Enforce graceful degradation rules for Phase-2 linkage paths (timeouts/errors do not fail core operator actions).
+- [ ] Add observability metadata indicating when linked enrichment is unavailable or skipped.
+- [ ] Add regression tests for linkage failure paths during container/image/network/volume/stack operator actions.
+
+### S190
+- [ ] Maintain a parity matrix tracking external benchmark capability signals vs v3 contract/API/web implementation status.
+- [ ] Require contract-first implementation and boundary review before closing parity-driven tasks.
+- [ ] Add docs review checks so benchmark-inspired additions do not violate v3 architecture constraints.
+
+### S191
+- [ ] Define canonical SSE stream contract requirements for Docker realtime surfaces (ordering, resume cursor, heartbeat, reconnect, typed errors).
+- [ ] Implement stream transport + consumer behavior to guarantee reconnect-safe delivery without UI side-effect duplication.
+- [ ] Add stream observability and reliability tests (lag/drop/reconnect/replay fidelity) with documented SLO thresholds.

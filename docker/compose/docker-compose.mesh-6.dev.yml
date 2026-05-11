@@ -168,11 +168,14 @@ services:
       - bun_cache_mesh_dev:/root/.bun/install/cache
       - turbo_cache_mesh_dev:/root/.cache/turbo
       - api_uploads_mesh_dev_1:/app/apps/api/uploads
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://postgres:postgres@api-db-mesh-dev:5432/${DB_DATABASE:-nestjs_api}
       - API_PORT=3301
       - LOG_LEVEL=debug
+      - APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER:-}
+      - DOCKER_HOST=unix:///var/run/docker.sock
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - APP_URL=http://web-mesh-dev:3000
       - API_URL=http://api-mesh-dev-1:3301
@@ -231,11 +234,14 @@ services:
       - bun_cache_mesh_dev:/root/.bun/install/cache
       - turbo_cache_mesh_dev:/root/.cache/turbo
       - api_uploads_mesh_dev_2:/app/apps/api/uploads
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://postgres:postgres@api-db-mesh-dev:5432/${DB_DATABASE:-nestjs_api}
       - API_PORT=3302
       - LOG_LEVEL=debug
+      - APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER:-}
+      - DOCKER_HOST=unix:///var/run/docker.sock
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - APP_URL=http://web-mesh-dev:3000
       - API_URL=http://api-mesh-dev-2:3302
@@ -294,11 +300,14 @@ services:
       - bun_cache_mesh_dev:/root/.bun/install/cache
       - turbo_cache_mesh_dev:/root/.cache/turbo
       - api_uploads_mesh_dev_3:/app/apps/api/uploads
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://postgres:postgres@api-db-mesh-dev:5432/${DB_DATABASE:-nestjs_api}
       - API_PORT=3303
       - LOG_LEVEL=debug
+      - APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER:-}
+      - DOCKER_HOST=unix:///var/run/docker.sock
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - APP_URL=http://web-mesh-dev:3000
       - API_URL=http://api-mesh-dev-3:3303
@@ -357,11 +366,14 @@ services:
       - bun_cache_mesh_dev:/root/.bun/install/cache
       - turbo_cache_mesh_dev:/root/.cache/turbo
       - api_uploads_mesh_dev_4:/app/apps/api/uploads
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://postgres:postgres@api-db-mesh-dev:5432/${DB_DATABASE:-nestjs_api}
       - API_PORT=3304
       - LOG_LEVEL=debug
+      - APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER:-}
+      - DOCKER_HOST=unix:///var/run/docker.sock
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - APP_URL=http://web-mesh-dev:3000
       - API_URL=http://api-mesh-dev-4:3304
@@ -420,11 +432,14 @@ services:
       - bun_cache_mesh_dev:/root/.bun/install/cache
       - turbo_cache_mesh_dev:/root/.cache/turbo
       - api_uploads_mesh_dev_5:/app/apps/api/uploads
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://postgres:postgres@api-db-mesh-dev:5432/${DB_DATABASE:-nestjs_api}
       - API_PORT=3305
       - LOG_LEVEL=debug
+      - APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER:-}
+      - DOCKER_HOST=unix:///var/run/docker.sock
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - APP_URL=http://web-mesh-dev:3000
       - API_URL=http://api-mesh-dev-5:3305
@@ -483,11 +498,14 @@ services:
       - bun_cache_mesh_dev:/root/.bun/install/cache
       - turbo_cache_mesh_dev:/root/.cache/turbo
       - api_uploads_mesh_dev_6:/app/apps/api/uploads
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://postgres:postgres@api-db-mesh-dev:5432/${DB_DATABASE:-nestjs_api}
       - API_PORT=3306
       - LOG_LEVEL=debug
+      - APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER:-}
+      - DOCKER_HOST=unix:///var/run/docker.sock
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - APP_URL=http://web-mesh-dev:3000
       - API_URL=http://api-mesh-dev-6:3306

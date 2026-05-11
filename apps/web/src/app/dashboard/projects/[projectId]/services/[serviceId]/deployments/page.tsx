@@ -14,7 +14,7 @@ import {
   useDockerContainerList,
   useDockerDeploymentList,
   useDockerFleetServers,
-} from '@/domains/docker/mock-hooks'
+} from '@/domains/docker/hooks'
 import {
   AuthDashboardProjectsProjectIdServicesServiceId,
   AuthDashboardProjectsProjectIdServicesServiceIdLogs,
@@ -34,7 +34,6 @@ import type {
   DockerContainer,
   DockerContainerLogEntry,
   DockerContainerMetricPoint,
-  DockerDeploymentSnapshot,
   DockerFleetServer,
 } from '@repo/contracts-entities'
 
@@ -80,8 +79,22 @@ interface DeploymentMetricProjection {
   networkTxKb: number | null
 }
 
+interface DeploymentLite {
+  id: string
+  serviceId: string
+  triggeredBy: string | null
+  status: 'success' | 'failed' | 'pending' | 'queued' | 'building' | 'deploying' | 'cancelled'
+  environment: 'production' | 'preview' | 'development' | 'staging'
+  sourceType: string
+  containerName: string | null
+  containerImage: string | null
+  healthCheckUrl: string | null
+  domainUrl: string | null
+  updatedAt: string
+}
+
 interface DeploymentRowProjection {
-  deployment: DockerDeploymentSnapshot
+  deployment: DeploymentLite
   replicas: DockerContainer[]
   metrics: DeploymentMetricProjection
 }
@@ -142,7 +155,7 @@ function parseDateBoundary(value: string, boundary: 'start' | 'end'): number | n
 }
 
 function selectReplicasForDeployment(
-  deployment: DockerDeploymentSnapshot,
+  deployment: DeploymentLite,
   serviceContainers: DockerContainer[],
 ): DockerContainer[] {
   const sameEnvironment = serviceContainers.filter((container) => container.environment === deployment.environment)
@@ -308,9 +321,9 @@ export default function DashboardServiceDeploymentsPage() {
   const serviceId = params.serviceId
 
   const [searchTerm, setSearchTerm] = useState('')
-  const [environmentFilter, setEnvironmentFilter] = useState<'all' | DockerDeploymentSnapshot['environment']>('all')
-  const [statusFilter, setStatusFilter] = useState<'all' | DockerDeploymentSnapshot['status']>('all')
-  const [sourceFilter, setSourceFilter] = useState<'all' | DockerDeploymentSnapshot['sourceType']>('all')
+  const [environmentFilter, setEnvironmentFilter] = useState<'all' | DeploymentLite['environment']>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | DeploymentLite['status']>('all')
+  const [sourceFilter, setSourceFilter] = useState<'all' | DeploymentLite['sourceType']>('all')
   const [dateRange, setDateRange] = useState<DateRangePreset>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -330,15 +343,15 @@ export default function DashboardServiceDeploymentsPage() {
   const { data: containerData } = useDockerContainerList(LIST_INPUT)
   const { data: fleetData } = useDockerFleetServers()
 
-  const allDeployments = useMemo(() => deploymentData?.data ?? [], [deploymentData?.data])
+  const allDeployments = useMemo(() => (deploymentData?.data ?? []) as DeploymentLite[], [deploymentData?.data])
   const allContainers = useMemo(() => containerData?.data ?? [], [containerData?.data])
   const fleetServers = useMemo(() => fleetData?.items ?? [], [fleetData?.items])
 
   const serviceDeployments = useMemo(() => {
     return allDeployments
-      .filter((deployment) => deployment.projectId === projectId && deployment.serviceId === serviceId)
+      .filter((deployment) => deployment.serviceId === serviceId)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-  }, [allDeployments, projectId, serviceId])
+  }, [allDeployments, serviceId])
 
   const serviceContainers = useMemo(() => {
     return allContainers
@@ -564,7 +577,7 @@ export default function DashboardServiceDeploymentsPage() {
             className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
             value={environmentFilter}
             onChange={(event) => {
-              setEnvironmentFilter(event.target.value as 'all' | DockerDeploymentSnapshot['environment'])
+              setEnvironmentFilter(event.target.value as 'all' | DeploymentLite['environment'])
             }}
           >
             <option value="all">All envs</option>
@@ -577,7 +590,7 @@ export default function DashboardServiceDeploymentsPage() {
             className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
             value={statusFilter}
             onChange={(event) => {
-              setStatusFilter(event.target.value as 'all' | DockerDeploymentSnapshot['status'])
+              setStatusFilter(event.target.value as 'all' | DeploymentLite['status'])
             }}
           >
             <option value="all">All status</option>
@@ -590,7 +603,7 @@ export default function DashboardServiceDeploymentsPage() {
             className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
             value={sourceFilter}
             onChange={(event) => {
-              setSourceFilter(event.target.value as 'all' | DockerDeploymentSnapshot['sourceType'])
+              setSourceFilter(event.target.value as 'all' | DeploymentLite['sourceType'])
             }}
           >
             <option value="all">All sources</option>

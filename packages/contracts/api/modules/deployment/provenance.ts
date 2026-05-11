@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { route } from "@repo/orpc-utils/builder";
+import { standard } from "@repo/orpc-utils";
 import {
     deploymentTemplateProvenanceByRunResultSchema,
     deploymentTemplateProvenanceSchema,
@@ -7,20 +7,27 @@ import {
     deploymentTemplateProvenanceUpsertResultSchema,
 } from "@repo/contracts-entities";
 
-export const deploymentGetTemplateProvenanceContract = route({
-    method: "GET",
-    path: "/{id}/template-provenance",
-    summary: "Get persisted template provenance for a deployment",
-})
+const deploymentTemplateProvenanceOps = standard.zod(
+    deploymentTemplateProvenanceSchema,
+    "deploymentTemplateProvenance",
+);
+const deploymentTemplateProvenanceUpsertOps = standard.zod(
+    deploymentTemplateProvenanceUpsertResultSchema,
+    "deploymentTemplateProvenanceUpsert",
+);
+const deploymentTemplateProvenanceByRunOps = standard.zod(
+    deploymentTemplateProvenanceByRunResultSchema,
+    "deploymentTemplateProvenanceByRun",
+);
+
+export const deploymentGetTemplateProvenanceContract = deploymentTemplateProvenanceOps
+    .read({ idFieldName: "id", idSchema: z.uuid() })
     .input((b) => b.params((p) => p`/${p("id", z.uuid())}/template-provenance`))
     .output(deploymentTemplateProvenanceSchema.nullable())
     .build();
 
-export const deploymentUpsertTemplateProvenanceContract = route({
-    method: "PUT",
-    path: "/{id}/template-provenance",
-    summary: "Persist or update template provenance for a deployment run",
-})
+export const deploymentUpsertTemplateProvenanceContract = deploymentTemplateProvenanceUpsertOps
+    .update({ idFieldName: "id", idSchema: z.uuid() })
     .input((b) =>
         b
             .params((p) => p`/${p("id", z.uuid())}/template-provenance`)
@@ -29,11 +36,8 @@ export const deploymentUpsertTemplateProvenanceContract = route({
     .output(deploymentTemplateProvenanceUpsertResultSchema)
     .build();
 
-export const deploymentGetTemplateProvenanceByRunContract = route({
-    method: "GET",
-    path: "/runs/{runId}/template-provenance",
-    summary: "List template provenance records for a deployment run id",
-})
+export const deploymentGetTemplateProvenanceByRunContract = deploymentTemplateProvenanceByRunOps
+    .list()
     .input((b) => b.params((p) => p`/runs/${p("runId", z.uuid())}/template-provenance`))
     .output(deploymentTemplateProvenanceByRunResultSchema)
     .build();

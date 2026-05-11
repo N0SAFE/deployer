@@ -26,7 +26,6 @@ export const clusterNodes = pgTable(
     "cluster_nodes",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        clusterId: uuid("cluster_id").notNull(),
         nodeId: uuid("node_id").notNull(),
         serverUrl: text("server_url").notNull(),
         displayName: text("display_name"),
@@ -55,7 +54,7 @@ export const clusterNodes = pgTable(
     },
     (table) => [
         unique("cluster_nodes_node_id_unique").on(table.nodeId),
-        index("cluster_nodes_cluster_status_idx").on(table.clusterId, table.status),
+        index("cluster_nodes_cluster_status_idx").on(table.status),
     ],
 );
 
@@ -63,7 +62,6 @@ export const clusterJoinGrants = pgTable(
     "cluster_join_grants",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        clusterId: uuid("cluster_id").notNull(),
         organizationId: text("organization_id").references(() => organization.id, { onDelete: "set null" }),
         grantTokenHash: text("grant_token_hash").notNull(),
         status: clusterJoinGrantStatusEnum("status").default("issued").notNull(),
@@ -82,7 +80,7 @@ export const clusterJoinGrants = pgTable(
     },
     (table) => [
         uniqueIndex("cluster_join_grants_token_hash_uidx").on(table.grantTokenHash),
-        index("cluster_join_grants_cluster_status_idx").on(table.clusterId, table.status),
+        index("cluster_join_grants_cluster_status_idx").on(table.status),
         index("cluster_join_grants_expires_at_idx").on(table.expiresAt),
     ],
 );
@@ -91,7 +89,6 @@ export const clusterSigningKeys = pgTable(
     "cluster_signing_keys",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        clusterId: uuid("cluster_id").notNull(),
         kid: text("kid").notNull(),
         algorithm: text("algorithm").default("HS256").notNull(),
         status: clusterSigningKeyStatusEnum("status").default("active").notNull(),
@@ -112,7 +109,7 @@ export const clusterSigningKeys = pgTable(
     },
     (table) => [
         uniqueIndex("cluster_signing_keys_kid_uidx").on(table.kid),
-        index("cluster_signing_keys_cluster_status_idx").on(table.clusterId, table.status),
+        index("cluster_signing_keys_cluster_status_idx").on(table.status),
     ],
 );
 
@@ -120,7 +117,6 @@ export const clusterNodeMetrics = pgTable(
     "cluster_node_metrics",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        clusterId: uuid("cluster_id").notNull(),
         nodeId: uuid("node_id")
             .notNull()
             .references(() => clusterNodes.nodeId, { onDelete: "cascade" }),
@@ -142,7 +138,7 @@ export const clusterNodeMetrics = pgTable(
             .notNull(),
     },
     (table) => [
-        index("cluster_node_metrics_cluster_node_reported_idx").on(table.clusterId, table.nodeId, table.reportedAt),
+        index("cluster_node_metrics_cluster_node_reported_idx").on(table.nodeId, table.reportedAt),
         index("cluster_node_metrics_org_reported_idx").on(table.organizationId, table.reportedAt),
     ],
 );
@@ -151,7 +147,6 @@ export const resourceOwnershipIndex = pgTable(
     "resource_ownership_index",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        clusterId: uuid("cluster_id").notNull(),
         organizationId: text("organization_id").references(() => organization.id, { onDelete: "set null" }),
         resourceKind: text("resource_kind").notNull(),
         resourceKey: text("resource_key").notNull(),
@@ -177,14 +172,12 @@ export const resourceOwnershipIndex = pgTable(
     },
     (table) => [
         uniqueIndex("resource_ownership_index_unique_owner_uidx").on(
-            table.clusterId,
             table.organizationId,
             table.resourceKind,
             table.resourceKey,
             table.ownerNodeId,
         ),
         index("resource_ownership_index_lookup_idx").on(
-            table.clusterId,
             table.organizationId,
             table.resourceKind,
             table.resourceKey,
@@ -198,7 +191,6 @@ export const clusterOrgServerAllocations = pgTable(
     "cluster_org_server_allocations",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        clusterId: uuid("cluster_id").notNull(),
         organizationId: text("organization_id")
             .notNull()
             .references(() => organization.id, { onDelete: "cascade" }),
@@ -220,7 +212,6 @@ export const clusterOrgServerAllocations = pgTable(
     },
     (table) => [
         uniqueIndex("cluster_org_server_allocations_unique_uidx").on(
-            table.clusterId,
             table.organizationId,
             table.serverNodeId,
         ),
@@ -233,7 +224,6 @@ export const clusterOrgAdmissionRequests = pgTable(
     "cluster_org_admission_requests",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        clusterId: uuid("cluster_id").notNull(),
         organizationId: text("organization_id")
             .notNull()
             .references(() => organization.id, { onDelete: "cascade" }),
@@ -262,7 +252,7 @@ export const clusterOrgAdmissionRequests = pgTable(
     (table) => [
         index("cluster_org_admission_requests_org_status_idx").on(table.organizationId, table.status, table.updatedAt),
         index("cluster_org_admission_requests_status_idx").on(table.status, table.updatedAt),
-        index("cluster_org_admission_requests_cluster_idx").on(table.clusterId, table.updatedAt),
+        index("cluster_org_admission_requests_cluster_idx").on(table.updatedAt),
     ],
 );
 

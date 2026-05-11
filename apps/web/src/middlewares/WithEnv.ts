@@ -5,10 +5,10 @@ import { nextjsRegexpPageOnly, nextNoApi, noPublic } from './utils/static'
 import { matcherHandler } from './utils/utils'
 import { toAbsoluteUrl } from '@/lib/utils'
 import { InternalMiddlewareErrorEnv } from '@/routes'
-import { createDebug } from '@/lib/debug'
+import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 
-const debugEnv = createDebug('middleware/env')
-const debugEnvError = createDebug('middleware/env/error')
+const debugEnv = createContextFilterDebugLogger('WithEnv', 'middleware:[WithEnv]')
+const debugEnvError = createContextFilterDebugLogger('WithEnv', 'middleware:[WithEnv]:error')
 
 const errorPageRenderingPath = '/middleware/error/env'
 
@@ -68,7 +68,14 @@ const withEnv: MiddlewareFactory = (next: NextProxy) => {
         ])
         if (matcher.hit) {
             debugEnv('Matcher hit, returning matched response')
-            return matcher.data
+            if (matcher.data) {
+                return matcher.data
+            }
+
+            // Guard against matcher callbacks that intentionally do nothing.
+            // Returning undefined from middleware can leave navigation pending.
+            debugEnv('Matcher hit without response, falling through to next middleware')
+            return next(request, _next)
         }
         return next(request, _next)
     }

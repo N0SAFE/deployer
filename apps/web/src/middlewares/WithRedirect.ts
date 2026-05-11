@@ -2,9 +2,9 @@ import { NextFetchEvent, NextProxy, NextRequest, NextResponse } from 'next/serve
 import { Matcher, MiddlewareFactory } from './utils/types'
 import { nextNoApi, nextjsRegexpPageOnly } from './utils/static'
 import { matcherHandler } from './utils/utils'
-import { createDebug } from '@/lib/debug'
+import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 
-const debugRedirect = createDebug('middleware/redirect')
+const debugRedirect = createContextFilterDebugLogger('WithRedirect', 'middleware:[WithRedirect]')
 
 const withRedirect: MiddlewareFactory = (next: NextProxy) => {
     return async (request: NextRequest, _next: NextFetchEvent) => {

@@ -5,7 +5,6 @@
     "lib": ["ES2022"],
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "baseUrl": "./",
     "rootDir": "./",
     "module": "ES2022",
     "moduleResolution": "bundler",

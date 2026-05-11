@@ -14,6 +14,7 @@ services:
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3005}
         - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
         - NEXT_PUBLIC_APP_PORT=${NEXT_PUBLIC_APP_PORT:-3000}
+        - NEXT_PUBLIC_APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER}
     restart: always
     ports:
       - "${NEXT_PUBLIC_APP_PORT:-3000}:${NEXT_PUBLIC_APP_PORT:-3000}"
@@ -126,6 +127,7 @@ services:
       
       # Debug Configuration
       - NEXT_PUBLIC_DEBUG=${NEXT_PUBLIC_DEBUG}
+      - NEXT_PUBLIC_APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER}
       
       # Development Tools - Hot Reloading
       # Keep polling disabled by default (compose sync + native fs events);

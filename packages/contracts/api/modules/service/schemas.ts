@@ -35,8 +35,8 @@ export const serviceSchema = z.object({
     customDomains: z.array(z.string()).nullable(),
     isActive: z.boolean(),
     metadata: z.record(z.string(), z.unknown()).nullable(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
 });
 
 export type Service = z.infer<typeof serviceSchema>;

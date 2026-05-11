@@ -34,6 +34,11 @@
  */
 
 import type pino from 'pino'
+import {
+  ContextFilterLogger,
+  type ContextFilterLoggerOptions,
+  type ContextFilterLoggerSource,
+} from './context-filter-logger'
 
 type LoggerBackend = {
   trace: (objOrMsg: unknown, msg?: string) => void
@@ -96,7 +101,9 @@ function createConsoleBackend(scope?: string, base: LogData = {}): LoggerBackend
       } else if (level === 'info') {
         console.info(finalMessage, merged)
       } else {
-        console.debug(finalMessage, merged)
+        // Use console.log for trace/debug in browser fallback so messages remain visible
+        // without requiring "Verbose" level in DevTools.
+        console.log(finalMessage, merged)
       }
       return
     }
@@ -108,7 +115,9 @@ function createConsoleBackend(scope?: string, base: LogData = {}): LoggerBackend
     } else if (level === 'info') {
       console.info(finalMessage)
     } else {
-      console.debug(finalMessage)
+      // Use console.log for trace/debug in browser fallback so messages remain visible
+      // without requiring "Verbose" level in DevTools.
+      console.log(finalMessage)
     }
   }
 
@@ -760,6 +769,52 @@ function createLogger(options: LoggerOptions = {}, pinoInstance?: LoggerBackend)
  */
 export const logger = createLogger()
 
+export type AppLoggerContextFilterOptions = Omit<
+  ContextFilterLoggerOptions,
+  'sink' | 'appSourceTag'
+> & {
+  sink?: Pick<Logger, 'debug'>
+}
+
+/**
+ * App-level logger helper that tags context-filtered debug logs with an app source
+ * (e.g. `api`, `web`) and exposes a convenience method to create filter loggers.
+ */
+export class AppLogger {
+  readonly appSourceTag: string
+  readonly log: Logger
+
+  constructor(appSourceTag: string, baseLogger?: Logger) {
+    const normalized = appSourceTag.trim()
+    this.appSourceTag = normalized.length > 0 ? normalized : 'app'
+    this.log = baseLogger ?? logger.scope(this.appSourceTag)
+  }
+
+  scope(namespace: string): AppLogger {
+    return new AppLogger(this.appSourceTag, this.log.scope(namespace))
+  }
+
+  createContextFilterLogger(options: AppLoggerContextFilterOptions): ContextFilterLogger {
+    return new ContextFilterLogger({
+      ...options,
+      appSourceTag: this.appSourceTag,
+      sink: options.sink ?? this.log,
+    })
+  }
+
+  debug(source: ContextFilterLoggerSource, context?: LogData): void {
+    this.createContextFilterLogger({
+      defaultClassName: this.appSourceTag,
+      filterEnvVar: 'APP_DEBUG_CONTEXT_FILTER',
+      channel: this.appSourceTag,
+    }).debug(source, context)
+  }
+}
+
+export function createAppLogger(appSourceTag: string): AppLogger {
+  return new AppLogger(appSourceTag)
+}
+
 /**
  * Create a custom logger instance with specific options
  *
@@ -788,3 +843,5 @@ export const logger = createLogger()
  * ```
  */
 export { createLogger }
+export { ContextFilterLogger }
+export type { ContextFilterLoggerOptions, ContextFilterLoggerSource }

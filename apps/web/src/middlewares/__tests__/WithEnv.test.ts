@@ -8,7 +8,7 @@ describe('WithEnv Middleware', () => {
     const mockValidateEnvSafe = vi.fn()
     const mockMatcherHandler = vi.fn()
     const mockToAbsoluteUrl = vi.fn((path: string) => `http://localhost:3003${path}`)
-    const mockCreateDebug = vi.fn(() => vi.fn())
+    const mockCreateContextFilterDebugLogger = vi.fn(() => vi.fn())
     
     beforeEach(() => {
         vi.clearAllMocks()
@@ -36,8 +36,8 @@ describe('WithEnv Middleware', () => {
             toAbsoluteUrl: mockToAbsoluteUrl,
         }))
 
-        vi.doMock('@/lib/debug', () => ({
-            createDebug: mockCreateDebug,
+        vi.doMock('@/lib/logging/context-filter-debug', () => ({
+            createContextFilterDebugLogger: mockCreateContextFilterDebugLogger,
         }))
 
         vi.doMock('../utils/static', () => ({

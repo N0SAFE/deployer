@@ -9,7 +9,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "type-check": "tsc --noEmit",
+    "type-check": "tsgo --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "@repo/config-typescript": "*",
-    "typescript": "catalog:build",
+    "@typescript/native-preview": "catalog:build",
     "vitest": "catalog:testing",
     "@vitest/coverage-v8": "catalog:testing"
   }

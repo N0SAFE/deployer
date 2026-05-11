@@ -27,13 +27,14 @@
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
         "clean": "rimraf dist",
-        "type-check": "tsc --noEmit"
+        "type-check": "tsgo --noEmit"
     },
     "keywords": [],
     "author": "",
     "license": "ISC",
     "description": "",
     "devDependencies": {
+        "@types/node": "catalog:build", 
         "@repo/config-vitest": "*",
         "prettier": "catalog:linting",
         "prettier-plugin-tailwindcss": "catalog:linting",

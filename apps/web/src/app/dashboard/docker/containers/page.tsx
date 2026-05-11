@@ -1,57 +1,62 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { DockerSavedViewSelect } from '../_components/docker-operations-controls'
-import { DockerActiveFilterChips, DockerColumnSettings, DockerExportActions, DockerSelectionToggle } from '../_components/docker-page-utilities'
-import { DockerContainerDetailModalTrigger } from '../_components/docker-container-detail-modal'
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { z } from 'zod'
+import { DockerBatchOperationsBar, DockerSavedViewSelect } from '../_components/docker-operations-controls'
+import { DockerInlineLoadingState } from '../_components/docker-loading-states'
+import {
+  DockerActiveFilterChips,
+  DockerExportActions,
+} from '../_components/docker-page-utilities'
+import { DockerContainerDetailModalTrigger } from '../_components/container-detail-modal'
 import { DockerCreateContainerModal } from '../_components/docker-create-container-modal'
 import { DockerImageDetailModalTrigger } from '../_components/docker-image-detail-modal'
-import { useDockerContainerList, useDockerDeploymentList, useDockerImageList } from '@/domains/docker/mock-hooks'
+import {
+  useContainerLiveUpdate,
+  useDockerContainerGroupedList,
+  useDockerImageList,
+  useDockerRunContainerAction,
+  useDockerRuntimeSseState,
+  useEventTrigger,
+} from '@/domains/docker/hooks'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@repo/ui/components/shadcn/table'
-import { Separator } from '@repo/ui/components/shadcn/separator'
-import { Plus, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-react'
-import type { DockerContainer, DockerDeploymentSnapshot } from '@repo/contracts-entities'
+import { DataTable } from '@repo/ui/components/data-table/data-table'
+import { AlertTriangle, Plus, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-react'
+import type { DockerContainer } from '@repo/contracts-entities'
 import { cn } from '@/lib/utils'
+import { useSafeQueryStatesFromZod } from '@/utils/useSafeQueryStatesFromZod'
 import { toast } from 'sonner'
+import {
+  createContainerColumns,
+  createContainerTableFetchData,
+  toContainerTableRows,
+  type ContainerProjection,
+  type ContainerInstanceProjection,
+} from './columns'
 
-const DEPLOYMENT_LIST_INPUT = {
+const DOCKER_LIST_INPUT = {
   query: {
     limit: 100,
     offset: 0,
   },
 } as const
 
-interface ContainerProjection {
-  id: string
-  name: string
-  image: string
-  imageId: string | null
-  status: DockerContainer['status']
-  health: DockerContainer['health']
-  environment: DockerContainer['environment']
-  serviceId: string
-  healthCheckUrl: string | null
-  domainUrl: string | null
-  updatedAt: string
-}
+const CONTAINER_LIST_QUERY_SCHEMA = z.object({
+  q: z.string().default(''),
+  view: z.enum(['all', 'failed', 'active', 'production']).default('all'),
+  status: z.string().default('all'),
+  environment: z.string().default('all'),
+  ownership: z.enum(['all', 'deployment_service', 'orphan']).default('all'),
+  sortBy: z.enum(['updated', 'name', 'status', 'environment']).default('updated'),
+  sortDirection: z.enum(['asc', 'desc']).default('desc'),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(10).max(100).default(20),
+})
 
 function shortId(id: string): string {
   return id.slice(0, 8)
-}
-
-function formatDate(value: string): string {
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleString()
 }
 
 function toBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
@@ -64,91 +69,204 @@ function toBadgeVariant(status: string): 'default' | 'secondary' | 'destructive'
   return 'outline'
 }
 
-function newestByServiceId(deployments: DockerDeploymentSnapshot[]): Map<string, DockerDeploymentSnapshot> {
-  const map = new Map<string, DockerDeploymentSnapshot>()
-  for (const deployment of deployments) {
-    const existing = map.get(deployment.serviceId)
-    if (!existing || new Date(deployment.updatedAt).getTime() > new Date(existing.updatedAt).getTime()) {
-      map.set(deployment.serviceId, deployment)
-    }
-  }
-  return map
+const STATUS_PRIORITY: Record<DockerContainer['status'], number> = {
+  dead: 6,
+  exited: 5,
+  restarting: 4,
+  paused: 3,
+  created: 2,
+  unknown: 1,
+  running: 0,
 }
 
-function normalizeImageRef(imageRef: string): string {
-  return imageRef.trim().split('@')[0] ?? imageRef.trim()
+const HEALTH_PRIORITY: Record<DockerContainer['health'], number> = {
+  unhealthy: 3,
+  starting: 2,
+  none: 1,
+  healthy: 0,
+}
+
+function mergeContainerStatus(current: DockerContainer['status'], incoming: DockerContainer['status']): DockerContainer['status'] {
+  return STATUS_PRIORITY[incoming] > STATUS_PRIORITY[current] ? incoming : current
+}
+
+function mergeContainerHealth(current: DockerContainer['health'], incoming: DockerContainer['health']): DockerContainer['health'] {
+  return HEALTH_PRIORITY[incoming] > HEALTH_PRIORITY[current] ? incoming : current
+}
+
+function fallbackImageRefFromId(imageId: string | null): string {
+  if (!imageId) return 'unknown-image'
+  if (imageId.startsWith('sha256:')) {
+    return `sha256:${imageId.slice(7, 19)}`
+  }
+  return imageId.slice(0, 18)
+}
+
+function deriveRuntimeUrlFromPorts(ports: DockerContainer['ports']): string | null {
+  const published = ports.find((port) => port.hostPort !== null)
+  if (!published || published.hostPort === null) {
+    return null
+  }
+
+  const protocol = published.protocol === 'udp' ? 'udp' : 'http'
+  return `${protocol}://localhost:${String(published.hostPort)}`
 }
 
 export default function DashboardDockerContainersPage() {
-  const [searchTerm, setSearchTerm] = useState('')
-  const [sortBy, setSortBy] = useState<'updated' | 'name' | 'status' | 'environment'>('updated')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
-  const [environmentFilter, setEnvironmentFilter] = useState<'all' | NonNullable<DockerContainer['environment']>>('all')
-  const [statusFilter, setStatusFilter] = useState<'all' | DockerContainer['status']>('all')
-  const [savedView, setSavedView] = useState<'all' | 'failed' | 'active' | 'production'>('all')
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [listQuery, setListQuery] = useSafeQueryStatesFromZod(CONTAINER_LIST_QUERY_SCHEMA)
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
   const [refreshTick, setRefreshTick] = useState(0)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
-    Container: true,
-    Image: true,
-    Status: true,
-    Environment: true,
-    Service: true,
-    'Health URL': true,
-    Logs: true,
-    Shell: true,
-    Updated: true,
+  const [selectedContainerRows, setSelectedContainerRows] = useState<ContainerProjection[]>([])
+  const selectedContainerRowsSignatureRef = useRef('')
+
+  const searchTerm = listQuery.q ?? ''
+  const sortBy = listQuery.sortBy ?? 'updated'
+  const sortDirection = listQuery.sortDirection ?? 'desc'
+  const environmentFilter = listQuery.environment ?? 'all'
+  const statusFilter = listQuery.status ?? 'all'
+  const ownershipFilter = listQuery.ownership ?? 'all'
+  const savedView = listQuery.view ?? 'all'
+  const containerListInput = useMemo(() => {
+    if (ownershipFilter === 'all') {
+      return DOCKER_LIST_INPUT
+    }
+
+    return {
+      query: {
+        ...DOCKER_LIST_INPUT.query,
+        filter: {
+          managedBy: {
+            operator: 'eq' as const,
+            value: ownershipFilter,
+          },
+        },
+      },
+    }
+  }, [ownershipFilter])
+
+  const containerListQuery = useDockerContainerGroupedList(containerListInput)
+  const imageListQuery = useDockerImageList(DOCKER_LIST_INPUT)
+  const runContainerActionMutation = useDockerRunContainerAction()
+  const runtimeSseState = useDockerRuntimeSseState()
+
+  useContainerLiveUpdate(() => {
+    return containerListQuery.refetch()
+  }, {
+    cooldownMs: 900,
   })
 
-  const { data } = useDockerDeploymentList(DEPLOYMENT_LIST_INPUT)
-  const { data: containerEntityData } = useDockerContainerList(DEPLOYMENT_LIST_INPUT)
-  const { data: imageEntityData } = useDockerImageList(DEPLOYMENT_LIST_INPUT)
-  const deployments = useMemo(() => data?.data ?? [], [data?.data])
-  const containerEntities = useMemo(() => containerEntityData?.data ?? [], [containerEntityData?.data])
+  const handleImageRuntimeEvent = useCallback(() => {
+    void imageListQuery.refetch()
+  }, [imageListQuery])
+
+  useEventTrigger(
+    (event) => event.source === 'image',
+    handleImageRuntimeEvent,
+    {
+      cooldownMs: 900,
+    },
+  )
+
+  const { data: containerData } = containerListQuery
+  const groupedContainerRows = useMemo(() => containerData?.data ?? [], [containerData?.data])
+  const groupedContainerDiagnostics = containerData?.diagnostics
+  const { data: imageEntityData } = imageListQuery
+  const containerEntities = useMemo(
+    () => groupedContainerRows.flatMap((group) => group.kind === 'single' ? [group.container] : group.containers),
+    [groupedContainerRows],
+  )
+  const containerEntityById = useMemo(
+    () => new Map(containerEntities.map((container) => [container.id, container])),
+    [containerEntities],
+  )
   const imageEntities = useMemo(() => imageEntityData?.data ?? [], [imageEntityData?.data])
+  const handleContainerStateChange = useCallback(() => containerListQuery.refetch(), [containerListQuery])
 
   const containers = useMemo<ContainerProjection[]>(() => {
-    const latestDeploymentByServiceId = newestByServiceId(deployments)
     const imageById = new Map(imageEntities.map((image) => [image.id, image]))
-    const imageIdByRef = new Map(
-      imageEntities.map((image) => [
-        `${image.registry}/${image.repository}${image.tag ? `:${image.tag}` : ''}`,
-        image.id,
-      ]),
-    )
+    return groupedContainerRows
+      .map<ContainerProjection | null>((group) => {
+        const groupContainers = group.kind === 'single' ? [group.container] : [...group.containers]
+        if (groupContainers.length === 0) {
+          return null
+        }
 
-    return containerEntities
-      .map((container) => {
-        const deployment = latestDeploymentByServiceId.get(container.serviceId)
-        const imageEntity = container.imageId ? imageById.get(container.imageId) : null
+        const sortedInstances = [...groupContainers]
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+
+        const representative = sortedInstances[0]
+        if (!representative) {
+          return null
+        }
+
+        const imageEntity = representative.imageId ? imageById.get(representative.imageId) : null
         const image = imageEntity
           ? `${imageEntity.registry}/${imageEntity.repository}${imageEntity.tag ? `:${imageEntity.tag}` : ''}`
-          : (deployment?.containerImage ?? 'unresolved-image')
-        const imageIdFromRef = imageIdByRef.get(normalizeImageRef(image)) ?? null
+          : fallbackImageRefFromId(representative.imageId)
 
-        const updatedAt =
-          deployment && new Date(deployment.updatedAt).getTime() > new Date(container.updatedAt).getTime()
-            ? deployment.updatedAt
-            : container.updatedAt
+        const instances: ContainerInstanceProjection[] = sortedInstances.map((instance) => ({
+          instanceKey: instance.id,
+          id: instance.id,
+          name: instance.name,
+          status: instance.status,
+          health: instance.health,
+          environment: instance.environment,
+          updatedAt: instance.updatedAt,
+          serviceId: instance.serviceId,
+        }))
+
+        const mergedStatus = instances.reduce(
+          (current, instance) => mergeContainerStatus(current, instance.status),
+          representative.status,
+        )
+        const mergedHealth = instances.reduce(
+          (current, instance) => mergeContainerHealth(current, instance.health),
+          representative.health,
+        )
 
         return {
-          id: container.id,
-          name: container.name,
+          id: representative.id,
+          hash: group.hash,
+          name: representative.name,
           image,
-          imageId: imageIdFromRef ?? container.imageId,
-          status: container.status,
-          health: container.health,
-          environment: container.environment ?? deployment?.environment ?? null,
-          serviceId: container.serviceId,
-          healthCheckUrl: deployment?.healthCheckUrl ?? null,
-          domainUrl: deployment?.domainUrl ?? null,
-          updatedAt,
+          imageId: representative.imageId,
+          status: mergedStatus,
+          health: mergedHealth,
+          environment: representative.environment,
+          serviceId: representative.serviceId,
+          healthCheckUrl: deriveRuntimeUrlFromPorts(representative.ports),
+          domainUrl: null,
+          updatedAt: representative.updatedAt,
+          instanceCount: instances.length,
+          instanceIds: instances.map((instance) => instance.id),
+          instances,
         }
       })
+      .filter((container): container is ContainerProjection => container !== null)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-  }, [containerEntities, deployments, imageEntities])
+  }, [groupedContainerRows, imageEntities])
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') {
+      return
+    }
+
+    const duplicateGroups = containers.filter((container) => container.instanceCount > 1)
+    const totalInstances = containers.reduce((acc, container) => acc + container.instanceCount, 0)
+
+    console.info('[docker:containers] grouping diagnostics', {
+      totalGroups: containers.length,
+      duplicateGroups: duplicateGroups.length,
+      totalInstances,
+      sampleDuplicateGroups: duplicateGroups.slice(0, 5).map((container) => ({
+        name: container.name,
+        hash: container.hash,
+        instanceCount: container.instanceCount,
+      })),
+    })
+  }, [containers])
 
   const environments = useMemo(() => {
     return Array.from(
@@ -165,7 +283,9 @@ export default function DashboardDockerContainersPage() {
   }, [containers])
 
   const filteredContainers = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase()
+    const normalizedSearch = typeof searchTerm === 'string'
+      ? searchTerm.trim().toLowerCase()
+      : ''
 
     const filtered = containers.filter((container) => {
       if (savedView === 'failed' && !(container.status === 'dead' || container.status === 'exited' || container.health === 'unhealthy')) return false
@@ -189,53 +309,203 @@ export default function DashboardDockerContainersPage() {
       )
     })
 
-    return filtered.sort((a, b) => {
-      const multiplier = sortDirection === 'asc' ? 1 : -1
-      if (sortBy === 'name') return a.name.localeCompare(b.name) * multiplier
-      if (sortBy === 'status') return a.status.localeCompare(b.status) * multiplier
-      if (sortBy === 'environment') return (a.environment ?? '').localeCompare(b.environment ?? '') * multiplier
-      return (new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()) * multiplier
-    })
-  }, [containers, environmentFilter, savedView, searchTerm, statusFilter, sortBy, sortDirection])
+    return filtered
+  }, [containers, environmentFilter, savedView, searchTerm, statusFilter])
 
-  const allVisibleSelected = filteredContainers.length > 0 && filteredContainers.every((container) => selectedIds.has(container.id))
-  const selectedVisibleCount = filteredContainers.filter((container) => selectedIds.has(container.id)).length
-  const someVisibleSelected = selectedVisibleCount > 0 && selectedVisibleCount < filteredContainers.length
+  const isInitialLoading = (containerListQuery.isLoading || imageListQuery.isLoading) && containers.length === 0
+
+  const containerTableRows = useMemo(() => toContainerTableRows(filteredContainers), [filteredContainers])
+
+  const containerColumns = useMemo(() => createContainerColumns({
+    getStatusVariant: toBadgeVariant,
+    renderNameCell: (container) => (
+      <div className='font-medium'>
+        <DockerContainerDetailModalTrigger
+          id={container.id}
+          container={containerEntityById.get(container.id)}
+          onContainerStateChange={handleContainerStateChange}
+        >
+          {container.name}
+        </DockerContainerDetailModalTrigger>
+        {container.instanceCount > 1 ? (
+          <Badge variant='outline' className='ml-2 text-[10px]'>
+            {container.instanceCount} instances
+          </Badge>
+        ) : null}
+      </div>
+    ),
+    renderImageCell: (container) => (
+      <span className='font-mono text-xs break-all'>
+        {container.imageId ? (
+          <DockerImageDetailModalTrigger id={container.imageId}>
+            {container.image}
+          </DockerImageDetailModalTrigger>
+        ) : container.image}
+      </span>
+    ),
+    renderActionsCell: (container) => (
+      <div className='flex items-center gap-1.5'>
+        <DockerContainerDetailModalTrigger
+          id={container.id}
+          container={containerEntityById.get(container.id)}
+          onContainerStateChange={handleContainerStateChange}
+          initialTab='logs'
+          className='inline-flex h-7 items-center rounded border border-border/60 px-2 text-xs hover:bg-muted hover:no-underline'
+        >
+          Logs
+        </DockerContainerDetailModalTrigger>
+        <DockerContainerDetailModalTrigger
+          id={container.id}
+          container={containerEntityById.get(container.id)}
+          onContainerStateChange={handleContainerStateChange}
+          initialTab='terminal'
+          className='inline-flex h-7 items-center rounded border border-border/60 px-2 text-xs hover:bg-muted hover:no-underline'
+        >
+          Shell
+        </DockerContainerDetailModalTrigger>
+      </div>
+    ),
+  }), [containerEntityById, handleContainerStateChange])
+
+  const containerTableFetchData = useMemo(() => createContainerTableFetchData(containerTableRows), [containerTableRows])
+
   const healthyCount = filteredContainers.filter((container) => container.status === 'running' && container.health === 'healthy').length
   const failedCount = filteredContainers.filter((container) => container.status === 'dead' || container.status === 'exited' || container.health === 'unhealthy').length
 
-  const selectedContainers = filteredContainers.filter((container) => selectedIds.has(container.id))
+  const selectedContainers = selectedContainerRows
+  const sharedDaemonGroups = groupedContainerDiagnostics?.sharedDaemonGroups ?? []
+  const hasSharedDaemonAcrossNodes = groupedContainerDiagnostics?.hasSharedDaemonAcrossNodes ?? false
 
-  const runSelectionAction = (label: 'Stop' | 'Pause' | 'Restart' | 'Remove') => {
-    if (selectedIds.size === 0) return
-    setActionFeedback(`${label} queued for ${String(selectedIds.size)} container${selectedIds.size > 1 ? 's' : ''}.`)
-    toast.success(`${label} queued`, {
-      description: `${String(selectedIds.size)} container${selectedIds.size > 1 ? 's' : ''} selected.`,
-    })
-    if (label === 'Remove') {
-      setSelectedIds(new Set())
+  const runSelectionAction = useCallback((action: 'start' | 'stop' | 'restart' | 'update' | 'remove') => {
+    if (selectedContainers.length === 0) return
+
+    if (action === 'update') {
+      setActionFeedback('Update check scheduled for selected containers.')
+      toast.info('Update checks are not wired yet', {
+        description: 'Use row selection from DataTable to enable this action.',
+      })
+      return
     }
-  }
+
+    const selectedInstanceIds = Array.from(
+      new Set(selectedContainers.flatMap((container) => container.instanceIds)),
+    )
+
+    if (selectedInstanceIds.length === 0) {
+      setActionFeedback('No container instances available for this action.')
+      return
+    }
+
+    const label = action.charAt(0).toUpperCase() + action.slice(1)
+    setActionFeedback(`${label} in progress for ${String(selectedInstanceIds.length)} container instance${selectedInstanceIds.length > 1 ? 's' : ''}...`)
+
+    void Promise.allSettled(
+      selectedInstanceIds.map((containerId) => runContainerActionMutation.mutateAsync({
+        containerId,
+        action,
+      })),
+    ).then(async (results) => {
+      const successCount = results.filter((result) => result.status === 'fulfilled').length
+      const failureCount = results.length - successCount
+
+      await containerListQuery.refetch()
+
+      if (successCount > 0) {
+        toast.success(`${label} completed`, {
+          description: `${String(successCount)} succeeded${failureCount > 0 ? `, ${String(failureCount)} failed` : ''}.`,
+        })
+      }
+
+      if (failureCount > 0) {
+        const firstFailure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+        const message = firstFailure?.reason instanceof Error
+          ? firstFailure.reason.message
+          : String(firstFailure?.reason ?? 'Unknown error')
+
+        toast.error(`${label} partially failed`, {
+          description: message,
+        })
+      }
+
+      setActionFeedback(`${label}: ${String(successCount)} succeeded${failureCount > 0 ? `, ${String(failureCount)} failed` : ''}.`)
+
+      if (action === 'remove' && successCount > 0) {
+        // Selection handled by DataTable internal state.
+      }
+    })
+  }, [containerListQuery, runContainerActionMutation, selectedContainers])
+
+  const syncSelectedRows = useCallback((rows: ContainerProjection[]) => {
+    const nextSignature = rows
+      .map((row) => row.hash)
+      .sort()
+      .join('|')
+
+    if (nextSignature === selectedContainerRowsSignatureRef.current) {
+      return
+    }
+
+    selectedContainerRowsSignatureRef.current = nextSignature
+    setSelectedContainerRows(rows)
+  }, [])
+
+  const handleRefresh = useCallback(async () => {
+    if (isRefreshing) {
+      return
+    }
+
+    setIsRefreshing(true)
+
+    try {
+      await Promise.all([
+        containerListQuery.refetch(),
+        imageListQuery.refetch(),
+      ])
+
+      setRefreshTick((previous) => previous + 1)
+      setActionFeedback(`Refreshed view #${String(refreshTick + 1)}`)
+      toast.success('Container inventory refreshed', {
+        description: `Refresh #${String(refreshTick + 1)} completed.`,
+      })
+    } catch {
+      toast.error('Container refresh failed', {
+        description: 'Could not fetch latest runtime data.',
+      })
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [containerListQuery, imageListQuery, isRefreshing, refreshTick])
 
   return (
     <>
-    <div className="space-y-6">
-      <section className="overflow-hidden rounded-2xl border border-border/60 bg-card/50 backdrop-blur-xl">
+    <div className="flex h-full min-h-0 flex-col gap-6">
+      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/50 backdrop-blur-xl">
         <div className="border-b border-border/60 bg-background/70 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-semibold tracking-tight">Containers</h2>
               <Badge variant="secondary" className="border border-border/70">{filteredContainers.length}</Badge>
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <span
+                className={cn('h-2 w-2 rounded-full', {
+                  'bg-emerald-400': runtimeSseState.status === 'connected',
+                  'bg-amber-400': runtimeSseState.status === 'connecting',
+                  'bg-rose-400': runtimeSseState.status === 'error',
+                  'bg-muted-foreground': runtimeSseState.status === 'disconnected',
+                })}
+              />
+              <Badge variant="outline" className="text-[10px]">
+                stream: {runtimeSseState.status}
+              </Badge>
             </div>
 
-            <div className="grid w-full gap-2 md:w-auto md:grid-cols-[minmax(260px,1fr)_170px_170px_180px_110px_auto_auto_auto_auto]">
+            <div className="grid w-full gap-2 md:w-auto md:grid-cols-[minmax(260px,1fr)_170px_170px_170px_180px_110px_auto_auto_auto_auto]">
               <div className="relative min-w-65">
                 <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
+                  type="text"
                   value={searchTerm}
-                  onChange={(event) => {
-                    setSearchTerm(event.target.value)
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                    setListQuery({ q: event.target.value, page: 1 })
                   }}
                   className="h-9 border-border/70 bg-background/70 pl-9"
                   placeholder="Search containers..."
@@ -246,7 +516,7 @@ export default function DashboardDockerContainersPage() {
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={statusFilter}
                 onChange={(event) => {
-                  setStatusFilter(event.target.value as 'all' | DockerContainer['status'])
+                  setListQuery({ status: event.target.value, page: 1 })
                 }}
               >
                 <option value="all">All statuses</option>
@@ -259,7 +529,7 @@ export default function DashboardDockerContainersPage() {
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={environmentFilter}
                 onChange={(event) => {
-                  setEnvironmentFilter(event.target.value as 'all' | NonNullable<DockerContainer['environment']>)
+                  setListQuery({ environment: event.target.value, page: 1 })
                 }}
               >
                 <option value="all">All environments</option>
@@ -270,9 +540,21 @@ export default function DashboardDockerContainersPage() {
 
               <select
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
+                value={ownershipFilter}
+                onChange={(event) => {
+                  setListQuery({ ownership: event.target.value as 'all' | DockerContainer['managedBy'], page: 1 })
+                }}
+              >
+                <option value="all">All ownership</option>
+                <option value="deployment_service">Managed</option>
+                <option value="orphan">Orphan</option>
+              </select>
+
+              <select
+                className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={sortBy}
                 onChange={(event) => {
-                  setSortBy(event.target.value as 'updated' | 'name' | 'status' | 'environment')
+                  setListQuery({ sortBy: event.target.value as 'updated' | 'name' | 'status' | 'environment', page: 1 })
                 }}
               >
                 <option value="updated">Sort: Updated</option>
@@ -285,7 +567,7 @@ export default function DashboardDockerContainersPage() {
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={sortDirection}
                 onChange={(event) => {
-                  setSortDirection(event.target.value as 'asc' | 'desc')
+                  setListQuery({ sortDirection: event.target.value as 'asc' | 'desc', page: 1 })
                 }}
               >
                 <option value="desc">Desc</option>
@@ -332,15 +614,12 @@ export default function DashboardDockerContainersPage() {
                 variant="outline"
                 size="sm"
                 className="h-9 gap-1.5"
+                disabled={isRefreshing}
                 onClick={() => {
-                  setRefreshTick((previous) => previous + 1)
-                  setActionFeedback(`Refreshed view #${String(refreshTick + 1)}`)
-                  toast.success('Container inventory refreshed', {
-                    description: `Refresh #${String(refreshTick + 1)} completed.`,
-                  })
+                  void handleRefresh()
                 }}
               >
-                <RefreshCw className="h-3.5 w-3.5" />
+                <RefreshCw className={cn('h-3.5 w-3.5', { 'animate-spin': isRefreshing })} />
                 Refresh
               </Button>
             </div>
@@ -351,7 +630,7 @@ export default function DashboardDockerContainersPage() {
               storageKey="docker:containers:saved-view"
               value={savedView}
               onChange={(value) => {
-                setSavedView(value as 'all' | 'failed' | 'active' | 'production')
+                setListQuery({ view: value as 'all' | 'failed' | 'active' | 'production', page: 1 })
               }}
               options={[
                 { value: 'all', label: 'Saved view: All' },
@@ -365,6 +644,7 @@ export default function DashboardDockerContainersPage() {
                 ...(searchTerm ? [{ key: 'search', label: 'search', value: searchTerm }] : []),
                 ...(environmentFilter !== 'all' ? [{ key: 'environment', label: 'env', value: environmentFilter }] : []),
                 ...(statusFilter !== 'all' ? [{ key: 'status', label: 'status', value: statusFilter }] : []),
+                ...(ownershipFilter !== 'all' ? [{ key: 'ownership', label: 'ownership', value: ownershipFilter }] : []),
                 ...(savedView !== 'all' ? [{ key: 'saved-view', label: 'view', value: savedView }] : []),
               ]}
             />
@@ -373,7 +653,9 @@ export default function DashboardDockerContainersPage() {
                 filenameBase="docker-containers"
                 rows={filteredContainers.map((container) => ({
                   id: container.id,
+                  hash: container.hash,
                   name: container.name,
+                  instances: container.instanceCount,
                   image: container.image,
                   status: container.status,
                   environment: container.environment,
@@ -384,135 +666,104 @@ export default function DashboardDockerContainersPage() {
             </div>
           </div>
         </div>
-        <div className={cn("flex flex-wrap items-center gap-2 px-4 py-2 text-xs", {"bg-primary/5": selectedIds.size > 0})}>
-          {selectedIds.size > 0 ? (
-            <>
-              <Badge variant="secondary">{selectedIds.size} selected</Badge>
-              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => {
-                setSelectedIds(new Set())
-                toast.info('Selection cleared')
-              }}>Clear</Button>
-              <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => {runSelectionAction('Stop')}}>Stop</Button>
-              <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => {runSelectionAction('Pause')}}>Pause</Button>
-              <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => {runSelectionAction('Restart')}}>Restart</Button>
-              <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => {runSelectionAction('Remove')}}>Remove</Button>
-              <span className="ml-auto text-muted-foreground">{selectedContainers.length} visible in current filter</span>
-            </>
-          ) : <>
-              <Button size="sm" variant="ghost" className="h-7 px-2 invisible"></Button>
-              <span className="ml-auto text-muted-foreground">No containers selected</span></>}
+        <div className='px-4 py-2 text-xs'>
+          <DockerBatchOperationsBar
+            selectedCount={selectedContainers.length}
+            resourceLabel="containers"
+            onAction={(action) => {
+              runSelectionAction(action)
+            }}
+            onClearSelection={() => {
+              selectedContainerRowsSignatureRef.current = ''
+              setSelectedContainerRows([])
+              toast.info('Selection cleared')
+            }}
+          />
+          {selectedContainers.length > 0 ? (
+            <span className="text-muted-foreground">{selectedContainers.length} visible in current filter</span>
+          ) : (
+            <span className="text-muted-foreground">No containers selected</span>
+          )}
         </div>
 
         {actionFeedback ? (
           <div className="border-b border-border/60 bg-muted/30 px-4 py-2 text-xs text-muted-foreground">{actionFeedback}</div>
         ) : null}
 
-        <div className="overflow-x-auto px-2 pb-2">
-          <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-14">
-                <div className="flex h-7 items-center gap-1">
-                  <DockerSelectionToggle
-                    ariaLabel="Select all visible containers"
-                    pressed={allVisibleSelected}
-                    indeterminate={someVisibleSelected}
-                    onPressedChange={(pressed) => {
-                      if (pressed) {
-                        setSelectedIds(new Set(filteredContainers.map((container) => container.id)))
-                      } else {
-                        setSelectedIds(new Set())
-                      }
-                    }}
-                  />
-                  <Separator orientation="vertical" className="h-full bg-border/80" />
-                </div>
-              </TableHead>
-              {visibleColumns.Container ? <TableHead>Container</TableHead> : null}
-              {visibleColumns.Image ? <TableHead>Image</TableHead> : null}
-              {visibleColumns.Status ? <TableHead>Status</TableHead> : null}
-              {visibleColumns.Environment ? <TableHead>Environment</TableHead> : null}
-              {visibleColumns.Service ? <TableHead>Service</TableHead> : null}
-              {visibleColumns['Health URL'] ? <TableHead>Health URL</TableHead> : null}
-              {visibleColumns.Logs ? <TableHead>Logs</TableHead> : null}
-              {visibleColumns.Shell ? <TableHead>Shell</TableHead> : null}
-              {visibleColumns.Updated ? <TableHead>Updated</TableHead> : null}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredContainers.map((container) => (
-              <TableRow key={container.id} className={selectedIds.has(container.id) ? 'bg-primary/5' : ''}>
-                <TableCell>
-                  <div className="flex h-7 items-center gap-1">
-                    <DockerSelectionToggle
-                      ariaLabel={`Select container ${container.name}`}
-                      pressed={selectedIds.has(container.id)}
-                      onPressedChange={(pressed) => {
-                        setSelectedIds((previous) => {
-                          const next = new Set(previous)
-                          if (pressed) {
-                            next.add(container.id)
-                          } else {
-                            next.delete(container.id)
-                          }
-                          return next
-                        })
-                      }}
-                    />
-                    <Separator orientation="vertical" className="h-full bg-border/80" />
-                  </div>
-                </TableCell>
-                {visibleColumns.Container ? <TableCell className="font-medium">
-                  <DockerContainerDetailModalTrigger id={container.id}>
-                    {container.name}
-                  </DockerContainerDetailModalTrigger>
-                </TableCell> : null}
-                {visibleColumns.Image ? <TableCell className="font-mono text-xs break-all">
-                  {container.imageId ? (
-                    <DockerImageDetailModalTrigger id={container.imageId}>
-                      {container.image}
-                    </DockerImageDetailModalTrigger>
-                  ) : (
-                    container.image
-                  )}
-                </TableCell> : null}
-                {visibleColumns.Status ? <TableCell>
-                  <Badge variant={toBadgeVariant(container.status)}>{container.status}</Badge>
-                  <span className="ml-2 text-xs text-muted-foreground">{container.health}</span>
-                </TableCell> : null}
-                {visibleColumns.Environment ? <TableCell>{container.environment ?? '—'}</TableCell> : null}
-                {visibleColumns.Service ? <TableCell className="font-mono text-xs">{shortId(container.serviceId)}</TableCell> : null}
-                {visibleColumns['Health URL'] ? <TableCell className="text-xs break-all">{container.healthCheckUrl ?? container.domainUrl ?? '—'}</TableCell> : null}
-                {visibleColumns.Logs ? <TableCell>
-                  <DockerContainerDetailModalTrigger
-                    id={container.id}
-                    initialTab="logs"
-                    className="inline-flex h-7 items-center rounded border border-border/60 px-2 text-xs hover:bg-muted hover:no-underline"
-                  >
-                    Logs
-                  </DockerContainerDetailModalTrigger>
-                </TableCell> : null}
-                {visibleColumns.Shell ? <TableCell>
-                  <DockerContainerDetailModalTrigger
-                    id={container.id}
-                    initialTab="terminal"
-                    className="inline-flex h-7 items-center rounded border border-border/60 px-2 text-xs hover:bg-muted hover:no-underline"
-                  >
-                    Shell
-                  </DockerContainerDetailModalTrigger>
-                </TableCell> : null}
-                {visibleColumns.Updated ? <TableCell>{formatDate(container.updatedAt)}</TableCell> : null}
-              </TableRow>
-            ))}
-            {filteredContainers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
-                  No containers match your filters.
-                </TableCell>
-              </TableRow>
-            ) : null}
-          </TableBody>
-          </Table>
+        {hasSharedDaemonAcrossNodes ? (
+          <div className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-xs text-amber-100">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />
+              <div>
+                <p className="font-medium text-amber-200">
+                  Shared Docker daemon detected across mesh nodes.
+                </p>
+                <p className="mt-0.5 text-amber-100/90">
+                  {sharedDaemonGroups.map((group) => (
+                    <span key={group.daemonId} className="mr-3 inline-block">
+                      daemon {shortId(group.daemonId)} seen by {group.nodeIds.map((nodeId) => shortId(nodeId)).join(', ')}
+                    </span>
+                  ))}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {isInitialLoading ? (
+          <div className="px-4 py-3">
+            <DockerInlineLoadingState label="Loading containers from runtime inventory…" />
+          </div>
+        ) : null}
+
+        <div className="min-h-0 flex-1 px-2 pb-2 [&_.table-container]:max-h-[calc(100vh-29rem)] [&_.table-container]:overflow-y-auto">
+          <DataTable
+            getColumns={() => containerColumns}
+            getSubRowColumns={() => []}
+            fetchDataFn={containerTableFetchData}
+            fetchByIdsFn={async () => []}
+            exportConfig={{
+              entityName: 'docker-containers',
+              headers: ['name', 'image', 'status', 'health', 'environment', 'serviceId', 'updatedAt'],
+              columnMapping: {
+                name: 'Container',
+                image: 'Image',
+                status: 'Status',
+                health: 'Health',
+                environment: 'Environment',
+                serviceId: 'Service',
+                updatedAt: 'Updated',
+              },
+              columnWidths: [{ wch: 24 }, { wch: 40 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 24 }],
+              enableCsv: true,
+              enableExcel: true,
+            }}
+            idField='rowId'
+            pageSizeOptions={[10, 20, 50, 100]}
+            renderToolbarContent={({ selectedRows }: { selectedRows: ContainerProjection[] }) => {
+              syncSelectedRows(selectedRows)
+              return null
+            }}
+            onRowClick={() => undefined}
+            subRowsConfig={{ enabled: false, mode: 'same-columns' }}
+            config={{
+              enableRowSelection: true,
+              enableClickRowSelect: false,
+              enableDateFilter: false,
+              enableColumnFilters: false,
+              enableColumnVisibility: true,
+              enableSearch: true,
+              enableExport: true,
+              enableUrlState: false,
+              enableColumnResizing: true,
+              enableKeyboardNavigation: true,
+              defaultSortBy: 'updatedAt',
+              defaultSortOrder: 'desc',
+              searchPlaceholder: 'Search containers, image, service…',
+              columnResizingTableId: 'docker-containers-enhanced-table',
+              size: 'sm',
+            }}
+          />
         </div>
 
         <div className="space-y-3 border-t border-border/60 p-3">
@@ -523,7 +774,7 @@ export default function DashboardDockerContainersPage() {
             </div>
             <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
               <p className="text-muted-foreground">Selected</p>
-              <p className="text-base font-semibold">{selectedIds.size}</p>
+              <p className="text-base font-semibold">{selectedContainers.length}</p>
             </div>
             <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
               <p className="text-muted-foreground">Healthy</p>
@@ -534,14 +785,6 @@ export default function DashboardDockerContainersPage() {
               <p className="text-base font-semibold">{failedCount}</p>
             </div>
           </div>
-
-          <DockerColumnSettings
-            title="Column settings"
-            columns={visibleColumns}
-            onToggle={(column, visible) => {
-              setVisibleColumns((previous) => ({ ...previous, [column]: visible }))
-            }}
-          />
 
         </div>
       </section>
@@ -554,6 +797,8 @@ export default function DashboardDockerContainersPage() {
         setActionFeedback(
           `Create flow completed for ${payload.name} (${payload.image}) · pull=${payload.pullScanSummary.pullStatus} · scan=${payload.pullScanSummary.scanStatus}`,
         )
+        void containerListQuery.refetch()
+        void imageListQuery.refetch()
         toast.success(`Container ${payload.name} created`, {
           description: `${payload.image} • pull ${payload.pullScanSummary.pullStatus} • scan ${payload.pullScanSummary.scanStatus}`,
         })

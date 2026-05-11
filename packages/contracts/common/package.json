@@ -10,13 +10,14 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "type-check": "tsc --noEmit"
+    "type-check": "tsgo --noEmit"
   },
   "dependencies": {
     "zod": "catalog:utils"
   },
   "devDependencies": {
+    "@types/node": "catalog:build",
     "@repo/config-typescript": "*",
-    "typescript": "catalog:build"
+    "@typescript/native-preview": "catalog:build"
   }
 }

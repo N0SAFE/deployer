@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
-import { Observable, Subject } from 'rxjs';
+import { EMPTY, merge, Observable, Subject } from 'rxjs';
+import { filter as rxFilter, map } from 'rxjs/operators';
 import { observableToAsyncIterable } from '@/core/utils/observable.utils';
 import type {
   EventContracts,
@@ -7,6 +8,29 @@ import type {
   EventInput,
   EventOutput,
 } from './event-contract.builder';
+
+export const BASE_EVENT_SERVICE_SYMBOL = Symbol.for('core.events.base-service');
+
+export interface BaseEventServiceSymbolized {
+  readonly [BASE_EVENT_SERVICE_SYMBOL]: true;
+}
+
+export interface BaseEventServiceRegistryEntry {
+  namespace: string;
+  domainServiceName: string;
+  referenceScope: string;
+  service: BaseEventService<EventContracts, string>;
+}
+
+export interface MergedDomainEventEnvelope {
+  namespace: string;
+  domainServiceName: string;
+  referenceScope: string;
+  eventName: string;
+  input: Record<string, unknown>;
+  output: unknown;
+  emittedAt: string;
+}
 
 /**
  * Event subscription result
@@ -109,6 +133,9 @@ export abstract class BaseEventService<
   TNamespace extends string = string,
 > {
   private static persistenceAdapter: EventLogPersistenceAdapter | null = null;
+  private static readonly serviceRegistry = new Set<BaseEventService>();
+
+  readonly [BASE_EVENT_SERVICE_SYMBOL] = true as const;
 
   protected readonly logger: Logger;
   protected readonly eventPrefix: TNamespace;
@@ -131,14 +158,69 @@ export abstract class BaseEventService<
   ) {
     this.eventPrefix = eventPrefix;
     this.logger = new Logger(`${eventPrefix}EventService`);
+    BaseEventService.registerInstance(this as unknown as BaseEventService);
   }
 
   get namespace(): TNamespace {
     return this.eventPrefix;
   }
 
+  get domainServiceName(): string {
+    return this.constructor.name;
+  }
+
+  get referenceScope(): string {
+    return this.domainServiceName;
+  }
+
+  getContractNames(): (keyof TContracts & string)[] {
+    return Object.keys(this.contracts) as (keyof TContracts & string)[];
+  }
+
   static configurePersistenceAdapter(adapter: EventLogPersistenceAdapter): void {
     BaseEventService.persistenceAdapter = adapter;
+  }
+
+  static hasBaseEventSymbol(value: unknown): value is BaseEventServiceSymbolized {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      BASE_EVENT_SERVICE_SYMBOL in value &&
+      (value as Record<symbol, unknown>)[BASE_EVENT_SERVICE_SYMBOL] === true
+    );
+  }
+
+  static listRegisteredServices(): BaseEventService[] {
+    return Array.from(BaseEventService.serviceRegistry);
+  }
+
+  static listRegisteredServiceEntries(): BaseEventServiceRegistryEntry[] {
+    return BaseEventService.listRegisteredServices().map((service) => ({
+      namespace: service.namespace,
+      domainServiceName: service.domainServiceName,
+      referenceScope: service.referenceScope,
+      service,
+    }));
+  }
+
+  static findRegisteredByNamespace(namespace: string): BaseEventService[] {
+    return BaseEventService.listRegisteredServices().filter((service) => service.namespace === namespace);
+  }
+
+  static findRegisteredByReferenceScope(referenceScope: string): BaseEventService[] {
+    return BaseEventService.listRegisteredServices().filter((service) => service.referenceScope === referenceScope);
+  }
+
+  static mergeBuilder(): BaseEventMergeBuilder {
+    return new BaseEventMergeBuilder().fromRegistered();
+  }
+
+  static clearRegistryForTests(): void {
+    BaseEventService.serviceRegistry.clear();
+  }
+
+  private static registerInstance(instance: BaseEventService): void {
+    BaseEventService.serviceRegistry.add(instance);
   }
 
   subscribe$<K extends keyof TContracts>(
@@ -259,6 +341,14 @@ export abstract class BaseEventService<
         }
       };
     });
+  }
+
+  observeAnyByName$(eventName: string): Observable<AnyEventEmission<EventContract>> {
+    if (!Object.prototype.hasOwnProperty.call(this.contracts, eventName)) {
+      throw new Error(`Contract not found for event: ${eventName}`);
+    }
+
+    return this.subscribeAny$(eventName as keyof TContracts) as Observable<AnyEventEmission<EventContract>>;
   }
 
   /**
@@ -657,5 +747,183 @@ export abstract class BaseEventService<
     }
 
     return timer;
+  }
+}
+
+interface MergeSelection {
+  service: BaseEventService;
+  eventNames: Set<string> | null;
+}
+
+export interface MergeRegisteredOptions {
+  namespaces?: string[];
+  referenceScopes?: string[];
+}
+
+export class BaseEventMergeBuilder {
+  private readonly selections = new Map<string, MergeSelection>();
+  private readonly predicates: ((event: MergedDomainEventEnvelope) => boolean)[] = [];
+  private activeSelectionKeys: string[] = [];
+
+  fromService(service: BaseEventService): this {
+    if (!BaseEventService.hasBaseEventSymbol(service)) {
+      throw new Error('Service does not extend BaseEventService symbol contract');
+    }
+
+    const selectionKey = this.buildSelectionKey(service);
+    const existing = this.selections.get(selectionKey);
+
+    this.selections.set(selectionKey, {
+      service,
+      eventNames: existing?.eventNames ?? null,
+    });
+
+    this.activeSelectionKeys = [selectionKey];
+    return this;
+  }
+
+  fromServices(services: readonly BaseEventService[]): this {
+    const keys: string[] = [];
+
+    for (const service of services) {
+      if (!BaseEventService.hasBaseEventSymbol(service)) {
+        continue;
+      }
+
+      const selectionKey = this.buildSelectionKey(service);
+      const existing = this.selections.get(selectionKey);
+
+      this.selections.set(selectionKey, {
+        service,
+        eventNames: existing?.eventNames ?? null,
+      });
+
+      keys.push(selectionKey);
+    }
+
+    this.activeSelectionKeys = keys;
+    return this;
+  }
+
+  fromNamespace(namespace: string): this {
+    return this.fromServices(BaseEventService.findRegisteredByNamespace(namespace));
+  }
+
+  fromReferenceScope(referenceScope: string): this {
+    return this.fromServices(BaseEventService.findRegisteredByReferenceScope(referenceScope));
+  }
+
+  fromRegistered(options?: MergeRegisteredOptions): this {
+    const namespaces = options?.namespaces ? new Set(options.namespaces) : null;
+    const referenceScopes = options?.referenceScopes ? new Set(options.referenceScopes) : null;
+
+    const services = BaseEventService.listRegisteredServices().filter((service) => {
+      const namespaceMatch = namespaces ? namespaces.has(service.namespace) : true;
+      const referenceScopeMatch = referenceScopes ? referenceScopes.has(service.referenceScope) : true;
+      return namespaceMatch && referenceScopeMatch;
+    });
+
+    return this.fromServices(services);
+  }
+
+  events(...eventNames: string[]): this {
+    const normalized = eventNames
+      .map((eventName) => eventName.trim())
+      .filter((eventName) => eventName.length > 0);
+
+    if (normalized.length === 0) {
+      return this;
+    }
+
+    const selectionKeys = this.resolveSelectionKeys();
+    for (const key of selectionKeys) {
+      const selection = this.selections.get(key);
+      if (!selection) {
+        continue;
+      }
+
+      const current = selection.eventNames ?? new Set<string>();
+      for (const eventName of normalized) {
+        current.add(eventName);
+      }
+
+      selection.eventNames = current;
+      this.selections.set(key, selection);
+    }
+
+    return this;
+  }
+
+  allEvents(): this {
+    const selectionKeys = this.resolveSelectionKeys();
+    for (const key of selectionKeys) {
+      const selection = this.selections.get(key);
+      if (!selection) {
+        continue;
+      }
+
+      selection.eventNames = null;
+      this.selections.set(key, selection);
+    }
+
+    return this;
+  }
+
+  where(predicate: (event: MergedDomainEventEnvelope) => boolean): this {
+    this.predicates.push(predicate);
+    return this;
+  }
+
+  toObservable(): Observable<MergedDomainEventEnvelope> {
+    const streams: Observable<MergedDomainEventEnvelope>[] = [];
+
+    for (const selection of this.selections.values()) {
+      const eventNames = selection.eventNames
+        ? Array.from(selection.eventNames)
+        : selection.service.getContractNames();
+
+      for (const eventName of eventNames) {
+        streams.push(
+          selection.service.observeAnyByName$(eventName).pipe(
+            map((event) => ({
+              namespace: selection.service.namespace,
+              domainServiceName: selection.service.domainServiceName,
+              referenceScope: selection.service.referenceScope,
+              eventName,
+              input: event.input as Record<string, unknown>,
+              output: event.output,
+              emittedAt: new Date().toISOString(),
+            })),
+          ),
+        );
+      }
+    }
+
+    if (streams.length === 0) {
+      return EMPTY;
+    }
+
+    let merged$ = merge(...streams);
+    for (const predicate of this.predicates) {
+      merged$ = merged$.pipe(rxFilter(predicate));
+    }
+
+    return merged$;
+  }
+
+  toAsyncIterable(): AsyncIterableIterator<MergedDomainEventEnvelope> {
+    return observableToAsyncIterable(this.toObservable())[Symbol.asyncIterator]() as AsyncIterableIterator<MergedDomainEventEnvelope>;
+  }
+
+  private resolveSelectionKeys(): string[] {
+    if (this.activeSelectionKeys.length > 0) {
+      return this.activeSelectionKeys;
+    }
+
+    return Array.from(this.selections.keys());
+  }
+
+  private buildSelectionKey(service: BaseEventService): string {
+    return `${service.namespace}:${service.referenceScope}`;
   }
 }

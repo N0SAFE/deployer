@@ -1,11 +1,33 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  meshRuntimeEventSchema,
+  type MeshRuntimeEvent,
+} from "@repo/contracts-entities";
 import { meshEndpoints } from "./endpoints";
 import { meshInvalidations } from "./invalidations";
 import { wrapWithInvalidations } from "@/domains/shared/helpers";
 
 const enhancedMesh = wrapWithInvalidations(meshEndpoints, meshInvalidations);
+
+type MeshStreamStatus = "connecting" | "connected" | "disconnected" | "error";
+export interface MeshSseState {
+  status: MeshStreamStatus;
+  lastError: string | null;
+  state: MeshRuntimeEvent | null;
+}
+
+type MeshRuntimeStreamInput = Parameters<
+  typeof meshEndpoints.streamEvents.experimental_liveObservableOptions
+>[0]["input"];
+
+const DEFAULT_MESH_RUNTIME_STREAM_INPUT: MeshRuntimeStreamInput = {
+  query: {
+    replay: true,
+    replayLimit: 1,
+  },
+};
 
 export function useMeshLocalNode(options?: { enabled?: boolean }) {
   return useQuery(
@@ -111,4 +133,36 @@ export function useUpsertMeshResourceIndex() {
 
 export function usePlanMeshStreamRoute() {
   return useMutation(meshEndpoints.planStreamRoute.mutationOptions({}));
+}
+
+export function useMeshSseState(
+  input: MeshRuntimeStreamInput = DEFAULT_MESH_RUNTIME_STREAM_INPUT,
+): MeshSseState {
+  const streamQuery = useQuery(
+    meshEndpoints.streamEvents.experimental_liveObservableOptions({
+      input,
+      refetchInterval: false,
+    }),
+  );
+
+  const parsedState = meshRuntimeEventSchema.safeParse(streamQuery.data);
+  const state = parsedState.success ? parsedState.data : null;
+
+  const status: MeshStreamStatus = streamQuery.isError
+    ? "error"
+    : streamQuery.fetchStatus === "fetching"
+      ? streamQuery.data
+        ? "connected"
+        : "connecting"
+      : "disconnected";
+
+  return {
+    status,
+    lastError: streamQuery.isError
+      ? streamQuery.error instanceof Error
+        ? streamQuery.error.message
+        : "Mesh stream connection error"
+      : null,
+    state,
+  };
 }

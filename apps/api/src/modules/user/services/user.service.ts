@@ -46,8 +46,16 @@ export class UserService {
   /**
    * Get all users with pagination and filtering
    */
-  async getUsers(input: GetUsersInput) {
-    return await this.userRepository.findMany(input);
+  async getUsers(input?: GetUsersInput) {
+    const normalizedInput: GetUsersInput = {
+      limit: input?.limit ?? 20,
+      offset: input?.offset ?? 0,
+      sortBy: input?.sortBy,
+      sortDirection: input?.sortDirection,
+      filter: input?.filter,
+    };
+
+    return await this.userRepository.findMany(normalizedInput);
   }
 
   /**

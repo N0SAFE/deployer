@@ -1,7 +1,6 @@
 {
   "extends": "../../packages/configs/typescript/config/nestjs.json",
   "compilerOptions": {
-    "baseUrl": "./",
     "outDir": "./dist",
     "paths": {
       "@/*": [
@@ -10,7 +9,7 @@
     }
   },
   "include": [
-    "src/**/*.ts"
+    "./src/**/*.ts"
   ],
   "exclude": [
     "vitest.config.mts",

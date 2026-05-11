@@ -22,6 +22,7 @@ import { validateEnvSafe } from '#/env'
 import { DynamicTanstackDevTools } from '@/components/devtools/DynamicTanstackDevTools'
 import { PerformanceToggle } from '@/components/dev'
 import { Toaster } from '@repo/ui/components/shadcn/sonner'
+import { NuqsAdapter } from 'nuqs/adapters/next/app'
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'})
 
@@ -92,12 +93,14 @@ export default function RootLayout({
                         disableTransitionOnChange
                     >
                         <NextTopLoader />
-                        <ReactQueryProviders>
-                            {children}
-                            <Toaster richColors closeButton position="top-right" />
-                            <DynamicTanstackDevTools />
-                            <PerformanceToggle />
-                        </ReactQueryProviders>
+                        <NuqsAdapter>
+                            <ReactQueryProviders>
+                                {children}
+                                <Toaster richColors closeButton position="top-right" />
+                                <DynamicTanstackDevTools />
+                                <PerformanceToggle />
+                            </ReactQueryProviders>
+                        </NuqsAdapter>
                     </ThemeProvider>
                 </AuthProviders>
             </body>

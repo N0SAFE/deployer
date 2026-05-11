@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 3210",
     "lint": "eslint .",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsgo --noEmit"
   },
   "dependencies": {
     "@orpc/client": "catalog:orpc",
@@ -31,6 +31,6 @@
     "@types/react-dom": "catalog:react",
     "eslint": "catalog:linting",
     "eslint-config-next": "catalog:next",
-    "typescript": "catalog:build"
+    "@typescript/native-preview": "catalog:build"
   }
 }

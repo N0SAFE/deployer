@@ -8,7 +8,6 @@ CREATE TYPE "public"."local_outbox_state" AS ENUM('pending', 'sent', 'failed', '
 CREATE TYPE "public"."resource_ownership_status" AS ENUM('active', 'stale', 'revoked');--> statement-breakpoint
 CREATE TABLE "cluster_join_grants" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"cluster_id" uuid NOT NULL,
 	"organization_id" text,
 	"grant_token_hash" text NOT NULL,
 	"status" "cluster_join_grant_status" DEFAULT 'issued' NOT NULL,
@@ -24,7 +23,6 @@ CREATE TABLE "cluster_join_grants" (
 --> statement-breakpoint
 CREATE TABLE "cluster_node_metrics" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"cluster_id" uuid NOT NULL,
 	"node_id" uuid NOT NULL,
 	"organization_id" text,
 	"metrics" jsonb NOT NULL,
@@ -36,7 +34,6 @@ CREATE TABLE "cluster_node_metrics" (
 --> statement-breakpoint
 CREATE TABLE "cluster_nodes" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"cluster_id" uuid NOT NULL,
 	"node_id" uuid NOT NULL,
 	"server_url" text NOT NULL,
 	"display_name" text,
@@ -54,7 +51,6 @@ CREATE TABLE "cluster_nodes" (
 --> statement-breakpoint
 CREATE TABLE "cluster_org_admission_requests" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"cluster_id" uuid NOT NULL,
 	"organization_id" text NOT NULL,
 	"status" "cluster_admission_request_status" DEFAULT 'pending' NOT NULL,
 	"requested_server_node_id" uuid,
@@ -73,7 +69,6 @@ CREATE TABLE "cluster_org_admission_requests" (
 --> statement-breakpoint
 CREATE TABLE "cluster_org_server_allocations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"cluster_id" uuid NOT NULL,
 	"organization_id" text NOT NULL,
 	"server_node_id" uuid NOT NULL,
 	"allocation_mode" "cluster_allocation_mode" DEFAULT 'shared_slice' NOT NULL,
@@ -88,7 +83,6 @@ CREATE TABLE "cluster_org_server_allocations" (
 --> statement-breakpoint
 CREATE TABLE "cluster_signing_keys" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"cluster_id" uuid NOT NULL,
 	"kid" text NOT NULL,
 	"algorithm" text DEFAULT 'HS256' NOT NULL,
 	"status" "cluster_signing_key_status" DEFAULT 'active' NOT NULL,
@@ -187,7 +181,6 @@ CREATE TABLE "organization_role" (
 --> statement-breakpoint
 CREATE TABLE "resource_ownership_index" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"cluster_id" uuid NOT NULL,
 	"organization_id" text,
 	"resource_kind" text NOT NULL,
 	"resource_key" text NOT NULL,
@@ -223,19 +216,19 @@ ALTER TABLE "resource_ownership_index" ADD CONSTRAINT "resource_ownership_index_
 ALTER TABLE "resource_ownership_index" ADD CONSTRAINT "resource_ownership_index_owner_node_id_cluster_nodes_node_id_fk" FOREIGN KEY ("owner_node_id") REFERENCES "public"."cluster_nodes"("node_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "resource_ownership_index" ADD CONSTRAINT "resource_ownership_index_lease_holder_node_id_cluster_nodes_node_id_fk" FOREIGN KEY ("lease_holder_node_id") REFERENCES "public"."cluster_nodes"("node_id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "cluster_join_grants_token_hash_uidx" ON "cluster_join_grants" USING btree ("grant_token_hash");--> statement-breakpoint
-CREATE INDEX "cluster_join_grants_cluster_status_idx" ON "cluster_join_grants" USING btree ("cluster_id","status");--> statement-breakpoint
+CREATE INDEX "cluster_join_grants_cluster_status_idx" ON "cluster_join_grants" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "cluster_join_grants_expires_at_idx" ON "cluster_join_grants" USING btree ("expires_at");--> statement-breakpoint
-CREATE INDEX "cluster_node_metrics_cluster_node_reported_idx" ON "cluster_node_metrics" USING btree ("cluster_id","node_id","reported_at");--> statement-breakpoint
+CREATE INDEX "cluster_node_metrics_cluster_node_reported_idx" ON "cluster_node_metrics" USING btree ("node_id","reported_at");--> statement-breakpoint
 CREATE INDEX "cluster_node_metrics_org_reported_idx" ON "cluster_node_metrics" USING btree ("organization_id","reported_at");--> statement-breakpoint
-CREATE INDEX "cluster_nodes_cluster_status_idx" ON "cluster_nodes" USING btree ("cluster_id","status");--> statement-breakpoint
+CREATE INDEX "cluster_nodes_cluster_status_idx" ON "cluster_nodes" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "cluster_org_admission_requests_org_status_idx" ON "cluster_org_admission_requests" USING btree ("organization_id","status","updated_at");--> statement-breakpoint
 CREATE INDEX "cluster_org_admission_requests_status_idx" ON "cluster_org_admission_requests" USING btree ("status","updated_at");--> statement-breakpoint
-CREATE INDEX "cluster_org_admission_requests_cluster_idx" ON "cluster_org_admission_requests" USING btree ("cluster_id","updated_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "cluster_org_server_allocations_unique_uidx" ON "cluster_org_server_allocations" USING btree ("cluster_id","organization_id","server_node_id");--> statement-breakpoint
+CREATE INDEX "cluster_org_admission_requests_cluster_idx" ON "cluster_org_admission_requests" USING btree ("updated_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "cluster_org_server_allocations_unique_uidx" ON "cluster_org_server_allocations" USING btree ("organization_id","server_node_id");--> statement-breakpoint
 CREATE INDEX "cluster_org_server_allocations_org_idx" ON "cluster_org_server_allocations" USING btree ("organization_id","updated_at");--> statement-breakpoint
 CREATE INDEX "cluster_org_server_allocations_server_idx" ON "cluster_org_server_allocations" USING btree ("server_node_id","updated_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "cluster_signing_keys_kid_uidx" ON "cluster_signing_keys" USING btree ("kid");--> statement-breakpoint
-CREATE INDEX "cluster_signing_keys_cluster_status_idx" ON "cluster_signing_keys" USING btree ("cluster_id","status");--> statement-breakpoint
+CREATE INDEX "cluster_signing_keys_cluster_status_idx" ON "cluster_signing_keys" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "core_event_logs_namespace_idx" ON "core_event_logs" USING btree ("namespace");--> statement-breakpoint
 CREATE INDEX "core_event_logs_event_name_idx" ON "core_event_logs" USING btree ("event_name");--> statement-breakpoint
 CREATE INDEX "core_event_logs_event_key_idx" ON "core_event_logs" USING btree ("event_key");--> statement-breakpoint
@@ -252,6 +245,6 @@ CREATE UNIQUE INDEX "org_role_rules_orgId_roleName_uidx" ON "org_role_rules" USI
 CREATE INDEX "org_role_rules_orgId_idx" ON "org_role_rules" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "organizationRole_organizationId_idx" ON "organization_role" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "organizationRole_role_idx" ON "organization_role" USING btree ("role");--> statement-breakpoint
-CREATE UNIQUE INDEX "resource_ownership_index_unique_owner_uidx" ON "resource_ownership_index" USING btree ("cluster_id","organization_id","resource_kind","resource_key","owner_node_id");--> statement-breakpoint
-CREATE INDEX "resource_ownership_index_lookup_idx" ON "resource_ownership_index" USING btree ("cluster_id","organization_id","resource_kind","resource_key","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "resource_ownership_index_unique_owner_uidx" ON "resource_ownership_index" USING btree ("organization_id","resource_kind","resource_key","owner_node_id");--> statement-breakpoint
+CREATE INDEX "resource_ownership_index_lookup_idx" ON "resource_ownership_index" USING btree ("organization_id","resource_kind","resource_key","status");--> statement-breakpoint
 CREATE INDEX "resource_ownership_index_owner_node_idx" ON "resource_ownership_index" USING btree ("owner_node_id");

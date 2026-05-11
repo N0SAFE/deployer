@@ -1,9 +1,9 @@
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import * as z from "zod";
-import { contractBuilder } from "@/core/modules/events/event-contract.builder";
-import { BaseMeshService, type MeshCallManyResult } from "@/core/modules/mesh/services/base-mesh.service";
-import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic.service";
-import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology.service";
+import { meshEntity, meshOperation } from "@/core/modules/mesh/primitives";
+import { BaseMeshService } from "@/core/modules/mesh/services/base-mesh.service";
+import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
+import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 
 const resolveDeploymentRequestPayloadSchema = z.object({
     deploymentId: z.string(),
@@ -49,87 +49,25 @@ const listDeploymentsResponsePayloadSchema = z.object({
     total: z.number().int().min(0).default(0),
 });
 
-const requestEnvelopeSchema = z.object({
-    correlationId: z.string(),
-    callerNodeId: z.string(),
-    payload: resolveDeploymentRequestPayloadSchema,
-    emittedAt: z.string(),
+export const deploymentsEntity = meshEntity({
+    key: "deployments",
+    item: deploymentSummarySchema,
+    itemKey: "deploymentId",
+    operations: {
+        list: meshOperation(
+            listDeploymentsRequestPayloadSchema,
+            listDeploymentsResponsePayloadSchema,
+        ),
+        resolve: meshOperation(
+            resolveDeploymentRequestPayloadSchema,
+            resolveDeploymentResponsePayloadSchema,
+        ),
+        search: meshOperation(
+            searchDeploymentsRequestPayloadSchema,
+            searchDeploymentsResponsePayloadSchema,
+        ),
+    },
 });
-
-const responseEnvelopeSchema = z.object({
-    correlationId: z.string(),
-    responderNodeId: z.string(),
-    payload: resolveDeploymentResponsePayloadSchema,
-    stopPropagation: z.boolean().optional(),
-    emittedAt: z.string(),
-});
-
-const cancelEnvelopeSchema = z.object({
-    correlationId: z.string(),
-    callerNodeId: z.string(),
-    reason: z.enum(["caller_stop", "handler_stop"]),
-    emittedAt: z.string(),
-});
-
-const correlationInputSchema = z.object({
-    organizationId: z.string().nullable().optional(),
-    correlationId: z.string().optional(),
-});
-
-const deploymentMeshContracts = {
-    resolveDeploymentRequest: contractBuilder()
-        .input(correlationInputSchema)
-        .output(requestEnvelopeSchema)
-        .build(),
-    resolveDeploymentResponse: contractBuilder()
-        .input(correlationInputSchema)
-        .output(responseEnvelopeSchema)
-        .build(),
-    resolveDeploymentCancel: contractBuilder()
-        .input(correlationInputSchema)
-        .output(cancelEnvelopeSchema)
-        .build(),
-    searchDeploymentsRequest: contractBuilder()
-        .input(correlationInputSchema)
-        .output(
-            requestEnvelopeSchema.extend({
-                payload: searchDeploymentsRequestPayloadSchema,
-            }),
-        )
-        .build(),
-    searchDeploymentsResponse: contractBuilder()
-        .input(correlationInputSchema)
-        .output(
-            responseEnvelopeSchema.extend({
-                payload: searchDeploymentsResponsePayloadSchema,
-            }),
-        )
-        .build(),
-    searchDeploymentsCancel: contractBuilder()
-        .input(correlationInputSchema)
-        .output(cancelEnvelopeSchema)
-        .build(),
-    listDeploymentsRequest: contractBuilder()
-        .input(correlationInputSchema)
-        .output(
-            requestEnvelopeSchema.extend({
-                payload: listDeploymentsRequestPayloadSchema,
-            }),
-        )
-        .build(),
-    listDeploymentsResponse: contractBuilder()
-        .input(correlationInputSchema)
-        .output(
-            responseEnvelopeSchema.extend({
-                payload: listDeploymentsResponsePayloadSchema,
-            }),
-        )
-        .build(),
-    listDeploymentsCancel: contractBuilder()
-        .input(correlationInputSchema)
-        .output(cancelEnvelopeSchema)
-        .build(),
-} as const;
 
 export type ResolveDeploymentRequestPayload = z.infer<typeof resolveDeploymentRequestPayloadSchema>;
 export type ResolveDeploymentResponsePayload = z.infer<typeof resolveDeploymentResponsePayloadSchema>;
@@ -139,65 +77,32 @@ export type SearchDeploymentsResponsePayload = z.infer<typeof searchDeploymentsR
 export type ListDeploymentsRequestPayload = z.infer<typeof listDeploymentsRequestPayloadSchema>;
 export type ListDeploymentsResponsePayload = z.infer<typeof listDeploymentsResponsePayloadSchema>;
 
+const DeploymentMeshBase = BaseMeshService({
+    namespace: "deployment-internal",
+    entities: { deployments: deploymentsEntity },
+});
+
 @Injectable()
-export class DeploymentMeshService extends BaseMeshService<typeof deploymentMeshContracts> implements OnModuleInit, OnModuleDestroy {
+export class DeploymentMeshService extends DeploymentMeshBase implements OnModuleInit, OnModuleDestroy {
     constructor(
         meshTopicService: SystemMeshTopicService,
         meshTopologyService: SystemMeshTopologyService,
     ) {
-        super(meshTopicService, meshTopologyService, "deployment-internal", deploymentMeshContracts);
+        super(meshTopicService, meshTopologyService);
     }
 
     onModuleInit(): void {
-        this.initializeMeshNamespace();
+        super.onModuleInit();
     }
 
     onModuleDestroy(): void {
-        this.teardownMeshNamespace();
+        super.onModuleDestroy();
     }
 
-    registerResolveDeploymentHandler(
-        handler: (input: {
-            correlationId: string;
-            callerNodeId: string;
-            payload: ResolveDeploymentRequestPayload;
-        }) =>
-            | { payload: ResolveDeploymentResponsePayload; stopPropagation?: boolean }
-            | Promise<{ payload: ResolveDeploymentResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
-    ): void {
-        this.registerCallHandler(
-            "resolveDeploymentRequest",
-            "resolveDeploymentResponse",
-            "resolveDeploymentCancel",
-            { organizationId: options?.organizationId ?? null },
-            handler,
-        );
+    registerResolveDeploymentHandler(handler: any, options?: { organizationId?: string | null }) {
+        this.registerEntityHandler("deployments", "resolve", handler);
     }
-
-    resolveDeploymentAcrossInstances(
-        payload: ResolveDeploymentRequestPayload,
-        options?: {
-            organizationId?: string | null;
-            timeoutMs?: number;
-            stopOnFirstFound?: boolean;
-            maxCollectedResponses?: number;
-        },
-    ): Promise<MeshCallManyResult<ResolveDeploymentResponsePayload>> {
-        return this.callMany(
-            "resolveDeploymentRequest",
-            "resolveDeploymentResponse",
-            "resolveDeploymentCancel",
-            payload,
-            {
-                organizationId: options?.organizationId ?? null,
-                timeoutMs: options?.timeoutMs ?? 1_500,
-                maxCollectedResponses: options?.maxCollectedResponses,
-                stopWhen: options?.stopOnFirstFound
-                    ? (response) => response.found
-                    : undefined,
-            },
-        );
+}
     }
 
     registerSearchDeploymentsHandler(

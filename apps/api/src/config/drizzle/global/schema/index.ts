@@ -11,3 +11,5 @@ export * from "./github-provider";
 export * from "./events";
 export * from "./cluster";
 export * from "./runtime";
+export * from "./docker-security-scan";
+export * from "./docker-runtime-activity";

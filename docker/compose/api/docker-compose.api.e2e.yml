@@ -14,12 +14,14 @@ services:
       NODE_ENV: test
       AUTH_SECRET: ${AUTH_SECRET:-test-auth-secret-key-for-testing-only}
       BETTER_AUTH_SECRET: ${AUTH_SECRET:-test-auth-secret-key-for-testing-only}
+      APP_DEBUG_CONTEXT_FILTER: ${APP_DEBUG_CONTEXT_FILTER:-}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3005}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@test.com}
       DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-testpassword}
 
       # Testcontainers inside this container talks to host Docker daemon via mounted socket.
+      DOCKER_HOST: unix:///var/run/docker.sock
       TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock
       TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
 

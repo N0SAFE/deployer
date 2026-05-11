@@ -4,6 +4,9 @@ Follow the root `AGENTS.md` first. This file adds Web-specific guidance.
 
 ## Scope Rules
 
+- **LLM mandatory rule**: before creating, moving, or editing files under `apps/web/src/**`, read `v3/apps/web/ARCHITECTURE.md` and follow it as the canonical structure guide for this folder.
+- Enforce feature-local structure for non-trivial route features: `_models` (Zod-first schemas + inferred types), `_hooks`, `_components`, `_data-table` (`columns.tsx`, `filter-config.ts`), and `_utils` (pure helpers).
+- Keep filters in `_data-table/filter-config.ts`, table columns in `_data-table/columns.tsx`, and feature-specific schemas/types in `_models/*`.
 - Always use the declarative routing system; do not hardcode `href` or manual `fetch()` to API.
 - After route structure changes, run `bun run web -- dr:build`.
 
@@ -22,7 +25,7 @@ Development (Docker-first):
 - Logs: `bun run dev:web:logs`
 
 Routing:
-- Routes defined by `src/app/**/page.info.ts`
+- Routes defined by `src/app/**/route.info.ts`
 - Generate routes: use MCP `run-script { targetType: "app", targetName: "web", script: "dr:build" }` or watch `dr:build:watch`
 
 Testing and checks:

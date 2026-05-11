@@ -1,5 +1,5 @@
 import { build, Options } from "tsup";
-import { existsSync, rmSync } from "fs";
+import { cpSync, existsSync, mkdirSync, rmSync } from "fs";
 import { Glob } from "bun";
 import path from "path";
 import * as watcher from "@parcel/watcher";
@@ -47,7 +47,7 @@ async function getFiles(): Promise<string[]> {
     }
 
     for await (const file of glob.scan({ cwd: path.join(srcDir, "hooks") })) {
-        const fullPath = path.join("src", file);
+        const fullPath = path.join("src/hooks", file);
         if (!isTestFile(fullPath)) {
             files.push(fullPath);
         }
@@ -61,13 +61,23 @@ async function getFiles(): Promise<string[]> {
     }
 
     // Add index.ts if it exists and is not a test file
-    if (existsSync(path.join(srcDir, "index.ts")) && !isTestFile("index.ts")) {
-        files.push("index.ts");
+    if (existsSync(path.join(srcDir, "index.ts")) && !isTestFile("src/index.ts")) {
+        files.push("src/index.ts");
     }
-    
-    console.log(files)
 
     return files;
+}
+
+function copyStylesToDist() {
+    const srcStylesDir = path.join(srcDir, "styles");
+    const distStylesDir = path.join(distDir, "styles");
+
+    if (!existsSync(srcStylesDir)) {
+        return;
+    }
+
+    mkdirSync(distStylesDir, { recursive: true });
+    cpSync(srcStylesDir, distStylesDir, { recursive: true });
 }
 
 // Shared build configuration
@@ -77,7 +87,8 @@ function getSharedConfig(format: "esm" | "cjs", outDir: string) {
         format: [format],
         target: "es2020" as const,
         external: ["react"],
-        treeshake: true,
+        treeshake: false,
+        splitting: true,
         sourcemap: true,
         clean: false,
     } as Options;
@@ -85,23 +96,35 @@ function getSharedConfig(format: "esm" | "cjs", outDir: string) {
 
 // Build function - runs ESM and CJS concurrently
 async function runBuild(files: string[], watch: boolean) {
+    void watcher;
+
     const entryPoints = files.map((file) => path.join(packageRoot, file));
 
     try {
         console.log(`🎬 Building ESM and CJS formats concurrently...`);
 
-        await build({
-            watch,
-            outDir: "dist",
-            format: ["cjs", "esm"],
-            target: "es2020" as const,
-            external: ["react"],
-            clean: false,
-            entry: entryPoints,
-            esbuildOptions(options) {
-                options.jsx = "automatic";
-            },
-        });
+        await Promise.all([
+            build({
+                ...getSharedConfig("esm", distEsmDir),
+                watch,
+                dts: false,
+                entry: entryPoints,
+                esbuildOptions(options) {
+                    options.jsx = "automatic";
+                },
+            }),
+            build({
+                ...getSharedConfig("cjs", distCjsDir),
+                watch,
+                dts: false,
+                entry: entryPoints,
+                esbuildOptions(options) {
+                    options.jsx = "automatic";
+                },
+            }),
+        ]);
+
+        copyStylesToDist();
 
         console.log(`✅ Successfully built ${files.length} files to ${distDir}`);
     } catch (error) {

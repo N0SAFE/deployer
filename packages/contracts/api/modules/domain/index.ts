@@ -84,30 +84,30 @@ import { oc } from '@orpc/contract';
 
 // Import all contract definitions
 import {
-  listOrganizationDomainsContract,
-  addOrganizationDomainContract,
-  getOrganizationDomainContract,
-  verifyOrganizationDomainContract,
-  deleteOrganizationDomainContract,
-} from './organization-domains';
+    listOrganizationDomainsContract,
+    addOrganizationDomainContract,
+    getOrganizationDomainContract,
+    verifyOrganizationDomainContract,
+    deleteOrganizationDomainContract,
+} from "./organization";
 
 import {
-  listProjectDomainsContract,
-  getAvailableDomainsContract,
-  getAvailableDomainsForServiceContract,
-  addProjectDomainContract,
-  updateProjectDomainContract,
-  removeProjectDomainContract,
-} from './project-domains';
+    listProjectDomainsContract,
+    getAvailableDomainsContract,
+    getAvailableDomainsForServiceContract,
+    addProjectDomainContract,
+    updateProjectDomainContract,
+    removeProjectDomainContract,
+} from "./project";
 
 import {
-  checkSubdomainAvailabilityContract,
-  listServiceDomainsContract,
-  addServiceDomainContract,
-  updateServiceDomainContract,
-  setPrimaryServiceDomainContract,
-  removeServiceDomainContract,
-} from './service-domains';
+    checkSubdomainAvailabilityContract,
+    listServiceDomainsContract,
+    addServiceDomainContract,
+    updateServiceDomainContract,
+    setPrimaryServiceDomainContract,
+    removeServiceDomainContract,
+} from "./service";
 
 // Combine into main domain contract
 export const domainContract = oc.tag("Domain").prefix("/domains").router({
@@ -139,6 +139,6 @@ export type DomainContract = typeof domainContract;
 
 // Re-export everything from individual contracts
 export * from './schemas';
-export * from './organization-domains';
-export * from './project-domains';
-export * from './service-domains';
+export * from "./organization";
+export * from "./project";
+export * from "./service";

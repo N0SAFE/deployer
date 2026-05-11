@@ -233,7 +233,7 @@ export class DeploymentController {
                     projectId: input.query.projectId,
                     aggregateId: input.query.aggregateId,
                     eventType: input.query.eventType,
-                    since: input.query.since,
+                    since: input.query.since?.toISOString(),
                     cursor: input.query.cursor,
                     replay: input.query.replay,
                     replayLimit: input.query.replayLimit,
@@ -450,7 +450,7 @@ export class DeploymentController {
         return implement(appContract.deployment.listRetryPolicies)
             .use(requireAuth())
             .handler(({ input }) => {
-                return this.deploymentService.listRetryPolicies(input);
+                return this.deploymentService.listRetryPolicies(input.query);
             });
     }
 
@@ -539,7 +539,7 @@ export class DeploymentController {
         return implement(appContract.deployment.listPhaseTransitions)
             .use(requireAuth())
             .handler(({ input }) => {
-                return this.deploymentService.listPhaseTransitions(input);
+                return this.deploymentService.listPhaseTransitions(input.query ?? {});
             });
     }
 

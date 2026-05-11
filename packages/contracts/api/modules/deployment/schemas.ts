@@ -76,13 +76,13 @@ export const deploymentSchema = z.object({
     observability: deploymentObservabilityContextSchema.nullable(),
     progress: deploymentExecutionProgressSchema.nullable(),
     connectivityStatus: deploymentConnectivityStatusSchema.nullable(),
-    buildStartedAt: z.string().nullable(),
-    buildCompletedAt: z.string().nullable(),
-    deployStartedAt: z.string().nullable(),
-    deployCompletedAt: z.string().nullable(),
+    buildStartedAt: z.date().nullable(),
+    buildCompletedAt: z.date().nullable(),
+    deployStartedAt: z.date().nullable(),
+    deployCompletedAt: z.date().nullable(),
     metadata: z.record(z.string(), z.unknown()).nullable(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
 });
 
 export type Deployment = z.infer<typeof deploymentSchema>;
@@ -113,9 +113,9 @@ export const deploymentTemplateProvenanceSchema = z.object({
     planHash: z.string().nullable(),
     templates: z.array(deploymentTemplateProvenanceEntrySchema),
     metadata: z.record(z.string(), z.unknown()).nullable(),
-    capturedAt: z.string(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
+    capturedAt: z.date(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
 });
 export type DeploymentTemplateProvenance = z.infer<typeof deploymentTemplateProvenanceSchema>;
 
@@ -168,7 +168,7 @@ export const deploymentCompiledPlanSnapshotSchema = z.object({
     nodes: z.array(deploymentPlanNodeSchema),
     edges: z.array(deploymentPlanEdgeSchema),
     metadata: z.record(z.string(), z.unknown()).nullable(),
-    createdAt: z.string(),
+    createdAt: z.date(),
 });
 export type DeploymentCompiledPlanSnapshot = z.infer<typeof deploymentCompiledPlanSnapshotSchema>;
 
@@ -348,16 +348,16 @@ export const deploymentQueueJobSchema = z.object({
     payload: deploymentQueueJobPayloadSchema,
     attempts: z.number().int().min(0),
     maxAttempts: z.number().int().min(1).max(20),
-    availableAt: z.string(),
-    lastHeartbeatAt: z.string().nullable(),
-    leaseExpiresAt: z.string().nullable(),
+    availableAt: z.date(),
+    lastHeartbeatAt: z.date().nullable(),
+    leaseExpiresAt: z.date().nullable(),
     connectivityStatus: deploymentConnectivityStatusSchema.nullable(),
-    startedAt: z.string().nullable(),
-    completedAt: z.string().nullable(),
+    startedAt: z.date().nullable(),
+    completedAt: z.date().nullable(),
     lastError: z.string().nullable(),
     metadata: z.record(z.string(), z.unknown()).nullable(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
 });
 export type DeploymentQueueJob = z.infer<typeof deploymentQueueJobSchema>;
 
@@ -366,7 +366,7 @@ export const deploymentQueueEnqueueInputSchema = z.object({
     idempotencyKey: z.string().min(1),
     payload: deploymentQueueJobPayloadSchema,
     maxAttempts: z.number().int().min(1).max(20).default(5),
-    availableAt: z.string().optional(),
+    availableAt: z.date().optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
 });
 export type DeploymentQueueEnqueueInput = z.infer<typeof deploymentQueueEnqueueInputSchema>;
@@ -402,10 +402,10 @@ export type DeploymentQueueHeartbeatInput = z.infer<typeof deploymentQueueHeartb
 
 export const deploymentQueueHeartbeatResultSchema = z.object({
     acknowledged: z.boolean(),
-    leaseExpiresAt: z.string().nullable(),
-    lastHeartbeatAt: z.string().nullable(),
+    leaseExpiresAt: z.date().nullable(),
+    lastHeartbeatAt: z.date().nullable(),
     observedConnectivityStatus: deploymentConnectivityStatusSchema.nullable(),
-    observedAt: z.string(),
+    observedAt: z.date(),
 });
 export type DeploymentQueueHeartbeatResult = z.infer<typeof deploymentQueueHeartbeatResultSchema>;
 
@@ -420,7 +420,7 @@ export const deploymentQueueFailInputSchema = z.object({
     workerId: z.string().min(1),
     lockToken: z.string().min(1),
     error: z.string().min(1),
-    retryAt: z.string().optional(),
+    retryAt: z.date().optional(),
     retryable: z.boolean().default(true),
 });
 export type DeploymentQueueFailInput = z.infer<typeof deploymentQueueFailInputSchema>;
@@ -469,10 +469,10 @@ export const deploymentDeadLetterJobSchema = z.object({
     attempts: z.number().int().min(0),
     maxAttempts: z.number().int().min(1).max(20),
     lastError: z.string().nullable(),
-    movedAt: z.string(),
+    movedAt: z.date(),
     movedBy: z.string().nullable(),
     replayCount: z.number().int().min(0).default(0),
-    lastReplayAt: z.string().nullable(),
+    lastReplayAt: z.date().nullable(),
     metadata: z.record(z.string(), z.unknown()).nullable(),
 });
 export type DeploymentDeadLetterJob = z.infer<typeof deploymentDeadLetterJobSchema>;
@@ -480,8 +480,8 @@ export type DeploymentDeadLetterJob = z.infer<typeof deploymentDeadLetterJobSche
 export const deploymentDeadLetterListInputSchema = z.object({
     type: deploymentQueueJobTypeSchema.optional(),
     reason: deploymentDeadLetterReasonSchema.optional(),
-    from: z.string().optional(),
-    to: z.string().optional(),
+    from: z.date().optional(),
+    to: z.date().optional(),
     limit: z.number().int().min(1).max(500).default(100),
     offset: z.number().int().min(0).default(0),
 });
@@ -498,7 +498,7 @@ export const deploymentDeadLetterReplayInputSchema = z.object({
     deadLetterJobId: z.uuid(),
     replayMode: z.enum(["same_payload", "patched_payload"]).default("same_payload"),
     payloadPatch: z.record(z.string(), z.unknown()).optional(),
-    scheduledAt: z.string().optional(),
+    scheduledAt: z.date().optional(),
     requestedBy: z.string().optional(),
     reason: z.string().optional(),
 });
@@ -580,7 +580,7 @@ export const deploymentRetryPolicyResolveInputSchema = z.object({
     taskType: deploymentRetryTaskTypeSchema,
     attempt: z.number().int().min(1),
     errorCode: z.string().optional(),
-    at: z.string().optional(),
+    at: z.date().optional(),
 });
 export type DeploymentRetryPolicyResolveInput = z.infer<typeof deploymentRetryPolicyResolveInputSchema>;
 
@@ -590,7 +590,7 @@ export const deploymentRetryPolicyResolveResultSchema = z.object({
     retryAllowed: z.boolean(),
     remainingAttempts: z.number().int().min(0),
     backoffMs: z.number().int().min(0).nullable(),
-    nextRetryAt: z.string().nullable(),
+    nextRetryAt: z.date().nullable(),
     reason: z.string().nullable(),
 });
 export type DeploymentRetryPolicyResolveResult = z.infer<typeof deploymentRetryPolicyResolveResultSchema>;
@@ -683,14 +683,14 @@ export const deploymentExecutionCheckpointSchema = z.object({
     completedNodeIds: z.array(z.string()).default([]),
     pendingNodeIds: z.array(z.string()).default([]),
     failedNodeIds: z.array(z.string()).default([]),
-    cancellationRequestedAt: z.string().nullable(),
-    cancelledAt: z.string().nullable(),
+    cancellationRequestedAt: z.date().nullable(),
+    cancelledAt: z.date().nullable(),
     resumedFromRunId: z.uuid().nullable(),
     observability: deploymentObservabilityContextSchema.nullable(),
     progress: deploymentExecutionProgressSchema.nullable(),
     metadata: z.record(z.string(), z.unknown()).nullable(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
 });
 export type DeploymentExecutionCheckpoint = z.infer<typeof deploymentExecutionCheckpointSchema>;
 
@@ -769,7 +769,7 @@ export const deploymentNodeLifecycleEventSchema = z.object({
     rollbackToNodeId: z.string().nullable(),
     durationMs: z.number().int().min(0).nullable(),
     metadata: z.record(z.string(), z.unknown()).nullable(),
-    emittedAt: z.string(),
+    emittedAt: z.date(),
 });
 export type DeploymentNodeLifecycleEvent = z.infer<typeof deploymentNodeLifecycleEventSchema>;
 
@@ -792,7 +792,7 @@ export const deploymentNodeLifecycleEventEmitInputSchema = z.object({
     rollbackToNodeId: z.string().optional(),
     durationMs: z.number().int().min(0).optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
-    emittedAt: z.string().optional(),
+    emittedAt: z.date().optional(),
 });
 export type DeploymentNodeLifecycleEventEmitInput = z.infer<typeof deploymentNodeLifecycleEventEmitInputSchema>;
 
@@ -832,7 +832,7 @@ export const deploymentLogSchema = z.object({
     traceId: z.string().nullable(),
     spanId: z.string().nullable(),
     metadata: z.record(z.string(), z.unknown()).nullable(),
-    timestamp: z.string(),
+    timestamp: z.date(),
 });
 
 export type DeploymentLog = z.infer<typeof deploymentLogSchema>;
@@ -869,8 +869,8 @@ export const deploymentStreamSchema = z.object({
     replayDefault: z.boolean(),
     replayLimitDefault: z.number().int().min(1).max(500),
     createdBy: z.string().nullable(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
 });
 export type DeploymentStream = z.infer<typeof deploymentStreamSchema>;
 
@@ -881,12 +881,12 @@ export const deploymentRollbackSchema = z.object({
     triggeredBy: z.string().nullable(),
     status: rollbackStatusSchema,
     reason: z.string().nullable(),
-    startedAt: z.string().nullable(),
-    completedAt: z.string().nullable(),
-    failedAt: z.string().nullable(),
+    startedAt: z.date().nullable(),
+    completedAt: z.date().nullable(),
+    failedAt: z.date().nullable(),
     errorMessage: z.string().nullable(),
     metadata: z.record(z.string(), z.unknown()).nullable(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
 });
 export type DeploymentRollback = z.infer<typeof deploymentRollbackSchema>;

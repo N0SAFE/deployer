@@ -1,5 +1,5 @@
-import { route } from "@repo/orpc-utils/builder";
-import * as z from "zod";
+import z from "zod/v4";
+import { standard } from "@repo/orpc-utils";
 
 export const subscriptionSchema = z.object({
   id: z.string(),
@@ -15,11 +15,11 @@ export const getSubscriptionsOutputSchema = z.object({
   subscriptions: z.array(subscriptionSchema),
 });
 
-export const getSubscriptionsContract = route({
-    method: "GET",
-    path: "/subscriptions",
-    summary: "Get user subscriptions",
-    description: "Get all active push notification subscriptions for the current user",
-  })
+const pushSubscriptionOps = standard.zod(subscriptionSchema, "pushSubscription");
+
+export const getSubscriptionsContract = pushSubscriptionOps
+  .list()
+  .path("/subscriptions")
+  .input(z.object({}))
   .output(getSubscriptionsOutputSchema)
   .build();

@@ -19,7 +19,7 @@ export class HealthRepository {
       
       return {
         status: 'ok',
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(),
         responseTime,
       };
     } catch (error) {
@@ -27,7 +27,7 @@ export class HealthRepository {
       
       return {
         status: 'error',
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(),
         responseTime,
         error: error instanceof Error ? error.message : 'Unknown database error',
       };

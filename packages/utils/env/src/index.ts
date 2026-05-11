@@ -153,7 +153,6 @@ export const apiEnvSchema = zod
 
         // Mesh / distributed runtime
         MESH_NODE_ID: zod.string().optional(),
-        MESH_CLUSTER_ID: zod.string().optional(),
         MESH_NODE_SERVER_URL: zod.url().optional(),
         MESH_BOOTSTRAP_PEERS: zod.string().optional(),
         MESH_STREAM_SHARED_SECRET: zod.string().optional(),
@@ -224,6 +223,9 @@ export const webEnvSchema = zod
         // - "*" (everything)
         // - "middleware/*,auth/test,api/{users,posts}/**" (multiple patterns)
         NEXT_PUBLIC_DEBUG: zod.string().optional().default("").transform(parseDebugScopes),
+
+        // Context-aware debug filter used by browser/server web loggers.
+        NEXT_PUBLIC_APP_DEBUG_CONTEXT_FILTER: zod.string().optional().default(""),
 
         // Optional docs site config; when set, used to render a Docs link in the navbar
         NEXT_PUBLIC_DOC_URL: zod

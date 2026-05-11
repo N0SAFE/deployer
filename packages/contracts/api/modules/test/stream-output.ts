@@ -1,23 +1,27 @@
-import { route } from "@repo/orpc-utils/builder";
-import * as z from "zod";
+import z from "zod/v4";
+import { standard } from "@repo/orpc-utils";
+
+const testStreamOutputOps = standard.zod(
+  z.object({ index: z.number(), message: z.string(), timestamp: z.number() }),
+  "testStreamOutput",
+);
 
 /**
  * Test contract with eventIterator as OUTPUT (Server-Sent Events)
  * This contract demonstrates streaming data from server to client
  * This is the most common streaming pattern in oRPC
  */
-export const testStreamOutputContract = route({
-    method: "GET",
-    path: "/stream-output",
-    summary: "Test streaming output (SSE)",
-    description: "Test endpoint that sends streaming data to client using Server-Sent Events",
-  })
-  .input(
-    z.object({
-      count: z.number().default(10),
-      interval: z.number().default(1000),
-      message: z.string().default("Hello"),
-    })
+export const testStreamOutputContract = testStreamOutputOps
+  .list()
+  .path("/stream-output")
+  .input((b) =>
+    b.query(
+      z.object({
+        count: z.number().default(10),
+        interval: z.number().default(1000),
+        message: z.string().default("Hello"),
+      }),
+    ),
   )
   .output((b) =>
     b.observable(

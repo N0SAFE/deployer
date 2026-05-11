@@ -1,13 +1,11 @@
 import { Command, CommandRunner } from 'nest-commander';
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { EnvService } from '@/config/env/env.service';
-import { asc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import * as schema from '@/config/drizzle/global/schema';
-import { DATABASE_SERVICE, ENV_SERVICE } from '../tokens';
-import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service';
+import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service';
 
 const UUID_LIKE_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const DEFAULT_CLUSTER_ID = '00000000-0000-4000-8000-000000000000';
 
 @Command({
   name: 'register-mesh-node',
@@ -16,9 +14,7 @@ const DEFAULT_CLUSTER_ID = '00000000-0000-4000-8000-000000000000';
 @Injectable()
 export class RegisterMeshNodeCommand extends CommandRunner {
   constructor(
-    @Inject(DATABASE_SERVICE)
     private readonly databaseService: GlobalDatabaseService,
-    @Inject(ENV_SERVICE)
     private readonly envService: EnvService,
   ) {
     super();
@@ -41,10 +37,7 @@ export class RegisterMeshNodeCommand extends CommandRunner {
       return;
     }
 
-    const clusterId = await this.resolveClusterId();
-
     await this.databaseService.db.insert(schema.clusterNodes).values({
-      clusterId,
       nodeId: config.nodeId,
       serverUrl: config.serverUrl,
       status: 'active',
@@ -80,16 +73,6 @@ export class RegisterMeshNodeCommand extends CommandRunner {
       nodeId,
       serverUrl: this.toNodeServerUrl(serverUrlRaw),
     };
-  }
-
-  private async resolveClusterId(): Promise<string> {
-    const [existing] = await this.databaseService.db
-      .select({ clusterId: schema.clusterNodes.clusterId })
-      .from(schema.clusterNodes)
-      .orderBy(asc(schema.clusterNodes.createdAt))
-      .limit(1);
-
-    return existing?.clusterId ?? DEFAULT_CLUSTER_ID;
   }
 
   private toNodeServerUrl(input: string): string {

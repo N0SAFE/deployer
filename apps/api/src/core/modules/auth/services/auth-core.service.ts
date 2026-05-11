@@ -405,7 +405,7 @@ export class AuthCoreService<T extends AuthWithPlugins = Auth> {
 		@Inject(MODULE_OPTIONS_TOKEN)
 		private readonly options: AuthModuleOptions<T>,
 	) {
-		AuthCoreService.latestModuleOptions = this.options as AuthModuleOptions<AuthWithPlugins>;
+		AuthCoreService.latestModuleOptions = this.options;
 	}
 
 	getModuleOptions(): AuthModuleOptions<T> {
@@ -665,7 +665,7 @@ export class AuthCoreService<T extends AuthWithPlugins = Auth> {
 	 * ```
 	 */
 	createEmptyAuthUtils() {
-		return new AuthUtilsEmpty(this.options.auth as unknown as Auth);
+		return new AuthUtilsEmpty(this.options.auth);
 	}
 
 	// ==========================================================================

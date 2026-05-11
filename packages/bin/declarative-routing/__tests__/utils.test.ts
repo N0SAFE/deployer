@@ -53,7 +53,7 @@ describe('utils', () => {
       const existingPackageJson = {
         name: 'test-package',
         scripts: {
-          build: 'tsc'
+          build: 'tsgo'
         }
       }
       
@@ -72,7 +72,7 @@ describe('utils', () => {
         {
           name: 'test-package',
           scripts: {
-            build: 'tsc',
+            build: 'tsgo',
             test: 'vitest',
             'test:watch': 'vitest --watch'
           }

@@ -26,6 +26,7 @@ import { PreviewEnvOverlayService } from "./preview/preview-env-overlay.service"
 import { DeploymentStorageProvidersModule } from "./storage/storage-providers.module";
 import { GitModule } from "@/core/modules/git/git/git.module";
 import { DeploymentArtifactBuilderService } from "./builders/deployment-artifact-builder.service";
+import { EventsModule } from "@/core/modules/events/events.module";
 
 @Module({
     imports: [
@@ -38,6 +39,7 @@ import { DeploymentArtifactBuilderService } from "./builders/deployment-artifact
         DeploymentRunnersModule,
         DeploymentStorageProvidersModule,
         GitModule,
+        EventsModule,
         BullModule.registerQueue({ name: "deployment" }),
     ],
     controllers: [DeploymentController],

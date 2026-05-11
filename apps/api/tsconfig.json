@@ -1,7 +1,9 @@
 {
-  "extends": "../../packages/configs/typescript/config/nestjs.json",
+  "extends": "@repo/config-typescript/nestjs",
   "compilerOptions": {
-    "baseUrl": "./",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "rootDir": "./",
     "outDir": "./dist",
     "types": ["node", "bun-types"],
     "paths": {

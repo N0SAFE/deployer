@@ -1,0 +1,53 @@
+---
+title: Mesh Orchestration Startup Model
+description: Required setup, mesh bootstrap memory, database startup gating, and observable-first mesh runtime startup order.
+order: 9
+---
+
+<DocMeta source="docs/mesh/mesh-orchestration-startup-model.md" scope="canonical" />
+
+## Mesh orchestration startup model
+
+Canonical file: `v3/docs/mesh/mesh-orchestration-startup-model.md`.
+
+This document captures the startup contract for the rebuilt mesh system:
+
+- setup is mandatory on first boot
+- mesh orchestration owns bootstrap recovery and readiness
+- the local DB stores the mesh URL snapshot for restart recovery
+- the global database module must wait for the mesh to provide the runtime database URL
+- all mesh calls remain observable-first so RxJS operators can be composed on top
+
+### Why this matters
+
+The mesh is not just a transport layer here; it is part of the startup bootstrap chain.
+That means the database, setup, and mesh runtime need a strict order instead of starting independently.
+
+### Startup order
+
+1. Setup module
+2. Mesh orchestration service
+3. Mesh core module
+4. Global database module, after mesh provides the database URL
+5. All modules that depend on the database module
+6. Feature modules that consume mesh streams
+
+### Blocking hierarchy
+
+- Setup blocks mesh orchestration until onboarding is completed.
+- Mesh orchestration blocks database startup until it has the runtime database URL.
+- Database startup blocks all DB-dependent modules.
+- Mesh core runtime depends on orchestration bootstrap data and on the persisted mesh snapshot.
+
+### Runtime behavior
+
+On first successful mesh connection, the orchestration layer should persist the discovered node URLs in the local DB.
+On later boots, orchestration should read that snapshot and retry those URLs automatically.
+
+### Observable-first usage
+
+Mesh calls should expose observables directly so consumers can apply operators such as `map`, `filter`, `mergeMap`, `take`, `scan`, and `timeout`.
+
+<DocCallout title="Design rule" tone="warning">
+Do not hide the mesh stream behind only promise-style APIs. The observable must remain accessible for composition.
+</DocCallout>

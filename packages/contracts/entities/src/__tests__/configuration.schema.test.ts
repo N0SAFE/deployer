@@ -3,7 +3,7 @@ import {
   serviceDependencyLinkPolicySchema,
   serviceEnvironmentExecutionOverrideByEnvSchema,
   serviceEnvironmentExecutionOverrideSchema,
-} from '../entities/configuration.schema'
+} from '../entities/configuration'
 
 describe('serviceEnvironmentExecutionOverrideByEnvSchema - preview/development guardrails', () => {
   it('rejects preview fixed-environment targeting production', () => {

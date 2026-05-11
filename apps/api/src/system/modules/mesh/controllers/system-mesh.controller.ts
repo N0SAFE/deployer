@@ -1,9 +1,9 @@
 import { Controller } from "@nestjs/common";
 import { Implement, implement } from "@orpc/nest";
-import { appContract } from "@repo/api-contracts";
+import { meshContract } from "@repo/api-contracts";
 import { requireAuth, requireInternalMesh } from "@/core/modules/auth/orpc/middlewares";
 import { CoreEventSyncService } from "@/core/modules/events/services/core-event-sync.service";
-import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology.service";
+import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { SystemMetricsService } from "@/core/modules/system-metrics/services/system-metrics.service";
 
 @Controller()
@@ -48,9 +48,9 @@ export class SystemMeshController {
         };
     }
 
-    @Implement(appContract.core.mesh.getLocalNode)
+    @Implement(meshContract.getLocalNode)
     getLocalNode() {
-        return implement(appContract.core.mesh.getLocalNode)
+        return implement(meshContract.getLocalNode)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(() => {
@@ -58,18 +58,18 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.getNodeMetrics)
+    @Implement(meshContract.getNodeMetrics)
     getNodeMetrics() {
-        return implement(appContract.core.mesh.getNodeMetrics)
+        return implement(meshContract.getNodeMetrics)
             .use(requireInternalMesh())
             .handler(async () => {
                 return this.systemMetricsService.getSnapshot();
             });
     }
 
-    @Implement(appContract.core.mesh.listPeers)
+    @Implement(meshContract.listPeers)
     listPeers() {
-        return implement(appContract.core.mesh.listPeers)
+        return implement(meshContract.listPeers)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(() => {
@@ -77,9 +77,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.listPeerSessions)
+    @Implement(meshContract.listPeerSessions)
     listPeerSessions() {
-        return implement(appContract.core.mesh.listPeerSessions)
+        return implement(meshContract.listPeerSessions)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(() => {
@@ -87,9 +87,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.listEventStreams)
+    @Implement(meshContract.listEventStreams)
     listEventStreams() {
-        return implement(appContract.core.mesh.listEventStreams)
+        return implement(meshContract.listEventStreams)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(async ({ input }) => {
@@ -97,9 +97,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.findEventStreamById)
+    @Implement(meshContract.findEventStreamById)
     findEventStreamById() {
-        return implement(appContract.core.mesh.findEventStreamById)
+        return implement(meshContract.findEventStreamById)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(async ({ input }) => {
@@ -107,9 +107,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.subscribeEventStream)
+    @Implement(meshContract.subscribeEventStream)
     subscribeEventStream() {
-        return implement(appContract.core.mesh.subscribeEventStream)
+        return implement(meshContract.subscribeEventStream)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input }) => {
@@ -121,9 +121,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.planStreamRoute)
+    @Implement(meshContract.planStreamRoute)
     planStreamRoute() {
-        return implement(appContract.core.mesh.planStreamRoute)
+        return implement(meshContract.planStreamRoute)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input, context }) => {
@@ -134,9 +134,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.connectPeer)
+    @Implement(meshContract.connectPeer)
     connectPeer() {
-        return implement(appContract.core.mesh.connectPeer)
+        return implement(meshContract.connectPeer)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input }) => {
@@ -144,9 +144,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.disconnectPeer)
+    @Implement(meshContract.disconnectPeer)
     disconnectPeer() {
-        return implement(appContract.core.mesh.disconnectPeer)
+        return implement(meshContract.disconnectPeer)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input }) => {
@@ -154,9 +154,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.heartbeatPeer)
+    @Implement(meshContract.heartbeatPeer)
     heartbeatPeer() {
-        return implement(appContract.core.mesh.heartbeatPeer)
+        return implement(meshContract.heartbeatPeer)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input }) => {
@@ -164,9 +164,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.membershipSnapshot)
+    @Implement(meshContract.membershipSnapshot)
     membershipSnapshot() {
-        return implement(appContract.core.mesh.membershipSnapshot)
+        return implement(meshContract.membershipSnapshot)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ context }) => {
@@ -176,9 +176,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.reconcileMembership)
+    @Implement(meshContract.reconcileMembership)
     reconcileMembership() {
-        return implement(appContract.core.mesh.reconcileMembership)
+        return implement(meshContract.reconcileMembership)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input, context }) => {
@@ -189,9 +189,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.streamTopology)
+    @Implement(meshContract.streamTopology)
     streamTopology() {
-        return implement(appContract.core.mesh.streamTopology)
+        return implement(meshContract.streamTopology)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input, context }) => {
@@ -205,9 +205,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.streamEvents)
+    @Implement(meshContract.streamEvents)
     streamEvents() {
-        return implement(appContract.core.mesh.streamEvents)
+        return implement(meshContract.streamEvents)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input, context }) => {
@@ -219,9 +219,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.publishControlEnvelope)
+    @Implement(meshContract.publishControlEnvelope)
     publishControlEnvelope() {
-        return implement(appContract.core.mesh.publishControlEnvelope)
+        return implement(meshContract.publishControlEnvelope)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input, context }) => {
@@ -232,18 +232,18 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.streamSession)
+    @Implement(meshContract.streamSession)
     streamSession() {
-        return implement(appContract.core.mesh.streamSession)
+        return implement(meshContract.streamSession)
             .use(requireInternalMesh())
             .handler(({ input }) => {
                 return this.meshTopologyService.observeSession(input);
             });
     }
 
-    @Implement(appContract.core.mesh.lookupResource)
+    @Implement(meshContract.lookupResource)
     lookupResource() {
-        return implement(appContract.core.mesh.lookupResource)
+        return implement(meshContract.lookupResource)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input, context }) => {
@@ -254,9 +254,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.upsertResourceIndex)
+    @Implement(meshContract.upsertResourceIndex)
     upsertResourceIndex() {
-        return implement(appContract.core.mesh.upsertResourceIndex)
+        return implement(meshContract.upsertResourceIndex)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input, context }) => {
@@ -267,9 +267,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.planQueuePartition)
+    @Implement(meshContract.planQueuePartition)
     planQueuePartition() {
-        return implement(appContract.core.mesh.planQueuePartition)
+        return implement(meshContract.planQueuePartition)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input, context }) => {
@@ -280,9 +280,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.issueJoinGrant)
+    @Implement(meshContract.issueJoinGrant)
     issueJoinGrant() {
-        return implement(appContract.core.mesh.issueJoinGrant)
+        return implement(meshContract.issueJoinGrant)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(async ({ input, context }) => {
@@ -296,27 +296,27 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.consumeJoinGrant)
+    @Implement(meshContract.consumeJoinGrant)
     consumeJoinGrant() {
-        return implement(appContract.core.mesh.consumeJoinGrant)
+        return implement(meshContract.consumeJoinGrant)
             .use(requireInternalMesh())
             .handler(async ({ input }) => {
                 return this.meshTopologyService.consumeJoinGrant(input);
             });
     }
 
-    @Implement(appContract.core.mesh.registerNode)
+    @Implement(meshContract.registerNode)
     registerNode() {
-        return implement(appContract.core.mesh.registerNode)
+        return implement(meshContract.registerNode)
             .use(requireInternalMesh())
             .handler(async ({ input }) => {
                 return this.meshTopologyService.registerNodeInCluster(input);
             });
     }
 
-    @Implement(appContract.core.mesh.revokeJoinGrant)
+    @Implement(meshContract.revokeJoinGrant)
     revokeJoinGrant() {
-        return implement(appContract.core.mesh.revokeJoinGrant)
+        return implement(meshContract.revokeJoinGrant)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(async ({ input, context }) => {
@@ -329,9 +329,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.trustKeyringStatus)
+    @Implement(meshContract.trustKeyringStatus)
     trustKeyringStatus() {
-        return implement(appContract.core.mesh.trustKeyringStatus)
+        return implement(meshContract.trustKeyringStatus)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(() => {
@@ -339,18 +339,18 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.trustKeyringSecrets)
+    @Implement(meshContract.trustKeyringSecrets)
     trustKeyringSecrets() {
-        return implement(appContract.core.mesh.trustKeyringSecrets)
+        return implement(meshContract.trustKeyringSecrets)
             .use(requireInternalMesh())
             .handler(() => {
                 return this.meshTopologyService.getTrustKeyringSecrets();
             });
     }
 
-    @Implement(appContract.core.mesh.trustKeyringRotate)
+    @Implement(meshContract.trustKeyringRotate)
     trustKeyringRotate() {
-        return implement(appContract.core.mesh.trustKeyringRotate)
+        return implement(meshContract.trustKeyringRotate)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(async ({ input, context }) => {
@@ -362,9 +362,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.trustKeyringConvergenceStatus)
+    @Implement(meshContract.trustKeyringConvergenceStatus)
     trustKeyringConvergenceStatus() {
-        return implement(appContract.core.mesh.trustKeyringConvergenceStatus)
+        return implement(meshContract.trustKeyringConvergenceStatus)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(() => {
@@ -372,9 +372,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.trustStrictReadiness)
+    @Implement(meshContract.trustStrictReadiness)
     trustStrictReadiness() {
-        return implement(appContract.core.mesh.trustStrictReadiness)
+        return implement(meshContract.trustStrictReadiness)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(() => {
@@ -382,9 +382,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.trustStrictModeSet)
+    @Implement(meshContract.trustStrictModeSet)
     trustStrictModeSet() {
-        return implement(appContract.core.mesh.trustStrictModeSet)
+        return implement(meshContract.trustStrictModeSet)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input, context }) => {
@@ -396,9 +396,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.trustStrictRolloutPlan)
+    @Implement(meshContract.trustStrictRolloutPlan)
     trustStrictRolloutPlan() {
-        return implement(appContract.core.mesh.trustStrictRolloutPlan)
+        return implement(meshContract.trustStrictRolloutPlan)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input }) => {
@@ -408,9 +408,9 @@ export class SystemMeshController {
             });
     }
 
-    @Implement(appContract.core.mesh.trustStrictRollback)
+    @Implement(meshContract.trustStrictRollback)
     trustStrictRollback() {
-        return implement(appContract.core.mesh.trustStrictRollback)
+        return implement(meshContract.trustStrictRollback)
             .use(requireAuth())
             .use(requireInternalMesh())
             .handler(({ input, context }) => {

@@ -4,8 +4,6 @@ import {
     healthContract,
     pushContract,
     testContract,
-    organizationListAllContract,
-    organizationListMembersContract,
     domainContract,
     projectContract,
     serviceContract,
@@ -13,9 +11,11 @@ import {
     analyticsContract,
     providerSchemaContract,
     templateContract,
-    meshContract,
-    fleetContract,
+    dockerContract,
     setupContract,
+    organizationContract,
+    coreContract,
+    meshContract,
 } from "./modules/index";
 
 // Main app contract that combines all feature contracts
@@ -31,23 +31,10 @@ export const appContract = oc.router({
     analytics: analyticsContract,
     providerSchema: providerSchemaContract,
     template: templateContract,
+    docker: dockerContract,
     setup: setupContract,
-    core: oc
-        .tag("Core")
-        .prefix("/core")
-        .router({
-            mesh: meshContract,
-            fleet: fleetContract,
-        }),
-    organization: oc
-        .tag("Organization")
-        .prefix("/organization")
-        .router({
-            admin: oc.tag("Admin").prefix("/admin").router({
-                listAll: organizationListAllContract,
-                listMembers: organizationListMembersContract,
-            }),
-        }),
+    core: coreContract,
+    organization: organizationContract,
 });
 
 export type AppContract = typeof appContract;

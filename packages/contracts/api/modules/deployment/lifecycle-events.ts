@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { route } from "@repo/orpc-utils/builder";
+import { standard } from "@repo/orpc-utils";
 import {
     deploymentNodeLifecycleEventEmitInputSchema,
     deploymentNodeLifecycleEventEmitResultSchema,
@@ -8,11 +8,21 @@ import {
     deploymentNodeLifecycleEventSchema,
 } from "@repo/contracts-entities";
 
-export const deploymentEmitNodeLifecycleEventContract = route({
-    method: "POST",
-    path: "/runs/{runId}/lifecycle-events",
-    summary: "Emit typed lifecycle event for a deployment graph node",
-})
+const deploymentLifecycleEventEmitOps = standard.zod(
+    deploymentNodeLifecycleEventEmitResultSchema,
+    "deploymentLifecycleEventEmit",
+);
+const deploymentLifecycleEventListOps = standard.zod(
+    deploymentNodeLifecycleEventListResultSchema,
+    "deploymentLifecycleEventList",
+);
+const deploymentLifecycleEventStreamOps = standard.zod(
+    deploymentNodeLifecycleEventSchema,
+    "deploymentLifecycleEventStream",
+);
+
+export const deploymentEmitNodeLifecycleEventContract = deploymentLifecycleEventEmitOps
+    .create()
     .input((b) =>
         b
             .params((p) => p`/runs/${p("runId", z.uuid())}/lifecycle-events`)
@@ -21,11 +31,8 @@ export const deploymentEmitNodeLifecycleEventContract = route({
     .output(deploymentNodeLifecycleEventEmitResultSchema)
     .build();
 
-export const deploymentListNodeLifecycleEventsContract = route({
-    method: "GET",
-    path: "/runs/{runId}/lifecycle-events",
-    summary: "List typed lifecycle events for deployment graph nodes",
-})
+export const deploymentListNodeLifecycleEventsContract = deploymentLifecycleEventListOps
+    .list()
     .input((b) =>
         b
             .params((p) => p`/runs/${p("runId", z.uuid())}/lifecycle-events`)
@@ -34,11 +41,8 @@ export const deploymentListNodeLifecycleEventsContract = route({
     .output(deploymentNodeLifecycleEventListResultSchema)
     .build();
 
-export const deploymentNodeLifecycleEventsStreamContract = route({
-    method: "GET",
-    path: "/runs/{runId}/lifecycle-events/stream",
-    summary: "Stream typed lifecycle events for deployment graph nodes (SSE)",
-})
+export const deploymentNodeLifecycleEventsStreamContract = deploymentLifecycleEventStreamOps
+    .list()
     .input((b) =>
         b
             .params((p) => p`/runs/${p("runId", z.uuid())}/lifecycle-events/stream`)

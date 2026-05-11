@@ -97,8 +97,14 @@ export function matcherHandler<
             ]
             const isMatched = match(matcher)
             if (isMatched) {
+                const data = callback()
+                if (data === undefined) {
+                    return {
+                        hit: false,
+                    } as Ret<M, T, Callback, Options>
+                }
                 return {
-                    data: callback(),
+                    data,
                     hit: true,
                 } as Ret<M, T, Callback, Options>
             }
@@ -110,8 +116,12 @@ export function matcherHandler<
         const [matcher, callback] = item as [matcher: M, callback: Callback]
         const isMatched = match(matcher)
         if (isMatched) {
-            status.hit = true
             const data = callback()
+            if (data === undefined) {
+                continue
+            }
+
+            status.hit = true
             if (options?.multiple) {
                 status.data = [
                     ...((status.data ?? []) as ReturnType<Callback>[]),

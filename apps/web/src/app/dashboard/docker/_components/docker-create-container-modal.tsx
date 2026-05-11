@@ -1,14 +1,16 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import { useDockerImageList, useDockerNetworkList } from '@/domains/docker/mock-hooks'
-import { getMockImagePullScanPipeline } from '@/mocks/platform/entities/docker.large.mock'
+import { useDockerImageEventsStream, useDockerImageInspect, useDockerImageList, useDockerImageSecurityScanStream, useDockerNetworkList } from '@/domains/docker/hooks'
+import { dockerImageInspectDetailSchema } from '@repo/contracts-entities'
+import { DockerImagePullProgressPanel } from './docker-image-pull-progress-panel'
+import { DockerRuntimeStackOverview } from './docker-runtime-stack-overview'
+import { DockerScanStackPanel } from './docker-scan-stack-panel'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
 import { Input } from '@repo/ui/components/shadcn/input'
 import { MultiSelect } from '@repo/ui/components/shadcn/multi-select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
 import { ChevronDown, ChevronRight, Cpu, Download, HardDrive, HeartPulse, Loader2, Lock, Play, Plus, Search, Settings2, Shield, Trash2, Wifi } from 'lucide-react'
 
 export interface DockerCreateContainerPayload {
@@ -80,6 +82,45 @@ type Stage = 'image' | 'pulling' | 'scan' | 'container'
 
 type VulnerabilityCriteria = 'never' | 'critical' | 'high' | 'medium' | 'low' | 'any'
 
+interface ScanFindingRow {
+  id: string
+  severity: 'critical' | 'high' | 'medium' | 'low'
+  source: string
+  packageName: string
+  packageType: string
+  currentVersion: string
+  fixedVersion: string | null
+}
+
+interface ScanSourceLogRow {
+  at: string
+  message: string
+}
+
+interface ScanSourceStreamRow {
+  source: string
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  progress: number
+  findingsCount: number
+  startedAt: string
+  visibleLogs: ScanSourceLogRow[]
+}
+
+interface PullRuntimeEventRow {
+  timestamp: string
+  action: string
+  message: string
+}
+
+interface ScanTimelineEventRow {
+  timestamp: string
+  type: 'status' | 'log' | 'result' | 'complete' | 'error'
+  stage: 'queued' | 'pulling-scanner' | 'scanning' | 'parsing' | 'merging' | 'completed' | 'error'
+  scanner: 'trivy' | 'grype' | 'dive' | null
+  message: string
+  progress: number | null
+}
+
 interface ConfigSet {
   id: number
   name: string
@@ -93,10 +134,22 @@ interface ConfigSet {
 }
 
 const LIST_INPUT = { query: { limit: 200, offset: 0 } } as const
+const SCAN_STAGE_ORDER: Array<ScanTimelineEventRow['stage']> = [
+  'queued',
+  'pulling-scanner',
+  'scanning',
+  'parsing',
+  'merging',
+  'completed',
+  'error',
+]
+
+const SCANNER_ORDER: Array<Exclude<ScanTimelineEventRow['scanner'], null>> = ['trivy', 'grype', 'dive']
+
 const COMMON_CAPABILITIES = ['SYS_ADMIN', 'SYS_PTRACE', 'NET_ADMIN', 'NET_RAW', 'SYS_TIME', 'CHOWN', 'SETUID', 'SETGID'] as const
 const COMMON_ULIMITS = ['nofile', 'nproc', 'core', 'stack', 'memlock'] as const
 const COMMON_GPU_CAPABILITIES = ['gpu', 'compute', 'utility', 'graphics', 'video', 'display'] as const
-const MOCK_CONFIG_SETS: ConfigSet[] = [
+const CONFIG_PRESETS: ConfigSet[] = [
   {
     id: 1,
     name: 'Web service baseline',
@@ -146,6 +199,26 @@ function fuzzyScore(query: string, candidate: string): number {
   return -1
 }
 
+function nowIso(): string {
+  return new Date().toISOString()
+}
+
+function toClock(iso: string): string {
+  if (iso.length < 19) {
+    return iso
+  }
+
+  return iso.slice(11, 19)
+}
+
+function titleCaseStage(stage: ScanTimelineEventRow['stage']): string {
+  if (stage === 'pulling-scanner') {
+    return 'Pulling scanner'
+  }
+
+  return stage.replace(/-/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
 export function DockerCreateContainerModal({
   open,
   onOpenChange,
@@ -166,6 +239,14 @@ export function DockerCreateContainerModal({
   const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'complete' | 'error'>('idle')
   const [scanProgress, setScanProgress] = useState(0)
   const [scanVulns, setScanVulns] = useState({ critical: 0, high: 0, medium: 0, low: 0 })
+  const [pullErrorMessage, setPullErrorMessage] = useState<string | null>(null)
+  const [scanErrorMessage, setScanErrorMessage] = useState<string | null>(null)
+  const [pullLogs, setPullLogs] = useState<Array<{ at: string; message: string }>>([])
+  const [pullRuntimeEvents, setPullRuntimeEvents] = useState<PullRuntimeEventRow[]>([])
+  const [pulledImageLayers, setPulledImageLayers] = useState<Array<{ id: string; instruction: string; size: string; createdAt: string }>>([])
+  const [liveScanFindings, setLiveScanFindings] = useState<ScanFindingRow[]>([])
+  const [liveScanSources, setLiveScanSources] = useState<Record<string, ScanSourceStreamRow>>({})
+  const [scanTimelineEvents, setScanTimelineEvents] = useState<ScanTimelineEventRow[]>([])
 
   const [name, setName] = useState('')
   const [image, setImage] = useState(prefilledImage ?? '')
@@ -223,8 +304,12 @@ export function DockerCreateContainerModal({
   const [healthcheckIntervalSec, setHealthcheckIntervalSec] = useState('30')
 
   const [submitting, setSubmitting] = useState(false)
-  const pullTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const scanTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const seenLiveScanEventSetRef = useRef<Set<string>>(new Set())
+  const seenLiveScanEventQueueRef = useRef<string[]>([])
+  const seenPullRuntimeEventSetRef = useRef<Set<string>>(new Set())
+  const seenPullRuntimeEventQueueRef = useRef<string[]>([])
+  const seenScanTimelineEventSetRef = useRef<Set<string>>(new Set())
+  const seenScanTimelineEventQueueRef = useRef<string[]>([])
 
   const scanEnabled = true
   const showContainerStage = !pullScanOnly
@@ -234,6 +319,83 @@ export function DockerCreateContainerModal({
   const canOpenScan = pullStatus === 'complete' || skipPullTab
   const canOpenContainer = showContainerStage && (skipPullTab || pullStatus === 'complete')
 
+  const selectedImageEntity = useMemo(() => {
+    const normalizedImage = image.trim().toLowerCase()
+    if (!normalizedImage) {
+      return null
+    }
+
+    return imageEntities.find((entity) => {
+      const tag = entity.tag ?? 'latest'
+      const fullRef = `${entity.registry}/${entity.repository}:${tag}`.toLowerCase()
+      const repositoryRef = `${entity.registry}/${entity.repository}`.toLowerCase()
+
+      return normalizedImage === fullRef || normalizedImage === repositoryRef
+    }) ?? null
+  }, [image, imageEntities])
+
+  const imageInspectQuery = useDockerImageInspect(
+    {
+      query: {
+        imageId: selectedImageEntity?.id ?? '',
+      },
+    },
+    {
+      enabled: false,
+    },
+  )
+
+  function appendPullLog(message: string): void {
+    setPullLogs((previous) => [...previous, { at: nowIso(), message }].slice(-200))
+  }
+
+  function appendPullRuntimeEvent(action: string, message: string, timestamp = nowIso()): void {
+    const key = `${timestamp}|${action}|${message}`
+    if (seenPullRuntimeEventSetRef.current.has(key)) {
+      return
+    }
+
+    seenPullRuntimeEventSetRef.current.add(key)
+    seenPullRuntimeEventQueueRef.current.push(key)
+
+    if (seenPullRuntimeEventQueueRef.current.length > 2_000) {
+      const dropped = seenPullRuntimeEventQueueRef.current.shift()
+      if (dropped) {
+        seenPullRuntimeEventSetRef.current.delete(dropped)
+      }
+    }
+
+    setPullRuntimeEvents((previous) => [...previous, { timestamp, action, message }].slice(-240))
+    appendPullLog(`[${action}] ${message}`)
+  }
+
+  function appendScanTimelineEvent(event: ScanTimelineEventRow): void {
+    const key = [
+      event.timestamp,
+      event.type,
+      event.stage,
+      event.scanner ?? 'pipeline',
+      event.message,
+      event.progress ?? 'na',
+    ].join('|')
+
+    if (seenScanTimelineEventSetRef.current.has(key)) {
+      return
+    }
+
+    seenScanTimelineEventSetRef.current.add(key)
+    seenScanTimelineEventQueueRef.current.push(key)
+
+    if (seenScanTimelineEventQueueRef.current.length > 2_000) {
+      const dropped = seenScanTimelineEventQueueRef.current.shift()
+      if (dropped) {
+        seenScanTimelineEventSetRef.current.delete(dropped)
+      }
+    }
+
+    setScanTimelineEvents((previous) => [...previous, event].slice(-300))
+  }
+
   useEffect(() => {
     if (!open) return
     setActiveStage(skipPullTab ? 'container' : 'image')
@@ -242,6 +404,20 @@ export function DockerCreateContainerModal({
     setScanStatus('idle')
     setScanProgress(0)
     setScanVulns({ critical: 0, high: 0, medium: 0, low: 0 })
+    setPullErrorMessage(null)
+    setScanErrorMessage(null)
+    setPullLogs([])
+    setPullRuntimeEvents([])
+    setPulledImageLayers([])
+    setLiveScanFindings([])
+    setLiveScanSources({})
+    setScanTimelineEvents([])
+    seenLiveScanEventSetRef.current.clear()
+    seenLiveScanEventQueueRef.current = []
+    seenPullRuntimeEventSetRef.current.clear()
+    seenPullRuntimeEventQueueRef.current = []
+    seenScanTimelineEventSetRef.current.clear()
+    seenScanTimelineEventQueueRef.current = []
     setImage(prefilledImage ?? '')
     setName(prefilledImage ? `${slugify(prefilledImage.split('/').at(-1) ?? 'container')}-run` : '')
     setCommand('')
@@ -300,98 +476,114 @@ export function DockerCreateContainerModal({
     if (!open || !autoPull || skipPullTab) return
     if (!prefilledImage) return
     if (pullStatus !== 'idle') return
-    startPull()
+    void startPull()
   }, [autoPull, open, prefilledImage, pullStatus, skipPullTab])
 
-  useEffect(() => {
-    return () => {
-      if (pullTimerRef.current) {
-        clearInterval(pullTimerRef.current)
-        pullTimerRef.current = null
-      }
-      if (scanTimerRef.current) {
-        clearInterval(scanTimerRef.current)
-        scanTimerRef.current = null
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!open) {
-      if (pullTimerRef.current) {
-        clearInterval(pullTimerRef.current)
-        pullTimerRef.current = null
-      }
-      if (scanTimerRef.current) {
-        clearInterval(scanTimerRef.current)
-        scanTimerRef.current = null
-      }
-    }
-  }, [open])
-
-  function startPull(): void {
+  async function startPull(): Promise<void> {
     if (!image.trim()) return
     if (pullStatus === 'pulling') return
+
     setActiveStage('pulling')
     setPullStatus('pulling')
-    setPullProgress(4)
+    setPullProgress(10)
+    setPullErrorMessage(null)
+    setPullLogs([])
+    setPullRuntimeEvents([])
+    setPulledImageLayers([])
+    seenPullRuntimeEventSetRef.current.clear()
+    seenPullRuntimeEventQueueRef.current = []
+    appendPullLog(`Resolving image ${image.trim()} from runtime catalog…`)
 
-    let current = 4
-    if (pullTimerRef.current) {
-      clearInterval(pullTimerRef.current)
+    if (!selectedImageEntity?.id) {
+      const message = 'Image is not available in the local runtime catalog yet. Pull API wiring is not available from this modal.'
+      setPullStatus('error')
+      setPullProgress(0)
+      setPullErrorMessage(message)
+      appendPullLog(message)
+      return
     }
-    pullTimerRef.current = setInterval(() => {
-      current += Math.floor(Math.random() * 12) + 6
-      if (current >= 100) {
-        if (pullTimerRef.current) {
-          clearInterval(pullTimerRef.current)
-          pullTimerRef.current = null
-        }
-        setPullProgress(100)
-        setPullStatus('complete')
-        if (scanEnabled) {
-          setActiveStage('scan')
-          setTimeout(() => startScan(), 120)
-        } else if (showContainerStage) {
-          setActiveStage('container')
-        }
+
+    setPullProgress(35)
+
+    try {
+      const inspectResult = await imageInspectQuery.refetch()
+      const parsedInspect = dockerImageInspectDetailSchema.safeParse(inspectResult.data)
+
+      if (inspectResult.error || !parsedInspect.success) {
+        const message = inspectResult.error instanceof Error
+          ? inspectResult.error.message
+          : 'Unable to inspect image metadata for pull stage.'
+        setPullStatus('error')
+        setPullProgress(0)
+        setPullErrorMessage(message)
+        appendPullLog(message)
         return
       }
-      setPullProgress(current)
-    }, 220)
+
+      const inspectData = parsedInspect.data
+
+      setPulledImageLayers(inspectData.layers)
+      setPullProgress(100)
+      setPullStatus('complete')
+      appendPullLog(`Image resolved: ${inspectData.imageId}`)
+      appendPullLog(`Loaded ${String(inspectData.layers.length)} layer records from runtime inspect.`)
+
+      if (scanEnabled) {
+        setActiveStage('scan')
+        startScan(true)
+      } else if (showContainerStage) {
+        setActiveStage('container')
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unexpected error during pull preparation.'
+      setPullStatus('error')
+      setPullProgress(0)
+      setPullErrorMessage(message)
+      appendPullLog(message)
+    }
   }
 
-  function startScan(): void {
-    if (!canOpenScan) return
-    if (scanStatus === 'scanning') return
-    setScanStatus('scanning')
-    setScanProgress(5)
-
-    let current = 5
-    if (scanTimerRef.current) {
-      clearInterval(scanTimerRef.current)
+  function startLiveScan(): void {
+    if (!selectedImageEntity?.id) {
+      setScanStatus('error')
+      setScanProgress(0)
+      setScanErrorMessage('Image is not available in runtime catalog. Pull or discover the image first.')
+      return
     }
-    scanTimerRef.current = setInterval(() => {
-      current += Math.floor(Math.random() * 18) + 8
-      if (current >= 100) {
-        if (scanTimerRef.current) {
-          clearInterval(scanTimerRef.current)
-          scanTimerRef.current = null
-        }
-        setScanProgress(100)
-        setScanStatus('complete')
-        setScanVulns(pullScanPipeline.scan.mergedSummary)
-        if (showContainerStage) {
-          setActiveStage('container')
-        }
-        return
-      }
-      setScanProgress(current)
-    }, 180)
+
+    setScanErrorMessage(null)
+    setScanStatus('scanning')
+    setScanProgress(1)
+    setScanVulns({ critical: 0, high: 0, medium: 0, low: 0 })
+    setLiveScanFindings([])
+    setLiveScanSources({})
+    setScanTimelineEvents([])
+    seenLiveScanEventSetRef.current.clear()
+    seenLiveScanEventQueueRef.current = []
+    seenScanTimelineEventSetRef.current.clear()
+    seenScanTimelineEventQueueRef.current = []
+
+    appendScanTimelineEvent({
+      timestamp: nowIso(),
+      type: 'status',
+      stage: 'queued',
+      scanner: null,
+      message: 'Scan queued and waiting for scanner initialization.',
+      progress: 1,
+    })
+  }
+
+  function startScan(force = false): void {
+    if (!force && !canOpenScan) return
+    if (scanStatus === 'scanning') return
+
+    startLiveScan()
   }
 
   const stageBadge = useMemo(() => {
     if (pullStatus === 'pulling' || scanStatus === 'scanning') return 'Preparing runtime…'
+    if (pullStatus === 'error') return 'Pull failed'
+    if (scanStatus === 'error') return 'Scan failed'
     if (scanStatus === 'complete' && hasCriticalOrHigh) return 'Security attention required'
     if (scanStatus === 'complete' && pullScanOnly) return 'Pull & scan complete'
     if (scanStatus === 'complete') return 'Scan complete'
@@ -412,6 +604,219 @@ export function DockerCreateContainerModal({
     })
   }, [imageEntities])
 
+  const imageRuntimeEventsQuery = useDockerImageEventsStream(
+    {
+      query: {
+        actions: ['pull', 'create', 'import', 'load', 'tag'],
+      },
+    },
+    {
+      enabled: open && pullStatus === 'pulling',
+    },
+  )
+
+  const liveScanQuery = useDockerImageSecurityScanStream(
+    {
+      query: {
+        imageId: selectedImageEntity?.id ?? '',
+        refreshIntervalMs: 500,
+      },
+    },
+    {
+      enabled:
+        open
+        && scanStatus === 'scanning'
+        && Boolean(selectedImageEntity?.id),
+    },
+  )
+
+  useEffect(() => {
+    if (!open || pullStatus !== 'pulling') {
+      return
+    }
+
+    const runtimeEvent = imageRuntimeEventsQuery.event
+    if (!runtimeEvent) {
+      return
+    }
+
+    const repositoryBase = `${selectedImageEntity?.registry ?? ''}/${selectedImageEntity?.repository ?? ''}`
+      .toLowerCase()
+      .replace(/^\//u, '')
+    const currentImageRef = image.trim().toLowerCase()
+    const payloadImageName = (runtimeEvent.payload.imageName ?? '').toLowerCase()
+    const payloadRepo = (runtimeEvent.payload.repository ?? '').toLowerCase()
+
+    const imageNameMatch = payloadImageName.length > 0 && (
+      currentImageRef.includes(payloadImageName)
+      || payloadImageName.includes(currentImageRef)
+    )
+    const repoMatch = payloadRepo.length > 0 && repositoryBase.length > 0 && payloadRepo === repositoryBase
+    const actorMatch = runtimeEvent.actorId !== null && selectedImageEntity?.id?.startsWith(runtimeEvent.actorId) === true
+
+    if (!imageNameMatch && !repoMatch && !actorMatch) {
+      return
+    }
+
+    const eventMessage = runtimeEvent.payload.imageName
+      ?? runtimeEvent.payload.repository
+      ?? runtimeEvent.from
+      ?? 'image runtime event'
+
+    appendPullRuntimeEvent(runtimeEvent.action, eventMessage, runtimeEvent.timestamp)
+
+    if (runtimeEvent.action === 'pull') {
+      setPullProgress((previous) => Math.max(previous, 56))
+      return
+    }
+
+    if (runtimeEvent.action === 'create' || runtimeEvent.action === 'import' || runtimeEvent.action === 'load') {
+      setPullProgress((previous) => Math.max(previous, 76))
+      return
+    }
+
+    if (runtimeEvent.action === 'tag') {
+      setPullProgress((previous) => Math.max(previous, 92))
+    }
+  }, [image, imageRuntimeEventsQuery.event, open, pullStatus, selectedImageEntity?.id, selectedImageEntity?.registry, selectedImageEntity?.repository])
+
+  useEffect(() => {
+    if (scanStatus !== 'scanning' || !selectedImageEntity?.id) {
+      return
+    }
+
+    const events = liveScanQuery.events
+    if (events.length === 0) {
+      return
+    }
+
+    for (const event of events) {
+      const eventKey = [
+        event.timestamp,
+        event.type,
+        event.stage,
+        event.scanner ?? 'engine',
+        event.message,
+        event.logLine ?? '',
+      ].join('|')
+
+      if (seenLiveScanEventSetRef.current.has(eventKey)) {
+        continue
+      }
+
+      seenLiveScanEventSetRef.current.add(eventKey)
+      seenLiveScanEventQueueRef.current.push(eventKey)
+
+      if (seenLiveScanEventQueueRef.current.length > 2_000) {
+        const oldestKey = seenLiveScanEventQueueRef.current.shift()
+        if (oldestKey) {
+          seenLiveScanEventSetRef.current.delete(oldestKey)
+        }
+      }
+
+      if (typeof event.progress === 'number') {
+        setScanProgress((previous) => Math.max(previous, event.progress ?? 0))
+      }
+
+      appendScanTimelineEvent({
+        timestamp: event.timestamp,
+        type: event.type,
+        stage: event.stage,
+        scanner: event.scanner,
+        message: event.logLine ?? event.message,
+        progress: event.progress,
+      })
+
+      const source = event.scanner ?? 'engine'
+      const nextMessage = event.logLine ?? event.message
+
+      setLiveScanSources((previous) => {
+        const existing = previous[source] ?? {
+          source,
+          status: 'queued' as const,
+          progress: 0,
+          findingsCount: 0,
+          startedAt: event.timestamp,
+          visibleLogs: [] as ScanSourceLogRow[],
+        }
+
+        const nextStatus: ScanSourceStreamRow['status'] =
+          event.type === 'error'
+            ? 'failed'
+            : event.type === 'result' || event.type === 'complete'
+              ? 'completed'
+              : 'running'
+
+        const nextLogs = nextMessage
+          ? [...existing.visibleLogs, { at: event.timestamp, message: nextMessage }].slice(-80)
+          : existing.visibleLogs
+
+        return {
+          ...previous,
+          [source]: {
+            ...existing,
+            status: nextStatus,
+            progress: Math.max(existing.progress, event.progress ?? 0),
+            findingsCount: event.scannerResult?.findingsCount ?? existing.findingsCount,
+            visibleLogs: nextLogs,
+          },
+        }
+      })
+
+      if (Array.isArray(event.vulnerabilities)) {
+        const summary = event.vulnerabilities.reduce(
+          (accumulator, vulnerability) => {
+            accumulator[vulnerability.severity] += 1
+            return accumulator
+          },
+          { critical: 0, high: 0, medium: 0, low: 0 },
+        )
+
+        const mappedFindings: ScanFindingRow[] = event.vulnerabilities.map((finding) => ({
+          id: finding.id,
+          severity: finding.severity,
+          source: finding.scannerSources?.join(', ') ?? event.scanner ?? 'scanner',
+          packageName: finding.packageName,
+          packageType: 'package',
+          currentVersion: finding.currentVersion,
+          fixedVersion: finding.fixedVersion,
+        }))
+
+        setScanVulns(summary)
+        setLiveScanFindings(mappedFindings)
+      }
+
+      if (event.type === 'error') {
+        setScanStatus('error')
+        setScanErrorMessage(event.logLine ?? event.message)
+        appendPullLog(`[scan-error] ${event.logLine ?? event.message}`)
+        return
+      }
+
+      if (event.type === 'complete') {
+        setScanStatus('complete')
+        setScanProgress(100)
+        appendPullLog('Scan stream completed and findings synchronized.')
+        if (showContainerStage) {
+          setActiveStage('container')
+        }
+      }
+    }
+  }, [liveScanQuery.events, scanStatus, selectedImageEntity?.id, showContainerStage])
+
+  useEffect(() => {
+    if (scanStatus !== 'scanning' || !selectedImageEntity?.id || !liveScanQuery.isError) {
+      return
+    }
+
+    setScanStatus('error')
+    setScanErrorMessage(
+      liveScanQuery.error instanceof Error
+        ? liveScanQuery.error.message
+        : 'Security scan stream failed before completion.',
+    )
+  }, [liveScanQuery.error, liveScanQuery.isError, scanStatus, selectedImageEntity?.id])
+
   const fuzzyImageSuggestions = useMemo(() => {
     const query = image.trim()
     if (!query) return imageCatalog.slice(0, 12)
@@ -423,11 +828,21 @@ export function DockerCreateContainerModal({
       .map((entry) => entry.item)
   }, [image, imageCatalog])
 
-  const pullScanPipeline = useMemo(() => getMockImagePullScanPipeline(image || prefilledImage || 'ghcr.io/mock/platform:latest'), [image, prefilledImage])
-
   const pullLayers = useMemo(() => {
-    return pullScanPipeline.layers.map((layer, index) => {
-      const threshold = ((index + 1) / pullScanPipeline.layers.length) * 100
+    const fallbackLayers = selectedImageEntity
+      ? [{
+        id: selectedImageEntity.id,
+        instruction: 'Resolve image metadata',
+        size: selectedImageEntity.sizeBytes === null ? '—' : `${String(selectedImageEntity.sizeBytes)} B`,
+        createdAt: selectedImageEntity.createdAt,
+      }]
+      : []
+
+    const layers = pulledImageLayers.length > 0 ? pulledImageLayers : fallbackLayers
+    const layerCount = Math.max(1, layers.length)
+
+    return layers.map((layer, index) => {
+      const threshold = ((index + 1) / layerCount) * 100
       let status: 'waiting' | 'downloading' | 'extracting' | 'done' = 'waiting'
       let progress = 0
       if (pullStatus === 'complete') {
@@ -447,54 +862,113 @@ export function DockerCreateContainerModal({
       }
       return {
         id: layer.id,
-        digest: layer.digest,
+        digest: layer.id,
         instruction: layer.instruction,
         size: layer.size,
         status,
         progress,
       }
     })
-  }, [pullProgress, pullScanPipeline.layers, pullStatus])
-
-  const pullLogs = useMemo(() => {
-    const baseLogs = pullScanPipeline.pullLogs
-    if (pullStatus === 'complete') return baseLogs
-    if (pullStatus === 'pulling') {
-      const visibleCount = Math.max(2, Math.min(baseLogs.length, Math.ceil((pullProgress / 100) * baseLogs.length)))
-      return baseLogs.slice(0, visibleCount)
-    }
-    return baseLogs.slice(0, 2)
-  }, [pullProgress, pullScanPipeline.pullLogs, pullStatus])
+  }, [pullProgress, pullStatus, pulledImageLayers, selectedImageEntity])
 
   const scanSourceStreams = useMemo(() => {
-    return pullScanPipeline.scan.sources.map((source) => {
-      const progress = scanStatus === 'complete' ? 100 : scanStatus === 'scanning' ? Math.max(6, Math.min(99, scanProgress - (source.source === 'grype' ? 3 : 0))) : 0
-      const status = scanStatus === 'complete' ? 'completed' : scanStatus === 'scanning' ? 'running' : 'queued'
-      const visibleLogs = scanStatus === 'scanning'
-        ? source.logs.slice(0, Math.max(1, Math.min(source.logs.length, Math.ceil((progress / 100) * source.logs.length))))
-        : scanStatus === 'complete'
-          ? source.logs
-          : source.logs.slice(0, 1)
-      return {
-        ...source,
-        status,
-        progress,
-        visibleLogs,
-      }
-    })
-  }, [pullScanPipeline.scan.sources, scanProgress, scanStatus])
+    const streams = Object.values(liveScanSources)
+    if (streams.length > 0) {
+      return streams
+    }
+
+    return [
+      {
+        source: selectedImageEntity?.id ? 'engine' : 'runtime',
+        status:
+          scanStatus === 'error'
+            ? 'failed'
+            : scanStatus === 'complete'
+              ? 'completed'
+              : scanStatus === 'scanning'
+                ? 'running'
+                : 'queued',
+        progress: scanProgress,
+        findingsCount: liveScanFindings.length,
+        startedAt: nowIso(),
+        visibleLogs: scanErrorMessage ? [{ at: nowIso(), message: scanErrorMessage }] : [],
+      } satisfies ScanSourceStreamRow,
+    ]
+  }, [liveScanFindings.length, liveScanSources, scanErrorMessage, scanProgress, scanStatus, selectedImageEntity?.id])
 
   const scanLogs = useMemo(() => {
     return scanSourceStreams.flatMap((source) => source.visibleLogs.map((log) => ({ ...log, source: source.source })))
   }, [scanSourceStreams])
 
-  const rawPullLines = useMemo(() => {
-    return pullLogs.map((row) => `${row.at} ${row.message}`)
-  }, [pullLogs])
-
   const rawScanLines = useMemo(() => {
     return scanLogs.map((row) => `${row.at} [${row.source}] ${row.message}`)
   }, [scanLogs])
+
+  const pullTimelineRows = useMemo(() => {
+    const fromRuntime = pullRuntimeEvents.map((event) => ({
+      at: event.timestamp,
+      type: event.action,
+      message: event.message,
+    }))
+
+    const fromLocalLogs = pullLogs.map((event) => ({
+      at: event.at,
+      type: 'local',
+      message: event.message,
+    }))
+
+    return [...fromRuntime, ...fromLocalLogs]
+      .sort((a, b) => a.at.localeCompare(b.at))
+      .slice(-160)
+  }, [pullLogs, pullRuntimeEvents])
+
+  const scanStageSummaryRows = useMemo(() => {
+    return SCAN_STAGE_ORDER.map((stage) => {
+      const stageEvents = scanTimelineEvents.filter((event) => event.stage === stage)
+      const first = stageEvents.at(0) ?? null
+      const last = stageEvents.at(-1) ?? null
+      const maxProgress = stageEvents.reduce((max, event) => Math.max(max, event.progress ?? 0), 0)
+
+      let status: 'pending' | 'active' | 'complete' | 'failed' = 'pending'
+      if (stage === 'error' && stageEvents.length > 0) {
+        status = 'failed'
+      } else if (stageEvents.length > 0) {
+        status = stage === 'completed' || (last?.type === 'complete') ? 'complete' : 'active'
+      }
+
+      return {
+        stage,
+        status,
+        first,
+        last,
+        maxProgress,
+      }
+    })
+  }, [scanTimelineEvents])
+
+  const scannerPullRows = useMemo(() => {
+    return SCANNER_ORDER.map((scanner) => {
+      const allScannerEvents = scanTimelineEvents.filter((event) => event.scanner === scanner)
+      const pullEvents = allScannerEvents.filter((event) => event.stage === 'pulling-scanner')
+      const progress = pullEvents.reduce((max, event) => Math.max(max, event.progress ?? 0), 0)
+      const latestPull = pullEvents.at(-1) ?? null
+      const hasAdvancedPastPull = allScannerEvents.some((event) => event.stage !== 'pulling-scanner')
+      const hasScannerError = allScannerEvents.some((event) => event.type === 'error')
+
+      return {
+        scanner,
+        status: hasScannerError
+          ? 'failed'
+          : hasAdvancedPastPull
+            ? 'completed'
+            : pullEvents.length > 0
+              ? 'running'
+              : 'queued',
+        progress,
+        latestPull,
+      }
+    })
+  }, [scanTimelineEvents])
 
   const networkOptions = useMemo(() => {
     return availableNetworks.map((network) => ({
@@ -504,9 +978,7 @@ export function DockerCreateContainerModal({
     }))
   }, [availableNetworks])
 
-  const scanFindings = useMemo(() => {
-    return pullScanPipeline.scan.mergedFindings
-  }, [pullScanPipeline.scan.mergedFindings])
+  const scanFindings = useMemo(() => liveScanFindings, [liveScanFindings])
 
   function updateArrayItem<T>(setState: Dispatch<SetStateAction<T[]>>, index: number, next: T): void {
     setState((previous) => previous.map((item, i) => (i === index ? next : item)))
@@ -522,7 +994,7 @@ export function DockerCreateContainerModal({
 
   function applyConfigSet(configSetId: string): void {
     setSelectedConfigSetId(configSetId)
-    const configSet = MOCK_CONFIG_SETS.find((set) => String(set.id) === configSetId)
+    const configSet = CONFIG_PRESETS.find((set) => String(set.id) === configSetId)
     if (!configSet) return
 
     if (configSet.envVars?.length) setEnvVars(configSet.envVars)
@@ -613,11 +1085,12 @@ export function DockerCreateContainerModal({
       },
     }
 
-    setTimeout(() => {
+    try {
       onCreated?.(payload)
-      setSubmitting(false)
       onOpenChange(false)
-    }, 350)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -744,7 +1217,7 @@ export function DockerCreateContainerModal({
               </div>
 
               <div className="mt-auto flex items-center gap-2">
-                <Button type="button" onClick={startPull} disabled={!image.trim() || pullStatus === 'pulling'}>
+                <Button type="button" onClick={() => { void startPull() }} disabled={!image.trim() || pullStatus === 'pulling'}>
                   {pullStatus === 'pulling' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                   {pullStatus === 'pulling' ? 'Pulling image…' : 'Start pulling'}
                 </Button>
@@ -757,60 +1230,19 @@ export function DockerCreateContainerModal({
 
           <div className={`h-full px-5 py-4 ${activeStage === 'pulling' ? 'block' : 'hidden'}`}>
             <div className="h-full flex flex-col gap-3 min-h-0">
-              <div className="rounded border p-3">
-                <div className="flex items-center justify-between gap-2 mb-2 text-xs">
-                  <span className="text-muted-foreground">Pull progress</span>
-                  <span>{pullProgress}%</span>
-                </div>
-                <div className="h-2 rounded bg-muted overflow-hidden mb-3">
-                  <div className="h-full bg-primary transition-all" style={{ width: `${pullProgress}%` }} />
-                </div>
-                <p className="text-xs text-muted-foreground">{image || 'No image selected yet'}</p>
-              </div>
-
-              <div className="grid flex-1 min-h-0 gap-3 md:grid-cols-[1.2fr_.8fr]">
-                <div className="rounded border min-h-0 overflow-hidden flex flex-col">
-                  <div className="border-b px-3 py-2 text-xs font-medium">Layer status table</div>
-                  <div className="flex-1 min-h-0 overflow-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Layer ID</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Progress</TableHead>
-                          <TableHead>Size</TableHead>
-                          <TableHead>Instruction</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {pullLayers.map((layer) => (
-                          <TableRow key={layer.id}>
-                            <TableCell className="font-mono text-[11px]">{layer.digest.slice(0, 18)}…</TableCell>
-                            <TableCell>
-                              <Badge variant={layer.status === 'done' ? 'default' : layer.status === 'extracting' ? 'secondary' : 'outline'}>{layer.status}</Badge>
-                            </TableCell>
-                            <TableCell>{layer.progress}%</TableCell>
-                            <TableCell>{layer.size}</TableCell>
-                            <TableCell className="font-mono text-[11px]">{layer.instruction}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-
-                <div className="rounded border min-h-0 overflow-hidden flex flex-col">
-                  <div className="border-b px-3 py-2 text-xs font-medium">Raw pull logs</div>
-                  <div className="flex-1 min-h-0 overflow-auto bg-black/80 p-2">
-                    <pre className="font-mono text-[11px] leading-5 text-emerald-300">
-                      {rawPullLines.join('\n')}
-                    </pre>
-                  </div>
-                </div>
-              </div>
+              <DockerImagePullProgressPanel
+                image={image}
+                pullStatus={pullStatus}
+                pullProgress={pullProgress}
+                pullErrorMessage={pullErrorMessage}
+                pullRuntimeEventCount={pullRuntimeEvents.length}
+                pullLayers={pullLayers}
+                pullTimelineRows={pullTimelineRows}
+                toClock={toClock}
+              />
 
               <div className="mt-auto flex items-center gap-2">
-                <Button type="button" onClick={startPull} disabled={!image.trim() || pullStatus === 'pulling'}>
+                <Button type="button" onClick={() => { void startPull() }} disabled={!image.trim() || pullStatus === 'pulling'}>
                   {pullStatus === 'pulling' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                   {pullStatus === 'pulling' ? 'Pulling image…' : 'Start pull'}
                 </Button>
@@ -823,95 +1255,23 @@ export function DockerCreateContainerModal({
 
           <div className={`h-full px-5 py-4 ${activeStage === 'scan' ? 'block' : 'hidden'}`}>
             <div className="h-full flex flex-col gap-3 min-h-0">
-              <div className="rounded border p-3">
-                <div className="flex items-center justify-between gap-2 mb-2 text-xs">
-                  <span className="text-muted-foreground">Scan progress</span>
-                  <span>{scanProgress}%</span>
-                </div>
-                <div className="h-2 rounded bg-muted overflow-hidden mb-3">
-                  <div className="h-full bg-primary transition-all" style={{ width: `${scanProgress}%` }} />
-                </div>
-                <div className="grid grid-cols-4 gap-2 text-xs">
-                  <div className="rounded border p-2">Critical: <strong>{scanVulns.critical}</strong></div>
-                  <div className="rounded border p-2">High: <strong>{scanVulns.high}</strong></div>
-                  <div className="rounded border p-2">Medium: <strong>{scanVulns.medium}</strong></div>
-                  <div className="rounded border p-2">Low: <strong>{scanVulns.low}</strong></div>
-                </div>
-              </div>
-
-              <div className="grid gap-2 md:grid-cols-2">
-                {scanSourceStreams.map((source) => (
-                  <div key={source.source} className="rounded border p-2.5 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-medium uppercase tracking-wide">{source.source}</p>
-                      <Badge variant={source.status === 'completed' ? 'default' : source.status === 'running' ? 'secondary' : 'outline'}>{source.status}</Badge>
-                    </div>
-                    <div className="h-1.5 rounded bg-muted overflow-hidden">
-                      <div className="h-full bg-primary transition-all" style={{ width: `${source.progress}%` }} />
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      {source.findings.length} findings • started {source.startedAt}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid flex-1 min-h-0 gap-3 md:grid-cols-[1.2fr_.8fr]">
-                <div className="rounded border min-h-0 overflow-hidden flex flex-col">
-                  <div className="border-b px-3 py-2 text-xs font-medium">Scan findings</div>
-                  <div className="flex-1 min-h-0 overflow-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Severity</TableHead>
-                          <TableHead>Source</TableHead>
-                          <TableHead>Package</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Installed</TableHead>
-                          <TableHead>Fixed</TableHead>
-                          <TableHead>CVE</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {scanFindings.length > 0 ? scanFindings.map((finding) => (
-                          <TableRow key={finding.id}>
-                            <TableCell>
-                              <Badge variant={finding.severity === 'critical' || finding.severity === 'high' ? 'destructive' : 'outline'}>{finding.severity}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{finding.source}</Badge>
-                            </TableCell>
-                            <TableCell>{finding.packageName}</TableCell>
-                            <TableCell>{finding.packageType}</TableCell>
-                            <TableCell className="font-mono text-[11px]">{finding.currentVersion}</TableCell>
-                            <TableCell className="font-mono text-[11px]">{finding.fixedVersion ?? '—'}</TableCell>
-                            <TableCell className="font-mono text-[11px]">{finding.id}</TableCell>
-                          </TableRow>
-                        )) : (
-                          <TableRow>
-                            <TableCell colSpan={7} className="text-center text-muted-foreground">No findings yet. Start scan to populate details.</TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-
-                <div className="rounded border min-h-0 overflow-hidden flex flex-col">
-                  <div className="border-b px-3 py-2 text-xs font-medium">Raw scan logs (parallel sources)</div>
-                  <div className="flex-1 min-h-0 overflow-auto bg-black/80 p-2">
-                    <pre className="font-mono text-[11px] leading-5 text-cyan-300">
-                      {rawScanLines.join('\n')}
-                    </pre>
-                  </div>
-                </div>
-              </div>
+              <DockerScanStackPanel
+                scanStatus={scanStatus}
+                scanProgress={scanProgress}
+                scanErrorMessage={scanErrorMessage}
+                scanVulns={scanVulns}
+                scanStageSummaryRows={scanStageSummaryRows}
+                scannerPullRows={scannerPullRows}
+                scanSourceStreams={scanSourceStreams}
+                scanFindings={scanFindings}
+                rawScanLines={rawScanLines}
+                canStartScan={canOpenScan}
+                onStartScan={() => startScan()}
+                titleCaseStage={titleCaseStage}
+                toClock={toClock}
+              />
 
               <div className="mt-auto flex items-center gap-2">
-                <Button type="button" onClick={startScan} disabled={!canOpenScan || scanStatus === 'scanning'}>
-                  {scanStatus === 'scanning' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
-                  {scanStatus === 'scanning' ? 'Scanning image…' : 'Start scan'}
-                </Button>
                 {showContainerStage ? (
                   <Button type="button" variant="outline" disabled={scanStatus !== 'complete'} onClick={() => setActiveStage('container')}>
                     Continue to config
@@ -923,15 +1283,17 @@ export function DockerCreateContainerModal({
 
           <div className={`h-full px-5 py-4 overflow-y-auto ${activeStage === 'container' && showContainerStage ? 'block' : 'hidden'}`}>
             <div className="space-y-4">
-              <div className="rounded border bg-muted/30 p-3 text-xs">
-                <p className="font-medium">Image summary</p>
-                <p className="mt-1">Image: <code>{image || 'Not set'}</code></p>
-                {pullStatus === 'pulling' || scanStatus === 'scanning' ? (
-                  <p className="mt-1 text-blue-600">Preparing image…</p>
-                ) : pullStatus === 'complete' ? (
-                  <p className="mt-1 text-muted-foreground">Image pulled and ready</p>
-                ) : null}
-              </div>
+              <DockerRuntimeStackOverview
+                image={image}
+                pullStatus={pullStatus}
+                scanStatus={scanStatus}
+                portsCount={ports.filter((entry) => entry.containerPort.trim() && entry.hostPort.trim()).length}
+                volumesCount={volumes.filter((entry) => entry.hostPath.trim() && entry.containerPath.trim()).length}
+                envVarsCount={envVars.filter((entry) => entry.key.trim().length > 0).length}
+                labelsCount={labels.filter((entry) => entry.key.trim().length > 0).length}
+                networkMode={networkMode}
+                selectedNetworksCount={selectedNetworks.length}
+              />
 
               <div className="rounded border p-3 space-y-2">
                 <p className="text-xs text-muted-foreground">Config set</p>
@@ -941,7 +1303,7 @@ export function DockerCreateContainerModal({
                   onChange={(event) => applyConfigSet(event.target.value)}
                 >
                   <option value="">Select a config set…</option>
-                  {MOCK_CONFIG_SETS.map((configSet) => (
+                  {CONFIG_PRESETS.map((configSet) => (
                     <option key={configSet.id} value={String(configSet.id)}>{configSet.name}</option>
                   ))}
                 </select>

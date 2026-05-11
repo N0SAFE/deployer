@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { route } from "@repo/orpc-utils/builder";
+import { standard } from "@repo/orpc-utils";
 import {
     deploymentDeadLetterJobSchema,
     deploymentDeadLetterListInputSchema,
@@ -20,29 +20,53 @@ import {
     deploymentQueueTransitionResultSchema,
 } from "@repo/contracts-entities";
 
-export const deploymentQueueEnqueueJobContract = route({
-    method: "POST",
-    path: "/queue/jobs",
-    summary: "Enqueue orchestration job with idempotency handling",
-})
+const deploymentQueueEnqueueOps = standard.zod(
+    deploymentQueueEnqueueResultSchema,
+    "deploymentQueueEnqueue",
+);
+const deploymentQueueClaimOps = standard.zod(
+    deploymentQueueClaimResultSchema,
+    "deploymentQueueClaim",
+);
+const deploymentQueueHeartbeatOps = standard.zod(
+    deploymentQueueHeartbeatResultSchema,
+    "deploymentQueueHeartbeat",
+);
+const deploymentQueueTransitionOps = standard.zod(
+    deploymentQueueTransitionResultSchema,
+    "deploymentQueueTransition",
+);
+const deploymentQueueJobOps = standard.zod(deploymentQueueJobSchema, "deploymentQueueJob");
+const deploymentQueueListOps = standard.zod(deploymentQueueListResultSchema, "deploymentQueueList");
+const deploymentDeadLetterListOps = standard.zod(
+    deploymentDeadLetterListResultSchema,
+    "deploymentDeadLetterList",
+);
+const deploymentDeadLetterJobOps = standard.zod(
+    deploymentDeadLetterJobSchema,
+    "deploymentDeadLetterJob",
+);
+const deploymentDeadLetterReplayOps = standard.zod(
+    deploymentDeadLetterReplayResultSchema,
+    "deploymentDeadLetterReplay",
+);
+
+export const deploymentQueueEnqueueJobContract = deploymentQueueEnqueueOps
+    .create()
+    .path("/queue/jobs")
     .input((b) => b.body(deploymentQueueEnqueueInputSchema))
     .output(deploymentQueueEnqueueResultSchema)
     .build();
 
-export const deploymentQueueClaimJobsContract = route({
-    method: "POST",
-    path: "/queue/jobs/claim",
-    summary: "Claim available orchestration jobs for a worker",
-})
+export const deploymentQueueClaimJobsContract = deploymentQueueClaimOps
+    .create()
+    .path("/queue/jobs/claim")
     .input((b) => b.body(deploymentQueueClaimInputSchema))
     .output(deploymentQueueClaimResultSchema)
     .build();
 
-export const deploymentQueueHeartbeatJobContract = route({
-    method: "POST",
-    path: "/queue/jobs/{jobId}/heartbeat",
-    summary: "Refresh lease for a claimed orchestration job",
-})
+export const deploymentQueueHeartbeatJobContract = deploymentQueueHeartbeatOps
+    .create()
     .input((b) =>
         b
             .params((p) => p`/queue/jobs/${p("jobId", z.uuid())}/heartbeat`)
@@ -51,11 +75,8 @@ export const deploymentQueueHeartbeatJobContract = route({
     .output(deploymentQueueHeartbeatResultSchema)
     .build();
 
-export const deploymentQueueCompleteJobContract = route({
-    method: "POST",
-    path: "/queue/jobs/{jobId}/complete",
-    summary: "Mark orchestration job as completed",
-})
+export const deploymentQueueCompleteJobContract = deploymentQueueTransitionOps
+    .create()
     .input((b) =>
         b
             .params((p) => p`/queue/jobs/${p("jobId", z.uuid())}/complete`)
@@ -64,11 +85,8 @@ export const deploymentQueueCompleteJobContract = route({
     .output(deploymentQueueTransitionResultSchema)
     .build();
 
-export const deploymentQueueFailJobContract = route({
-    method: "POST",
-    path: "/queue/jobs/{jobId}/fail",
-    summary: "Mark orchestration job as failed and schedule retry if allowed",
-})
+export const deploymentQueueFailJobContract = deploymentQueueTransitionOps
+    .create()
     .input((b) =>
         b
             .params((p) => p`/queue/jobs/${p("jobId", z.uuid())}/fail`)
@@ -77,47 +95,35 @@ export const deploymentQueueFailJobContract = route({
     .output(deploymentQueueTransitionResultSchema)
     .build();
 
-export const deploymentQueueFindJobByIdContract = route({
-    method: "GET",
-    path: "/queue/jobs/{jobId}",
-    summary: "Get orchestration queue job by id",
-})
+export const deploymentQueueFindJobByIdContract = deploymentQueueJobOps
+    .read({ idFieldName: "jobId", idSchema: z.uuid() })
     .input((b) => b.params((p) => p`/queue/jobs/${p("jobId", z.uuid())}`))
     .output(deploymentQueueJobSchema.nullable())
     .build();
 
-export const deploymentQueueListJobsContract = route({
-    method: "GET",
-    path: "/queue/jobs",
-    summary: "List orchestration queue jobs with typed filters",
-})
+export const deploymentQueueListJobsContract = deploymentQueueListOps
+    .list()
+    .path("/queue/jobs")
     .input((b) => b.query(deploymentQueueListInputSchema))
     .output(deploymentQueueListResultSchema)
     .build();
 
-export const deploymentQueueListDeadLetterJobsContract = route({
-    method: "GET",
-    path: "/queue/dead-letter",
-    summary: "List dead-letter orchestration jobs",
-})
+export const deploymentQueueListDeadLetterJobsContract = deploymentDeadLetterListOps
+    .list()
+    .path("/queue/dead-letter")
     .input((b) => b.query(deploymentDeadLetterListInputSchema))
     .output(deploymentDeadLetterListResultSchema)
     .build();
 
-export const deploymentQueueFindDeadLetterJobByIdContract = route({
-    method: "GET",
-    path: "/queue/dead-letter/{deadLetterJobId}",
-    summary: "Get dead-letter orchestration job by id",
-})
+export const deploymentQueueFindDeadLetterJobByIdContract = deploymentDeadLetterJobOps
+    .read({ idFieldName: "deadLetterJobId", idSchema: z.uuid() })
     .input((b) => b.params((p) => p`/queue/dead-letter/${p("deadLetterJobId", z.uuid())}`))
     .output(deploymentDeadLetterJobSchema.nullable())
     .build();
 
-export const deploymentQueueReplayDeadLetterJobContract = route({
-    method: "POST",
-    path: "/queue/dead-letter/replay",
-    summary: "Replay dead-letter orchestration job back into active queue",
-})
+export const deploymentQueueReplayDeadLetterJobContract = deploymentDeadLetterReplayOps
+    .create()
+    .path("/queue/dead-letter/replay")
     .input((b) => b.body(deploymentDeadLetterReplayInputSchema))
     .output(deploymentDeadLetterReplayResultSchema)
     .build();

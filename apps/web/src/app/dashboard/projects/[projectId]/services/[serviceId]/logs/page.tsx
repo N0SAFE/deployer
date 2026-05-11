@@ -8,8 +8,8 @@ import { DockerSelectionToggle } from '@/app/dashboard/docker/_components/docker
 import {
   useDockerContainerList,
   useDockerDeploymentList,
-  useDockerMeshSseState,
-} from '@/domains/docker/mock-hooks'
+} from '@/domains/docker/hooks'
+import { useMeshSseState } from '@/domains/mesh/hooks'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
@@ -57,7 +57,6 @@ interface DockerContainerLite {
 
 interface DeploymentLite {
   id: string
-  projectId: string
   serviceId: string
   containerName?: string | null
   status: string
@@ -100,7 +99,7 @@ export default function DashboardServiceLogsPage() {
 
   const { data: deploymentData } = useDockerDeploymentList(LIST_INPUT)
   const { data: containerData } = useDockerContainerList(LIST_INPUT)
-  const { state: meshState, status: meshSseStatus } = useDockerMeshSseState()
+  const { state: meshState, status: meshSseStatus } = useMeshSseState()
 
   const allContainers = useMemo(() => (containerData?.data ?? []) as DockerContainerLite[], [containerData?.data])
   const allDeployments = useMemo(() => (deploymentData?.data ?? []) as DeploymentLite[], [deploymentData?.data])
@@ -139,7 +138,7 @@ export default function DashboardServiceLogsPage() {
   const logs = useMemo<ServiceLogLine[]>(() => {
     const projected: ServiceLogLine[] = []
     const serviceDeployments = allDeployments.filter(
-      (deployment: DeploymentLite) => deployment.projectId === projectId && deployment.serviceId === serviceId,
+      (deployment: DeploymentLite) => deployment.serviceId === serviceId,
     )
 
     for (const deployment of serviceDeployments.slice(0, 120)) {
@@ -186,15 +185,17 @@ export default function DashboardServiceLogsPage() {
       }
     }
 
-    projected.push({
-      id: `mesh-state-${String(meshState.revision)}-${serviceId}`,
-      containerId: null,
-      containerName: service?.name ?? 'mesh-control-plane',
-      source: 'mesh',
-      status: meshSseStatus,
-      message: `Mesh ${meshState.reason.replaceAll('_', ' ')} · ${String(meshState.sessions.length)} sessions · ${String(meshState.peers.length)} peers`,
-      timestamp: meshState.emittedAt,
-    })
+    if (meshState) {
+      projected.push({
+        id: `mesh-state-${String(meshState.revision)}-${serviceId}`,
+        containerId: null,
+        containerName: service?.name ?? 'mesh-control-plane',
+        source: 'mesh',
+        status: meshSseStatus,
+        message: `Mesh ${meshState.reason.replaceAll('_', ' ')} · ${String(meshState.sessions.length)} sessions · ${String(meshState.peers.length)} peers`,
+        timestamp: meshState.emittedAt,
+      })
+    }
 
     return projected.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
   }, [allDeployments, meshSseStatus, meshState, projectId, service?.name, serviceContainers, serviceId])

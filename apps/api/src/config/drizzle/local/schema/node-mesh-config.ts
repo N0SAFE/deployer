@@ -7,7 +7,6 @@ import { check, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
  */
 export const nodeMeshConfig = sqliteTable("node_mesh_config", {
     id: integer("id").primaryKey({ autoIncrement: false }).notNull().$default(() => 1),
-    clusterId: text("cluster_id").notNull(),
     nodeServerUrl: text("node_server_url"),
     bootstrapPeersEncrypted: text("bootstrap_peers_encrypted"),
     syncIntervalMs: integer("sync_interval_ms").notNull().default(10_000),

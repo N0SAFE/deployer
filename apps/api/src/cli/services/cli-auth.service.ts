@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { Roles } from '@repo/auth/permissions';
 import * as schema from '../../config/drizzle/global/schema';
 import { AuthCoreService } from '../../core/modules/auth/services/auth-core.service';
-import { GlobalDatabaseService } from '../../core/modules/database/services/global-database.service';
+import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service';
 
 // Temporary seed user email for when other auth methods fail
 const TEMP_SEED_USER_EMAIL = '__seed_temp_user__@internal.seed';

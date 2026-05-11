@@ -97,7 +97,7 @@ export const userSchema = z.object({
   emailVerified: z.boolean().default(false),
   
   /** Timestamp when email was verified */
-  emailVerifiedAt: z.iso.datetime().nullable(),
+  emailVerifiedAt: z.date().nullable(),
   
   /** Whether account is banned */
   banned: z.boolean().default(false),
@@ -110,7 +110,7 @@ export const userSchema = z.object({
   // -------------------------------------------------------------------------
   
   /** Last login timestamp */
-  lastLoginAt: z.iso.datetime().nullable(),
+  lastLoginAt: z.date().nullable(),
   
   /** Number of login attempts (for rate limiting) */
   loginAttempts: z.number().int().min(0).default(0),
@@ -123,13 +123,13 @@ export const userSchema = z.object({
   // -------------------------------------------------------------------------
   
   /** Account creation timestamp */
-  createdAt: z.iso.datetime(),
+  createdAt: z.date(),
   
   /** Last update timestamp */
-  updatedAt: z.iso.datetime(),
+  updatedAt: z.date(),
   
   /** Soft delete timestamp (null = not deleted) */
-  deletedAt: z.iso.datetime().nullable(),
+  deletedAt: z.date().nullable(),
 });
 
 // ============================================================================

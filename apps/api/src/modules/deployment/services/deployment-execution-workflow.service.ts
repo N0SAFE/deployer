@@ -348,6 +348,7 @@ export class DeploymentExecutionWorkflowService {
             const runtimeEnvironmentVariables = this.resolveRuntimeEnvironmentVariables(result);
             const convergenceResolution = this.resolveRuntimeConvergenceConfig(result, runtimeRunnerOptions);
             const deployRetryPolicy = this.resolveDeployPhaseRetryPolicy(result);
+            const projectId = await this.deploymentRepository.getServiceProjectId(deployment.serviceId);
 
             await this.deploymentRepository.insertLog(deploymentId, {
                 level: "info",
@@ -405,6 +406,7 @@ export class DeploymentExecutionWorkflowService {
                 deployment: {
                     deploymentId,
                     serviceId: deployment.serviceId,
+                    projectId,
                     deploymentContainerName:
                         runtimeRunnerOptions?.containerName ??
                         deployment.containerName,
@@ -458,6 +460,32 @@ export class DeploymentExecutionWorkflowService {
                     containerImage: runtimeResult.containerImage,
                     startedAt: new Date().toISOString(),
                 },
+                ...(runtimeResult.managedRuntime?.managedBy === "deployment_service"
+                    ? {
+                          managedRuntimeResources: {
+                              ownership: {
+                                  managedBy: runtimeResult.managedRuntime.managedBy,
+                                  managedReason: runtimeResult.managedRuntime.managedReason,
+                                  deploymentId: runtimeResult.managedRuntime.deploymentId,
+                                  serviceId: runtimeResult.managedRuntime.serviceId,
+                                  projectId: runtimeResult.managedRuntime.projectId,
+                                  organizationId: runtimeResult.managedRuntime.organizationId,
+                              },
+                              container: {
+                                  id: runtimeResult.containerId,
+                                  name: runtimeResult.containerName,
+                                  labels: runtimeResult.managedRuntime.labels,
+                              },
+                              image: {
+                                  reference: runtimeResult.managedRuntime.imageRef,
+                              },
+                              network: {
+                                  mode: runtimeResult.managedRuntime.networkMode,
+                              },
+                              persistedAt: new Date().toISOString(),
+                          },
+                      }
+                    : {}),
                 routeVerification: runtimeResult.routeVerification,
                 healthGate: runtimeResult.healthGate,
                 ...(runtimeResult.loadBalancerSync

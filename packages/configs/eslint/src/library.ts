@@ -1,7 +1,6 @@
 import { defineConfig } from "eslint/config";
 import coreConfig, { type BaseConfigOptions } from "./base";
 
-const tsconfigRootDir = process.cwd();
 const coreBaseFactory = coreConfig.configs.base;
 const coreTestFactory = coreConfig.configs.test;
 

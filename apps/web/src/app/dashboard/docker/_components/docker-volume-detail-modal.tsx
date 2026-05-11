@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useMemo, useState } from 'react'
-import { getDockerEntityDetail } from '@/domains/docker/mock-hooks'
+import { useDockerRuntimeEntityDetail } from '@/domains/docker/hooks'
 import { getMockVolumeFiles } from '@/mocks/platform/entities/docker.large.mock'
 import type { DockerFileEntry } from '@/mocks/platform/types'
 import { Badge } from '@repo/ui/components/shadcn/badge'
@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/sh
 import { HardDrive, ShieldCheck, Trash2 } from 'lucide-react'
 import { DockerFileBrowser } from './docker-file-browser'
 import { DockerKeyValueGrid } from './docker-key-value-grid'
+import { DockerDetailLoadingState } from './docker-loading-states'
 import { DockerModalQuickActions } from './docker-modal-quick-actions'
 import { toast } from 'sonner'
 
@@ -27,8 +28,10 @@ export function DockerVolumeDetailModalTrigger({ id, children, className, initia
   const [currentPath, setCurrentPath] = useState('/')
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null)
   const [maintenanceNotice, setMaintenanceNotice] = useState<string | null>(null)
-  const detail = useMemo(() => getDockerEntityDetail('volumes', id).volume, [id])
+  const detailQuery = useDockerRuntimeEntityDetail('volumes', id, { enabled: open })
+  const detail = detailQuery.data
   const files = useMemo(() => getMockVolumeFiles(id), [id])
+  const isDetailLoading = detailQuery.isLoading && !detail
 
   const selectedFile = useMemo(() => {
     if (!selectedFilePath) return null
@@ -178,6 +181,8 @@ export function DockerVolumeDetailModalTrigger({ id, children, className, initia
                 )) : <p className="text-muted-foreground">No labels on this volume.</p>}
               </TabsContent>
             </Tabs>
+          ) : isDetailLoading ? (
+            <DockerDetailLoadingState label="Loading volume details…" />
           ) : (
             <p className="text-sm text-muted-foreground">Volume not found.</p>
           )}

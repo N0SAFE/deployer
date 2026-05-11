@@ -1,10 +1,14 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { z } from 'zod'
 import { DockerBatchOperationsBar, DockerSavedViewSelect } from '../_components/docker-operations-controls'
+import { DockerInlineLoadingState, DockerTableLoadingRows } from '../_components/docker-loading-states'
 import { DockerRegistryDetailModalTrigger } from '../_components/docker-registry-detail-modal'
+import { DockerTablePagination } from '../_components/docker-table-pagination'
 import { DockerActiveFilterChips, DockerColumnSettings, DockerExportActions, DockerSelectionToggle } from '../_components/docker-page-utilities'
-import { useDockerDeploymentList, useDockerRegistryList } from '@/domains/docker/mock-hooks'
+import { useDockerDataTable } from '../_components/use-docker-data-table'
+import { useDockerDeploymentList, useDockerImageEventsStream, useDockerRegistryList } from '@/domains/docker/hooks'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
@@ -20,6 +24,7 @@ import {
 import { Separator } from '@repo/ui/components/shadcn/separator'
 import { Plus, RefreshCw, Search } from 'lucide-react'
 import { toast } from 'sonner'
+import { useSafeQueryStatesFromZod } from '@/utils/useSafeQueryStatesFromZod'
 
 const DEPLOYMENT_LIST_INPUT = {
   query: {
@@ -27,6 +32,15 @@ const DEPLOYMENT_LIST_INPUT = {
     offset: 0,
   },
 } as const
+
+const REGISTRY_LIST_QUERY_SCHEMA = z.object({
+  q: z.string().default(''),
+  view: z.enum(['all', 'high-usage', 'multi-repo']).default('all'),
+  sortBy: z.enum(['images', 'registry', 'repositories', 'lastSeen']).default('images'),
+  sortDirection: z.enum(['asc', 'desc']).default('desc'),
+  page: z.number().int().min(1).default(1),
+  pageSize: z.number().int().min(10).max(100).default(20),
+})
 
 interface RegistryProjection {
   id: string
@@ -73,10 +87,7 @@ export default function DashboardDockerRegistryPage() {
   const [newRegistryRepositories, setNewRegistryRepositories] = useState('library/nginx')
   const [newRegistryAuthMode, setNewRegistryAuthMode] = useState<'token' | 'basic' | 'anonymous'>('token')
   const [localRegistryCatalog, setLocalRegistryCatalog] = useState<RegistryProjection[]>([])
-  const [savedView, setSavedView] = useState<'all' | 'high-usage' | 'multi-repo'>('all')
-  const [sortBy, setSortBy] = useState<'images' | 'registry' | 'repositories' | 'lastSeen'>('images')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
-  const [searchTerm, setSearchTerm] = useState('')
+  const [listQuery, setListQuery] = useSafeQueryStatesFromZod(REGISTRY_LIST_QUERY_SCHEMA)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
@@ -85,10 +96,16 @@ export default function DashboardDockerRegistryPage() {
     'Images in use': true,
     'Last seen': true,
   })
-  const { data: deploymentData } = useDockerDeploymentList(DEPLOYMENT_LIST_INPUT)
-  const { data: registryEntityData } = useDockerRegistryList(DEPLOYMENT_LIST_INPUT)
+  const { data: deploymentData, isLoading: isDeploymentLoading } = useDockerDeploymentList(DEPLOYMENT_LIST_INPUT)
+  const { data: registryEntityData, isLoading: isRegistryLoading } = useDockerRegistryList(DEPLOYMENT_LIST_INPUT)
+  useDockerImageEventsStream({ query: {} })
   const deployments = deploymentData?.data ?? []
   const registryEntities = registryEntityData?.data ?? []
+
+  const searchTerm = listQuery.q
+  const savedView = listQuery.view
+  const sortBy = listQuery.sortBy
+  const sortDirection = listQuery.sortDirection
 
   const registryCatalog = useMemo<RegistryProjection[]>(() => {
     const registryIdByName = new Map(registryEntities.map((registry) => [registry.name, registry.id]))
@@ -178,18 +195,41 @@ export default function DashboardDockerRegistryPage() {
       return registry.registry.toLowerCase().includes(query)
     })
 
-    return filtered.sort((a, b) => {
-      const multiplier = sortDirection === 'asc' ? 1 : -1
-      if (sortBy === 'registry') return a.registry.localeCompare(b.registry) * multiplier
-      if (sortBy === 'repositories') return (a.repositoryCount - b.repositoryCount) * multiplier
-      if (sortBy === 'lastSeen') return (new Date(a.lastSeenAt).getTime() - new Date(b.lastSeenAt).getTime()) * multiplier
-      return (a.imageCount - b.imageCount) * multiplier
-    })
-  }, [registryCatalog, savedView, searchTerm, sortBy, sortDirection])
+    return filtered
+  }, [registryCatalog, savedView, searchTerm])
 
-  const allVisibleSelected = filteredRegistryCatalog.length > 0 && filteredRegistryCatalog.every((registry) => selectedIds.has(registry.id))
-  const selectedVisibleCount = filteredRegistryCatalog.filter((registry) => selectedIds.has(registry.id)).length
-  const someVisibleSelected = selectedVisibleCount > 0 && selectedVisibleCount < filteredRegistryCatalog.length
+  const registrySorters = useMemo(
+    () => ({
+      images: (registry: RegistryProjection) => registry.imageCount,
+      registry: (registry: RegistryProjection) => registry.registry,
+      repositories: (registry: RegistryProjection) => registry.repositoryCount,
+      lastSeen: (registry: RegistryProjection) => new Date(registry.lastSeenAt).getTime(),
+    }),
+    [],
+  )
+
+  const registryTable = useDockerDataTable({
+    data: filteredRegistryCatalog,
+    sortBy,
+    sortDirection,
+    page: listQuery.page,
+    pageSize: listQuery.pageSize,
+    sorters: registrySorters,
+  })
+
+  useEffect(() => {
+    if (registryTable.page !== listQuery.page) {
+      setListQuery({ page: registryTable.page })
+    }
+  }, [listQuery.page, registryTable.page, setListQuery])
+
+  const visibleRegistries = registryTable.rows
+
+  const allVisibleSelected = visibleRegistries.length > 0 && visibleRegistries.every((registry) => selectedIds.has(registry.id))
+  const selectedVisibleCount = visibleRegistries.filter((registry) => selectedIds.has(registry.id)).length
+  const someVisibleSelected = selectedVisibleCount > 0 && selectedVisibleCount < visibleRegistries.length
+  const tableColumnCount = 1 + Object.values(visibleColumns).filter(Boolean).length + 1
+  const isInitialLoading = (isDeploymentLoading || isRegistryLoading) && registryCatalog.length === 0
 
   return (
     <div className="space-y-6">
@@ -207,7 +247,7 @@ export default function DashboardDockerRegistryPage() {
                 <Input
                   value={searchTerm}
                   onChange={(event) => {
-                    setSearchTerm(event.target.value)
+                    setListQuery({ q: event.target.value, page: 1 })
                   }}
                   placeholder="Search registry host..."
                   className="h-9 border-border/70 bg-background/70 pl-9"
@@ -218,7 +258,7 @@ export default function DashboardDockerRegistryPage() {
                 storageKey="docker:registry:saved-view"
                 value={savedView}
                 onChange={(value) => {
-                  setSavedView(value as 'all' | 'high-usage' | 'multi-repo')
+                  setListQuery({ view: value as 'all' | 'high-usage' | 'multi-repo', page: 1 })
                 }}
                 options={[
                   { value: 'all', label: 'All' },
@@ -231,7 +271,7 @@ export default function DashboardDockerRegistryPage() {
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={sortBy}
                 onChange={(event) => {
-                  setSortBy(event.target.value as 'images' | 'registry' | 'repositories' | 'lastSeen')
+                  setListQuery({ sortBy: event.target.value as 'images' | 'registry' | 'repositories' | 'lastSeen', page: 1 })
                 }}
               >
                 <option value="images">Sort: Images</option>
@@ -244,7 +284,7 @@ export default function DashboardDockerRegistryPage() {
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={sortDirection}
                 onChange={(event) => {
-                  setSortDirection(event.target.value as 'asc' | 'desc')
+                  setListQuery({ sortDirection: event.target.value as 'asc' | 'desc', page: 1 })
                 }}
               >
                 <option value="desc">Desc</option>
@@ -290,6 +330,12 @@ export default function DashboardDockerRegistryPage() {
 
         {actionFeedback ? <div className="border-b border-border/60 bg-muted/20 px-4 py-2 text-xs text-muted-foreground">{actionFeedback}</div> : null}
 
+        {isInitialLoading ? (
+          <div className="px-4 py-3">
+            <DockerInlineLoadingState label="Loading registry catalog and usage metadata…" />
+          </div>
+        ) : null}
+
         <div className="p-4">
 
           <DockerBatchOperationsBar
@@ -318,7 +364,7 @@ export default function DashboardDockerRegistryPage() {
                       indeterminate={someVisibleSelected}
                       onPressedChange={(pressed) => {
                         if (pressed) {
-                          setSelectedIds(new Set(filteredRegistryCatalog.map((registry) => registry.id)))
+                          setSelectedIds(new Set(visibleRegistries.map((registry) => registry.id)))
                         } else {
                           setSelectedIds(new Set())
                         }
@@ -335,7 +381,9 @@ export default function DashboardDockerRegistryPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredRegistryCatalog.map((registry) => (
+              {isInitialLoading ? (
+                <DockerTableLoadingRows columns={tableColumnCount} rows={6} />
+              ) : visibleRegistries.map((registry) => (
                 <TableRow key={registry.registry}>
                   <TableCell>
                     <div className="flex h-7 items-center gap-1">
@@ -401,7 +449,7 @@ export default function DashboardDockerRegistryPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filteredRegistryCatalog.length === 0 ? (
+              {!isInitialLoading && filteredRegistryCatalog.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                     No registry metadata found yet.
@@ -410,6 +458,23 @@ export default function DashboardDockerRegistryPage() {
               ) : null}
             </TableBody>
           </Table>
+          </div>
+
+          <div className="mt-2">
+            <DockerTablePagination
+              page={registryTable.page}
+              pageSize={registryTable.pageSize}
+              totalRows={registryTable.totalRows}
+              totalPages={registryTable.totalPages}
+              from={registryTable.from}
+              to={registryTable.to}
+              onPageChange={(nextPage) => {
+                setListQuery({ page: nextPage })
+              }}
+              onPageSizeChange={(nextPageSize) => {
+                setListQuery({ pageSize: nextPageSize, page: 1 })
+              }}
+            />
           </div>
 
           <div className="mt-3">

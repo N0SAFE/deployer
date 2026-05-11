@@ -57,6 +57,8 @@ This file defines how AI coding agents must operate in this repository. It exist
 - Do not remove or rename workspace packages without an explicit instruction and confirmation flag when using tools like `delete-target`.
 - Avoid direct edits to generated files—use the documented generators.
 - Treat environment and deployment configs with extra caution; update docs when changing them.
+- In `v3/`, do not keep temporary compatibility layers (legacy files, alias exports, shim wrappers, duplicate entrypoints).
+- For structural or concept changes in `v3/`, update all affected imports/tests/docs in the same change set and remove old files immediately.
 
 ## Quickstart Checklists
 

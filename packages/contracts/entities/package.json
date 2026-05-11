@@ -10,7 +10,7 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "type-check": "tsc --noEmit",
+    "type-check": "tsgo --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -23,10 +23,11 @@
     "zod": "catalog:utils"
   },
   "devDependencies": {
+    "@types/node": "catalog:build",
     "@repo/config-vitest": "*",
     "@repo/config-typescript": "*",
     "@vitest/coverage-v8": "catalog:testing",
-    "typescript": "catalog:build",
+    "@typescript/native-preview": "catalog:build",
     "vitest": "catalog:testing"
   }
 }

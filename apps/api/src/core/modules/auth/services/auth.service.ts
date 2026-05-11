@@ -1,10 +1,8 @@
-import { Inject, Injectable, Optional, Scope } from "@nestjs/common";
-import { REQUEST } from "@nestjs/core";
+import { Injectable, Optional, Scope } from "@nestjs/common";
 import type { Auth } from "@/auth";
 import {
 	AuthCoreService,
 	normalizeHeaders,
-	type RequestHeaders,
 } from "./auth-core.service";
 import type { PluginRegistry } from "../plugin-utils/plugin-wrapper-factory";
 import type { AuthWithPlugins } from "../definitions/auth-module-definition";
@@ -60,13 +58,16 @@ export class AuthService<T extends AuthWithPlugins = Auth> {
 	 * Automatically extracted from the current request context.
 	 */
 	private getRequestHeaders(): Headers {
-		const rawHeaders: unknown = this.request.headers;
+		if (!this.request) {
+			return new Headers();
+		}
+		const rawHeaders = this.request.headers;
 		
-		if (!rawHeaders || typeof rawHeaders !== 'object') {
+		if (typeof rawHeaders !== 'object') {
 			return new Headers();
 		}
 
-		return normalizeHeaders(rawHeaders as RequestHeaders);
+		return normalizeHeaders(rawHeaders);
 	}
 
 	/**
@@ -192,7 +193,7 @@ export class AuthService<T extends AuthWithPlugins = Auth> {
 	 * Generate the Better Auth OpenAPI schema.
 	 * Delegated to AuthCoreService.
 	 */
-	async generateAuthOpenAPISchema() {
+	generateAuthOpenAPISchema() {
 		return this.core.generateAuthOpenAPISchema();
 	}
 }

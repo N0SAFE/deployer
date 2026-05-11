@@ -279,12 +279,12 @@ export function createNumberFilterSchema(fieldName: string) {
  */
 export function createDateFilterSchema(fieldName: string) {
   return z.object({
-    [fieldName]: z.iso.datetime().optional(),
-    [`${fieldName}_gt`]: z.iso.datetime().optional().describe("After"),
-    [`${fieldName}_gte`]: z.iso.datetime().optional().describe("On or after"),
-    [`${fieldName}_lt`]: z.iso.datetime().optional().describe("Before"),
-    [`${fieldName}_lte`]: z.iso.datetime().optional().describe("On or before"),
-    [`${fieldName}_between`]: z.tuple([z.iso.datetime(), z.iso.datetime()]).optional(),
+    [fieldName]: z.date().optional(),
+    [`${fieldName}_gt`]: z.date().optional().describe("After"),
+    [`${fieldName}_gte`]: z.date().optional().describe("On or after"),
+    [`${fieldName}_lt`]: z.date().optional().describe("Before"),
+    [`${fieldName}_lte`]: z.date().optional().describe("On or before"),
+    [`${fieldName}_between`]: z.tuple([z.date(), z.date()]).optional(),
   } as Record<string, z.ZodType>);
 }
 
@@ -502,33 +502,33 @@ export function createDateFilter(
   
   // Add base equality filter
   if (operators.includes('eq')) {
-    filter.value = z.iso.datetime().optional();
+    filter.value = z.date().optional();
   }
   
   // Add comparison operators
   if (operators.includes('ne')) {
-    filter.value_ne = z.iso.datetime().optional();
+    filter.value_ne = z.date().optional();
   }
   if (operators.includes('gt')) {
-    filter.value_gt = z.iso.datetime().optional();
+    filter.value_gt = z.date().optional();
   }
   if (operators.includes('gte')) {
-    filter.value_gte = z.iso.datetime().optional();
+    filter.value_gte = z.date().optional();
   }
   if (operators.includes('lt')) {
-    filter.value_lt = z.iso.datetime().optional();
+    filter.value_lt = z.date().optional();
   }
   if (operators.includes('lte')) {
-    filter.value_lte = z.iso.datetime().optional();
+    filter.value_lte = z.date().optional();
   }
   if (operators.includes('in')) {
-    filter.value_in = z.array(z.iso.datetime()).optional();
+    filter.value_in = z.array(z.date()).optional();
   }
   if (operators.includes('nin')) {
-    filter.value_nin = z.array(z.iso.datetime()).optional();
+    filter.value_nin = z.array(z.date()).optional();
   }
   if (operators.includes('between')) {
-    filter.value_between = z.tuple([z.iso.datetime(), z.iso.datetime()]).optional();
+    filter.value_between = z.tuple([z.date(), z.date()]).optional();
   }
   if (operators.includes('exists')) {
     filter.value_exists = z.boolean().optional();

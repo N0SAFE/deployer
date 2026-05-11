@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useMemo, useState } from 'react'
-import { getDockerEntityDetail } from '@/domains/docker/mock-hooks'
+import { useDockerRuntimeEntityDetail } from '@/domains/docker/hooks'
 import { getMockNetworkDiagnostics } from '@/mocks/platform/entities/docker.large.mock'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/shadcn/tabs'
 import { Activity, Route, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import { DockerModalQuickActions } from './docker-modal-quick-actions'
+import { DockerDetailLoadingState } from './docker-loading-states'
 import { toast } from 'sonner'
 
 interface DockerNetworkDetailModalTriggerProps {
@@ -21,8 +22,10 @@ interface DockerNetworkDetailModalTriggerProps {
 export function DockerNetworkDetailModalTrigger({ id, children, className, initialTab = 'overview' }: DockerNetworkDetailModalTriggerProps) {
   const [open, setOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'overview' | 'ipam' | 'containers' | 'labels' | 'diag'>(initialTab)
-  const detail = useMemo(() => getDockerEntityDetail('networks', id).network, [id])
+  const detailQuery = useDockerRuntimeEntityDetail('networks', id, { enabled: open })
+  const detail = detailQuery.data
   const diagnostics = useMemo(() => (detail ? getMockNetworkDiagnostics(detail) : null), [detail])
+  const isDetailLoading = detailQuery.isLoading && !detail
 
   return (
     <>
@@ -166,6 +169,8 @@ export function DockerNetworkDetailModalTrigger({ id, children, className, initi
                 </div>
               </TabsContent>
             </Tabs>
+          ) : isDetailLoading ? (
+            <DockerDetailLoadingState label="Loading network details…" />
           ) : (
             <p className="text-sm text-muted-foreground">Network not found.</p>
           )}

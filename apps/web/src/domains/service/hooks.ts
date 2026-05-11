@@ -7,31 +7,31 @@
  */
 
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { serviceEndpoints } from './endpoints'
+import { serviceEndpointOperations, serviceEndpoints } from './endpoints'
 import { serviceInvalidations } from './invalidations'
 import { wrapWithInvalidations } from '../shared/helpers'
 
-const enhancedService = wrapWithInvalidations(serviceEndpoints, serviceInvalidations)
+const enhancedService = wrapWithInvalidations(serviceEndpointOperations, serviceInvalidations)
 
 // ============================================================================
 // QUERY HOOKS
 // ============================================================================
 
 export function useServiceList(
-  input: Parameters<typeof serviceEndpoints.list.call>[0],
+  input: Parameters<typeof serviceEndpoints.crud.list.call>[0],
 ) {
-  return useQuery(serviceEndpoints.list.queryOptions({ input }))
+  return useQuery(serviceEndpoints.crud.list.queryOptions({ input }))
 }
 
 export function useService(serviceId: string) {
   return useQuery(
-    serviceEndpoints.findById.queryOptions({ input: { params: { id: serviceId }, id: serviceId } }),
+    serviceEndpoints.crud.findById.queryOptions({ input: { params: { id: serviceId }, id: serviceId } }),
   )
 }
 
 export function useServiceDependencies(serviceId: string) {
   return useQuery(
-    serviceEndpoints.getDependencies.queryOptions({ input: { params: { id: serviceId }, id: serviceId } }),
+    serviceEndpoints.dependencies.list.queryOptions({ input: { params: { id: serviceId }, id: serviceId } }),
   )
 }
 
@@ -41,7 +41,7 @@ export function useServiceDependencies(serviceId: string) {
 
 export function useCreateService() {
   return useMutation(
-    serviceEndpoints.create.mutationOptions({
+    serviceEndpoints.crud.create.mutationOptions({
       onSuccess: enhancedService.create.withInvalidationOnSuccess(),
     }),
   )
@@ -49,7 +49,7 @@ export function useCreateService() {
 
 export function useUpdateService() {
   return useMutation(
-    serviceEndpoints.update.mutationOptions({
+    serviceEndpoints.crud.update.mutationOptions({
       onSuccess: enhancedService.update.withInvalidationOnSuccess(),
     }),
   )
@@ -57,7 +57,7 @@ export function useUpdateService() {
 
 export function useDeleteService() {
   return useMutation(
-    serviceEndpoints.delete.mutationOptions({
+    serviceEndpoints.crud.delete.mutationOptions({
       onSuccess: enhancedService.delete.withInvalidationOnSuccess(),
     }),
   )
@@ -65,7 +65,7 @@ export function useDeleteService() {
 
 export function useToggleServiceActive() {
   return useMutation(
-    serviceEndpoints.toggleActive.mutationOptions({
+    serviceEndpoints.lifecycle.toggleActive.mutationOptions({
       onSuccess: enhancedService.toggleActive.withInvalidationOnSuccess(),
     }),
   )
@@ -73,7 +73,7 @@ export function useToggleServiceActive() {
 
 export function useAddServiceDependency() {
   return useMutation(
-    serviceEndpoints.addDependency.mutationOptions({
+    serviceEndpoints.dependencies.add.mutationOptions({
       onSuccess: enhancedService.addDependency.withInvalidationOnSuccess(),
     }),
   )
@@ -81,7 +81,7 @@ export function useAddServiceDependency() {
 
 export function useRemoveServiceDependency() {
   return useMutation(
-    serviceEndpoints.removeDependency.mutationOptions({
+    serviceEndpoints.dependencies.remove.mutationOptions({
       onSuccess: enhancedService.removeDependency.withInvalidationOnSuccess(),
     }),
   )

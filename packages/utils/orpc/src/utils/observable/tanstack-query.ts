@@ -120,7 +120,7 @@ export type ObservableProcedureQueryUtils<
   TStreamValue,
   TContext = Record<never, never>,
 > = {
-  experimental_observableOptions<TError = Error>(
+  experimental_liveObservableOptions<TError = Error>(
     options: ObservableOptionsConfig<TInput, TStreamValue, TError, TContext>,
   ): ObservableQueryOptionsResult<TStreamValue, TError>;
   experimental_streamedObservableOptions<TError = Error>(
@@ -135,7 +135,7 @@ type ObservableRouterQueryUtils<TOrpc> = TOrpc extends TanstackProcedureUtilsLik
         ExtractProcedureStreamValue<TOrpc>,
         ExtractProcedureContext<TOrpc>
       > & {
-        experimental_observablekey: AliasKeyMethod<
+        experimental_liveObservableKey: AliasKeyMethod<
           TOrpc,
           "experimental_liveKey",
           ExtractProcedureInput<TOrpc>
@@ -336,6 +336,44 @@ function normalizeQueryKey(baseKey: QueryKey, providedQueryKey?: QueryKey): Quer
   return providedQueryKey ?? baseKey;
 }
 
+type ProcedureBaseQueryOptions = {
+  queryKey?: QueryKey;
+  queryFn?: (context: QueryFunctionContext) => Promise<unknown>;
+  [key: string]: unknown;
+};
+
+function resolveBaseProcedureOptions(
+  procedure: object,
+  methodName: "experimental_liveOptions" | "experimental_streamedOptions",
+  options: {
+    input: unknown;
+    queryKey?: QueryKey;
+    context: unknown;
+    queryOptions: Record<string, unknown>;
+  },
+): ProcedureBaseQueryOptions | null {
+  const method = getBoundMethod(procedure, methodName);
+  if (!method) {
+    return null;
+  }
+
+  const baseOptionsInput: Record<string, unknown> = {
+    ...options.queryOptions,
+    input: options.input,
+  };
+
+  if (options.queryKey !== undefined) {
+    baseOptionsInput.queryKey = options.queryKey;
+  }
+
+  if (options.context !== undefined) {
+    baseOptionsInput.context = options.context;
+  }
+
+  const result = method(baseOptionsInput);
+  return isObjectLike(result) ? (result as ProcedureBaseQueryOptions) : null;
+}
+
 function resolveProcedureKey(
   procedure: object,
   preferredMethodName: "experimental_liveKey" | "experimental_streamedKey",
@@ -414,7 +452,7 @@ function enhanceObservableQueryUtils<TOrpc extends object>(orpc: TOrpc): Observa
 
     const proxy = new Proxy(node, {
       get(target, prop, receiver) {
-        if (prop === "experimental_observablekey" && isProcedureWithCall(target)) {
+        if (prop === "experimental_liveObservableKey" && isProcedureWithCall(target)) {
           return getInjectedMethod(target, prop, () => {
             return (options?: { input?: unknown; queryKey?: QueryKey }): QueryKey => {
               return resolveProcedureKey(
@@ -442,18 +480,26 @@ function enhanceObservableQueryUtils<TOrpc extends object>(orpc: TOrpc): Observa
           });
         }
 
-        if (prop === "experimental_observableOptions" && isProcedureWithCall(target)) {
+        if (prop === "experimental_liveObservableOptions" && isProcedureWithCall(target)) {
           return getInjectedMethod(target, prop, () => {
             return <TError = Error>(
               options: ObservableOptionsConfig<unknown, unknown, TError, unknown>,
             ): ObservableQueryOptionsResult<unknown, TError> => {
               const { input, queryKey, queryFnOptions, context, ...rest } = options;
+              const baseOptions = resolveBaseProcedureOptions(target, "experimental_liveOptions", {
+                input,
+                queryKey,
+                context,
+                queryOptions: rest as Record<string, unknown>,
+              });
               const key = normalizeQueryKey(
-                resolveProcedureKey(target, "experimental_liveKey", "observable", input, queryKey),
+                (baseOptions?.queryKey as QueryKey | undefined)
+                  ?? resolveProcedureKey(target, "experimental_liveKey", "observable", input, queryKey),
                 queryKey,
               );
 
               return {
+                ...(baseOptions ?? {}),
                 ...rest,
                 queryKey: key,
                 queryFn: async (queryContext) => {
@@ -476,12 +522,20 @@ function enhanceObservableQueryUtils<TOrpc extends object>(orpc: TOrpc): Observa
               options: StreamedObservableOptionsConfig<unknown, unknown, TError, unknown>,
             ): StreamedObservableQueryOptionsResult<unknown, TError> => {
               const { input, queryKey, queryFnOptions, context, ...rest } = options;
+              const baseOptions = resolveBaseProcedureOptions(target, "experimental_streamedOptions", {
+                input,
+                queryKey,
+                context,
+                queryOptions: rest as Record<string, unknown>,
+              });
               const key = normalizeQueryKey(
-                resolveProcedureKey(target, "experimental_streamedKey", "streamed-observable", input, queryKey),
+                (baseOptions?.queryKey as QueryKey | undefined)
+                  ?? resolveProcedureKey(target, "experimental_streamedKey", "streamed-observable", input, queryKey),
                 queryKey,
               );
 
               return {
+                ...(baseOptions ?? {}),
                 ...rest,
                 queryKey: key,
                 queryFn: async (queryContext: QueryFunctionContext) => {

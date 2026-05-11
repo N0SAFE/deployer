@@ -1,6 +1,5 @@
-import * as z from "zod";
+import z from "zod/v4";
 import { standard } from "@repo/orpc-utils";
-import { route } from "@repo/orpc-utils/builder";
 import {
     deploymentSchema,
     deploymentStatusSchema,
@@ -91,28 +90,39 @@ export const deploymentTriggerInputSchema = z.object({
 });
 export type DeploymentTriggerInput = z.infer<typeof deploymentTriggerInputSchema>;
 
-export const deploymentTriggerContract = route({
-    method: "POST",
-    path: "/trigger",
-    summary: "Trigger a new deployment",
-})
+export const deploymentTriggerOutputSchema = z.object({
+    deploymentId: z.uuid(),
+    status: deploymentStatusSchema,
+    message: z.string(),
+});
+
+const deploymentTriggerOps = standard.zod(deploymentTriggerOutputSchema, "deploymentTrigger");
+
+export const deploymentTriggerContract = deploymentTriggerOps
+    .create()
+    .path("/trigger")
     .input((b) => b.body(deploymentTriggerInputSchema))
-    .output(
-        z.object({
-            deploymentId: z.uuid(),
-            status: deploymentStatusSchema,
-            message: z.string(),
-        }),
-    )
+    .output(deploymentTriggerOutputSchema)
     .build();
 
 // ─── upload bundle ────────────────────────────────────────────────────────────
 
-export const deploymentUploadBundleContract = route({
-    method: "POST",
-    path: "/upload-bundle",
-    summary: "Upload a deployment bundle archive",
-})
+export const deploymentUploadBundleOutputSchema = z.object({
+    uploadId: z.string().min(1),
+    uploadPath: z.string().min(1),
+    fileName: z.string().min(1),
+    fileSize: z.number().int().nonnegative(),
+    mimeType: z.string().min(1),
+});
+
+const deploymentUploadBundleOps = standard.zod(
+    deploymentUploadBundleOutputSchema,
+    "deploymentUploadBundle",
+);
+
+export const deploymentUploadBundleContract = deploymentUploadBundleOps
+    .create()
+    .path("/upload-bundle")
     .input((b) =>
         b.body(
             z.object({
@@ -121,46 +131,41 @@ export const deploymentUploadBundleContract = route({
             }),
         ),
     )
-    .output(
-        z.object({
-            uploadId: z.string().min(1),
-            uploadPath: z.string().min(1),
-            fileName: z.string().min(1),
-            fileSize: z.number().int().nonnegative(),
-            mimeType: z.string().min(1),
-        }),
-    )
+    .output(deploymentUploadBundleOutputSchema)
     .build();
 
 // ─── cancel ──────────────────────────────────────────────────────────────────
 
-export const deploymentCancelContract = route({
-    method: "POST",
-    path: "/{id}/cancel",
-    summary: "Cancel a running deployment",
-})
+export const deploymentCancelOutputSchema = z.object({
+    success: z.boolean(),
+    message: z.string(),
+    deploymentId: z.uuid(),
+    cancelledAt: z.date(),
+});
+
+const deploymentCancelOps = standard.zod(deploymentCancelOutputSchema, "deploymentCancel");
+
+export const deploymentCancelContract = deploymentCancelOps
+    .create()
     .input((b) =>
         b
             .params((p) => p`/${p("id", z.uuid())}/cancel`)
             .body(z.object({ reason: z.string().optional() })),
     )
-    .output(
-        z.object({
-            success: z.boolean(),
-            message: z.string(),
-            deploymentId: z.uuid(),
-            cancelledAt: z.string(),
-        }),
-    )
+    .output(deploymentCancelOutputSchema)
     .build();
 
 // ─── rollback ────────────────────────────────────────────────────────────────
 
-export const deploymentRollbackContract = route({
-    method: "POST",
-    path: "/{id}/rollback",
-    summary: "Roll back to a previous successful deployment",
-})
+export const deploymentRollbackOutputSchema = z.object({
+    rollbackDeploymentId: z.uuid(),
+    message: z.string(),
+});
+
+const deploymentRollbackOps = standard.zod(deploymentRollbackOutputSchema, "deploymentRollback");
+
+export const deploymentRollbackContract = deploymentRollbackOps
+    .create()
     .input((b) =>
         b
             .params((p) => p`/${p("id", z.uuid())}/rollback`)
@@ -171,21 +176,33 @@ export const deploymentRollbackContract = route({
                 }),
             ),
     )
-    .output(
-        z.object({
-            rollbackDeploymentId: z.uuid(),
-            message: z.string(),
-        }),
-    )
+    .output(deploymentRollbackOutputSchema)
     .build();
 
 // ─── getLogs ─────────────────────────────────────────────────────────────────
 
-export const deploymentGetLogsContract = route({
-    method: "GET",
-    path: "/{id}/logs",
-    summary: "Get deployment logs with pagination",
-})
+export const deploymentGetLogsOutputSchema = z.object({
+    logs: z.array(deploymentLogSchema),
+    total: z.number().int(),
+    hasMore: z.boolean(),
+    retrySummary: z
+        .object({
+            scope: z.literal("deployment"),
+            build: z.object({
+                retryEvents: z.number().int().min(0),
+            }),
+            deploy: z.object({
+                retryEvents: z.number().int().min(0),
+            }),
+            totalRetryEvents: z.number().int().min(0),
+        })
+        .optional(),
+});
+
+const deploymentGetLogsOps = standard.zod(deploymentGetLogsOutputSchema, "deploymentGetLogs");
+
+export const deploymentGetLogsContract = deploymentGetLogsOps
+    .read({ idFieldName: "id", idSchema: z.uuid() })
     .input((b) =>
         b
             .params((p) => p`/${p("id", z.uuid())}/logs`)
@@ -200,54 +217,37 @@ export const deploymentGetLogsContract = route({
                 }),
             ),
     )
-    .output(
-        z.object({
-            logs: z.array(deploymentLogSchema),
-            total: z.number().int(),
-            hasMore: z.boolean(),
-            retrySummary: z
-                .object({
-                    scope: z.literal("deployment"),
-                    build: z.object({
-                        retryEvents: z.number().int().min(0),
-                    }),
-                    deploy: z.object({
-                        retryEvents: z.number().int().min(0),
-                    }),
-                    totalRetryEvents: z.number().int().min(0),
-                })
-                .optional(),
-        }),
-    )
+    .output(deploymentGetLogsOutputSchema)
     .build();
 
 // ─── retry ───────────────────────────────────────────────────────────────────
 
-export const deploymentRetryContract = route({
-    method: "POST",
-    path: "/{id}/retry",
-    summary: "Retry a failed or cancelled deployment with the same config",
-})
+export const deploymentRetryOutputSchema = z.object({
+    retryDeploymentId: z.uuid(),
+    message: z.string(),
+});
+
+const deploymentRetryOps = standard.zod(deploymentRetryOutputSchema, "deploymentRetry");
+
+export const deploymentRetryContract = deploymentRetryOps
+    .create()
     .input((b) => b.params((p) => p`/${p("id", z.uuid())}/retry`))
-    .output(
-        z.object({
-            retryDeploymentId: z.uuid(),
-            message: z.string(),
-        }),
-    )
+    .output(deploymentRetryOutputSchema)
     .build();
 
 // ─── rollback history ────────────────────────────────────────────────────────
 
-export const deploymentGetRollbackHistoryContract = route({
-    method: "GET",
-    path: "/{id}/rollbacks",
-    summary: "Get rollback history for a deployment",
-})
+export const deploymentRollbackHistoryOutputSchema = z.object({
+    rollbacks: z.array(deploymentRollbackSchema),
+});
+
+const deploymentRollbackHistoryOps = standard.zod(
+    deploymentRollbackHistoryOutputSchema,
+    "deploymentRollbackHistory",
+);
+
+export const deploymentGetRollbackHistoryContract = deploymentRollbackHistoryOps
+    .read({ idFieldName: "id", idSchema: z.uuid() })
     .input((b) => b.params((p) => p`/${p("id", z.uuid())}/rollbacks`))
-    .output(
-        z.object({
-            rollbacks: z.array(deploymentRollbackSchema),
-        }),
-    )
+    .output(deploymentRollbackHistoryOutputSchema)
     .build();

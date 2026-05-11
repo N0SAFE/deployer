@@ -1,6 +1,7 @@
-import { Module, Global } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { DockerService } from './services/docker.service';
 import { EnvService } from '@/config/env/env.service';
+import { PostgresContainerService } from './containers/postgres/postgres-container.service';
 
 /**
  * CORE MODULE: Docker
@@ -28,7 +29,6 @@ import { EnvService } from '@/config/env/env.service';
  * - BuildersModule: Image building
  * - OrchestrationModule: Resource management
  */
-@Global()
 @Module({
   providers: [
     {
@@ -36,7 +36,8 @@ import { EnvService } from '@/config/env/env.service';
       useFactory: (envService: EnvService) => new DockerService(envService),
       inject: [EnvService],
     },
+    PostgresContainerService,
   ],
-  exports: [DockerService],
+  exports: [DockerService, PostgresContainerService],
 })
-export class DockerModule {}
+export class CoreDockerModule {}

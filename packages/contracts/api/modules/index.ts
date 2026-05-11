@@ -14,3 +14,5 @@ export * from './template';
 export * from './mesh';
 export * from './fleet';
 export * from './setup';
+export * from './docker';
+export * from './core';

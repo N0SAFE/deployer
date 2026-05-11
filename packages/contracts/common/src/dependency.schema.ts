@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import z from 'zod'
 
 export const dependencyRequirementSchema = z.enum(['required', 'optional'])
 export type DependencyRequirement = z.infer<typeof dependencyRequirementSchema>

@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { route } from "@repo/orpc-utils/builder";
+import { standard } from "@repo/orpc-utils";
 import {
     deploymentExecutionCancelInputSchema,
     deploymentExecutionCancelResultSchema,
@@ -9,11 +9,25 @@ import {
     deploymentExecutionResumeResultSchema,
 } from "@repo/contracts-entities";
 
-export const deploymentCancelExecutionContract = route({
-    method: "POST",
-    path: "/{id}/execution/cancel",
-    summary: "Request cancellation for a running deployment execution",
-})
+const deploymentExecutionCancelOps = standard.zod(
+    deploymentExecutionCancelResultSchema,
+    "deploymentExecutionCancel",
+);
+const deploymentExecutionResumeOps = standard.zod(
+    deploymentExecutionResumeResultSchema,
+    "deploymentExecutionResume",
+);
+const deploymentExecutionCheckpointOps = standard.zod(
+    deploymentExecutionCheckpointSchema,
+    "deploymentExecutionCheckpoint",
+);
+const deploymentExecutionCheckpointByRunOps = standard.zod(
+    deploymentExecutionCheckpointByRunResultSchema,
+    "deploymentExecutionCheckpointByRun",
+);
+
+export const deploymentCancelExecutionContract = deploymentExecutionCancelOps
+    .create()
     .input((b) =>
         b
             .params((p) => p`/${p("id", z.uuid())}/execution/cancel`)
@@ -22,11 +36,8 @@ export const deploymentCancelExecutionContract = route({
     .output(deploymentExecutionCancelResultSchema)
     .build();
 
-export const deploymentResumeExecutionContract = route({
-    method: "POST",
-    path: "/{id}/execution/resume",
-    summary: "Resume a cancelled/failed deployment execution from checkpoint",
-})
+export const deploymentResumeExecutionContract = deploymentExecutionResumeOps
+    .create()
     .input((b) =>
         b
             .params((p) => p`/${p("id", z.uuid())}/execution/resume`)
@@ -35,20 +46,14 @@ export const deploymentResumeExecutionContract = route({
     .output(deploymentExecutionResumeResultSchema)
     .build();
 
-export const deploymentGetExecutionCheckpointContract = route({
-    method: "GET",
-    path: "/{id}/execution/checkpoint",
-    summary: "Get latest execution checkpoint for a deployment",
-})
+export const deploymentGetExecutionCheckpointContract = deploymentExecutionCheckpointOps
+    .read({ idFieldName: "id", idSchema: z.uuid() })
     .input((b) => b.params((p) => p`/${p("id", z.uuid())}/execution/checkpoint`))
     .output(deploymentExecutionCheckpointSchema.nullable())
     .build();
 
-export const deploymentGetExecutionCheckpointByRunContract = route({
-    method: "GET",
-    path: "/runs/{runId}/execution/checkpoint",
-    summary: "Get execution checkpoint for a specific run",
-})
+export const deploymentGetExecutionCheckpointByRunContract = deploymentExecutionCheckpointByRunOps
+    .list()
     .input((b) => b.params((p) => p`/runs/${p("runId", z.uuid())}/execution/checkpoint`))
     .output(deploymentExecutionCheckpointByRunResultSchema)
     .build();

@@ -29,6 +29,7 @@ export interface RuntimeConvergenceConfig {
 export interface RuntimeDeploymentContext {
     deploymentId: string;
     serviceId: string;
+    projectId?: string | null;
     organizationId?: string | null;
     deploymentContainerName: string | null;
     deploymentContainerImage: string | null;
@@ -114,6 +115,17 @@ export interface RuntimeExecutionResult {
         reportedAt: string | null;
         attempts: number;
         errorMessage?: string;
+    };
+    managedRuntime?: {
+        managedBy: "deployment_service" | "orphan";
+        managedReason: string;
+        deploymentId: string | null;
+        serviceId: string | null;
+        projectId: string | null;
+        organizationId: string | null;
+        imageRef: string;
+        networkMode: string | null;
+        labels: Record<string, string>;
     };
 }
 

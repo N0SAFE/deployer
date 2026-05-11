@@ -162,7 +162,7 @@ export class ListOperationBuilder<
         }
     > {
         const paginationConfig = createPaginationConfigSchema(options);
-        this.queryBuilder = this.queryBuilder.withPagination(paginationConfig) as QueryBuilder<TConfig & { pagination: typeof paginationConfig }>;
+        this.queryBuilder = this.queryBuilder.withPagination(paginationConfig);
         return this as unknown as ListOperationBuilder<TEntity, TConfig & { pagination: typeof paginationConfig }>;
     }
 
@@ -184,7 +184,7 @@ export class ListOperationBuilder<
         }
     > {
         const sortingConfig = createSortingConfigSchema(fields, options);
-        this.queryBuilder = this.queryBuilder.withSorting(sortingConfig) as QueryBuilder<TConfig & { sorting: typeof sortingConfig }>;
+        this.queryBuilder = this.queryBuilder.withSorting(sortingConfig);
         return this as unknown as ListOperationBuilder<TEntity, TConfig & { sorting: typeof sortingConfig }>;
     }
 
@@ -217,7 +217,7 @@ export class ListOperationBuilder<
             }
         }
         const filteringConfig = createFilteringConfigSchema(normalizedFields, options);
-        this.queryBuilder = this.queryBuilder.withFiltering(filteringConfig) as QueryBuilder<TConfig & { filtering: typeof filteringConfig }>;
+        this.queryBuilder = this.queryBuilder.withFiltering(filteringConfig);
         return this as unknown as ListOperationBuilder<
             TEntity,
             TConfig & {
@@ -242,7 +242,7 @@ export class ListOperationBuilder<
         }
     > {
         const searchConfig = createSearchConfigSchema(fields, options);
-        this.queryBuilder = this.queryBuilder.withSearch(searchConfig) as QueryBuilder<TConfig & { search: typeof searchConfig }>;
+        this.queryBuilder = this.queryBuilder.withSearch(searchConfig);
         return this as unknown as ListOperationBuilder<TEntity, TConfig & { search: typeof searchConfig }>;
     }
 

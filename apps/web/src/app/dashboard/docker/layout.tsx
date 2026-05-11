@@ -1,3 +1,5 @@
+import { DockerRuntimeEventsProviderClient } from './_components/docker-runtime-events-provider'
+
 export default function DashboardDockerLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="space-y-6">
@@ -9,7 +11,9 @@ export default function DashboardDockerLayout({ children }: { children: React.Re
         </p>
       </header>
 
-      <div>{children}</div>
+      <DockerRuntimeEventsProviderClient>
+        <div>{children}</div>
+      </DockerRuntimeEventsProviderClient>
     </div>
   )
 }
