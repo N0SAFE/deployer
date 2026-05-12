@@ -1,0 +1,1 @@
+export const MESH_SERVICE_TOKEN = Symbol("MESH_SERVICE_TOKEN");

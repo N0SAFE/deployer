@@ -7,6 +7,9 @@ import { SystemMeshLogicService } from './services/system-mesh-logic.service'
 import { SystemMeshOverlayScopeService } from './services/system-mesh-overlay-scope.service'
 import { MeshQueueTransitionService } from './services/mesh-queue-transition.service'
 import { SystemMeshResourceDiscoveryService } from './services/system-mesh-resource-discovery/system-mesh-resource-discovery.service'
+import { SystemMeshResourceService } from './services/system-mesh-resource.service';
+import { MESH_SERVICE_TOKEN } from './tokens';
+import { MeshQueryExecutor } from './query/mesh-query-executor';
 import { SystemMeshTopicService } from './services/system-mesh-topic/orchestrator/system-mesh-topic.service'
 import { SystemMeshTopologyService } from './services/system-mesh-topology/orchestrator/system-mesh-topology.service'
 import { MeshStreamRuntimeService } from './services/mesh-stream-runtime.service'
@@ -17,7 +20,7 @@ import { CoreEventStreamPoolService } from '@/core/modules/events/services/core-
 import { MeshInternalRequestService } from './services/mesh-internal-request.service'
 import { MeshRuntimeModule } from './runtime/mesh-runtime.module'
 import { MeshOrchestrationService } from './orchestration/mesh-orchestration.service'
-import { MeshSetupModule } from './setup/mesh-setup.module'
+import { MeshInitializationModule } from './initialization/mesh-initialization.module'
 import { MeshIdentityService } from './services/system-mesh-topology/services/mesh-identity.service'
 import { MeshTrustService } from './services/system-mesh-topology/services/mesh-trust.service'
 import { MeshTrustStrictModeService } from './services/system-mesh-topology/services/mesh-trust-strict-mode.service'
@@ -36,8 +39,8 @@ import { MeshTopicEnvelopeHandlerService } from './services/system-mesh-topic/se
 import { MeshTopicQueryBusService } from './services/system-mesh-topic/services/mesh-topic-query-bus.service'
 import { MeshTopicPublisherService } from './services/system-mesh-topic/services/mesh-topic-publisher.service'
 import { MeshTopicResourceIndexService } from './services/system-mesh-topic/services/mesh-topic-resource-index.service'
-import { CLOCK_TOKEN, SystemClock } from './services/system-mesh-topology/primitives/clock';
-import { ID_GENERATOR_TOKEN, SystemIdGenerator } from './services/system-mesh-topology/primitives/id-generator';
+import { CLOCK_TOKEN, SystemClock } from './shared/primitives/clock';
+import { ID_GENERATOR_TOKEN, SystemIdGenerator } from './shared/primitives/id-generator';
 
 const MESH_TOPOLOGY_SERVICES = [
     MeshIdentityService,
@@ -71,7 +74,7 @@ const MESH_TOPIC_SERVICES = [
         DatabaseModule,
         SystemMetricsModule,
         MeshRuntimeModule,
-        MeshSetupModule,
+        MeshInitializationModule,
     ],
     providers: [
         {
@@ -92,6 +95,13 @@ const MESH_TOPIC_SERVICES = [
         SystemMeshLogicService,
         SystemMeshOverlayScopeService,
         SystemMeshResourceDiscoveryService,
+        SystemMeshResourceService,
+        MeshQueryExecutor,
+        {
+            provide: MESH_SERVICE_TOKEN,
+            useExisting: SystemMeshResourceService,
+            multi: true,
+        },
         {
             provide: MeshQueueTransitionService,
             useFactory: (
@@ -117,6 +127,7 @@ const MESH_TOPIC_SERVICES = [
         SystemMeshLogicService,
         SystemMeshOverlayScopeService,
         SystemMeshResourceDiscoveryService,
+        SystemMeshResourceService,
         MeshQueueTransitionService,
         SystemMeshTopicService,
         MeshStreamRuntimeService,

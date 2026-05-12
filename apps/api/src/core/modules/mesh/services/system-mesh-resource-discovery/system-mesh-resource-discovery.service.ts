@@ -1,91 +1,89 @@
 import { Injectable } from "@nestjs/common";
-import z from "zod/v4";
-import type { MeshResourceKind, MeshResourceLocation } from "@repo/contracts-entities";
-import { SystemMeshTopologyService } from "../system-mesh-topology/orchestrator/system-mesh-topology.service";
-import { registeredSchemaKinds } from "./schemas/mesh-resource-kind-schemas";
-import { MeshResourceQueryBuilder } from "./query/mesh-resource-query-builder";
-import type {
-    MeshResourceOfKind,
-    SchemaRecordOutput,
-} from "./types/mesh-resource-discovery-types";
+import { z } from "zod";
+import { MeshQueryBuilder } from "./query/mesh-query-builder";
+import { MeshQueryExecutor } from './query/mesh-query-executor';
+import { buildQueryPlan, formatQueryPlan, type MeshQueryPlan } from "./query/mesh-query-plan";
+import type { AnyMeshQuery } from "../../mesh-query";
+import type { AnyMeshEntity, MeshEntityItem } from "../../mesh-entity";
+import type { MeshQueryResult } from "./query/mesh-query-builder-types";
 
-// Re-exports publics pour les consommateurs
-export { meshFields, path } from "./query/mesh-field-ref";
-export {
-    eq, neq, inArray, contains, startsWith, endsWith,
-    exists, and, or, not,
-} from "./query/mesh-where-operators";
-export type { MeshWhereExpression } from "./query/mesh-where-expression";
-export type { MeshFieldRef, MeshFieldMap } from "./query/mesh-field-ref";
-export type {
-    MeshResourceDiscoveryResult,
-    MeshResourceTopologyAccessor,
-    MeshResourceAutoRegisterInput,
-} from "./types/mesh-resource-discovery-types";
-export {
-    meshDeploymentResourceSchema,
-    meshStreamResourceSchema,
-    meshLogResourceSchema,
-    meshQueueResourceSchema,
-    meshTopicResourceSchema,
-} from "./schemas/mesh-resource-kind-schemas";
-export { MeshResourceQueryBuilder } from "./query/mesh-resource-query-builder";
-export { MeshResourceSubQueryBuilder } from "./query/mesh-resource-sub-query-builder";
+// ─── Method reference types ───────────────────────────────────────────────────
 
 /**
- * Point d'entrée NestJS pour la découverte de ressources mesh.
- *
- * Usage :
- * ```ts
- * // Par kind string
- * discovery.select("stream").where({ key: "stream:xyz" }).first()
- *
- * // Par schema typé
- * const f = meshFields(meshStreamResourceSchema);
- * discovery
- *   .select(meshStreamResourceSchema)
- *   .where(eq(f.ownerNodeId, "node-1"))
- *   .list()
- * ```
+ * A query method reference — the object you pass to `.from()`.
+ * Carries item schema, entity key, method name, and item key.
  */
+export type MeshQueryMethodRef<TItem> = AnyMeshQuery & {
+  readonly itemSchema: z.ZodType<TItem>;
+  readonly entityKey: string;
+  readonly methodName: string;
+  readonly itemKey: string;
+};
+
+/**
+ * Extracts the item type from a MeshQueryMethodRef.
+ */
+export type MethodRefItem<TRef> =
+  TRef extends MeshQueryMethodRef<infer TItem> ? TItem : never;
+
+// ─── Entity query ref extractor ───────────────────────────────────────────────
+
+/**
+ * Extracts the query method refs from an entity's queries map.
+ * Used to type `Service.entities.foo.queries.list` correctly.
+ */
+export type EntityQueryRefs<TEntity extends AnyMeshEntity> = {
+  [K in keyof TEntity["queries"]]: MeshQueryMethodRef<MeshEntityItem<TEntity>>;
+};
+
+// ─── Discovery service ────────────────────────────────────────────────────────
+
 @Injectable()
 export class SystemMeshResourceDiscoveryService {
-    constructor(
-        private readonly topologyService: SystemMeshTopologyService,
-    ) {}
+  constructor(
+    private readonly executor: MeshQueryExecutor,
+  ) {}
 
-    // Surcharge 1 : select par kind string
-    select<TKind extends MeshResourceKind>(
-        kind: TKind,
-    ): MeshResourceQueryBuilder<MeshResourceOfKind<TKind>, MeshResourceOfKind<TKind>>;
+  /**
+   * Creates a typed query builder from a strongly typed query method reference.
+   *
+   * @example
+   * discovery.from(DeploymentMeshService.entities.deployments.queries.list)
+   */
+  from<TItem>(
+    queryRef: MeshQueryMethodRef<TItem>,
+  ): MeshQueryBuilder<TItem, TItem> {
+    return MeshQueryBuilder.create<TItem>(this.executor, queryRef);
+  }
 
-    // Surcharge 2 : select par schema Zod (kind inféré depuis registeredSchemaKinds)
-    select<TSchema extends z.ZodType>(
-        schema: TSchema,
-        kind?: MeshResourceKind,
-    ): MeshResourceQueryBuilder<
-        SchemaRecordOutput<TSchema> & MeshResourceLocation,
-        SchemaRecordOutput<TSchema> & MeshResourceLocation
-    >;
+  /**
+   * Executes a query directly from a method ref with optional where clauses.
+   * Convenience shorthand for `.from().where().execute()`.
+   */
+  async query<TItem>(
+    queryRef: MeshQueryMethodRef<TItem>,
+    where?: Partial<TItem>,
+  ): Promise<MeshQueryResult<TItem>> {
+    const builder = this.from(queryRef);
+    return where ? builder.where(where).execute() : builder.execute();
+  }
 
-    select<TSchema extends z.ZodType, TKind extends MeshResourceKind>(
-        kindOrSchema: TKind | TSchema,
-        kind?: MeshResourceKind,
-    ): unknown {
-        if (typeof kindOrSchema === "string") {
-            return MeshResourceQueryBuilder.create(this.topologyService, kindOrSchema);
-        }
+  /**
+   * Returns the query plan for a builder without executing it.
+   * Useful for debugging and introspection.
+   */
+  explain<TItem, TResultShape>(
+    builder: MeshQueryBuilder<TItem, TResultShape>,
+  ): MeshQueryPlan {
+    return buildQueryPlan(builder);
+  }
 
-        const resolvedKind = kind ?? registeredSchemaKinds.get(kindOrSchema);
-        if (!resolvedKind) {
-            throw new Error(
-                "Unable to infer mesh resource kind from schema. " +
-                "Pass select(schema, kind) or use a registered schema " +
-                "like meshStreamResourceSchema.",
-            );
-        }
-
-        return MeshResourceQueryBuilder.create(this.topologyService, resolvedKind)
-            .narrow(kindOrSchema);
-    }
+  /**
+   * Returns a formatted string representation of the query plan.
+   */
+  explainFormatted<TItem, TResultShape>(
+    builder: MeshQueryBuilder<TItem, TResultShape>,
+  ): string {
+    return formatQueryPlan(buildQueryPlan(builder));
+  }
 }

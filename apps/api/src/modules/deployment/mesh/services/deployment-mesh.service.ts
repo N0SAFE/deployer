@@ -99,10 +99,8 @@ export class DeploymentMeshService extends DeploymentMeshBase implements OnModul
         super.onModuleDestroy();
     }
 
-    registerResolveDeploymentHandler(handler: any, options?: { organizationId?: string | null }) {
-        this.registerEntityHandler("deployments", "resolve", handler);
-    }
-}
+    registerResolveDeploymentHandler(handler: unknown, options?: { organizationId?: string | null }) {
+        this.registerEntityHandler("deployments", "resolve", handler as Parameters<typeof this.registerEntityHandler>[2]);
     }
 
     registerSearchDeploymentsHandler(
