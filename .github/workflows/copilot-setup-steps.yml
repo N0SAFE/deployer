@@ -116,9 +116,9 @@ jobs:
           path: |
             ~/.bun/install/cache
             node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb', '**/package.json') }}
+            apps/**/node_modules
+            packages/**/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock', '**/package.json') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
@@ -126,7 +126,7 @@ jobs:
       - name: Install dependencies
         run: |
           echo "📦 Installing dependencies with Bun..."
-          bun install
+          bun ci
           echo "✅ Dependencies installed successfully"
 
       # Step 8: Prepare environment files (if needed)
