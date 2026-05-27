@@ -126,7 +126,7 @@ jobs:
       - name: Install dependencies
         run: |
           echo "📦 Installing dependencies with Bun..."
-          bun install --frozen-lockfile
+          bun install
           echo "✅ Dependencies installed successfully"
 
       # Step 8: Prepare environment files (if needed)
