@@ -127,7 +127,7 @@ jobs:
       - name: Install dependencies
         run: |
           echo "📦 Installing dependencies with Bun..."
-          bun ci
+          bun install
           echo "✅ Dependencies installed successfully"
 
       # Step 8: Prepare environment files (if needed)
