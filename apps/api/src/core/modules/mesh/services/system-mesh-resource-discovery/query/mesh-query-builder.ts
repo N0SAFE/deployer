@@ -1,5 +1,6 @@
-import type { z } from "zod";
-import type { AnyMeshQuery } from "../../../mesh-query";
+import type { Observable } from "rxjs";
+import { from, Subject, merge } from "rxjs";
+import { map, share, switchMap } from "rxjs/operators";
 import type { AnyRecord } from "../../../mesh-type-utils";
 import type { MeshQueryExecutor } from "./mesh-query-executor";
 import {
@@ -8,11 +9,16 @@ import {
   type MeshQueryResult,
   type MeshResolvedJoin,
   type MeshJoinType,
+  type MeshQueryRef,
   MeshJoinConfigurator,
 } from "./mesh-query-builder-types";
 import { type MeshWhereExpression, isMeshWhereExpression, applyObjectWhere } from "./mesh-where";
-import { type MeshOrderClause, type MeshOrderDirection } from "./mesh-order";
+import {
+  type MeshOrderClause,
+  type MeshOrderDirection,
+} from "./mesh-order";
 import { defaultPaginationState } from "./mesh-pagination";
+import type { MeshChangeEvent, MeshListenResult, MeshStreamEvent } from "./mesh-observable-types";
 
 // ─── Builder ──────────────────────────────────────────────────────────────────
 
@@ -31,10 +37,10 @@ export class MeshQueryBuilder<TItem, TResultShape = TItem> {
 
   static create<TItem>(
     executor: MeshQueryExecutor,
-    query: AnyMeshQuery & { itemSchema: z.ZodType<TItem> },
+    queryRef: MeshQueryRef<TItem>,
   ): MeshQueryBuilder<TItem, TItem> {
     return new MeshQueryBuilder<TItem, TItem>(executor, {
-      query,
+      query: queryRef,
       whereClauses: [],
       joins: [],
       selectedFields: null,
@@ -83,7 +89,7 @@ export class MeshQueryBuilder<TItem, TResultShape = TItem> {
 
   // ─── select() ────────────────────────────────────────────────────────────
 
-  select<const K extends keyof TResultShape>(
+  select<const K extends keyof TResultShape & string>(
     fields: readonly K[],
   ): MeshQueryBuilder<TItem, Pick<TResultShape, K>> {
     return this.clone<Pick<TResultShape, K>>({
@@ -156,16 +162,172 @@ export class MeshQueryBuilder<TItem, TResultShape = TItem> {
     });
   }
 
-  // ─── execute() ───────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Observable-based API
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  async execute(): Promise<MeshQueryResult<TResultShape>> {
+  /**
+   * Request data once.
+   * Returns a Promise that resolves with the result.
+   *
+   * @example
+   * const result = await discovery.from(query).request();
+   * console.log(result.items);
+   */
+  request(): Promise<MeshQueryResult<TResultShape>> {
     return this.executor.execute<TItem, TResultShape>(this);
   }
 
-  // ─── stream() ────────────────────────────────────────────────────────────
+  /**
+   * Stream items as they're retrieved.
+   * Returns an Observable that emits each item individually.
+   *
+   * @example
+   * discovery.from(query).stream().subscribe({
+   *   next: (item) => console.log("Got item:", item),
+   *   complete: () => console.log("Stream complete"),
+   * });
+   */
+  stream(): Observable<TResultShape> {
+    return from(this.request()).pipe(
+      switchMap((result) => from(result.items)),
+    );
+  }
 
-  async *stream(): AsyncGenerator<TResultShape> {
-    yield* this.executor.stream<TItem, TResultShape>(this);
+  /**
+   * Listen for real-time updates.
+   * Returns an Observable-based interface for continuous updates.
+   *
+   * Works for BOTH global and node-owned resources with the same API.
+   *
+   * @example
+   * // Get updates as arrays
+   * discovery.from(query).listen().items$.subscribe(items => {
+   *   console.log("Current items:", items);
+   * });
+   *
+   * // Get change events
+   * discovery.from(query).listen().events$.subscribe(event => {
+   *   console.log(`Item ${event.type}:`, event.changedItem);
+   * });
+   */
+  listen(): MeshListenResult<TResultShape> {
+    // Create subjects for the listen interface
+    const itemsSubject = new Subject<readonly TResultShape[]>();
+    const eventsSubject = new Subject<MeshChangeEvent<TResultShape>>();
+
+    // Poll interval for updates (could be replaced with event-based updates for global resources)
+    const pollIntervalMs = 5_000;
+    let lastItems = new Map<unknown, TItem>();
+
+    const poll = async (): Promise<void> => {
+      try {
+        const result = await this.executor.execute<TItem, TResultShape>(this);
+        const currentItemsMap = new Map<unknown, TItem>();
+        const itemKey = this._state.query.itemKey as keyof TItem & string;
+
+        // Build current items map
+        for (const item of result.items) {
+          const key = (item as unknown as TItem)[itemKey];
+          currentItemsMap.set(key, item as unknown as TItem);
+        }
+
+        const items = result.items;
+        const timestamp = new Date().toISOString();
+
+        // Detect changes
+        if (lastItems.size > 0) {
+          // Check for new and updated items
+          for (const [key, item] of currentItemsMap) {
+            if (!lastItems.has(key)) {
+              // Created
+              eventsSubject.next({
+                type: "created",
+                items,
+                changedItem: item as unknown as TResultShape,
+                timestamp,
+              });
+            } else {
+              const lastItem = lastItems.get(key);
+              if (lastItem !== item) {
+                // Updated
+                eventsSubject.next({
+                  type: "updated",
+                  items,
+                  changedItem: item as unknown as TResultShape,
+                  previousItem: lastItem as unknown as TResultShape,
+                  timestamp,
+                });
+              }
+            }
+          }
+
+          // Check for deleted items
+          for (const [key, item] of lastItems) {
+            if (!currentItemsMap.has(key)) {
+              eventsSubject.next({
+                type: "deleted",
+                items,
+                changedItem: item as unknown as TResultShape,
+                timestamp,
+              });
+            }
+          }
+        } else {
+          // Initial load
+          eventsSubject.next({
+            type: "initial",
+            items,
+            timestamp,
+          });
+        }
+
+        lastItems = currentItemsMap;
+        itemsSubject.next(items);
+      } catch (err) {
+        eventsSubject.error(err instanceof Error ? err : new Error(String(err)));
+        return;
+      }
+
+      // Schedule next poll
+      setTimeout(() => { void poll(); }, pollIntervalMs);
+    };
+
+    // Start polling
+    void poll();
+
+    // Create the all$ observable that combines items and events
+    const all$ = merge(
+      itemsSubject.pipe(
+        map((items): MeshStreamEvent<TResultShape> => ({
+          type: "data",
+          items,
+        })),
+      ),
+      eventsSubject.pipe(
+        map((event): MeshStreamEvent<TResultShape> => ({
+          type: "data",
+          items: event.items,
+        })),
+      ),
+    ).pipe(share());
+
+    return {
+      items$: itemsSubject.asObservable().pipe(share()),
+      events$: eventsSubject.asObservable().pipe(share()),
+      all$,
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Legacy async API (deprecated, use Promise-based request() instead)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * @deprecated Use `.request()` instead for Promise-based API.
+   */
+  async execute(): Promise<MeshQueryResult<TResultShape>> {
+    return this.executor.execute<TItem, TResultShape>(this);
   }
 
   // ─── Internal helpers (used by executor) ─────────────────────────────────
@@ -175,7 +337,7 @@ export class MeshQueryBuilder<TItem, TResultShape = TItem> {
       if (isMeshWhereExpression(clause)) {
         if (!clause.test(item as TItem & AnyRecord)) return false;
       } else {
-        if (!applyObjectWhere(item, clause)) return false;
+        if (!applyObjectWhere(item, clause as Partial<TItem>)) return false;
       }
     }
     return true;
@@ -187,5 +349,9 @@ export class MeshQueryBuilder<TItem, TResultShape = TItem> {
 
   _getItemKey(): string {
     return this._state.query.itemKey;
+  }
+
+  _getState(): MeshQueryBuilderState<TItem, TResultShape> {
+    return this._state;
   }
 }

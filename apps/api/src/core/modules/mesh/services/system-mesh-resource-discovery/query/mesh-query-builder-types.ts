@@ -224,23 +224,21 @@ export class MeshJoinConfigurator<
 
 // ─── Query ref ────────────────────────────────────────────────────────────────
 
+import type { BoundMeshQuery } from "../../../mesh-entity";
+
 /**
  * A fully typed query method reference produced by meshEntity().
+ * This is an alias for BoundMeshQuery to ensure consistency.
  *
  * @param TItem    - z.infer<itemSchema>
  * @param TInput   - The Zod input schema type
  * @param TOutput  - The Zod output schema type
  */
-export interface MeshQueryRef<
+export type MeshQueryRef<
   TItem,
   TInput extends z.ZodType = z.ZodType,
   TOutput extends z.ZodType = z.ZodType,
-> extends MeshQuery<TInput, TOutput> {
-  readonly itemSchema: z.ZodType<TItem>;
-  readonly entityKey: string;
-  readonly methodName: string;
-  readonly itemKey: string;
-}
+> = BoundMeshQuery<TItem, TInput, TOutput>;
 
 export type AnyMeshQueryRef = MeshQueryRef<unknown>;
 

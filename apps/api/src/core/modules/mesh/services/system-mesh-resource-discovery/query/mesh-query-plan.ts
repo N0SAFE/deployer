@@ -64,8 +64,8 @@ export interface MeshQueryPlan {
 
 // ─── Where clause inspector ───────────────────────────────────────────────────
 
-function inspectWhereClause(
-  clause: Partial<AnyRecord> | MeshWhereExpression,
+function inspectWhereClause<TItem extends AnyRecord>(
+  clause: Partial<TItem> | MeshWhereExpression<TItem>,
 ): MeshQueryPlanWhereClause {
   // Expression brand check — no `any`, just structural narrowing
   if (
@@ -80,7 +80,7 @@ function inspectWhereClause(
     };
   }
 
-  const fields = Object.keys(clause);
+  const fields = Object.keys(clause as AnyRecord);
   return {
     type: "object",
     description: `{ ${fields.join(", ")} }`,
@@ -160,7 +160,7 @@ export function buildQueryPlan<TItem, TResultShape>(
   const methodName = state.query.methodName ?? "list";
   const strategy = state.scopeOptions.strategy ?? "broadcast-merge";
 
-  const whereClauses = state.whereClauses.map(inspectWhereClause);
+  const whereClauses = state.whereClauses.map((clause) => inspectWhereClause<TItem & AnyRecord>(clause as Partial<TItem & AnyRecord> | MeshWhereExpression<TItem & AnyRecord>));
 
   const joins: MeshQueryPlanJoin[] = state.joins.map(
     (join: MeshResolvedJoin): MeshQueryPlanJoin => ({

@@ -30,14 +30,13 @@ import { DomainModule } from "./modules/domain/domain.module";
 import { AnalyticsModule } from "./modules/analytics/analytics.module";
 import { ProviderSchemaModule } from "./modules/provider-schema/provider-schema.module";
 import { SystemModule } from "./system/system.module";
-import { CoreInitializationModule } from "./core/modules/setup/initialization.module";
+import { SetupModule } from "./modules/setup/setup.module";
 import { PermissionModule } from "./modules/permission/permission.module";
 import { DockerModule } from "./modules/docker/docker.module";
 import { InternalErrorContextMiddleware } from "./core/middlewares/internal-error/internal-error-context.middleware";
 import { InternalErrorInsightService } from "./core/middlewares/internal-error/internal-error-insight.service";
 import { InternalErrorExceptionFilter } from "./core/middlewares/internal-error/internal-error-exception.filter";
 import { APIErrorExceptionFilter } from "./core/modules/auth/filters/api-error-exception-filter";
-import { SetupModule } from "./modules/setup/setup.module";
 
 declare module "@orpc/nest" {
     /**
@@ -68,7 +67,7 @@ declare module "@orpc/nest" {
         UserModule,
         PushModule,
         TestModule,
-        CoreInitializationModule,
+        SetupModule,
         OrganizationModule,
         ProjectModule,
         ServiceModule,
@@ -82,7 +81,6 @@ declare module "@orpc/nest" {
         EventsModule,
         SystemModule,
         PermissionModule,
-        SetupModule,
         ORPCModule.forRootAsync({
             useFactory: (
                 request: Request,

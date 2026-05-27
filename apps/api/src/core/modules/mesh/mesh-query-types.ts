@@ -1,10 +1,16 @@
-import type { z, ZodTypeAny } from "zod";
-import type { MeshEntity } from "../mesh-entity";
-import type { MeshQuery } from "../mesh-query";
-import type { MeshQueryBuilder } from "../query/mesh-query-builder";
+import type { MeshQueryBuilder } from "./services/system-mesh-resource-discovery/query/mesh-query-builder";
 
-export type AnyMeshEntity = MeshEntity<string, ZodTypeAny, any, any, any>;
+// Re-export canonical types for convenience
+export type { AnyMeshEntity } from "./mesh-entity";
+export type { AnyMeshQuery } from "./mesh-query";
+export type { AnyMeshMutation } from "./mesh-mutation";
 
-export type AnyMeshQuery = MeshQuery<ZodTypeAny, ZodTypeAny> & { itemSchema: ZodTypeAny };
+// ─── Builder shape extractors ─────────────────────────────────────────────────
 
-export type BuilderResultShape<TBuilder> = TBuilder extends MeshQueryBuilder<infer T> ? T : never;
+/**
+ * Extracts TResultShape from a MeshQueryBuilder.
+ */
+export type BuilderResultShape<TBuilder> =
+  TBuilder extends MeshQueryBuilder<infer _TItem, infer TResult>
+    ? TResult
+    : never;

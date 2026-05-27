@@ -44,17 +44,22 @@ export class InitializationService implements OnModuleInit {
                 this.logger.log(
                     '✅ Node already configured — unblocking dependent modules'
                 )
-                let client
-                for (const url of config.meshUrlsSnapshot ?? []) {
-                    try {
-                        client = (await this.meshInitializationService.connectToMesh(url)).client
-                        break
-                    } catch (err: unknown) {
-                        const message = err instanceof Error ? err.message : String(err)
-                        this.logger.warn(`Failed to connect to mesh URL ${url}: ${message}`)
+
+                // For remote strategy, attempt to reconnect to the mesh
+                // to verify connectivity and refresh the databaseUrl.
+                if (config.strategy === 'remote' && config.meshUrlsSnapshot?.length) {
+                    for (const url of config.meshUrlsSnapshot) {
+                        try {
+                            await this.meshInitializationService.connectToMesh(url)
+                            this.logger.log(`✅ Reconnected to mesh at ${url}`)
+                            break
+                        } catch (err: unknown) {
+                            const message = err instanceof Error ? err.message : String(err)
+                            this.logger.warn(`Failed to connect to mesh URL ${url}: ${message}`)
+                        }
                     }
                 }
-                client.
+
                 this.emitCompleted({
                     nodeId: config.nodeId,
                     connectedAt: new Date(config.configuredAt),

@@ -27,7 +27,7 @@ export class SystemMeshResourceService extends SystemMeshResourceBase implements
   onModuleInit(): void {
     super.onModuleInit();
 
-    this.registerEntityHandler("node-info", "get", async () => {
+    this.registerQueryHandler("nodeInfo", "get", async () => {
       return {
         payload: {
           nodeId: this.meshConfig.getNodeId(),

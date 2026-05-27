@@ -1,0 +1,2770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mesh Architecture — Distributed Query & Orchestration System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Fira+Code:wght@300;400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet" />
+<style>
+  /* ─── Reset & Tokens ─────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #09090f;
+    --bg2:       #0f0f1a;
+    --bg3:       #141422;
+    --surface:   #1a1a2e;
+    --surface2:  #1f1f38;
+    --border:    #2a2a48;
+    --border2:   #333360;
+    --accent:    #5b5bff;
+    --accent2:   #8b8bff;
+    --accent3:   #b8b8ff;
+    --teal:      #00d4b4;
+    --teal2:     #00ffdd;
+    --amber:     #ffaa44;
+    --red:       #ff5566;
+    --green:     #44dd99;
+    --text:      #e8e8f4;
+    --text2:     #9999cc;
+    --text3:     #5a5a88;
+    --code-bg:   #0c0c18;
+    --sidebar-w: 280px;
+    --font-mono: 'Fira Code', monospace;
+    --font-sans: 'DM Sans', sans-serif;
+    --font-head: 'Syne', sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.7;
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ─── Sidebar ────────────────────────────────────────────────── */
+  #sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    width: var(--sidebar-w);
+    height: 100vh;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #sidebar::-webkit-scrollbar { width: 4px; }
+  #sidebar::-webkit-scrollbar-track { background: transparent; }
+  #sidebar::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .sidebar-logo {
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-logo .logo-mark {
+    font-family: var(--font-head);
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: var(--accent2);
+  }
+
+  .sidebar-logo .logo-sub {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 2px;
+    font-family: var(--font-mono);
+  }
+
+  .sidebar-version {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 2px 8px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 3px;
+    font-size: 10px;
+    font-family: var(--font-mono);
+    letter-spacing: .05em;
+  }
+
+  .nav-group {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-group-label {
+    padding: 10px 24px 4px;
+    font-size: 10px;
+    font-family: var(--font-head);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--text3);
+    font-weight: 700;
+  }
+
+  .nav-item {
+    display: block;
+    padding: 6px 24px;
+    font-size: 13px;
+    color: var(--text2);
+    text-decoration: none;
+    transition: color .15s, background .15s;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+  }
+
+  .nav-item:hover {
+    color: var(--text);
+    background: var(--surface);
+    border-left-color: var(--accent);
+  }
+
+  .nav-item.active {
+    color: var(--accent3);
+    background: var(--surface);
+    border-left-color: var(--accent);
+  }
+
+  .nav-item-sub {
+    padding-left: 36px;
+    font-size: 12px;
+    color: var(--text3);
+  }
+
+  .nav-item-sub:hover { color: var(--text2); }
+
+  /* ─── Main Content ───────────────────────────────────────────── */
+  #main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* ─── Hero ───────────────────────────────────────────────────── */
+  .hero {
+    position: relative;
+    padding: 80px 80px 70px;
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -120px; right: -120px;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(91,91,255,.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: -80px; left: 30%;
+    width: 400px; height: 300px;
+    background: radial-gradient(circle, rgba(0,212,180,.07) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 16px;
+  }
+
+  .hero h1 {
+    font-family: var(--font-head);
+    font-weight: 800;
+    font-size: 52px;
+    line-height: 1.08;
+    color: #fff;
+    max-width: 700px;
+    margin-bottom: 20px;
+  }
+
+  .hero h1 span { color: var(--accent2); }
+
+  .hero-desc {
+    max-width: 580px;
+    color: var(--text2);
+    font-size: 16px;
+    line-height: 1.75;
+    margin-bottom: 32px;
+  }
+
+  .badge-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: .04em;
+  }
+
+  .badge-accent { background: rgba(91,91,255,.15); color: var(--accent3); border: 1px solid rgba(91,91,255,.3); }
+  .badge-teal   { background: rgba(0,212,180,.12); color: var(--teal2);   border: 1px solid rgba(0,212,180,.25); }
+  .badge-amber  { background: rgba(255,170,68,.12); color: var(--amber);  border: 1px solid rgba(255,170,68,.25); }
+
+  /* ─── Content Layout ─────────────────────────────────────────── */
+  .content {
+    max-width: 900px;
+    padding: 60px 80px 120px;
+  }
+
+  /* ─── Sections ───────────────────────────────────────────────── */
+  .section {
+    margin-bottom: 80px;
+    scroll-margin-top: 32px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .section-num {
+    flex-shrink: 0;
+    width: 36px; height: 36px;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent2);
+    margin-top: 3px;
+  }
+
+  .section h2 {
+    font-family: var(--font-head);
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+    margin-bottom: 6px;
+  }
+
+  .section-tag {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--teal);
+    letter-spacing: .08em;
+  }
+
+  .subsection {
+    margin-top: 36px;
+    margin-bottom: 24px;
+    scroll-margin-top: 24px;
+  }
+
+  .subsection h3 {
+    font-family: var(--font-head);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .subsection h3::before {
+    content: '';
+    display: inline-block;
+    width: 3px; height: 18px;
+    background: var(--accent);
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  h4 {
+    font-family: var(--font-head);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent3);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin: 20px 0 8px;
+  }
+
+  p { color: var(--text2); margin-bottom: 14px; }
+
+  p strong { color: var(--text); font-weight: 500; }
+
+  a { color: var(--accent2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  ul, ol {
+    padding-left: 20px;
+    color: var(--text2);
+    margin-bottom: 14px;
+  }
+
+  li { margin-bottom: 6px; }
+  li strong { color: var(--text); }
+
+  /* ─── Divider ────────────────────────────────────────────────── */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 60px 0;
+  }
+
+  /* ─── Code Blocks ────────────────────────────────────────────── */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow-x: auto;
+    margin: 18px 0;
+    position: relative;
+  }
+
+  pre .code-label {
+    position: absolute;
+    top: 0; right: 0;
+    padding: 4px 12px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: .08em;
+    background: var(--surface);
+    border-bottom-left-radius: 8px;
+    border-left: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  pre code {
+    display: block;
+    padding: 22px 24px;
+    color: #c8c8f0;
+    tab-size: 2;
+  }
+
+  :not(pre) > code {
+    background: var(--surface);
+    color: var(--accent3);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    border: 1px solid var(--border);
+  }
+
+  /* ─── Syntax Highlighting ────────────────────────────────────── */
+  .kw  { color: #8b8bff; }   /* keywords: const, let, await, async, export */
+  .kw2 { color: #ff7eb3; }   /* type keywords: interface, type */
+  .fn  { color: #66d9ff; }   /* function names */
+  .str { color: #aaffcc; }   /* strings */
+  .num { color: #ffcc77; }   /* numbers */
+  .cmt { color: #445566; font-style: italic; } /* comments */
+  .typ { color: #ffaa55; }   /* types */
+  .prp { color: #c8c8f0; }   /* properties */
+  .op  { color: #8b8bff; }   /* operators */
+  .dec { color: #ff9966; }   /* decorators */
+
+  /* ─── Info Boxes ─────────────────────────────────────────────── */
+  .info-box {
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin: 20px 0;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .info-box .icon {
+    flex-shrink: 0;
+    width: 20px; height: 20px;
+    margin-top: 1px;
+    font-size: 14px;
+    line-height: 20px;
+    text-align: center;
+  }
+
+  .info-box-content { flex: 1; }
+  .info-box-content p { margin: 0; font-size: 14px; }
+  .info-box-content strong { display: block; margin-bottom: 4px; font-size: 13px; }
+
+  .info  { background: rgba(91,91,255,.1);  border: 1px solid rgba(91,91,255,.25); }
+  .info .icon  { color: var(--accent2); }
+  .info strong { color: var(--accent2); }
+  .info p      { color: #a0a0d8; }
+
+  .warn  { background: rgba(255,170,68,.08); border: 1px solid rgba(255,170,68,.22); }
+  .warn .icon  { color: var(--amber); }
+  .warn strong { color: var(--amber); }
+  .warn p      { color: #c8a86a; }
+
+  .tip   { background: rgba(0,212,180,.08); border: 1px solid rgba(0,212,180,.22); }
+  .tip .icon   { color: var(--teal); }
+  .tip strong  { color: var(--teal); }
+  .tip p       { color: #7abcb2; }
+
+  .danger { background: rgba(255,85,102,.08); border: 1px solid rgba(255,85,102,.22); }
+  .danger .icon  { color: var(--red); }
+  .danger strong { color: var(--red); }
+  .danger p      { color: #c87a83; }
+
+  /* ─── Architecture Diagram ───────────────────────────────────── */
+  .arch-diagram {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 28px 24px;
+    margin: 20px 0;
+    overflow-x: auto;
+  }
+
+  .arch-diagram pre code {
+    padding: 0;
+    color: var(--text2);
+    font-size: 12px;
+  }
+
+  /* ─── Comparison Tables ──────────────────────────────────────── */
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 20px 0;
+  }
+
+  .compare-box {
+    border-radius: 10px;
+    padding: 20px;
+    border: 1px solid var(--border);
+  }
+
+  .compare-box.old {
+    background: rgba(255,85,102,.05);
+    border-color: rgba(255,85,102,.2);
+  }
+
+  .compare-box.new {
+    background: rgba(68,221,153,.05);
+    border-color: rgba(68,221,153,.2);
+  }
+
+  .compare-box .compare-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    font-weight: 500;
+  }
+
+  .compare-box.old .compare-label  { color: var(--red); }
+  .compare-box.new .compare-label  { color: var(--green); }
+
+  /* ─── Step List ──────────────────────────────────────────────── */
+  .step-list { list-style: none; padding: 0; margin: 16px 0; }
+
+  .step-list li {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .step-list li:last-child { border-bottom: none; }
+
+  .step-num {
+    flex-shrink: 0;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent2);
+    margin-top: 2px;
+  }
+
+  .step-content { flex: 1; }
+  .step-content strong { display: block; color: var(--text); font-size: 14px; margin-bottom: 3px; }
+  .step-content span { color: var(--text2); font-size: 13px; }
+
+  /* ─── Property Table ─────────────────────────────────────────── */
+  .prop-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 13.5px;
+  }
+
+  .prop-table th {
+    text-align: left;
+    padding: 10px 16px;
+    font-family: var(--font-head);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--text3);
+    border-bottom: 1px solid var(--border2);
+    font-weight: 600;
+  }
+
+  .prop-table td {
+    padding: 10px 16px;
+    vertical-align: top;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+  }
+
+  .prop-table td:first-child {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--teal);
+  }
+
+  .prop-table tr:last-child td { border-bottom: none; }
+
+  /* ─── Phase Cards ────────────────────────────────────────────── */
+  .phase-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 20px 0;
+  }
+
+  .phase-card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    transition: border-color .2s;
+  }
+
+  .phase-card:hover { border-color: var(--border2); }
+
+  .phase-card .phase-num {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent2);
+    letter-spacing: .1em;
+    margin-bottom: 8px;
+  }
+
+  .phase-card h4 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: var(--text);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .phase-card p {
+    font-size: 12px;
+    margin: 0;
+    color: var(--text3);
+  }
+
+  /* ─── Invariant List ─────────────────────────────────────────── */
+  .invariant-list { list-style: none; padding: 0; margin: 16px 0; }
+
+  .invariant-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    font-size: 13.5px;
+    transition: border-color .15s;
+  }
+
+  .invariant-item:hover { border-color: var(--accent); }
+
+  .invariant-id {
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent2);
+    padding-top: 1px;
+    min-width: 28px;
+  }
+
+  .invariant-text { color: var(--text2); }
+  .invariant-text strong { color: var(--text); font-weight: 500; }
+
+  /* ─── Equation Block ─────────────────────────────────────────── */
+  .eq-block {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 16px 20px;
+    margin: 14px 0;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--teal2);
+    overflow-x: auto;
+  }
+
+  /* ─── Checklist ──────────────────────────────────────────────── */
+  .checklist { list-style: none; padding: 0; margin: 12px 0; }
+
+  .checklist li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 6px 0;
+    color: var(--text2);
+    font-size: 13.5px;
+  }
+
+  .checklist li::before {
+    content: '□';
+    flex-shrink: 0;
+    color: var(--border2);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ─── Strategy Pills ─────────────────────────────────────────── */
+  .strategy-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0;
+  }
+
+  .strategy-pill {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    border: 1px solid;
+  }
+
+  .s-blue  { background: rgba(91,91,255,.12); color: var(--accent3); border-color: rgba(91,91,255,.3); }
+  .s-teal  { background: rgba(0,212,180,.10); color: var(--teal2);   border-color: rgba(0,212,180,.25); }
+  .s-amber { background: rgba(255,170,68,.10); color: var(--amber);  border-color: rgba(255,170,68,.25); }
+  .s-red   { background: rgba(255,85,102,.10); color: var(--red);    border-color: rgba(255,85,102,.25); }
+
+  /* ─── Scrollbar ──────────────────────────────────────────────── */
+  body::-webkit-scrollbar { width: 6px; }
+  body::-webkit-scrollbar-track { background: var(--bg); }
+  body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  pre::-webkit-scrollbar { height: 4px; }
+  pre::-webkit-scrollbar-track { background: transparent; }
+  pre::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* ─── Top Progress Bar ───────────────────────────────────────── */
+  #progress {
+    position: fixed;
+    top: 0; left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--teal));
+    z-index: 200;
+    transition: width .1s;
+    width: 0%;
+  }
+
+  /* ─── Responsive ─────────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    #sidebar { transform: translateX(-100%); }
+    #main { margin-left: 0; }
+    .hero { padding: 40px 28px; }
+    .hero h1 { font-size: 34px; }
+    .content { padding: 40px 28px 80px; }
+    .compare { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<!-- ─── Sidebar ─────────────────────────────────────────────────── -->
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">Mesh Architecture</div>
+    <div class="logo-sub">Distributed Query &amp; Orchestration</div>
+    <span class="sidebar-version">v3 · Design Finalized</span>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Overview</div>
+    <a class="nav-item" href="#intro">Introduction</a>
+    <a class="nav-item" href="#concept-shift">Core Concept Shift</a>
+    <a class="nav-item" href="#architecture">High-Level Architecture</a>
+    <a class="nav-item" href="#principles">Design Principles</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Primitives</div>
+    <a class="nav-item" href="#mesh-operation">meshOperation()</a>
+    <a class="nav-item" href="#mesh-entity">meshEntity()</a>
+    <a class="nav-item" href="#mesh-mutation">meshMutation()</a>
+    <a class="nav-item" href="#mesh-relation">meshRelation()</a>
+    <a class="nav-item" href="#service-structure">Service Structure</a>
+    <a class="nav-item" href="#type-inference">Type Inference Pipeline</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Query Layer</div>
+    <a class="nav-item" href="#query-builder">Query Builder</a>
+    <a class="nav-item" href="#where-system">Where / Filters</a>
+    <a class="nav-item" href="#select-system">Select / Projections</a>
+    <a class="nav-item" href="#join-system">Join System</a>
+    <a class="nav-item" href="#subqueries">Subqueries</a>
+    <a class="nav-item" href="#aggregation">Aggregation Engine</a>
+    <a class="nav-item" href="#ordering">Ordering &amp; Pagination</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Mutation Layer</div>
+    <a class="nav-item" href="#mutation-builder">Mutation Builder</a>
+    <a class="nav-item" href="#mutation-strategies">Mutation Strategies</a>
+    <a class="nav-item" href="#optimistic">Optimistic Mutations</a>
+    <a class="nav-item" href="#saga">Saga / Transactions</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Reactive Layer</div>
+    <a class="nav-item" href="#live-queries">Live Queries</a>
+    <a class="nav-item" href="#event-subscriptions">Event Subscriptions</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Infrastructure</div>
+    <a class="nav-item" href="#execution-engine">Execution Engine</a>
+    <a class="nav-item" href="#deduplication">Deduplication</a>
+    <a class="nav-item" href="#middleware">Middleware Pipeline</a>
+    <a class="nav-item" href="#caching">Query Cache</a>
+    <a class="nav-item" href="#explain">Query Plan / Explain</a>
+    <a class="nav-item" href="#discovery-service">Discovery Service</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Topology</div>
+    <a class="nav-item" href="#peer-selection">Peer Selection Algorithm</a>
+    <a class="nav-item" href="#scoring">Scoring &amp; Degree</a>
+    <a class="nav-item" href="#rebalancing">Rebalancing</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Startup &amp; Bootstrap</div>
+    <a class="nav-item" href="#startup-model">Startup Model</a>
+    <a class="nav-item" href="#mesh-auth">Mesh Authentication</a>
+    <a class="nav-item" href="#bootstrap-flows">Bootstrap Flows</a>
+    <a class="nav-item" href="#module-chain">Module Chain</a>
+    <a class="nav-item" href="#observable-api">Observable API</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Reference</div>
+    <a class="nav-item" href="#file-structure">File Structure</a>
+    <a class="nav-item" href="#impl-order">Implementation Order</a>
+    <a class="nav-item" href="#invariants">All Invariants</a>
+    <a class="nav-item" href="#examples">End-to-End Examples</a>
+  </div>
+</nav>
+
+<!-- ─── Main ────────────────────────────────────────────────────── -->
+<main id="main">
+
+  <!-- Hero -->
+  <header class="hero">
+    <div class="hero-eyebrow">Distributed Systems Architecture</div>
+    <h1>Mesh Resource Discovery &amp; <span>Distributed Query</span> System</h1>
+    <p class="hero-desc">
+      A zero-boilerplate, fully inferred, strongly typed distributed query and mutation engine over mesh services.
+      Services are distributed schemas. Entities are first-class. Everything composes.
+    </p>
+    <div class="badge-row">
+      <span class="badge badge-accent">v3 Design</span>
+      <span class="badge badge-teal">Drizzle-Style API</span>
+      <span class="badge badge-amber">Implementation Pending</span>
+    </div>
+  </header>
+
+  <div class="content">
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Introduction                                      -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="intro">
+      <div class="section-header">
+        <div class="section-num">00</div>
+        <div>
+          <div class="section-tag">foundation</div>
+          <h2>Introduction &amp; Vision</h2>
+        </div>
+      </div>
+
+      <p>The mesh layer is no longer modeled as a set of remote procedure calls. It is modeled as a <strong>distributed relational execution engine</strong> — a collection of services each exposing a typed, queryable, joinable, mutable distributed schema.</p>
+
+      <div class="compare">
+        <div class="compare-box old">
+          <div class="compare-label">❌ Old Model — RPC-Oriented</div>
+          <pre><code><span class="cmt">// Leaks transport concerns to userland</span>
+<span class="kw">await</span> <span class="fn">callMany</span>(<span class="str">"deployment:list:req"</span>, {
+  organizationId: <span class="str">"org-1"</span>,
+  strategy: <span class="str">"broadcast"</span>,
+})
+
+<span class="cmt">// String-based, no type safety</span>
+.<span class="fn">from</span>(DeploymentMeshService, <span class="str">"list"</span>)</code></pre>
+        </div>
+        <div class="compare-box new">
+          <div class="compare-label">✅ New Model — Relational</div>
+          <pre><code><span class="cmt">// Zero transport leakage</span>
+<span class="kw">const</span> result = <span class="kw">await</span> discovery
+  .<span class="fn">from</span>(DeploymentMeshService
+        .entities.deployments.queries.list)
+  .<span class="fn">where</span>({ status: <span class="str">"running"</span> })
+  .<span class="fn">execute</span>()</code></pre>
+        </div>
+      </div>
+
+      <div class="info-box info">
+        <div class="icon">ℹ</div>
+        <div class="info-box-content">
+          <strong>Core Mental Shift</strong>
+          <p>Every service is conceptually a distributed database schema. The developer thinks in entities, filters, joins, and mutations — never in topics, request envelopes, or RPC semantics.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Concept Shift                                     -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="concept-shift">
+      <div class="section-header">
+        <div class="section-num">01</div>
+        <div>
+          <div class="section-tag">mental model</div>
+          <h2>Core Concept Shift</h2>
+        </div>
+      </div>
+
+      <p>A single mesh service is no longer a bag of RPCs. It is a <strong>namespace of distributed entities</strong> — each behaving like a distributed relational table or view.</p>
+
+      <div class="compare">
+        <div class="compare-box old">
+          <div class="compare-label">Before — Single entity, RPC shape</div>
+          <pre><code>DeploymentMeshService
+ ├─ <span class="fn">list</span> deployments
+ ├─ <span class="fn">resolve</span> deployment
+ └─ <span class="fn">search</span> deployments</code></pre>
+        </div>
+        <div class="compare-box new">
+          <div class="compare-label">After — Rich entity graph</div>
+          <pre><code>DeploymentMeshService
+ ├─ deployments
+ ├─ deploymentLogs
+ ├─ deploymentReplicas
+ ├─ deploymentMetrics
+ ├─ deploymentEvents
+ ├─ deploymentRouting
+ ├─ deploymentSnapshots
+ └─ deploymentHealth</code></pre>
+        </div>
+      </div>
+
+      <p>Each entity exposes:</p>
+      <ul>
+        <li>Its own item type and item key</li>
+        <li>Query operations (list, resolve, search)</li>
+        <li>Mutation operations (create, update, delete, domain actions)</li>
+        <li>Join compatibility and relation declarations</li>
+        <li>Distributed deduplication rules</li>
+        <li>Event emission hooks</li>
+      </ul>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Architecture                                      -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="architecture">
+      <div class="section-header">
+        <div class="section-num">02</div>
+        <div>
+          <div class="section-tag">system design</div>
+          <h2>High-Level Architecture</h2>
+        </div>
+      </div>
+
+      <div class="arch-diagram">
+        <pre><code>┌──────────────────────────────────────────────────────────────────┐
+│         SystemMeshResourceDiscoveryService                       │
+│         discovery.from(Entity) → MeshQueryBuilder                │
+└────────────────────────┬─────────────────────────────────────────┘
+                         │
+              ┌──────────▼──────────┐
+              │   MeshQueryBuilder  │
+              │                     │
+              │  .where()           │
+              │  .join(builder)     │
+              │  .include(relation) │
+              │  .select()          │
+              │  .orderBy()         │
+              │  .limit()           │
+              │  .aggregate()       │
+              │  .cache()           │
+              │  .live()            │
+              │  .stream()          │
+              │  .explain()         │
+              │  .execute()         │
+              └──────────┬──────────┘
+                         │
+              ┌──────────▼──────────┐
+              │  MeshQueryExecutor  │
+              │                     │
+              │  strategy resolve   │
+              │  distributed exec   │
+              │  deduplication      │
+              │  join stitching     │
+              │  ordering           │
+              │  pagination         │
+              │  projections        │
+              └──────────┬──────────┘
+                         │
+                Middleware Pipeline
+                (tracing / cache /
+                 circuit-breaker)
+                         │
+              ┌──────────▼──────────┐
+              │   BaseMeshService   │
+              │                     │
+              │  topic derivation   │
+              │  correlation IDs    │
+              │  cancellation       │
+              │  distributed xport  │
+              └──────────┬──────────┘
+                         │
+              Mesh Topic Infrastructure</code></pre>
+      </div>
+
+      <p>The architecture separates concerns across five distinct layers:</p>
+      <table class="prop-table">
+        <thead><tr><th>Layer</th><th>Responsibility</th></tr></thead>
+        <tbody>
+          <tr><td>Entity Definition</td><td>Declares entities, relations, query and mutation contracts</td></tr>
+          <tr><td>Query Layer</td><td>Distributed querying, joins, aggregation, live queries</td></tr>
+          <tr><td>Mutation Layer</td><td>Distributed writes, optimistic updates, sagas</td></tr>
+          <tr><td>Transport Layer</td><td>Topics, envelopes, cancellation, correlation IDs</td></tr>
+          <tr><td>Topology Layer</td><td>Peer selection, routing, ownership, node resolution</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Principles                                        -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="principles">
+      <div class="section-header">
+        <div class="section-num">03</div>
+        <div>
+          <div class="section-tag">constraints</div>
+          <h2>Design Principles</h2>
+        </div>
+      </div>
+
+      <p>Six non-negotiable principles govern every design decision in this system.</p>
+
+      <ul>
+        <li><strong>Services are distributed schemas.</strong> A service is a namespace of entities, not a bag of RPCs.</li>
+        <li><strong>Entities are first-class.</strong> The primary primitive is <code>MeshEntity</code>, not a topic or handler.</li>
+        <li><strong>Builders are composable and immutable.</strong> Every method returns a new builder. Builders can be joined, nested, reused, and streamed.</li>
+        <li><strong>Transport is infrastructure.</strong> Users never see topics, envelopes, correlation IDs, or cancellation tokens.</li>
+        <li><strong>No string literals.</strong> Operations are always referenced through static typed objects: <code>Service.entities.entity.queries.list</code> — never <code>"list"</code>.</li>
+        <li><strong>Everything inferable must be inferred.</strong> The developer only declares schemas, item keys, and explicit join predicates. All types derive automatically.</li>
+      </ul>
+
+      <div class="info-box tip">
+        <div class="icon">✦</div>
+        <div class="info-box-content">
+          <strong>The One Rule</strong>
+          <p>If a developer finds themselves thinking about topics, request shapes, correlation IDs, or transport semantics — the abstraction has failed. Those are exclusively implementation concerns.</p>
+        </div>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: meshOperation                                     -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="mesh-operation">
+      <div class="section-header">
+        <div class="section-num">04</div>
+        <div>
+          <div class="section-tag">primitives</div>
+          <h2>meshOperation() &amp; meshQuery()</h2>
+        </div>
+      </div>
+
+      <p>The lowest-level primitive. Defines the typed contract of a single distributed operation — its request schema and response schema. <strong>Users never touch operations directly</strong>; they are wrapped inside entities.</p>
+
+      <pre><code><span class="cmt">// mesh-operation.ts</span>
+<span class="kw">export</span> <span class="kw2">interface</span> <span class="typ">MeshOperation</span>&lt;
+  <span class="typ">TRequestSchema</span> <span class="kw">extends</span> <span class="typ">ZodType</span>,
+  <span class="typ">TResponseSchema</span> <span class="kw">extends</span> <span class="typ">ZodType</span>,
+&gt; {
+  <span class="kw">readonly</span> requestSchema: <span class="typ">TRequestSchema</span>;
+  <span class="kw">readonly</span> responseSchema: <span class="typ">TResponseSchema</span>;
+}
+
+<span class="kw">export</span> <span class="kw">function</span> <span class="fn">meshOperation</span>&lt;
+  <span class="typ">TRequestSchema</span> <span class="kw">extends</span> <span class="typ">ZodType</span>,
+  <span class="typ">TResponseSchema</span> <span class="kw">extends</span> <span class="typ">ZodType</span>,
+&gt;(
+  requestSchema: <span class="typ">TRequestSchema</span>,
+  responseSchema: <span class="typ">TResponseSchema</span>,
+): <span class="typ">MeshOperation</span>&lt;<span class="typ">TRequestSchema</span>, <span class="typ">TResponseSchema</span>&gt;</code></pre>
+
+      <div class="info-box info">
+        <div class="icon">ℹ</div>
+        <div class="info-box-content">
+          <strong>Internal Topic Derivation</strong>
+          <p>Every entity operation derives three topics automatically from the namespace and entity key. For example: <code>deployment:deployments:list:req</code>, <code>:res</code>, and <code>:cancel</code>. These are entirely hidden from the caller.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: meshEntity                                        -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="mesh-entity">
+      <div class="section-header">
+        <div class="section-num">05</div>
+        <div>
+          <div class="section-tag">primitives</div>
+          <h2>meshEntity()</h2>
+        </div>
+      </div>
+
+      <p>The primary abstraction. An entity is a distributed queryable and mutable resource. It holds the item schema, the item key used for deduplication, all query operations, all mutation operations, and relation declarations.</p>
+
+      <pre><code><span class="kw">export</span> <span class="kw">const</span> deployments = <span class="fn">meshEntity</span>({
+  key: <span class="str">"deployments"</span>,
+
+  <span class="cmt">// The Zod schema for a single item</span>
+  item: deploymentSummarySchema,
+
+  <span class="cmt">// Used for distributed deduplication and join identity</span>
+  itemKey: <span class="str">"deploymentId"</span>,
+
+  <span class="cmt">// Query operations: list, resolve, search, etc.</span>
+  queries: {
+    list: <span class="fn">meshOperation</span>(
+      z.<span class="fn">object</span>({ serviceId: z.<span class="fn">string</span>().<span class="fn">optional</span>() }),
+      z.<span class="fn">object</span>({ items: z.<span class="fn">array</span>(deploymentSummarySchema) }),
+    ),
+    resolve: <span class="fn">meshOperation</span>(
+      z.<span class="fn">object</span>({ deploymentId: z.<span class="fn">string</span>() }),
+      deploymentSummarySchema.<span class="fn">nullable</span>(),
+    ),
+  },
+
+  <span class="cmt">// Mutation operations: CRUD + domain actions</span>
+  mutations: {
+    create: <span class="fn">meshMutation</span>(...),
+    update: <span class="fn">meshMutation</span>(...),
+    delete: <span class="fn">meshMutation</span>(...),
+    restart: <span class="fn">meshMutation</span>(...),
+    scale: <span class="fn">meshMutation</span>(...),
+  },
+
+  <span class="cmt">// Declared relations for auto-join inference</span>
+  relations: {
+    service: <span class="fn">meshRelation</span>({
+      entity: () =&gt; serviceEntity,
+      type: <span class="str">"belongs-to"</span>,
+      on: (deployment, service) =&gt;
+        deployment.serviceId <span class="op">===</span> service.serviceId,
+    }),
+    metrics: <span class="fn">meshRelation</span>({
+      entity: () =&gt; deploymentMetricsEntity,
+      type: <span class="str">"has-many"</span>,
+      on: (deployment, metric) =&gt;
+        deployment.deploymentId <span class="op">===</span> metric.deploymentId,
+    }),
+  },
+})</code></pre>
+
+      <p>The <code>itemKey</code> field is critical — it drives distributed deduplication across nodes. Multiple nodes may return replicas of the same item; the executor uses this key to merge them with a last-write-wins strategy (extensible to CRDT or vector clocks).</p>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: meshMutation                                      -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="mesh-mutation">
+      <div class="section-header">
+        <div class="section-num">06</div>
+        <div>
+          <div class="section-tag">primitives</div>
+          <h2>meshMutation()</h2>
+        </div>
+      </div>
+
+      <p>The mutation counterpart to <code>meshOperation()</code>. Defines the input and result schemas for a distributed write operation.</p>
+
+      <pre><code><span class="cmt">// mesh-mutation.ts</span>
+<span class="kw">export</span> <span class="kw">function</span> <span class="fn">meshMutation</span>&lt;
+  <span class="typ">TInputSchema</span> <span class="kw">extends</span> <span class="typ">ZodType</span>,
+  <span class="typ">TResultSchema</span> <span class="kw">extends</span> <span class="typ">ZodType</span>,
+&gt;(
+  inputSchema: <span class="typ">TInputSchema</span>,
+  resultSchema: <span class="typ">TResultSchema</span>,
+): <span class="typ">MeshMutation</span>&lt;<span class="typ">TInputSchema</span>, <span class="typ">TResultSchema</span>&gt;</code></pre>
+
+      <div class="info-box info">
+        <div class="icon">ℹ</div>
+        <div class="info-box-content">
+          <strong>Mutations are not limited to CRUD</strong>
+          <p>Any domain action can be a mutation. <code>restart</code>, <code>scale</code>, <code>promote</code>, <code>drain</code> — all are first-class typed mutations exposed via <code>.invoke("actionName", payload)</code> on the mutation builder.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: meshRelation                                      -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="mesh-relation">
+      <div class="section-header">
+        <div class="section-num">07</div>
+        <div>
+          <div class="section-tag">primitives</div>
+          <h2>meshRelation()</h2>
+        </div>
+      </div>
+
+      <p>Declares a typed relation between two entities. Relations are the single source of truth for auto-join inference — use <code>.include("relation")</code> on a builder instead of writing an explicit join predicate.</p>
+
+      <pre><code><span class="kw">export</span> <span class="kw">function</span> <span class="fn">meshRelation</span>&lt;
+  <span class="typ">TSourceItem</span>,
+  <span class="typ">TRelatedEntity</span> <span class="kw">extends</span> <span class="typ">AnyMeshEntity</span>,
+&gt;(config: {
+  entity: () =&gt; <span class="typ">TRelatedEntity</span>;   <span class="cmt">// lazy ref to avoid circular deps</span>
+  type: <span class="typ">MeshRelationType</span>;
+  on: (source: <span class="typ">TSourceItem</span>, related: <span class="typ">EntityItem</span>&lt;<span class="typ">TRelatedEntity</span>&gt;) =&gt; <span class="typ">boolean</span>;
+  through?: <span class="typ">AnyMeshEntity</span>;           <span class="cmt">// for many-to-many</span>
+}): <span class="typ">MeshRelation</span>&lt;<span class="typ">TSourceItem</span>, <span class="typ">TRelatedEntity</span>&gt;</code></pre>
+
+      <table class="prop-table">
+        <thead><tr><th>Type</th><th>Cardinality</th><th>Result shape</th></tr></thead>
+        <tbody>
+          <tr><td>belongs-to</td><td>N:1</td><td><code>TRelated | null</code></td></tr>
+          <tr><td>has-many</td><td>1:N</td><td><code>TRelated[]</code></td></tr>
+          <tr><td>has-one</td><td>1:1</td><td><code>TRelated | null</code></td></tr>
+          <tr><td>many-to-many</td><td>N:M</td><td><code>TRelated[]</code> (via <code>through</code>)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Service Structure                                  -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="service-structure">
+      <div class="section-header">
+        <div class="section-num">08</div>
+        <div>
+          <div class="section-tag">service definition</div>
+          <h2>Service Structure</h2>
+        </div>
+      </div>
+
+      <p>A mesh service extends <code>BaseMeshService</code> with a namespace and a set of entity definitions. It exposes a static <code>entities</code> object — the entrypoint for all callers.</p>
+
+      <pre><code><span class="kw">export</span> <span class="kw">class</span> <span class="typ">DeploymentMeshService</span> <span class="kw">extends</span> <span class="fn">BaseMeshService</span>({
+  namespace: <span class="str">"deployment"</span>,
+  entities: {
+    deployments,
+    deploymentLogs,
+    deploymentMetrics,
+    deploymentReplicas,
+    deploymentEvents,
+  },
+}) {
+  <span class="cmt">// Static accessor — the only API callers ever use</span>
+  <span class="kw">static</span> <span class="kw">readonly</span> entities = {
+    deployments,
+    deploymentLogs,
+    deploymentMetrics,
+    deploymentReplicas,
+    deploymentEvents,
+  } <span class="kw">as</span> <span class="kw">const</span>;
+}</code></pre>
+
+      <p>Callers then reference:</p>
+      <pre><code>DeploymentMeshService.entities.deployments.queries.list
+DeploymentMeshService.entities.deployments.mutations.update
+DeploymentMeshService.entities.deploymentLogs.queries.list</code></pre>
+
+      <p>No strings. No typos. Full IDE autocomplete. Safe refactors.</p>
+
+      <div class="info-box warn">
+        <div class="icon">⚠</div>
+        <div class="info-box-content">
+          <strong>Registration Required</strong>
+          <p>Every mesh service must be registered with the DI container using the multi-token pattern: <code>{ provide: MESH_SERVICE_TOKEN, useExisting: DeploymentMeshService, multi: true }</code>. The discovery service collects all registered services at startup.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Type Inference                                    -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="type-inference">
+      <div class="section-header">
+        <div class="section-num">09</div>
+        <div>
+          <div class="section-tag">type system</div>
+          <h2>Complete Type Inference Pipeline</h2>
+        </div>
+      </div>
+
+      <p>The type system derives everything from the entity definition. The developer only annotates schemas and keys.</p>
+
+      <div class="arch-diagram">
+        <pre><code>Zod Schema
+   ↓ inferred item type
+meshOperation() / meshMutation()
+   ↓ inferred request + response types
+meshEntity()
+   ↓ item type, operations, relations, mutations
+Service.entities.*
+   ↓ fully typed static references
+Query Builder .from(...)
+   ↓ TItem type bound
+.join(builder, ...) / .include(relation)
+   ↓ join result shape expanded via WithJoin&lt;&gt;
+.select({...})
+   ↓ projected result type
+.execute()
+   ↓ Promise&lt;MeshQueryResult&lt;FinalType&gt;&gt;</code></pre>
+      </div>
+
+      <p>Key type utility helpers exposed for consumers:</p>
+      <pre><code><span class="cmt">// Extract item type from an entity</span>
+<span class="kw2">type</span> <span class="typ">DeploymentItem</span> = <span class="typ">EntityItem</span>&lt;<span class="kw">typeof</span> deploymentEntity&gt;
+
+<span class="cmt">// Extract builder result shape</span>
+<span class="kw2">type</span> <span class="typ">MyResult</span> = <span class="typ">BuilderResult</span>&lt;<span class="kw">typeof</span> myBuilder&gt;
+
+<span class="cmt">// Infer join expansion</span>
+<span class="kw2">type</span> <span class="typ">WithService</span> = <span class="typ">WithJoin</span>&lt;<span class="typ">DeploymentItem</span>, <span class="str">"service"</span>, <span class="typ">ServiceItem</span>, <span class="str">"left"</span>&gt;
+<span class="cmt">// → { deploymentId: string; ...; service: ServiceItem | null }</span>
+
+<span class="cmt">// Infer aggregate result</span>
+<span class="kw2">type</span> <span class="typ">Stats</span> = <span class="typ">AggregateResult</span>&lt;<span class="kw">typeof</span> myAggSpec&gt;</code></pre>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Query Builder                                     -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="query-builder">
+      <div class="section-header">
+        <div class="section-num">10</div>
+        <div>
+          <div class="section-tag">query layer</div>
+          <h2>Query Builder</h2>
+        </div>
+      </div>
+
+      <p>The <code>MeshQueryBuilder</code> is the primary consumer API. Obtain one from the discovery service. All methods return a new immutable builder.</p>
+
+      <pre><code><span class="cmt">// Entry point — always through the discovery service</span>
+<span class="kw">const</span> query = discovery.<span class="fn">from</span>(
+  DeploymentMeshService.entities.deployments.queries.list,
+)</code></pre>
+
+      <p>From here, every builder method is chainable and immutable:</p>
+
+      <table class="prop-table">
+        <thead><tr><th>Method</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>.where(filter)</td><td>Apply item-level filters (object or functional form)</td></tr>
+          <tr><td>.join(builder, config)</td><td>Join against another builder with explicit predicate</td></tr>
+          <tr><td>.include(relation)</td><td>Auto-join via declared relation (no predicate needed)</td></tr>
+          <tr><td>.select(fields)</td><td>Project result to a subset of fields</td></tr>
+          <tr><td>.orderBy(field, dir)</td><td>Sort the result set</td></tr>
+          <tr><td>.limit(n)</td><td>Restrict to n items</td></tr>
+          <tr><td>.offset(n)</td><td>Skip the first n items</td></tr>
+          <tr><td>.aggregate(spec)</td><td>Compute distributed aggregations</td></tr>
+          <tr><td>.cache(options)</td><td>Cache results by fingerprint with TTL and tags</td></tr>
+          <tr><td>.scope(options)</td><td>Control distributed execution strategy</td></tr>
+          <tr><td>.live(options)</td><td>Return an Observable that re-emits on changes</td></tr>
+          <tr><td>.stream()</td><td>Return an async iterator over results as nodes respond</td></tr>
+          <tr><td>.explain()</td><td>Return the query plan without executing</td></tr>
+          <tr><td>.execute()</td><td>Execute and return a Promise&lt;MeshQueryResult&gt;</td></tr>
+        </tbody>
+      </table>
+
+      <div class="subsection">
+        <h3>Scope &amp; Strategy</h3>
+        <p>The <code>.scope()</code> method controls <em>how</em> the distributed query executes — not which items are returned. It is a transport concern surfaced only when you need fine-grained control.</p>
+        <pre><code>.<span class="fn">scope</span>({
+  organizationId: <span class="str">"org-1"</span>,
+  strategy: <span class="str">"broadcast-merge"</span>,
+  timeoutMs: <span class="num">3000</span>,
+  broadcastAll: <span class="kw">true</span>,
+})</code></pre>
+        <div class="strategy-grid">
+          <span class="strategy-pill s-blue">broadcast-first</span>
+          <span class="strategy-pill s-teal">broadcast-merge</span>
+          <span class="strategy-pill s-amber">direct-node</span>
+          <span class="strategy-pill s-red">local-only</span>
+          <span class="strategy-pill s-blue">quorum</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Where System                                      -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="where-system">
+      <div class="section-header">
+        <div class="section-num">11</div>
+        <div>
+          <div class="section-tag">query layer</div>
+          <h2>Where / Filter System</h2>
+        </div>
+      </div>
+
+      <div class="info-box warn">
+        <div class="icon">⚠</div>
+        <div class="info-box-content">
+          <strong>Filters Execute Post-Distribution</strong>
+          <p>Where clauses run <em>after</em> all nodes have responded and items have been collected in-memory on the caller. They are not pushed down to individual nodes (see: Invariant I7). This is intentional for the current architecture.</p>
+        </div>
+      </div>
+
+      <p>Two filter forms are supported. Both are fully typed — referencing a non-existent field is a compile-time error.</p>
+
+      <p><strong>Object form</strong> — equality filters, simple and readable:</p>
+      <pre><code>.<span class="fn">where</span>({
+  status: <span class="str">"running"</span>,
+  environment: <span class="str">"prod"</span>,
+})</code></pre>
+
+      <p><strong>Functional form</strong> — complex logic with <code>and</code>, <code>or</code>, <code>eq</code>, <code>gt</code>, etc.:</p>
+      <pre><code>.<span class="fn">where</span>(f =&gt; <span class="fn">and</span>(
+  <span class="fn">eq</span>(f.status, <span class="str">"running"</span>),
+  <span class="fn">or</span>(
+    <span class="fn">eq</span>(f.environment, <span class="str">"prod"</span>),
+    <span class="fn">eq</span>(f.environment, <span class="str">"staging"</span>),
+  ),
+))</code></pre>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Select                                            -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="select-system">
+      <div class="section-header">
+        <div class="section-num">12</div>
+        <div>
+          <div class="section-tag">query layer</div>
+          <h2>Select / Projections</h2>
+        </div>
+      </div>
+
+      <p>Project the result to a subset of fields. The result type narrows automatically — no manual type annotation required.</p>
+
+      <pre><code><span class="kw">const</span> result = <span class="kw">await</span> discovery
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments.queries.list)
+  .<span class="fn">select</span>({
+    deploymentId: <span class="kw">true</span>,
+    status: <span class="kw">true</span>,
+    serviceId: <span class="kw">true</span>,
+  })
+  .<span class="fn">execute</span>()
+
+<span class="cmt">// result.items is inferred as:
+// Array&lt;{ deploymentId: string; status: string; serviceId: string }&gt;</span></code></pre>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Join System                                       -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="join-system">
+      <div class="section-header">
+        <div class="section-num">13</div>
+        <div>
+          <div class="section-tag">query layer</div>
+          <h2>Join System</h2>
+        </div>
+      </div>
+
+      <p>Joins operate exclusively on <strong>builders</strong> — not on raw services or operation names. This is the fundamental design decision that enables composability.</p>
+
+      <div class="subsection">
+        <h3>Basic Join</h3>
+        <pre><code><span class="kw">const</span> activeServices = discovery
+  .<span class="fn">from</span>(ServiceMeshService.entities.services.queries.list)
+  .<span class="fn">where</span>({ archived: <span class="kw">false</span> })
+
+<span class="kw">const</span> result = <span class="kw">await</span> discovery
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments.queries.list)
+  .<span class="fn">join</span>(
+    activeServices,
+    join =&gt; join
+      .<span class="fn">as</span>(<span class="str">"service"</span>)
+      .<span class="fn">on</span>((deployment, service) =&gt;
+        deployment.serviceId <span class="op">===</span> service.serviceId,
+      ),
+  )
+  .<span class="fn">execute</span>()</code></pre>
+      </div>
+
+      <div class="subsection">
+        <h3>Auto-Join via Relations</h3>
+        <p>When a relation is declared on the entity, use <code>.include()</code> to join automatically — no predicate needed:</p>
+        <pre><code><span class="kw">const</span> result = <span class="kw">await</span> discovery
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments.queries.list)
+  .<span class="fn">include</span>(<span class="str">"service"</span>)   <span class="cmt">// auto-resolves join via declared relation</span>
+  .<span class="fn">include</span>(<span class="str">"metrics"</span>)  <span class="cmt">// has-many → result.service.metrics: MetricsItem[]</span>
+  .<span class="fn">execute</span>()</code></pre>
+      </div>
+
+      <div class="subsection">
+        <h3>Nested Joins</h3>
+        <p>A joined builder may itself contain joins, creating an arbitrarily deep distributed relational graph:</p>
+        <pre><code><span class="kw">const</span> projects = discovery
+  .<span class="fn">from</span>(ProjectMeshService.entities.projects.queries.list)
+  .<span class="fn">where</span>({ archived: <span class="kw">false</span> })
+
+<span class="kw">const</span> services = discovery
+  .<span class="fn">from</span>(ServiceMeshService.entities.services.queries.list)
+  .<span class="fn">join</span>(projects, join =&gt; join
+    .<span class="fn">as</span>(<span class="str">"project"</span>)
+    .<span class="fn">on</span>((service, project) =&gt;
+      service.projectId <span class="op">===</span> project.projectId))
+
+<span class="kw">const</span> result = <span class="kw">await</span> discovery
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments.queries.list)
+  .<span class="fn">join</span>(services, join =&gt; join
+    .<span class="fn">as</span>(<span class="str">"service"</span>)
+    .<span class="fn">on</span>((deployment, service) =&gt;
+      deployment.serviceId <span class="op">===</span> service.serviceId))
+  .<span class="fn">execute</span>()
+
+<span class="cmt">// Inferred result type:
+// {
+//   deploymentId: string
+//   serviceId: string
+//   service: {
+//     serviceId: string
+//     projectId: string
+//     project: { projectId: string; archived: boolean } | null
+//   } | null
+// }</span></code></pre>
+      </div>
+
+      <div class="subsection">
+        <h3>Join Type Inference</h3>
+        <table class="prop-table">
+          <thead><tr><th>Join type</th><th>Default</th><th>Result shape</th></tr></thead>
+          <tbody>
+            <tr><td>left</td><td>Yes</td><td>Joined shape becomes <code>T | null</code></td></tr>
+            <tr><td>inner</td><td>No (.type("inner"))</td><td>Unmatched rows removed; joined shape is <code>T</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="info-box tip">
+        <div class="icon">✦</div>
+        <div class="info-box-content">
+          <strong>Join Execution Model</strong>
+          <p>Cross-service joins execute entirely in-memory on the caller — after all primary distributed queries have completed. There is no distributed query planner. This is intentional: it keeps execution predictable and avoids distributed deadlocks.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Subqueries                                        -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="subqueries">
+      <div class="section-header">
+        <div class="section-num">14</div>
+        <div>
+          <div class="section-tag">query layer</div>
+          <h2>Subqueries &amp; Composable Fragments</h2>
+        </div>
+      </div>
+
+      <p>Every builder is a first-class object that can be stored, reused, and extended. Builders are immutable — every method returns a new builder without modifying the original.</p>
+
+      <pre><code><span class="cmt">// Reusable base fragment</span>
+<span class="kw">const</span> prodDeployments = discovery
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments.queries.list)
+  .<span class="fn">where</span>({ environment: <span class="str">"prod"</span> })
+
+<span class="cmt">// Derive specialized builders from the base — immutable</span>
+<span class="kw">const</span> runningProd = prodDeployments.<span class="fn">where</span>({ status: <span class="str">"running"</span> })
+<span class="kw">const</span> pendingProd = prodDeployments.<span class="fn">where</span>({ status: <span class="str">"pending"</span> })
+<span class="kw">const</span> top10Running = runningProd.<span class="fn">limit</span>(<span class="num">10</span>).<span class="fn">orderBy</span>(<span class="str">"createdAt"</span>, <span class="str">"desc"</span>)
+
+<span class="cmt">// prodDeployments is unchanged — safe to reuse in joins</span>
+<span class="kw">const</span> joined = otherBuilder.<span class="fn">join</span>(prodDeployments, ...)</code></pre>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Aggregation                                       -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="aggregation">
+      <div class="section-header">
+        <div class="section-num">15</div>
+        <div>
+          <div class="section-tag">query layer</div>
+          <h2>Distributed Aggregation Engine</h2>
+        </div>
+      </div>
+
+      <p>Aggregations compute in two phases to avoid shipping all raw items over the mesh: <strong>partial aggregation on each node</strong>, then <strong>merge aggregation on the caller</strong> (MapReduce pattern).</p>
+
+      <pre><code><span class="kw">const</span> stats = <span class="kw">await</span> discovery
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments.queries.list)
+  .<span class="fn">where</span>({ environment: <span class="str">"prod"</span> })
+  .<span class="fn">aggregate</span>({
+    total: <span class="fn">count</span>(),
+    byStatus: <span class="fn">groupBy</span>(<span class="str">"status"</span>, <span class="fn">count</span>()),
+    avgReplicas: <span class="fn">avg</span>(<span class="str">"replicaCount"</span>),
+    maxAge: <span class="fn">max</span>(<span class="str">"createdAt"</span>),
+    allEnvs: <span class="fn">distinct</span>(<span class="str">"environment"</span>),
+  })
+  .<span class="fn">execute</span>()
+
+<span class="cmt">// Inferred result type (no annotation needed):
+// {
+//   total: number
+//   byStatus: Record&lt;string, number&gt;
+//   avgReplicas: number
+//   maxAge: string
+//   allEnvs: string[]
+// }</span></code></pre>
+
+      <p>Available aggregation primitives:</p>
+      <table class="prop-table">
+        <thead><tr><th>Primitive</th><th>Result type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>count()</td><td>number</td><td>Total item count across all nodes</td></tr>
+          <tr><td>sum(field)</td><td>number</td><td>Sum of a numeric field</td></tr>
+          <tr><td>avg(field)</td><td>number</td><td>Average of a numeric field</td></tr>
+          <tr><td>min(field)</td><td>number</td><td>Minimum value of a field</td></tr>
+          <tr><td>max(field)</td><td>number</td><td>Maximum value of a field</td></tr>
+          <tr><td>groupBy(field, inner)</td><td>Record&lt;string, T&gt;</td><td>Group items and apply inner aggregator</td></tr>
+          <tr><td>collect(field)</td><td>T[]</td><td>Collect all values of a field into an array</td></tr>
+          <tr><td>distinct(field)</td><td>string[]</td><td>Collect unique values of a field</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Ordering                                          -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="ordering">
+      <div class="section-header">
+        <div class="section-num">16</div>
+        <div>
+          <div class="section-tag">query layer</div>
+          <h2>Ordering &amp; Pagination</h2>
+        </div>
+      </div>
+
+      <pre><code>discovery
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments.queries.list)
+  .<span class="fn">orderBy</span>(<span class="str">"createdAt"</span>, <span class="str">"desc"</span>)
+  .<span class="fn">orderBy</span>(<span class="str">"deploymentId"</span>, <span class="str">"asc"</span>)  <span class="cmt">// compound sort</span>
+  .<span class="fn">limit</span>(<span class="num">50</span>)
+  .<span class="fn">offset</span>(<span class="num">100</span>)</code></pre>
+
+      <p>The <code>MeshQueryResult</code> shape includes pagination metadata:</p>
+
+      <pre><code><span class="kw2">interface</span> <span class="typ">MeshQueryResult</span>&lt;<span class="typ">T</span>&gt; {
+  items:         <span class="typ">T</span>[]
+  total:         <span class="typ">number</span>
+  hasMore:       <span class="typ">boolean</span>
+  nextOffset:    <span class="typ">number</span> | <span class="kw">null</span>
+  strategy:      <span class="typ">MeshQueryStrategy</span>
+  metrics:       <span class="typ">MeshCallManyMetrics</span>
+  nodeResponses: <span class="typ">MeshNodeResponse</span>[]
+}</code></pre>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Mutation Builder                                  -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="mutation-builder">
+      <div class="section-header">
+        <div class="section-num">17</div>
+        <div>
+          <div class="section-tag">mutation layer</div>
+          <h2>Mutation Builder</h2>
+        </div>
+      </div>
+
+      <p>The mutation layer is fully symmetric with the query layer. Obtain a mutation builder from the mesh service (not the discovery service).</p>
+
+      <div class="subsection">
+        <h3>Create</h3>
+        <pre><code><span class="kw">await</span> mesh
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments)
+  .<span class="fn">create</span>({
+    serviceId: <span class="str">"svc-1"</span>,
+    environment: <span class="str">"prod"</span>,
+    replicaCount: <span class="num">2</span>,
+  })
+  .<span class="fn">execute</span>()</code></pre>
+      </div>
+
+      <div class="subsection">
+        <h3>Update</h3>
+        <pre><code><span class="kw">await</span> mesh
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments)
+  .<span class="fn">where</span>({ deploymentId: <span class="str">"dep-1"</span> })
+  .<span class="fn">update</span>({ status: <span class="str">"stopped"</span> })
+  .<span class="fn">execute</span>()</code></pre>
+      </div>
+
+      <div class="subsection">
+        <h3>Delete</h3>
+        <pre><code><span class="kw">await</span> mesh
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments)
+  .<span class="fn">where</span>({ deploymentId: <span class="str">"dep-1"</span> })
+  .<span class="fn">delete</span>()
+  .<span class="fn">execute</span>()</code></pre>
+      </div>
+
+      <div class="subsection">
+        <h3>Domain Actions (invoke)</h3>
+        <p>Non-CRUD domain operations are first-class mutations:</p>
+        <pre><code><span class="kw">await</span> mesh
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments)
+  .<span class="fn">where</span>({ deploymentId: <span class="str">"dep-1"</span> })
+  .<span class="fn">invoke</span>(<span class="str">"restart"</span>, { graceful: <span class="kw">true</span> })
+  .<span class="fn">execute</span>()
+
+<span class="cmt">// invoke names autocomplete from entity.mutations — strongly typed</span></code></pre>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Mutation Strategies                               -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="mutation-strategies">
+      <div class="section-header">
+        <div class="section-num">18</div>
+        <div>
+          <div class="section-tag">mutation layer</div>
+          <h2>Mutation Strategies &amp; Ownership</h2>
+        </div>
+      </div>
+
+      <p>Mutation strategies differ from query strategies because writes optimize for ownership and consistency, not discovery.</p>
+
+      <table class="prop-table">
+        <thead><tr><th>Strategy</th><th>Behavior</th><th>Use case</th></tr></thead>
+        <tbody>
+          <tr><td>owner-route</td><td>Resolves owning node, routes mutation there</td><td>Default — single authoritative write</td></tr>
+          <tr><td>broadcast</td><td>Sends mutation to all nodes</td><td>Cache invalidation, distributed notification</td></tr>
+          <tr><td>quorum</td><td>Waits for majority acknowledgement</td><td>Consensus-sensitive writes</td></tr>
+          <tr><td>local-only</td><td>Executes only on current node</td><td>Local state changes</td></tr>
+          <tr><td>transactional</td><td>Multi-step atomic execution (saga)</td><td>Cross-service coordination</td></tr>
+          <tr><td>optimistic</td><td>Patches local cache immediately, syncs async</td><td>Reactive UI, low-latency feedback</td></tr>
+        </tbody>
+      </table>
+
+      <p>With <strong>owner-route</strong> (default), the caller never manually routes. The system resolves entity ownership, determines the authoritative node, and routes transparently:</p>
+
+      <ol class="step-list">
+        <li><div class="step-num">1</div><div class="step-content"><strong>Resolve entity key</strong><span>Extract the itemKey value from the where() clause</span></div></li>
+        <li><div class="step-num">2</div><div class="step-content"><strong>Resolve owner node</strong><span>Query MeshResourceRegistryService for the authoritative node</span></div></li>
+        <li><div class="step-num">3</div><div class="step-content"><strong>Route mutation</strong><span>Forward the typed request to the owner node's handler</span></div></li>
+        <li><div class="step-num">4</div><div class="step-content"><strong>Return typed result</strong><span>Unwrap and validate the response schema</span></div></li>
+      </ol>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Optimistic                                        -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="optimistic">
+      <div class="section-header">
+        <div class="section-num">19</div>
+        <div>
+          <div class="section-tag">mutation layer</div>
+          <h2>Optimistic Mutations</h2>
+        </div>
+      </div>
+
+      <p>Optimistic mutations immediately apply a patch to the local query cache, then execute the real distributed mutation in the background. On failure, the patch is automatically rolled back.</p>
+
+      <pre><code><span class="kw">await</span> mesh
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments)
+  .<span class="fn">where</span>({ deploymentId: <span class="str">"dep-1"</span> })
+  .<span class="fn">update</span>({ status: <span class="str">"stopping"</span> })
+  .<span class="fn">optimistic</span>({
+    patch: (current) =&gt; ({ ...current, status: <span class="str">"stopping"</span> }),
+    onRollback: (original, error) =&gt; {
+      logger.<span class="fn">warn</span>(<span class="str">"Optimistic update rolled back"</span>, { error })
+    },
+  })
+  .<span class="fn">invalidates</span>([<span class="str">"deployments"</span>, <span class="str">"prod"</span>])
+  .<span class="fn">execute</span>()</code></pre>
+
+      <p>The optimistic cache (<code>MeshOptimisticCache</code>) stores patches keyed by entity item key. The query executor merges pending patches into query results before returning them. Invariant I15 guarantees rollback always occurs on failure.</p>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Saga                                              -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="saga">
+      <div class="section-header">
+        <div class="section-num">20</div>
+        <div>
+          <div class="section-tag">mutation layer</div>
+          <h2>Distributed Sagas / Transaction Coordinator</h2>
+        </div>
+      </div>
+
+      <p>For operations that span multiple services and must be atomic, the saga coordinator provides a declarative step-and-compensate pattern. On failure, compensating actions execute in <strong>reverse step order</strong>.</p>
+
+      <pre><code><span class="kw">const</span> result = <span class="kw">await</span> mesh.<span class="fn">saga</span>&lt;{ deploymentId: <span class="typ">string</span>; routeId: <span class="typ">string</span> }&gt;()
+  .<span class="fn">step</span>(<span class="str">"create-deployment"</span>, <span class="kw">async</span> (ctx) =&gt; {
+    <span class="kw">const</span> r = <span class="kw">await</span> mesh
+      .<span class="fn">from</span>(DeploymentMeshService.entities.deployments)
+      .<span class="fn">create</span>({ serviceId: <span class="str">"svc-1"</span>, environment: <span class="str">"prod"</span> })
+      .<span class="fn">execute</span>()
+    ctx.<span class="fn">set</span>(<span class="str">"deploymentId"</span>, r.result.deploymentId)
+  })
+  .<span class="fn">compensate</span>(<span class="str">"create-deployment"</span>, <span class="kw">async</span> (ctx) =&gt; {
+    <span class="kw">await</span> mesh
+      .<span class="fn">from</span>(DeploymentMeshService.entities.deployments)
+      .<span class="fn">where</span>({ deploymentId: ctx.<span class="fn">get</span>(<span class="str">"deploymentId"</span>) })
+      .<span class="fn">delete</span>()
+      .<span class="fn">execute</span>()
+  })
+  .<span class="fn">step</span>(<span class="str">"create-routing"</span>, <span class="kw">async</span> (ctx) =&gt; {
+    <span class="kw">return</span> mesh
+      .<span class="fn">from</span>(RoutingMeshService.entities.routes)
+      .<span class="fn">create</span>({ deploymentId: ctx.<span class="fn">get</span>(<span class="str">"deploymentId"</span>), weight: <span class="num">100</span> })
+      .<span class="fn">execute</span>()
+  })
+  .<span class="fn">compensate</span>(<span class="str">"create-routing"</span>, <span class="kw">async</span> (ctx) =&gt; {
+    <span class="kw">await</span> mesh
+      .<span class="fn">from</span>(RoutingMeshService.entities.routes)
+      .<span class="fn">where</span>({ deploymentId: ctx.<span class="fn">get</span>(<span class="str">"deploymentId"</span>) })
+      .<span class="fn">delete</span>()
+      .<span class="fn">execute</span>()
+  })
+  .<span class="fn">execute</span>()</code></pre>
+
+      <div class="arch-diagram">
+        <pre><code>Step 1 ─success─▶ Step 2 ─success─▶ Step 3 ─FAILURE
+                                              │
+                            Compensate Step 3 ◀
+                            Compensate Step 2
+                            Compensate Step 1
+                                   ▼
+                          SagaRollbackComplete</code></pre>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Live Queries                                      -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="live-queries">
+      <div class="section-header">
+        <div class="section-num">21</div>
+        <div>
+          <div class="section-tag">reactive layer</div>
+          <h2>Reactive Live Queries</h2>
+        </div>
+      </div>
+
+      <p><code>.live()</code> returns an <code>Observable&lt;MeshQueryResult&lt;T&gt;&gt;</code> that emits the initial result immediately, then re-emits whenever relevant entity change events arrive on the mesh.</p>
+
+      <pre><code><span class="kw">const</span> deployments$ = discovery
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments.queries.list)
+  .<span class="fn">where</span>({ environment: <span class="str">"prod"</span> })
+  .<span class="fn">include</span>(<span class="str">"service"</span>)
+  .<span class="fn">cache</span>({ ttlMs: <span class="num">3_000</span>, tags: [<span class="str">"deployments"</span>] })
+  .<span class="fn">live</span>({ debounceMs: <span class="num">200</span> })
+
+deployments$.<span class="fn">subscribe</span>(result =&gt; {
+  console.<span class="fn">log</span>(<span class="str">"Updated deployments:"</span>, result.items)
+})</code></pre>
+
+      <table class="prop-table">
+        <thead><tr><th>Strategy</th><th>Behavior</th><th>Default</th></tr></thead>
+        <tbody>
+          <tr><td>refetchOnChange</td><td>Re-executes the full distributed query on any change event</td><td>Yes</td></tr>
+          <tr><td>patchOnChange</td><td>Applies item deltas in-memory without a full re-fetch</td><td>No</td></tr>
+        </tbody>
+      </table>
+
+      <p>Entity change events are emitted on internal topics: <code>{namespace}:{entity}:changed</code>, <code>:created</code>, <code>:deleted</code>. Services emit these by calling <code>this.emitEntityEvent(...)</code> on <code>BaseMeshService</code>.</p>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Event Subscriptions                               -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="event-subscriptions">
+      <div class="section-header">
+        <div class="section-num">22</div>
+        <div>
+          <div class="section-tag">reactive layer</div>
+          <h2>Typed Event Subscriptions</h2>
+        </div>
+      </div>
+
+      <p>Subscribe to specific entity lifecycle events with full type safety. Compose with RxJS operators directly:</p>
+
+      <pre><code>mesh
+  .<span class="fn">on</span>(DeploymentMeshService.entities.deployments)
+  .<span class="fn">event</span>(<span class="str">"updated"</span>)
+  .<span class="fn">where</span>({ environment: <span class="str">"prod"</span> })
+  .<span class="fn">asObservable</span>()
+  .<span class="fn">pipe</span>(
+    <span class="fn">filter</span>(e =&gt; e.item.status <span class="op">!==</span> e.previous?.status),
+    <span class="fn">map</span>(e =&gt; ({
+      id: e.item.deploymentId,
+      from: e.previous?.status,
+      to: e.item.status,
+    })),
+  )
+  .<span class="fn">subscribe</span>(change =&gt; console.<span class="fn">log</span>(<span class="str">"Status changed:"</span>, change))</code></pre>
+
+      <table class="prop-table">
+        <thead><tr><th>Event type</th><th>Fires when</th></tr></thead>
+        <tbody>
+          <tr><td>created</td><td>A new item is created on any node</td></tr>
+          <tr><td>updated</td><td>An existing item is mutated</td></tr>
+          <tr><td>deleted</td><td>An item is deleted</td></tr>
+          <tr><td>status_changed</td><td>The item's status field changes (if supported)</td></tr>
+          <tr><td>any</td><td>Any of the above events</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Execution Engine                                  -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="execution-engine">
+      <div class="section-header">
+        <div class="section-num">23</div>
+        <div>
+          <div class="section-tag">infrastructure</div>
+          <h2>Execution Engine</h2>
+        </div>
+      </div>
+
+      <div class="arch-diagram">
+        <pre><code>1. Resolve execution strategy
+        ↓
+2. Execute primary distributed query across N nodes
+        ↓
+3. Collect all node responses (with timeout)
+        ↓
+4. Deduplicate using entity itemKey (last-write-wins)
+        ↓
+5. Apply where() filters in-memory
+        ↓
+6. Execute subquery joins in parallel
+        ↓
+7. Stitch join graph into result shape
+        ↓
+8. Apply orderBy() clauses
+        ↓
+9. Apply limit() / offset() pagination
+        ↓
+10. Apply select() projections
+        ↓
+11. Run through middleware pipeline
+        ↓
+12. Return typed MeshQueryResult&lt;T&gt;</code></pre>
+      </div>
+
+      <div class="info-box info">
+        <div class="icon">ℹ</div>
+        <div class="info-box-content">
+          <strong>Joins run in parallel, post-collection</strong>
+          <p>Step 6 executes all joined subqueries concurrently after the primary collection is complete. Cross-service joins never block each other and never block the primary collection.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Deduplication                                     -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="deduplication">
+      <div class="section-header">
+        <div class="section-num">24</div>
+        <div>
+          <div class="section-tag">infrastructure</div>
+          <h2>Distributed Deduplication</h2>
+        </div>
+      </div>
+
+      <p>Multiple nodes may return the same item (replicas, cached copies, partial sets). The executor deduplicates using the entity's <code>itemKey</code> field.</p>
+
+      <pre><code><span class="cmt">// In the entity definition:</span>
+itemKey: <span class="str">"deploymentId"</span>
+
+<span class="cmt">// The executor uses this to group identical items and
+// resolve conflicts using the configured merge strategy.</span></code></pre>
+
+      <p>Current default strategy: <strong>last-write-wins</strong> (most recently received item wins). The architecture is designed to accommodate future strategies:</p>
+      <ul>
+        <li>Vector clock ordering</li>
+        <li>CRDT merge functions</li>
+        <li>Timestamp arbitration</li>
+        <li>Priority node selection</li>
+      </ul>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Middleware                                        -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="middleware">
+      <div class="section-header">
+        <div class="section-num">25</div>
+        <div>
+          <div class="section-tag">infrastructure</div>
+          <h2>Query Middleware Pipeline</h2>
+        </div>
+      </div>
+
+      <p>Cross-cutting concerns are composable middleware applied transparently to every query execution. Registered at module level, never at call site.</p>
+
+      <pre><code><span class="cmt">// Registration in NestJS module:</span>
+<span class="typ">MeshModule</span>.<span class="fn">forRoot</span>({
+  middleware: [
+    <span class="kw">new</span> <span class="typ">MeshTracingMiddleware</span>(tracer),
+    <span class="kw">new</span> <span class="typ">MeshLoggingMiddleware</span>(logger),
+    <span class="kw">new</span> <span class="typ">MeshCircuitBreakerMiddleware</span>({ threshold: <span class="num">5</span> }),
+    <span class="kw">new</span> <span class="typ">MeshCacheMiddleware</span>(cacheService),
+  ],
+})</code></pre>
+
+      <p>The middleware interface follows the standard onion/next pattern:</p>
+      <pre><code><span class="kw2">interface</span> <span class="typ">MeshQueryMiddleware</span> {
+  name: <span class="typ">string</span>
+  execute&lt;<span class="typ">T</span>&gt;(
+    context: <span class="typ">MeshQueryMiddlewareContext</span>&lt;<span class="typ">T</span>&gt;,
+    next: () =&gt; <span class="typ">Promise</span>&lt;<span class="typ">MeshQueryResult</span>&lt;<span class="typ">T</span>&gt;&gt;,
+  ): <span class="typ">Promise</span>&lt;<span class="typ">MeshQueryResult</span>&lt;<span class="typ">T</span>&gt;&gt;
+}</code></pre>
+
+      <p>Built-in middleware provided by the system:</p>
+      <ul>
+        <li><strong>MeshTracingMiddleware</strong> — OpenTelemetry span per query</li>
+        <li><strong>MeshLoggingMiddleware</strong> — structured query logging with duration</li>
+        <li><strong>MeshCircuitBreakerMiddleware</strong> — failure threshold per entity key</li>
+        <li><strong>MeshCacheMiddleware</strong> — query fingerprint caching with TTL</li>
+      </ul>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Caching                                           -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="caching">
+      <div class="section-header">
+        <div class="section-num">26</div>
+        <div>
+          <div class="section-tag">infrastructure</div>
+          <h2>Query Caching Layer</h2>
+        </div>
+      </div>
+
+      <p>Cache results by query fingerprint. Fingerprints encode entity key, where clauses, selected fields, joins, ordering, and pagination. Tag-based invalidation connects cache lifecycle to mutation outcomes.</p>
+
+      <pre><code><span class="cmt">// Cache on query side:</span>
+.<span class="fn">cache</span>({ ttlMs: <span class="num">5_000</span>, tags: [<span class="str">"deployments"</span>, <span class="str">"prod"</span>] })
+
+<span class="cmt">// Invalidate on mutation side:</span>
+.<span class="fn">invalidates</span>([<span class="str">"deployments"</span>, <span class="str">"prod"</span>])</code></pre>
+
+      <div class="info-box warn">
+        <div class="icon">⚠</div>
+        <div class="info-box-content">
+          <strong>Cache invalidation is always tag-driven</strong>
+          <p>Invalidation is never done by cache key (Invariant I19). Tags create a semantic link between queries and the mutations that should invalidate them.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Explain                                           -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="explain">
+      <div class="section-header">
+        <div class="section-num">27</div>
+        <div>
+          <div class="section-tag">infrastructure</div>
+          <h2>Query Plan Introspection</h2>
+        </div>
+      </div>
+
+      <p>Understand what a query will do <em>before</em> executing it. Always computable without executing (Invariant I17).</p>
+
+      <pre><code><span class="kw">const</span> plan = <span class="kw">await</span> discovery
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments.queries.list)
+  .<span class="fn">where</span>({ environment: <span class="str">"prod"</span> })
+  .<span class="fn">include</span>(<span class="str">"service"</span>)
+  .<span class="fn">explain</span>()
+
+<span class="cmt">// plan: MeshQueryPlan {
+//   entityKey: "deployments",
+//   strategy: "broadcast-merge",
+//   estimatedNodes: 3,
+//   whereClauses: [{ field: "environment", op: "eq", value: "prod" }],
+//   joins: [{
+//     alias: "service",
+//     entityKey: "services",
+//     type: "left",
+//     nestedPlan: { ... }
+//   }],
+//   warnings: [{
+//     code: "CROSS_SERVICE_JOIN",
+//     message: "Join crosses service boundary — executed in-memory",
+//     severity: "info"
+//   }],
+//   estimatedCostMs: 45
+// }</span></code></pre>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Discovery Service                                 -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="discovery-service">
+      <div class="section-header">
+        <div class="section-num">28</div>
+        <div>
+          <div class="section-tag">infrastructure</div>
+          <h2>Discovery Service</h2>
+        </div>
+      </div>
+
+      <pre><code><span class="dec">@Injectable</span>()
+<span class="kw">export</span> <span class="kw">class</span> <span class="typ">SystemMeshResourceDiscoveryService</span> {
+
+  <span class="fn">from</span>&lt;<span class="typ">TMethod</span> <span class="kw">extends</span> <span class="typ">MeshEntityMethod</span>&lt;<span class="kw">any</span>&gt;&gt;(
+    method: <span class="typ">TMethod</span>,
+  ): <span class="typ">MeshQueryBuilder</span>&lt;<span class="typ">MethodItem</span>&lt;<span class="typ">TMethod</span>&gt;&gt;
+
+}</code></pre>
+
+      <p>Inject and use:</p>
+      <pre><code><span class="dec">@Injectable</span>()
+<span class="kw">export</span> <span class="kw">class</span> <span class="typ">MyService</span> {
+  <span class="kw">constructor</span>(
+    <span class="kw">private</span> <span class="kw">readonly</span> discovery: <span class="typ">SystemMeshResourceDiscoveryService</span>,
+    <span class="kw">private</span> <span class="kw">readonly</span> mesh: <span class="typ">SystemMeshMutationService</span>,
+  ) {}
+
+  <span class="kw">async</span> <span class="fn">getRunningDeployments</span>() {
+    <span class="kw">return</span> <span class="kw">this</span>.discovery
+      .<span class="fn">from</span>(DeploymentMeshService.entities.deployments.queries.list)
+      .<span class="fn">where</span>({ status: <span class="str">"running"</span> })
+      .<span class="fn">execute</span>()
+  }
+}</code></pre>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Peer Selection                                    -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="peer-selection">
+      <div class="section-header">
+        <div class="section-num">29</div>
+        <div>
+          <div class="section-tag">topology</div>
+          <h2>Peer Selection Algorithm</h2>
+        </div>
+      </div>
+
+      <p>The mesh layer selects peers dynamically based on latency, load, and fleet size. This is the <strong>target algorithm</strong> — not yet implemented.</p>
+
+      <div class="info-box warn">
+        <div class="icon">⚠</div>
+        <div class="info-box-content">
+          <strong>Hypothesis Status</strong>
+          <p>The peer selection algorithm described here is a design hypothesis. Current behavior favors first-seen peers. This section defines the upgrade target.</p>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <h3>Phase 1 — Discovery &amp; Authenticated Ping</h3>
+        <ol class="step-list">
+          <li><div class="step-num">1</div><div class="step-content"><strong>Query fleet registry</strong><span>Discover active nodes from the control plane or mesh discovery service</span></div></li>
+          <li><div class="step-num">2</div><div class="step-content"><strong>Authenticated ORPC ping</strong><span>Measure RTT p50/p95/p99 and capture load metrics per candidate</span></div></li>
+          <li><div class="step-num">3</div><div class="step-content"><strong>Filter candidates</strong><span>Discard nodes that fail auth or exceed the failure budget</span></div></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Scoring                                           -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="scoring">
+      <div class="section-header">
+        <div class="section-num">30</div>
+        <div>
+          <div class="section-tag">topology</div>
+          <h2>Scoring &amp; Peer Degree</h2>
+        </div>
+      </div>
+
+      <p>Candidates are scored on a composite metric. Lower is better (except capacity index C, which is inverted):</p>
+
+      <div class="eq-block">Score = w_L·L + w_J·J + w_Q·Q + w_S·S + w_M·M + w_F·F + w_C·(1 − C)</div>
+
+      <table class="prop-table">
+        <thead><tr><th>Variable</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td>L</td><td>Normalized latency score</td></tr>
+          <tr><td>J</td><td>Normalized jitter score</td></tr>
+          <tr><td>Q</td><td>Normalized queue backlog</td></tr>
+          <tr><td>S</td><td>Normalized stream load</td></tr>
+          <tr><td>M</td><td>Normalized memory pressure</td></tr>
+          <tr><td>C</td><td>Normalized capacity index (higher is better)</td></tr>
+          <tr><td>F</td><td>Failure penalty score</td></tr>
+          <tr><td>w_L</td><td>Latency weight ≥ 0.35 (weights sum to 1)</td></tr>
+        </tbody>
+      </table>
+
+      <p>The target peer degree <code>k</code> adapts to fleet size and node capacity:</p>
+
+      <div class="eq-block">K_base     = ⌈a + b·log₂(N)⌉
+K_capacity = ⌈K_base · (0.6 + 0.4C)⌉
+K_latency  = ⌈K_base · (1 − L̃ / L_budget)⌉
+k          = clamp(minPeers, maxPeers, max(K_base, K_capacity, K_latency))</div>
+
+      <p>Defaults: <code>a = 1</code>, <code>b = 2</code>, <code>L_budget = 80ms</code>. Configure all via the mesh module options.</p>
+
+      <div class="subsection">
+        <h3>Phase 4 — Hysteresis</h3>
+        <p>To prevent flapping under transient load spikes, the selector applies hysteresis: existing peers are only replaced if a candidate improves the score by at least threshold δ, and at most <code>r</code> peers are replaced per cycle (configurable).</p>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Rebalancing                                       -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="rebalancing">
+      <div class="section-header">
+        <div class="section-num">31</div>
+        <div>
+          <div class="section-tag">topology</div>
+          <h2>Rebalancing Cadence</h2>
+        </div>
+      </div>
+
+      <p>Peer re-evaluation is triggered either on an adaptive timer or by change events:</p>
+
+      <table class="prop-table">
+        <thead><tr><th>Trigger</th><th>Condition</th></tr></thead>
+        <tbody>
+          <tr><td>Adaptive timer (short)</td><td>Jitter or load volatility exceeds threshold</td></tr>
+          <tr><td>Adaptive timer (long)</td><td>System is stable</td></tr>
+          <tr><td>Node join</td><td>New candidate detected in fleet registry</td></tr>
+          <tr><td>Node leave</td><td>A current peer becomes unreachable</td></tr>
+          <tr><td>Latency delta</td><td>RTT change &gt; θ_latency</td></tr>
+          <tr><td>Load delta</td><td>Load change &gt; θ_load</td></tr>
+        </tbody>
+      </table>
+
+      <p>At each re-evaluation, a low-overhead fleet-wide ping sweep refreshes RTT baselines. RTT/metrics collection must be rate-limited in large fleets to avoid overload.</p>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Startup Model                                     -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="startup-model">
+      <div class="section-header">
+        <div class="section-num">32</div>
+        <div>
+          <div class="section-tag">bootstrap</div>
+          <h2>Startup Model</h2>
+        </div>
+      </div>
+
+      <p>On first install, the platform starts <strong>only the API container and the web app container</strong>. All other runtime containers are spawned through the mesh bootstrap process. The root container is the lifecycle owner of all runtime containers — uninstalling the root automatically tears down everything else.</p>
+
+      <div class="arch-diagram">
+        <pre><code>First Install
+     │
+     ├─ API Container (starts immediately)
+     └─ Web App Container (starts immediately)
+              │
+              ▼
+       Setup Wizard (mandatory gate)
+              │
+       ┌──────┴──────┐
+       │             │
+   Join Mesh     Create New Mesh
+       │             │
+       └──────┬───── ┘
+              │
+       Mesh Auth Portal
+       (superadmin login)
+              │
+       Lifetime Node Identity
+       (public/private key pair)
+              │
+       Persist Node URL Snapshot
+       (local database)
+              │
+       Mesh Orchestration Resolves
+              │
+       Global DB Module Starts
+              │
+       All Feature Modules Start</code></pre>
+      </div>
+
+      <div class="info-box danger">
+        <div class="icon">!</div>
+        <div class="info-box-content">
+          <strong>Critical: Container Lifecycle Rule</strong>
+          <p>Every container spawned by the root container must self-terminate when the root container is removed. There must be no orphan containers after uninstall. Child containers must also self-stop if the API becomes unreachable for too long.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Mesh Auth                                         -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="mesh-auth">
+      <div class="section-header">
+        <div class="section-num">33</div>
+        <div>
+          <div class="section-tag">bootstrap</div>
+          <h2>First Mesh Authentication</h2>
+        </div>
+      </div>
+
+      <p>Before the setup wizard can complete, the node must establish a <strong>permanent asymmetric identity</strong> with the mesh. This replaces the one-off login token with a long-lived node identity:</p>
+
+      <ol class="step-list">
+        <li><div class="step-num">1</div><div class="step-content"><strong>User reaches mesh flow in setup wizard</strong><span>The setup gate prevents all other modules from starting</span></div></li>
+        <li><div class="step-num">2</div><div class="step-content"><strong>Redirect to mesh auth portal</strong><span>The node connects to the mesh auth portal for the target mesh</span></div></li>
+        <li><div class="step-num">3</div><div class="step-content"><strong>Superadmin authenticates</strong><span>The user signs in with superadmin credentials for the mesh</span></div></li>
+        <li><div class="step-num">4</div><div class="step-content"><strong>Auth portal returns session to node</strong><span>The authenticated session is returned to the bootstrapping node</span></div></li>
+        <li><div class="step-num">5</div><div class="step-content"><strong>Session upgraded to lifetime identity</strong><span>A public/private key pair is generated and bound to the session</span></div></li>
+        <li><div class="step-num">6</div><div class="step-content"><strong>Identity persisted</strong><span>The asymmetric identity is stored in the local database and used for all future mesh control calls</span></div></li>
+      </ol>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Bootstrap Flows                                   -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="bootstrap-flows">
+      <div class="section-header">
+        <div class="section-num">34</div>
+        <div>
+          <div class="section-tag">bootstrap</div>
+          <h2>Bootstrap Flows</h2>
+        </div>
+      </div>
+
+      <div class="compare">
+        <div class="compare-box new">
+          <div class="compare-label">Flow A — Join Existing Mesh</div>
+          <ul style="padding-left:16px; color: var(--text2); font-size:13px;">
+            <li>Enter target mesh node URL</li>
+            <li>Enter display name for this node</li>
+            <li>Authenticate as mesh superadmin</li>
+            <li>System connects and registers node</li>
+            <li>Fetch full mesh node URL list</li>
+            <li>Persist URL snapshot in local DB</li>
+          </ul>
+        </div>
+        <div class="compare-box new">
+          <div class="compare-label">Flow B — Create New Mesh</div>
+          <ul style="padding-left:16px; color: var(--text2); font-size:13px;">
+            <li>Create initial local user (superadmin)</li>
+            <li>Enter display name for this node</li>
+            <li>Register as first mesh member</li>
+            <li>Provision local PostgreSQL OR attach existing</li>
+            <li>Persist bootstrap state in local DB</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <h3>Bootstrap Memory Model</h3>
+        <p>The local database serves as persistent bootstrap memory. It stores:</p>
+        <ul>
+          <li>Whether setup has completed</li>
+          <li>Whether the node joined or created a mesh</li>
+          <li>The lifetime asymmetric node identity (public key)</li>
+          <li>The discovered mesh node URL snapshot</li>
+          <li>The last successful mesh state snapshot</li>
+        </ul>
+        <p>On every restart, the orchestration layer reads from this store. If the first peer is unreachable, it continues through the stored URL list until a reachable node is found.</p>
+        <p>While the mesh is live, any node join or leave event updates the stored URL snapshot so reboots always start from the latest known topology.</p>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Module Chain                                      -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="module-chain">
+      <div class="section-header">
+        <div class="section-num">35</div>
+        <div>
+          <div class="section-tag">bootstrap</div>
+          <h2>Async Module Chain</h2>
+        </div>
+      </div>
+
+      <div class="info-box danger">
+        <div class="icon">!</div>
+        <div class="info-box-content">
+          <strong>Core Startup Rule</strong>
+          <p>The global database module must <em>never</em> read its URL from a static environment variable at runtime startup. The database URL is mesh-provisioned. <code>forRootAsync()</code> must wait for the mesh orchestration layer to provide it.</p>
+        </div>
+      </div>
+
+      <p>The mandatory chain order:</p>
+      <pre><code>setup <span class="op">→</span> mesh orchestration <span class="op">→</span> global database <span class="op">→</span> all feature modules</code></pre>
+
+      <table class="prop-table">
+        <thead><tr><th>Module</th><th>Blocked until</th><th>Unblocks</th></tr></thead>
+        <tbody>
+          <tr><td>Setup module</td><td>User completes setup wizard</td><td>Mesh orchestration</td></tr>
+          <tr><td>Mesh orchestration</td><td>Setup provides bootstrap snapshot</td><td>Mesh core, Global DB</td></tr>
+          <tr><td>Global database</td><td>Mesh orchestration provides runtime DB URL</td><td>All DB-dependent modules</td></tr>
+          <tr><td>Feature modules</td><td>Global DB is initialized</td><td>—</td></tr>
+        </tbody>
+      </table>
+
+      <div class="subsection">
+        <h3>Module Responsibilities</h3>
+        <table class="prop-table">
+          <thead><tr><th>Module</th><th>Owns</th></tr></thead>
+          <tbody>
+            <tr><td>Setup module</td><td>Onboarding decision, bootstrap state persistence, setup completion signal</td></tr>
+            <tr><td>Mesh orchestration</td><td>Startup coordination, bootstrap URL list, runtime source of truth</td></tr>
+            <tr><td>Mesh core</td><td>Node topology, topic transport, stream routing, resource discovery, observable call APIs</td></tr>
+            <tr><td>Global database</td><td>DB connection — <em>blocked</em> on mesh orchestration for the URL</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Observable API                                    -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="observable-api">
+      <div class="section-header">
+        <div class="section-num">36</div>
+        <div>
+          <div class="section-tag">bootstrap</div>
+          <h2>Observable-First Mesh API</h2>
+        </div>
+      </div>
+
+      <p>The mesh call APIs must expose the underlying RxJS <code>Observable</code> stream directly. Aggregation is optional on top.</p>
+
+      <pre><code><span class="cmt">// Raw stream — compose with any RxJS operator</span>
+<span class="kw">const</span> stream$ = meshCall.<span class="fn">observe</span>()
+
+stream$.<span class="fn">pipe</span>(
+  <span class="fn">map</span>(item =&gt; item.deploymentId),
+  <span class="fn">filter</span>(id =&gt; id.<span class="fn">startsWith</span>(<span class="str">"dep-"</span>)),
+  <span class="fn">take</span>(<span class="num">10</span>),
+  <span class="fn">scan</span>((acc, id) =&gt; [...acc, id], [] <span class="kw">as</span> <span class="typ">string</span>[]),
+  <span class="fn">timeout</span>({ each: <span class="num">5000</span> }),
+).<span class="fn">subscribe</span>(...)
+
+<span class="cmt">// Aggregated result — when you just want the answer</span>
+<span class="kw">const</span> result = <span class="kw">await</span> meshCall.<span class="fn">execute</span>()</code></pre>
+
+      <p>All standard RxJS operators are valid: <code>map</code>, <code>filter</code>, <code>mergeMap</code>, <code>switchMap</code>, <code>take</code>, <code>scan</code>, <code>combineLatest</code>, <code>timeout</code>, <code>retry</code>, <code>catchError</code>, and everything else in the RxJS toolkit. The goal is to leverage the full power of RxJS for mesh stream composition without artificial limitations.</p>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: File Structure                                    -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="file-structure">
+      <div class="section-header">
+        <div class="section-num">37</div>
+        <div>
+          <div class="section-tag">reference</div>
+          <h2>File Structure</h2>
+        </div>
+      </div>
+
+      <pre><code>src/core/modules/mesh/
+│
+├── mesh-operation.ts              <span class="cmt">── MeshOperation, meshOperation()</span>
+├── mesh-query.ts                  <span class="cmt">── meshQuery() alias</span>
+├── mesh-mutation.ts               <span class="cmt">── MeshMutation, meshMutation()</span>
+├── mesh-entity.ts                 <span class="cmt">── MeshEntity, meshEntity()</span>
+├── mesh-relation.ts               <span class="cmt">── MeshRelation, meshRelation()</span>
+├── mesh-entity.types.ts
+├── mesh-query.types.ts
+├── mesh-type-utils.ts             <span class="cmt">── EntityItem, BuilderResult, WithJoin…</span>
+│
+├── query/
+│   ├── mesh-query-builder.ts      <span class="cmt">── MeshQueryBuilder</span>
+│   ├── mesh-query-executor.ts     <span class="cmt">── MeshQueryExecutor</span>
+│   ├── mesh-query-join-executor.ts
+│   ├── mesh-query-subquery.ts
+│   ├── mesh-query-fingerprint.ts
+│   ├── mesh-query-plan.ts         <span class="cmt">── explain(), MeshQueryPlan</span>
+│   ├── mesh-where.ts
+│   ├── mesh-select.ts
+│   ├── mesh-order.ts
+│   ├── mesh-pagination.ts
+│   └── mesh-aggregate.ts          <span class="cmt">── count, sum, avg, groupBy…</span>
+│
+├── live/
+│   ├── mesh-live-query.ts         <span class="cmt">── MeshLiveQueryEngine</span>
+│   └── mesh-entity-event-bus.ts
+│
+├── mutation/
+│   ├── mesh-mutation-builder.ts
+│   ├── mesh-mutation-executor.ts
+│   └── mesh-optimistic-cache.ts
+│
+├── saga/
+│   ├── mesh-saga-builder.ts
+│   ├── mesh-saga-executor.ts
+│   └── mesh-saga-context.ts
+│
+├── middleware/
+│   ├── mesh-query-middleware.ts
+│   ├── mesh-tracing-middleware.ts
+│   ├── mesh-logging-middleware.ts
+│   ├── mesh-circuit-breaker-middleware.ts
+│   └── mesh-cache-middleware.ts
+│
+├── cache/
+│   ├── mesh-query-cache.ts
+│   └── mesh-query-cache.types.ts
+│
+├── events/
+│   ├── mesh-entity-event.ts
+│   ├── mesh-entity-event-emitter.ts
+│   └── mesh-entity-event-subscriber.ts
+│
+├── services/
+│   ├── base-mesh.service.ts
+│   └── system-mesh-resource-discovery.service.ts
+│
+└── tokens.ts</code></pre>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Implementation Order                              -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="impl-order">
+      <div class="section-header">
+        <div class="section-num">38</div>
+        <div>
+          <div class="section-tag">reference</div>
+          <h2>Implementation Order</h2>
+        </div>
+      </div>
+
+      <div class="phase-grid">
+        <div class="phase-card">
+          <div class="phase-num">PHASE 1</div>
+          <h4>Core Primitives</h4>
+          <p>meshOperation, meshQuery, meshMutation, meshEntity, meshRelation — type inference pipeline</p>
+        </div>
+        <div class="phase-card">
+          <div class="phase-num">PHASE 2</div>
+          <h4>Transport Layer</h4>
+          <p>BaseMeshService update, internal topic derivation, entity event emission hooks</p>
+        </div>
+        <div class="phase-card">
+          <div class="phase-num">PHASE 3</div>
+          <h4>Query Builder</h4>
+          <p>Builder, where, select, orderBy, limit, offset, scope</p>
+        </div>
+        <div class="phase-card">
+          <div class="phase-num">PHASE 4</div>
+          <h4>Joins &amp; Subqueries</h4>
+          <p>Builder-based joins, nested joins, include() via relations, subquery composition</p>
+        </div>
+        <div class="phase-card">
+          <div class="phase-num">PHASE 5</div>
+          <h4>Execution Engine</h4>
+          <p>MeshQueryExecutor, deduplication, streaming, result shapes</p>
+        </div>
+        <div class="phase-card">
+          <div class="phase-num">PHASE 6</div>
+          <h4>Aggregation</h4>
+          <p>Aggregation primitives, two-phase distributed aggregation, AggregateBuilder</p>
+        </div>
+        <div class="phase-card">
+          <div class="phase-num">PHASE 7</div>
+          <h4>Mutation Layer</h4>
+          <p>MeshMutationBuilder, optimistic cache, MeshMutationExecutor, domain actions</p>
+        </div>
+        <div class="phase-card">
+          <div class="phase-num">PHASE 8</div>
+          <h4>Saga Coordinator</h4>
+          <p>MeshSagaBuilder, MeshSagaExecutor, compensation chain, typed context</p>
+        </div>
+        <div class="phase-card">
+          <div class="phase-num">PHASE 9</div>
+          <h4>Reactive Layer</h4>
+          <p>MeshLiveQueryEngine, MeshEntityEventBus, typed event subscriptions</p>
+        </div>
+        <div class="phase-card">
+          <div class="phase-num">PHASE 10</div>
+          <h4>Middleware &amp; Cache</h4>
+          <p>Middleware pipeline, query fingerprinting, MeshQueryCache, built-in middleware</p>
+        </div>
+        <div class="phase-card">
+          <div class="phase-num">PHASE 11</div>
+          <h4>Introspection</h4>
+          <p>explain() / MeshQueryPlan, plan warnings, cost estimation</p>
+        </div>
+        <div class="phase-card">
+          <div class="phase-num">PHASE 12</div>
+          <h4>Public API Stabilization</h4>
+          <p>Discovery service, DI registration, module configuration, documentation</p>
+        </div>
+      </div>
+
+      <div class="info-box info">
+        <div class="icon">ℹ</div>
+        <div class="info-box-content">
+          <strong>Startup Modules (parallel track)</strong>
+          <p>The setup module, mesh orchestration service, and async module chain (setup → mesh → global DB → feature modules) should be developed in parallel with Phase 1–2 of the query/mutation work, as they have no dependency on the query layer.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: Invariants                                        -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="invariants">
+      <div class="section-header">
+        <div class="section-num">39</div>
+        <div>
+          <div class="section-tag">reference</div>
+          <h2>All System Invariants</h2>
+        </div>
+      </div>
+
+      <p>These invariants must never be violated. They are the enforceable contracts of the architecture.</p>
+
+      <ul class="invariant-list">
+        <li class="invariant-item"><span class="invariant-id">I1</span><span class="invariant-text"><strong>Services expose entities, not raw operations.</strong> Users query entities, not topics or RPC calls.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I2</span><span class="invariant-text"><strong>Everything is strongly typed.</strong> Invalid fields, joins, projections, operation references, and aliases are compile-time errors.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I3</span><span class="invariant-text"><strong>No string operation names.</strong> Operations are referenced through static typed objects, never through string literals.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I4</span><span class="invariant-text"><strong>Builders are immutable.</strong> Every builder method returns a new builder. The original is never modified.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I5</span><span class="invariant-text"><strong>Joins operate on builders only.</strong> Joins never accept raw service definitions or operation names.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I6</span><span class="invariant-text"><strong>Joins are infinitely nestable.</strong> A joined builder may itself contain joins.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I7</span><span class="invariant-text"><strong>Filtering is post-distribution.</strong> Where clauses execute after distributed collection, in-memory on the caller.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I8</span><span class="invariant-text"><strong>Distributed execution is hidden.</strong> Users never manage transport, correlation, cancellation, or topology.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I9</span><span class="invariant-text"><strong>Deduplication is entity-driven.</strong> Entities declare <code>itemKey</code>; the executor handles distributed merging.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I10</span><span class="invariant-text"><strong>Result types are fully inferred.</strong> No manual generics, no casts, no DTO duplication.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I11</span><span class="invariant-text"><strong>Live queries are consistent with last known state.</strong> They re-emit on every confirmed entity change event.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I12</span><span class="invariant-text"><strong>Aggregations execute in two phases.</strong> Partial on nodes, merge on caller — no raw item transfer for aggregate-only queries.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I13</span><span class="invariant-text"><strong>Middleware is composable and order-preserving.</strong> Registered order is execution order.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I14</span><span class="invariant-text"><strong>Relations are the single source of truth for auto-joins.</strong> <code>.include()</code> resolves exclusively from declared relations on the entity.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I15</span><span class="invariant-text"><strong>Optimistic mutations always roll back on failure.</strong> The optimistic cache patch is removed and the original state is restored.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I16</span><span class="invariant-text"><strong>Sagas execute compensating actions in reverse step order.</strong> Compensation is deterministic and exhaustive.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I17</span><span class="invariant-text"><strong>Query plans are always computable without executing.</strong> <code>.explain()</code> never triggers a distributed call.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I18</span><span class="invariant-text"><strong>Event subscriptions are scoped to entity + event type.</strong> A subscription never receives events from other entities.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I19</span><span class="invariant-text"><strong>Cache invalidation is always tag-driven.</strong> Never invalidated by raw cache key.</span></li>
+        <li class="invariant-item"><span class="invariant-id">I20</span><span class="invariant-text"><strong>All capabilities compose with all builder methods.</strong> <code>.cache()</code>, <code>.live()</code>, <code>.include()</code>, <code>.aggregate()</code> all work in any combination.</span></li>
+      </ul>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SECTION: End-to-End Examples                               -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <section class="section" id="examples">
+      <div class="section-header">
+        <div class="section-num">40</div>
+        <div>
+          <div class="section-tag">reference</div>
+          <h2>End-to-End Examples</h2>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <h3>Example 1 — Basic query with filter</h3>
+        <pre><code><span class="kw">const</span> result = <span class="kw">await</span> discovery
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments.queries.list)
+  .<span class="fn">where</span>({ status: <span class="str">"running"</span>, environment: <span class="str">"prod"</span> })
+  .<span class="fn">orderBy</span>(<span class="str">"createdAt"</span>, <span class="str">"desc"</span>)
+  .<span class="fn">limit</span>(<span class="num">20</span>)
+  .<span class="fn">execute</span>()</code></pre>
+      </div>
+
+      <div class="subsection">
+        <h3>Example 2 — Join with filtered subquery</h3>
+        <pre><code><span class="kw">const</span> activeServices = discovery
+  .<span class="fn">from</span>(ServiceMeshService.entities.services.queries.list)
+  .<span class="fn">where</span>({ archived: <span class="kw">false</span>, active: <span class="kw">true</span> })
+
+<span class="kw">const</span> result = <span class="kw">await</span> discovery
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments.queries.list)
+  .<span class="fn">join</span>(activeServices, join =&gt; join
+    .<span class="fn">as</span>(<span class="str">"service"</span>)
+    .<span class="fn">on</span>((d, s) =&gt; d.serviceId <span class="op">===</span> s.serviceId))
+  .<span class="fn">execute</span>()</code></pre>
+      </div>
+
+      <div class="subsection">
+        <h3>Example 3 — Deep nested join graph</h3>
+        <pre><code><span class="kw">const</span> projects = discovery
+  .<span class="fn">from</span>(ProjectMeshService.entities.projects.queries.list)
+  .<span class="fn">where</span>({ archived: <span class="kw">false</span> })
+
+<span class="kw">const</span> services = discovery
+  .<span class="fn">from</span>(ServiceMeshService.entities.services.queries.list)
+  .<span class="fn">join</span>(projects, join =&gt; join
+    .<span class="fn">as</span>(<span class="str">"project"</span>)
+    .<span class="fn">on</span>((s, p) =&gt; s.projectId <span class="op">===</span> p.projectId))
+
+<span class="kw">const</span> metrics = discovery
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deploymentMetrics.queries.list)
+  .<span class="fn">where</span>({ healthy: <span class="kw">true</span> })
+
+<span class="kw">const</span> result = <span class="kw">await</span> discovery
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments.queries.list)
+  .<span class="fn">where</span>({ environment: <span class="str">"prod"</span> })
+  .<span class="fn">join</span>(services, join =&gt; join
+    .<span class="fn">as</span>(<span class="str">"service"</span>)
+    .<span class="fn">on</span>((d, s) =&gt; d.serviceId <span class="op">===</span> s.serviceId))
+  .<span class="fn">join</span>(metrics, join =&gt; join
+    .<span class="fn">as</span>(<span class="str">"metrics"</span>)
+    .<span class="fn">on</span>((d, m) =&gt; d.deploymentId <span class="op">===</span> m.deploymentId))
+  .<span class="fn">orderBy</span>(<span class="str">"deploymentId"</span>)
+  .<span class="fn">limit</span>(<span class="num">100</span>)
+  .<span class="fn">execute</span>()</code></pre>
+      </div>
+
+      <div class="subsection">
+        <h3>Example 4 — Full v3 capabilities combined</h3>
+        <pre><code><span class="cmt">// 1. Live reactive query with auto-joins and caching</span>
+<span class="kw">const</span> deployments$ = discovery
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments.queries.list)
+  .<span class="fn">where</span>({ environment: <span class="str">"prod"</span> })
+  .<span class="fn">include</span>(<span class="str">"service"</span>)
+  .<span class="fn">include</span>(<span class="str">"metrics"</span>)
+  .<span class="fn">cache</span>({ ttlMs: <span class="num">3_000</span>, tags: [<span class="str">"deployments"</span>] })
+  .<span class="fn">live</span>({ debounceMs: <span class="num">200</span> })
+
+<span class="cmt">// 2. Distributed aggregation</span>
+<span class="kw">const</span> stats = <span class="kw">await</span> discovery
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments.queries.list)
+  .<span class="fn">aggregate</span>({
+    total: <span class="fn">count</span>(),
+    byStatus: <span class="fn">groupBy</span>(<span class="str">"status"</span>, <span class="fn">count</span>()),
+    avgReplicas: <span class="fn">avg</span>(<span class="str">"replicaCount"</span>),
+  })
+  .<span class="fn">execute</span>()
+
+<span class="cmt">// 3. Optimistic mutation with cache invalidation</span>
+<span class="kw">await</span> mesh
+  .<span class="fn">from</span>(DeploymentMeshService.entities.deployments)
+  .<span class="fn">where</span>({ deploymentId: <span class="str">"dep-1"</span> })
+  .<span class="fn">update</span>({ status: <span class="str">"stopping"</span> })
+  .<span class="fn">optimistic</span>({ patch: c =&gt; ({ ...c, status: <span class="str">"stopping"</span> }) })
+  .<span class="fn">invalidates</span>([<span class="str">"deployments"</span>])
+  .<span class="fn">execute</span>()
+
+<span class="cmt">// 4. Typed event subscription</span>
+mesh
+  .<span class="fn">on</span>(DeploymentMeshService.entities.deployments)
+  .<span class="fn">event</span>(<span class="str">"updated"</span>)
+  .<span class="fn">where</span>({ environment: <span class="str">"prod"</span> })
+  .<span class="fn">asObservable</span>()
+  .<span class="fn">pipe</span>(<span class="fn">filter</span>(e =&gt; e.item.status <span class="op">!==</span> e.previous?.status))
+  .<span class="fn">subscribe</span>(e =&gt; console.<span class="fn">log</span>(<span class="str">"Status changed:"</span>, e))</code></pre>
+      </div>
+    </section>
+
+  </div><!-- /content -->
+</main><!-- /main -->
+
+<script>
+  // Progress bar
+  window.addEventListener('scroll', () => {
+    const d = document.documentElement;
+    const pct = (d.scrollTop / (d.scrollHeight - d.clientHeight)) * 100;
+    document.getElementById('progress').style.width = pct + '%';
+  });
+
+  // Active nav highlighting
+  const sections = document.querySelectorAll('.section');
+  const navItems = document.querySelectorAll('.nav-item');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        navItems.forEach(item => {
+          item.classList.toggle('active', item.getAttribute('href') === '#' + id);
+        });
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px', threshold: 0 });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

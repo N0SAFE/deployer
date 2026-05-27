@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import type { MeshEntity } from "./mesh-entity";
-import type { MeshQueryBuilder } from "./query/mesh-query-builder";
-import type { MeshAggregator } from "./query/mesh-aggregate";
+import type { MeshQueryBuilder } from "./services/system-mesh-resource-discovery/query/mesh-query-builder";
+import type { MeshAggregator } from "./services/system-mesh-resource-discovery/query/mesh-aggregate";
 
 // ─── Entity helpers ───────────────────────────────────────────────────────────
 

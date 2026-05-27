@@ -2,6 +2,9 @@
 
 export type MeshOrderDirection = "asc" | "desc";
 
+/**
+ * A single ordering clause — field name is constrained to keyof TItem & string.
+ */
 export interface MeshOrderClause<TItem> {
   readonly field: keyof TItem & string;
   readonly direction: MeshOrderDirection;
@@ -9,11 +12,17 @@ export interface MeshOrderClause<TItem> {
 
 // ─── Applier ──────────────────────────────────────────────────────────────────
 
+/**
+ * Applies ordering clauses to an array of items.
+ * Clauses are applied in declaration order (primary sort first).
+ *
+ * Supports string (localeCompare), number, Date, and null handling.
+ */
 export function applyOrdering<TItem>(
-  items: TItem[],
+  items: readonly TItem[],
   clauses: readonly MeshOrderClause<TItem>[],
 ): TItem[] {
-  if (clauses.length === 0) return items;
+  if (clauses.length === 0) return [...items];
 
   return [...items].sort((a, b) => {
     for (const clause of clauses) {

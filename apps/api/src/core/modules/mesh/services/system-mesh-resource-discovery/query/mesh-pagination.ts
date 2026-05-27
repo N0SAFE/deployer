@@ -8,14 +8,24 @@ export interface MeshPaginationState {
 export const defaultPaginationState: MeshPaginationState = {
   limit: null,
   offset: 0,
-};
+} as const;
 
 // ─── Applier ──────────────────────────────────────────────────────────────────
 
+export interface MeshPaginationResult<T> {
+  readonly items: readonly T[];
+  readonly hasMore: boolean;
+  readonly nextOffset: number | null;
+}
+
+/**
+ * Applies pagination to an array of items.
+ * Returns the sliced items along with hasMore and nextOffset metadata.
+ */
 export function applyPagination<T>(
-  items: T[],
+  items: readonly T[],
   pagination: MeshPaginationState,
-): { items: T[]; hasMore: boolean; nextOffset: number | null } {
+): MeshPaginationResult<T> {
   const start = pagination.offset;
   const sliced =
     pagination.limit !== null

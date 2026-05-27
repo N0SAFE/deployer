@@ -1,39 +1,23 @@
+import type { z } from "zod/v4";
 import { Injectable } from "@nestjs/common";
-import { z } from "zod";
 import { MeshQueryBuilder } from "./query/mesh-query-builder";
-import { MeshQueryExecutor } from './query/mesh-query-executor';
+import { MeshQueryExecutor } from "./query/mesh-query-executor";
 import { buildQueryPlan, formatQueryPlan, type MeshQueryPlan } from "./query/mesh-query-plan";
-import type { AnyMeshQuery } from "../../mesh-query";
-import type { AnyMeshEntity, MeshEntityItem } from "../../mesh-entity";
 import type { MeshQueryResult } from "./query/mesh-query-builder-types";
-
-// ─── Method reference types ───────────────────────────────────────────────────
-
-/**
- * A query method reference — the object you pass to `.from()`.
- * Carries item schema, entity key, method name, and item key.
- */
-export type MeshQueryMethodRef<TItem> = AnyMeshQuery & {
-  readonly itemSchema: z.ZodType<TItem>;
-  readonly entityKey: string;
-  readonly methodName: string;
-  readonly itemKey: string;
-};
-
-/**
- * Extracts the item type from a MeshQueryMethodRef.
- */
-export type MethodRefItem<TRef> =
-  TRef extends MeshQueryMethodRef<infer TItem> ? TItem : never;
+import type { AnyMeshEntity, MeshEntityItem } from "../../mesh-entity";
+import type { MeshQueryRef } from "./query/mesh-query-builder-types";
 
 // ─── Entity query ref extractor ───────────────────────────────────────────────
 
 /**
  * Extracts the query method refs from an entity's queries map.
  * Used to type `Service.entities.foo.queries.list` correctly.
+ *
+ * Each query method ref carries the entity's item type, so the builder
+ * can infer TItem from the method reference passed to `.from()`.
  */
 export type EntityQueryRefs<TEntity extends AnyMeshEntity> = {
-  [K in keyof TEntity["queries"]]: MeshQueryMethodRef<MeshEntityItem<TEntity>>;
+  [K in keyof TEntity["queries"]]: MeshQueryRef<MeshEntityItem<TEntity>>;
 };
 
 // ─── Discovery service ────────────────────────────────────────────────────────
@@ -51,7 +35,7 @@ export class SystemMeshResourceDiscoveryService {
    * discovery.from(DeploymentMeshService.entities.deployments.queries.list)
    */
   from<TItem>(
-    queryRef: MeshQueryMethodRef<TItem>,
+    queryRef: MeshQueryRef<TItem>,
   ): MeshQueryBuilder<TItem, TItem> {
     return MeshQueryBuilder.create<TItem>(this.executor, queryRef);
   }
@@ -59,13 +43,35 @@ export class SystemMeshResourceDiscoveryService {
   /**
    * Executes a query directly from a method ref with optional where clauses.
    * Convenience shorthand for `.from().where().execute()`.
+   *
+   * For queries with custom input schemas (e.g., search), use queryWithInput().
    */
   async query<TItem>(
-    queryRef: MeshQueryMethodRef<TItem>,
+    queryRef: MeshQueryRef<TItem>,
     where?: Partial<TItem>,
   ): Promise<MeshQueryResult<TItem>> {
     const builder = this.from(queryRef);
     return where ? builder.where(where).execute() : builder.execute();
+  }
+
+  /**
+   * Executes a query with a custom input schema (e.g., search queries).
+   * This bypasses the builder's where() filtering and passes the input
+   * directly to the query handler.
+   *
+   * @example
+   * await discovery.queryWithInput(
+   *   service.queries.search,
+   *   { query: "my-search", filters: { environment: "prod" } }
+   * )
+   */
+  async queryWithInput<TItem, TInput extends z.ZodType, TOutput extends z.ZodType>(
+    queryRef: MeshQueryRef<TItem, TInput, TOutput>,
+    input: z.infer<TInput>,
+  ): Promise<MeshQueryResult<TItem>> {
+    // For queries with custom inputs, we execute directly through the executor
+    // bypassing the builder's where-clause system
+    return this.executor.executeWithInput<TItem, TInput, TOutput>(queryRef, input);
   }
 
   /**

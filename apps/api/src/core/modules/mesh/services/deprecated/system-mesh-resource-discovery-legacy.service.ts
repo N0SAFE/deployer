@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { SystemMeshTopologyService } from "./system-mesh-topology.service";
+import { SystemMeshTopologyService } from "./system-mesh-topology/orchestrator/system-mesh-topology.service";
 
 @Injectable()
 export class SystemMeshResourceDiscoveryService {
