@@ -58,7 +58,7 @@
         "concurrently": "catalog:dev",
         "cross-env": "catalog:dev",
         "declarative-routing": "^0.1.20",
-        "immer": "^10.1.1",
+        "immer": "^11.0.0",
         "lodash.snakecase": "catalog:utils",
         "lucide-react": "catalog:ui",
         "next": "catalog:next",
