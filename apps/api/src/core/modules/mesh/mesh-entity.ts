@@ -72,7 +72,7 @@ export interface MeshEntity<
  * without knowing the specific item schema. Concrete entities will have the
  * correct constrained key.
  */
-export type AnyMeshEntity = MeshEntity<string, ZodType, never, Record<string, AnyMeshQuery>, Record<string, AnyMeshMutation>, MeshResourceScope>;
+export type AnyMeshEntity = MeshEntity<string, ZodType, never, Record<string, AnyMeshQuery>, Record<string, AnyMeshMutation>>;
 
 // ─── Type transformers for bound queries/mutations ────────────────────────────
 
@@ -267,7 +267,7 @@ export interface MeshEntityEventSources<
   readonly sources: TSources;
   
   /** Get event types that can be emitted */
-  getEventTypes(): Array<"created" | "updated" | "deleted" | keyof TSources>;
+  getEventTypes(): ("created" | "updated" | "deleted" | keyof TSources)[];
   
   /** Check if a specific event type is supported */
   supportsEvent(type: string): boolean;
@@ -392,7 +392,7 @@ export function meshEntityEnhanced<
   
   // Create base entity with legacy config format for backward compatibility
   const legacyScope: MeshResourceScope = config.ownership.type === "global" ? "global" : "node-owned";
-  const legacyConfig: MeshResourceConfig<typeof legacyScope> = {
+  const legacyConfig: MeshResourceConfig = {
     scope: legacyScope,
     ...(config.ownership.type === "global" && { subscriptions: true }),
     ...(config.ownership.type === "node-owned" && { nodeIdField: config.ownership.ownerField }),
@@ -422,11 +422,11 @@ export function meshEntityEnhanced<
         if (source.emitsDeleted) types.add(`${name}:deleted`);
       }
       
-      return Array.from(types) as Array<"created" | "updated" | "deleted" | keyof TEventSources>;
+      return Array.from(types);
     },
     
     supportsEvent(type: string): boolean {
-      return this.getEventTypes().includes(type as never);
+      return this.getEventTypes().includes(type);
     },
     
     getSourceObservable<TPayload>(sourceName: keyof TEventSources) {

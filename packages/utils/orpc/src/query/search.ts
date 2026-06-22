@@ -169,7 +169,7 @@ export function createSearchSchema<TConfig>(
     .default("contains")
     .describe("Search matching mode");
 
-  return z.object(schema as z.ZodRawShape);
+  return z.object(schema);
 }
 
 /**

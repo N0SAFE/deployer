@@ -15,7 +15,7 @@ import {
   type Node,
   type NodeProps,
 } from '@xyflow/react'
-import '@xyflow/react/dist/style.css'
+import '@/assets/css/xyflow.css'
 import { AlertCircle, GitBranch, Link2 } from 'lucide-react'
 import { serviceEndpoints } from '@/domains/service/endpoints'
 import { Badge } from '@repo/ui/components/shadcn/badge'

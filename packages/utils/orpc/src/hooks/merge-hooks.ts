@@ -148,7 +148,7 @@ export function mergeHooks<
 
   // Extract keys from router (queryKeys) and custom (keys)
   const routerQueryKeys = extractRouterQueryKeys(router)
-  const customQueryKeys = extractCustomQueryKeys(custom as Record<string, unknown>)
+  const customQueryKeys = extractCustomQueryKeys(custom)
   
   // Check for key naming conflicts
   warnOnConflicts([...Object.keys(routerQueryKeys), ...Object.keys(customQueryKeys)], 'query keys')
@@ -243,7 +243,7 @@ export function defineCustomHooks<
   const keys = (options?.keys ?? {}) as TKeys
   
   // Attach keys to the hooks object
-  return Object.assign({}, hooks, { keys }) as CustomHooksWithKeys<THooks, TKeys>
+  return Object.assign({}, hooks, { keys })
 }
 
 

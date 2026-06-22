@@ -5,17 +5,21 @@ import type { ContractRouterClient } from "@orpc/contract";
 import { OpenAPILink } from "@orpc/openapi-client/fetch";
 import { appContract, type AppContract } from "@repo/api-contracts";
 import { EnvService } from "@/config/env/env.service";
+import { eq } from "drizzle-orm";
+import { meshStreamResourceSchema } from "@/core/modules/mesh/services/system-mesh-resource-discovery/schemas/mesh-resource-kind-schemas";
 import {
-    eq,
-    meshFields,
-    meshStreamResourceSchema,
+    makeFieldRef,
     path,
-    SystemMeshResourceDiscoveryService,
-} from "@/core/modules/mesh/services/system-mesh-resource-discovery/system-mesh-resource-discovery.service";
+} from "@/core/modules/mesh/services/system-mesh-resource-discovery/query/mesh-field-ref";
+import { SystemMeshResourceDiscoveryService } from "@/core/modules/mesh/services/system-mesh-resource-discovery/system-mesh-resource-discovery.service";
 import { SystemMeshConfigService } from "@/core/modules/mesh/services/system-mesh-config.service";
 import { MeshInternalRequestService } from "@/core/modules/mesh/services/mesh-internal-request.service";
 
-const streamFields = meshFields(meshStreamResourceSchema);
+const streamFields = {
+    key: makeFieldRef<{ key: string; protocol: string; metadata: Record<string, unknown> }, string>("key"),
+    protocol: makeFieldRef<{ key: string; protocol: string; metadata: Record<string, unknown> }, string>("protocol"),
+    metadata: makeFieldRef<{ key: string; protocol: string; metadata: Record<string, unknown> }, Record<string, unknown>>("metadata"),
+} as const;
 
 export interface MeshOpenInternalBridgeInput<TEvent> {
     context: unknown;

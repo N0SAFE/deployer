@@ -55,7 +55,7 @@ export class TLSBuilder {
    */
   options(name: string, config: Partial<TLSOptionsConfig>): this {
     this.config.options ??= {};
-    this.config.options[name] = config as TLSOptionsConfig;
+    this.config.options[name] = config;
     return this;
   }
 
@@ -79,7 +79,7 @@ export class TLSBuilder {
    * Set cipher suites
    */
   cipherSuites(...suites: string[]): this {
-    this.ensureDefaultOptions().cipherSuites = suites as VariableArray<string>;
+    this.ensureDefaultOptions().cipherSuites = suites;
     return this;
   }
 
@@ -99,7 +99,7 @@ export class TLSBuilder {
    */
   store(name: string, config: Partial<TLSStore>): this {
     this.config.stores ??= {};
-    this.config.stores[name] = config as TLSStore;
+    this.config.stores[name] = config;
     return this;
   }
 

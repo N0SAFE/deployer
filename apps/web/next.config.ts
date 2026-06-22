@@ -1,7 +1,15 @@
 import withBundleAnalyzer from "@next/bundle-analyzer";
-import { NextConfig } from "next";
+import type { NextConfig } from "next";
 import { envSchema } from "./env";
 import { readFileSync } from "fs";
+import path from "node:path";
+
+// When this file is loaded as a CJS module by Next.js, `__dirname` is the
+// directory of this config file (apps/web/). Going up two levels reaches the
+// monorepo root where `next` is hoisted in node_modules.
+// NOTE: do NOT use `import.meta.url` here — Bun 1.3.14 has a transpiler bug
+// that throws "Expected CommonJS module to have a function wrapper" when
+// `import.meta.url` is used inside a `.ts` file loaded as CJS.
 
 type PackageJsonShape = {
   dependencies?: Record<string, string>;
@@ -98,7 +106,14 @@ const nextConfig: NextConfig = {
   // so adding/removing workspace deps keeps transpilation in sync.
   transpilePackages: workspaceTranspilePackages,
   cacheComponents: true,
-  reactCompiler: true, // disable because of https://github.com/vercel/next.js/issues/85234
+  reactCompiler: true,
+  // Monorepo: tell Turbopack the workspace root so it can resolve `next` from
+  // the hoisted `node_modules` at the repo root. Without this, Next.js 16+ with
+  // Turbopack errors with "could not find next/package.json" in Docker
+  // (project dir: /app/apps/web/src/app, but `next` is hoisted at /app/node_modules).
+  turbopack: {
+    root: path.join(__dirname, "../.."),
+  },
   images: {
     dangerouslyAllowSVG: true,
     remotePatterns: [
@@ -114,16 +129,188 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  webpack: (config, context) => {
+  // postcss.config.mjs is intentionally disabled — Turbopack handles Tailwind v4
+  // natively via Lightning CSS. The CSS imports for tw-animate-css and shadcn
+  // are resolved via local copies in src/assets/css/ (relative @import paths),
+  // because Turbopack's CSS resolver does not support the "style" condition in
+  // package.json exports that these packages use.
+
+  // Webpack config is conditionally included only for non-Turbopack runs.
+  // When `next dev --turbopack` is used, we omit the webpack function entirely
+  // to avoid a Next.js 16.2.9 Turbopack bug: PostCssTransformedAsset -> evaluate_webpack_loader crash.
+  // This keeps Turbopack handling CSS via Lightning CSS without webpack loader fallback.
+  ...(process.env.WEBPACK
+    ? {
+        webpack: (config: any, context: any) => {
+    // Prevent webpack from watching dist/ directories inside @repo packages
+    // to avoid recompile loops when package builds write to dist/
+    config.watchOptions ??= {};
+    if (Array.isArray(config.watchOptions.ignored)) {
+      config.watchOptions.ignored.push("**/dist/**");
+    } else if (typeof config.watchOptions.ignored === "string") {
+      config.watchOptions.ignored = [config.watchOptions.ignored, "**/dist/**"];
+    } else {
+      config.watchOptions.ignored = ["**/dist/**"];
+    }
+
     // Enable polling based on env variable being set
     if (process.env.NEXT_WEBPACK_USEPOLLING) {
       config.watchOptions = {
+        ...config.watchOptions,
         poll: 500,
         aggregateTimeout: 300,
       };
+    } 
+
+    // ── Compilation Loop Debug Plugin ──────────────────────────────
+    // Enabled when NEXT_DEBUG_COMPILE=1 is set in environment.
+    // Logs every watch-triggered recompilation, which files changed,
+    // compilation duration, and detects potential loops.
+    // ───────────────────────────────────────────────────────────────
+    if (process.env.NEXT_DEBUG_COMPILE === "1") {
+      let compileCount = 0;
+      let lastModifiedFiles: string[] = [];
+
+      config.plugins.push({
+        apply: (compiler: any) => {
+          // ── File change detected (earliest hook) ──
+          compiler.hooks.invalid.tap(
+            "CompileLoopDebugPlugin",
+            (fileName: string, changeTime: number) => {
+              console.log(
+                `[DEBUG:WATCH] File invalidated at ${new Date(changeTime).toISOString()}: ${fileName}`,
+              );
+            },
+          );
+
+          // ── Watch-triggered compilation starting ──
+          compiler.hooks.watchRun.tapAsync(
+            "CompileLoopDebugPlugin",
+            (comp: any, callback: any) => {
+              compileCount++;
+              const modifiedFiles: string[] = comp.modifiedFiles
+                ? Array.from(comp.modifiedFiles)
+                : [];
+              const removedFiles: string[] = comp.removedFiles
+                ? Array.from(comp.removedFiles)
+                : [];
+
+              console.log(
+                `\n=== [DEBUG:COMPILE #${compileCount}] ==========================`,
+              );
+              console.log(
+                `  Triggered by ${modifiedFiles.length} change(s)` +
+                  (removedFiles.length > 0
+                    ? ` + ${removedFiles.length} removal(s)`
+                    : ""),
+              );
+
+              if (modifiedFiles.length > 0) {
+                console.log(`  ── Modified files:`);
+                for (const f of modifiedFiles.slice(0, 30)) {
+                  console.log(`    ${f}`);
+                }
+                if (modifiedFiles.length > 30) {
+                  console.log(`    ... and ${modifiedFiles.length - 30} more`);
+                }
+              }
+              if (removedFiles.length > 0) {
+                console.log(`  ── Removed files:`);
+                for (const f of removedFiles) {
+                  console.log(`    ${f}`);
+                }
+              }
+
+              // Detect repeat of the same file set (loop indicator)
+              if (
+                lastModifiedFiles.length > 0 &&
+                modifiedFiles.length > 0 &&
+                modifiedFiles.length === lastModifiedFiles.length &&
+                modifiedFiles.every((f: string) =>
+                  lastModifiedFiles.includes(f),
+                )
+              ) {
+                console.log(
+                  `  ⚠️  SAME ${modifiedFiles.length} FILE(S) AS COMPILE #${compileCount - 1} — POSSIBLE LOOP!`,
+                );
+              }
+              lastModifiedFiles = modifiedFiles;
+
+              callback();
+            },
+          );
+
+          // ── Compilation finished ──
+          compiler.hooks.done.tap(
+            "CompileLoopDebugPlugin",
+            (stats: any) => {
+              const duration = stats.endTime - stats.startTime;
+              const hasErrors = stats.hasErrors();
+              const hasWarnings = stats.hasWarnings();
+
+              console.log(
+                `=== [DEBUG:COMPILE #${compileCount}] Done — ${duration}ms` +
+                  (hasErrors
+                    ? " ❌ ERRORS"
+                    : hasWarnings
+                      ? " ⚠️ Warnings"
+                      : " ✅ OK"),
+              );
+
+              if (hasErrors) {
+                for (const err of stats.compilation.errors) {
+                  console.log(`    Error:`, err.message || err);
+                }
+              }
+              if (hasWarnings) {
+                for (const warn of stats.compilation.warnings.slice(0, 5)) {
+                  console.log(`    Warning:`, warn.message || warn);
+                }
+                if (stats.compilation.warnings.length > 5) {
+                  console.log(
+                    `    ... and ${stats.compilation.warnings.length - 5} more warnings`,
+                  );
+                }
+              }
+              console.log(``);
+            },
+          );
+
+          // ── Compilation failed ──
+          compiler.hooks.failed.tap(
+            "CompileLoopDebugPlugin",
+            (error: any) => {
+              console.log(
+                `[DEBUG:FAIL] Compilation #${compileCount} failed:`,
+                error?.message || error,
+              );
+            },
+          );
+
+          // ── needAdditionalPass = webpack wants to loop (strong signal) ──
+          compiler.hooks.compilation.tap(
+            "CompileLoopDebugPlugin",
+            (compilation: any) => {
+              compilation.hooks.needAdditionalPass.tap(
+                "CompileLoopDebugPlugin",
+                () => {
+                  console.log(
+                    `  🔄 [DEBUG:LOOP] needAdditionalPass fired after compile #${compileCount}! Webpack requested another pass.`,
+                  );
+                  // Return undefined to NOT block the additional pass
+                },
+              );
+            },
+          );
+        },
+      });
     }
+    // ── End Debug Plugin ──────────────────────────────────────────
+
     return config;
-  },
+        },
+      }
+    : {}),
 };
 
 // Enable MDX and Fumadocs source generation
@@ -133,21 +320,4 @@ if (process.env.ANALYZE === "true") {
   exp = withBundleAnalyzer()(exp);
 }
 
-module.exports = (
-  phase: string,
-  {
-    defaultConfig,
-  }: {
-    defaultConfig: NextConfig;
-  },
-) => {
-  return {
-    ...defaultConfig,
-    ...exp,
-    env: {
-      PHASE: phase,
-      ...defaultConfig.env,
-      ...exp.env,
-    },
-  };
-};
+export default exp;

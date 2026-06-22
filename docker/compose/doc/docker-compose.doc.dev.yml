@@ -10,6 +10,15 @@ services:
         - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-doc-dev:${DOC_VERSION:-dev}"
       args:
         - NODE_ENV=development
+        - BUILDKIT_INLINE_CACHE=1
+      # No cache_to here: Docker Compose's `cache_to` only supports
+      # `type=inline|registry|gha|s3`. `type=inline` causes a BuildKit
+      # race condition when multiple services build in parallel
+      # (`docker compose up --build` runs all 5 services at once and
+      # concurrent writes to the inline cache metadata corrupt the snapshot).
+      # The default BuildKit local cache is used instead (file-based,
+      # shared across builds, no race). CI pipelines use prod-like compose
+      # files where `cache_to: type=inline` is safe (single-service build).
     restart: unless-stopped
     ports:
       - "${NEXT_PUBLIC_DOC_PORT:-3020}:${NEXT_PUBLIC_DOC_PORT:-3020}"

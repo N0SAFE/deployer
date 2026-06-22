@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import type { MeshResourceLocation, MeshResourceLookupResult } from "@repo/contracts-entities";
-import type { SystemMeshTopologyService } from "../../system-mesh-topology/orchestrator/system-mesh-topology.service";
+import { SystemMeshTopologyService } from "../../system-mesh-topology/orchestrator/system-mesh-topology.service";
 
 /**
  * Indexation des topics mesh dans le resource registry du mesh.

@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Logger, type OnModuleDestroy } from '@nestjs/common';
 import { EMPTY, merge, Observable, Subject } from 'rxjs';
 import { filter as rxFilter, map } from 'rxjs/operators';
 import { observableToAsyncIterable } from '@/core/utils/observable.utils';
@@ -19,7 +19,7 @@ export interface BaseEventServiceRegistryEntry {
   namespace: string;
   domainServiceName: string;
   referenceScope: string;
-  service: BaseEventService<EventContracts, string>;
+  service: BaseEventService;
 }
 
 export interface MergedDomainEventEnvelope {
@@ -131,7 +131,7 @@ interface QueryByInputOptions<TInput> extends ReplayOptions {
 export abstract class BaseEventService<
   TContracts extends EventContracts = EventContracts,
   TNamespace extends string = string,
-> {
+> implements OnModuleDestroy {
   private static persistenceAdapter: EventLogPersistenceAdapter | null = null;
   private static readonly serviceRegistry = new Set<BaseEventService>();
 
@@ -174,7 +174,7 @@ export abstract class BaseEventService<
   }
 
   getContractNames(): (keyof TContracts & string)[] {
-    return Object.keys(this.contracts) as (keyof TContracts & string)[];
+    return Object.keys(this.contracts);
   }
 
   static configurePersistenceAdapter(adapter: EventLogPersistenceAdapter): void {
@@ -234,7 +234,7 @@ export abstract class BaseEventService<
     }
 
     const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
-    const fullEventName = this.buildFullEventName(String(eventName), validatedInput as Record<string, unknown>);
+    const fullEventName = this.buildFullEventName(String(eventName), validatedInput);
 
     let subscription = this.events.get(fullEventName) as EventSubscriptionData<EventOutput<TContracts[K]>> | undefined;
     if (!subscription) {
@@ -348,7 +348,7 @@ export abstract class BaseEventService<
       throw new Error(`Contract not found for event: ${eventName}`);
     }
 
-    return this.subscribeAny$(eventName as keyof TContracts) as Observable<AnyEventEmission<EventContract>>;
+    return this.subscribeAny$(eventName);
   }
 
   /**
@@ -419,7 +419,7 @@ export abstract class BaseEventService<
       })();
 
       const subscription = this.subscribeAny$(eventName).subscribe((event) => {
-        if (!this.matchesInput(event.input as EventInput<TContracts[K]>, options)) {
+        if (!this.matchesInput(event.input, options)) {
           return;
         }
         subscriber.next(event);
@@ -453,15 +453,15 @@ export abstract class BaseEventService<
     const validatedOutput = contract.output.parse(output) as EventOutput<TContracts[K]>;
 
     // Build full event name using fileId from input
-    const fullEventName = this.buildFullEventName(String(eventName), validatedInput as Record<string, unknown>);
+    const fullEventName = this.buildFullEventName(String(eventName), validatedInput);
     const sequence = (this.sequenceByEventKey.get(fullEventName) ?? 0) + 1;
     this.sequenceByEventKey.set(fullEventName, sequence);
 
     const bufferedRecord: BufferedEventRecord = {
       eventName: String(eventName),
       eventKey: fullEventName,
-      input: validatedInput as Record<string, unknown>,
-      output: validatedOutput as Record<string, unknown>,
+      input: validatedInput,
+      output: validatedOutput,
       sequence,
       emittedAt: new Date().toISOString(),
     };
@@ -539,7 +539,7 @@ export abstract class BaseEventService<
       throw new Error(`Contract not found for event: ${String(eventName)}`);
     }
     const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
-    const fullEventName = this.buildFullEventName(String(eventName), validatedInput as Record<string, unknown>);
+    const fullEventName = this.buildFullEventName(String(eventName), validatedInput);
 
     const subscription = this.events.get(fullEventName);
     return subscription ? subscription.subscriberCount > 0 : false;
@@ -560,7 +560,7 @@ export abstract class BaseEventService<
       throw new Error(`Contract not found for event: ${String(eventName)}`);
     }
     const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
-    const fullEventName = this.buildFullEventName(String(eventName), validatedInput as Record<string, unknown>);
+    const fullEventName = this.buildFullEventName(String(eventName), validatedInput);
 
     const subscription = this.events.get(fullEventName);
     return subscription ? subscription.subscriberCount : 0;
@@ -633,7 +633,7 @@ export abstract class BaseEventService<
       throw new Error(`Contract not found for event: ${String(eventName)}`);
     }
     const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
-    const fullEventName = this.buildFullEventName(String(eventName), validatedInput as Record<string, unknown>);
+    const fullEventName = this.buildFullEventName(String(eventName), validatedInput);
 
     const subscription = this.events.get(fullEventName);
     if (subscription) {
@@ -688,7 +688,7 @@ export abstract class BaseEventService<
       return 0;
     }
     const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
-    const fullEventName = this.buildFullEventName(String(eventName), validatedInput as Record<string, unknown>);
+    const fullEventName = this.buildFullEventName(String(eventName), validatedInput);
     return this.sequenceByEventKey.get(fullEventName) ?? 0;
   }
 
@@ -747,6 +747,22 @@ export abstract class BaseEventService<
     }
 
     return timer;
+  }
+
+  /**
+   * NestJS lifecycle hook — clears the persistent flush ticker so the
+   * process can exit cleanly. All concrete event services inherit this
+   * behaviour automatically. If a subclass needs to perform additional
+   * teardown, it must override and call `super.onModuleDestroy()`.
+   */
+  onModuleDestroy(): void {
+    this.stopFlushTicker();
+  }
+
+  protected stopFlushTicker(): void {
+    if (this.flushTicker) {
+      clearInterval(this.flushTicker);
+    }
   }
 }
 

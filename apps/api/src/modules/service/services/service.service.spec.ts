@@ -112,7 +112,7 @@ describe('ServiceService', () => {
             const mockResponse = { data: [mockService], meta: { total: 1, limit: 10, offset: 0, hasMore: false } };
             mockRepository.list.mockResolvedValue(mockResponse);
 
-            const result = await service.listServices(input as any);
+            const result = await service.listServices(input);
 
             expect(result).toEqual(mockResponse);
             expect(mockRepository.list).toHaveBeenCalledWith(input);
@@ -176,7 +176,7 @@ describe('ServiceService', () => {
             mockRepository.findById.mockResolvedValue(mockService);
             mockRepository.update.mockResolvedValue(updated);
 
-            const result = await service.updateService('service-1', { name: 'Renamed' } as any, 'requester-1');
+            const result = await service.updateService('service-1', { name: 'Renamed' }, 'requester-1');
 
             expect(result).toEqual(updated);
             expect(mockRepository.update).toHaveBeenCalledWith('service-1', expect.objectContaining({ name: 'Renamed' }));

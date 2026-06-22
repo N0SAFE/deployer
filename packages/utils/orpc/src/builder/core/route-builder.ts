@@ -5,12 +5,12 @@
  */
 
 import { oc } from "@orpc/contract";
-import type { HTTPPath, AnySchema } from "../../shared/types";
+import type { HTTPPath, AnySchema } from "../../types/types";
 import type { 
     RouteMetadata, 
     HTTPMethod, 
     ErrorMap,
-} from "../../shared/types";
+} from "../../types/types";
 import type { 
     SchemaShape, 
     ObjectSchema, 
@@ -18,14 +18,14 @@ import type {
     VoidSchema,
     NeverSchema,
     ShouldBeOptional,
-} from "../../shared/standard-schema-helpers";
+} from "../../types/standard-schema-helpers";
 import {
     voidSchema,
     emptyObjectSchema,
     objectSchema,
     optionalSchema,
     literalSchema,
-} from "../../shared/standard-schema-helpers";
+} from "../../types/standard-schema-helpers";
 import { type DetailedInputBuilderSchema } from "../input/builder";
 import { InputSchemaProxy } from "../input/proxy";
 import { createOutputSchemaProxy, type OutputSchemaProxy, type OutputSchemaProxySchema } from "../output/proxy";
@@ -728,7 +728,7 @@ export class RouteBuilder<
                 // If the schema already uses any detailed keys, treat it as structured input.
                 // This prevents non-detailed wrappers like { query: ... } from being copied into body.
                 if (hasDetailedKeys) {
-                    existingBody = emptyObjectSchema() as CurrentInputBody<TInput>;
+                    existingBody = emptyObjectSchema();
                 }
 
                 const paramsField = (inputShape as Record<string, AnySchema>).params;
@@ -828,7 +828,7 @@ export class RouteBuilder<
         // Check if single argument is a callback function
         const firstArg = errorsOrCallback[0];
         const errors = typeof firstArg === "function" && errorsOrCallback.length === 1
-            ? (firstArg as (factory: typeof error) => TNewErrors)(error)
+            ? (firstArg)(error)
             : errorsOrCallback as unknown as TNewErrors;
 
         const errorMap: Record<string, unknown> = { ...this._errors };

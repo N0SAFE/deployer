@@ -179,7 +179,7 @@ export class MeshJoinConfigurator<
    */
   on(
     predicate: (left: TLeft, right: TRight) => boolean,
-  ): MeshJoinConfigurator<TLeft, TRight, TAlias, TType> {
+  ): this {
     this._on = predicate;
     return this;
   }

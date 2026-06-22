@@ -19,11 +19,11 @@ import { Inject, Injectable } from "@nestjs/common";
   import { BoundedEventLog } from "../../../shared/primitives/bounded-event-log";
   import { SlidingDedupWindow } from "../../../shared/primitives/sliding-dedup-window";
   import { FencingTokenIssuer } from "../../../shared/primitives/fencing-token";
-  import type { MeshIdentityService } from "./mesh-identity.service";
-  import type { MeshMembershipService } from "./mesh-membership.service";
-  import type { SystemMeshOverlayScopeService } from "../../system-mesh-overlay-scope.service";
-  import type { SystemMeshLogicService } from "../../system-mesh-logic.service";
-  import type { MeshHealthMonitorService } from "./mesh-health-monitor.service";
+    import { MeshIdentityService } from "./mesh-identity.service";
+    import { MeshMembershipService } from "./mesh-membership.service";
+    import { SystemMeshOverlayScopeService } from "../../system-mesh-overlay-scope.service";
+    import { SystemMeshLogicService } from "../../system-mesh-logic.service";
+    import { MeshHealthMonitorService } from "./mesh-health-monitor.service";
 
   interface QueuePartitionCandidate {
       nodeId: string;
@@ -193,7 +193,6 @@ import { Inject, Injectable } from "@nestjs/common";
               forwardedToNodeId: forwardingRequired ? ownerNodeId : null,
               leaseHandoff: Boolean(input.leaseHolderNodeId) && ownerNodeId !== input.leaseHolderNodeId,
               selectedAt: nowIso,
-              fencingToken,
               candidates: input.includeCandidates
                   ? ranked
                   : ranked.filter((c) => c.nodeId === ownerNodeId),

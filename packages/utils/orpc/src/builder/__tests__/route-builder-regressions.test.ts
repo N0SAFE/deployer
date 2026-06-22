@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { z } from 'zod/v4';
 import { RouteBuilder, route } from '../core/route-builder';
-import type { InferSchemaInput } from '../../shared/types';
+import type { InferSchemaInput } from '../../types/types';
 
 const SHAPE_SYMBOL = Symbol.for('standard-schema:shape');
 
@@ -104,7 +104,7 @@ describe('RouteBuilder - Regression Coverage', () => {
         .output(z.object({ id: z.string() }))
         .build();
 
-      const inputShape = getSchemaShape(contract['~orpc'].inputSchema as unknown);
+      const inputShape = getSchemaShape(contract['~orpc'].inputSchema);
       expect(inputShape).toBeDefined();
       expect(inputShape.body).toBeDefined();
       expect(inputShape.query).toBeDefined();
@@ -121,7 +121,7 @@ describe('RouteBuilder - Regression Coverage', () => {
         .output((b) => b.status(204))
         .build();
 
-      const outputShape = getSchemaShape(contract['~orpc'].outputSchema as unknown);
+      const outputShape = getSchemaShape(contract['~orpc'].outputSchema);
       expect(outputShape).toBeDefined();
       expect(outputShape.status).toBeDefined();
 
@@ -145,7 +145,7 @@ describe('RouteBuilder - Regression Coverage', () => {
         )
         .build();
 
-      const outputShape = getSchemaShape(contract['~orpc'].outputSchema as unknown);
+      const outputShape = getSchemaShape(contract['~orpc'].outputSchema);
       expect(outputShape.status).toBeDefined();
       expect(outputShape.headers).toBeDefined();
       expect(outputShape.body).toBeDefined();

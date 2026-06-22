@@ -341,7 +341,7 @@ export class PermissionBuilder<
   resource<TResource extends string>(
     name: TResource
   ): ResourceBuilder<TStatement, TResource, TRoles, TMetaShape> {
-    return new ResourceBuilder(this, name) as unknown as ResourceBuilder<TStatement, TResource, TRoles, TMetaShape>;
+    return new ResourceBuilder(this, name);
   }
 
   /**
@@ -385,7 +385,7 @@ export class PermissionBuilder<
     name: TRole
   ): RoleBuilder<TStatement, TRoles, TRole, TMetaShape> {
     this._ac ??= createAccessControl(this._statement as TStatement);
-    return new RoleBuilder<TStatement, TRoles, TRole, TMetaShape>(this as unknown as PermissionBuilder<TStatement, TRoles, TMetaShape>, name, this._ac);
+    return new RoleBuilder<TStatement, TRoles, TRole, TMetaShape>(this, name, this._ac);
   }
 
   /**
@@ -517,7 +517,7 @@ export class PermissionBuilder<
    * Useful for deriving role lists from the builder configuration
    */
   getRoleNames(): (keyof TRoles)[] {
-    return Object.keys(this._roles) as (keyof TRoles)[];
+    return Object.keys(this._roles);
   }
 
   /**
@@ -525,7 +525,7 @@ export class PermissionBuilder<
    * Useful for deriving resource lists from the builder configuration
    */
   getStatementNames(): (keyof TStatement)[] {
-    return Object.keys(this._statement) as (keyof TStatement)[];
+    return Object.keys(this._statement);
   }
 
   /**

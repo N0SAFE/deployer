@@ -38,7 +38,7 @@ export function createSchemas<
   const getStatements = (role: RoleType): Record<string, readonly string[]> => {
     // Better Auth Role objects have a 'statements' property
     if ('statements' in role && typeof role.statements === 'object') {
-      return role.statements as Record<string, readonly string[]>;
+      return role.statements;
     }
     // Fallback for raw permission records
     return role as unknown as Record<string, readonly string[]>;
@@ -93,7 +93,7 @@ export function createSchemas<
   const allActionsSet = new Set<AllActions>();
   for (const actions of Object.values(statement)) {
     for (const action of actions) {
-      allActionsSet.add(action as AllActions);
+      allActionsSet.add(action);
     }
   }
   const allActionsArray = Array.from(allActionsSet);
@@ -151,7 +151,7 @@ export function createSchemas<
     const shape = {} as Record<string, z.ZodOptional<z.ZodArray<z.ZodType<string>>>>;
     for (const [resource, actions] of Object.entries(rolePerms)) {
       // Ensure actions is an array before checking length
-      const actionsArray = Array.isArray(actions as string[]) ? [...actions] : Array.from(actions as Iterable<string>);
+      const actionsArray = Array.isArray(actions) ? [...actions] : Array.from(actions as Iterable<string>);
       if (actionsArray.length === 0) continue;
       const actionSchema = (
         actionsArray.length === 1 ? z.literal(actionsArray[0]) :
@@ -227,9 +227,9 @@ export function createSchemas<
             ? TRoles[R][Res] extends readonly (infer A)[] ? A : never
             : never
         >;
-        if (!actions || actions.length === 0) return z.never() as unknown as ReturnType;
+        if (!actions || actions.length === 0) return z.never();
         const firstAction = actions[0];
-        if (firstAction === undefined) return z.never() as unknown as ReturnType;
+        if (firstAction === undefined) return z.never();
         if (actions.length === 1) return z.literal(firstAction) as unknown as ReturnType;
         return z.union([
           z.literal(firstAction),
@@ -251,8 +251,8 @@ export function createSchemas<
         const allRoleActions = new Set<string>();
         for (const actions of Object.values(rolePermsRecord)) {
           // Skip if actions is empty or not iterable
-          if ((Array.isArray(actions as string[]) && actions.length === 0)) continue;
-          const actionsArray = Array.isArray(actions as string[]) ? actions : Array.from(actions as Iterable<string>);
+          if ((Array.isArray(actions) && actions.length === 0)) continue;
+          const actionsArray = Array.isArray(actions) ? actions : Array.from(actions as Iterable<string>);
           for (const action of actionsArray) {
             allRoleActions.add(action);
           }
@@ -278,14 +278,14 @@ export function createSchemas<
         const filteredActions = new Set<AllActions>();
         for (const [resource, actions] of Object.entries(statement)) {
           for (const action of actions) {
-            if (predicate(action as AllActions, resource as ResourceNames)) {
-              filteredActions.add(action as AllActions);
+            if (predicate(action, resource as ResourceNames)) {
+              filteredActions.add(action);
             }
           }
         }
         
         const actionsArray = Array.from(filteredActions);
-        if (actionsArray.length === 0) return z.never() as unknown as z.ZodType<Filtered>;
+        if (actionsArray.length === 0) return z.never();
         if (actionsArray.length === 1) return z.literal(actionsArray[0]) as unknown as z.ZodType<Filtered>;
         return z.union([
           z.literal(actionsArray[0]),
@@ -327,7 +327,7 @@ export function createSchemas<
         const excluded = new Set(excludedActions);
         const filteredActions = allActionsArray.filter(a => !excluded.has(a as A));
         
-        if (filteredActions.length === 0) return z.never() as unknown as z.ZodType<Exclude<AllActions, A>>;
+        if (filteredActions.length === 0) return z.never();
         if (filteredActions.length === 1) return z.literal(filteredActions[0]) as unknown as z.ZodType<Exclude<AllActions, A>>;
         return z.union([
           z.literal(filteredActions[0]),

@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ConfigurationCoreModule } from "@/core/modules/configuration/configuration-core.module";
-import { DockerModule } from "@/core/modules/docker/docker.module";
+import { CoreDockerModule } from "@/core/modules/docker/docker.module";
 import { TraefikCoreModule } from "@/core/modules/traefik/traefik.module";
 import { BuildpackRuntimeRunnerService } from "./buildpack/buildpack-runtime-runner.service";
 import { DockerComposeRuntimeRunnerService } from "./docker-compose/docker-compose-runtime-runner.service";
@@ -12,7 +12,7 @@ import { RuntimeRunnerRegistryService } from "./runtime-runner-registry.service"
 import { DeploymentLoadBalancerSyncAdapter } from "../adapters/deployment-load-balancer-sync.adapter";
 
 @Module({
-    imports: [DockerModule, TraefikCoreModule, ConfigurationCoreModule],
+    imports: [CoreDockerModule, TraefikCoreModule, ConfigurationCoreModule],
     providers: [
         DockerRuntimeRunnerService,
         DockerfileRuntimeRunnerService,

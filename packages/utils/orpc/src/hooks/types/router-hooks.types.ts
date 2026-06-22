@@ -10,7 +10,7 @@ import type {
   AnyContractProcedureOrBuilder,
   InferInputSchema,
   InferOutputSchema,
-} from '../../utils/type-helpers';
+} from '../../types/type-helpers';
 import type {
   ExtractOutput,
   LiveQueryOptions,

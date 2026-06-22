@@ -1,4 +1,5 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import type { TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { LocalDatabaseService } from './local-database.service';
 
 describe('LocalDatabaseService', () => {

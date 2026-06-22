@@ -99,8 +99,22 @@ export class DeploymentMeshService extends DeploymentMeshBase implements OnModul
         super.onModuleDestroy();
     }
 
-    registerResolveDeploymentHandler(handler: unknown, options?: { organizationId?: string | null }) {
-        this.registerEntityHandler("deployments", "resolve", handler as Parameters<typeof this.registerEntityHandler>[2]);
+    registerResolveDeploymentHandler(
+        handler: (input: {
+            correlationId: string;
+            callerNodeId: string;
+            payload: ResolveDeploymentRequestPayload;
+        }) =>
+            | { payload: ResolveDeploymentResponsePayload; stopPropagation?: boolean }
+            | Promise<{ payload: ResolveDeploymentResponsePayload; stopPropagation?: boolean }>,
+        options?: { organizationId?: string | null },
+    ): void {
+        this.registerQueryHandler(
+            "deployments",
+            "resolve",
+            handler,
+            { organizationId: options?.organizationId ?? null },
+        );
     }
 
     registerSearchDeploymentsHandler(
@@ -113,12 +127,11 @@ export class DeploymentMeshService extends DeploymentMeshBase implements OnModul
             | Promise<{ payload: SearchDeploymentsResponsePayload; stopPropagation?: boolean }>,
         options?: { organizationId?: string | null },
     ): void {
-        this.registerCallHandler(
-            "searchDeploymentsRequest",
-            "searchDeploymentsResponse",
-            "searchDeploymentsCancel",
-            { organizationId: options?.organizationId ?? null },
+        this.registerQueryHandler(
+            "deployments",
+            "search",
             handler,
+            { organizationId: options?.organizationId ?? null },
         );
     }
 
@@ -132,12 +145,11 @@ export class DeploymentMeshService extends DeploymentMeshBase implements OnModul
             | Promise<{ payload: ListDeploymentsResponsePayload; stopPropagation?: boolean }>,
         options?: { organizationId?: string | null },
     ): void {
-        this.registerCallHandler(
-            "listDeploymentsRequest",
-            "listDeploymentsResponse",
-            "listDeploymentsCancel",
-            { organizationId: options?.organizationId ?? null },
+        this.registerQueryHandler(
+            "deployments",
+            "list",
             handler,
+            { organizationId: options?.organizationId ?? null },
         );
     }
 
@@ -151,15 +163,13 @@ export class DeploymentMeshService extends DeploymentMeshBase implements OnModul
         },
     ): Promise<{ items: DeploymentSummary[]; total: number; stoppedEarly: boolean }> {
         const result = await this.callMany<
-            "searchDeploymentsRequest",
-            "searchDeploymentsResponse",
-            "searchDeploymentsCancel",
+            "deployments",
+            "search",
             SearchDeploymentsRequestPayload,
             SearchDeploymentsResponsePayload
         >(
-            "searchDeploymentsRequest",
-            "searchDeploymentsResponse",
-            "searchDeploymentsCancel",
+            "deployments",
+            "search",
             payload,
             {
                 organizationId: options?.organizationId ?? null,
@@ -190,15 +200,13 @@ export class DeploymentMeshService extends DeploymentMeshBase implements OnModul
         },
     ): Promise<{ items: DeploymentSummary[]; total: number }> {
         const result = await this.callMany<
-            "listDeploymentsRequest",
-            "listDeploymentsResponse",
-            "listDeploymentsCancel",
+            "deployments",
+            "list",
             ListDeploymentsRequestPayload,
             ListDeploymentsResponsePayload
         >(
-            "listDeploymentsRequest",
-            "listDeploymentsResponse",
-            "listDeploymentsCancel",
+            "deployments",
+            "list",
             payload,
             {
                 organizationId: options?.organizationId ?? null,

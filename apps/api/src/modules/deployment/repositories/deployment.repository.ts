@@ -276,7 +276,7 @@ export class DeploymentRepository {
 
         return {
             projectId: row.projectId,
-            projectSettings: (row.projectSettings as Record<string, unknown> | null) ?? null,
+            projectSettings: (row.projectSettings) ?? null,
             service: {
                 providerId: row.providerId,
                 builderId: row.builderId,
@@ -284,10 +284,10 @@ export class DeploymentRepository {
                 environmentVariables:
                     (row.environmentVariables) ?? null,
                 resourceLimits:
-                    (row.resourceLimits as { memory?: string | null; cpu?: string | null } | null) ??
+                    (row.resourceLimits) ??
                     null,
                 metadata:
-                    (row.metadata as Record<string, unknown> | null) ?? null,
+                    (row.metadata) ?? null,
             },
         };
     }

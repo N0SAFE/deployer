@@ -8,11 +8,11 @@ import {
 } from '@repo/contracts-entities'
 import { CLOCK_TOKEN, type Clock } from '../../../shared/primitives/clock'
 import { LwwMap } from '../../../shared/primitives/lww-map'
-import type { MeshIdentityService } from './mesh-identity.service'
-import type { MeshHealthMonitorService } from './mesh-health-monitor.service'
-import type { MeshPeerSessionService } from './mesh-peer-session.service'
-import type { SystemMeshOverlayScopeService } from '../../system-mesh-overlay-scope.service'
-import type { SystemMeshEventService } from '../../../events/system-mesh-event.service'
+import { MeshIdentityService } from './mesh-identity.service'
+import { MeshHealthMonitorService } from './mesh-health-monitor.service'
+import { MeshPeerSessionService } from './mesh-peer-session.service'
+import { SystemMeshOverlayScopeService } from '../../system-mesh-overlay-scope.service'
+import { SystemMeshEventService } from '../../../events/system-mesh-event.service'
 
 /**
  * Membership distribué via LWW-Map (CRDT).

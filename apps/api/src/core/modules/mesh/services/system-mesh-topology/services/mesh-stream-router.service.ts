@@ -4,9 +4,9 @@ import { Injectable } from "@nestjs/common";
       MeshStreamRoutePlanInput,
       MeshStreamRoutePlanResult,
   } from "@repo/contracts-entities";
-  import type { MeshResourceRegistryService } from "./mesh-resource-registry.service";
-  import type { MeshHealthMonitorService } from "./mesh-health-monitor.service";
-  import type { SystemMeshOverlayScopeService } from "../../system-mesh-overlay-scope.service";
+    import { MeshResourceRegistryService } from "./mesh-resource-registry.service";
+    import { MeshHealthMonitorService } from "./mesh-health-monitor.service";
+    import { SystemMeshOverlayScopeService } from "../../system-mesh-overlay-scope.service";
 
   /**
    * Planification des routes de stream : lookup + pondération par métriques réseau.

@@ -37,7 +37,43 @@ export const meshJoinGrantConsumeResultSchema = z.object({
     grantId: z.uuid(),
     nodeId: z.uuid(),
     enrolledAt: z.string(),
-    databaseUrl: z.url()
+    databaseUrl: z.url(),
+    /**
+     * Long-lived signed token the new node presents on subsequent
+     * peer-to-peer mesh calls (sent verbatim as `X-Mesh-Internal-Key`).
+     *
+     * Format: `v2.<issuedAtMs>.<expiresAtMs>.<nodeId>.<hmac>`, signed
+     * with a node-specific secret derived from the mesh shared secret
+     * and the nodeId. See `@repo/auth/mesh` `signPeerServiceToken` /
+     * `verifyPeerServiceToken` for the full envelope.
+     *
+     * The token is the only thing the local node needs to call
+     * authenticated peer-to-peer mesh routes (e.g. `getLocalNode`,
+     * `listPeerSessions`) without going through a Better Auth user
+     * session. It must be persisted in the caller's `NodeConfigRepository`
+     * and re-presented on every subsequent call.
+     */
+    peerServiceToken: z.string().min(1).nullable(),
+    /**
+     * ISO timestamp at which `peerServiceToken` stops being accepted.
+     * After this point the caller must re-enroll to obtain a new token.
+     * Null when no token was issued (mesh shared secret not configured).
+     */
+    peerServiceTokenExpiresAt: z.string().nullable(),
+    /**
+     * The mesh shared secret that the joining node should persist in its
+     * local node_config table. This secret is used by `requireMesh()` and
+     * `requireInternalMesh()` to verify peer credentials — it replaces
+     * the static `MESH_STREAM_SHARED_SECRET` env var.
+     *
+     * The joining node stores this value in `node_config.mesh_shared_secret`
+     * and presents it (via `resolveSharedSecret()`) on every subsequent
+     * peer-to-peer call that uses mesh authentication.
+     *
+     * Null when the mesh node has no shared secret configured, meaning
+     * peer service tokens cannot be issued.
+     */
+    meshSharedSecret: z.string().min(1).nullable(),
 });
 export type MeshJoinGrantConsumeResult = z.infer<typeof meshJoinGrantConsumeResultSchema>;
 
@@ -46,10 +82,20 @@ export const meshRegisterNodeInputSchema = meshJoinGrantConsumeInputSchema.omit(
 });
 export type MeshRegisterNodeInput = z.infer<typeof meshRegisterNodeInputSchema>;
 
-export const meshRegisterNodeResultSchema = meshJoinGrantConsumeResultSchema.omit({
-    grantId: true,
-}).extend({
+/**
+ * `registerNode` is a re-registration call from an already-enrolled
+ * peer. The peer already has a `peerServiceToken` (issued by
+ * `consumeJoinGrant`) and already knows the cluster `databaseUrl`, so
+ * neither of those belong on the result. The previous version of this
+ * schema extended `meshJoinGrantConsumeResultSchema.omit({ grantId: true })`,
+ * which silently inherited the token + URL fields and forced the
+ * orchestrator to return values it doesn't have.
+ */
+export const meshRegisterNodeResultSchema = z.object({
+    accepted: z.boolean(),
+    nodeId: z.uuid(),
     status: z.enum(["registered", "updated"]),
+    enrolledAt: z.string(),
 });
 export type MeshRegisterNodeResult = z.infer<typeof meshRegisterNodeResultSchema>;
 

@@ -19,8 +19,6 @@ import AuthProviders from '@/utils/providers/AuthProviders/index'
 import NextTopLoader from 'nextjs-toploader'
 import Script from 'next/script'
 import { validateEnvSafe } from '#/env'
-import { DynamicTanstackDevTools } from '@/components/devtools/DynamicTanstackDevTools'
-import { PerformanceToggle } from '@/components/dev'
 import { Toaster } from '@repo/ui/components/shadcn/sonner'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 
@@ -97,9 +95,7 @@ export default function RootLayout({
                             <ReactQueryProviders>
                                 {children}
                                 <Toaster richColors closeButton position="top-right" />
-                                <DynamicTanstackDevTools />
-                                <PerformanceToggle />
-                            </ReactQueryProviders>
+                                                                                            </ReactQueryProviders>
                         </NuqsAdapter>
                     </ThemeProvider>
                 </AuthProviders>

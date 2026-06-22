@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, eq, gt, inArray, isNull } from "drizzle-orm";
 import { clusterJoinGrants, clusterNodeMetrics, clusterNodes, clusterSigningKeys, resourceOwnershipIndex } from "@/config/drizzle/global/schema";
 import type { MeshResourceIndexUpsertInput, MeshResourceLocation } from "@repo/contracts-entities";
-import type { GlobalDatabaseService } from "../../database/global/global-database.service";
+import { GlobalDatabaseService } from "../../database/global/global-database.service";
 
 @Injectable()
 export class SystemMeshClusterRepository {
@@ -279,7 +279,12 @@ export class SystemMeshClusterRepository {
         displayName?: string;
         capabilities?: Record<string, unknown> | null;
         metadata?: Record<string, unknown> | null;
-    }): Promise<{ grantId: string; nodeId: string; enrolledAt: string } | null> {
+    }): Promise<{
+        grantId: string;
+        nodeId: string;
+        enrolledAt: string;
+        databaseUrl: string;
+    } | null> {
         const now = new Date();
         const grantTokenHash = this.hashJoinGrantToken(input.grantToken);
 
@@ -352,10 +357,26 @@ export class SystemMeshClusterRepository {
                 },
             });
 
+        // The `databaseUrl` is the shared global Postgres URL the
+        // joining node should connect to. In a mesh setup every node
+        // points at the same cluster DB, so we return the same URL
+        // from the receiving side. The contract requires
+        // `z.url()`, so we throw loudly if the env var is missing
+        // rather than handing back an empty string that would fail
+        // output validation on the caller.
+        const databaseUrl = process.env.DATABASE_URL;
+        if (!databaseUrl) {
+            throw new Error(
+                "DATABASE_URL is not configured on the receiving mesh node — " +
+                    "cannot return it to the joining peer",
+            );
+        }
+
         return {
             grantId: updatedGrant.id,
             nodeId: input.nodeId,
             enrolledAt: consumedAt.toISOString(),
+            databaseUrl,
         };
     }
 

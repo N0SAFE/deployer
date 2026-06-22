@@ -75,7 +75,7 @@ export class RolesConfig<TRoles extends Record<string, Record<string, readonly s
    * Get all role keys
    */
   keys(): (keyof TRoles)[] {
-    return Object.keys(this._roles) as (keyof TRoles)[];
+    return Object.keys(this._roles);
   }
 
   /**
@@ -114,7 +114,7 @@ export class RolesConfig<TRoles extends Record<string, Record<string, readonly s
     return new RolesConfig({
       ...this._roles,
       ...roles
-    });
+    } as TRoles & T);
   }
 
   /**
@@ -165,7 +165,7 @@ export class RolesConfig<TRoles extends Record<string, Record<string, readonly s
   filter(predicate: (key: keyof TRoles, role: TRoles[keyof TRoles]) => boolean): RolesConfig<Record<string, Record<string, readonly string[]>>> {
     const filtered: Record<string, Record<string, readonly string[]>> = {};
     for (const [key, role] of Object.entries(this._roles)) {
-      if (predicate(key as keyof TRoles, role as TRoles[keyof TRoles])) {
+      if (predicate(key, role as TRoles[keyof TRoles])) {
         filtered[key] = role;
       }
     }
@@ -198,7 +198,7 @@ export class RolesConfig<TRoles extends Record<string, Record<string, readonly s
     return new RolesConfig({
       ...this._roles,
       ...other.build()
-    });
+    } as TRoles & T);
   }
 
   /**
@@ -220,8 +220,8 @@ export class RolesConfig<TRoles extends Record<string, Record<string, readonly s
    */
   find(predicate: (key: keyof TRoles, role: TRoles[keyof TRoles]) => boolean): [keyof TRoles, RoleConfig<TRoles[keyof TRoles]>] | undefined {
     for (const [key, role] of Object.entries(this._roles)) {
-      if (predicate(key as keyof TRoles, role as TRoles[keyof TRoles])) {
-        return [key as keyof TRoles, new RoleConfig(role as TRoles[keyof TRoles])];
+      if (predicate(key, role as TRoles[keyof TRoles])) {
+        return [key, new RoleConfig(role as TRoles[keyof TRoles])];
       }
     }
     return undefined;
@@ -241,7 +241,7 @@ export class RolesConfig<TRoles extends Record<string, Record<string, readonly s
    */
   some(predicate: (key: keyof TRoles, role: TRoles[keyof TRoles]) => boolean): boolean {
     return Object.entries(this._roles).some(([key, role]) =>
-      predicate(key as keyof TRoles, role as TRoles[keyof TRoles])
+      predicate(key, role as TRoles[keyof TRoles])
     );
   }
 

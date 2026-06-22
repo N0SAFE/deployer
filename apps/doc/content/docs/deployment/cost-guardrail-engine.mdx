@@ -69,16 +69,16 @@ type CostGuardrailPolicy = {
 };
 ```
 
-Given projected cost $C_{proj}$ and remaining budget $B_{rem}$:
+Given projected cost $C_&#123;proj&#125;$ and remaining budget $B_&#123;rem&#125;$:
 
-$$
+```latex
 violation =
 \begin{cases}
 true & C_{proj} > B_{rem} \\
 true & (B_{rem} - C_{proj}) / B_{rem} < headroom \\
 false & otherwise
 \end{cases}
-$$
+```
 
 Decision follows the same mode semantics used by Trust Gate.
 

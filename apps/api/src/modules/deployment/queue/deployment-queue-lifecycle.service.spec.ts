@@ -35,7 +35,7 @@ describe("DeploymentQueueLifecycleService", () => {
             idempotencyKey: "job:idem:1",
             payload: basePayload,
             maxAttempts: 3,
-        } as never);
+        });
 
         expect(result.enqueued).toBe(true);
         expect(meshQueueTransitionService.appendAndReplicate).toHaveBeenCalledWith(
@@ -55,13 +55,13 @@ describe("DeploymentQueueLifecycleService", () => {
             idempotencyKey: "job:idem:2",
             payload: basePayload,
             maxAttempts: 3,
-        } as never);
+        });
 
         service.claimQueueJobs({
             workerId: "44444444-4444-4444-8444-444444444444",
             limit: 1,
             leaseDurationSec: 30,
-        } as never);
+        });
 
         expect(meshQueueTransitionService.appendAndReplicate).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -79,7 +79,7 @@ describe("DeploymentQueueLifecycleService", () => {
             idempotencyKey: "job:idem:3",
             payload: basePayload,
             maxAttempts: 3,
-        } as never);
+        });
 
         vi.clearAllMocks();
 
@@ -88,7 +88,7 @@ describe("DeploymentQueueLifecycleService", () => {
             idempotencyKey: "job:idem:3",
             payload: basePayload,
             maxAttempts: 3,
-        } as never);
+        });
 
         expect(duplicate.deduplicated).toBe(true);
         expect(meshQueueTransitionService.appendAndReplicate).not.toHaveBeenCalled();
@@ -103,7 +103,7 @@ describe("DeploymentQueueLifecycleService", () => {
                 deploymentId: "aaaaaaaa-1111-4111-8111-111111111111",
             },
             maxAttempts: 3,
-        } as never);
+        });
         const second = service.enqueueQueueJob({
             type: "deploy",
             idempotencyKey: "job:idem:5",
@@ -112,14 +112,14 @@ describe("DeploymentQueueLifecycleService", () => {
                 deploymentId: "bbbbbbbb-2222-4222-8222-222222222222",
             },
             maxAttempts: 3,
-        } as never);
+        });
 
         const claimed = service.claimQueueJobByIdempotencyKey("job:idem:5", {
             workerId: "55555555-5555-4555-8555-555555555555",
             limit: 1,
             leaseDurationSec: 30,
             types: ["deploy"],
-        } as never);
+        });
 
         expect(claimed?.id).toBe(second.job.id);
         expect(service.findQueueJobById(first.job.id)?.status).toBe("queued");

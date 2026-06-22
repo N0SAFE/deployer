@@ -49,8 +49,8 @@ async function build(): Promise<void> {
   console.log('🚀 Starting sequential build process...')
 
   try {
-    // First, generate routes
-    await runCommand('bun', ['generate'], 'Generate routes and OpenAPI docs')
+    // First, generate routes and OpenAPI docs (skip next-sitemap, it needs the build manifest)
+    await runCommand('bun', ['--bun', 'openapi'], 'Generate routes and OpenAPI docs')
 
     // Then, build the Next.js app with Node.js (for worker_threads support)
     await runCommand(
@@ -58,6 +58,9 @@ async function build(): Promise<void> {
       ['--no-warnings', './node_modules/.bin/next', 'build', '--turbopack'],
       'Build Next.js application',
     )
+
+    // next-sitemap needs the build manifest produced by `next build`
+    await runCommand('bun', ['run', 'build:static-only'], 'Generate sitemap')
 
     console.log('\n✅ Build completed successfully!')
   } catch (error) {

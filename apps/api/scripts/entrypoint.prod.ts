@@ -2,7 +2,7 @@
 
 import { existsSync } from 'fs'
 import { execSync, spawn } from 'child_process'
-import { validateApiEnv, apiEnvIsValid, validateApiEnvSafe } from '@repo/env'
+import { validateApiEnv, apiEnvIsValid, validateApiEnvSafe, validateApiEnvPath } from '@repo/env'
 import zod from 'zod/v4'
 
 interface EntrypointConfig {
@@ -86,7 +86,7 @@ function runSeeding(config: EntrypointConfig): void {
   }
 
   // Only seed if explicitly enabled via ENABLE_SEEDING=true
-  if (process.env.ENABLE_SEEDING !== 'true') {
+  if (!validateApiEnvPath(process.env.ENABLE_SEEDING, 'ENABLE_SEEDING')) {
     console.log('⏭️  ENABLE_SEEDING not set, skipping seeding (production mode)')
     return
   }
@@ -140,7 +140,7 @@ function registerMeshNode(config: EntrypointConfig): void {
  * Start API in production mode
  */
 function startAPI(): void {
-  const mode = process.env.ENABLE_SEEDING === 'true' ? 'production-like (with mock data)' : 'production'
+  const mode = validateApiEnvPath(process.env.ENABLE_SEEDING, 'ENABLE_SEEDING') ? 'production-like (with mock data)' : 'production'
   console.log(`🚀 Starting API in ${mode} mode...`)
 
   try {
@@ -156,14 +156,14 @@ function startAPI(): void {
  */
 function main(): void {
   const config: EntrypointConfig = {
-    skipMigrations: process.env.SKIP_MIGRATIONS === 'true',
+    skipMigrations: validateApiEnvPath(process.env.SKIP_MIGRATIONS, 'SKIP_MIGRATIONS'),
     diagnosePath: 'scripts/diagnose-build.ts',
     migrateScript: 'db:migrate:prod',
     seedScript: 'db:seed:prod',
     cliEntrypoint: 'dist/cli.js',
   }
 
-  const mode = process.env.ENABLE_SEEDING === 'true' ? 'Production-Like (with mock data)' : 'Production'
+  const mode = validateApiEnvPath(process.env.ENABLE_SEEDING, 'ENABLE_SEEDING') ? 'Production-Like (with mock data)' : 'Production'
   console.log(`🎯 API ${mode} Entrypoint Started\n`)
 
   // Validate environment before starting

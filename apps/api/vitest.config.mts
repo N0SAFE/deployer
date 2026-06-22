@@ -22,13 +22,31 @@ function isTruthyEnv(value: string | undefined): boolean {
     normalized === "on"
   );
 }
+// Shared runtime concurrency must be independent from vitest worker pool size.
+// A single worker may need multiple runtimes (e.g. multi-node mesh tests need 3).
+// Prioritize explicit env override, then fall back to a safe default of 4.
+const RESOLVED_SHARED_RUNTIME_MAX_CONCURRENCY = (() => {
+  const env = process.env.E2E_SHARED_RUNTIME_MAX_CONCURRENCY;
+  if (env) {
+    const parsed = Number.parseInt(env, 10);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  // Default: 4 concurrent shared runtimes per worker (enough for multi-node tests)
+  return 4;
+})();
 process.env.E2E_SHARED_RUNTIME_MAX_CONCURRENCY = String(
-  RESOLVED_E2E_MAX_CONCURRENCY,
+  RESOLVED_SHARED_RUNTIME_MAX_CONCURRENCY,
 );
 
 const IS_BUN_RUNTIME = Boolean(process.versions.bun);
-const USE_GLOBAL_SHARED_POSTGRES_SETUP = isTruthyEnv(
-  process.env.E2E_USE_GLOBAL_SHARED_POSTGRES_SETUP,
+
+// Enable globalSetup (shared Postgres container) by default.
+// Previously this was disabled under Bun due to env var propagation concerns.
+// With the temp-file IPC fallback in vitest.shared-postgres.e2e.ts, this is now
+// safe and significantly reduces resource usage (1 container instead of N workers).
+// Set E2E_DISABLE_GLOBAL_POSTGRES=true to revert to per-worker containers.
+const DISABLE_GLOBAL_POSTGRES = isTruthyEnv(
+  process.env.E2E_DISABLE_GLOBAL_POSTGRES,
 );
 
 export default defineConfig(
@@ -103,9 +121,9 @@ export default defineConfig(
           test: {
             name: "e2e",
             environment: "node",
-            ...(IS_BUN_RUNTIME && !USE_GLOBAL_SHARED_POSTGRES_SETUP
-              ? {}
-              : { globalSetup: ["./vitest.global-setup.e2e.ts"] }),
+            globalSetup: DISABLE_GLOBAL_POSTGRES
+              ? ["./vitest.global-setup.noop.e2e.ts"]
+              : ["./vitest.global-setup.e2e.ts"],
             setupFiles: ["./vitest.setup.e2e.ts"],
             globalTeardown: ["./vitest.teardown.e2e.ts"],
             include: ["src/**/*.e2e-spec.ts"],

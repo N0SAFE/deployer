@@ -12,14 +12,14 @@
  */
 
 // Canonical query utilities (single source of truth)
-export * from "../standard/zod/utils";
+export * from "../operations/zod/utils";
 
 // Backward-compatible aliases from historical query API naming
 export {
 	createBasicListQuery as createListQuery,
 	createSearchableListQuery as createSearchQuery,
-} from "../standard/zod/utils/query-builder";
+} from "../operations/zod/utils/query-builder";
 
 export {
 	createAdvancedSearchSchema as createFullTextSearchSchema,
-} from "../standard/zod/utils/search";
+} from "../operations/zod/utils/search";

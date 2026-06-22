@@ -19,7 +19,7 @@ vi.mock("@orpc/nest", () => ({
 
 vi.mock("@/core/modules/auth/orpc/middlewares", () => ({
     requireAuth: vi.fn(() => ({})),
-    requireInternalMesh: vi.fn(() => ({})),
+    requireMesh: vi.fn(() => ({})),
 }));
 
 describe("SystemMeshController", () => {
@@ -36,7 +36,7 @@ describe("SystemMeshController", () => {
         observeTopology: ReturnType<typeof vi.fn>;
         observeRuntimeEvents: ReturnType<typeof vi.fn>;
         publishControlEnvelope: ReturnType<typeof vi.fn>;
-        observeSession: ReturnType<typeof vi.fn>;
+        streamSession: ReturnType<typeof vi.fn>;
         lookupResource: ReturnType<typeof vi.fn>;
         upsertResourceIndex: ReturnType<typeof vi.fn>;
         planStreamRoute: ReturnType<typeof vi.fn>;
@@ -76,7 +76,7 @@ describe("SystemMeshController", () => {
             observeTopology: vi.fn(),
             observeRuntimeEvents: vi.fn(),
             publishControlEnvelope: vi.fn(),
-            observeSession: vi.fn(),
+            streamSession: vi.fn(),
             lookupResource: vi.fn(),
             upsertResourceIndex: vi.fn(),
             planStreamRoute: vi.fn(),

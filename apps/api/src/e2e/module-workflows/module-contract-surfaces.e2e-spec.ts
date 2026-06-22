@@ -55,9 +55,9 @@ describe("Module contract surfaces e2e: public + auth boundaries", () => {
     );
   });
 
-  it("service.list rejects anonymous access", async () => {
+  it("service.crud.list rejects anonymous access", async () => {
     await expectAnonymousUnauthorized(
-      () => context.orpc.service.list({ query: {} }),
+      () => context.orpc.service.crud.list({ query: {} }),
       "/services",
     );
   });
@@ -95,7 +95,7 @@ describe("Module contract surfaces e2e: public + auth boundaries", () => {
     await expectAnonymousUnauthorized(
       () =>
         context.orpc.domain.listOrganizationDomains({
-          organizationId: randomUUID(),
+          params: { organizationId: randomUUID() },
         }),
       "/domains",
     );

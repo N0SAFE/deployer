@@ -62,7 +62,7 @@ describe('Hook Generation - Invalidation Logic', () => {
           updateUser: (data: unknown, variables: unknown) => ({
             getUser: { id: (variables as { id: string }).id },
           }),
-        } as never,
+        },
       });
     }).not.toThrow();
   });
@@ -151,7 +151,7 @@ describe('Hook Generation - Invalidation Logic', () => {
             // Exact scope (with input)
             getUser: { id: variables.id },
           }),
-        } as never,
+        },
       });
     }).not.toThrow();
   });

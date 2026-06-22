@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, type OnModuleDestroy, NotFoundException } from "@nestjs/common";
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { Observable, ReplaySubject, from, interval, startWith, switchMap } from "rxjs";
@@ -73,11 +73,44 @@ const TERMINAL_SESSION_RETAIN_MS = 60_000;
 const TERMINAL_ATTACH_TIMEOUT_MS = 8_000;
 
 @Injectable()
-export class DockerContainerRuntimeService {
+export class DockerContainerRuntimeService implements OnModuleDestroy {
   private readonly terminalSessions = new Map<string, TerminalSession>();
   private readonly terminalSessionCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(private readonly coreDockerService: CoreDockerService) {}
+
+  /**
+   * Lifecycle hook: when the NestJS application shuts down, close every
+   * active terminal session and clear every pending cleanup timer so we
+   * don't leave dangling Docker exec streams, ReplaySubject subscribers,
+   * or setTimeout handles holding the event loop open.
+   */
+  onModuleDestroy(): void {
+    // 1. Destroy active streams + complete ReplaySubjects for all open sessions
+    for (const session of this.terminalSessions.values()) {
+      try {
+        if (session.stream) {
+          session.stream.destroy();
+        }
+      } catch {
+        // Ignore — the stream may already be closed/errored.
+      }
+      session.stream = null;
+      try {
+        session.events.complete();
+      } catch {
+        // ReplaySubject.complete() is idempotent — safe to ignore.
+      }
+    }
+
+    // 2. Clear every per-session retain timer (no further deletes will run)
+    for (const timer of this.terminalSessionCleanupTimers.values()) {
+      clearTimeout(timer);
+    }
+
+    this.terminalSessionCleanupTimers.clear();
+    this.terminalSessions.clear();
+  }
 
   streamContainerLogs(input: DockerContainerLogsStreamQueryInput): Observable<DockerContainerLogEntry> {
     const refreshIntervalMs = input.refreshIntervalMs ?? DEFAULT_REFRESH_INTERVAL_MS;
@@ -132,7 +165,7 @@ export class DockerContainerRuntimeService {
                 : candidateSince;
             }
           },
-          error: (error) => subscriber.error(error),
+          error: (error) => { subscriber.error(error); },
         });
 
       return () => {
@@ -210,7 +243,7 @@ export class DockerContainerRuntimeService {
                 subscriber.next(entry);
               }
             },
-            error: (error) => subscriber.error(error),
+            error: (error) => { subscriber.error(error); },
           });
         })
         .catch((error) => {

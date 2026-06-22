@@ -355,7 +355,7 @@ export class OrganizationsPermissionsPlugin<
             body: {
                 organizationId,
                 memberId: userId,
-                role: role as ExtractBody<InferParams<TAuth["api"]["updateMemberRole"]>>["role"],
+                role: role,
             },
         });
     }
@@ -377,7 +377,7 @@ export class OrganizationsPermissionsPlugin<
             body: {
                 memberIdOrEmail: userId,
                 organizationId,
-            } as ExtractBody<InferParams<TAuth["api"]["removeMember"]>>,
+            },
         });
     }
 
@@ -399,7 +399,7 @@ export class OrganizationsPermissionsPlugin<
             query: {
                 organizationId,
                 ...options,
-            } as ExtractQuery<InferParams<TAuth["api"]["listMembers"]>>,
+            },
         });
     }
 }

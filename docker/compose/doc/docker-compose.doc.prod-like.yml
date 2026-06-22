@@ -9,6 +9,11 @@ services:
         - NODE_ENV=production
         - NEXT_PUBLIC_DOC_URL=${NEXT_PUBLIC_DOC_URL:-http://localhost:3020}
         - NEXT_PUBLIC_DOC_PORT=${NEXT_PUBLIC_DOC_PORT:-3020}
+        - BUILDKIT_INLINE_CACHE=1
+      # Embed BuildKit cache metadata in the image so subsequent builds can pull
+      # the cache from this image (via cache_from) instead of rebuilding from scratch.
+      cache_to:
+        - type=inline
     restart: unless-stopped
     ports:
       - "${NEXT_PUBLIC_DOC_PORT:-3020}:${NEXT_PUBLIC_DOC_PORT:-3020}"

@@ -4,22 +4,22 @@
  * Uses Standard Schema instead of Zod
  */
 
-import type { AnySchema, UnionTuple } from "../../shared/types";
-import type { ObjectSchema, VoidSchema, SchemaShape, OptionalSchema, ShouldBeOptional } from "../../shared/standard-schema-helpers";
+import type { AnySchema, UnionTuple } from "../../types/types";
+import type { ObjectSchema, VoidSchema, SchemaShape, OptionalSchema, ShouldBeOptional } from "../../types/standard-schema-helpers";
 import {
     emptyObjectSchema as createEmptyObjectSchema,
     voidSchema as createVoidSchema,
     optionalSchema,
     objectSchema,
     unionSchema,
-} from "../../shared/standard-schema-helpers";
+} from "../../types/standard-schema-helpers";
 import { AsyncIteratorClass, eventIterator } from "@orpc/contract";
 import type { Schema } from "@orpc/contract";
-import { observable, type Observable } from "../../utils/observable/contract";
+import { observable, type Observable } from "../../observable/contract";
 import type { PathParam, PathParamBuilderWithExisting, ParamsToSchemaShape } from "../core/params-builder";
 import { createPathParamBuilder } from "../core/params-builder";
 import { ProxyBuilderBase } from "../core/proxy-builder.base";
-import { s } from "../../standard/base/schema";
+import { s } from "../../operations/base/schema";
 
 /**
  * Query builder - exposes current query schema and entity schema for direct chaining
@@ -584,7 +584,7 @@ export class DetailedInputBuilder<
         const schemas = items.map((item) => {
             const maybeBuilder = item as { schema?: AnySchema };
             if (typeof item === "object" && item !== null && "schema" in maybeBuilder) {
-                return maybeBuilder.schema as AnySchema;
+                return maybeBuilder.schema!;
             }
 
             return item;

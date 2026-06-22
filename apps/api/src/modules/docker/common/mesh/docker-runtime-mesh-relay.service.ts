@@ -5,7 +5,7 @@ import z from "zod/v4";
 import { dockerRuntimeEventSchema, type DockerRuntimeEvent } from "@repo/contracts-entities";
 import { AppLogger } from "@repo/logger";
 import { contractBuilder } from "@/core/modules/events/event-contract.builder";
-import { BaseMeshService } from "@/core/modules/mesh/services/base-mesh.service";
+import { BaseMeshService, InternalBaseMeshService } from "@/core/modules/mesh/services/base-mesh.service";
 import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { DockerDomainRuntimeEventsService } from "../events/docker-domain-runtime-events.service";
@@ -23,7 +23,7 @@ const dockerRuntimeMeshContracts = {
 
 @Injectable()
 export class DockerRuntimeMeshRelayService
-    extends BaseMeshService<typeof dockerRuntimeMeshContracts>
+    extends InternalBaseMeshService<typeof dockerRuntimeMeshContracts, Record<string, never>>
     implements OnModuleInit, OnModuleDestroy {
     private readonly apiLogger = new AppLogger("api").scope(DockerRuntimeMeshRelayService.name);
 
@@ -67,10 +67,23 @@ export class DockerRuntimeMeshRelayService
                 this.startLocalDockerRelay();
             }
 
-            const downstreamSubscription = this.observe$("runtimeEventBroadcast", { organizationId: null }).subscribe(subscriber);
+            let downstreamSubscription: Subscription | null = null;
+            try {
+                downstreamSubscription = this.handle!.observe$("runtimeEventBroadcast", { organizationId: null }).subscribe(subscriber);
+            } catch (error) {
+                // Roll back side effects when setup fails to prevent the local relay
+                // running indefinitely without consumers — the original source of the
+                // rate-limit flood.
+                this.activeRuntimeObserverCount = Math.max(0, this.activeRuntimeObserverCount - 1);
+                if (this.activeRuntimeObserverCount === 0) {
+                    this.stopLocalDockerRelay();
+                }
+                subscriber.error(error);
+                return;
+            }
 
             return () => {
-                downstreamSubscription.unsubscribe();
+                downstreamSubscription?.unsubscribe();
                 this.activeRuntimeObserverCount = Math.max(0, this.activeRuntimeObserverCount - 1);
                 this.debug("observeRuntimeEvents", {
                     phase: "observer_unsubscribe",
@@ -85,7 +98,8 @@ export class DockerRuntimeMeshRelayService
     }
 
     relayRuntimeEvent(event: DockerRuntimeEvent): void {
-        this.emit(
+        if (!this.handle) return;
+        this.handle.publish(
             "runtimeEventBroadcast",
             { organizationId: null },
             this.enrichEventWithNodeId(event),
@@ -119,12 +133,14 @@ export class DockerRuntimeMeshRelayService
                     });
                 }
 
-                this.emit(
-                    "runtimeEventBroadcast",
-                    { organizationId: null },
-                    this.enrichEventWithNodeId(event),
-                    { organizationId: null, propagate: true },
-                );
+                if (this.handle) {
+                    this.handle.publish(
+                        "runtimeEventBroadcast",
+                        { organizationId: null },
+                        this.enrichEventWithNodeId(event),
+                        { organizationId: null, propagate: true },
+                    );
+                }
             },
             error: (error) => {
                 this.debug("startLocalDockerRelay", {

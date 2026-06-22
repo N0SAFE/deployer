@@ -41,7 +41,7 @@ export class MeshSubscriptionManager {
     }
 
     const notifier = this.createNotifier<TItem>(entityKey);
-    this.globalNotifiers.set(entityKey, notifier as MeshResourceChangeNotifier<unknown>);
+    this.globalNotifiers.set(entityKey, notifier);
     this.logger.debug(`Registered global resource notifier for "${entityKey}"`);
 
     return notifier;
@@ -73,7 +73,7 @@ export class MeshSubscriptionManager {
     return {
       id,
       isActive: true,
-      unsubscribe: () => this.unsubscribe(entityKey, id),
+      unsubscribe: () => { this.unsubscribe(entityKey, id); },
     };
   }
 

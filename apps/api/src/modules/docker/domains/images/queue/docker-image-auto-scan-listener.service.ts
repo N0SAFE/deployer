@@ -2,6 +2,7 @@ import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/com
 import type { Subscription } from "rxjs";
 import type { DockerRuntimeEvent } from "@repo/contracts-entities";
 import { AppLogger } from "@repo/logger";
+import { EnvService } from "@/config/env/env.service";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { DockerRuntimeEventsStreamService } from "../../../common/events/docker-runtime-events-stream.service";
 import { DockerRuntimeMeshRelayService } from "../../../common/mesh/docker-runtime-mesh-relay.service";
@@ -38,10 +39,19 @@ export class DockerImageAutoScanListenerService implements OnModuleInit, OnModul
 		private readonly dockerRuntimeMeshRelayService: DockerRuntimeMeshRelayService,
 		private readonly dockerImagesApplicationService: DockerImagesApplicationService,
 		private readonly dockerImageSecurityRepository: DockerImageSecurityRepository,
+		private readonly envService: EnvService,
 	) {}
 
 	onModuleInit(): void {
 		if (this.runtimeEventSubscription) {
+			return;
+		}
+
+		if (this.isAutoScanDisabled()) {
+			this.debug("onModuleInit", {
+				phase: "auto_scan_disabled_by_env",
+				envVar: "DISABLE_AUTO_SCAN",
+			});
 			return;
 		}
 
@@ -64,6 +74,10 @@ export class DockerImageAutoScanListenerService implements OnModuleInit, OnModul
 		});
 
 		void this.bootstrapUnscannedContainerImages();
+	}
+
+	private isAutoScanDisabled(): boolean {
+		return this.envService.get("DISABLE_AUTO_SCAN");
 	}
 
 	onModuleDestroy(): void {

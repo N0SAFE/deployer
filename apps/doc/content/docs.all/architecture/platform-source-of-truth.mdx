@@ -1,0 +1,31 @@
+---
+title: Platform Source of Truth (Statements)
+description: Canonical statement-based source of truth for Deployer v3 scope, model invariants, and feature target.
+order: 0
+---
+
+This page points to the canonical source-of-truth document maintained in the repository docs folder.
+
+- **Canonical file:** `v3/docs/PLATFORM_SOURCE_OF_TRUTH.md`
+
+> If this docs-site page and the canonical file diverge, treat `v3/docs/PLATFORM_SOURCE_OF_TRUTH.md` as authoritative.
+
+## Quick summary
+
+- Mandatory base environment is `production`; `preview` and `development` are explicit project-level opt-in environments.
+- A project has multiple services and multiple environments.
+- Services inherit environment scope from their parent project.
+- Additional custom environment variants are supported and configurable.
+- Multi-node production baseline targets Docker Swarm manager/worker orchestration with Traefik-first ingress.
+- Platform target aligns with modern self-hosted PaaS expectations (Coolify/Dokploy-class capabilities).
+
+## Why this exists
+
+- Keep one clear baseline for product and architecture decisions.
+- Prevent contradictions across feature docs.
+- Make migrations and implementation validation easier.
+
+## Next reading
+
+- [Platform Product Specification](/docs/architecture/platform-product-spec)
+- [Complete Feature Inventory](/docs/architecture/complete-feature-inventory)

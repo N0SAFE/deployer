@@ -92,47 +92,113 @@ export type SetupInitializeInput = z.infer<typeof setupInitializeInputSchema>;
 // ─── SSE stream events ────────────────────────────────────────────────────────
 
 export const setupProgressEventTypeSchema = z.enum([
-    "step_start",
-    "step_log",
-    "step_complete",
-    "step_failed",
+    "step_detail",
+    "snapshot",
+    "log",
     "completed",
     "error",
 ]);
 export type SetupProgressEventType = z.infer<typeof setupProgressEventTypeSchema>;
 
 /**
+ * One step's full state as carried on a `snapshot` event. The `logs`
+ * array is the complete log buffer for that step at the time the
+ * snapshot was emitted — the web renders a step directly from this
+ * object without any client-side correlation.
+ */
+export const setupStreamStepStateSchema = z.object({
+    id:          setupStepIdSchema,
+    title:       z.string(),
+    description: z.string().optional(),
+    status:      setupStepStatusSchema,
+    logs:        z.array(z.string()).default([]),
+    durationMs:  z.number().optional(),
+    error:       z.string().optional(),
+    startedAt:   z.string().datetime().optional(),
+    completedAt: z.string().datetime().optional(),
+});
+export type SetupStreamStepState = z.infer<typeof setupStreamStepStateSchema>;
+
+/**
+ * One new log line for one step. Consumers append it to the matching
+ * step in the latest `snapshot` event. The `seq` field is monotonic
+ * within a single initialization run, which allows consumers to
+ * detect dropped / reordered events and stitch snapshots together.
+ */
+export const setupStreamLogEventSchema = z.object({
+    type:    z.literal("log"),
+    stepId:  setupStepIdSchema,
+    line:    z.string(),
+    seq:     z.number().int().nonnegative(),
+    ts:      z.string().datetime(),
+});
+export type SetupStreamLogEvent = z.infer<typeof setupStreamLogEventSchema>;
+
+/**
+ * Server-driven step definition. Emitted before the first snapshot
+ * to tell the UI what steps exist for this flow. The UI creates a
+ * placeholder task from each `step_detail` event so the user can see
+ * the full pipeline immediately, without hardcoding step templates
+ * on the frontend.
+ *
+ * Each config strategy (local, remote, …) defines its own list of
+ * steps in a dedicated flow file on the backend. Adding a new config
+ * means creating a new flow file — no frontend changes needed.
+ */
+export const setupStreamStepDetailEventSchema = z.object({
+    type:        z.literal("step_detail"),
+    stepId:      z.string(),
+    title:       z.string(),
+    description: z.string(),
+    seq:         z.number().int().nonnegative(),
+    ts:          z.string().datetime(),
+});
+export type SetupStreamStepDetailEvent = z.infer<typeof setupStreamStepDetailEventSchema>;
+
+/**
+ * Full snapshot of every step's state at one point in time. Emitted
+ * at the start of the stream and after every step transition
+ * (start / complete / fail). The first snapshot on a new
+ * subscription is the source of truth; subsequent `log` events are
+ * deltas against it.
+ */
+export const setupStreamSnapshotEventSchema = z.object({
+    type:  z.literal("snapshot"),
+    seq:   z.number().int().nonnegative(),
+    ts:    z.string().datetime(),
+    steps: z.array(setupStreamStepStateSchema),
+});
+export type SetupStreamSnapshotEvent = z.infer<typeof setupStreamSnapshotEventSchema>;
+
+/**
  * Each event yielded over the SSE stream.
  *
- * - step_start    : a step just began
- * - step_log      : a log line within a running step
- * - step_complete : a step finished successfully
- * - step_failed   : a step failed (may be followed by error)
- * - completed     : the whole setup finished — payload contains the final result
- * - error         : fatal error, stream closes after this
+ * - `step_detail` : server tells the UI about a step (id, title,
+ *                   description). The UI creates a task placeholder.
+ * - `snapshot`    : full state of every step (logs included). Render
+ *                   directly from this.
+ * - `log`         : one new log line for one step. Append to the latest
+ *                   snapshot. `seq` allows strict ordering.
+ * - `completed`   : the whole setup finished successfully.
+ * - `error`       : fatal error, stream closes after this.
+ *
+ * Why this design?
+ * ----------------
+ * The old per-step event model (separate `step_start` / `step_log` /
+ * `step_complete` / `step_failed` events) forced the consumer to
+ * maintain its own state machine and correlate logs to the in-flight
+ * `step_start`. It also couldn't recover after a dropped event.
+ *
+ * The new model puts the canonical state in a single `snapshot` per
+ * transition. Logs are bound to their step at the source (the API
+ * pipeline that owns the step), and incremental `log` events carry a
+ * monotonic `seq` for re-ordering / dedup. Any consumer can be brought
+ * up to date by reading the latest `snapshot`.
  */
 export const setupStreamEventSchema = z.discriminatedUnion("type", [
-    z.object({
-        type:    z.literal("step_start"),
-        stepId:  setupStepIdSchema,
-        title:   z.string(),
-    }),
-    z.object({
-        type:    z.literal("step_log"),
-        stepId:  setupStepIdSchema,
-        log:     z.string(),
-    }),
-    z.object({
-        type:      z.literal("step_complete"),
-        stepId:    setupStepIdSchema,
-        durationMs: z.number(),
-    }),
-    z.object({
-        type:      z.literal("step_failed"),
-        stepId:    setupStepIdSchema,
-        error:     z.string(),
-        durationMs: z.number(),
-    }),
+    setupStreamStepDetailEventSchema,
+    setupStreamSnapshotEventSchema,
+    setupStreamLogEventSchema,
     z.object({
         type:   z.literal("completed"),
         result: z.object({
@@ -195,7 +261,12 @@ export type SetupProbeMeshInput = z.infer<typeof setupProbeMeshInputSchema>;
 
 export const setupProbeMeshResultSchema = z.object({
     reachable:  z.boolean(),
-    nodeId:     z.string().optional(),
+    /**
+     * The public URL the peer advertises to other nodes (derived from
+     * the peer's APP_URL). Surfaces in the wizard's reachability detail
+     * so the user can confirm the right node answered.
+     */
+    advertisedHost: z.string().optional(),
     version:    z.string().optional(),
     latencyMs:  z.number().optional(),
     error:      z.string().optional(),
@@ -216,6 +287,12 @@ export const setupRemoteAuthResultSchema = z.object({
     userId:    z.string(),
     email:     z.string(),
     meshUrl:   z.string(),
+    /**
+     * Round-trip latency in milliseconds observed during the
+     * credential probe. Optional — only set when the controller
+     * surfaced it (used by the UI for live "valid · 87ms" feedback).
+     */
+    latencyMs: z.number().optional(),
 });
 export type SetupRemoteAuthResult = z.infer<typeof setupRemoteAuthResultSchema>;
 

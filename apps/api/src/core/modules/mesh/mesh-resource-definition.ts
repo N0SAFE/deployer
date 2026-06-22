@@ -239,7 +239,7 @@ export interface MeshMutationDefinition<
 /**
  * Event type definitions with payload schemas.
  */
-export type MeshEventTypes<TItem> = {
+export interface MeshEventTypes<TItem> {
   readonly created: {
     readonly type: "created";
     readonly item: TItem;
@@ -270,7 +270,7 @@ export type MeshEventTypes<TItem> = {
     readonly sourceNodeId: string;
     readonly sourceType: MeshEventSourceType;
   };
-};
+}
 
 /**
  * Union of all event types for a resource.
@@ -474,11 +474,11 @@ export class MeshResourceBuilder<
     name: TName,
     query: TQuery
   ): MeshResourceBuilder<
-    TKey, TItemSchema, TItemKey, TOwnership, TQueries & { [K in TName]: TQuery }, TMutations, TEventSources, TCustomEvents
+    TKey, TItemSchema, TItemKey, TOwnership, TQueries & Record<TName, TQuery>, TMutations, TEventSources, TCustomEvents
   > {
     this.config.queries = { ...this.config.queries, [name]: query };
     return this as unknown as MeshResourceBuilder<
-      TKey, TItemSchema, TItemKey, TOwnership, TQueries & { [K in TName]: TQuery }, TMutations, TEventSources, TCustomEvents
+      TKey, TItemSchema, TItemKey, TOwnership, TQueries & Record<TName, TQuery>, TMutations, TEventSources, TCustomEvents
     >;
   }
 
@@ -490,11 +490,11 @@ export class MeshResourceBuilder<
     name: TName,
     mutation: TMutation
   ): MeshResourceBuilder<
-    TKey, TItemSchema, TItemKey, TOwnership, TQueries, TMutations & { [K in TName]: TMutation }, TEventSources, TCustomEvents
+    TKey, TItemSchema, TItemKey, TOwnership, TQueries, TMutations & Record<TName, TMutation>, TEventSources, TCustomEvents
   > {
     this.config.mutations = { ...this.config.mutations, [name]: mutation };
     return this as unknown as MeshResourceBuilder<
-      TKey, TItemSchema, TItemKey, TOwnership, TQueries, TMutations & { [K in TName]: TMutation }, TEventSources, TCustomEvents
+      TKey, TItemSchema, TItemKey, TOwnership, TQueries, TMutations & Record<TName, TMutation>, TEventSources, TCustomEvents
     >;
   }
 
@@ -506,11 +506,11 @@ export class MeshResourceBuilder<
     name: TName,
     source: TSource
   ): MeshResourceBuilder<
-    TKey, TItemSchema, TItemKey, TOwnership, TQueries, TMutations, TEventSources & { [K in TName]: TSource }, TCustomEvents
+    TKey, TItemSchema, TItemKey, TOwnership, TQueries, TMutations, TEventSources & Record<TName, TSource>, TCustomEvents
   > {
     this.config.eventSources = { ...this.config.eventSources, [name]: source };
     return this as unknown as MeshResourceBuilder<
-      TKey, TItemSchema, TItemKey, TOwnership, TQueries, TMutations, TEventSources & { [K in TName]: TSource }, TCustomEvents
+      TKey, TItemSchema, TItemKey, TOwnership, TQueries, TMutations, TEventSources & Record<TName, TSource>, TCustomEvents
     >;
   }
 

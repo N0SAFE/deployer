@@ -1,4 +1,4 @@
-import { z, ZodType } from "zod";
+import type { z, ZodType } from "zod";
 
 export interface MeshOperation<
   TRequestSchema extends ZodType = ZodType,

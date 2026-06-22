@@ -160,7 +160,7 @@ describe('TraefikConfigBuilder Integration', () => {
           lb.server('http://~##host##~:~##port##~')
         ))
         .addMiddleware('rate-limit', m => m.rateLimit({ 
-          average: '~##rateLimit##~' as any 
+          average: '~##rateLimit##~' 
         }));
 
       const variables: VariableContext = {
@@ -337,7 +337,7 @@ describe('TraefikConfigBuilder Integration', () => {
       
       builder
         .addMiddleware('auth', m => m.basicAuth(
-          ['admin:$apr1$...'] as any
+          ['admin:$apr1$...']
         ))
         .addMiddleware('cors', m => m.cors({
           origins: ['https://app.example.com'],
@@ -424,7 +424,7 @@ describe('TraefikConfigBuilder Integration', () => {
             .loadBalancer(lb => lb.server(`http://~##${env}Host##~:~##${env}Port##~`))
           )
           .addMiddleware(`${env}-auth`, m => m
-            .basicAuth([`~##${env}User##~`] as any)
+            .basicAuth([`~##${env}User##~`])
           );
       });
 

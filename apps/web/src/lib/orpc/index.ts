@@ -12,6 +12,7 @@ import { MasterTokenPlugin } from "./plugins/masterTokenClient";
 import { CookieHeadersPlugin } from "./plugins/cookie-headers-plugin";
 import { RedirectOnUnauthorizedPlugin } from "./plugins/redirect-on-unauthorized-plugin";
 import { StandardLinkPlugin } from "@orpc/client/standard";
+import { ObservableLinkPlugin } from "@repo/orpc-utils";
 import { FileUploadOpenAPILink } from "./links/file-upload-link";
 import { addCacheOperations } from "@/domains/shared/cache-operations";
 
@@ -20,6 +21,7 @@ const Plugins = [
   new MasterTokenPlugin(),
   new RedirectOnUnauthorizedPlugin(),
   new ContextPlugin(),
+  new ObservableLinkPlugin(appContract),
 ];
 
 type PluginsContext = {

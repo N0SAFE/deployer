@@ -2,15 +2,51 @@ import { fromNodeHeaders } from "better-auth/node";
 import type { IncomingHttpHeaders } from "http";
 import type { Auth } from "@/auth";
 import { AuthUtils } from "./auth-utils";
-import type { ORPCAuthContext } from "./types";
+import type {
+    ORPCAuthContext, MeshContext, MeshParcourEntry,
+    ORPCContextWithAuthOnly, ORPCContextWithAuth,
+} from "./types";
 import { os, ORPCError } from "@orpc/server";
-import { verifyMeshToken } from "@repo/auth/mesh";
+import { verifyMeshToken, verifyPeerServiceToken } from "@repo/auth/mesh";
 import { EnvService } from "@/config/env/env.service";
 import type { Env } from "@/config/env/env";
 
 const readEnv = <K extends keyof Env>(key: K): Env[K] => {
     return new EnvService<Env>().get(key);
 };
+
+/**
+ * Read the mesh shared secret, first from the static registry (populated
+ * by whatever module wired the NodeConfigRepository), then from the env
+ * var for backward compatibility.
+ *
+ * This is populated by a one-time call from AppModule (or any module
+ * that has access to NodeConfigRepository) at startup.
+ *
+ * TODO(ph2): replace with proper DI once the middleware pattern supports it.
+ */
+let _meshSecretProvider: (() => string | null) | null = null;
+
+/**
+ * Register a provider that returns the mesh shared secret from the local
+ * database. Called once at startup by the module that owns
+ * NodeConfigRepository.
+ */
+export function setMeshSecretProvider(provider: () => string | null): void {
+    _meshSecretProvider = provider;
+}
+
+function resolveSharedSecret(): string | null {
+    // 1. Try the local DB provider (dynamic secret, set at setup time)
+    if (_meshSecretProvider) {
+        const fromDb = _meshSecretProvider();
+        if (fromDb) return fromDb;
+    }
+    // 2. Fall back to env var (backward compat for pre-migration deployments)
+    const fromEnv = readEnv("MESH_STREAM_SHARED_SECRET")?.toString().trim();
+    if (fromEnv) return fromEnv;
+    return null;
+}
 
 /**
  * Converts headers to web standard Headers.
@@ -22,31 +58,7 @@ function toWebHeaders(headers: Headers | IncomingHttpHeaders | Record<string, st
     return headers;
   }
   // Otherwise, convert from Node.js style headers
-  return fromNodeHeaders(headers as IncomingHttpHeaders);
-}
-
-/**
- * Minimal ORPC context requiring only auth utilities
- * Use this for middlewares that only need auth context (most access control)
- * 
- * Note: Index signatures (both string and symbol) allow compatibility with ORPC's
- * MergedInitialContext types which require full index signature compatibility.
- */
-export interface ORPCContextWithAuthOnly<TLoggedIn extends boolean = boolean> {
-    auth: ORPCAuthContext<TLoggedIn>;
-    [key: string]: unknown;
-    [key: symbol]: unknown;
-}
-
-/**
- * Full ORPC context with request and auth utilities
- * Use this for middlewares that need access to the raw request
- * 
- * Note: Index signature inherited from ORPCContextWithAuthOnly allows compatibility
- * with Record<string, unknown> constraints in middleware generics
- */
-export interface ORPCContextWithAuth<TLoggedIn extends boolean = boolean> extends ORPCContextWithAuthOnly<TLoggedIn> {
-    request: Request;
+  return fromNodeHeaders(headers);
 }
 
 /**
@@ -106,14 +118,23 @@ export function publicAccess() {
  *
  * This middleware:
  * 1. Ensures user is logged in (throws UNAUTHORIZED if not)
- * 2. Narrows context type to ORPCContextWithAuth<true> so subsequent middlewares
- *    can require authenticated context at the type level
+ * 2. Narrows context type so downstream middlewares/handlers
+ *    can access `context.auth.user` without null checks.
+ *
+ * This middleware is **fully independent** of `requireMesh()`. It does
+ * NOT know about the mesh context. For endpoints that need both a
+ * verified peer AND a user session, compose the middlewares:
+ *
+ * ```ts
+ * // Order doesn't matter — each only touches its own context key.
+ * .use(requireMesh())
+ * .use(requireAuth())
+ * ```
  *
  * @example
  * ```ts
  * implement(contract)
- *   .use(requireAuth())  // After this, context.auth is typed as ORPCAuthContext<true>
- *   .use(adminMiddlewares.requireAccess({ roles: ['admin'] }))  // Requires auth<true>
+ *   .use(requireAuth())
  *   .handler(({ context }) => {
  *     const userId = context.auth.user.id; // No null check needed
  *   })
@@ -123,102 +144,208 @@ export function requireAuth() {
     return os
         .$context<ORPCContextWithAuthOnly>()
         .middleware(({ context, next }) => {
-            // This throws if not authenticated
-            const authResult = context.auth.requireAuth();
-            
-            // Return narrowed context - auth is now ORPCAuthContext<true>
+            // This throws UNAUTHORIZED if no session is available.
+            // After it succeeds, session and user are guaranteed non-null.
+            context.auth.requireAuth();
+
             return next({
                 context: {
                     ...context,
-                    auth: { 
-                        ...context.auth, 
-                        ...authResult,
-                        isLoggedIn: true as const,
-                    } as ORPCAuthContext<true>,
+                    auth: makeAuthenticatedAuth(context.auth),
                 },
             });
         });
 }
 
 /**
- * Middleware for mesh-internal endpoints.
- * Requires an internal credential header so mesh control/data channels stay private.
+ * Build a narrowed `ORPCAuthContext<true>` from a runtime-verified
+ * authenticated auth context.
  *
- * Accepted token formats for `X-Mesh-Internal-Key`:
- *
- * 1. **Signed** (preferred): `v1.<timestamp_ms>.<nonce_hex>.<hmac_hex>`
- *    Generated by `signMeshToken()` from `@repo/auth/mesh`. Full replay-window
- *    guard + nonce deduplication. Window configurable via `MESH_REPLAY_WINDOW_MS`
- *    (default 30 000 ms).
- *
- * 2. **Legacy** (backward compat): bare `MESH_STREAM_SHARED_SECRET` value.
- *    Accepted only when `MESH_STRICT_REPLAY_GUARD` is not `"true"`. Use for
- *    single-node setups or during rolling upgrades before all callers are updated.
+ * After `requireAuth()` succeeds we know `session` and `user` are
+ * non-null, but TypeScript can't track this through the conditional
+ * mapped types. This factory isolates the unavoidable narrowing cast.
  */
-export function requireInternalMesh() {
+function makeAuthenticatedAuth(auth: ORPCAuthContext): ORPCAuthContext<true> {
+    return {
+        isLoggedIn: true,
+        session: auth.session,
+        user: auth.user,
+        admin: auth.admin,
+        org: auth.org,
+        requireAuth: () => auth.requireAuth(),
+    } as ORPCAuthContext<true>;
+}
+
+// ─── Incoming header constants ──────────────────────────────────────────────
+
+const HDR_MESH_NODE_ID      = "x-mesh-node-id";
+const HDR_MESH_PARCOUR      = "x-mesh-parcour";
+const HDR_MESH_INTERNAL_KEY = "x-mesh-internal-key";
+
+/**
+ * Parse the parcour header — a comma-separated list of nodeIds, oldest
+ * first. Each entry MAY carry an optional `@timestamp` suffix.
+ *
+ * Input:  "node-a@2025-01-01T00:00:00Z,node-b"
+ * Output: [{ nodeId: "node-a", timestamp: "2025-01-01T00:00:00Z" },
+ *          { nodeId: "node-b" }]
+ */
+function parseParcour(raw: string | null): MeshParcourEntry[] {
+    if (!raw) return [];
+    return raw.split(",").map((part) => {
+        const trimmed = part.trim();
+        if (!trimmed) return null;
+        const atIdx = trimmed.indexOf("@");
+        if (atIdx > 0) {
+            return { nodeId: trimmed.slice(0, atIdx), timestamp: trimmed.slice(atIdx + 1) || undefined };
+        }
+        return { nodeId: trimmed };
+    }).filter((e): e is MeshParcourEntry => e !== null);
+}
+
+/**
+ * Build the full MeshContext from the incoming headers and verified
+ * peer identity.
+ */
+function buildMeshContext(
+    verifiedNodeId: string,
+    tokenType: "peer-service" | "mesh-internal",
+    webHeaders: Headers,
+): MeshContext {
+    const callerNodeId = verifiedNodeId;
+
+    const rawParcour = webHeaders.get(HDR_MESH_PARCOUR) ?? webHeaders.get(HDR_MESH_PARCOUR.toUpperCase());
+    const incomingParcour: MeshParcourEntry[] = parseParcour(rawParcour);
+
+    const incomingNodeId: string | null =
+        webHeaders.get(HDR_MESH_NODE_ID) ?? webHeaders.get(HDR_MESH_NODE_ID.toUpperCase());
+
+    // Build the full parcour: incoming trail (oldest first) → caller.
+    const fullParcour: MeshParcourEntry[] = [...incomingParcour];
+    const lastIncoming: MeshParcourEntry | undefined = fullParcour[fullParcour.length - 1];
+    if (lastIncoming?.nodeId !== callerNodeId) {
+        fullParcour.push({ nodeId: callerNodeId });
+    }
+
+    // If the incomingNodeId header differs from the last parcour entry,
+    // prepend it as an even earlier hop (the caller's outbound record).
+    if (incomingNodeId !== null && incomingNodeId !== callerNodeId) {
+        const firstExisting: MeshParcourEntry | undefined = fullParcour[0];
+        if (firstExisting?.nodeId !== incomingNodeId) {
+            fullParcour.unshift({ nodeId: incomingNodeId });
+        }
+    }
+
+    const originNodeId: string = fullParcour[0]?.nodeId ?? callerNodeId;
+    const previousCallerNodeId: string | null = fullParcour.length >= 2
+        ? fullParcour[fullParcour.length - 2]?.nodeId ?? null
+        : null;
+
+    return {
+        verified: true,
+        callerNodeId,
+        meshParcour: fullParcour,
+        originNodeId,
+        previousCallerNodeId,
+        peerIdentity: { nodeId: callerNodeId, tokenType },
+    };
+}
+
+// ─── requireMesh — the core peer-identity middleware ─────────────────────────
+
+/**
+ * **requireMesh** — validate that the caller is an authenticated mesh peer
+ * and populate `context.mesh` with verified routing information.
+ *
+ * This middleware is **orthogonal** to `requireAuth()`. It NEVER reads or
+ * modifies `context.auth`. Endpoints that also need a user session must
+ * compose both:
+ *
+ * ```ts
+ * .use(requireMesh())           // context.mesh ← peer identity + parcour
+ * .use(requireAuth())           // context.auth ← user session
+ * ```
+ *
+ * Accepted credentials (in order of preference):
+ *
+ * 1. **Peer service token** (`v2.…`) in `X-Mesh-Internal-Key` — signed
+ *    with a node-specific derivative of the mesh shared secret. This is
+ *    what an enrolled peer presents on all routine mesh calls.
+ *
+ * 2. **Generic mesh control token** (`v1.…` per-request HMAC or the
+ *    bare shared secret) in `X-Mesh-Internal-Key`. Used for control-plane
+ *    operations where the immediate peer identity isn't known.
+ *
+ * Errors:
+ *   - `FORBIDDEN` — no valid mesh credential found.
+ *   - `UNAUTHORIZED` — credential present but malformed / expired.
+ */
+export function requireMesh() {
     return os
-        .$context<ORPCContextWithAuthOnly>()
-        .middleware(({ context, next }) => {
-            const configuredKey = readEnv("MESH_STREAM_SHARED_SECRET")?.toString().trim();
-            if (!configuredKey) {
-                throw new ORPCError("FORBIDDEN", {
-                    message: "Mesh internal key is not configured",
-                });
-            }
-
-            const request =
-                typeof context === "object" && "request" in context
-                    ? (context as { request?: { headers?: Headers | IncomingHttpHeaders | Record<string, string | string[] | undefined> } }).request
-                    : undefined;
-
-            if (!request?.headers) {
-                throw new ORPCError("FORBIDDEN", {
-                    message: "Mesh endpoint requires request context",
-                });
-            }
-
+        .$context<ORPCContextWithAuth>()
+        .middleware(async ({ context, next }) => {
+            const request = context.request;
             const webHeaders = toWebHeaders(request.headers);
 
-            const headerValue =
-                webHeaders.get("x-mesh-internal-key") ??
-                webHeaders.get("X-Mesh-Internal-Key");
+            const internalKey: string | null =
+                webHeaders.get(HDR_MESH_INTERNAL_KEY) ??
+                webHeaders.get(HDR_MESH_INTERNAL_KEY.toUpperCase());
 
-            if (!headerValue) {
+            if (!internalKey) {
                 throw new ORPCError("FORBIDDEN", {
                     message: "Mesh endpoint requires internal credentials",
                 });
             }
 
-            const isSignedToken = headerValue.startsWith("v1.");
-
-            if (isSignedToken) {
-                // Signed envelope path: full HMAC + replay-window + nonce dedup
-                const rawWindow = readEnv("MESH_REPLAY_WINDOW_MS");
-                const windowMs = rawWindow !== undefined && Number.isFinite(Number(rawWindow))
-                    ? Number(rawWindow)
-                    : 30_000;
-                if (!verifyMeshToken(headerValue, configuredKey, windowMs)) {
+            // ── 1. Peer service token (v2.) — preferred ────────────────────
+            if (internalKey.startsWith("v2.")) {
+                const sharedSecret = resolveSharedSecret();
+                if (!sharedSecret) {
                     throw new ORPCError("FORBIDDEN", {
-                        message: "Mesh endpoint requires internal credentials",
+                        message: "Mesh shared secret is not configured",
                     });
                 }
-            } else {
-                // Legacy path: bare secret comparison (backward compat)
-                const strictMode = readEnv("MESH_STRICT_REPLAY_GUARD");
-                if (strictMode) {
-                    // Strict mode: only signed tokens accepted
-                    throw new ORPCError("FORBIDDEN", {
-                        message: "Mesh endpoint requires internal credentials",
+                const verified = verifyPeerServiceToken(internalKey, sharedSecret);
+                if (!verified) {
+                    throw new ORPCError("UNAUTHORIZED", {
+                        message: "Invalid or expired peer service token",
                     });
                 }
-                if (headerValue.trim() !== configuredKey) {
-                    throw new ORPCError("FORBIDDEN", {
-                        message: "Mesh endpoint requires internal credentials",
-                    });
-                }
+                const meshCtx = buildMeshContext(
+                    verified.nodeId,
+                    "peer-service",
+                    webHeaders,
+                );
+                return next({
+                    context: {
+                        ...context,
+                        mesh: meshCtx,
+                    },
+                });
             }
 
-            return next({ context });
+            // ── 2. Generic mesh control token (v1. or bare secret) ──────────
+            const sharedSecret = resolveSharedSecret();
+            if (!sharedSecret) {
+                throw new ORPCError("FORBIDDEN", {
+                    message: "Mesh shared secret is not configured",
+                });
+            }
+            const ok = internalKey.startsWith("v1.")
+                ? verifyMeshToken(internalKey, sharedSecret)
+                : (internalKey.trim() === sharedSecret);
+            if (!ok) {
+                throw new ORPCError("FORBIDDEN", {
+                    message: "Mesh endpoint requires internal credentials",
+                });
+            }
+            const meshCtx = buildMeshContext("mesh-internal", "mesh-internal", webHeaders);
+            return next({
+                context: {
+                    ...context,
+                    mesh: meshCtx,
+                },
+            });
         });
 }
 
@@ -257,3 +384,5 @@ export function requirePlatformRole(allowedRoles: string[]) {
             return next({ context });
         });
 }
+
+

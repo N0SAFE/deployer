@@ -247,7 +247,7 @@ function createResourceActionsAccessor<R extends ResourceName>(resourceName: R):
   for (const action of resourceActions) {
     Object.defineProperty(accessor, action, {
       get(): ResourcePermission<R> {
-        return { resource: resourceName, action } as ResourcePermission<R>;
+        return { resource: resourceName, action };
       },
       enumerable: true,
       configurable: false,
@@ -283,7 +283,7 @@ function createResourcesAccessor(): ResourcesAccessor & { [K in ResourceName]: R
       if (!Object.prototype.hasOwnProperty.call(statement, resourceName)) {
         throw new InvalidResourceError(resourceName);
       }
-      return statement[resourceName] as readonly ActionsForResource<R>[];
+      return statement[resourceName];
     },
     
     hasAction(resourceName: ResourceName, actionName: string): boolean {

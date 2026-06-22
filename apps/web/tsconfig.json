@@ -19,14 +19,16 @@
         "customConditions": ["react-server"]
     },
     "include": [
-        "tailwind.config.mts",
-        "eslint.config.ts",
         "next-env.d.ts",
-        "**/*.ts",
-        "**/*.tsx",
+        "env.ts",
+        "src/**/*.ts",
+        "src/**/*.tsx",
         ".next/types/**/*.ts",
-        "next.config.js",
-        "next-sitemap.config.js"
+        "*.config.ts",
+        "*.config.mts",
+        "*.config.js",
+        "*.config.mjs",
+        "vitest.setup.ts"
     ],
-    "exclude": ["node_modules"]
+    "exclude": ["node_modules", ".next", "out", "dist", ".turbo", "coverage", "build", ".swc"]
 }

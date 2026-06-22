@@ -86,19 +86,48 @@ function ensureRoutesGenerated(): void {
 }
 
 /**
- * Start Next.js and Declarative Routing processes concurrently
+ * Start Next.js and Declarative Routing processes concurrently.
+ *
+ * On slow Docker overlay filesystems, `next dev` with `cacheComponents: true`
+ * may exit with code 0 after its initial cache pre-warm completes.
+ * This function detects that case and automatically restarts nextjs so the
+ * second boot serves with a warm cache and stays running.
  */
 function startProcesses(): void {
   console.log('🚀 Starting Next.js and Declarative Routing...')
 
-  const nextProcess = spawn('bun', ['--bun', 'run', 'dev:docker'], {
-    stdio: 'inherit',
-    shell: true,
-    env: {
-      ...process.env,
-      NODE_OPTIONS: '--max_old_space_size=3072 --inspect',
-    },
-  })
+  let exitRequested = false
+  let nextRestartCount = 0
+  const MAX_NEXT_RESTARTS = 5
+
+  // ── Debug: file system change watcher ─────────────────────────
+  if (process.env.NEXT_DEBUG_COMPILE === "1") {
+    console.log('[entrypoint] 🔍 NEXT_DEBUG_COMPILE=1 detected, starting file system watcher...')
+
+    const fsWatcher = spawn('bun', ['--bun', 'run', 'scripts/debug-file-watcher.ts'], {
+      stdio: 'inherit',
+      shell: true,
+      env: process.env,
+    })
+
+    fsWatcher.on('error', (err) => {
+      console.error('[entrypoint] FS watcher error:', err.message)
+    })
+
+    fsWatcher.on('exit', (code) => {
+      if (code !== 0 && !exitRequested) {
+        console.warn(`[entrypoint] FS watcher exited with code ${code}`)
+      }
+    })
+
+    // Periodic heartbeat
+    let heartbeatCount = 0
+    setInterval(() => {
+      heartbeatCount++
+      console.log(`[entrypoint] ❤️ Heartbeat #${heartbeatCount} — ${new Date().toISOString()}`)
+    }, 30_000)
+  }
+  // ───────────────────────────────────────────────────────────────
 
   const routingProcess = spawn('bun', ['--bun', 'run', 'dr:build:watch'], {
     stdio: 'inherit',
@@ -109,42 +138,78 @@ function startProcesses(): void {
     },
   })
 
-  let exitRequested = false
+  /**
+   * Spawn a nextjs dev server and wire up its exit/error handlers.
+   * The routing process is kept alive across restarts so declarative
+   * route generation does not need to be re-initialised.
+   */
+  function spawnNext(): void {
+    if (exitRequested) return
 
-  const handleExit = (
-    processName: 'nextjs' | 'declarative-routing',
-    code: number | null,
-    signal: NodeJS.Signals | null,
-  ) => {
+    const nextProcess = spawn('bun', ['--bun', 'run', 'dev:docker'], {
+      stdio: 'inherit',
+      shell: true,
+      env: {
+        ...process.env,
+        NODE_OPTIONS: '--max_old_space_size=3072',
+      },
+    })
+
+    nextProcess.on('exit', (code, signal) => {
+      if (exitRequested) return
+
+      // next dev often exits with code 0 after the initial cacheComponents
+      // pre-warm on slow filesystems.  Restart so the warm cache is used.
+      if (code === 0 && nextRestartCount < MAX_NEXT_RESTARTS) {
+        nextRestartCount++
+        console.log(
+          `[entrypoint] nextjs exited with code 0, restarting` +
+            ` (attempt ${nextRestartCount}/${MAX_NEXT_RESTARTS})…`,
+        )
+        spawnNext()
+        return
+      }
+
+      exitRequested = true
+      console.error(
+        `[entrypoint] nextjs exited` +
+          ` (code=${code ?? 'null'}, signal=${signal ?? 'null'})` +
+          (code !== 0 ? ' — giving up' : ' — max restarts reached'),
+      )
+      routingProcess.kill()
+      process.exit(code ?? 1)
+    })
+
+    nextProcess.on('error', (error) => {
+      if (!exitRequested) {
+        exitRequested = true
+        console.error(`[entrypoint] nextjs process error: ${error.message}`)
+        routingProcess.kill()
+        process.exit(1)
+      }
+    })
+  }
+
+  spawnNext()
+
+  routingProcess.on('exit', (code, signal) => {
     if (!exitRequested) {
       exitRequested = true
       console.error(
-        `[entrypoint] Child process exited: ${processName} (code=${code ?? 'null'}, signal=${signal ?? 'null'})`,
+        `[entrypoint] declarative-routing exited` +
+          ` (code=${code ?? 'null'}, signal=${signal ?? 'null'})`,
       )
-      console.log('Process exited, cleaning up...')
-      nextProcess.kill()
-      routingProcess.kill()
       process.exit(code ?? 1)
     }
-  }
-
-  nextProcess.on('exit', (code, signal) => {
-    handleExit('nextjs', code, signal)
-  })
-  routingProcess.on('exit', (code, signal) => {
-    handleExit('declarative-routing', code, signal)
   })
 
-  nextProcess.on('error', (error) => {
-    if (!exitRequested) {
-      console.error(`[entrypoint] nextjs process error: ${error.message}`)
-      handleExit('nextjs', 1, null)
-    }
-  })
   routingProcess.on('error', (error) => {
     if (!exitRequested) {
-      console.error(`[entrypoint] declarative-routing process error: ${error.message}`)
-      handleExit('declarative-routing', 1, null)
+      exitRequested = true
+      console.error(
+        `[entrypoint] declarative-routing process error: ${error.message}`,
+      )
+      process.exit(1)
     }
   })
 
@@ -152,7 +217,6 @@ function startProcesses(): void {
     if (!exitRequested) {
       exitRequested = true
       console.log('Received SIGINT, shutting down...')
-      nextProcess.kill('SIGINT')
       routingProcess.kill('SIGINT')
     }
   })
@@ -161,7 +225,6 @@ function startProcesses(): void {
     if (!exitRequested) {
       exitRequested = true
       console.log('Received SIGTERM, shutting down...')
-      nextProcess.kill('SIGTERM')
       routingProcess.kill('SIGTERM')
     }
   })

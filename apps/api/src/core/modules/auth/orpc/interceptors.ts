@@ -6,6 +6,7 @@ import type { Interceptor } from '@orpc/shared'
 import { ValidationError } from '@orpc/contract'
 import zod from 'zod/v4'
 import type { InternalErrorInsightService } from '@/core/middlewares/internal-error/internal-error-insight.service'
+import { MeshBaseDomainError } from '@/core/modules/mesh/shared/domain/mesh-base-error'
 
 /**
  * Maps NestJS HTTP status codes to ORPC error codes
@@ -72,7 +73,26 @@ export function transformHttpExceptionToORPCError(error: unknown): void {
 }
 
 /**
- * ORPC interceptor that transforms NestJS HttpException errors to ORPCError
+ * Transforms MeshBaseDomainError to ORPCError
+ * Mesh domain errors carry their own httpStatus and orpcCode fields,
+ * so no mapping table is needed. This ensures proper HTTP status codes
+ * (e.g. 404 for not found, 424 for dependency missing) are returned
+ * instead of generic 500 errors.
+ */
+export function transformMeshDomainErrorToORPCError(error: unknown): void {
+    if (error instanceof MeshBaseDomainError) {
+        throw new ORPCError(error.orpcCode, {
+            status: error.httpStatus,
+            message: error.message,
+            data: { domainCode: error.code },
+            cause: error,
+        })
+    }
+}
+
+/**
+ * ORPC interceptor that transforms NestJS HttpException and
+ * MeshBaseDomainError errors to ORPCError
  * This ensures proper HTTP status codes are returned instead of generic 500 errors
  *
  * @example
@@ -89,6 +109,7 @@ export function transformHttpExceptionToORPCError(error: unknown): void {
 export function transformNestJSErrorToOrpcError(): Interceptor<any, any> {
     return onError((error: unknown) => {
         transformHttpExceptionToORPCError(error)
+        transformMeshDomainErrorToORPCError(error)
     })
 }
 
@@ -159,6 +180,20 @@ export function logOrpcErrors(
                     )
                     break
             }
+        } else if (error instanceof Error) {
+            // Fallback: log any non-ORPCError that wasn't transformed
+            const traceId = internalErrorInsightService?.capture(error, {
+                source: 'orpc',
+            }).traceId
+            logger.error(
+                `Unhandled error [${error.constructor.name}]${traceId ? ` [trace:${traceId}]` : ''}: ${error.message}`,
+                {
+                    traceId,
+                    stack: error.stack,
+                    name: error.constructor.name,
+                    message: error.message,
+                }
+            )
         }
     })
 }

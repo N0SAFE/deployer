@@ -137,7 +137,7 @@ function resolveFilter<TFilter extends Record<string, unknown>>(
         const entry = filterRecord[key];
         if (entry != null) {
             const entryValue = (entry as Record<string, unknown>).value;
-            const enriched = Object.assign({}, entry as object, { common: createCommonOperators(entryValue) });
+            const enriched = Object.assign({}, entry, { common: createCommonOperators(entryValue) });
             parts.push(resolver(enriched as never));
         }
     }
@@ -363,7 +363,7 @@ export function listBuilder<TFilter extends Record<string, unknown>>(
                 const prevOffset = Math.max(0, offset - limit);
 
                 return {
-                    data: data as InferSelectModel<TTable>[],
+                    data: data,
                     meta: {
                         limit,
                         hasMore,
@@ -379,7 +379,7 @@ export function listBuilder<TFilter extends Record<string, unknown>>(
                 const totalPages = Math.ceil(total / pageSize);
 
                 return {
-                    data: data as InferSelectModel<TTable>[],
+                    data: data,
                     meta: {
                         total,
                         limit,
@@ -388,12 +388,12 @@ export function listBuilder<TFilter extends Record<string, unknown>>(
                         pageSize,
                         totalPages,
                         hasMore: page < totalPages,
-                    } as PaginationMeta<typeof _pagination>,
+                    },
                 };
             } else {
                 // Offset-based pagination metadata
                 return {
-                    data: data as InferSelectModel<TTable>[],
+                    data: data,
                     meta: {
                         total,
                         limit,

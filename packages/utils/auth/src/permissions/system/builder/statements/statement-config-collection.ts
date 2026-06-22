@@ -124,7 +124,7 @@ export class StatementConfigCollection<TStatement extends Record<string, readonl
     for (const [key, config] of Object.entries(this._statements)) {
       const filteredActions = config.filter((action) => actions.includes(action));
       // Always include the resource, even if empty
-      result[key as keyof TStatement] = filteredActions.length > 0 ? filteredActions as readonly string[] : [];
+      result[key as keyof TStatement] = filteredActions.length > 0 ? filteredActions : [];
     }
 
     return new StatementConfigCollection(result as unknown as FilteredStatement<TStatement, TActions>);
@@ -144,7 +144,7 @@ export class StatementConfigCollection<TStatement extends Record<string, readonl
     for (const [key, config] of Object.entries(this._statements)) {
       const remainingActions = config.filter((action) => !actions.includes(action));
       // Always include the resource, even if empty
-      result[key as keyof TStatement] = remainingActions.length > 0 ? remainingActions as readonly string[] : [];
+      result[key as keyof TStatement] = remainingActions.length > 0 ? remainingActions : [];
     }
 
     return new StatementConfigCollection(result as unknown as OmittedStatement<TStatement, TActions>);
@@ -298,7 +298,7 @@ export class StatementConfigCollection<TStatement extends Record<string, readonl
    * Get only resources (keys)
    */
   resources(): (keyof TStatement)[] {
-    return Object.keys(this._statements) as (keyof TStatement)[];
+    return Object.keys(this._statements);
   }
 
   /**

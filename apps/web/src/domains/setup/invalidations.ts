@@ -1,8 +1,5 @@
-import { defineInvalidations } from "@/domains/shared/helpers";
-import { setupEndpoints } from "./endpoints";
-
-export const setupInvalidations = defineInvalidations(setupEndpoints, {
-  initialize: ({ keys }) => [keys.getStatus(), keys.getStateMachine()],
-  configureDatabase: ({ keys }) => [keys.getStatus(), keys.getNodeStatus()],
-});
+// Invalidations are now handled inline in hooks.ts since the endpoints
+// don't use the wrapWithInvalidations pattern (they use raw call()).
+// This file is kept for future reuse if we adopt the pattern.
+export {}
 

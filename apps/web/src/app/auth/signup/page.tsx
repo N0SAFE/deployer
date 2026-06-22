@@ -20,41 +20,19 @@ import { signupSchema } from './schema'
 import { AuthSignup, AuthSignin, Setup } from '@/routes'
 import { UserPlus } from 'lucide-react'
 import { authClient } from '@/lib/auth'
-import { useSetupStatus } from '@/domains/setup/hooks'
+import { useSetupState } from '@/domains/setup/hooks'
 import { useRouter } from 'next/navigation'
 import { zodFieldErrors } from '@/lib/forms/zod-field-errors'
 
 // Use the Route wrapper to get type-safe, Suspense-wrapped search params
 export default AuthSignup.Route(({ searchParams }) => {
+    // ─── Hooks (must always be called in the same order — no early return before) ───
     const [isLoading, setIsLoading] = React.useState<boolean>(false)
     const [error, setError] = React.useState<string>('')
     const [success, setSuccess] = React.useState<string>('')
     const [fieldErrors, setFieldErrors] = React.useState<Partial<Record<keyof z.infer<typeof signupSchema>, string>>>({})
     const router = useRouter()
-    const setupStatus = useSetupStatus()
-
-    React.useEffect(() => {
-        if (setupStatus.data?.needsSetup) {
-            router.replace(
-                Setup(
-                    {},
-                    {
-                        redirectTo: searchParams.redirectTo ?? searchParams.callbackUrl,
-                    }
-                )
-            )
-        }
-    }, [setupStatus.data, router, searchParams.callbackUrl, searchParams.redirectTo])
-
-    if (setupStatus.data?.needsSetup) {
-        return (
-            <div className="flex flex-1 items-center justify-center">
-                <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                    <Spinner /> Redirecting to setup...
-                </div>
-            </div>
-        )
-    }
+    const setupStatus = useSetupState()
 
     const form = useForm({
         defaultValues: {
@@ -108,6 +86,30 @@ export default AuthSignup.Route(({ searchParams }) => {
             return next
         })
     }, [])
+
+    React.useEffect(() => {
+        if (setupStatus.data?.needsSetup) {
+            router.replace(
+                Setup(
+                    {},
+                    {
+                        redirectTo: searchParams.redirectTo ?? searchParams.callbackUrl,
+                    }
+                )
+            )
+        }
+    }, [setupStatus.data, router, searchParams.callbackUrl, searchParams.redirectTo])
+
+    // ─── Early return only happens AFTER every hook above has been called ───
+    if (setupStatus.data?.needsSetup) {
+        return (
+            <div className="flex flex-1 items-center justify-center">
+                <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                    <Spinner /> Redirecting to setup...
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="flex flex-1 items-center justify-center">

@@ -1,8 +1,6 @@
 @import 'tailwindcss';
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
-
-@config '../../tailwind.config.mts';
+@import "../assets/css/tw-animate.css";
+@import "../assets/css/tailwind.css";
 
 /*
   The default border color has changed to `currentColor` in Tailwind CSS v4,

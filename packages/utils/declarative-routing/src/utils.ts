@@ -242,7 +242,7 @@ function parseShape(
     }
 
     // Fallback: return raw params as-is
-    return rawParams as Record<string, ProcessedValue | undefined>
+    return rawParams
 }
 
 /**
@@ -300,7 +300,7 @@ export async function safeParseSearchParams<T extends z.ZodType>(
     const processedParams = processSchema(schema, rawParams)
     
     // Parse with Zod
-    return schema.parse(processedParams) as z.output<T>
+    return schema.parse(processedParams)
 }
 
 /**
@@ -318,7 +318,7 @@ export function safeParseSearchParamsSync<T extends z.ZodType>(
     schema: T
 ): z.output<T> {
     const processedParams = processSchema(schema, searchParams)
-    return schema.parse(processedParams) as z.output<T>
+    return schema.parse(processedParams)
 }
 
 /**
@@ -342,7 +342,7 @@ export async function safeTryParseSearchParams<T extends z.ZodType>(
 ): Promise<SafeParseResult<z.output<T>>> {
     const rawParams = await Promise.resolve(searchParams)
     const processedParams = processSchema(schema, rawParams)
-    return schema.safeParse(processedParams) as SafeParseResult<z.output<T>>
+    return schema.safeParse(processedParams)
 }
 
 // Re-export Zod for convenience

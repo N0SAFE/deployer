@@ -129,7 +129,7 @@ function extractAdditionalProps<T extends object>(
     void searchParams
     void children
     void route
-    return rest as Omit<T, 'params' | 'searchParams' | 'children' | 'route'>
+    return rest
 }
 
 function normalizeRecord(value: unknown): Record<string, unknown> {
@@ -274,8 +274,8 @@ export function createPage<
     async function WrappedComponent(props: WrapperProps): Promise<React.ReactNode> {
         const rawParams = await props.params
         const rawSearchParams = await props.searchParams
-        const params = schemas.params.parse(rawParams) as z.output<Params>
-        const searchParams = schemas.search.parse(rawSearchParams) as z.output<Search>
+        const params = schemas.params.parse(rawParams)
+        const searchParams = schemas.search.parse(rawSearchParams)
         const route = createServerRouteHelpers(params, searchParams, runtime)
         const additionalProps = extractAdditionalProps(props)
         
@@ -380,8 +380,8 @@ export function createSessionPage<
         // Unwrap promises using async/await
         const rawParams = await props.params
         const rawSearchParams = await props.searchParams
-        const params = schemas.params.parse(rawParams) as z.output<Params>
-        const searchParams = schemas.search.parse(rawSearchParams) as z.output<Search>
+        const params = schemas.params.parse(rawParams)
+        const searchParams = schemas.search.parse(rawSearchParams)
         const route = createServerRouteHelpers(params, searchParams, runtime)
         const additionalProps = extractAdditionalProps(props)
         

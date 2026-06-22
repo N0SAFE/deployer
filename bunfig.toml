@@ -1,3 +1,7 @@
+[run]
+# Force all scripts to use Bun runtime instead of Node.js
+bun = true
+
 [test]
 preload = "./bun-preload-script/happydom.ts"
 

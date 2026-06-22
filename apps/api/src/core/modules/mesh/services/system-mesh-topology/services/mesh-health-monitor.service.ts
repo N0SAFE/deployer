@@ -13,9 +13,9 @@ import {
 } from '../../../shared/primitives/id-generator'
 import { PhiAccrualDetector } from '../../../shared/primitives/phi-accrual-detector'
 import { MeshValidationError } from '../domain/mesh-errors'
-import type { MeshPeerSessionService } from './mesh-peer-session.service'
-import type { MeshIdentityService } from './mesh-identity.service'
-import type { SystemMeshLogicService } from '../../system-mesh-logic.service';
+import { MeshPeerSessionService } from './mesh-peer-session.service'
+import { MeshIdentityService } from './mesh-identity.service'
+import { SystemMeshLogicService } from '../../system-mesh-logic.service';
 
 /**
  * Heartbeats, métriques de connexion, Phi Accrual failure detection.

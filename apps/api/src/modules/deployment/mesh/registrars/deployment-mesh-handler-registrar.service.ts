@@ -53,7 +53,7 @@ export class DeploymentMeshHandlerRegistrar implements OnModuleInit {
                 offset: 0,
                 sortBy: "createdAt",
                 sortDirection: "desc",
-            } as DeploymentListInput);
+            });
 
             const query = payload.query.trim().toLowerCase();
             const items = listResult.data

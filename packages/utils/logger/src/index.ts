@@ -548,11 +548,11 @@ function createPinoLogger(options: LoggerOptions = {}): LoggerBackend {
             errorLikeObjectKeys: ['err', 'error'],
           },
         },
-      }) as unknown as LoggerBackend
+      })
     }
 
     // In production, use JSON format
-    return (pinoRuntime as typeof pino)(pinoOptions) as unknown as LoggerBackend
+    return (pinoRuntime as typeof pino)(pinoOptions)
   } catch {
     return createConsoleBackend(scope, base)
   }

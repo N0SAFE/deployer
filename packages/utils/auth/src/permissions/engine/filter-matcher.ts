@@ -48,7 +48,7 @@ export function matchFilter<
 >(
     record: Record<string, unknown>,
     filter: DFilter<TSchema, TVars>,
-    vars: Partial<TVars> = {} as Partial<TVars>,
+    vars: Partial<TVars> = {},
     depth = 0,
 ): boolean {
     if (depth > MAX_FILTER_DEPTH) {
@@ -94,7 +94,7 @@ export function matchFilter<
 
         const fieldValue = resolveField(record, key);
 
-        if (!matchOperator(fieldValue, rawValue, vars as Record<string, unknown>)) {
+        if (!matchOperator(fieldValue, rawValue, vars)) {
             return false;
         }
     }
@@ -167,12 +167,12 @@ function matchOperator(
     if ("_in" in op) {
         const list = isVariable(op._in) ? resolveVar(op._in, vars) : op._in;
         if (!Array.isArray(list)) throw new Error("DFilter._in operand must be an array");
-        return list.includes(fieldValue as string | number);
+        return list.includes(fieldValue);
     }
     if ("_nin" in op) {
         const list = isVariable(op._nin) ? resolveVar(op._nin, vars) : op._nin;
         if (!Array.isArray(list)) throw new Error("DFilter._nin operand must be an array");
-        return !list.includes(fieldValue as string | number);
+        return !list.includes(fieldValue);
     }
 
     // Null checks

@@ -308,7 +308,7 @@ export class GitHubService {
         avatar_url: accountAvatarUrl,
       },
       repository_selection: data.repository_selection,
-      permissions: data.permissions as Record<string, string>,
+      permissions: data.permissions,
       events: data.events,
       created_at: data.created_at,
       updated_at: data.updated_at,

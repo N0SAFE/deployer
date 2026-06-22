@@ -1,8 +1,12 @@
 # syntax=docker/dockerfile:1-labs
 # Development Dockerfile for one-shot API CLI jobs (migrate/seed/reset)
-# Multi-stage build optimized for cache reuse and fast startup.
+# Multi-stage build optimized for cache reuse and fast startup:
+# base -> pruner-json -> pruner-full -> installer -> runner
+#
+# The pruner is split in two stages: pruner-json handles only manifests
+# (super-stable cache) and pruner-full bind-mounts sources to produce out/full/.
 
-FROM oven/bun:1.3.9-alpine AS base
+FROM oven/bun:1.3.14-alpine AS base
 
 RUN apk add --no-cache curl wget bash git python3 make g++ tar libc6-compat
 COPY --from=node:22-alpine /usr/local /usr/local
@@ -13,58 +17,59 @@ RUN ln -sf /usr/local/bin/node /usr/bin/node && \
 RUN --mount=type=cache,target=/root/.bun,sharing=locked bun install -g turbo@^2 @nestjs/cli node-gyp
 WORKDIR /app
 
-FROM base AS pruner
+# Stage 2a: pruner-json — manifests only (very stable cache)
+FROM base AS pruner-json
 WORKDIR /app
-COPY . .
+COPY turbo.json package.json ./
+COPY bun.lock* ./
+COPY --parents **/package.json ./
 RUN --mount=type=cache,target=/root/.bun,sharing=locked \
+    bun x turbo prune api --docker
+
+# Stage 2b: pruner-full — bind-mount sources, re-run turbo prune
+FROM base AS pruner-full
+WORKDIR /app
+COPY --from=pruner-json /app/out/json/ ./
+RUN --mount=type=bind,target=/src \
+    --mount=type=cache,target=/root/.bun,sharing=locked \
+    cp /src/turbo.json . && \
+    cp /src/bun.lock* . 2>/dev/null || true ; \
+    tar -C /src -cf - apps packages 2>/dev/null | tar -xf - 2>/dev/null || true ; \
     bun x turbo prune api --docker
 
 FROM base AS installer
 WORKDIR /app
-COPY --from=pruner /app/out/json/ .
-COPY --from=pruner /app/bun.lock ./bun.lock
+# out/json/ contains the pruned manifests + a consistent pruned bun.lock.
+# Don't copy the original bun.lock from pruner-full — it's incompatible
+# with the pruned package.json.
+COPY --from=pruner-json /app/out/json/ .
+
 RUN --mount=type=cache,target=/root/.bun,sharing=locked \
     --mount=type=cache,target=/root/.cache,sharing=locked \
-    bun install --frozen-lockfile || bun install
+    bun ci
 
-FROM base AS source-copier
-WORKDIR /app
-COPY --from=pruner /app/out/json/ /tmp/prune-structure/
-RUN --mount=type=bind,from=pruner,source=/app,target=/mnt/pruner \
-    cp /mnt/pruner/package.json /mnt/pruner/turbo.json /app/ 2>/dev/null || true && \
-    cp /mnt/pruner/bun.lock* /app/ 2>/dev/null || true && \
-    cp /mnt/pruner/bunfig.toml /app/ 2>/dev/null || true && \
-    for appPkg in $(find /tmp/prune-structure/apps -name "package.json" -type f 2>/dev/null); do \
-        appDir=$(dirname "$appPkg" | sed 's|/tmp/prune-structure/||'); \
-        if [ -d "/mnt/pruner/$appDir" ]; then \
-            mkdir -p "/app/$appDir" && \
-            cp -r /mnt/pruner/$appDir/. /app/$appDir/ 2>/dev/null || true; \
-        fi; \
-    done && \
-    for pkgJson in $(find /tmp/prune-structure/packages -name "package.json" -type f 2>/dev/null); do \
-        pkgDir=$(dirname "$pkgJson" | sed 's|/tmp/prune-structure/||'); \
-        if [ -d "/mnt/pruner/$pkgDir" ]; then \
-            mkdir -p "/app/$pkgDir" && \
-            cp -r /mnt/pruner/$pkgDir/. /app/$pkgDir/ 2>/dev/null || true; \
-        fi; \
-    done
-
+# Stage 4: Runner - one-shot migration/seed/reset CLI
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=development
-COPY --from=source-copier /app/ .
+
+# Pruned source from pruner-full (out/full/) — contains the pruned bun.lock
+# at the root, consistent with the pruned package.json.
+COPY --from=pruner-full /app/out/full/ .
+# Copy the pruned bun.lock (from out/json/) so turbo can parse workspace
+# info. out/full/ doesn't include a bun.lock at the root.
+COPY --from=pruner-full /app/out/json/bun.lock ./bun.lock
+
+# Copy node_modules from installer — single-tar pattern
+# (one tar -cf and one tar -xf, no find/subshell loops, excludes *.map/.cache/.turbo)
 RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
-    cd /mnt/installer && tar cf - node_modules | tar xf - -C /app --owner=root --group=root && \
-    find /mnt/installer/apps -name node_modules -type d 2>/dev/null | while read dir; do \
-        relDir=$(echo "$dir" | sed 's|/mnt/installer/||'); \
-        mkdir -p "/app/$(dirname $relDir)" && \
-        cd /mnt/installer && tar cf - "$relDir" | tar xf - -C /app --owner=root --group=root; \
+    PATHS="node_modules"; \
+    for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules; do \
+        [ -d "/mnt/installer/$d" ] && PATHS="$PATHS $d"; \
     done && \
-    find /mnt/installer/packages -name node_modules -type d 2>/dev/null | while read dir; do \
-        relDir=$(echo "$dir" | sed 's|/mnt/installer/||'); \
-        mkdir -p "/app/$(dirname $relDir)" && \
-        cd /mnt/installer && tar cf - "$relDir" | tar xf - -C /app --owner=root --group=root; \
-    done
+    cd /mnt/installer && \
+    tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
+    tar -xf - -C /app --owner=root --group=root
 
 # One-shot migration command (container exits after completion)
 CMD ["sh", "-c", "cd apps/api && bun x dotenv -e .env -- bun run db:migrate"]

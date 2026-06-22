@@ -82,7 +82,7 @@ describe('BaseEventService (RxJS internals)', () => {
         replayLimit: 20,
       })
       .subscribe((event) => {
-        received.push(event as { input: { id: string }; output: { value: string } });
+        received.push(event);
       });
 
     await new Promise((resolve) => setTimeout(resolve, 0));

@@ -8,7 +8,7 @@
  * Or integrate into your test suite.
  */
 
-import { TestDeploymentConsumerService } from "./test-deployment-consumer.service";
+import type { TestDeploymentConsumerService } from "./test-deployment-consumer.service";
 import { TestDeploymentMeshService } from "./test-deployment-mesh.service";
 
 // ─── Type-safe Entity References ──────────────────────────────────────────────
@@ -136,7 +136,7 @@ async function demonstrateConsumerUsage(
   console.log(`Found ${unhealthy.length} unhealthy deployments:`);
   unhealthy.forEach(({ deployment, issues }) => {
     console.log(`\n  ${deployment.deploymentId}:`);
-    issues.forEach((issue) => console.log(`    ⚠️  ${issue}`));
+    issues.forEach((issue) => { console.log(`    ⚠️  ${issue}`); });
   });
 
   // ─── 7. Query Introspection ───────────────────────────────────────────────

@@ -235,7 +235,7 @@ Error handling protocol (CRITICAL):
 - Prefer the smallest corrective action first. Examples:
    - Missing script: add it via `add-script` and retry
    - Missing dependency: add via `add-dependency` (use internal workspace version `*` when applicable) and retry
-   - Service not available: start required stack using root scripts (`bun run dev`, `bun run dev:api`, or `bun run dev:web`) with the appropriate compose file
+   - Service not available: start required stack using root scripts (`bun --bun run dev`, `bun --bun run dev:api`, or `bun --bun run dev:web`) with the appropriate compose file
    - Inconsistent graph: inspect with `repo://graph/uses/{name}` and `repo://graph/used-by/{name}` then adjust
 - **Use direct tools for fixes** - Don't delegate simple corrections to runSubagent
 - **Batch multiple fixes** when possible (e.g., adding multiple missing dependencies in parallel)
@@ -257,16 +257,16 @@ This Next.js + NestJS turborepo uses modern patterns and conventions that requir
 ### 1. Docker-First Development
 **Always use Docker commands for development:**
 ```bash
-bun run dev              # Full stack (API + Web + DB + Redis)
-bun run dev:api          # API only with database
-bun run dev:web          # Web only (requires running API)
+bun --bun run dev              # Full stack (API + Web + DB + Redis)
+bun --bun run dev:api          # API only with database
+bun --bun run dev:web          # Web only (requires running API)
 ```
 Prefer Docker-first via these root scripts; local app-level scripts exist for host-mode development when appropriate.
 
 ### 2. Declarative Routing System
 **Routes are type-safe and generated**, not manually written:
 - Route definitions: `apps/web/src/app/**/page.info.ts`
-- Generate routes: `bun run web -- dr:build` (required after route changes)
+- Generate routes: `bun --bun run web -- dr:build` (required after route changes)
 - Usage: `import { Home, ApiAuth } from '@/routes'` then `<Home.Link>` or `ApiAuth.fetch()`
 - **Never** use raw `href` strings or manual `fetch()` calls
 
@@ -275,7 +275,7 @@ Prefer Docker-first via these root scripts; local app-level scripts exist for ho
 - Contracts: `packages/api-contracts/index.ts`
 - API implementation: `apps/api/src/` using ORPC decorators
 - Client usage: Custom React Query hooks wrapping ORPC (see ORPC Client Hooks Pattern)
-- Changes require rebuilding web app: `bun run web -- generate`
+- Changes require rebuilding web app: `bun --bun run web -- generate`
 - **Important**: Always create custom hooks instead of using ORPC directly in components
 
 ### 4. Shared Package System
@@ -294,29 +294,56 @@ Import like: `import { Button } from '@repo/ui'`
 
 ## Key Commands & Workflows
 
+### ⚠️ Bun Runtime Rule (Mandatory)
+
+**Always use `bun --bun run`** — never bare `bun run` — for any command that invokes a Node.js script (vitest, nest, next, turbo, etc.). The `--bun` flag forces the entire process tree to use Bun's runtime, which is required for:
+
+- `bun:sqlite` / `bun:` protocol imports
+- Consistent module resolution for `zod/v4` and other ESM packages
+- Avoiding `Error: Only URLs with a scheme in: file, data, and node are supported`
+
+**Correct patterns:**
+```bash
+bun --bun run test             # ✅ forces Bun runtime for vitest
+bun --bun run build            # ✅ forces Bun runtime for turborepo
+bun --bun run dev              # ✅ safe (Docker compose — no Node involved, but consistent)
+bun --bun run web -- dr:build  # ✅ forces Bun runtime for next/route generator
+```
+
+**Incorrect patterns:**
+```bash
+bun run test                   # ❌ may fall back to Node.js for worker processes
+bun --bun build                # ❌ `bun --bun build` is Bun's built-in builder, not the npm script
+bun run api -- db:migrate      # ❌ may fall back to Node.js
+```
+
+**Rule of thumb**: use `bun --bun run <script>` (three words: `bun`, `--bun`, `run`) for every npm script in `package.json`. Never use Bun's built-in `bun build` or `bun test` — those bypass the project's configured tooling.
+
+---
+
 **Efficiency Note**: Use `run_in_terminal` directly for these commands. Only use runSubagent for complex multi-step workflows that require research or exploration.
 
 ### Development
 ```bash
-bun run dev                    # Start full development stack
-bun run web -- dr:build:watch # Watch mode for route generation
-bun run api -- db:studio      # Database admin UI
+bun --bun run dev                    # Start full development stack
+bun --bun run web -- dr:build:watch # Watch mode for route generation
+bun --bun run api -- db:studio      # Database admin UI
 ```
 
 ### Building & Testing
 ```bash
-bun run build                  # Build all apps and packages
-bun run test                   # Run all tests
-bun run test:coverage          # Coverage across monorepo
-
+bun --bun run build                  # Build all apps and packages
+bun --bun run test                   # Run all tests
+bun --bun run test:coverage          # Coverage across monorepo
+bun --bun run test:e2e               # Run e2e tests (requires --bun for bun:sqlite)
 ```
 
 ### Database Operations
 ```bash
-bun run api -- db:generate    # Generate migrations
-bun run api -- db:push        # Push schema changes
-bun run api -- db:migrate     # Run migrations
-bun run api -- db:seed        # Seed development data
+bun --bun run api -- db:generate    # Generate migrations
+bun --bun run api -- db:push        # Push schema changes
+bun --bun run api -- db:migrate     # Run migrations
+bun --bun run api -- db:seed        # Seed development data
 ```
 
 **Tip**: When running multiple commands in sequence, consider if they can be batched or run in parallel (e.g., starting multiple services).
@@ -343,10 +370,10 @@ bun run api -- db:seed        # Seed development data
 
 ## Common Gotchas
 
-1. **Route Changes**: Always run `bun run web -- dr:build` after modifying route structure
+1. **Route Changes**: Always run `bun --bun run web -- dr:build` after modifying route structure
    - Use direct `run_in_terminal` tool - don't delegate to runSubagent
 2. **Docker Networking**: Use container names (`api:3001`) for server-side, localhost for client-side
-3. **Type Generation**: API contract changes require `bun run web -- generate`
+3. **Type Generation**: API contract changes require `bun --bun run web -- generate`
    - Batch this with other build commands when possible
 4. **Hot Reloading**: Files are mounted in Docker - changes should reflect immediately
 5. **Database**: PostgreSQL runs in Docker - connection strings use container networking
@@ -360,8 +387,8 @@ bun run api -- db:seed        # Seed development data
 ## Debugging Tips
 
 ```bash
-bun run dev:api:logs          # View API container logs
-bun run dev:web:logs          # View web container logs
+bun --bun run dev:api:logs          # View API container logs
+bun --bun run dev:web:logs          # View web container logs
 docker exec -it [container] sh # Shell into containers
 ```
 

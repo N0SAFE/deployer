@@ -1,0 +1,79 @@
+---
+title: Development Workflow
+description: Daily engineering workflow from local run to validation and merge readiness.
+order: 4
+---
+
+<DocMeta source=".docs/guides/DEVELOPMENT-WORKFLOW.md" scope="canonical" />
+
+## Start the stack
+
+```bash
+bun run dev
+```
+
+## Core loop
+
+1. Update contracts first (if API surface changes).
+2. Implement API behavior.
+3. Regenerate route/client artifacts when required.
+4. Update web domain hooks and UI consumers.
+5. Run validation gate before pushing.
+
+## API workflow
+
+- Contracts: `packages/contracts/api`
+- Implementation: `apps/api`
+- Drizzle actions:
+
+```bash
+bun run api -- db:generate
+bun run api -- db:push
+bun run api -- db:migrate
+bun run api -- db:seed
+```
+
+## Web workflow
+
+- Use `page.info.ts` for declarative routing definitions.
+- Regenerate routes after route changes:
+
+```bash
+bun run web -- dr:build
+```
+
+- Keep API consumption in domain hooks; avoid ad-hoc raw fetch in UI components.
+
+## Project environment policy
+
+- `production` is the mandatory base environment for every project.
+- Additional environments are custom and configured from user intent.
+- `preview` and `development` are special environment names that must be explicitly enabled per project.
+- `preview` supports granular dependency configuration including shared dependency instances.
+- `development` targets local-machine initiated cloud runtime with per-service local/cloud behavior controls.
+
+For the complete model, security constraints, lifecycle states, and rollout plan, see:
+
+- [`Cloud Development Mode (Project Environments)`](/docs/dev/cloud-development-mode)
+
+## Testing
+
+```bash
+bun run test
+bun run test:coverage
+```
+
+## Final validation
+
+```bash
+bun run check
+```
+
+<DocChecklist
+	items={[
+		{ label: 'Contracts updated before implementation when needed', done: false },
+		{ label: 'Routes regenerated after route changes', done: false },
+		{ label: 'All tests and lint pass', done: false },
+		{ label: 'Documentation updated with behavior changes', done: false },
+	]}
+/>

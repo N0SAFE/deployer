@@ -1,4 +1,5 @@
-import { Test, TestingModule } from "@nestjs/testing";
+import type { TestingModule } from "@nestjs/testing";
+import { Test } from "@nestjs/testing";
 import { describe, it, expect, beforeAll } from "vitest";
 import { TestDeploymentMeshModule } from "./test-deployment-mesh.module";
 import { TestDeploymentConsumerService } from "./test-deployment-consumer.service";

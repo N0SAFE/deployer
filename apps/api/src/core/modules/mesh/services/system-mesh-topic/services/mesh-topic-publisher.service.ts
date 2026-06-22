@@ -1,9 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { meshEventPublishPayloadSchema } from "@repo/contracts-entities";
-import type { EventContracts } from "@/core/modules/events/event-contract.builder";
-import type { SystemMeshTopologyService } from "../../system-mesh-topology/orchestrator/system-mesh-topology.service";
-import type { MeshTopicNamespaceRuntime } from "../runtime/mesh-topic-namespace-runtime";
+import type { EventContracts, EventInput, EventOutput } from "@/core/modules/events/event-contract.builder";
+import { SystemMeshTopologyService } from "../../system-mesh-topology/orchestrator/system-mesh-topology.service";
+import { MeshTopicNamespaceRuntime } from "../runtime/mesh-topic-namespace-runtime";
 import type { MeshTopicPublishOptions, MeshTopicEventPayload } from "../domain/mesh-topic-types";
 
 /**
@@ -22,21 +22,21 @@ export class MeshTopicPublisherService {
         namespace: string,
         runtime: MeshTopicNamespaceRuntime<TContracts>,
         topic: string,
-        input: unknown,
-        output: unknown,
+        input: EventInput<TContracts[string]>,
+        output: EventOutput<TContracts[string]>,
         options?: MeshTopicPublishOptions,
     ): void {
         // 1. Emit local
-        runtime.emit(topic as keyof TContracts, input, output);
+        runtime.emit(topic, input, output);
 
-        const sequence = runtime.getLastSequence(topic as keyof TContracts, input as never);
+        const sequence = runtime.getLastSequence(topic, input);
         const emittedAt = new Date().toISOString();
 
         const topicPayload: MeshTopicEventPayload = {
             namespace,
             topic,
-            input: input as Record<string, unknown>,
-            output: output as Record<string, unknown>,
+            input,
+            output,
         };
 
         // 2. Sérialise

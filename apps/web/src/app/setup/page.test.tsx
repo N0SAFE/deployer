@@ -4,10 +4,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
-  useSetupStatus: vi.fn(),
-  useSetupStateMachine: vi.fn(),
+  useSetupState: vi.fn(),
   useInitializeSetup: vi.fn(),
-  useConnectMeshPeer: vi.fn(),
+  useProbeDatabase: vi.fn(),
+  useProbeMesh: vi.fn(),
+  useRemoteAuth: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -17,24 +18,13 @@ vi.mock("sonner", () => ({
   },
 }));
 
-vi.mock("@/domains/mesh/hooks", () => ({
-  useConnectMeshPeer: mocks.useConnectMeshPeer,
-}));
-
-vi.mock("@/domains/mesh/connect-flow", () => ({
-  buildMeshEndpointUrl: vi.fn(() => "wss://remote.example/mesh"),
-  buildRemoteSignInUrl: vi.fn(() => "http://remote.example/auth/signin"),
-  detectRemoteServer: vi.fn(),
-  fetchRemoteAuthSession: vi.fn(),
-  normalizeServerHttpUrl: vi.fn((value: string) => value),
-}));
-
 vi.mock("@repo/ui/components/shadcn/card", () => ({
   Card: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   CardHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   CardTitle: ({ children }: { children: React.ReactNode }) => <h1>{children}</h1>,
   CardDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
   CardContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  CardFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock("@repo/ui/components/shadcn/button", () => ({
@@ -50,38 +40,6 @@ vi.mock("@repo/ui/components/shadcn/input", () => ({
 vi.mock("@repo/ui/components/shadcn/alert", () => ({
   Alert: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   AlertDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}));
-
-vi.mock("@repo/ui/components/shadcn/form", () => ({
-  Form: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  FormControl: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  FormItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  FormLabel: ({ children }: { children: React.ReactNode }) => <label>{children}</label>,
-  FormMessage: () => null,
-  FormField: ({
-    render,
-    name,
-  }: {
-    render: (arg: {
-      field: {
-        name: string;
-        value: string;
-        onChange: () => void;
-        onBlur: () => void;
-        ref: () => void;
-      };
-    }) => React.ReactNode;
-    name: string;
-  }) =>
-    render({
-      field: {
-        name,
-        value: "",
-        onChange: vi.fn(),
-        onBlur: vi.fn(),
-        ref: vi.fn(),
-      },
-    }),
 }));
 
 vi.mock("@repo/ui/components/atomics/atoms/Icon", () => ({
@@ -127,9 +85,15 @@ vi.mock("@/routes", () => ({
 }));
 
 vi.mock("@/domains/setup/hooks", () => ({
-  useSetupStatus: mocks.useSetupStatus,
-  useSetupStateMachine: mocks.useSetupStateMachine,
+  useSetupState: mocks.useSetupState,
   useInitializeSetup: mocks.useInitializeSetup,
+  useProbeDatabase: mocks.useProbeDatabase,
+  useProbeMesh: mocks.useProbeMesh,
+  useRemoteAuth: mocks.useRemoteAuth,
+}));
+
+vi.mock("@/components/setup/setup-wizard", () => ({
+  SetupWizard: () => <div>Setup Wizard</div>,
 }));
 
 import SetupPage from "./page";
@@ -142,19 +106,42 @@ describe("Setup page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mocks.useSetupStateMachine.mockReturnValue({ data: { transitions: [] } });
-    mocks.useInitializeSetup.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
-    mocks.useConnectMeshPeer.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
+    mocks.useInitializeSetup.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isSuccess: false,
+      isError: false,
+      error: null,
+      reset: vi.fn(),
+    });
+    mocks.useProbeDatabase.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      data: undefined,
+    });
+    mocks.useProbeMesh.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      data: undefined,
+    });
+    mocks.useRemoteAuth.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      data: undefined,
+    });
   });
 
-  it("redirects to signin with redirectTo when setup is already completed", async () => {
-    mocks.useSetupStatus.mockReturnValue({
+  it("redirects to signin when setup is already completed", async () => {
+    mocks.useSetupState.mockReturnValue({
       isLoading: false,
       data: {
         needsSetup: false,
         state: "completed",
+        strategy: "local",
+        currentStep: null,
         progressPercent: 100,
         steps: [],
+        completedAt: new Date(),
       },
     });
 
@@ -165,27 +152,33 @@ describe("Setup page", () => {
     });
   });
 
-  it("renders setup form when setup is required", () => {
-    mocks.useSetupStatus.mockReturnValue({
+  it("shows setup wizard when setup is needed", () => {
+    mocks.useSetupState.mockReturnValue({
       isLoading: false,
       data: {
         needsSetup: true,
-        state: "awaiting_initial_admin",
-        progressPercent: 20,
-        steps: [
-          {
-            id: "create_initial_user",
-            title: "Create initial admin user",
-            status: "pending",
-          },
-        ],
+        state: "not_started",
+        strategy: null,
+        currentStep: "choose_strategy",
+        progressPercent: 0,
+        steps: [{ id: "choose_strategy", title: "Choose bootstrap strategy", status: "pending" }],
+        completedAt: null,
       },
     });
 
     render(<SetupPageLoose params={{}} searchParams={{}} />);
 
-    expect(screen.getByText("Create first administrator")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create administrator" })).toBeInTheDocument();
-    expect(mocks.replace).not.toHaveBeenCalled();
+    expect(screen.getByText("Setup Wizard")).toBeInTheDocument();
+  });
+
+  it("shows loading while fetching state", () => {
+    mocks.useSetupState.mockReturnValue({
+      isLoading: true,
+      data: undefined,
+    });
+
+    render(<SetupPageLoose params={{}} searchParams={{}} />);
+
+    expect(screen.getByText("spinner")).toBeInTheDocument();
   });
 });

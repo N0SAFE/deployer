@@ -476,7 +476,7 @@ describe('DeploymentService', () => {
             const mockResult = { data: [mockDeployment], meta: { total: 1, limit: 20, offset: 0, hasMore: false } };
             mockRepository.findMany.mockResolvedValue(mockResult);
 
-            const result = await service.listDeployments(input as any);
+            const result = await service.listDeployments(input);
 
             expect(result).toEqual(mockResult);
             expect(mockRepository.findMany).toHaveBeenCalledWith(input);
@@ -904,7 +904,7 @@ describe('DeploymentService', () => {
                 (service as any).queueJobs.values(),
             );
             expect(jobs).toHaveLength(1);
-            expect((jobs[0]?.payload as { context?: { storageBinding?: unknown } } | undefined)?.context?.storageBinding)
+            expect((jobs[0]?.payload)?.context?.storageBinding)
                 .toMatchObject({
                     storageType: 'local',
                     autoRedeployOnUpdate: true,
@@ -1237,7 +1237,7 @@ describe('DeploymentService', () => {
                 workerId: 'worker-1',
                 limit: 1,
                 leaseDurationSec: 120,
-            } as any);
+            });
 
             expect(claimed.claimed).toHaveLength(1);
             expect(claimed.claimed[0]?.id).toBe(enqueued.job.id);
@@ -1336,7 +1336,7 @@ describe('DeploymentService', () => {
                 workerId: 'worker-2',
                 limit: 1,
                 leaseDurationSec: 120,
-            } as any);
+            });
 
             const claimedJob = claimed.claimed[0];
             expect(claimedJob).toBeDefined();
@@ -1414,7 +1414,7 @@ describe('DeploymentService', () => {
                 workerId: 'worker-3',
                 limit: 1,
                 leaseDurationSec: 120,
-            } as any);
+            });
 
             const claimedJob = claimed.claimed[0];
             expect(claimedJob).toBeDefined();
@@ -1497,7 +1497,7 @@ describe('DeploymentService', () => {
                 workerId: 'worker-manual-1',
                 limit: 1,
                 leaseDurationSec: 120,
-            } as any);
+            });
 
             const lockToken = claimed.claimed[0]?.lockToken;
             if (!lockToken) {
@@ -1750,7 +1750,7 @@ describe('DeploymentService', () => {
                 workerId: 'worker-rb-1',
                 limit: 1,
                 leaseDurationSec: 120,
-            } as any);
+            });
 
             expect(claimed.claimed).toHaveLength(1);
             expect(mockRepository.updateRollbackStatus).toHaveBeenCalledWith(
@@ -1791,7 +1791,7 @@ describe('DeploymentService', () => {
                 workerId: 'worker-rb-2',
                 limit: 1,
                 leaseDurationSec: 120,
-            } as any);
+            });
 
             const lockToken = claimed.claimed[0]?.lockToken;
             if (!lockToken) {

@@ -7,8 +7,8 @@ import { Injectable, Logger } from "@nestjs/common";
       MeshResourceLookupInput,
       MeshResourceLookupResult,
   } from "@repo/contracts-entities";
-  import type { SystemMeshLogicService } from "../../system-mesh-logic.service";
-  import type { SystemMeshClusterRepository } from "../../../repositories/system-mesh-cluster.repository";
+import { SystemMeshLogicService } from "../../system-mesh-logic.service";
+import { SystemMeshClusterRepository } from "../../../repositories/system-mesh-cluster.repository";
 
   /**
    * Index des ressources du mesh (streams, queues, etc.) par (org, kind, key).

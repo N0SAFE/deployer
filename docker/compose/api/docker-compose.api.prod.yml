@@ -29,6 +29,12 @@ services:
         - API_PORT=${API_PORT}
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
         - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+        - BUILDKIT_INLINE_CACHE=1
+      # Embed BuildKit cache metadata in the image so subsequent deploys and CI
+      # pipelines can pull the cache from this image (via cache_from) instead of
+      # rebuilding every layer from scratch.
+      cache_to:
+        - type=inline
     restart: unless-stopped
     ports:
       - "${API_PORT}:${API_PORT}"

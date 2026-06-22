@@ -1,12 +1,15 @@
 # syntax=docker/dockerfile:1-labs
 # Production Dockerfile for NestJS API
 # Multi-stage build optimized for caching:
-# base -> pruner -> installer -> source-copier -> builder -> runner
+# base -> pruner-json -> pruner-full -> installer -> builder -> runner
+#
+# The pruner is split in two stages: pruner-json handles only manifests
+# (super-stable cache) and pruner-full bind-mounts sources to produce out/full/.
 
 # ===================================
 # Stage 1: Base - Install global dependencies and set environment
 # ===================================
-FROM oven/bun:1.3.9-alpine AS base
+FROM oven/bun:1.3.14-alpine AS base
 ENV NODE_ENV=production
 
 # Install system dependencies and Node.js
@@ -18,16 +21,39 @@ RUN --mount=type=cache,target=/root/.bun/install/cache bun install -g turbo@^2 n
 WORKDIR /app
 
 # ===================================
-# Stage 2: Pruner - Determine which workspaces are needed
+# Stage 2a: pruner-json — manifests only (very stable cache)
+# Input  : turbo.json + root package.json + bun.lock + **/package.json
+# Output : out/json/  (pruned package.json structure)
+# Cache  : invalidates ONLY when a manifest or lockfile changes
 # ===================================
-FROM base AS pruner
+FROM base AS pruner-json
 WORKDIR /app
 
-# Copy ALL source files (turbo prune needs full source to determine dependencies)
-COPY . .
+# Root manifests (rarely change)
+COPY turbo.json package.json ./
+COPY bun.lock* ./
+# All package.json files across the monorepo (preserves directory structure)
+COPY --parents **/package.json ./
 
-# Run turbo prune to identify which apps/packages are needed for api
 RUN --mount=type=cache,target=/root/.cache/turbo \
+  turbo prune api --docker
+
+# ===================================
+# Stage 2b: pruner-full — sources via bind mount
+# Input  : out/json/ from pruner-json + bind-mounted build context (sources)
+# Output : out/full/  (pruned source files)
+# Cache  : bind mount is not in the cache key → only pruner-json output matters
+# ===================================
+FROM base AS pruner-full
+WORKDIR /app
+
+COPY --from=pruner-json /app/out/json/ ./
+
+RUN --mount=type=bind,target=/src \
+  --mount=type=cache,target=/root/.cache/turbo \
+  cp /src/turbo.json . && \
+  cp /src/bun.lock* . 2>/dev/null || true ; \
+  tar -C /src -cf - apps packages 2>/dev/null | tar -xf - 2>/dev/null || true ; \
   turbo prune api --docker
 
 # ===================================
@@ -36,52 +62,29 @@ RUN --mount=type=cache,target=/root/.cache/turbo \
 FROM base AS installer
 WORKDIR /app
 
+# Install build tools (python3/make/g++/musl-dev) required by bun ci to
+# extract optional native dependencies like ssh2 -> cpu-features.
+# Without these, optional deps are installed as empty stub directories
+# (Bun does not run native postinstall scripts on Alpine without them).
+# BuildKit cache mount keeps the apk package cache across builds.
+RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
+    apk add --no-cache python3 make g++ gcc musl-dev
+
 # Install build tools needed for native dependencies
 RUN apk add --no-cache python3 make g++ gcc musl-dev
 
 # Copy ONLY the pruned package.json structure (not all workspaces)
-COPY --from=pruner /app/out/json/ .
-# Use full original lockfile (turbo prune's out/bun.lock is buggy - see turborepo#10783)
-COPY --from=pruner /app/bun.lock ./bun.lock
+# out/json/ ALSO contains a consistent pruned bun.lock — use that one.
+# The original bun.lock (from pruner-full) is incompatible with the pruned
+# package.json (it has resolutions for workspaces not in the prune).
+# out/bun.lock (root of out/) is corrupted — see turborepo#10783.
+COPY --from=pruner-json /app/out/json/ .
 
-# Install dependencies for pruned workspaces only
 RUN --mount=type=cache,target=/root/.bun --mount=type=cache,target=/root/.cache \
-  bun install --frozen-lockfile || bun install
+  bun ci
 
 # ===================================
-# Stage 4: Source-Copier - Extract only the pruned source files
-# ===================================
-FROM base AS source-copier
-WORKDIR /app
-
-# Copy the pruned output structure to know which workspaces we need
-COPY --from=pruner /app/out/json/ /tmp/prune-structure/
-
-# Copy only the source files for workspaces identified by turbo prune
-RUN --mount=type=bind,from=pruner,source=/app,target=/mnt/pruner \
-    # Copy root config files
-    cp /mnt/pruner/package.json /mnt/pruner/turbo.json /app/ 2>/dev/null || true && \
-    cp /mnt/pruner/bun.lock* /app/ 2>/dev/null || true && \
-    cp /mnt/pruner/bunfig.toml /app/ 2>/dev/null || true && \
-    # Copy pruned apps (full source, not just package.json)
-    for appPkg in $(find /tmp/prune-structure/apps -name "package.json" -type f 2>/dev/null); do \
-        appDir=$(dirname "$appPkg" | sed 's|/tmp/prune-structure/||'); \
-        if [ -d "/mnt/pruner/$appDir" ]; then \
-            mkdir -p "/app/$appDir" && \
-            cp -r /mnt/pruner/$appDir/. /app/$appDir/ 2>/dev/null || true; \
-        fi; \
-    done && \
-    # Copy pruned packages (full source, not just package.json)
-    for pkgJson in $(find /tmp/prune-structure/packages -name "package.json" -type f 2>/dev/null); do \
-        pkgDir=$(dirname "$pkgJson" | sed 's|/tmp/prune-structure/||'); \
-        if [ -d "/mnt/pruner/$pkgDir" ]; then \
-            mkdir -p "/app/$pkgDir" && \
-            cp -r /mnt/pruner/$pkgDir/. /app/$pkgDir/ 2>/dev/null || true; \
-        fi; \
-    done
-
-# ===================================
-# Stage 5: Builder - Build the application
+# Stage 4: Builder - Build the application
 # ===================================
 FROM base AS builder
 WORKDIR /app
@@ -89,32 +92,48 @@ WORKDIR /app
 # Install build tools needed for native dependencies
 RUN apk add --no-cache python3 make g++ gcc musl-dev
 
-# Copy pruned source files from source-copier
-COPY --from=source-copier /app/ .
+# Pruned source from pruner-full (out/full/) — local image-to-image COPY
+# out/full/ contains the pruned bun.lock at the root (consistent).
+COPY --from=pruner-full /app/out/full/ .
+# Copy the pruned bun.lock (from out/json/) so turbo can parse workspace
+# info. out/full/ doesn't include a bun.lock at the root.
+COPY --from=pruner-full /app/out/json/bun.lock ./bun.lock
 
-# Copy node_modules from installer using bind mount + tar to preserve symlinks
+# Copy node_modules from installer — single-tar pattern
+# (one tar -cf + one tar -xf, no find/subshell loops, excludes *.map/.cache/.turbo)
 RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
-    # Copy root node_modules
-    cd /mnt/installer && tar cf - node_modules | tar xf - -C /app --owner=root --group=root && \
-    # Copy app-level node_modules if they exist
-    find /mnt/installer/apps -name node_modules -type d 2>/dev/null | while read dir; do \
-        relDir=$(echo "$dir" | sed 's|/mnt/installer/||'); \
-        mkdir -p "/app/$(dirname $relDir)" && \
-        cd /mnt/installer && tar cf - "$relDir" | tar xf - -C /app --owner=root --group=root; \
+    PATHS="node_modules"; \
+    for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules; do \
+        [ -d "/mnt/installer/$d" ] && PATHS="$PATHS $d"; \
     done && \
-    # Copy package-level node_modules if they exist
-    find /mnt/installer/packages -name node_modules -type d 2>/dev/null | while read dir; do \
-        relDir=$(echo "$dir" | sed 's|/mnt/installer/||'); \
-        mkdir -p "/app/$(dirname $relDir)" && \
-        cd /mnt/installer && tar cf - "$relDir" | tar xf - -C /app --owner=root --group=root; \
-    done
+    cd /mnt/installer && \
+    tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
+    tar -xf - -C /app --owner=root --group=root
 
-# Copy turbo cache directories
-COPY --parents --chmod=a+w .turbo/ **/.turbo/ ./
+# Copy turbo cache directories (workspace-level only; root /.turbo doesn't exist)
+COPY --parents --chmod=a+w **/.turbo/ ./
 
 # Build the API and its dependencies
-RUN --mount=type=cache,target=/root/.bun --mount=type=cache,target=/root/.cache \
-  bun turbo run build --filter=api... --remote-only
+# BuildKit cache mount keyed on the service id so turbo's local cache
+# persists between builds. The /tmp/turbo-restore mount additionally
+# persists workspace-level .turbo/ directories across layer invalidations.
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    --mount=type=cache,target=/root/.cache \
+    --mount=type=cache,target=/tmp/turbo-restore,id=turbo-api-prod,sharing=locked \
+    set -eux; \
+    if [ -d /tmp/turbo-restore/wt ]; then \
+      cp -an /tmp/turbo-restore/wt/. /app/ 2>/dev/null || true; \
+    fi; \
+    bunx turbo run build --filter=api... --remote-only; \
+    rm -rf /tmp/turbo-restore/wt; \
+    mkdir -p /tmp/turbo-restore/wt; \
+    cd /app; \
+    find . -path ./node_modules -prune -o -name .turbo -type d -print0 | \
+      while IFS= read -r -d '' d; do \
+        parent=$(dirname "$d"); \
+        mkdir -p "/tmp/turbo-restore/wt/$parent"; \
+        cp -r "$d" "/tmp/turbo-restore/wt/$parent/"; \
+      done
 
 # ===================================
 # Stage 6: Runner - Production runtime
@@ -141,12 +160,6 @@ RUN --mount=type=bind,from=builder,source=/app,target=/mnt/builder \
     # Copy drizzle migrations to the path expected by CLI (./src/config/drizzle/migrations)
     mkdir -p /app/apps/api/src/config && \
     cp -r /mnt/builder/apps/api/src/config/drizzle /app/apps/api/src/config/drizzle && \
-    # Copy root node_modules using tar to preserve symlinks
-    cd /mnt/builder && tar cf - node_modules | tar xf - -C /app && \
-    # Copy api node_modules if exists
-    if [ -d /mnt/builder/apps/api/node_modules ]; then \
-        cd /mnt/builder && tar cf - apps/api/node_modules | tar xf - -C /app; \
-    fi && \
     # Copy packages based on their package.json exports field
     # This parses exports to find which directories (src, dist, etc.) are actually needed
     for pkgJson in /mnt/builder/packages/*/package.json /mnt/builder/packages/*/*/package.json; do \
@@ -168,14 +181,27 @@ RUN --mount=type=bind,from=builder,source=/app,target=/mnt/builder \
             [ -f "$pkgDir/tsconfig.json" ] && cp "$pkgDir/tsconfig.json" "/app/$relPkgDir/" || true; \
         fi; \
     done && \
-    # Copy package node_modules using tar to preserve symlinks
-    find /mnt/builder/packages -name node_modules -type d 2>/dev/null | while read dir; do \
-        relDir=$(echo "$dir" | sed 's|/mnt/builder/||'); \
-        mkdir -p "/app/$(dirname $relDir)" && \
-        cd /mnt/builder && tar cf - "$relDir" | tar xf - -C /app; \
+    # Single-tar pattern for all node_modules (root + apps + packages)
+    # Preserves symlinks via tar; excludes *.map/.cache/.turbo noise
+    # Build the path list first so we use ONE tar -cf (concatenated multi-tar
+    # streams lose per-package symlinks during extraction)
+    PATHS="node_modules"; \
+    for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules; do \
+        [ -d "/mnt/builder/$d" ] && PATHS="$PATHS $d"; \
     done && \
+    cd /mnt/builder && \
+    tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
+    tar -xf - -C /app --owner=root --group=root && \
     # Set ownership for all copied files
     chown -R nestjs:nodejs /app
+
+# Prune devDependencies from node_modules for the final production image.
+# We installed ALL deps (dev + prod) in the installer stage so the builder
+# could compile TypeScript. Now that the build is done, remove devDeps
+# (type defs, build tools, test runners, etc.) to keep the image minimal
+# and reduce attack surface. `bun pm prune` reads each workspace's
+# package.json devDependencies and removes them from node_modules.
+RUN bun pm prune --production
 
 # Switch to non-root user
 USER nestjs

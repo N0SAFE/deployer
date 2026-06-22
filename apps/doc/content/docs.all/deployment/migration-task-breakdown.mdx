@@ -1,0 +1,475 @@
+---
+title: Migration Task Breakdown
+description: Actionable, phase-based task execution plan derived from the Migration Master Plan and Platform Feature Target.
+order: 31
+---
+
+<DocMeta source="migration-master-plan + platform-feature-target" scope="canonical" />
+
+## Goal
+
+Convert the migration roadmap into concrete, trackable tasks with explicit quality, testing, UX consistency, and performance validation.
+
+## Strategic hold — internal infrastructure first
+
+> **Decision recorded 2026-03-09**: All feature-migration work (Phases 4–10, i.e. preview automation, fleet control, module parity) is on hold until the internal platform infrastructure is production-ready.
+
+> **Hold lifted 2026-03-09**: All four Phase 12 completion criteria are now satisfied (T131 ✅ T108 ✅ T106 ✅ T107 ✅). Feature migration (Phase 4 and beyond) may now resume.
+
+**Rationale**: modules to be migrated (deployment, orchestration, project, service, github) all depend on:
+- Active-active load balancer routing being deterministic and fault-tolerant (Phase 12)
+- Mesh topology and event replication being reliable under partition scenarios (Phase 11)
+- Cluster signing key distribution and rotation being solid (Phase 12 — T123–T128, T158–T160)
+- Trust model hardening (T108) so internal mesh calls cannot be spoofed or replayed
+
+Migrating on top of unreliable infrastructure creates double work: bugs in routing or secret management will cascade into migrated feature modules and require re-work.
+
+**Completion criteria for the hold to lift (minimum):**
+- [x] T131 — Chaos and partition validation for active-active routing (all scenarios green)
+- [x] T108 — Mesh trust/security model (signed control envelopes, replay-window guards)
+- [x] T106 — Event stream replication over mesh (cursor-based replay)
+- [x] T107 — Partition/failover policies (AP/CP modes, degraded-mode behavior)
+
+All criteria met. Phase 4 (preview automation) can now begin in parallel with T109–T112.
+
+## Canonical execution TODO (single source of truth)
+
+This document is the **only authoritative execution checklist** for deployment migration work.
+
+> **Decision recorded 2026-03-20**: Defer organization-scoped runtime complexity for the current execution window. Prioritize a multi-instance realtime platform based on shared DB + mesh sync + event streaming, with authorization simplified to **platform roles + project-scoped roles**. Organization overlays and org-scoped mesh/runtime logic will be reintroduced in a dedicated later phase.
+
+Rules:
+
+- Track completion status **only here**.
+- Treat `migration-master-plan.mdx` checkboxes as **reference map only** (do not mark progress there).
+- If a discovered implementation step is missing, add it here with a new `Txxx` task before coding.
+- For each completed task, update this file in the same change set as code/docs updates.
+- Implementation order must follow this list unless a dependency-based reorder is explicitly documented.
+
+## Execution phases
+
+### Phase 0 — Program setup and baseline safety
+
+- [ ] T001 Create migration epics and milestones (`MVP`, `Preview GA`, `Fleet GA`, `Production GA`) in project tracking.
+- [ ] T002 Assign module/epic ownership for runtime-critical areas (`orchestration`, `deployment`, `service`, `project`, `github`, `traefik`).
+- [ ] T003 Freeze baseline test matrix for API/contracts/web domain hooks and document expected pass criteria.
+- [ ] T004 Define non-bypass milestone blocking criteria and exception process.
+- [ ] T005 Enforce docs-in-same-change policy for migration behavior changes.
+
+### Phase 1 — Template platform foundation (critical path)
+
+- [x] T006 Implement typed versioned contracts for `ProviderTemplate`, `BuildTemplate`, `DeployTemplate`, `RouteTemplate`, `PreviewTemplate`, and `DependencyTemplate`.
+- [x] T007 Implement template compatibility matrix validation (provider × build × deploy × env).
+- [x] T008 Implement structural + semantic template validation engine.
+- [x] T009 Implement inheritance resolver chain (global → provider → project → environment → deployment-run override).
+- [x] T010 Implement template version migration framework (up/down transforms + safety checks).
+- [x] T011 Persist template provenance per deployment run (exact versions/overrides used).
+- [x] T012 Persist immutable compiled plan snapshot per run.
+
+### Phase 2 — Compiler and orchestration core
+
+- [x] T013 Implement deterministic plan compiler (`template + context -> DAG`) and plan hash.
+- [x] T014 Implement orchestration queue worker with idempotent job handling.
+- [x] T015 Implement deployment phase state machine with strict transition guards.
+- [x] T016 Implement retry/backoff policies by node/task type.
+- [x] T017 Implement rollback edges in compiled plan execution graph.
+- [x] T094 Harden completed orchestration contracts with explicit observability, progression, and connectivity metadata.
+- [x] T018 Implement cancellation and resume semantics for running deployments.
+- [x] T019 Emit typed lifecycle events (`start/success/fail/retry/rollback`) for each graph node.
+- [x] T020 Add dead-letter queue and replay tooling for failed orchestration jobs.
+- [x] T095 Implement API runtime/controller parity for Phase 2 orchestration contracts (`T016`–`T020`, `T094`).
+
+### Phase 3 — Vertical slice A (Deploy-to-live MVP)
+
+- [x] T021 Wire deployment trigger path to orchestration queue.
+- [x] T022 Implement GitHub source checkout adapter baseline path.
+- [x] T023 Implement build execution and artifact metadata persistence.
+- [x] T024 Implement container lifecycle actions (`create/start/replace/cleanup`).
+- [x] T025 Implement Traefik route apply + verification before success state.
+- [x] T026 Implement readiness/health gate and fail-fast behavior for unhealthy deployments.
+- [x] T027 Persist deployment timeline (durations + structured logs + correlation id).
+- [x] T028 Implement rollback to previous successful deployment.
+- [x] T029 Add MVP smoke e2e scenario (`trigger -> reachable URL -> health green`).
+
+### Phase 4 — Vertical slice B (Preview automation)
+
+- [x] T030 Integrate `PreviewTemplate` into compiler and orchestration flows. — `compilePlan()` extended with `route_configure`+`cleanup_register` DAG nodes when `environment="preview"`.
+- [x] T031 Implement deterministic preview naming (`service + branch/PR + hash`). — `PreviewNamingService` + 12 unit tests.
+- [x] T032 Implement webhook-driven preview create/update orchestration. — `GithubWebhookController` + `GithubWebhookDispatchService` in `apps/api/src/modules/github/`; PR opened/sync/closed dispatch.
+- [x] T033 Implement preview environment overlays and secret scoping. — `PreviewEnvOverlayService` (inherit/merge/replace strategies).
+- [x] T034 Implement preview DNS/routing + TLS lifecycle coupling. — `route_configure` DAG node in `compilePlan()` carries `previewTemplateId` metadata for downstream routing executor.
+- [x] T035 Implement preview cleanup policies (merge, close, TTL). — `PreviewCleanupPolicyService` + 10 unit tests.
+- [x] T036 Add webhook idempotency keys and duplicate-delivery handling. — `WebhookIdempotencyService` (bounded LRU Map, 10k cap) in `GithubWebhookController`.
+- [x] T037 Add preview lifecycle audit trail. — `PreviewLifecycleEventService` + `previewLifecycleEventContracts` (previewCreated/previewUpdated/previewCleaned).
+
+### Phase 5 — Vertical slice C (Fleet control)
+
+- [x] T038 Implement service DAG generation from `service_dependencies` + template policy constraints.
+- [x] T039 Implement rollout strategies (`ordered`, `constrained parallel`, `rolling windows`, `canary`).
+- [x] T040 Implement dependency-aware readiness gates across services.
+- [x] T041 Implement fleet rollback semantics (local vs full rollback).
+- [x] T042 Implement partial failure containment and failure domain boundaries.
+- [x] T043 Implement project/cross-project dependency gates (configurable).
+- [x] T044 Implement drift reconciliation loop (desired vs actual state).
+
+### Phase 6 — Security, policy, and reliability hardening
+
+- [x] T045 Validate and enforce ownership checks on all deployment mutation endpoints.
+- [x] T046 Enforce RBAC for project/fleet control operations.
+- [x] T047 Harden secret lifecycle (encrypt, rotate, revoke) and provider credential handling.
+- [ ] T048 Harden webhook verification and replay protection.
+- [ ] T049 Standardize deployment event taxonomy and correlation propagation.
+- [ ] T050 Add dashboards/alerts for deploy success rate, latency, MTTR, rollback rate, and stuck phases.
+- [ ] T051 Define SLOs and wire SLO-aware rollback hooks.
+- [ ] T143 Implement audit log schema (`audit_logs` table), module, and write-path instrumentation on all mutating endpoints (creation, deletion, config change, deploy trigger).
+- [ ] T144 Implement container resource quota schema (`container_resource_limits`, `org_quota_budgets`) and enforcement middleware (hard limits per org/service at scheduling time).
+- [ ] T145 Implement network firewall policy schema (`network_policies`) and per-service allow/deny rule enforcement injected as Traefik middleware labels.
+- [ ] T146 Implement custom RBAC role builder (per-service, per-project, per-org scope) and permission matrix UX on top of Better Auth integration.
+
+### Phase 7 — Web control plane completion
+
+- [ ] T052 Build template management UX (CRUD, validation preview, version history).
+- [ ] T053 Build plan simulation UX (compile-only preview + risk hints).
+- [ ] T054 Build deployment timeline + stream viewer UX (filter/search).
+- [ ] T055 Build preview dashboard (status/URL/TTL/cleanup controls).
+- [ ] T056 Build fleet operations dashboard (dependency graph + rollout controls).
+- [ ] T057 Add pre-launch policy/compatibility warnings in UI.
+- [x] T147 Add missing web domain hooks for `project`, `service`, and `deployment` modules (`apps/web/src/domains/{project,service,deployment}/{endpoints,hooks,invalidations}.ts`).
+
+### Phase 8 — Module parity and technical debt closure
+
+- [ ] T058 Migrate `orchestration` module and integrate as runtime source of truth.
+- [ ] T059 Reach deep parity for `project` and `service` modules.
+- [x] T273 Harden `project`/`service` parity baseline with strict service dependency integrity and deployment context propagation: enforce same-project + cycle checks in `ServiceService.addDependency`, enforce deployment trigger dependency project-boundary validation, propagate dependency graph + `projectId` into queue payload context (including rollback), add `projectId` support to deployment list contract/repository filtering, and propagate runtime-config environment variables through queue -> workflow -> runtime runner execution options.
+- [ ] T060 Migrate `ci-cd` into policy-backed automation model.
+- [ ] T061 Complete `github` advanced parity (webhooks/app flows/edge cases).
+- [ ] T062 Complete `websocket` real-time deployment UX parity.
+- [ ] T063 Complete `cleanup` and long-tail operational modules parity.
+- [ ] T064 Harmonize naming/enums/error models across contracts/API/schema/events.
+- [ ] T065 Remove remaining hardcoded provider/strategy decision branches in favor of templates.
+- [x] T096 Split v3 deployment runtime into dedicated provider/runner registries and modules (improves v1/v2 adapter baseline by enforcing interface-driven plugin boundaries).
+- [x] T097 Extract queue build/runtime/rollback execution flow into dedicated `DeploymentExecutionWorkflowService` so `DeploymentService` remains orchestration-focused.
+- [x] T098 Extract queue/dead-letter state transitions into dedicated `DeploymentQueueLifecycleService` and delegate from `DeploymentService`.
+- [x] T099 Rewrite event streams as contract-defined durable subscribe/emit bridges (remove runtime strategy selection and dynamic stream CRUD paths).
+- [x] T161 Implement Bull queue consumer bridge for deployment runtime so Bull deliveries claim exact lifecycle jobs by idempotency key and execute mesh-aware `claim -> heartbeat -> complete/fail` transitions through `DeploymentService`.
+- [ ] T148 Implement Docker registry management module (`registries` table, built-in private registry lifecycle, external registry integration: GHCR, Docker Hub).
+- [ ] T149 Implement notification channels module (`notification_providers` table + Slack, email, Discord, and custom webhook providers with transformed payloads).
+- [ ] T150 Implement persistent storage providers module (`storage_providers` table: NFS, S3-compatible, managed PostgreSQL/Redis, named Docker volumes).
+- [x] T162 Implement storage provider plugin foundation in API runtime (`DeploymentStorageProvidersModule` + registry + provider interface + local/s3/nfs/volume provider services) with default `local` resolution and update strategy contract (`auto_redeploy` vs `manual_update_button`).
+- [x] T163 Integrate storage registry resolution into deployment trigger flow (`DeploymentService.triggerDeployment`) so upload/manual queue context includes resolved `storageBinding` alongside `sourceCheckout`.
+- [x] T164 Consume queue `storageBinding` in runtime execution materialization (`DeploymentExecutionWorkflowService` -> `RuntimeRunnerRegistryService` -> `DockerRuntimeRunnerService`) so mount behavior and storage update strategy are enforced during container create/start.
+- [x] T165 Harden local/manual runtime lifecycle behavior by normalizing local storage bind paths for Docker create/start and validating manual-upload deployment flow covers storage mount materialization + Traefik route sync execution path.
+- [x] T166 Enforce deployment load-balancer sync env contract through `@repo/env` + API `EnvService` (no direct `process.env` usage in deployment controller/adapter runtime paths).
+- [x] T167 Split runtime runner aliases into per-runner preparation policies so each runner type (`dockerfile`, `docker_compose`, `nixpacks`, `buildpack`, `railpack`) enforces dedicated runtime readiness defaults/guards before container execution.
+- [x] T168 Propagate typed `runtimeRunnerOptions` from source checkout context through queue completion into `DeploymentExecutionWorkflowService` + runtime input so runner-specific configuration is explicit (not defaults-only), with backward-compatible fallback from legacy flat runner fields.
+- [x] T169 Enforce per-runner option policy schemas in dedicated runner services (typed subset per runner with validation + precedence) and add regression coverage for valid per-runner overrides and invalid cross-runner option payloads.
+- [x] T170 Add advanced runner-specific `runtimeRunnerOptions` sections (`dockerfile`/`dockerCompose`/`nixpacks`/`buildpack`/`railpack`) with backward-compatible flat option support, strict per-runner envelope validation, and nested-option precedence in runner preparation.
+- [x] T171 Extend advanced nested runner option sections with backend-specific hints (`dockerCompose.profiles`, `buildpack.builder`, `railpack.startupCommand`) and ensure they remain schema-validated + queue/workflow propagated without breaking strict per-runner policy guards.
+- [x] T172 Introduce explicit runtime `executorOptions` contract (`labels`, `startupCommand`) and map nested runner hints to executor behavior in dedicated runners + Docker runtime container create path.
+- [x] T173 Harden runtime execution safety and lifecycle resilience for manual/local deployments by sanitizing executor hints (`labels`, `startupCommand`), tolerating non-critical load-balancer sync failures without aborting successful container start, and extending regression coverage for Docker + local storage + Traefik/LB flow.
+- [x] T174 Harden runtime route + LB convergence with bounded retry semantics: retry Traefik sync/verification on transient failures before failing deployment, retry LB ownership sync before falling back to non-fatal `skipped`, and add regression coverage for retry behavior.
+- [x] T175 Add typed runtime convergence policy inputs and observability metadata: propagate retry policy knobs (`traefikSyncMaxAttempts`, `loadBalancerSyncMaxAttempts`, `convergenceRetryBaseDelayMs`) through runtime runner options, apply them in Docker runtime retry loops, and persist retry attempt counts in route/LB runtime result metadata.
+- [x] T176 Persist convergence policy source attribution in deployment timeline/runtime metadata: record whether each convergence knob comes from `runtimeRunnerOptions`, legacy flat queue result fields, or defaults, and include this attribution in lifecycle/timeline logs for operator audits.
+- [x] T177 Emit dedicated deployment lifecycle audit log entry for resolved convergence policy (`step: convergence_policy`) including value + source attribution, enabling deterministic operator filtering independent of generic timeline payloads.
+- [x] T178 Extend deployment logs query path with typed filters (`level`, `phase`, `step`) and wire `step=convergence_policy` retrieval through contract → controller → service → repository for deterministic operator-level audit views.
+- [x] T179 Harden runtime Traefik bootstrap path so missing service route configuration auto-creates a default Traefik service config before retrying route sync, with regression coverage for missing-config recovery.
+- [x] T180 Enforce cross-provider dockerfile runtime image contract at deployment trigger time: when resolved `sourceCheckout.runtimeRunner` is `dockerfile`, require a non-empty `containerImage` regardless of provider (`upload`, `custom`, or future providers), and cover with deployment service regression tests.
+- [x] T181 Start GitHub provider parity by supporting `pullRequestNumber` source config in checkout resolution, deriving deterministic PR ref fallback branch (`refs/pull/<n>/head`) when `branch` is omitted, and covering behavior with provider-focused regression tests.
+- [x] T218 Resolve upload source bundles server-side by `uploadId` (`UploadBundleRegistryService`) so trigger flows no longer depend on client-provided `uploadPath`, and add regression coverage for uploadId-only success + unknown uploadId rejection.
+- [ ] T151 Implement deployer.yaml YAML parser and bidirectional sync engine (parse file → DB, DB → file + open GitHub PR with config diff on UI change).
+- [ ] T152 Implement cron job scheduler (cron expression evaluation for `cron` workload type) and one-shot task executor (pre-deploy migration command runner).
+- [ ] T153 Wire SSE deployment log streaming end-to-end via ORPC EventIterator (execution service → mesh event → web domain hook → xterm.js viewer).
+- [x] T221 Extract deployment stream mesh proxy orchestration from `DeploymentController` into `DeploymentStreamBridgeService` with schema-validated SSE event parsing and controller-level delegation only.
+- [ ] T154 Implement cascade deploy orchestration using existing `service_dependencies` table (trigger policy, health-gate enforcement, configurable enable/disable per dependency edge).
+- [ ] T155 Implement deployment approval gate module (`deployment_approval` table) with per-tier config UI (auto vs manual gate, approval rules per environment tier).
+
+#### Docker standalone-first execution pack (phase boundary lock)
+
+- [ ] T275 Publish and enforce Docker standalone-first scope boundary: core Docker operator workflows must not require deployment/project/service linkage.
+- [ ] T276 Expand Docker contract/API parity for standalone operator capabilities (container lifecycle mutations, image pull/tag/remove/prune and registry search/catalog/tags, network create/connect/disconnect, volume create/inspect/browse/clone/export, stack start/stop/restart/down + compose/env controls).
+- [ ] T277 Remove hard-linked projection dependency from Docker web pages (`containers/images/networks/volumes/stacks/registry`) and keep linked metadata as optional additive enrichment only.
+- [ ] T278 Add focused tests for standalone behavior and graceful degradation when linked enrichment endpoints fail or are disabled.
+- [ ] T279 Introduce Phase-2 linked overlay adapters (deployment/service/project context) behind explicit optional endpoints with non-blocking fallback semantics.
+- [ ] T280 Implement SSE streaming excellence baseline for Docker pages: cursor-resume semantics, heartbeat keepalive, reconnect/backoff strategy, typed error envelopes, and degraded-mode fallback to polling snapshots.
+- [ ] T281 Add Docker streaming reliability test suite (disconnect/reconnect, cursor replay, duplicate delivery idempotency, lag/drop diagnostics, and stream filter fidelity).
+
+#### GitHub provider deep-parity expansion
+
+- [ ] T182 Harden GitHub webhook signature + replay verification: enforce timestamp freshness, delivery-id dedupe TTL, and explicit failure taxonomy (`signature_invalid`, `replay_blocked`, `payload_invalid`).
+- [ ] T183 Persist GitHub webhook delivery audit records (`delivery_id`, `event`, `action`, `repo`, `installation_id`, `status`, `failure_reason`, `correlation_id`) with query indexes.
+- [ ] T184 Add GitHub delivery replay endpoint/service with dry-run mode and safety guardrails (role-gated + bounded replay horizon).
+- [ ] T185 Normalize webhook payloads to a typed internal envelope (`GitHubNormalizedEvent`) consumed by dispatch logic and queue triggers.
+- [ ] T186 Implement push-event trigger parity (`created/deleted/forced` flags + branch extraction consistency) and map to deployment trigger semantics.
+- [ ] T187 Implement PR event matrix parity (`opened`, `synchronize`, `reopened`, `closed`, `converted_to_draft`, `ready_for_review`) with policy-aware dispatch.
+- [ ] T188 Implement tag event trigger flow with semantic tag matching (`exact`, wildcard, semver channels).
+- [ ] T189 Add repository-dispatch trigger support (`repository_dispatch`) with typed payload passthrough and service-level opt-in.
+- [ ] T190 Implement deployment rule engine for GitHub triggers (branch include/exclude, path filters, tag filters, priority ordering).
+- [ ] T191 Add monorepo changed-files path filter support to GitHub trigger evaluation (skip deploy when no matching path delta).
+- [ ] T192 Implement environment routing policy for GitHub events (e.g., branch/tag/PR route to production/staging/preview) with strict validation.
+- [ ] T193 Add fork-PR security policy (`deny`, `allow_preview_only`, `allow_full`) and enforce across PR-triggered deployment paths.
+- [ ] T194 Add draft-PR behavior policy (`ignore`, `allow_preview`) and enforce during PR open/sync events.
+- [ ] T195 Complete GitHub PR preview lifecycle wiring: create on open, refresh on synchronize, cleanup on close/merge, with idempotent transitions.
+- [ ] T196 Implement preview URL/status feedback to GitHub PR (comment or check summary) with configurable verbosity.
+- [ ] T197 Wire deployment lifecycle outcomes to GitHub commit status updates (pending/success/failure/cancelled/rollback semantics).
+- [ ] T198 Add optional GitHub Checks API integration for richer deployment result reporting (summary, annotations, target URL).
+- [ ] T199 Implement GitHub installation/repository sync worker (incremental + full sync, archived repo handling, pagination resilience).
+- [ ] T200 Add branch/tag discovery APIs for GitHub-connected repositories for web autocomplete and trigger validation.
+- [ ] T201 Implement installation permission drift checks (required scopes vs actual installation scopes) with operator-visible diagnostics.
+- [ ] T202 Add GitHub credential/installation health endpoint and periodic background validation (token refresh, app reachability).
+- [ ] T203 Add queue backpressure and retry policy for GitHub webhook bursts (bounded concurrency, dedupe-before-enqueue, dead-letter routing).
+- [ ] T204 Add GitHub event observability metrics (`accepted`, `rejected`, `replayed`, `triggered`, `latency_ms`) and emit to analytics pipeline.
+- [ ] T205 Add end-to-end correlation tracing from webhook intake to deployment lifecycle/log timeline for GitHub-triggered runs.
+- [ ] T206 Add API endpoints for GitHub delivery history browsing/filtering (repo/event/action/status/time window).
+- [ ] T207 Build web GitHub provider settings page (installation status, repository linking, trigger policy editor).
+- [ ] T208 Build web GitHub delivery log UI (event table, payload inspector, replay action with confirmation).
+- [ ] T209 Build web GitHub trigger rule editor UI (branch/path/tag filters, environment routing preview, policy lint warnings).
+- [ ] T210 Build web PR preview policy panel (draft/fork behavior, cleanup policy, URL pattern templates).
+- [ ] T211 Add conformance test suite for all source providers to guarantee normalized source context invariants remain stable as providers evolve.
+- [ ] T212 Add GitHub webhook unit/integration tests for hostile payloads and replay attempts (invalid signature, stale timestamp, duplicate delivery ID).
+- [ ] T213 Add GitHub trigger integration tests for push/PR/tag/repository-dispatch event flows (match + no-match scenarios).
+- [ ] T214 Add GitHub preview lifecycle e2e tests (open → update → close with resource cleanup assertions).
+- [ ] T215 Add GitHub status/check feedback e2e tests proving deployment outcome propagation back to commit/PR surfaces.
+- [ ] T216 Document GitHub provider operator runbook (installation bootstrap, permission troubleshooting, replay incident response).
+- [ ] T217 Document GitHub provider API contracts and event taxonomy in docs with sample payload mappings.
+- [ ] T218 Add migration compatibility notes for v1/v2 GitHub provider behavior differences and fallback policies.
+- [ ] T219 Define GitHub provider SLOs (webhook acceptance latency, trigger reliability, preview cleanup latency) and alert thresholds.
+- [ ] T220 Gate `T061` completion on GitHub provider parity scorecard (security, trigger correctness, preview lifecycle, feedback loop, UX, observability all green).
+
+### Phase 9 — Quality gates and production rollout
+
+- [ ] T066 Add contract tests for template + plan APIs.
+- [ ] T067 Add integration tests per vertical slice (live deploy, preview lifecycle, fleet deploy).
+- [ ] T068 Add failure/chaos tests (network faults, route failure, stuck orchestration jobs).
+- [ ] T069 Add performance tests (compiler/orchestrator throughput and latency budgets).
+- [ ] T070 Add security tests (authz, secret access, webhook replay).
+- [ ] T071 Keep `bun run check` green at every phase boundary and before merge.
+- [ ] T072 Execute staged rollout (`dev -> staging -> canary prod -> full prod`).
+- [ ] T073 Execute backup/restore verification before first production cutover.
+- [ ] T074 Run operator onboarding + runbook drills.
+- [ ] T075 Validate post-release window with explicit rollback triggers.
+- [ ] T092 Define and execute data migration/backfill plan for template/provenance model changes.
+- [ ] T093 Produce production release checklist with explicit sign-off owners and approvals.
+- [ ] T156 Implement backup & disaster recovery module (`backup_configs` table, S3 backup scheduling engine, restore verification flow).
+
+### Phase 10 — Advanced ideas and governance completion
+
+- [ ] T076 Implement plan diff engine (previous vs next compiled plan) and expose approval-relevant delta output.
+- [ ] T077 Implement mandatory plan approval hooks for protected environments/strategies.
+- [ ] T078 Implement policy bundle loader and policy version pinning for deploy-time enforcement.
+- [ ] T079 Implement time-window/freeze-window enforcement and team/role/environment approval integration.
+- [ ] T080 Implement blast-radius policy checks and pre-run failure reporting.
+- [ ] T081 Implement progressive delivery canary ramps with automatic SLO-triggered rollback.
+- [ ] T082 Implement environment-matrix deploy orchestration with dependency-aware promotion gates.
+- [ ] T083 Implement cross-project dependency registry and gate-aware scheduler.
+- [ ] T084 Implement desired-vs-actual drift diff service with safe auto-reconcile executor.
+- [ ] T085 Implement internal template marketplace (signed catalog + compatibility metadata).
+- [ ] T086 Implement deployment-level config provenance timeline and audit export API.
+- [ ] T087 Implement cell-based fleet scheduling (cell model + placement policy engine).
+- [ ] T088 Implement utilization-driven capacity rebalancing with controlled live migration guardrails.
+- [ ] T089 Implement failure-domain isolation policies and blast-radius segmentation enforcement.
+- [ ] T090 Add explicit defer protocol for unchecked advanced tasks (owner + rationale + target milestone).
+- [ ] T091 Enforce checklist hygiene automation: every closed task must reference tests, docs update, and verification evidence.
+- [ ] T157 Implement plugin/extension system (`plugin_definitions` table, typed provider interface, self-hosted marketplace with admin review/approval + operator override).
+- [ ] T221 Publish advanced documentation suite for supply-chain trust, finops guardrails, compliance/data governance, and disaster-recovery game-day operations.
+- [ ] T222 Implement Deployment Trust Gate foundation (image signature/provenance policy check before protected-environment rollout) with typed failure reasons and audit logs.
+- [ ] T223 Implement Cost Guardrail Engine baseline (org/project budget policy evaluation in deploy preflight, warn/enforce modes, timeline evidence).
+- [ ] T224 Implement Resilience GameDay Controller baseline (scheduled drill templates, fault injection orchestration hooks, pass/fail report export).
+- [ ] T225 Add e2e policy tests for trust/cost gates (allow/warn/block paths) and operator diagnostics.
+- [ ] T226 Add operator UI surfaces for trust/cost/gameday policy status and drill/report history.
+- [ ] T227 Implement internal Template Pack catalog baseline (signed reusable app/service templates with compatibility metadata and risk labels).
+- [ ] T228 Implement remote connectivity profile model (`direct`, `edge`) and operator diagnostics for fleet node onboarding in constrained network topologies.
+- [ ] T229 Extend trigger rule engine with change-scoped deploy policy preview (monorepo path diff evaluation + explainability in UI/API).
+- [ ] T230 Expand custom RBAC permission matrix with environment-scoped deploy/registry/backup/audit domains and least-privilege presets.
+- [ ] T231 Integrate security-aware update policy bridge between Trust Gate outcomes and rollout/update orchestration decisions.
+- [ ] T232 Implement typed async operation job contract with optional synchronous response mode for automation/CLI interoperability on long-running operations.
+- [ ] T233 Define and validate typed connectivity profile schemas/contracts (`direct`, `edge`) plus diagnostics reason taxonomy for fleet node onboarding.
+- [ ] T234 Implement API/service persistence + enrollment wiring for connectivity profile selection and profile-aware readiness checks.
+- [ ] T235 Implement connectivity diagnostics endpoint + operator UI panel (profile status, last heartbeat/session, remediation hints).
+- [ ] T236 Add connectivity profile integration/e2e coverage for NAT-like edge onboarding and direct-profile failure diagnostics.
+- [ ] T237 Define typed environment-scoped RBAC permission schema (`domain`, `action`, `include/exclude env scope`, `allow/deny`) and deny-first resolver semantics.
+- [ ] T238 Implement RBAC resolver integration across deploy/registry/backup/audit mutation endpoints with deterministic deny reason codes.
+- [ ] T239 Implement least-privilege preset roles + effective-permission explain endpoint/UI for actor/resource/environment checks.
+- [ ] T240 Add RBAC integration/e2e coverage for environment-bound allow/deny behavior and preset-role regression matrix.
+- [ ] T241 Define Trust Gate -> orchestration bridge contract (typed trust outcome envelope + policy-driven action mapping: proceed/warn/halt/quarantine).
+- [ ] T242 Wire trust-aware bridge into preflight and rollout phase gates so update/deploy decisions consume trust outcomes before execution.
+- [ ] T243 Implement timeline/log evidence surfaces for trust-bridge decisions (reason code + correlation + optional override annotation).
+- [ ] T244 Add trust-bridge policy integration/e2e tests covering warn/block/quarantine/override behavior by environment tier.
+- [ ] T245 Define typed long-operation contract (`mode=async|sync`, timeout semantics, accepted/terminal states, correlation envelope).
+- [ ] T246 Implement optional synchronous response mode with timeout fallback-to-async and stable operation status polling endpoints.
+- [ ] T247 Implement operation stream/watch + cancellation wiring and CLI/automation examples for contract interoperability.
+- [ ] T248 Add async/sync operation integration/e2e coverage (sync-success, sync-timeout->async completion, deterministic failure codes).
+- [x] T249 Enforce explicit provider->builder->runner separation in deployment queue runtime: add dedicated containerized artifact builder stage (`DeploymentArtifactBuilderService`) with strategy guards (`dockerfile`, `docker_compose`, `nixpacks`, `buildpack`, `railpack`, `external`), ensure builder precedence over provider runtime hints, and validate via deployment queue/service builder-focused tests.
+- [x] T250 Add custom build/run command policy to execution plan: support typed `customCommands` (`buildCommand`, `runCommand`) with CLI enablement gates (`node`, `bun`, `npm`, `pnpm`, `yarn`), enforce policy in builder stage, generate containerized custom Dockerfile builds, and propagate custom run command to runtime executor startup command.
+- [x] T251 Add regression coverage for ZIP upload Dockerfile path in builder stage: verify archive extraction is used as build context for `dockerfile` builder and enforce fail-fast guard when extracted context has no Dockerfile.
+- [x] T252 Enforce phase-specific health/retry policy gates beyond runtime readiness: apply build-stage retry policy in queue builder execution and deploy-stage retry policy around runtime runner invocation, with regression coverage for retry success and retry exhaustion paths.
+- [x] T253 Expose operator-facing retry consumption summary on deployment logs query (`includeRetrySummary`) and wire contract/controller/service response with deployment-scoped build/deploy retry event counts.
+
+#### Multi-instance realtime spine + org complexity deferral (2026-03 execution pack)
+
+**Execution precondition (mandatory for this pack):**
+
+Before implementing `T255+`, role boundaries for **Mesh** vs **Event System** must be explicitly documented and approved in this file and related docs. Use the following contract as the baseline source of truth:
+
+- **Event System role (domain truth + replayability)**
+	- Defines typed domain event contracts and taxonomy.
+	- Emits events only from committed state transitions.
+	- Owns replay/cursor semantics and consumer-facing stream envelopes.
+	- Provides idempotent/event-ordered application rules for projections.
+- **Mesh role (distribution + cross-instance delivery)**
+	- Transports internal events/control envelopes between instances.
+	- Owns membership, liveness, fanout, backpressure, and partition behavior.
+	- Does **not** define domain semantics; it carries validated envelopes.
+	- Enforces trust/replay protections for inter-node traffic.
+- **Database role (durable source of truth)**
+	- Persists transactional state and outbox records.
+	- Guarantees recovery path after node/process failures.
+	- Serves as replay base for cursor catch-up and projection rebuild.
+
+Implementation boundary rules:
+
+- Domain modules must not encode mesh transport concerns in business event schemas.
+- Mesh modules must not hardcode business event interpretation logic.
+- Public realtime APIs expose domain stream contracts; mesh contracts remain internal control-plane.
+
+- [x] T268 Publish and lock Mesh/Event/DB responsibility matrix in docs + contracts (single canonical glossary, invariants, and ownership boundaries), and block `T255+` implementation until this baseline is approved. **Documentation baseline references:** `apps/doc/content/docs/dev/event-system-streams.mdx#responsibility-matrix-t268-baseline`, `apps/doc/content/docs/deployment/fleet-federation-architecture.mdx#responsibility-matrix-t268-baseline`. **Contract baseline references:** `packages/contracts/api/common/event-stream.ts#coreDomainEventEnvelopeSchema`, `packages/contracts/api/common/mesh.ts#meshEventPublishPayloadSchema`, `packages/contracts/api/common/mesh.ts#meshEventReplayChunkPayloadSchema`.
+- [x] T269 Implement schema-first mesh resource discovery DSL for stream ownership lookup and auto-wiring (`select(meshStreamResourceSchema).where(eq(...))`): add typed schema field refs + predicate operators (`eq/neq/inArray/contains/startsWith/endsWith/exists/and/or/not`), support path-based metadata filtering, and migrate deployment stream bridge lookup to the new API while preserving remote selection and local auto-register behavior.
+- [x] T270 Expand mesh resource discovery query builder with list + aggregate primitives (`list/list$/aggregate/aggregate$`) and add regression coverage for kind-constrained listing, event-like aggregation folds, and logical-expression list filtering.
+- [x] T271 Implement mesh-consumer stream boundary split for deployment realtime: introduce `MeshStreamRuntimeService` in mesh core for transport/discovery/auth header concerns, extract `DeploymentStreamOrchestratorService` for feature-level local-vs-remote stream orchestration, and keep `DeploymentController.stream` as thin delegation only. *(Implemented in `apps/api/src/core/modules/mesh/services/mesh-stream-runtime.service.ts`, `apps/api/src/modules/deployment/mesh/services/deployment-stream-orchestrator.service.ts`, `apps/api/src/modules/deployment/controllers/deployment.controller.ts`, with focused regression coverage in deployment controller + orchestrator specs.)*
+- [x] T272 Add focused mesh runtime bridge regression coverage (`MeshStreamRuntimeService`) for local fallback, remote bridge open, and signed internal header forwarding semantics. *(Implemented in `apps/api/src/core/modules/mesh/services/mesh-stream-runtime.service.spec.ts`; validated together with deployment stream orchestrator/controller boundary suites.)*
+
+- [x] T254 Publish and enforce temporary auth scope model: runtime control paths use platform roles + project roles only; organization-scoped auth rules are deferred behind a feature gate and documented as out-of-scope for this pack. *(Implemented by enforcing deployment mutation authorization through actor platform role + project role checks and by tightening control-plane mutation endpoints to platform ops roles.)*
+- [x] T255 Implement platform-role + project-role permission matrix baseline (`platform`: `superAdmin|admin|operator|viewer`; `project`: `owner|maintainer|deployer|viewer`) and map all deployment mutation endpoints to this matrix. *(Implemented for deployment runtime-control and mutation endpoints via `DeploymentService` authorization matrix + controller guards.)*
+- [x] T256 Remove hard dependency on active organization context in deployment trigger/queue/runtime APIs; resolve authorization by actor platform role + project membership role. *(Implemented by removing active-org propagation from trigger/queue/result runtime wiring and enforcing actor platform role + project-role authorization in deployment mutation paths.)*
+- [x] T257 Add typed global event envelope contract (`eventId`, `aggregateType`, `aggregateId`, `eventType`, `version`, `occurredAt`, `traceId`, `causationId`, `payload`, `metadata`) and enforce schema validation at producer/consumer boundaries. *(Enforced on mesh `event_publish` producer/consumer boundaries in `SystemMeshTopicService` via `meshEventPublishPayloadSchema` + typed topic payload parsing; regression tests added for valid canonical envelopes and malformed envelope rejection.)*
+- [x] T258 Implement transactional outbox for deployment/project/service write paths (state mutation + outbox append in one transaction) with dispatcher retries and dedupe semantics. *(Implemented by transactionally appending canonical domain envelopes to `local_event_outbox` across deployment/project/service mutation repositories and adding `LocalEventOutboxDispatcherService` polling with schema validation, duplicate sent-event detection by `eventId`, exponential retry scheduling, and dead-letter fallback; covered by new dispatcher unit tests plus focused deployment/project/service service regression suite.)*
+- [x] T259 Add idempotent consumer framework for mesh/event handlers (processed-event store + duplicate no-op behavior) and regression coverage for duplicate and redelivery scenarios. *(Implemented by adding a processed-event store in `SystemMeshTopicService` keyed by canonical `eventId` at the `event_publish` consumer boundary; duplicate envelopes are now no-op after first successful apply, while failed first deliveries are not marked processed and can be redelivered successfully. Added regression tests for duplicate-noop and redelivery-after-failure in `system-mesh-topic.service.spec.ts`.)*
+- [x] T260 Enforce per-aggregate ordering/version guards for event application and projection updates; add replay test ensuring deterministic final state under shuffled delivery. *(Implemented in `SystemMeshTopicService` by tracking per-aggregate progress (`aggregateType:aggregateId:eventType`) and rejecting stale/out-of-order `event_publish` envelopes based on sequence and numeric version guards. Added regression coverage for shuffled replay ordering and version-only stale suppression in `system-mesh-topic.service.spec.ts`.)*
+- [x] T261 Eventize deployment lifecycle end-to-end (provider/build/runner/route/LB/health transitions) through canonical event taxonomy emitted from committed state transitions. *(Implemented by emitting committed lifecycle logs for provider checkout resolution (`provider.checkout_resolved`) and explicit build/runner/routing/LB/health steps in deployment workflow (`build_started`, `build_completed`, `runtime_execute`, `runtime_completed`, `route_verification`, `load_balancer_sync`, `readiness_gate`). Each persisted log transaction appends a canonical `deployment.lifecycle.*` outbox envelope in `DeploymentRepository.insertLog`, ensuring taxonomy events derive from committed state transitions. Regression coverage added in deployment service/workflow specs.)*
+- [x] T262 Harden realtime stream contracts with resume cursor semantics, typed filters (`aggregateId`, `eventType`, `since`), and reconnect/catch-up guarantees. *(Implemented by extending deployment stream query contracts with typed realtime filters (`aggregateId`, `eventType`, `since`) plus `cursor`, adding emitted-event cursor metadata in stream envelopes, and enforcing replay/live filter semantics in `DeploymentService.streamQueryEvents` with since-based catch-up filtering and cursor-resume sequence continuity. Added controller forwarding and regression coverage for typed filter passthrough + filtered replay/live sequencing.)*
+- [x] T263 Implement projection/read-model updater workers driven by canonical stream events, including replay/rebuild workflow and drift detection checks. *(Implemented via `DeploymentReadModelProjectorService` worker that consumes canonical `deployment.lifecycle` outbox envelopes, incrementally updates deployment read-model projections, supports full replay/rebuild (`rebuildAll`) from persisted outbox history, and exposes drift checks against latest persisted deployment logs (`detectDrift`). Registered in `DeploymentModule` and covered by focused unit tests for batch projection, replay/rebuild convergence, and drift mismatch detection.)*
+- [x] T264 Implement mesh fanout resilience controls (heartbeat/liveness, bounded backpressure queue, lag/retry/drop metrics) for multi-instance reliability. *(Implemented in `BaseMeshService.callMany` with bounded response buffering (`maxCollectedResponses`), expected-responder liveness heuristics (from connected peer sessions when available), and fanout metrics (`expectedResponders`, lag max/avg, dropped responses, retry responses, timeout flag). Exposed bounded fanout options through deployment mesh methods and added regression coverage in `deployment-mesh.service.spec.ts`.)*
+- [ ] T265 Add web domain realtime hook integration for deployment/project/service streams with cursor-resume reconnect strategy and cache patching from event payloads.
+- [ ] T266 Add multi-instance chaos/e2e suite (2–3 API nodes) proving no duplicate side effects and eventual consistency across crash/restart/partition test cases.
+- [ ] T267 Add event-plane security hardening for mesh stream traffic (signed envelopes, replay window, rejection audit logs) aligned with realtime SLO dashboards/runbooks.
+
+### Phase 11 — Fleet mesh topology and distributed sync (next iteration)
+
+- [x] T100 Define mesh protocol roles and lifecycle states (`edge`, `relay`, `partition-owner`, `observer`) with typed ORPC contracts.
+- [x] T101 Implement weighted topology engine with continuous edge scoring (latency, jitter, packet loss, throughput) and shortest-path routing.
+- [x] T102 Implement resilient peer connection manager (multi-peer WebSocket links, reconnect backoff, duplicate-link suppression, session resume).
+- [x] T103 Implement mesh membership propagation (`hello`, heartbeat, suspect, confirm, remove) with anti-entropy reconciliation.
+- [x] T104 Implement queue partition ownership and forwarding semantics over mesh (consistent hashing/rendezvous + lease handoff).
+- [x] T105 Implement replicated queue transition log with idempotent apply semantics and duplicate-delivery protection.
+- [x] T106 Implement event stream replication over mesh using ORPC async iterator input/output envelopes and cursor-based replay. Added `afterSequence` replay option to `BaseEventService.subscribe$` (buffers filtered by `sequence > afterSequence`). Exposed `observeRuntimeSince(cursor)` / `observeTopologySince(cursor)` on `SystemMeshEventService` and `streamRuntimeEventsSince` / `observeRuntimeEventsSince` / `getRuntimeEventCursor()` on `SystemMeshTopologyService`. 4 cursor-replay tests added to topology spec; all 64 topology tests green.
+- [x] T107 Implement partition/failover policies for split-brain scenarios (AP/CP modes, quorum thresholds, degraded-mode behavior). Created pure `MeshPartitionPolicy` class (no NestJS DI) with `evaluate(input)` covering AP (always-write), CP (hard-block on quorum loss → `isolated` state), and hybrid (soft-degrade → `degraded` state) modes. `MESH_QUORUM_SIZE` and `MESH_QUORUM_MODE` env vars configure policy. Added `getPartitionStatus()` to `SystemMeshTopologyService`. 27 `MeshPartitionPolicy` spec tests + 5 topology spec tests green; all type-checks clean.
+- [x] T108 Implement mesh trust/security model (mTLS peer identity, node attestation, signed control envelopes, replay-window guards). Implemented via `signMeshToken`/`verifyMeshToken` in `@repo/auth/mesh` (`v1.<ts>.<nonce>.<hmac>` HMAC-SHA256 format). `requireInternalMesh()` upgraded with replay-window guard + nonce deduplication + optional strict mode via `MESH_STRICT_REPLAY_GUARD=true`. Both LB call sites updated to send signed tokens. 20 tests added to `packages/utils/auth/src/mesh/index.spec.ts`. All 335 auth tests + 25 LB tests green.
+- [ ] T109 Implement fleet observability metrics and diagnostics (edge weights, route convergence time, replication lag, partition health).
+- [ ] T110 Build temporary web fleet dashboard panel (topology graph, peer controls, connection quality, queue/event sync status).
+- [ ] T111 Add mesh chaos/perf test suite (link flaps, node loss, partitions, recovery, throughput under rebalancing).
+- [ ] T112 Define phased rollout plan for mesh mode (`shadow` → `dual-write` → `mesh-primary`) with rollback criteria.
+- [x] T113 Build minimal temporary mesh control panel in web admin system page (direct peer connect/disconnect + live membership/connection/session visibility) as baseline for T110 graph UX.
+- [x] T114 Add local two-node dev compose mesh harness (dual API instances with stable mesh identities) and web one-click peer connect defaults for app-to-app connectivity testing.
+- [x] T115 Enforce mesh boundary as discovery/index control-plane only (resource ownership lookup for deployment/stream/log/queue) and route user/subscription traffic directly to owner server endpoints with per-subscription dedicated abortable connections.
+- [ ] T116 Implement org-scoped mesh overlays so shared physical server links support isolated logical meshes per org (`mesh(org-x)` contexts).
+- [x] T117 Qualify resource ownership/index keys with org context and enforce owner resolution within authorized org scope.
+- [ ] T118 Add allocator-vs-requester control plane: fleet allocator admission + org requester workflow with explicit quota/policy checks.
+- [x] T139 Implement requester admission-check baseline endpoint + org UI probe (`/fleet/allocations/me/admission-check`) using active-org quota evaluation against enabled allocations.
+- [x] T140 Add persisted admission request/review workflow baseline (`create/list my requests` + `superadmin list/resolve`) backed by `cluster_org_admission_requests` and temporary admin/org UI panels.
+- [x] T141 Add admission request review ergonomics baseline (admin status/org filters + reviewer note/server decision inputs, org request history filter + requester note capture).
+- [x] T142 Enforce allocation-mode conflict policy baseline in fleet service (`dedicated_full` exclusivity, dedicated-vs-slice conflict prevention, enabled-allocation non-zero CPU/RAM guard).
+- [ ] T119 Implement server allocation model (`dedicated_full`, `dedicated_slice`, `shared_slice`) and enforce capacity boundaries at scheduling time.
+- [ ] T120 Enforce tenant-safe observability projection: org users only see org-scoped workload/topology signals; fleet views require fleet role.
+- [ ] T121 Add bootstrap/split migration flow: org-led instance can be promoted to fleet allocator mode without rewriting org identities/workloads.
+- [x] T122 Implement first setup flow state machine in v3 API (`/setup/status`, `/setup/state-machine`, `/setup/initialize`) with public bootstrap endpoint semantics and unit tests.
+- [ ] T274 Execute DB-first configuration shift for mesh/runtime config: restructure Drizzle into explicit shared/global/local layout, add DB-backed config services (local + global), migrate mesh runtime reads from env to DB-backed config (bootstrap-only env exceptions), and align DB tooling/scripts + setup flow documentation. Canonical execution log: `v3/docs/db-first-configuration-shift.mdx`.
+
+### Phase 12 — Active-active load balancer and symmetric fleet trust
+
+- [x] T123 Implement durable cluster metadata schema for active-active routing (`cluster_nodes`, `cluster_join_grants`, `cluster_signing_keys`, `cluster_node_metrics`, `resource_ownership_index`). _(Completed via durable Drizzle schema in `cluster.ts`, repository-backed persistence/hydration (`SystemMeshClusterRepository`), URL-first enrollment grant lifecycle (`T124`), and trust keyring persistence/rotation flows (`T125`).)_
+- [x] T124 Implement URL-first node enrollment with super-admin bootstrap grant and one-time/TTL validation.
+- [x] T125 Implement symmetric node identity trust (mTLS or signed control envelopes) so runtime links do not depend on user session tokens. _(Completed via signed control envelopes + trust keyring status/rotation + convergence acknowledgements + strict readiness/SLO gating + staged rollout planning + manual rollback endpoint + env-gated automatic rollback hooks across `T133`–`T135`.)_
+- [x] T126 Implement distributed load-report propagation and convergence across all nodes (no master authority). _(Completed via deduped report gossip propagation with bounded hop forwarding + convergence snapshot endpoint at `/internal/mesh/load-report/convergence`, covered by load-balancer unit tests.)_
+- [x] T127 Implement deterministic org-scoped route selection parity across nodes (same input -> same candidate order within tolerance). _(Completed via score normalization + deterministic tie-break ordering (`score` tolerance -> `nodeId` -> `serverUrl`) with ingest-order parity tests in `load-balancer.service.spec.ts`.)_
+- [x] T128 Implement route token keyring with rotation windows (`active` + `previous`) and cross-node verification. _(Completed via active+previous secret verification window in load-balancer route token checks (`LB_ROUTE_SECRET` + `LB_ROUTE_SECRET_PREVIOUS`) with rotation/retirement tests in `load-balancer.service.spec.ts`.)_
+- [x] T129 Implement production-grade stream continuation at load balancer (proxy relay + pre-open fallback candidates + reconnect signal contract). _(Completed via multi-candidate pre-open upstream attempts + typed `lb_reconnect` SSE signal payload (`upstream_unavailable` / `upstream_disconnected`) and controller-level spec coverage.)_
+- [x] T158 Implement diagnostic/analytics LB routes with dual-key gate parity (`LB_DIAGNOSTIC_PATH_FINGERPRINT` path + `X-LB-Diag-Key` HMAC validation + authenticated session guard), including fallback-to-normal-routing behavior when diagnostic key is invalid/missing.
+- [x] T159 Harmonize LB forwarding secret naming and compatibility (`LB_ROUTE_SECRET` vs `LB_FORWARD_TOKEN_SECRET`) with a single canonical env contract, backward-compatible alias handling, and docs/runtime parity tests.
+- [x] T160 Clarify and enforce local upstream target contract (`LB_LOCAL_UPSTREAM_URL` or explicit replacement), ensuring pass-through/redirect behavior is deterministic and documented for single-node and multi-node topologies.
+- [x] T130 Add deployment profile matrix and DNS playbooks for single-node, small capacity pool, multi-AZ, and multi-region setups. _(Completed in [Active-Active Operator Playbook](/docs/deployment/active-active-operator-playbook) and [Multi-Server & Multi-Org Operations](/docs/deployment/multi-server-multi-org-operations).)_
+- [x] T131 Add chaos and partition validation for active-active routing. Covers: empty candidate pool returns `selected: null`; stale-only nodes excluded from routing; node failure mid-routing falls back to next best; tampered/expired route hint tokens rejected; split-brain isolation (two LB instances never share state); DB keyring TTL cache invalidation; concurrent refresh requests coalesced into one fetch; malformed token variants all return null. (10 chaos tests added to `load-balancer.service.spec.ts`; all 25 LB tests green, type-check clean.)
+- [x] T132 Add operator runbooks for enrollment rotation/revocation and emergency cluster key rollover. _(Completed in [Active-Active Operator Playbook](/docs/deployment/active-active-operator-playbook): trust/key rotation drill + enrollment revocation/quarantine sequence + incident response matrix.)_
+- [x] T133 Add strict trust staged rollout planning + rollback trigger hooks (`/trust/strict/rollout-plan`) to operationalize cluster-wide enablement waves.
+- [x] T134 Add strict trust rollback execution endpoint (`/trust/strict/rollback`) with super-admin guard + trigger-aware safety checks.
+- [x] T135 Add env-gated automatic strict rollback hook (`MESH_TRUST_STRICT_AUTO_ROLLBACK=true`) that de-escalates runtime strict mode on active rollback triggers.
+
+### Phase 13 — Super-admin fleet manager scope clarity (docs-first)
+
+- [x] T136 Publish Phase 1 scope freeze for super-admin fleet manager (one instance = one database, LB uses host instance DB, no cross-instance DB merge/federation in this phase).
+- [x] T137 Publish super-admin fleet manager executive + technical architecture docs (schema/UML/ER/sequence) and wire them into docs navigation for product/ops sign-off.
+- [x] T138 ~~Record formal product + ops sign-off for Phase 1 scope freeze~~ — **Superseded** by 11 Q&A files and `platform-product-spec.mdx` (docs/qa/platform-direction/ fully captures all scope decisions with explicit user answers; no separate sign-off gate needed).
+
+## Parallel workstreams
+
+After compiler baseline (T013–T020), these can proceed in parallel:
+
+- Web UX/control plane tasks (T052–T057) using compiled-plan fixtures.
+- Provider conformance/hardening tasks under source adapter tracks.
+- Observability dashboards and alerting tasks (T049–T051).
+- Policy engine in non-blocking mode before enforcement.
+
+## Architecture decomposition note (v1/v2 -> v3 improvement)
+
+To reduce "god service" risk in `DeploymentService`, v3 now adopts explicit plugin boundaries while preserving v1/v2 adapter intent:
+
+- **Provider boundary**: `SourceProviderRegistryService` routes to source providers that share one interface (currently `GithubSourceProviderService`, with room for GitLab/Git/Upload implementations).
+- **Builder boundary**: `DeploymentArtifactBuilderService` resolves build-stage artifact generation separately from source providers and always emits containerized artifacts (or explicit prebuilt external image), with strategy-specific context guards.
+- **Runner boundary**: `RuntimeRunnerRegistryService` routes runtime execution via one runner interface and dedicated per-runner services (`docker`, `dockerfile`, `docker_compose`, `nixpacks`, `buildpack`, `railpack`), each with its own runtime preparation policy before execution.
+- **Orchestrator boundary**: `DeploymentService` remains the workflow coordinator (queue lifecycle, persistence, events) and no longer embeds provider-specific checkout validation or container/runtime implementation details.
+
+This keeps orchestration logic focused on use-cases and allows future provider/runner additions without widening `DeploymentService`.
+
+## Milestone gate mapping
+
+- **MVP gate**: T006–T029 complete and validated.
+- **Preview GA gate**: T030–T037 complete and validated.
+- **Fleet GA gate**: T038–T044 complete and validated.
+- **Production GA gate**: T045–T075 + T143–T156 complete and validated.
+- **Advanced governance gate**: T076–T093 + T157 complete, deferred with ownership, or explicitly out-of-scope for current release.
+
+## Done criteria for each task
+
+A task can be marked done only when:
+
+- Code changes are merged with docs in the same change set.
+- Relevant tests are present and passing.
+- Quality gate is green (`bun run check`).
+- Operational behavior is observable (events/logs/diagnostics) for runtime-impacting changes.
+
+## Missing-step policy
+
+If implementation uncovers an untracked step:
+
+1. Add a new `Txxx` task to this file before implementing it.
+2. Link it to the appropriate phase and milestone gate.
+3. Include tests/docs/verification expectations in task wording.
+
+## Related docs
+
+- [Migration Master Plan](/docs/deployment/migration-master-plan)
+- [Platform Feature Target](/docs/deployment/platform-feature-target)
+- [Production Deployment](/docs/deployment/production-deployment)
+- [Render Deployment](/docs/deployment/render-deployment)
+- [Super Admin Fleet Manager (Executive)](/docs/deployment/super-admin-fleet-manager-executive)
+- [Super Admin Fleet Manager Architecture](/docs/deployment/super-admin-fleet-manager-architecture)
+- [GitHub Provider — Complete Feature & Task Breakdown](/docs/deployment/github-provider-feature-breakdown)
+- [Registry, Monitoring & Advanced Features — Documentation Coverage](/docs/deployment/registry-monitoring-advanced-doc-coverage)
+- [Deployment Trust Gate](/docs/deployment/deployment-trust-gate)
+- [Cost Guardrail Engine](/docs/deployment/cost-guardrail-engine)
+- [Resilience GameDay Controller](/docs/deployment/resilience-gameday-controller)
+- [Benchmark Feature Adaptation Matrix](/docs/deployment/benchmark-feature-adaptation-matrix)
+- [Template Pack Catalog](/docs/deployment/template-pack-catalog)
+- [Change-Scoped Deploy Policy Preview](/docs/deployment/change-scoped-deploy-policy-preview)
+- [Remote Connectivity Profiles](/docs/deployment/remote-connectivity-profiles)
+- [Environment-Scoped RBAC Matrix](/docs/deployment/environment-scoped-rbac-matrix)
+- [Trust-Aware Update Policy Bridge](/docs/deployment/trust-aware-update-policy-bridge)
+- [Typed Async Operation Contract](/docs/deployment/typed-async-operation-contract)

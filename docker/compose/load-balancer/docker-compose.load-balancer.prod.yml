@@ -7,6 +7,12 @@ services:
       dockerfile: ./docker/builder/load-balancer/Dockerfile.load-balancer.prod
       args:
         - LOAD_BALANCER_PORT=${LB_PORT}
+        - BUILDKIT_INLINE_CACHE=1
+      # Embed BuildKit cache metadata in the image so subsequent deploys and CI
+      # pipelines can pull the cache from this image (via cache_from) instead of
+      # rebuilding every layer from scratch.
+      cache_to:
+        - type=inline
     restart: unless-stopped
     ports:
       - "${LB_PORT}:${LB_PORT}"

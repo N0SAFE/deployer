@@ -1,0 +1,198 @@
+---
+title: Active-Active Operator Playbook
+description: Step-by-step operational playbook for running deployer in active-active topologies to scale CPU/RAM/workload capacity with no master server.
+order: 27
+---
+
+<DocMeta source="deployment operations synthesis" scope="canonical" />
+
+<DocCallout title="Scope note" tone="warning">
+This playbook documents an optional advanced active-active pattern.
+
+The canonical v3 production baseline is Docker Swarm manager/worker orchestration with Traefik-first ingress.
+</DocCallout>
+
+## Purpose
+
+This playbook gives operators practical run procedures for a fully symmetric fleet:
+
+- no master node
+- same runtime stack on each server
+- org-scoped routing and ownership
+- deterministic routing and recovery behavior
+
+Primary objective:
+
+- increase total deploy/runtime capacity (CPU, RAM, queue throughput, concurrent streams)
+
+Secondary objective:
+
+- improve availability and failure tolerance
+
+## Universal prerequisites
+
+Apply these before any topology:
+
+- every node runs the same app set (`api`, `load-balancer`, mesh control services)
+- shared fleet configuration values are consistent across nodes
+- trust and enrollment flow is enabled (URL-first, super-admin bootstrap)
+- rollout and rollback runbooks are available to operators
+
+Recommended baseline checks:
+
+- env checks per app
+- API health check
+- load-balancer health check
+- mesh membership and ownership resolution check
+
+## Topology A — Single node (starter)
+
+### Use when
+
+- one VPS
+- one org or low traffic
+- lowest operational complexity
+
+### Layout
+
+- `node-1`: `api + load-balancer`
+- public DNS `api.<domain>` points to `node-1`
+
+### Operational behavior
+
+- stream routing resolves local owner
+- no cross-node fallback possible
+- failures require node recovery
+
+### Day-2 checklist
+
+- verify backups and restore drills
+- monitor CPU/memory saturation thresholds
+- pre-stage migration to topology B before sustained load growth
+
+## Topology B — Small capacity pool (2-3 nodes)
+
+### Use when
+
+- need more compute/memory headroom than one node can provide
+- one region, moderate traffic
+
+### Layout
+
+- `node-1..3`: identical runtime stack
+- `api.<domain>` points to all healthy nodes (DNS RR or edge pool)
+
+### Operational behavior
+
+- active-active load balancing across nodes
+- placement can spread workloads to avoid CPU/RAM hot spots
+- stream continuation through LB proxy mode
+- reconnect token affinity prefers prior owner, then falls back
+
+### Recommended defaults
+
+- report cadence: 2-5s
+- stale metric TTL: 15-30s
+- route token TTL: 60s
+- public DNS TTL: 30-60s
+
+### Day-2 checklist
+
+- verify workload distribution (no persistent CPU/RAM hot node)
+- test single-node failure during active stream
+- verify reconnect token accepted on all nodes
+- verify parity: same org/stream input gives same candidate order
+
+## Topology C — Multi-AZ / Multi-region
+
+### Use when
+
+- strict capacity and throughput requirements at larger scale
+- cross-zone or cross-region users
+
+### Layout
+
+- regional node pools (`eu`, `us`, ...)
+- regional entrypoints (`api.eu.<domain>`, `api.us.<domain>`) or geo DNS
+- optional global entrypoint (`api.<domain>`) with geo steering
+
+### Operational behavior
+
+- prefer regional routing first
+- keep most workloads local to region for lower resource contention and better throughput
+- cross-region rerouting only on health/policy trigger
+- reconnect tokens remain advisory; routing re-evaluates if region changes
+
+### Day-2 checklist
+
+- verify per-region CPU/RAM saturation targets are respected
+- test region isolation + controlled cross-region rerouting
+- verify org-scoped visibility remains correct across regions
+- validate capacity and quota policy boundaries in failover mode
+
+## DNS playbook
+
+### Canonical naming
+
+- public: `api.<domain>`
+- optional regional: `api.<region>.<domain>`
+- internal mesh hostnames: `node-<id>.internal.<domain>`
+
+### Cutover strategy
+
+1. introduce new nodes with internal-only traffic
+2. validate health and ownership resolution
+3. add public records with low TTL
+4. shift client traffic incrementally
+5. monitor stream reconnect and fallback rates
+
+### Rollback strategy
+
+1. remove unhealthy nodes from public records/pool
+2. keep surviving nodes active
+3. preserve route token verification compatibility (`active` + `previous` key overlap)
+4. run smoke tests after rollback
+
+## Trust and key rotation drill
+
+At minimum, exercise quarterly:
+
+1. issue new route-token key (`kid=new`)
+2. mark previous key as verification-only
+3. roll nodes gradually
+4. confirm cross-node token verify success
+5. retire previous key after overlap window
+
+Also drill node enrollment revocation:
+
+1. revoke compromised node identity
+2. quarantine links from/to node
+3. remove node from routing candidates
+4. validate no cross-org leakage from stale ownership records
+
+## Incident response matrix
+
+| Incident | Immediate action | Verification |
+|---|---|---|
+| Node hard down | remove from public pool; redistribute workload to remaining peers | stream reconnect success + fallback route metrics |
+| Stale metrics storm | increase report validation strictness; drop stale candidates | candidate list excludes stale nodes |
+| Token verify mismatch | confirm keyring sync and active/previous overlap | cross-node token verification restored |
+| Suspected node compromise | revoke node identity and quarantine link | no new control-envelope acceptance from node |
+| DNS propagation lag | keep overlap window with both old/new pools | traffic distribution converges within TTL window |
+
+## Operator command checklist (high-level)
+
+- pre-flight: env + health + check gates
+- deploy: rolling node updates with canary node first
+- verify: org-scoped routing, stream continuation, fallback
+- recover: pool removal + key overlap + ownership re-resolution
+
+Use repository scripts and existing deployment docs for concrete command invocations.
+
+## Related docs
+
+- [Multi-Server & Multi-Org Operations](/docs/deployment/multi-server-multi-org-operations)
+- [Fleet Federation Architecture](/docs/deployment/fleet-federation-architecture)
+- [Fleet Federation Handshake Protocol](/docs/deployment/fleet-federation-handshake-protocol)
+- [Production Deployment](/docs/deployment/production-deployment)
+- [Migration Task Breakdown](/docs/deployment/migration-task-breakdown)

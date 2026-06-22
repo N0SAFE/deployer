@@ -6,14 +6,14 @@ import { Injectable } from "@nestjs/common";
       meshQueueTransitionLogEntrySchema,
       type MeshControlEnvelope,
   } from "@repo/contracts-entities";
-  import type { MeshMembershipService } from "./mesh-membership.service";
-  import type { MeshHealthMonitorService } from "./mesh-health-monitor.service";
-  import type { MeshTrustService } from "./mesh-trust.service";
-  import type { MeshTrustStrictModeService } from "./mesh-trust-strict-mode.service";
-  import type { MeshQueueReplicationService } from "./mesh-queue-replication.service";
-  import type { MeshControlPlaneService } from "./mesh-control-plane.service";
-  import type { MeshIdentityService } from "./mesh-identity.service";
-  import type { SystemMeshLogicService } from "../../system-mesh-logic.service";
+  import { MeshMembershipService } from "./mesh-membership.service";
+  import { MeshHealthMonitorService } from "./mesh-health-monitor.service";
+  import { MeshTrustService } from "./mesh-trust.service";
+  import { MeshTrustStrictModeService } from "./mesh-trust-strict-mode.service";
+  import { MeshQueueReplicationService } from "./mesh-queue-replication.service";
+  import { MeshControlPlaneService } from "./mesh-control-plane.service";
+  import { MeshIdentityService } from "./mesh-identity.service";
+  import { SystemMeshLogicService } from "../../system-mesh-logic.service";
 
   /**
    * Applique les effets de bord de chaque type d'envelope de contrôle.

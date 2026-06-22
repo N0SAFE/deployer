@@ -5,8 +5,8 @@
  * behavior lives in `./builder.ts`.
  */
 
-import type { AnySchema, HTTPMethod, ErrorMap } from "../../shared/types";
-import type { VoidSchema } from "../../shared/standard-schema-helpers";
+import type { AnySchema, HTTPMethod, ErrorMap } from "../../types/types";
+import type { VoidSchema } from "../../types/standard-schema-helpers";
 import type { RouteBuilder, DetailedOutput } from "../core/route-builder";
 import { DetailedOutputBuilder } from "./builder";
 

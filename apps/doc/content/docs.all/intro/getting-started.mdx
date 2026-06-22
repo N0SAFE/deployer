@@ -1,0 +1,123 @@
+---
+title: Getting Started
+description: End-to-end onboarding for local development, validation, and first contribution.
+order: 1
+---
+
+<DocMeta source=".docs/guides/GETTING-STARTED.md" scope="canonical" />
+
+<DocCallout title="Docker-first expectation" tone="info">
+The standard development path in this repository is container-first for consistent runtime behavior across machines.
+</DocCallout>
+
+## What this platform is for
+
+This repository is building a self-hosted deployment platform for running and operating applications across one or many servers.
+
+Core intent:
+
+- deploy from source integrations into Docker runtime
+- route with Traefik + TLS
+- operate with logs, health checks, and rollback
+- support preview environments and multi-service orchestration
+- scale to multi-server and multi-organization operations via federation
+
+## Prerequisites
+
+- Bun `>= 1.3.1`
+- Node.js `20+`
+- Docker + Compose plugin
+- Git
+- A valid `.env` generated from repository templates
+
+## Initialize project context
+
+1. Clone the repository.
+2. Generate environment variables from templates:
+
+```bash
+bun run init
+```
+
+3. Install workspace dependencies:
+
+```bash
+bun install
+```
+
+4. Optionally verify environment contract:
+
+```bash
+bun run check-env
+```
+
+## Start development
+
+- Full stack (API + web + infra):
+
+```bash
+bun run dev
+```
+
+- Focused stack variants:
+
+```bash
+bun run dev:api
+bun run dev:web
+```
+
+## URLs
+
+- Web: http://localhost:3000
+- API: http://localhost:3001 (health: /health)
+- DB: Postgres 5432
+- Cache: Redis 6379
+
+## First validation cycle
+
+Before opening a PR, run the baseline quality gate:
+
+```bash
+bun run check
+```
+
+You can also run focused checks:
+
+```bash
+bun run test
+bun run lint
+bun run build
+```
+
+## First-day workflow checklist
+
+<DocChecklist
+	items={[
+		{ label: 'Generate .env from template', done: false },
+		{ label: 'Install dependencies', done: false },
+		{ label: 'Start full stack', done: false },
+		{ label: 'Open web and API health URLs', done: false },
+		{ label: 'Run full validation gate', done: false },
+	]}
+/>
+
+## First setup flow (state machine)
+
+On a fresh database, v3 exposes a public setup flow so the first platform admin can bootstrap the system:
+
+- `GET /setup/status` — returns current setup snapshot (`awaiting_initial_admin`, `initial_admin_created`, `completed`, etc.)
+- `GET /setup/state-machine` — returns allowed setup states and transitions
+- `POST /setup/initialize` — creates initial super-admin user + initial organization
+
+Expected behavior:
+
+- If no users/orgs exist, `needsSetup = true` and setup can be initialized.
+- If setup already completed, initialize is rejected to prevent duplicate bootstrap.
+- After successful initialize, setup transitions to `completed`.
+
+## Next reading
+
+- [Architecture Overview](/docs/architecture/architecture)
+- [Development Workflow](/docs/dev/development-workflow)
+- [ORPC Type-Safe API Workflow](/docs/dev/orpc)
+- [Multi-Server & Multi-Org Operations](/docs/deployment/multi-server-multi-org-operations)

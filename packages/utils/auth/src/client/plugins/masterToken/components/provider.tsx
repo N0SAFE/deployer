@@ -50,7 +50,7 @@ export const MasterTokenProvider: React.FC<MasterTokenProviderProps> = ({
         }
 
         window.addEventListener('storage', onStorage)
-        window.addEventListener('master-token-changed', onCustom as EventListener)
+        window.addEventListener('master-token-changed', onCustom)
         const unsub = MasterTokenManager.onStateChange((v) => {
             setEnabledState(v)
             if (!v) {
@@ -60,7 +60,7 @@ export const MasterTokenProvider: React.FC<MasterTokenProviderProps> = ({
 
         return () => {
             window.removeEventListener('storage', onStorage)
-            window.removeEventListener('master-token-changed', onCustom as EventListener)
+            window.removeEventListener('master-token-changed', onCustom)
             void unsub()
         }
     }, [])

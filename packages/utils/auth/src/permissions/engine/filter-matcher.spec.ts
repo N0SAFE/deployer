@@ -154,7 +154,7 @@ describe("matchFilter", () => {
                 matchFilter(
                     { ownerId: "user-42" },
                     { ownerId: { _eq: new Variable("$currentUser") } },
-                    {} as Partial<{ $currentUser: string }>, // provide TVars context; empty → throws at runtime
+                    {}, // provide TVars context; empty → throws at runtime
                 ),
             ).toThrow("$currentUser");
         });

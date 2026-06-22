@@ -605,7 +605,7 @@ export class SystemMeshTopologyService implements OnModuleInit, OnModuleDestroy 
         };
     }
 
-    async consumeJoinGrant(input: MeshJoinGrantConsumeInput): Promise<MeshJoinGrantConsumeResult> {
+    async consumeJoinGrant(input: MeshJoinGrantConsumeInput): Promise<Omit<MeshJoinGrantConsumeResult, "peerServiceToken" | "peerServiceTokenExpiresAt">> {
         const clusterRepository = this.requireClusterRepository("consume bootstrap join grants");
 
         const consumed = await clusterRepository.consumeJoinGrant(input);

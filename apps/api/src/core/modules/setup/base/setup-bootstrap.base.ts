@@ -7,14 +7,14 @@ export interface SetupBootstrapResultBase {
 export abstract class SetupBootstrapBaseService<TResult extends SetupBootstrapResultBase> {
     abstract initialize(input: SetupInitializeInput): Promise<TResult>;
 
-    protected buildCompletedState(strategy: "local_instance" | "remote_instance", hasUsers: boolean, hasOrganizations: boolean): SetupStateSnapshot {
+    protected buildCompletedState(strategy: "local" | "remote", hasUsers: boolean, hasOrganizations: boolean): SetupStateSnapshot {
         return {
             state: "completed",
             needsSetup: false,
+            strategy,
             hasUsers,
             hasOrganizations,
-            bootstrapStrategy: strategy,
-            availableStrategies: ["local_instance", "remote_instance"],
+            availableStrategies: ["local", "remote"],
             currentStep: null,
             progressPercent: 100,
             steps: [],

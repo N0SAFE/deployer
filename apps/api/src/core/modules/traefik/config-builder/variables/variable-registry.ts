@@ -205,7 +205,7 @@ export class VariableRegistry {
       if (!(name in result)) {
         const defaultValue: unknown = variable.getDefaultValue();
         if (defaultValue !== undefined) {
-          result[name] = defaultValue as string | number | boolean | null;
+          result[name] = defaultValue;
         }
       }
     }

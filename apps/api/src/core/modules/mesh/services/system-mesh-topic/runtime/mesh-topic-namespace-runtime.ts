@@ -1,6 +1,6 @@
 import { BasePooledEventService } from "@/core/modules/events/services/base-pooled-event.service";
 import type { CoreEventStreamPoolService } from "@/core/modules/events/services/core-event-stream-pool.service";
-import type { EventContracts } from "@/core/modules/events/event-contract.builder";
+import type { EventContracts, EventInput, EventOutput } from "@/core/modules/events/event-contract.builder";
 import { MeshTopicContractNotFoundError } from "../domain/mesh-topic-errors";
 
 /**
@@ -12,7 +12,7 @@ import { MeshTopicContractNotFoundError } from "../domain/mesh-topic-errors";
 export class MeshTopicNamespaceRuntime<
     TContracts extends EventContracts,
 > extends BasePooledEventService<TContracts> {
-    constructor(
+        constructor(
         namespace: string,
         contracts: TContracts,
         streamPool: CoreEventStreamPoolService,
@@ -32,19 +32,27 @@ export class MeshTopicNamespaceRuntime<
         return `${this.namespace}:${eventName}:${organizationId}`;
     }
 
-    parseInput<K extends keyof TContracts>(topic: K, input: unknown): unknown {
-        const contract = this.contracts[topic];
+    parseInput<K extends keyof TContracts>(topic: K, input: EventInput<TContracts[K]>): EventOutput<TContracts[K]> {
+        // topic may be full name, get local name for contract lookup
+        const localTopic = String(topic).startsWith(`${this.namespace}:`)
+            ? String(topic).slice(this.namespace.length + 1)
+            : String(topic);
+        const contract = this.contracts[localTopic as keyof TContracts] as TContracts[K] | undefined
         if (!contract) {
             throw new MeshTopicContractNotFoundError(
                 String(topic),
                 this.namespace,
             );
         }
-        return contract.input.parse(input);
+        return contract.input.parse(input) as EventOutput<TContracts[K]>;
     }
 
     parseOutput<K extends keyof TContracts>(topic: K, output: unknown): unknown {
-        const contract = this.contracts[topic];
+        // topic may be full name, get local name for contract lookup
+        const localTopic = String(topic).startsWith(`${this.namespace}:`)
+            ? String(topic).slice(this.namespace.length + 1)
+            : String(topic);
+        const contract = this.contracts[localTopic as keyof TContracts];
         if (!contract) {
             throw new MeshTopicContractNotFoundError(
                 String(topic),

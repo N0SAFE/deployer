@@ -105,7 +105,7 @@ export class HasOrganizationPermissionCheck<
     this.permissions =
       typeof permissions === 'function'
         ? {}
-        : (permissions as unknown as PermissionObject);
+        : (permissions);
   }
 
   async check(context: MiddlewareContext): Promise<void> {

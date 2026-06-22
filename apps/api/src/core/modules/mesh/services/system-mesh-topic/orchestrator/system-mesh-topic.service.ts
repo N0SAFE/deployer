@@ -1,14 +1,13 @@
-import { Injectable } from "@nestjs/common";
-import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import type { EventContracts } from "@/core/modules/events/event-contract.builder";
 import type {
     MeshTopicNamespaceDefinition,
     MeshTopicNamespaceHandle,
 } from "../domain/mesh-topic-types";
-import type { MeshTopicRegistryService } from "../services/mesh-topic-registry.service";
-import type { MeshTopicEnvelopeHandlerService } from "../services/mesh-topic-envelope-handler.service";
-import type { MeshTopicQueryBusService } from "../services/mesh-topic-query-bus.service";
-import type { SystemMeshTopologyService } from "../../system-mesh-topology/orchestrator/system-mesh-topology.service";
+import { MeshTopicRegistryService } from "../services/mesh-topic-registry.service";
+import { MeshTopicEnvelopeHandlerService } from "../services/mesh-topic-envelope-handler.service";
+import { MeshTopicQueryBusService } from "../services/mesh-topic-query-bus.service";
+import { SystemMeshTopologyService } from "../../system-mesh-topology/orchestrator/system-mesh-topology.service";
 
 /**
  * Façade orchestratrice du mesh-topic.

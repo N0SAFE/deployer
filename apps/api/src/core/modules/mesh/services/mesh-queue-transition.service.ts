@@ -1,5 +1,15 @@
-import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
+import { contractBuilder } from "@/core/modules/events/event-contract.builder";
+import {
+    InternalBaseMeshService,
+    type MeshCallBuilder,
+    type MeshCallEvent,
+} from "@/core/modules/mesh/services/base-mesh.service";
+import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
+import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
+import { Logger } from "@nestjs/common";
+import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import * as z from "zod";
+import { lastValueFrom, type Observable } from "rxjs";
 import {
     meshQueueTransitionApplyResultSchema,
     meshQueueTransitionAppendInputSchema,
@@ -7,14 +17,9 @@ import {
     meshQueueTransitionLogEntrySchema,
     type MeshQueueTransitionAppendInput,
     type MeshQueueTransitionAppendResult,
-    type MeshQueueTransitionLogEntry,
     type MeshQueueTransitionApplyResult,
+    type MeshQueueTransitionLogEntry,
 } from "@repo/contracts-entities";
-import { contractBuilder } from "@/core/modules/events/event-contract.builder";
-import { BaseMeshService, MeshCallBuilder, type MeshCallEvent } from "@/core/modules/mesh/services/base-mesh.service";
-import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
-import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
-import { Observable, lastValueFrom } from "rxjs";
 
 const correlationInputSchema = z.object({
     organizationId: z.uuid().nullable().optional(),
@@ -64,7 +69,7 @@ const queueTransitionMeshContracts = {
 
 @Injectable()
 export class MeshQueueTransitionService
-    extends BaseMeshService<typeof queueTransitionMeshContracts>
+    extends InternalBaseMeshService<typeof queueTransitionMeshContracts, Record<string, never>>
     implements OnModuleInit, OnModuleDestroy {
     private readonly serviceLogger = new Logger(MeshQueueTransitionService.name);
 
@@ -72,7 +77,7 @@ export class MeshQueueTransitionService
         meshTopicService: SystemMeshTopicService,
         meshTopologyService: SystemMeshTopologyService,
     ) {
-        super(meshTopicService, meshTopologyService, "queue-transition-internal", queueTransitionMeshContracts);
+        super(meshTopicService, meshTopologyService, "queue-transition-internal", queueTransitionMeshContracts, {});
     }
 
     onModuleInit(): void {

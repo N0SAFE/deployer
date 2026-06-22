@@ -72,17 +72,13 @@ describe("HealthController", () => {
 
     describe("ORPC implementation methods", () => {
         it("should have check method that returns implementation handler", () => {
-            const implementation = controller.check() as ReturnType<typeof controller.check> & {
-                handler: () => unknown;
-            };
+            const implementation = controller.check();
             expect(implementation).toBeDefined();
             expect(typeof implementation.handler).toBe("function");
         });
 
         it("should have detailed method that returns implementation handler", () => {
-            const implementation = controller.detailed() as ReturnType<typeof controller.detailed> & {
-                handler: () => unknown;
-            };
+            const implementation = controller.detailed();
             expect(implementation).toBeDefined();
             expect(typeof implementation.handler).toBe("function");
         });

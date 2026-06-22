@@ -1,0 +1,294 @@
+---
+title: Docker Images Page Specification
+description: Complete functional and UX specification for the Docker Images page and image detail tabs (Overview, Layers, Security, Labels).
+order: 35
+---
+
+> **Added**: 2026-04-17  
+> **Type**: Pattern  
+> **Confidence**: Verified ✅  
+> **Scope**: v3 / Docker web operator UX + API scan lifecycle
+
+## Summary
+
+This document is the canonical spec for `dashboard/docker/images` and its image detail experience.
+
+It defines:
+
+- the full page behavior,
+- all detail tabs and security sub-tabs,
+- server-owned scan lifecycle rules,
+- UI state contracts (`queued`, live stream, results, error),
+- required backend interactions,
+- acceptance criteria for implementation and QA.
+
+---
+
+## Scope
+
+### In scope
+
+- Route: `v3/apps/web/src/app/dashboard/docker/images/page.tsx`
+- Image detail modal: `v3/apps/web/src/app/dashboard/docker/_components/docker-image-detail-modal.tsx`
+- Security stage flow component: `v3/apps/web/src/app/dashboard/docker/_components/docker-image-security-flow.tsx`
+- Pull progress panel: `v3/apps/web/src/app/dashboard/docker/_components/docker-image-pull-progress-panel.tsx`
+- Docker web domain hooks/endpoints in:
+  - `v3/apps/web/src/domains/docker/hooks.ts`
+  - `v3/apps/web/src/domains/docker/endpoints.ts`
+- API scan orchestration in:
+  - `v3/apps/api/src/modules/docker/services/docker.service.ts`
+  - `v3/apps/api/src/modules/docker/services/docker-image-auto-scan-listener.service.ts`
+  - `v3/apps/api/src/modules/docker/services/docker-runtime-events-stream.service.ts`
+  - `v3/apps/api/src/modules/docker/repositories/docker.repository.ts`
+
+### Out of scope
+
+- New scanner engines
+- Cross-repo policy DSL design
+- Registry auth/push flow redesign
+
+---
+
+## Information architecture
+
+## A. Images list page
+
+The page must provide:
+
+1. **Inventory table/list** grouped by repository/tag with search/filter/sort.
+2. **Image details entrypoint** (open detail modal).
+3. **Action affordances** (pull/tag/push/export/remove/etc. depending on readiness).
+4. **Realtime awareness** of runtime events and refresh behavior.
+
+## B. Image detail experience
+
+The image detail surface has **4 top-level tabs**:
+
+1. `Overview`
+2. `Layers`
+3. `Security`
+4. `Labels`
+
+Inside `Security`, there is a required 3-stage flow:
+
+1. `Pulling`
+2. `Logs`
+3. `Results`
+
+---
+
+## Top-level tab specifications
+
+### 1) Overview tab
+
+Shows immutable/runtime metadata:
+
+- registry
+- repository
+- tag
+- digest
+- size
+- last seen
+- architecture
+- OS
+- used-by container count
+- repo tags count
+
+Behavior:
+
+- read-only
+- no scan trigger side-effects
+
+### 2) Layers tab
+
+Shows image layers and mapped risk context:
+
+- layer instruction
+- layer ID
+- created time
+- mapped findings per layer (if available)
+- scanner source badges (when mapped)
+- unmapped findings explanation when applicable
+
+Behavior:
+
+- expand/collapse each layer row
+- `status` rendering per layer (`verified`, `cached`, `warning`, `pending`)
+- no automatic scan trigger
+
+### 3) Security tab
+
+Security is stage-based and must reflect server lifecycle.
+
+#### 3.1 Pulling stage
+
+Displays:
+
+- pull/prepare status of scanner images
+- timeline of pull activity lines
+- overall pull progress
+- scanner-layer progress rows
+
+Must support explicit queued state:
+
+- If no scan has started yet, show a clear queued panel:
+  - “Scan is queued by API service…”
+  - no fake progress
+
+#### 3.2 Logs stage
+
+Displays:
+
+- live scan logs (pipeline + scanner logs)
+- filters: tool, stage, event type
+- paginated history loading
+
+#### 3.3 Results stage
+
+Displays:
+
+- scanner summaries (trivy/grype/dive)
+- findings counters by severity
+- vulnerability table with filters/sort/search
+- selected vulnerability details panel
+- layer efficiency section (from dive) when available
+
+### 4) Labels tab
+
+Displays image labels key/value pairs.
+
+Behavior:
+
+- read-only
+- no scan side-effects
+
+---
+
+## Scan ownership and lifecycle (non-negotiable)
+
+### Rule 1: Server owns initial scan trigger
+
+Opening the UI (`images` page or image modal/tab) **must not** start a fresh scan.
+
+### Rule 2: Startup bootstrap queue
+
+On API startup:
+
+1. Runtime event observable is initialized globally.
+2. Service scans local container inventory.
+3. Images without valid cached scan are queued for scan evaluation.
+
+### Rule 3: Runtime-driven auto-scan
+
+Container `create` runtime events enqueue auto-scan evaluation for the image.
+
+### Rule 4: UI can request **rescan** only
+
+UI may trigger a rescan explicitly **after completion context exists** (rescan button).
+
+### Rule 5: View state contract
+
+When user opens Security tab, UI must show one of:
+
+1. **Queued UI** (not started yet)
+2. **Streaming UI** (pulling/logs in progress)
+3. **Results UI** (completed summary/findings)
+4. **Error UI** (failed state)
+
+No “silent idle with ambiguous state”.
+
+---
+
+## UI state machine (security)
+
+| Condition | Stage | Status label | Required UX |
+|---|---|---|---|
+| No persisted summary, no live scan activity | Pulling | queued | Queue notice panel + zero progress |
+| Pull/log/scanning events active | Pulling or Logs | pulling | live progress and log feed |
+| Complete event or persisted summary exists | Results | complete | summary + findings + rescan control |
+| Error event present | Pulling/Logs | error | error banner with details |
+
+Stage auto-navigation policy:
+
+- `queued/pulling` → `Pulling`
+- active scan logs → `Logs`
+- completed → `Results`
+
+---
+
+## Actions contract
+
+### Quick actions (image detail)
+
+- `Run`: allowed only with completed scan and policy pass.
+- `Pull`, `Tag`, `Push`, `Export`, `Remove`: as supported by backend parity level.
+- **Rescan**: shown when scan context is complete and user requests refresh.
+
+### Security header action
+
+- Show **Rescan** button in finished state.
+- Before completion, show queue/status indicator rather than auto-start action.
+
+---
+
+## Backend contract expectations
+
+The web spec depends on these backend behaviors:
+
+1. `inspectImage` returns image detail **without forcing a fresh scan**.
+2. `streamImageSecurityScan(forceScan=false)` returns:
+   - running stream if active,
+   - cached complete event if persisted,
+   - empty/terminal when awaiting queue.
+3. `ensureImageSecurityScan(...)` is used by internal services (startup bootstrap + runtime listeners).
+4. Global runtime event stream service is initialized once and reused by consumers.
+
+---
+
+## Observability
+
+At minimum, debug traces should exist for:
+
+- startup bootstrap queue population
+- enqueue/dequeue scan lifecycle
+- scan ensure result (`started`, `cached`, `already-running`)
+- scan completion/error events
+
+---
+
+## Acceptance criteria
+
+1. Opening image page/modal does **not** start a scan.
+2. API startup enqueues scan evaluation for discovered local container images.
+3. Security tab always renders deterministic state: queued, streaming, results, or error.
+4. Completed scans show a visible **Rescan** control.
+5. Runtime event-driven auto-scan continues to work for new container creates.
+6. No stale scanner container leakage after scan completion/failure/timeout.
+
+---
+
+## QA scenarios
+
+1. **Cold start with unscanned image**
+   - Start API, open image security tab.
+   - Expect queued UI first, then stream/results as backend starts.
+2. **Cached scan available**
+   - Open image security tab.
+   - Expect direct results without new scan launch.
+3. **Runtime create event**
+   - Create container with unscanned image.
+   - Expect auto-scan scheduling from backend service.
+4. **UI open regression**
+   - Re-open details repeatedly.
+   - Confirm no new scan starts unless rescan action used.
+5. **Rescan flow**
+   - From completed state, click rescan.
+   - Expect reset to pulling/logs/results sequence.
+
+---
+
+## Related docs
+
+- `/docs/deployment/docker-standalone-first-roadmap`
+- `v3/apps/doc/content/docs/deployment/migration-task-breakdown.mdx`
+- `v3/docs/PLATFORM_SOURCE_OF_TRUTH.md`

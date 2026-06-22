@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, type OnModuleDestroy, Logger } from "@nestjs/common";
   import { createHash } from "node:crypto";
   import {
       meshNodeStateSchema,
@@ -8,13 +8,13 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
   } from "@repo/contracts-entities";
   import { CLOCK_TOKEN, type Clock } from "../../../shared/primitives/clock";
   import { ID_GENERATOR_TOKEN, type IdGenerator } from "../../../shared/primitives/id-generator";
-  import type { MeshIdentityService } from "../services/mesh-identity.service";
-  import type { MeshMembershipService } from "../services/mesh-membership.service";
-  import type { MeshPeerSessionService } from "../services/mesh-peer-session.service";
-  import type { MeshHealthMonitorService } from "../services/mesh-health-monitor.service";
-  import type { SystemMeshClusterRepository } from "../../../repositories/system-mesh-cluster.repository";
-  import type { SystemMeshLogicService } from "../../system-mesh-logic.service";
-  import type { SystemMeshConfigService } from "../../system-mesh-config.service";
+  import { MeshIdentityService } from "../services/mesh-identity.service";
+  import { MeshMembershipService } from "../services/mesh-membership.service";
+  import { MeshPeerSessionService } from "../services/mesh-peer-session.service";
+  import { MeshHealthMonitorService } from "../services/mesh-health-monitor.service";
+  import { SystemMeshClusterRepository } from "../../../repositories/system-mesh-cluster.repository";
+  import { SystemMeshLogicService } from "../../system-mesh-logic.service";
+  import { SystemMeshConfigService } from "../../system-mesh-config.service";
 
   interface ClusterSyncNodeRecord {
       nodeId: string;
@@ -36,7 +36,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
    * borné par MESH_PEER_MAX si configuré.
    */
   @Injectable()
-  export class MeshClusterSyncService {
+  export class MeshClusterSyncService implements OnModuleDestroy {
       private readonly logger = new Logger(MeshClusterSyncService.name);
       private bootstrapAttempted = false;
       private syncTimer: ReturnType<typeof setInterval> | null = null;
@@ -85,6 +85,15 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
               clearInterval(this.syncTimer);
               this.syncTimer = null;
           }
+      }
+
+      /**
+       * NestJS lifecycle hook — ensures the periodic peer-sync timer is
+       * stopped so the API process can exit cleanly. Idempotent and
+       * safe to call when no timer is currently scheduled.
+       */
+      onModuleDestroy(): void {
+          this.stopPeriodicSync();
       }
 
       async syncPeers(reason: "startup" | "interval"): Promise<void> {

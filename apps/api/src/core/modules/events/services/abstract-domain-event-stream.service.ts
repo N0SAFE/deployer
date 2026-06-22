@@ -1,7 +1,9 @@
-import { EMPTY, merge, Observable } from "rxjs";
+import type { Observable } from "rxjs";
+import { EMPTY, merge } from "rxjs";
 import { filter as rxFilter } from "rxjs/operators";
+import type {
+  CoreEventStreamPoolService} from "./core-event-stream-pool.service";
 import {
-  CoreEventStreamPoolService,
   type ObservePooledStreamOptions,
 } from "./core-event-stream-pool.service";
 

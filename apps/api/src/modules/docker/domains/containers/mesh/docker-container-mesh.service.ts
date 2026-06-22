@@ -10,7 +10,7 @@ import {
     type DockerRuntimeCatalog,
 } from "@repo/contracts-entities";
 import { contractBuilder } from "@/core/modules/events/event-contract.builder";
-import { BaseMeshService, type MeshCallManyResult } from "@/core/modules/mesh/services/base-mesh.service";
+import { InternalBaseMeshService, type MeshCallManyResult } from "@/core/modules/mesh/services/base-mesh.service";
 import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 
@@ -187,7 +187,7 @@ export interface DockerRuntimeCatalogResponsePayload {
 
 @Injectable()
 export class DockerContainerMeshService
-    extends BaseMeshService<typeof dockerContainerMeshContracts>
+    extends InternalBaseMeshService<typeof dockerContainerMeshContracts, Record<string, never>>
     implements OnModuleInit, OnModuleDestroy {
     constructor(
         meshTopicService: SystemMeshTopicService,

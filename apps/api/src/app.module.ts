@@ -15,6 +15,7 @@ import { EnvModule } from "./config/env/env.module";
 import { REQUEST } from "@nestjs/core";
 import { SmartCoercionPlugin } from "@orpc/json-schema";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+import { appContract } from "@repo/api-contracts";
 import type { ORPCAuthContext } from "./core/modules/auth/orpc/types";
 import { TestModule } from "./modules/test/test.module";
 import { AuthPlugin } from "./core/modules/auth/orpc/plugins/auth.plugin";
@@ -82,6 +83,7 @@ declare module "@orpc/nest" {
         SystemModule,
         PermissionModule,
         ORPCModule.forRootAsync({
+            router: appContract,
             useFactory: (
                 request: Request,
                 authCoreService: AuthCoreService,

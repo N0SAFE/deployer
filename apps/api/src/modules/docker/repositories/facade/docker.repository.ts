@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
+import { ScannerContainerManagerService } from "@/core/modules/docker/services/scanner-container-manager.service";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import {
   dockerImageSecurityLifecycle,
@@ -263,6 +264,7 @@ export class DockerRepository {
 
   constructor(
     private readonly dockerService: DockerService,
+    private readonly scannerContainerManager: ScannerContainerManagerService,
     private readonly globalDatabaseService: GlobalDatabaseService,
   ) {}
 
@@ -1719,7 +1721,7 @@ export class DockerRepository {
         env: this.toStringArray(config.Env as string | string[] | undefined),
         exposedPorts:
           typeof config.ExposedPorts === "object" && config.ExposedPorts !== null
-            ? Object.keys(config.ExposedPorts as Record<string, unknown>)
+            ? Object.keys(config.ExposedPorts)
             : [],
         workingDir: typeof config.WorkingDir === "string" ? config.WorkingDir : null,
         user: typeof config.User === "string" && config.User.length > 0 ? config.User : null,
@@ -2188,7 +2190,7 @@ export class DockerRepository {
       .from(dockerImageSecurityLifecycle)
       .where(eq(dockerImageSecurityLifecycle.imageIdentifierNormalized, normalizedIdentifier))
       .limit(1)
-      .then((rows) => (rows[0] ?? null) as DockerImageLifecycleRecord | null);
+      .then((rows) => (rows[0] ?? null));
 
     if (!existing) {
       await this.globalDatabaseService.db
@@ -2631,8 +2633,8 @@ export class DockerRepository {
           imageIdentifierNormalized: lifecycle.imageIdentifierNormalized,
           imageGeneration: lifecycle.imageGeneration,
           scanHash,
-          vulnerabilities: scanResult.vulnerabilities as unknown as Record<string, unknown>[],
-          scanSummary: scanResult.scanSummary as unknown as Record<string, unknown>,
+          vulnerabilities: scanResult.vulnerabilities,
+          scanSummary: scanResult.scanSummary,
           scanStatus: "completed",
           createdAt: now,
         })
@@ -2646,8 +2648,8 @@ export class DockerRepository {
           imageId: inspectId,
           imageIdentifierNormalized: lifecycle.imageIdentifierNormalized,
           imageGeneration: lifecycle.imageGeneration,
-          vulnerabilities: scanResult.vulnerabilities as unknown as Record<string, unknown>[],
-          scanSummary: scanResult.scanSummary as unknown as Record<string, unknown>,
+          vulnerabilities: scanResult.vulnerabilities,
+          scanSummary: scanResult.scanSummary,
           scanStatus: "completed",
           lastUpdated: now,
           updatedAt: now,
@@ -2657,8 +2659,8 @@ export class DockerRepository {
           set: {
             imageId: inspectId,
             imageGeneration: lifecycle.imageGeneration,
-            vulnerabilities: scanResult.vulnerabilities as unknown as Record<string, unknown>[],
-            scanSummary: scanResult.scanSummary as unknown as Record<string, unknown>,
+            vulnerabilities: scanResult.vulnerabilities,
+            scanSummary: scanResult.scanSummary,
             scanStatus: "completed",
             lastUpdated: now,
             updatedAt: now,
@@ -2875,6 +2877,13 @@ export class DockerRepository {
       };
     }
 
+    // Ensure all three shared scanner containers are running before launching tasks
+    await Promise.all([
+      this.scannerContainerManager.ensureContainerRunning("trivy"),
+      this.scannerContainerManager.ensureContainerRunning("grype"),
+      this.scannerContainerManager.ensureContainerRunning("dive"),
+    ]);
+
     const [trivyResult, grypeResult, diveResult] = await this.runScannerTasksWithConcurrency(
       [
         () => this.scanUsingTrivy(scanTargets),
@@ -2955,6 +2964,13 @@ export class DockerRepository {
       logLine: null,
     }));
 
+    // Ensure all three shared scanner containers are running before launching tasks
+    await Promise.all([
+      this.scannerContainerManager.ensureContainerRunning("trivy"),
+      this.scannerContainerManager.ensureContainerRunning("grype"),
+      this.scannerContainerManager.ensureContainerRunning("dive"),
+    ]);
+
     const progressOptions: ScannerRunProgressOptions = {
       ...options,
       imageId,
@@ -3022,7 +3038,20 @@ export class DockerRepository {
     const imageId = options?.imageId ?? scanTargets[0] ?? "unknown-image";
 
     for (const target of scanTargets) {
-      const config: ScannerExecutionConfig = {
+      const command: string[] = [
+        "trivy",
+        "image",
+        "--quiet",
+        "--format",
+        "json",
+        "--severity",
+        "CRITICAL,HIGH,MEDIUM,LOW",
+        "--timeout",
+        "2m",
+        target,
+      ];
+
+      const fallbackConfig: ScannerExecutionConfig = {
         scanner: "trivy",
         image: "aquasec/trivy:0.69.3",
         command: [
@@ -3049,7 +3078,7 @@ export class DockerRepository {
       }));
 
       try {
-        const result = await this.executeScannerContainer(config, {
+        const result = await this.executeScannerViaSharedContainer("trivy", command, fallbackConfig, {
           logPollIntervalMs: options?.logPollIntervalMs,
           onPullLogLine: (line) => {
             options?.onEvent?.(this.buildScanEvent({
@@ -3148,7 +3177,15 @@ export class DockerRepository {
     const imageId = options?.imageId ?? scanTargets[0] ?? "unknown-image";
 
     for (const target of scanTargets) {
-      const config: ScannerExecutionConfig = {
+      const command: string[] = [
+        "grype",
+        `docker:${target}`,
+        "--output",
+        "json",
+        "--quiet",
+      ];
+
+      const fallbackConfig: ScannerExecutionConfig = {
         scanner: "grype",
         image: "anchore/grype:latest",
         command: [
@@ -3170,7 +3207,7 @@ export class DockerRepository {
       }));
 
       try {
-        const result = await this.executeScannerContainer(config, {
+        const result = await this.executeScannerViaSharedContainer("grype", command, fallbackConfig, {
           logPollIntervalMs: options?.logPollIntervalMs,
           onPullLogLine: (line) => {
             options?.onEvent?.(this.buildScanEvent({
@@ -3273,7 +3310,15 @@ export class DockerRepository {
         .filter((candidate, index, all) => all.indexOf(candidate) === index);
 
       for (const candidate of targetCandidates) {
-        const config: ScannerExecutionConfig = {
+        const command: string[] = [
+          "dive",
+          "--ci",
+          "--lowestEfficiency",
+          "0",
+          candidate,
+        ];
+
+        const fallbackConfig: ScannerExecutionConfig = {
           scanner: "dive",
           image: "wagoodman/dive:latest",
           command: [
@@ -3295,7 +3340,7 @@ export class DockerRepository {
         }));
 
         try {
-          const result = await this.executeScannerContainer(config, {
+          const result = await this.executeScannerViaSharedContainer("dive", command, fallbackConfig, {
             logPollIntervalMs: options?.logPollIntervalMs,
             onPullLogLine: (line) => {
               options?.onEvent?.(this.buildScanEvent({
@@ -3402,7 +3447,7 @@ export class DockerRepository {
     return Math.min(3, Math.max(1, parsed));
   }
 
-  private async runScannerTasksWithConcurrency<TTasks extends ReadonlyArray<() => Promise<unknown>>>(
+  private async runScannerTasksWithConcurrency<TTasks extends readonly (() => Promise<unknown>)[]>(
     tasks: TTasks,
     concurrency: number,
   ): Promise<{ [K in keyof TTasks]: Awaited<ReturnType<TTasks[K]>> }> {
@@ -3444,6 +3489,44 @@ export class DockerRepository {
     }
   }
 
+  /**
+   * Execute a scanner command inside the shared scanner container.
+   * Falls back to a per-scanner ephemeral container if the shared
+   * container is unavailable (e.g. image not built yet, disabled).
+   */
+  private async executeScannerViaSharedContainer(
+    scanner: string,
+    command: string[],
+    fallbackConfig: ScannerExecutionConfig,
+    progressOptions: ScannerExecutionProgressOptions = {},
+  ): Promise<ScannerExecutionResult> {
+    const startedAt = Date.now();
+    const scannerType = scanner as "trivy" | "grype" | "dive";
+
+    // Try shared container first
+    const ready = await this.scannerContainerManager.ensureContainerRunning(scannerType);
+    if (ready) {
+      try {
+        const result = await this.scannerContainerManager.execInScanner(scannerType, command);
+        return {
+          scanner,
+          exitCode: result.exitCode,
+          output: result.output,
+          durationMs: result.durationMs,
+          executedAt: new Date().toISOString(),
+        };
+      } catch (error) {
+        this.logger.debug(
+          `Shared container exec failed for ${scanner}, falling back to ephemeral container: ${this.formatError(error)}`,
+        );
+      }
+    }
+
+    // Fallback: use the old per-scanner ephemeral container
+    this.logger.debug(`Using ephemeral container fallback for ${scanner}`);
+    return this.executeScannerContainer(fallbackConfig, progressOptions);
+  }
+
   private async executeScannerContainer(
     config: ScannerExecutionConfig,
     progressOptions: ScannerExecutionProgressOptions = {},
@@ -3469,16 +3552,22 @@ export class DockerRepository {
       }
     }
 
+    const socketBind = this.dockerService.getDockerSocketBindMount();
+    const envVars: string[] = [];
+
+    if (socketBind) {
+      const hostPath = socketBind.split(":")[0];
+      envVars.push(`DOCKER_HOST=unix://${hostPath}`);
+    }
+
     const created = await this.dockerService.createContainer({
       Image: config.image,
       name: containerName,
       Cmd: config.command,
-      Env: [
-        "DOCKER_HOST=unix:///var/run/docker.sock",
-      ],
+      Env: envVars.length > 0 ? envVars : undefined,
       HostConfig: {
         AutoRemove: false,
-        Binds: ["/var/run/docker.sock:/var/run/docker.sock"],
+        Binds: socketBind ? [socketBind] : undefined,
       },
       Tty: false,
     });
@@ -4085,13 +4174,9 @@ export class DockerRepository {
       return null;
     }
 
-    const efficiencyMatch = normalizedOutput.match(
-      /(?:image\s+efficiency\s+score|efficiency(?:\s+score)?)\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)\s*%?/iu,
-    );
-    const wastedPercentMatch = normalizedOutput.match(/(?:wasted\s+space|wasted)\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)\s*%/iu);
-    const wastedSizeMatch = normalizedOutput.match(
-      /(?:potential\s+wasted\s+space|wasted\s+bytes?)\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)\s*([kmgtep]?i?b)/iu,
-    );
+    const efficiencyMatch = /(?:image\s+efficiency\s+score|efficiency(?:\s+score)?)\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)\s*%?/iu.exec(normalizedOutput);
+    const wastedPercentMatch = /(?:wasted\s+space|wasted)\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)\s*%/iu.exec(normalizedOutput);
+    const wastedSizeMatch = /(?:potential\s+wasted\s+space|wasted\s+bytes?)\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)\s*([kmgtep]?i?b)/iu.exec(normalizedOutput);
 
     const efficiencyScore = efficiencyMatch ? Number(efficiencyMatch[1]) : null;
     const estimatedWastedPercent = wastedPercentMatch ? Number(wastedPercentMatch[1]) : null;

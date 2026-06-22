@@ -10,6 +10,12 @@ services:
       dockerfile: ./docker/builder/api/Dockerfile.api.e2e
       tags:
         - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-e2e:latest"
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+      # Embed BuildKit cache metadata in the image so subsequent test runs can
+      # pull the cache from this image (via cache_from) instead of rebuilding.
+      cache_to:
+        - type=inline
     environment:
       NODE_ENV: test
       AUTH_SECRET: ${AUTH_SECRET:-test-auth-secret-key-for-testing-only}

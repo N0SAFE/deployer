@@ -208,7 +208,7 @@ describe("compileDFilter — Variable instances", () => {
             compileDFilter(
                 { ownerId: { _eq: new Variable("userId") } },
                 resolver,
-                {} as Partial<{ userId: string }>, // provide TVars context; empty → throws at runtime
+                {}, // provide TVars context; empty → throws at runtime
             ),
         ).toThrow(/userId/);
     });
@@ -233,7 +233,7 @@ describe("compileDFilter — Variable instances", () => {
 
     it("_in with Variable throws when variable is not in context", () => {
         expect(() =>
-            compileDFilter({ ownerId: { _in: new Variable("teamIds") } }, resolver, {} as Partial<{ teamIds: string[] }>),
+            compileDFilter({ ownerId: { _in: new Variable("teamIds") } }, resolver, {}),
         ).toThrow(/teamIds/);
     });
 

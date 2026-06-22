@@ -384,12 +384,12 @@ function createPathBuilder<T extends Record<string, string | string[]>>(
         if (catchAll?.[1]) {
             const key = catchAll[1]
             elems.push((params: T) =>
-                (params[key as unknown as string] as string[]).join('/')
+                (params[key] as string[]).join('/')
             )
         } else if (param?.[1]) {
             const key = param[1]
             elems.push(
-                (params: T) => params[key as unknown as string] as string
+                (params: T) => params[key] as string
             )
         } else if (!(elem.startsWith('(') && elem.endsWith(')'))) {
             elems.push(() => elem)

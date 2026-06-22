@@ -1093,6 +1093,7 @@ export function useDockerContainerLogsStream(
       input,
       enabled: options?.enabled ?? true,
       refetchInterval: false,
+      
     }),
   )
 }

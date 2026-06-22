@@ -1,10 +1,381 @@
-i want you to enhance this doc to take in account sse stream shared event to avoid creating a new sse stream for each new request. the goal is to have a store so when someone want somthings we check if there is not already is a opened stream for these filters etc
-
 # Mesh Use Cases & Event Architecture
 
 The mesh architecture embraces a **100% RxJS-based streaming model**, treating the whole distributed platform as a single event-driven system. Under the hood, everything is routed through Server-Sent Events (SSE) bounded dynamically to the RxJS lifecycle (`subscribe` triggers the connection; `unsubscribe` terminates it). 
 
 This robust system enables precise real-time synchronization, edge-computing topologies, distributed querying, and transparent scaling boundaries. 
+
+---
+
+## SSE Stream Store — Shared Event Stream Architecture
+
+### Motivation
+
+In a naive implementation, every `.listen()` or `.live()` call creates a new SSE connection to the source node or global coordinator. When multiple consumers subscribe to the same entity with overlapping filters, the system spawns redundant SSE connections — each carrying identical events over the wire. This wastes:
+
+- **Network bandwidth**: duplicate event payloads travel the same path
+- **Connection resources**: TCP/TLS handshake overhead per stream
+- **Server load**: per-connection transformation, serialization, and backpressure tracking
+- **Client memory**: multiple EventSource / Observable instances for the same data
+
+The **SSE Stream Store** solves this by treating SSE connections as **shared, reference-counted resources** keyed by their topic + filter signature.
+
+### Core Concept
+
+```
+┌──────────────────────────────────────────────────┐
+│                 SSE Stream Store                  │
+│                                                   │
+│  ┌─────────────────┐   ┌─────────────────┐       │
+│  │ Stream Entry     │   │ Stream Entry     │       │
+│  │ key: "deployments│   │ key: "deployments│       │
+│  │       :prod"     │   │       :staging"  │       │
+│  │ refCount: 3      │   │ refCount: 1      │       │
+│  │ subscribers ├──► │   │ subscribers ├──► │       │
+│  │   ├─ Consumer A  │   │   └─ Consumer D  │       │
+│  │   ├─ Consumer B  │   └─────────────────┘       │
+│  │   └─ Consumer C  │                              │
+│  └─────────────────┘                              │
+└──────────────────────────────────────────────────┘
+```
+
+When a consumer requests a stream:
+
+1. The store computes a **stream key** from the entity + topic + serialized filters
+2. If a stream with that key **already exists**, the new consumer is attached to the existing SSE connection (refCount++)
+3. If **no stream exists**, a new SSE connection is opened to the source, and the consumer is attached (refCount = 1)
+4. When a consumer disconnects, refCount—; when refCount reaches 0, the underlying SSE connection is torn down
+
+### Stream Key Derivation
+
+The stream key uniquely identifies a logical event channel:
+
+```
+{entityNamespace}:{entityName}:{sourceType}:{filterHash}
+```
+
+- `entityNamespace` — the mesh service namespace (e.g., `deployment`, `service`)
+- `entityName` — the entity key (e.g., `deployments`, `logs`)
+- `sourceType` — the event source discriminator (e.g., `runtimeEventBroadcast`, `mutation`, `webhook`)
+- `filterHash` — a deterministic hash of the where-clause / filter object (sorted keys, canonical JSON)
+
+Example:
+
+```
+deployment:deployments:runtimeEventBroadcast:{environment:"prod"}
+```
+
+```ts
+export function computeStreamKey(config: {
+  namespace: string;
+  entityKey: string;
+  sourceType: string;
+  filters?: Record<string, unknown>;
+}): string {
+  const filterHash = config.filters
+    ? stableStringify(config.filters)
+    : '*';
+  return `${config.namespace}:${config.entityKey}:${config.sourceType}:${filterHash}`;
+}
+```
+
+### Stream Store Interface
+
+```ts
+interface StreamStoreEntry {
+  /** Unique key for this stream */
+  readonly key: string;
+
+  /** Number of active consumers sharing this stream */
+  refCount: number;
+
+  /** The underlying RxJS Subject that fans out to all consumers */
+  readonly subject: Subject<MeshStreamEvent>;
+
+  /** The upstream SSE subscription (may be null for local subjects) */
+  upstreamSubscription: Subscription | null;
+
+  /** Timestamp when this entry was created */
+  readonly createdAt: number;
+
+  /** Metadata for debugging / observability */
+  readonly metadata: {
+    namespace: string;
+    entityKey: string;
+    sourceType: string;
+    filterHash: string;
+  };
+}
+
+interface StreamStore {
+  /** Get or create a shared stream for the given key.
+   *  Increments refCount. Returns the subject to subscribe to. */
+  acquire(key: string, factory: () => Observable<MeshStreamEvent>): Observable<MeshStreamEvent>;
+
+  /** Release a stream (decrements refCount).
+   *  When refCount reaches 0, tears down the upstream connection. */
+  release(key: string): void;
+
+  /** Check if a stream is currently active (has active consumers). */
+  has(key: string): boolean;
+
+  /** Get diagnostic information about all active streams. */
+  snapshot(): StreamStoreEntry[];
+
+  /** Force-terminate a stream regardless of refCount (emergency cleanup). */
+  evict(key: string): void;
+}
+```
+
+### Reference-Counted Lifecycle
+
+```
+                    acquire(key, factory)                   
+                         │                                 
+                         ▼                                 
+              ┌─────────────────────┐                 
+              │ Stream exists?      │                 
+              └─────────────────────┘                 
+                     │        │                        
+                   Yes       No                        
+                     │        │                        
+                     ▼        ▼                        
+              refCount++   Create new SSE              
+                          connection via factory()       
+                          refCount = 1                  
+                          Store subject                 
+                          Track upstream                
+                          Subscription                  
+                     │                                   
+                     ▼                                   
+              Return subject to consumer                 
+              (consumer subscribes to subject)           
+                         │                                 
+                         ▼                                 
+              ┌─────────────────────┐                 
+              │ Consumer             │                 
+              │ unsubscribes?       │                 
+              └─────────────────────┘                 
+                         │                                 
+                       Yes                                 
+                         │                                 
+                         ▼                                 
+                    refCount--                             
+                         │                                 
+                         ▼                                 
+              ┌─────────────────────┐                 
+              │ refCount === 0?    │                 
+              └─────────────────────┘                 
+                     │        │                        
+                   Yes       No                        
+                     │        │                        
+                     ▼        ▼                        
+              Unsubscribe from   Still active,           
+              upstream SSE       wait for more           
+              Remove entry       consumers to drop       
+              Clean up resources                        
+```
+
+### Implementation Sketch (NestJS/RxJS)
+
+```ts
+@Injectable()
+export class SharedStreamStore implements StreamStore {
+  private readonly streams = new Map<string, StreamStoreEntry>();
+
+  acquire(
+    key: string,
+    factory: () => Observable<MeshStreamEvent>,
+  ): Observable<MeshStreamEvent> {
+    const existing = this.streams.get(key);
+    if (existing) {
+      existing.refCount++;
+      return existing.subject.asObservable();
+    }
+
+    const subject = new Subject<MeshStreamEvent>();
+    const upstream = factory().subscribe({
+      next: (event) => subject.next(event),
+      error: (err) => subject.error(err),
+      complete: () => subject.complete(),
+    });
+
+    const entry: StreamStoreEntry = {
+      key,
+      refCount: 1,
+      subject,
+      upstreamSubscription: upstream,
+      createdAt: Date.now(),
+      metadata: this.parseKey(key),
+    };
+
+    this.streams.set(key, entry);
+    return subject.asObservable();
+  }
+
+  release(key: string): void {
+    const entry = this.streams.get(key);
+    if (!entry) return;
+
+    entry.refCount--;
+    if (entry.refCount <= 0) {
+      entry.upstreamSubscription?.unsubscribe();
+      entry.subject.complete();
+      this.streams.delete(key);
+    }
+  }
+
+  has(key: string): boolean {
+    return this.streams.has(key);
+  }
+
+  snapshot(): StreamStoreEntry[] {
+    return Array.from(this.streams.values());
+  }
+
+  evict(key: string): void {
+    const entry = this.streams.get(key);
+    if (!entry) return;
+    entry.upstreamSubscription?.unsubscribe();
+    entry.subject.complete();
+    this.streams.delete(key);
+  }
+
+  private parseKey(key: string): StreamStoreEntry['metadata'] {
+    const parts = key.split(':');
+    return {
+      namespace: parts[0] ?? '',
+      entityKey: parts[1] ?? '',
+      sourceType: parts[2] ?? '',
+      filterHash: parts[3] ?? '*',
+    };
+  }
+}
+```
+
+### Integration with Mesh Discovery / Live Queries
+
+The `SharedStreamStore` sits transparently between the consumer API and the transport layer:
+
+```ts
+@Injectable()
+export class SystemMeshResourceDiscoveryService {
+  constructor(
+    private readonly streamStore: SharedStreamStore,
+    private readonly meshTransport: MeshTransport,
+  ) {}
+
+  from(method: AnyMeshEntityMethod): MeshQueryBuilder {
+    // ... existing builder creation ...
+
+    // When .listen() or .live() is called, the builder uses the store:
+    listen(options?: MeshListenOptions): Observable<MeshStreamEvent> {
+      const key = computeStreamKey({
+        namespace: method.entityKey.split(':')[0],
+        entityKey: method.entityKey,
+        sourceType: options?.sourceType ?? 'default',
+        filters: options?.where,
+      });
+
+      return this.streamStore.acquire(
+        key,
+        () => this.meshTransport.connectToStream(key, options),
+      );
+    }
+  }
+}
+```
+
+Consumers use `.listen()` as before — the sharing is entirely transparent:
+
+```ts
+// Both calls share the same underlying SSE connection
+const stream1 = discovery.from(deployments).where({ env: 'prod' }).listen();
+const stream2 = discovery.from(deployments).where({ env: 'prod' }).listen();
+// Only ONE SSE connection to the mesh coordinator
+```
+
+### Consumer-Side Cleanup
+
+When a consumer unsubscribes (or the Observable is garbage-collected via `finalize`), the store's `release()` is called automatically:
+
+```ts
+// In the builder's listen() implementation:
+return this.streamStore.acquire(key, factory).pipe(
+  finalize(() => this.streamStore.release(key)),
+);
+```
+
+### Filter-Aware Stream Sharing
+
+For streams with different filters, two strategies exist:
+
+| Strategy | Behavior | Use Case |
+|---|---|---|
+| **Exact-match** | Keys include the full filter hash; `{env: "prod"}` and `{env: "staging"}` get separate streams | When filters substantially reduce payload volume |
+| **Broadcast** | Key omits filters; all consumers share one stream and filter client-side | When filter selectivity is low or server-side filtering adds latency |
+
+The strategy can be configured per entity or per call:
+
+```ts
+.listen({ sharing: 'exact-match' })   // one stream per unique filter
+.listen({ sharing: 'broadcast' })     // one stream per entity, filter client-side
+```
+
+Default: `broadcast` for global resources, `exact-match` for node-owned resources.
+
+### Edge Cases & Guarantees
+
+| Scenario | Behavior |
+|---|---|
+| **Stream error** | The shared subject emits the error to all consumers; the entry is evicted. A new `acquire` will create a fresh connection. |
+| **Stream completion** | The shared subject completes for all consumers; the entry is cleaned up. |
+| **Rapid acquire/release** | refCount stays ≥ 1 during the window; no connection churn. |
+| **Multiple namespaces** | Each namespace gets its own stream entries; no cross-talk. |
+| **Node disconnect** | The upstream SSE fails → subject errors → every consumer receives the error → reconnection logic kicks in at the discovery layer. |
+| **Backpressure** | RxJS backpressure propagates from shared subject to upstream only when ALL consumers are slow. |
+
+### Observability
+
+The store exposes diagnostic endpoints:
+
+```
+GET /mesh/streams
+→ {
+    activeStreams: 12,
+    entries: [
+      {
+        key: "deployment:deployments:runtimeEventBroadcast:{env:\"prod\"}",
+        refCount: 3,
+        createdAt: "2026-06-09T09:00:00.000Z",
+        metadata: { ... }
+      }
+    ]
+  }
+```
+
+### File Structure
+
+```
+src/core/modules/mesh/
+├── stream-store/
+│   ├── shared-stream-store.ts        ← implementation
+│   ├── shared-stream-store.types.ts   ← interfaces/types
+│   ├── stream-key.ts                  ← computeStreamKey, stableStringify
+│   └── stream-store.module.ts         ← NestJS module registration
+│
+├── query/
+│   └── mesh-query-builder.ts          ← .listen() uses store
+│
+├── live/
+│   └── mesh-live-query.ts             ← live query uses store internally
+│
+└── services/
+    └── system-mesh-resource-discovery.service.ts  ← injects store
+```
+
+### Invariant
+
+**I21** — Multiple consumers subscribing to the same entity + filters MUST share a single underlying SSE connection. The stream store guarantees at-most-one upstream connection per unique stream key.
 
 ---
 
@@ -151,24 +522,19 @@ The Mesh Module guarantees that the physical complexity of multi-server applicat
 
 
 
+---
 
-
-also update the doc to take in account this doc as well
-# Mesh Resource Discovery Architecture
-
-## Overview
+## 4. Resource Discovery Architecture
 
 The mesh system provides a unified API for discovering and accessing resources across a distributed cluster. All communication is built on **SSE (Server-Sent Events)** streams, with Observable-based APIs for reactive programming and Promise-based conveniences for simple use cases.
 
-## Core Principles
-
-### 1. Observable-First, Promise as Convenience
+### 4.1 Observable-First, Promise as Convenience
 
 - **Primary API**: Observables for streaming, real-time updates
 - **Secondary API**: Promises for one-time requests (built on top of Observables)
 - All operations fundamentally work with streams
 
-### 2. Resource Ownership Model
+### 4.2 Resource Ownership Model
 
 Resources have different ownership patterns that determine how they're accessed:
 
@@ -179,7 +545,7 @@ Resources have different ownership patterns that determine how they're accessed:
 | **Sharded** | Partitioned across multiple nodes | Fan-out SSE streams to shard holders |
 | **Replicated** | Same data on multiple nodes (HA) | Subscribe to any replica |
 
-### 3. Stream Types
+### 4.3 Stream Types
 
 #### A. Main Mesh Stream (Durable)
 
@@ -241,9 +607,9 @@ discovery
   });
 ```
 
-## Resource Discovery Flows
+### 4.4 Resource Discovery Flows
 
-### Flow 1: Request (One-Time Query)
+#### Flow 1: Request (One-Time Query)
 
 ```
 Consumer                    Discovery Service                    Nodes
@@ -276,7 +642,7 @@ const deployments = await discovery
 - For sharded: Query shard holders
 - Result aggregated and returned as Promise
 
-### Flow 2: Listen (Real-Time Subscription)
+#### Flow 2: Listen (Real-Time Subscription)
 
 ```
 Consumer                    Discovery Service                    Node(s)
@@ -320,9 +686,9 @@ subscription.unsubscribe();
 - For sharded: Open SSE streams to all shard holders
 - Observable merges events from all relevant streams
 
-## API Design
+### 4.5 API Design
 
-### Unified Builder API
+#### Unified Builder API
 
 ```typescript
 // Query building is the same for all resource types
@@ -340,7 +706,7 @@ const stream$ = builder.listen();
 stream$.subscribe(event => console.log(event));
 ```
 
-### Resource Definition
+#### Resource Definition
 
 ```typescript
 // Define resource with ownership and access patterns
@@ -381,7 +747,7 @@ const deployments = defineResource({
 });
 ```
 
-### Consumer Patterns
+### 4.6 Consumer Patterns
 
 #### Pattern 1: Simple Request
 
@@ -442,9 +808,9 @@ class ProjectService {
 }
 ```
 
-## Implementation Architecture
+### 4.7 Implementation Architecture
 
-### Stream Manager
+#### Stream Manager
 
 Responsible for managing SSE connections:
 
@@ -464,7 +830,7 @@ interface StreamManager {
 }
 ```
 
-### Ownership Resolver
+#### Ownership Resolver
 
 Determines where to route queries:
 
@@ -481,7 +847,7 @@ interface OwnershipResolver {
 }
 ```
 
-### Query Engine
+#### Query Engine
 
 Executes queries against the mesh:
 
@@ -495,9 +861,9 @@ interface QueryEngine {
 }
 ```
 
-## Event Flow Examples
+### 4.8 Event Flow Examples
 
-### Global Resource Change (Project Updated)
+#### Global Resource Change (Project Updated)
 
 ```
 Node A (originator)          Global Coordinator          Node B (consumer)
@@ -514,7 +880,7 @@ Node A (originator)          Global Coordinator          Node B (consumer)
        |                             |<===========================|
 ```
 
-### Node-Owned Resource Change (Deployment Scaled)
+#### Node-Owned Resource Change (Deployment Scaled)
 
 ```
 Node A (owner)               Consumer
@@ -528,7 +894,7 @@ Node A (owner)               Consumer
        |=======================>|
 ```
 
-### Cross-Node Query (Find All Deployments)
+#### Cross-Node Query (Find All Deployments)
 
 ```
 Consumer                     Discovery Service                Node A        Node B
@@ -547,7 +913,7 @@ Consumer                     Discovery Service                Node A        Node
    |<------------------------------|                              |             |
 ```
 
-## Type Safety
+### 4.9 Type Safety
 
 All operations are fully typed:
 
@@ -577,7 +943,7 @@ discovery
   });
 ```
 
-## Summary
+### 4.10 Summary
 
 1. **Everything is a stream** (SSE-based)
 2. **Observable-first API** with Promise convenience
@@ -587,7 +953,78 @@ discovery
 6. **Two main flows**:
    - `request()`: One-time query, returns Promise
    - `listen()`: Real-time updates, returns Observable
-and
+
+---
+
+## 5. Test Coverage & Compliance
+
+All concepts documented in this source-of-truth document have corresponding e2e tests. The living compliance matrix in `apps/api/src/e2e/mesh-workflows/mesh-doc-compliance-matrix.e2e-spec.ts` maps every section to its verifying test file(s).
+
+### Coverage Summary
+
+| Section | Coverage | Tests |
+|---------|----------|-------|
+| SSE Stream Store (Preamble) | ~60% | 11 verified concepts (stream key derivation, ref-counted lifecycle, filter-aware sharing, lifecycle$ events, consumer registry) |
+| §1 Event Namespace System | ~95% | 6 verified concepts (MeshStreamEvent, MeshChangeEvent, namespace isolation, source-specific subscription, structured keys) |
+| §2 Why Use the Mesh? | ~10% | Philosophical — namespace isolation tested |
+| §3 Ownership Patterns | ~50% | 5 verified concepts (defineResource builder, PartitionPolicy AP/CP/hybrid, OwnershipResolverService) |
+| §4 Resource Discovery Architecture | ~70% | 18 verified concepts (builder API, Query Executor, Listen API, Consumer Patterns 1-3, StreamManagerService, Type Safety) |
+| Appendix (v2 Distributed Query) | ~10% | Selected concepts (where/select/ordering/pagination) |
+| **Overall** | **~50-55%** | **131 tests passing, 0 failing, 12 todo (aspirational concepts)** |
+
+### Test Files
+
+All mesh e2e tests live in `apps/api/src/e2e/mesh-workflows/`:
+
+| Test File | Concepts Covered |
+|-----------|-----------------|
+| `mesh-doc-compliance-matrix.e2e-spec.ts` | Living index: every documented concept mapped to its test(s) |
+| `mesh-stream-key-derivation.e2e-spec.ts` | §SSE Stream Store — composite identity, stream isolation, filter-aware sharing |
+| `mesh-sse-shared-store.e2e-spec.ts` | §SSE Stream Store — connection reuse, invariant I21, attach/promote/new |
+| `mesh-shared-stream-store-advanced.e2e-spec.ts` | §SSE Stream Store — refCount, lifecycle$, consumer registry, StreamManagerService |
+| `mesh-event-namespace.e2e-spec.ts` | §1 — all event structures, namespace isolation, source filtering |
+| `mesh-listen-api.e2e-spec.ts` | §4.4 — Flow 2 (listen), MeshListenResult, change event types |
+| `mesh-query-executor.e2e-spec.ts` | §4.4/4.5 — Flow 1 (request), builder API, pagination, explain() |
+| `mesh-consumer-patterns.e2e-spec.ts` | §4.6 — Patterns 1-3, health reports, deployment summaries |
+| `mesh-resource-ownership.e2e-spec.ts` | §3/4.2 — ownership builders, PartitionPolicy, OwnershipResolverService |
+| `mesh-resource-builder-and-discovery.e2e-spec.ts` | §4.5 — defineResource, typed queries, discovery integration |
+| `mesh-filter-and-where.e2e-spec.ts` | §4.9 — typed where expressions, filter compilation |
+| `mesh-promotion-control.e2e-spec.ts` | §SSE Stream Store — attach/promote/new decision semantics |
+| `mesh-global-resource.e2e-spec.ts` | §3.1 — global resource notifier + subscriber lifecycle |
+| `mesh-reactive-subquery.e2e-spec.ts` | §Appendix 20 — reactive filter recomputation |
+| `mesh-stream-manager-persistence.e2e-spec.ts` | §SSE Stream Store — stream lifecycle across consumer changes |
+| `mesh-containerized-multi-node.e2e-spec.ts` | §4.3 A — multi-runtime infrastructure |
+
+### Running Tests
+
+```bash
+cd apps/api
+bun --bun run vitest run --project e2e --testNamePattern="Mesh E2E:"
+```
+
+**Current status (2026-06-10):** 131 tests passing, 0 failing, 12 todo (aspirational concepts requiring runtime implementation before they can be tested).
+
+### Documented But Not Yet Testable
+
+12 concepts in this document describe behaviors that require runtime implementation that does not yet exist in the v3 codebase:
+- `SharedStreamStore` standalone class (acquire/release/has/snapshot/evict)
+- `computeStreamKey()` standalone function
+- `MeshStreamEventPayload` wire envelope
+- Remote SSE control plane (promotion/demotion control frames)
+- Multi-node sharded fan-out with ownership resolver
+- Replicated read path (nearest replica selection)
+- Persistent durable stream pool across app lifecycle
+- Distributed query engine REQUEST/LISTEN flows
+
+These are tracked as `it.todo` entries in the compliance matrix and will be converted to real tests as the runtime is implemented.
+
+**→ Implementation plan:** [`docs/mesh-todo-implementation-plan.md`](./docs/mesh-todo-implementation-plan.md)
+
+The plan groups the 12 items into 5 dependency groups (A–E), estimates effort per item (~70 hrs total), and recommends a phased implementation order starting with the foundational primitives (Group A: `computeStreamKey`, `MeshStreamEventPayload`, `SharedStreamStore`) and building up through control frames, durable streams, distributed query engine integration, and advanced multi-node patterns.
+
+---
+
+## Appendix: Mesh Resource Discovery & Distributed Query Architecture — v2
 
 # Mesh Resource Discovery & Distributed Query Architecture — v2
 

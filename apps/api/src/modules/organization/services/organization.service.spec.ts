@@ -57,7 +57,7 @@ describe('OrganizationService', () => {
             const mockResponse = { data: [mockOrg], meta: { total: 1, limit: 10, offset: 0, hasMore: false } };
             mockRepository.listAll.mockResolvedValue(mockResponse);
 
-            const result = await service.listAll(input as Parameters<typeof service.listAll>[0]);
+            const result = await service.listAll(input);
 
             expect(result).toEqual(mockResponse);
             expect(mockRepository.listAll).toHaveBeenCalledWith(input);
@@ -68,7 +68,7 @@ describe('OrganizationService', () => {
             const mockResponse = { data: [], meta: { total: 0, limit: 10, offset: 0, hasMore: false } };
             mockRepository.listAll.mockResolvedValue(mockResponse);
 
-            const result = await service.listAll(input as Parameters<typeof service.listAll>[0]);
+            const result = await service.listAll(input);
 
             expect(result.data).toHaveLength(0);
         });
@@ -80,7 +80,7 @@ describe('OrganizationService', () => {
             const mockResponse = { data: [mockMember], meta: { total: 1, limit: 20, offset: 0, hasMore: false } };
             mockRepository.listMembers.mockResolvedValue(mockResponse);
 
-            const result = await service.listMembers(input as Parameters<typeof service.listMembers>[0]);
+            const result = await service.listMembers(input);
 
             expect(result).toEqual(mockResponse);
             expect(mockRepository.listMembers).toHaveBeenCalledWith(input);
@@ -91,7 +91,7 @@ describe('OrganizationService', () => {
             const mockResponse = { data: [], meta: { total: 0, limit: 20, offset: 0, hasMore: false } };
             mockRepository.listMembers.mockResolvedValue(mockResponse);
 
-            const result = await service.listMembers(input as Parameters<typeof service.listMembers>[0]);
+            const result = await service.listMembers(input);
 
             expect(result.data).toHaveLength(0);
         });

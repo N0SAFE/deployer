@@ -162,7 +162,7 @@ export const resourceRulesSchema = z.array(resourceRuleSchema).max(500);
  * Throws ZodError on failure.
  */
 export function parseResourceRules(raw: unknown): ResourceRule[] {
-    return resourceRulesSchema.parse(raw) as ResourceRule[];
+    return resourceRulesSchema.parse(raw);
 }
 
 /** The return type of a safeParse call on resourceRulesSchema. */

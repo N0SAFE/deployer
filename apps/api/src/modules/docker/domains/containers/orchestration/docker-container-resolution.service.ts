@@ -93,10 +93,10 @@ interface DockerListResult<T> {
 
 interface DockerGroupedDaemonDiagnostics {
     hasSharedDaemonAcrossNodes: boolean;
-    sharedDaemonGroups: Array<{
+    sharedDaemonGroups: {
         daemonId: string;
         nodeIds: string[];
-    }>;
+    }[];
 }
 
 interface DockerContainerResolutionOptions {
@@ -941,7 +941,7 @@ export class DockerContainerResolutionService {
                 };
             }
 
-            const payload = (await response.json()) as unknown;
+            const payload = (await response.json());
             const containers = this.extractContainersFromPeerPayload(payload);
             if (containers.length === 0) {
                 return {

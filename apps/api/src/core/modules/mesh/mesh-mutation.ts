@@ -2,7 +2,7 @@ import type { z, ZodType } from "zod";
 
 // ─── Brand ────────────────────────────────────────────────────────────────────
 
-export declare const MESH_MUTATION_BRAND: unique symbol;
+export const MESH_MUTATION_BRAND: unique symbol = Symbol('MESH_MUTATION_BRAND');
 
 // ─── Core interface ───────────────────────────────────────────────────────────
 

@@ -59,7 +59,7 @@ export class StatementsConfig<TStatement extends Record<string, readonly string[
     return new StatementsConfig({
       ...this._value,
       ...resources,
-    });
+    } as TStatement & TResources);
   }
 
   /**
@@ -163,7 +163,7 @@ export class StatementsConfig<TStatement extends Record<string, readonly string[
     return new StatementsConfig({
       ...this._value,
       ...other._value,
-    });
+    } as TStatement & T);
   }
 
   /**
@@ -190,7 +190,7 @@ export class StatementsConfig<TStatement extends Record<string, readonly string[
     return new StatementsConfig({
       ...this._value,
       [resource]: [...existing, ...actions] as const,
-    });
+    } as TStatement & Record<K, readonly [...TStatement[K], ...TActions]>);
   }
 
   /**
@@ -199,7 +199,7 @@ export class StatementsConfig<TStatement extends Record<string, readonly string[
   removeActions(
     resource: keyof TStatement,
     ...actions: readonly string[]
-  ): StatementsConfig<TStatement> {
+  ): this {
     const existing = this._value[resource];
     if (!existing) {
       return this;
@@ -208,14 +208,14 @@ export class StatementsConfig<TStatement extends Record<string, readonly string[
     return new StatementsConfig({
       ...this._value,
       [resource]: filtered,
-    } as TStatement);
+    } as TStatement) as this;
   }
 
   /**
    * Get all resource names (keys)
    */
   keys(): (keyof TStatement)[] {
-    return Object.keys(this._value) as (keyof TStatement)[];
+    return Object.keys(this._value);
   }
 
   /**

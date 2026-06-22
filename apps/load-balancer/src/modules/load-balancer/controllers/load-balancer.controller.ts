@@ -143,8 +143,8 @@ export class LoadBalancerController {
 
         return {
             userId: session.user.id,
-            activeOrganizationId:
-                typeof session.session?.activeOrganizationId === "string" ? session.session.activeOrganizationId : null,
+            // Active organization is no longer stored on the session; require explicit organizationId.
+            activeOrganizationId: null,
         };
     }
 
@@ -229,21 +229,9 @@ export class LoadBalancerController {
             throw new UnauthorizedException("Authentication is required for load-balanced requests");
         }
 
-        const activeOrganizationId = session.session?.activeOrganizationId;
-        if (!resolvedOrganizationId && typeof activeOrganizationId === "string") {
-            resolvedOrganizationId = activeOrganizationId;
-        }
-
-        if (
-            resolvedOrganizationId &&
-            typeof activeOrganizationId === "string" &&
-            activeOrganizationId !== resolvedOrganizationId
-        ) {
-            throw new UnauthorizedException("Requested organization does not match active session organization");
-        }
-
+        // Active organization is no longer available on the session; callers must provide organizationId.
         if (!resolvedOrganizationId) {
-            throw new BadRequestException("organizationId query parameter is required when no active org session is available");
+            throw new BadRequestException("organizationId query parameter is required for load-balanced requests");
         }
 
         return resolvedOrganizationId;
@@ -580,7 +568,7 @@ export class LoadBalancerController {
             cookieHeader,
             authorizationHeader,
             routeToken: resolved.routeHintToken ?? hintToken,
-            requestHeaders: req.headers as Record<string, string | string[] | undefined>,
+            requestHeaders: req.headers,
             requestAccept: req.headers.accept,
         });
 

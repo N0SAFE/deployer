@@ -6,11 +6,11 @@ import { Injectable } from "@nestjs/common";
       type MeshDuplexStreamOutput,
   } from "@repo/contracts-entities";
   import { observableToAsyncIterable } from "@/core/utils/observable.utils";
-  import type { MeshPeerSessionService } from "./mesh-peer-session.service";
-  import type { MeshHealthMonitorService } from "./mesh-health-monitor.service";
-  import type { MeshMembershipService } from "./mesh-membership.service";
-  import type { MeshControlPlaneService } from "./mesh-control-plane.service";
-  import type { MeshIdentityService } from "./mesh-identity.service";
+  import { MeshPeerSessionService } from "./mesh-peer-session.service";
+  import { MeshHealthMonitorService } from "./mesh-health-monitor.service";
+  import { MeshMembershipService } from "./mesh-membership.service";
+  import { MeshControlPlaneService } from "./mesh-control-plane.service";
+  import { MeshIdentityService } from "./mesh-identity.service";
 
   /**
    * Boucle duplex WebSocket d'une session peer.

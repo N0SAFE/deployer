@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { CONFIG_SYMBOL as STANDARD_CONFIG_SYMBOL } from "../standard/base/types";
+import { CONFIG_SYMBOL as STANDARD_CONFIG_SYMBOL } from "../operations/base/types";
 
 /**
  * Symbol to store config data on Zod schemas

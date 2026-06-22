@@ -1,11 +1,11 @@
-import { Observable } from "rxjs";
+import type { Observable } from "rxjs";
 import { BaseEventService } from "@/core/modules/events/base-event.service";
 import {
   type EventContracts,
   type EventInput,
   type EventOutput,
 } from "@/core/modules/events/event-contract.builder";
-import { CoreEventStreamPoolService } from "./core-event-stream-pool.service";
+import type { CoreEventStreamPoolService } from "./core-event-stream-pool.service";
 
 export interface PooledEventObserveOptions {
   replayLimit?: number;

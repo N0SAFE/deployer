@@ -237,6 +237,6 @@ export class HealthCheckBuilder {
    * Build the HealthCheck configuration
    */
   build(): HealthCheck {
-    return this.config as HealthCheck;
+    return this.config;
   }
 }

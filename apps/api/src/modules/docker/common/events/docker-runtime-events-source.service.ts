@@ -42,11 +42,11 @@ interface StreamQuery {
   actions?: string[];
 }
 
-type RuntimeEventFilterNode = {
+interface RuntimeEventFilterNode {
   [key: string]: unknown;
   _and?: RuntimeEventFilterNode[];
   _or?: RuntimeEventFilterNode[];
-};
+}
 
 interface RuntimeEventFieldFilter {
   operator: string;

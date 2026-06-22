@@ -1,0 +1,146 @@
+---
+title: Production Deployment
+description: Swarm manager-first production model with Traefik ingress, multi-node replica policy, and rollout guidance.
+order: 20
+---
+
+<DocMeta source=".docs/guides/PRODUCTION-DEPLOYMENT.md" scope="canonical" />
+
+## Deployment topology in this repository
+
+This repository still contains compose-based production and prod-like files for local and transitional workflows.
+
+Primary compose sets live under `docker/compose/`:
+
+- Full stack: `docker-compose.prod.yml`
+- Prod-like local workflow: `docker-compose.prod-like.yml`
+- Split services:
+	- API: `api/docker-compose.api.prod.yml`, `api/docker-compose.api.prod-like.yml`
+	- Web: `web/docker-compose.web.prod.yml`, `web/docker-compose.web.prod-like.yml`
+	- Docs: `doc/docker-compose.doc.prod.yml`, `doc/docker-compose.doc.prod-like.yml`
+
+<DocCallout title="Target architecture for v3" tone="warning">
+The target production model is Docker Swarm (manager + worker nodes), not independent per-node compose islands.
+Compose files in this repository remain useful for local/dev/prod-like flows and migration phases.
+</DocCallout>
+
+## Target production topology (Swarm manager + worker nodes)
+
+- One Swarm cluster per environment (prod/staging/etc.).
+- Manager node(s) own orchestration state and scheduling decisions.
+- Worker nodes join the cluster and execute scheduled workloads.
+- Control-plane services (`api`, `web`, `traefik`) are deployed as Swarm services and managed from a manager node.
+- For high availability, prefer an odd manager quorum (`3` managers) over a single manager to avoid a single-point control-plane failure.
+
+## Replica policy (minimum 2 when possible)
+
+For user-facing critical services, target this rule:
+
+- If schedulable nodes $\ge 2$, enforce replicas $\ge 2$.
+- Spread replicas across nodes (`max_replicas_per_node: 1`) to avoid same-node concentration.
+- Keep health checks + rolling update/rollback guardrails enabled.
+- Explicitly document exceptions for singleton/stateful workloads.
+
+## Ingress and routing model (Traefik-first)
+
+- Traefik is the canonical ingress and load-balancing layer.
+- In Swarm mode, Traefik should discover services from the Swarm provider and route via service labels.
+- Standard HTTP/S traffic does **not** require a custom redirect app when Traefik + Swarm routing is correctly configured.
+- `apps/load-balancer` is an optional advanced pattern for owner-aware stream routing/diagnostic flows, not the baseline production requirement.
+
+## Recommended release sequence
+
+1. Validate env and configs.
+2. Deploy/update stack from a Swarm manager node.
+3. Validate service replica health and placement across nodes.
+4. Validate API health and auth-critical endpoints.
+5. Run smoke checks for login, routing, and core flows.
+
+## Current repository scripts (compose/prod-like)
+
+- Full stack production compose:
+	- `bun run start`
+- Prod-like local stack:
+	- `bun run prod`
+	- `bun run prod:down`
+- Split prod-like:
+	- `bun run prod:api`, `bun run prod:api:down`, `bun run prod:logs:api`
+	- `bun run prod:web`, `bun run prod:web:down`, `bun run prod:logs:web`
+
+## Environment and readiness checks
+
+Before rollout:
+
+```bash
+bun run check-env
+bun run check-env:api
+bun run check-env:web
+bun run check-env:doc
+```
+
+Before merge/release branch handoff:
+
+```bash
+bun run check
+```
+
+<DocCallout title="Release safety" tone="warning">
+Never treat a successful container start as a complete release check. Always validate API health, web routing, auth flow, and core critical paths.
+</DocCallout>
+
+## Rollback posture
+
+- Keep previous known-good image/tag available.
+- Roll back API and web independently when possible.
+- Re-run smoke tests after rollback confirmation.
+
+## DNS and SSL setup
+
+### SSL certificates
+
+- **Auto Let's Encrypt** via Traefik ACME (default for all services)
+- **Custom certificate upload** per domain/service for enterprise requirements
+
+### DNS configuration
+
+- **Platform-managed mode**: Cloudflare (first supported provider) — platform manages wildcard DNS, preview subdomains, and SSL automatically
+- **Manual mode**: user configures DNS records externally, platform only manages Traefik routes
+
+### Wildcard DNS for preview subdomains
+
+Preview environments need a wildcard DNS record:
+
+```
+*.preview.<base-domain>  →  A/CNAME  →  <traefik-ingress-or-edge-ip>
+```
+
+Traefik handles routing to the correct preview container based on the subdomain.
+
+### Zero-downtime deploy strategies
+
+Configurable per service:
+
+- **Rolling update**: new container starts, old stops after health check passes
+- **Blue-green**: both versions run, Traefik route swaps atomically
+- **Canary**: configurable % of traffic to new version, auto-promote if healthy
+
+## Multi-instance production patterns
+
+For the canonical Swarm manager/worker model, prioritize:
+
+- [Architecture Overview](/docs/architecture/architecture)
+- [Platform Product Specification](/docs/architecture/platform-product-spec)
+
+Use these only when you intentionally adopt advanced alternatives:
+
+- [Multi-Server & Multi-Org Operations](/docs/deployment/multi-server-multi-org-operations) — federation/governance patterns
+- [Load Balancer Architecture](/docs/deployment/load-balancer) — optional custom LB pattern
+
+## Related docs
+
+- [Docker Compose](/docs/docker/docker-compose)
+- [Docker Build Strategies](/docs/docker/docker-build-strategies)
+- [Render Deployment](/docs/deployment/render-deployment)
+- [Active-Active Operator Playbook](/docs/deployment/active-active-operator-playbook)
+- [Platform Feature Target](/docs/deployment/platform-feature-target)
+- [Migration Master Plan](/docs/deployment/migration-master-plan)

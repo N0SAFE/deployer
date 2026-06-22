@@ -16,6 +16,14 @@ export interface DockerContainerStartOptions {
     workingDirectory?: string;
     baseDockerfilePath?: string;
     baseDockerfileContents?: string;
+    autoRemove?: boolean;
+    healthCheck?: {
+        test: string[];
+        interval?: number;
+        timeout?: number;
+        retries?: number;
+        startPeriod?: number;
+    };
 }
 
 @Injectable()
@@ -29,17 +37,55 @@ export abstract class AbstractDockerContainerService {
         const image = await this.buildBaseImage(options, sourcePath, dockerfileName);
         const docker = this.dockerService.getDockerClient();
 
-        const container = await docker.createContainer({
+        // Build host config, auto-adding port publishing for any exposed ports.
+        // Dockerode requires either PortBindings or PublishAllPorts in HostConfig
+        // alongside ExposedPorts to actually publish the port to the host.
+        // Without it, getMappedPort() fails because the port is never bound.
+        //
+        // We use explicit PortBindings with HostPort "0" (random port) rather than
+        // PublishAllPorts because some Docker versions/configurations treat
+        // PublishAllPorts inconsistently. Explicit PortBindings are always honored.
+        let hostConfig = options.hostConfig ?? {};
+        if (options.exposedPorts && Object.keys(options.exposedPorts).length > 0) {
+            const portBindings: Record<string, { HostPort: string }[]> = {};
+            for (const port of Object.keys(options.exposedPorts)) {
+                portBindings[port] = [{ HostPort: "0" }];
+            }
+            hostConfig = { ...hostConfig, PortBindings: portBindings };
+        }
+        if (options.autoRemove) {
+            hostConfig = { ...hostConfig, AutoRemove: true };
+        }
+
+        this.logger.debug(`Creating container "${options.name}" with hostConfig=${JSON.stringify(hostConfig)}, exposedPorts=${JSON.stringify(options.exposedPorts)}`);
+
+        const createOptions: Record<string, unknown> = {
             Image: image,
             name: options.name,
             Env: options.env,
             Labels: options.labels,
             Cmd: options.command,
-            HostConfig: options.hostConfig,
+            HostConfig: hostConfig,
             ExposedPorts: options.exposedPorts,
-        });
+        };
+
+        if (options.healthCheck) {
+            createOptions.Healthcheck = {
+                Test: options.healthCheck.test,
+                Interval: options.healthCheck.interval ?? 1_000_000_000,
+                Timeout: options.healthCheck.timeout ?? 5_000_000_000,
+                Retries: options.healthCheck.retries ?? 30,
+                StartPeriod: options.healthCheck.startPeriod ?? 5_000_000_000,
+            };
+        }
+
+        const container = await docker.createContainer(createOptions);
 
         await container.start();
+
+        const afterStart = await container.inspect();
+        this.logger.debug(`Container "${options.name}" started. Ports: ${JSON.stringify(afterStart.NetworkSettings.Ports)}`);
+
         return container;
     }
 

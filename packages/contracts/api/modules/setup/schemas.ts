@@ -19,8 +19,10 @@ export const setupStepIdSchema = z.enum([
     "configure_account",
     "remote_auth",
     "provision_database",
+    "ensure_empty",
     "run_migrations",
     "seed_initial_data",
+    "reachability_check",
     "mesh_handshake",
     "register_node",
     "finalize",
@@ -57,6 +59,9 @@ export const setupStateSnapshotSchema = z.object({
     progressPercent: z.number().int().min(0).max(100),
     steps: z.array(setupStepSchema),
     completedAt: z.date().nullable(),
+    hasUsers: z.boolean(),
+    hasOrganizations: z.boolean(),
+    availableStrategies: z.array(setupBootstrapStrategySchema),
 });
 export type SetupStateSnapshot = z.infer<typeof setupStateSnapshotSchema>;
 

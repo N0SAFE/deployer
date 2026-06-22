@@ -4,7 +4,7 @@ import { EnvService } from "@/config/env/env.service";
 import { CLOCK_TOKEN, type Clock } from "../../../shared/primitives/clock";
 import { ID_GENERATOR_TOKEN, type IdGenerator } from "../../../shared/primitives/id-generator";
 import { HybridLogicalClock, type Hlc } from "../../../shared/primitives/hybrid-logical-clock";
-import type { SystemMeshConfigService } from "../../system-mesh-config.service";
+import { SystemMeshConfigService } from "../../system-mesh-config.service";
 
 /**
  * Source of truth for the local node's identity and HLC.

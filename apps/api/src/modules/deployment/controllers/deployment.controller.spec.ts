@@ -21,7 +21,7 @@ vi.mock("@orpc/nest", () => ({
 
 vi.mock("@/core/modules/auth/orpc/middlewares", () => ({
     requireAuth: vi.fn(() => ({})),
-    requireInternalMesh: vi.fn(() => ({})),
+    requireMesh: vi.fn(() => ({})),
     requirePlatformRole: vi.fn(() => ({})),
 }));
 

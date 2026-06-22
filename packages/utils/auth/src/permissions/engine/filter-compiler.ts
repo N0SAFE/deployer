@@ -100,7 +100,7 @@ export function compileDFilter<
 >(
     filter: DFilter<TSchema, TVars>,
     resolver: ColumnResolver<TSchema>,
-    vars: Partial<TVars> = {} as Partial<TVars>,
+    vars: Partial<TVars> = {},
     depth = 0,
 ): SQL | undefined {
     if (depth > MAX_FILTER_DEPTH) {
@@ -153,7 +153,7 @@ export function compileDFilter<
         const column = resolver(key as keyof TSchema & string);
         if (!column) continue; // unresolvable field — skip silently
 
-        const compiled = compileOperator(column, rawValue, vars as Record<string, unknown>);
+        const compiled = compileOperator(column, rawValue, vars);
         if (compiled) {
             parts.push(compiled);
         }
@@ -286,7 +286,7 @@ function compileOperator(
  * SQL<T> always implements SQLWrapper (it has getSQL()), so this cast is safe.
  */
 function asWrapper(s: SQL): SQLWrapper {
-    return s as unknown as SQLWrapper;
+    return s;
 }
 
 /**

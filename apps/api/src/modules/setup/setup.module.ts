@@ -1,23 +1,29 @@
 import { Module } from "@nestjs/common";
 import { SetupController } from "./controllers/setup.controller";
 import { CoreInitializationModule } from "@/core/modules/setup/initialization.module";
+import { CoreReachabilityModule } from "@/core/modules/reachability/core-reachability.module";
 
 /**
- * Global Setup Module
- * 
- * Responsibilities:
- * 1. Checks if database is already configured on startup
- * 2. Provides a setup wizard for new installations
- * 3. Emits a completion signal when database is configured
- * 4. Unblocks dependent modules (DatabaseModule, feature modules)
- * 
- * The SetupService holds a Subject that other modules wait for
- * when the database is not yet configured.
+ * Public Setup Module
+ *
+ * Wires the HTTP/ORPC surface for the setup wizard:
+ *   - `SetupController` (state + pre-flight probes + initialize).
+ *   - `CoreInitializationModule` (the underlying `InitializationService`
+ *     and the local/remote bootstrap services that `SetupController`
+ *     delegates to).
+ *   - `CoreReachabilityModule` (the `ReachabilityService` that
+ *     `SetupController.probeMesh` delegates to). This is imported
+ *     directly so `SetupController` can inject it without relying on
+ *     global module side-effects.
+ *
+ * The probe/initialize orchestration, mesh auth, and per-feature
+ * service plumbing live in `CoreInitializationModule` and its imports;
+ * this module's only job is to expose the HTTP surface.
  */
 @Module({
-    imports: [CoreInitializationModule],
+    imports: [CoreInitializationModule, CoreReachabilityModule],
     controllers: [SetupController],
     providers: [],
-    exports: [],
+    exports: [CoreInitializationModule],
 })
 export class SetupModule {}

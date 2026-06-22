@@ -95,7 +95,7 @@ export class Variable<T = unknown> {
   default(value: T): this {
     this._defaultValue = value;
     // Use explicit type casting to handle Zod's stricter default typing in v4
-    this._schema = this._schema.default(value as unknown as never) as z.ZodType<T>;
+    this._schema = this._schema.default(value as unknown as never);
     this._required = false;
     return this;
   }

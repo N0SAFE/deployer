@@ -15,7 +15,19 @@ services:
         - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
         - NEXT_PUBLIC_APP_PORT=${NEXT_PUBLIC_APP_PORT:-3000}
         - NEXT_PUBLIC_APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER}
+        - BUILDKIT_INLINE_CACHE=1
+      # No cache_to here: Docker Compose's `cache_to` only supports
+      # `type=inline|registry|gha|s3`. `type=inline` causes a BuildKit
+      # race condition when multiple services build in parallel
+      # (`docker compose up --build` runs all 5 services at once and
+      # concurrent writes to the inline cache metadata corrupt the snapshot).
+      # The default BuildKit local cache is used instead (file-based,
+      # shared across builds, no race). CI pipelines use prod-like compose
+      # files where `cache_to: type=inline` is safe (single-service build).
     restart: always
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     ports:
       - "${NEXT_PUBLIC_APP_PORT:-3000}:${NEXT_PUBLIC_APP_PORT:-3000}"
     develop:
@@ -103,6 +115,7 @@ services:
     environment:
       # Runtime
       - NODE_ENV=development
+      - NODE_OPTIONS=--dns-result-order=ipv4first
       
       # URLs - Server-side (internal Docker network)
       - API_URL=http://${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-dev:${API_PORT:-3005}

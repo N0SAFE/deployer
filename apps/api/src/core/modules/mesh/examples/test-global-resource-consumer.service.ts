@@ -2,7 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import type { OnModuleDestroy } from "@nestjs/common";
 import type { Observable, Subscription } from "rxjs";
 import { map } from "rxjs/operators";
-import type { SystemMeshResourceDiscoveryService } from "../services/system-mesh-resource-discovery/system-mesh-resource-discovery.service";
+import { SystemMeshResourceDiscoveryService } from "../services/system-mesh-resource-discovery/system-mesh-resource-discovery.service";
 import type { MeshChangeEvent } from "../services/system-mesh-resource-discovery/query/mesh-observable-types";
 import type { Project } from "./test-deployment-mesh.service";
 import { TestDeploymentMeshService } from "./test-deployment-mesh.service";

@@ -4,7 +4,7 @@
  * Uses Standard Schema instead of Zod
  */
 
-import type { AnySchema } from "../../shared/types";
+import type { AnySchema } from "../../types/types";
 
 /**
  * Error definition builder for creating custom error definitions

@@ -10,7 +10,7 @@ import { Inject, Injectable } from "@nestjs/common";
   import { CLOCK_TOKEN, type Clock } from "../../../shared/primitives/clock";
   import { ID_GENERATOR_TOKEN, type IdGenerator } from "../../../shared/primitives/id-generator";
   import { MeshNotFoundError } from "../domain/mesh-errors";
-  import type { SystemMeshConfigService } from "../../system-mesh-config.service";
+import { SystemMeshConfigService } from "../../system-mesh-config.service";
   import { timingSafeEqual } from "node:crypto"
 
   /**

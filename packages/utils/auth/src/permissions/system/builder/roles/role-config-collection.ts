@@ -442,7 +442,7 @@ export class RoleConfigCollection<TRoles extends Record<string, Record<string, r
    * Get role names
    */
   roleNames(): (keyof TRoles)[] {
-    return Object.keys(this._roles) as (keyof TRoles)[];
+    return Object.keys(this._roles);
   }
 
   /**
@@ -472,7 +472,7 @@ export class RoleConfigCollection<TRoles extends Record<string, Record<string, r
   filter(predicate: (roleName: keyof TRoles, roleConfig: RoleConfig) => boolean): RoleConfigCollection<Record<string, Record<string, readonly string[]>>> {
     const result: Record<string, Record<string, readonly string[]>> = {};
     for (const [roleName, rolePerms] of Object.entries(this._roles)) {
-      if (predicate(roleName as keyof TRoles, new RoleConfig(rolePerms))) {
+      if (predicate(roleName, new RoleConfig(rolePerms))) {
         result[roleName] = rolePerms;
       }
     }

@@ -67,7 +67,7 @@ export class MeshQueryExecutor {
     const filtered = deduped.filter((item) => builder._applyWhereClauses(item));
 
     // 4. Apply ordering
-    const ordered = applyOrdering(filtered, state.orderClauses as readonly MeshOrderClause<TItem>[]);
+    const ordered = applyOrdering(filtered, state.orderClauses);
 
     // 5. Execute joins and stitch result shapes
     const stitched = await this.executeJoins<TResultShape>(
@@ -78,7 +78,7 @@ export class MeshQueryExecutor {
     // 6. Apply projections
     const projected = this.applyProjection<TResultShape>(
       stitched,
-      state.selectedFields as readonly (keyof TResultShape & string)[] | null,
+      state.selectedFields,
     );
 
     // 7. Apply pagination
@@ -157,7 +157,7 @@ export class MeshQueryExecutor {
       nextOffset: null,
       nodeResponses: nodeResponses.map((r) => ({
         nodeId: r.nodeId,
-        items: r.items as unknown as readonly TItem[],
+        items: r.items,
         respondedAt: new Date().toISOString(),
         durationMs: r.durationMs,
       })),

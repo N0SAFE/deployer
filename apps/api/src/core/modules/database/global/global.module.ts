@@ -17,7 +17,13 @@ const logger = new Logger('GlobalModule')
         {
             provide: GLOBAL_DATABASE_POOL,
             useFactory: async (InitializationService: InitializationService): Promise<Pool> => {
-                console.log('⏳ Waiting for setup to complete before opening DB pool…')
+                console.log('⏳ Checking setup before opening DB pool…')
+
+                // Eagerly check config BEFORE waiting for setup.
+                // waitForSetup() would block forever if called first because
+                // onModuleInit() hasn't run yet (provider factories run before
+                // lifecycle hooks). This breaks the initialization deadlock.
+                InitializationService.checkConfigAndEmit()
 
                 const { databaseUrl, nodeId, strategy } = await InitializationService.waitForSetup()
 

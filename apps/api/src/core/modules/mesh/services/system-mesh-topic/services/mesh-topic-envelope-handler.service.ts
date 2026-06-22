@@ -6,9 +6,9 @@ import {
 import { CLOCK_TOKEN, type Clock } from "../../../shared/primitives/clock";
 import { meshTopicEventPayloadSchema } from "../domain/mesh-topic-types";
 import { MeshTopicDedupStore } from "../../../shared/primitives/mesh-topic-dedup-store";
-import type { MeshTopicRegistryService } from "./mesh-topic-registry.service";
-import type { MeshTopicQueryBusService } from "./mesh-topic-query-bus.service";
-import type { SystemMeshTopologyService } from "../../system-mesh-topology/orchestrator/system-mesh-topology.service";
+import { MeshTopicRegistryService } from "./mesh-topic-registry.service";
+import { MeshTopicQueryBusService } from "./mesh-topic-query-bus.service";
+import { SystemMeshTopologyService } from "../../system-mesh-topology/orchestrator/system-mesh-topology.service";
 
 /**
  * Dispatch des envelopes mesh entrantes vers le bon handler :

@@ -34,7 +34,7 @@ export class MiddlewareBuilder {
    */
   stripPrefix(...prefixes: VariableString[]): this {
     this.config.stripPrefix = {
-      prefixes: prefixes as VariableArray<string>,
+      prefixes: prefixes,
     };
     return this;
   }
@@ -44,7 +44,7 @@ export class MiddlewareBuilder {
    */
   stripPrefixWithSlash(...prefixes: VariableString[]): this {
     this.config.stripPrefix = {
-      prefixes: prefixes as VariableArray<string>,
+      prefixes: prefixes,
       forceSlash: true,
     };
     return this;
@@ -54,7 +54,7 @@ export class MiddlewareBuilder {
    * Configure headers (including CORS)
    */
   headers(config: Partial<HeadersConfig>): this {
-    this.config.headers = config as HeadersConfig;
+    this.config.headers = config;
     return this;
   }
 
@@ -172,7 +172,7 @@ export class MiddlewareBuilder {
     this.config.forwardAuth = {
       address,
       ...options,
-    } as ForwardAuthConfig;
+    };
     return this;
   }
 
@@ -181,7 +181,7 @@ export class MiddlewareBuilder {
    */
   chain(...middlewares: VariableString[]): this {
     this.config.chain = {
-      middlewares: middlewares as VariableArray<string>,
+      middlewares: middlewares,
     };
     return this;
   }
@@ -233,7 +233,7 @@ export class MiddlewareBuilder {
    * Configure buffering
    */
   buffering(config: Partial<BufferingConfig>): this {
-    this.config.buffering = config as BufferingConfig;
+    this.config.buffering = config;
     return this;
   }
 
@@ -244,7 +244,7 @@ export class MiddlewareBuilder {
     this.config.circuitBreaker = {
       expression,
       ...options,
-    } as CircuitBreakerConfig;
+    };
     return this;
   }
 

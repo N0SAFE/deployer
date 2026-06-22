@@ -28,7 +28,7 @@ import {
     type DockerTerminalProfile,
 } from "@repo/contracts-entities";
 import { contractBuilder } from "@/core/modules/events/event-contract.builder";
-import { BaseMeshService, type MeshCallManyResult, type MeshCallManyOptions } from "@/core/modules/mesh/services/base-mesh.service";
+import { BaseMeshService, InternalBaseMeshService, type MeshCallManyResult, type MeshCallManyOptions } from "@/core/modules/mesh/services/base-mesh.service";
 import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 
@@ -650,7 +650,7 @@ export interface DockerImageInspectResponsePayload {
 
 @Injectable()
 export class DockerContainerRuntimeMeshService
-    extends BaseMeshService<typeof dockerContainerRuntimeMeshContracts>
+    extends InternalBaseMeshService<typeof dockerContainerRuntimeMeshContracts, Record<string, never>>
     implements OnModuleInit, OnModuleDestroy {
     constructor(
         meshTopicService: SystemMeshTopicService,

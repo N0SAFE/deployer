@@ -565,7 +565,7 @@ describe("DockerRuntimeStreamOrchestratorService", () => {
                         },
                     ],
                 },
-            } as never).pipe(toArray()),
+            }).pipe(toArray()),
         );
 
         expect(dockerContainerMetricsStreamService.stream).toHaveBeenCalledTimes(1);
@@ -652,7 +652,7 @@ describe("DockerRuntimeStreamOrchestratorService", () => {
                         },
                     },
                 },
-            } as never).pipe(toArray()),
+            }).pipe(toArray()),
         );
 
         expect(dockerContainerMetricsStreamService.stream).toHaveBeenCalledTimes(1);

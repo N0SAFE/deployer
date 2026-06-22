@@ -14,13 +14,17 @@ function toError(value: unknown): Error {
     }
 }
 
-export function observableToAsyncIterable<T>(observable: Observable<T>): AsyncIterable<T> {
+export function observableToAsyncIterable<T>(observable: Observable<T> | AsyncIterable<T>): AsyncIterable<T> {
+    // If an AsyncIterable was passed already, return it directly
+    if (typeof (observable as any)[Symbol.asyncIterator] === 'function') {
+        return observable as AsyncIterable<T>;
+    }
     const queue: T[] = [];
     let isCompleted = false;
     let thrownError: unknown = null;
     let resolvePending: (() => void) | null = null;
 
-    const subscription = observable.subscribe({
+    const subscription = (observable as Observable<T>).subscribe({
         next: (value) => {
             queue.push(value);
             if (resolvePending) {

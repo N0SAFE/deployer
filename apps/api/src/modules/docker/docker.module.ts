@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { MeshCoreModule } from "@/core/modules/mesh/mesh-core.module";
+import { CoreDockerModule } from "@/core/modules/docker/docker.module";
 import { DockerController } from "./controllers/docker.controller";
 import { DockerCommonModule } from "./common/docker-common.module";
 import { DockerRepositoriesModule } from "./repositories/docker-repositories.module";
@@ -14,6 +15,7 @@ import { DockerStacksModule } from "./domains/stacks/docker-stacks.module";
 @Module({
   imports: [
     MeshCoreModule,
+    CoreDockerModule,
     DockerCommonModule,
     DockerRepositoriesModule,
     DockerContainersModule,

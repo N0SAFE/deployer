@@ -85,10 +85,10 @@ export async function SessionHydration<TSession>({
         if (result !== null && result !== undefined) {
             // Check if it's a wrapped response with 'data' property
             if (typeof result === "object" && "data" in result) {
-                session = (result as { data: TSession | null | undefined }).data ?? null;
+                session = (result).data ?? null;
             } else {
                 // It's a direct session object
-                session = result as TSession;
+                session = result;
             }
         }
 

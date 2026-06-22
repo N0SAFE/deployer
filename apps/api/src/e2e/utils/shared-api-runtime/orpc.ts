@@ -1,6 +1,7 @@
 import { createORPCClient } from '@orpc/client'
 import type { AnyContractRouter } from '@orpc/contract'
 import { OpenAPILink } from '@orpc/openapi-client/fetch'
+import { ObservableLinkPlugin } from '@repo/orpc-utils'
 import type {
     SharedOrpcResponseMeta,
     SharedOrpcResponseTracker,
@@ -36,6 +37,9 @@ export function createSharedRuntimeOrpcClient<TContract extends AnyContractRoute
         url: runtime.baseUrl,
         headers: options?.headers ? () => options.headers : undefined,
         fetch: (input, init) => fetch(input, { ...init, credentials: 'include' }),
+        plugins: [
+            new ObservableLinkPlugin(contract),
+        ],
         clientInterceptors: [
             async ({ request, next }) => {
                 const response = await next()

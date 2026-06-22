@@ -30,8 +30,8 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 const withSetup: MiddlewareFactory = (next: NextProxy) => {
   return async (request: NextRequest, _next: NextFetchEvent) => {
     try {
-      const status = await withTimeout(
-        orpc.setup.getStatus.call(
+      const state = await withTimeout(
+        orpc.setup.getState.call(
           {},
           {
             context: { cookie: request.cookies.toString() },
@@ -40,7 +40,7 @@ const withSetup: MiddlewareFactory = (next: NextProxy) => {
         SETUP_STATUS_TIMEOUT_MS,
       );
 
-      if (status.needsSetup) {
+      if (state.needsSetup) {
         if (setupRegexpAndChildren.test(request.nextUrl.pathname)) {
           return await next(request, _next);
         }

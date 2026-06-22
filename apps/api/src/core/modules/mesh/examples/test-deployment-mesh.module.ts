@@ -104,7 +104,7 @@ class MockMeshNodeCaller implements MeshNodeCaller {
     return [
       {
         nodeId: "node-1",
-        items: [] as unknown as readonly TItem[],
+        items: [],
         durationMs: 10,
       },
     ];

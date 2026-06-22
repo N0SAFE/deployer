@@ -81,7 +81,7 @@ describe("CoreEventSyncService", () => {
 
     it("should list streams via repository", async () => {
         repository.findMany.mockResolvedValue({ data: [definition], meta: { total: 1, limit: 20, offset: 0, hasMore: false } });
-        const result = await service.listStreams({ limit: 20, offset: 0 } as never);
+        const result = await service.listStreams({ limit: 20, offset: 0 });
         expect(result.data).toHaveLength(1);
     });
 

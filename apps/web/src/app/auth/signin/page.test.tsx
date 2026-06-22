@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   redirectAction: vi.fn(),
   signInEmail: vi.fn(),
-  useSetupStatus: vi.fn(),
+  useSetupState: vi.fn(),
 }));
 
 vi.mock("@repo/ui/components/shadcn/button", () => ({
@@ -55,7 +55,7 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 vi.mock("@/domains/setup/hooks", () => ({
-  useSetupStatus: mocks.useSetupStatus,
+  useSetupState: mocks.useSetupState,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -115,7 +115,7 @@ describe("SignIn page", () => {
   });
 
   it("redirects to setup with redirectTo when setup is required", async () => {
-    mocks.useSetupStatus.mockReturnValue({
+    mocks.useSetupState.mockReturnValue({
       data: { needsSetup: true },
       isLoading: false,
     });
@@ -130,7 +130,7 @@ describe("SignIn page", () => {
   });
 
   it("redirects to redirectTo after successful signin", async () => {
-    mocks.useSetupStatus.mockReturnValue({
+    mocks.useSetupState.mockReturnValue({
       data: { needsSetup: false },
       isLoading: false,
     });

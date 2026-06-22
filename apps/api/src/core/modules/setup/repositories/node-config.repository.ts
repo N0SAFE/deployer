@@ -22,17 +22,18 @@ export class NodeConfigRepository {
     }
 
     upsert(data: Omit<typeof nodeConfig.$inferInsert, "id">): NodeConfigRow {
-        if (data.meshUrlsSnapshot?.length === 0) {
-            throw new Error("meshUrlsSnapshot cannot be empty");
-        }
-        
+        // Allow empty meshUrlsSnapshot for initial setup (e2e tests, fresh installs)
+        const effectiveData = data.meshUrlsSnapshot?.length === 0
+            ? { ...data, meshUrlsSnapshot: [] }
+            : data;
+
         const now = new Date().toISOString();
         this.localDb.db
             .insert(nodeConfig)
-            .values({ id: 1, ...data, updatedAt: now })
+            .values({ id: 1, ...effectiveData, updatedAt: now })
             .onConflictDoUpdate({
                 target: nodeConfig.id,
-                set: { ...data, updatedAt: now },
+                set: { ...effectiveData, updatedAt: now },
             })
             .run();
         const row = this.find();
@@ -40,5 +41,20 @@ export class NodeConfigRepository {
             throw new Error("NodeConfig upsert succeeded but row was not found");
         }
         return row;
+    }
+
+    /**
+     * Retrieve the mesh shared secret from the local node_config table.
+     * Returns null if the row doesn't exist or the column is null.
+     *
+     * This is used by `resolveSharedSecret()` in the ORPC middleware layer
+     * to dynamically provide the secret without relying on env vars.
+     */
+    getMeshSharedSecret(): string | null {
+        const row = this.find();
+        if (!row) return null;
+        return (row as Record<string, unknown>).meshSharedSecret as string | null
+            ?? (row as Record<string, unknown>).mesh_shared_secret as string | null
+            ?? null;
     }
 }

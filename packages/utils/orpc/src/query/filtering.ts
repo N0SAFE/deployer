@@ -242,7 +242,7 @@ export function createSimpleFilterSchema(
     schema[fieldName] = fieldSchema.optional();
   }
 
-  return z.object(schema as z.ZodRawShape);
+  return z.object(schema);
 }
 
 /**
@@ -256,7 +256,7 @@ export function createStringFilterSchema(fieldName: string) {
     [`${fieldName}_startsWith`]: z.string().optional(),
     [`${fieldName}_endsWith`]: z.string().optional(),
     [`${fieldName}_in`]: z.array(z.string()).optional(),
-  } as Record<string, z.ZodType>);
+  });
 }
 
 /**
@@ -271,7 +271,7 @@ export function createNumberFilterSchema(fieldName: string) {
     [`${fieldName}_lte`]: z.number().optional().describe("Less than or equal"),
     [`${fieldName}_between`]: z.tuple([z.number(), z.number()]).optional(),
     [`${fieldName}_in`]: z.array(z.number()).optional(),
-  } as Record<string, z.ZodType>);
+  });
 }
 
 /**
@@ -285,7 +285,7 @@ export function createDateFilterSchema(fieldName: string) {
     [`${fieldName}_lt`]: z.date().optional().describe("Before"),
     [`${fieldName}_lte`]: z.date().optional().describe("On or before"),
     [`${fieldName}_between`]: z.tuple([z.date(), z.date()]).optional(),
-  } as Record<string, z.ZodType>);
+  });
 }
 
 /**
@@ -309,7 +309,7 @@ export function createEnumFilterSchema<T extends readonly [string, ...string[]]>
     [fieldName]: z.enum(values).optional(),
     [`${fieldName}_in`]: z.array(z.enum(values)).optional(),
     [`${fieldName}_nin`]: z.array(z.enum(values)).optional(),
-  } as Record<string, z.ZodType>);
+  });
 }
 
 /**

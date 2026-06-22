@@ -45,7 +45,7 @@ export class HttpRouterBuilder {
    * Set entry points
    */
   entryPoints(...names: string[]): this {
-    this.config.entryPoints = names as VariableArray<string>;
+    this.config.entryPoints = names;
     return this;
   }
 
@@ -62,7 +62,7 @@ export class HttpRouterBuilder {
    * Set middlewares
    */
   middlewares(...names: string[]): this {
-    this.config.middlewares = names as VariableArray<string>;
+    this.config.middlewares = names;
     return this;
   }
 
@@ -96,7 +96,7 @@ export class HttpRouterBuilder {
     } else if (options === false) {
       this.config.tls = undefined;
     } else {
-      this.config.tls = options as TLSOptions;
+      this.config.tls = options;
     }
     return this;
   }

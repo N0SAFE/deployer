@@ -178,7 +178,7 @@ export class DockerContainerShellDomainService {
               subscriber.complete();
             }
           },
-          error: (error) => subscriber.error(error),
+          error: (error) => { subscriber.error(error); },
         });
 
       return () => {

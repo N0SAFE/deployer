@@ -151,6 +151,16 @@ export const apiEnvSchema = zod
         TRAEFIK_FAIL_ON_STARTUP_ERROR: zod.boolean().optional().default(false),
         TRAEFIK_CLEANUP_ON_STARTUP: zod.boolean().optional().default(false),
 
+        // Database seeding & bootstrap
+        DISABLE_AUTO_SCAN: booleanEnv().optional().default(false),
+        DEV_AUTO_SETUP: booleanEnv().optional().default(false),
+        ENABLE_SEEDING: booleanEnv().optional().default(false),
+        SKIP_MIGRATIONS: booleanEnv().optional().default(false),
+
+        // Scanner runner shared container
+        SCANNER_RUNNER_IMAGE: zod.string().optional().default("deployer-scanner-runner:latest"),
+        SCANNER_APP_IDLE_TIMEOUT_MS: zod.coerce.number().int().min(60_000).optional().default(600_000),
+
         // Mesh / distributed runtime
         MESH_NODE_ID: zod.string().optional(),
         MESH_NODE_SERVER_URL: zod.url().optional(),

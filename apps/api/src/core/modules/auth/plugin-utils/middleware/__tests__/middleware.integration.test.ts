@@ -282,7 +282,7 @@ describe('AdminMiddlewareDefinition', () => {
 
       // Use a resolver function for roles
       const check = middleware.hasRole(
-        (ctx) => [ctx.params?.requiredRole ?? 'user'] as any
+        (ctx) => [ctx.params?.requiredRole ?? 'user']
       );
 
       const ctxWithRole = { ...context, params: { requiredRole: 'admin' } };
@@ -294,7 +294,7 @@ describe('AdminMiddlewareDefinition', () => {
     it('should use custom admin roles when provided', () => {
       const customMiddleware = new AdminMiddlewareDefinition(
         (() => mockPlugin) as unknown as (ctx: MiddlewareContext) => AdminPermissionsPlugin<MockPermissionBuilder, any>,
-        { adminRoles: ['superadmin', 'admin'] as any }
+        { adminRoles: ['superadmin', 'admin'] }
       );
 
       const check = customMiddleware.requireAdminRole();

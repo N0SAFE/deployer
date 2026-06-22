@@ -1,6 +1,12 @@
 import z from "zod/v4";
 import { oc } from "@orpc/contract";
-import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
+import {
+    createFilterConfig,
+    error,
+    meshDomainErrorContracts,
+    standard,
+    type ComputeInputSchema,
+} from "@repo/orpc-utils";
 import {
     coreEventScopeSchema,
     coreEventStreamDefinitionSchema,
@@ -25,6 +31,7 @@ import {
     meshPeerHeartbeatResultSchema,
     meshPeerSessionsListResultSchema,
     meshPeersListResultSchema,
+    meshPingResultSchema,
     meshRuntimeEventSchema,
     meshRuntimeStreamQuerySchema,
     meshNodeStateSchema,
@@ -55,6 +62,12 @@ import {
     meshTrustStrictRollbackResultSchema,
     meshTrustStrictRolloutPlanQuerySchema,
     meshTrustStrictRolloutPlanResultSchema,
+    meshNodeConfigSchema,
+    meshNodeConfigUpdateInputSchema,
+    meshNodeConfigUpdateResultSchema,
+    meshNodeConfigRegenerateSecretResultSchema,
+    meshNodeConfigTestDbInputSchema,
+    meshNodeConfigTestDbResultSchema,
 } from "@repo/contracts-entities";
 
 const meshEventStreamOps = standard.zod(coreEventStreamDefinitionSchema, "meshEventStream");
@@ -105,6 +118,7 @@ const meshNodeStateOps = standard.zod(meshNodeStateSchema, "meshNodeState");
 const meshSystemMetricsOps = standard.zod(systemMetricsSnapshotSchema, "meshSystemMetrics");
 const meshPeersListOps = standard.zod(meshPeersListResultSchema, "meshPeersList");
 const meshPeerSessionsListOps = standard.zod(meshPeerSessionsListResultSchema, "meshPeerSessionsList");
+const meshPingOps = standard.zod(meshPingResultSchema, "meshPing");
 const meshEventStreamByIdOps = standard.zod(coreEventStreamDefinitionSchema, "meshEventStreamById");
 const meshStreamSubscribeOps = standard.zod(coreSyncedEventEnvelopeSchema, "meshStreamSubscribe");
 const meshStreamRoutePlanOps = standard.zod(meshStreamRoutePlanResultSchema, "meshStreamRoutePlan");
@@ -164,11 +178,34 @@ const meshTrustStrictRollbackOps = standard.zod(
     meshTrustStrictRollbackResultSchema,
     "meshTrustStrictRollback",
 );
+const meshNodeConfigOps = standard.zod(meshNodeConfigSchema, "meshNodeConfig");
+const meshNodeConfigUpdateOps = standard.zod(meshNodeConfigUpdateResultSchema, "meshNodeConfigUpdate");
+const meshNodeConfigRegenerateSecretOps = standard.zod(
+    meshNodeConfigRegenerateSecretResultSchema,
+    "meshNodeConfigRegenerateSecret",
+);
+const meshNodeConfigTestDbOps = standard.zod(meshNodeConfigTestDbResultSchema, "meshNodeConfigTestDb");
 
 export const meshGetLocalNodeContract = meshNodeStateOps
     .list()
     .path("/node/local")
-    .output((b) => b.body(meshNodeStateSchema))
+    .output((b) => meshNodeStateSchema)
+    .build();
+
+/**
+ * Public, unauthenticated ping endpoint. The controller implementation
+ * MUST NOT require a session or an internal mesh key — this is the
+ * only route that lets a brand-new node check that a peer is reachable
+ * before it has any credentials.
+ *
+ * Response shape: { ok: true, version, advertisedHost }
+ *
+ * See `meshPingResultSchema` for the contract.
+ */
+export const meshPingContract = meshPingOps
+    .list()
+    .path("/ping")
+    .output((b) => b.body(meshPingResultSchema))
     .build();
 
 export const meshGetNodeMetricsContract = meshSystemMetricsOps
@@ -307,28 +344,41 @@ export const meshIssueJoinGrantContract = meshJoinGrantIssueOps
     .create()
     .path("/enrollment/grants/issue")
     .input((b) => b.body(meshJoinGrantIssueInputSchema))
-    .output((b) => b.body(meshJoinGrantIssueResultSchema))
+    .output((b) => meshJoinGrantIssueResultSchema)
     .build();
 
 export const meshConsumeJoinGrantContract = meshJoinGrantConsumeOps
     .create()
     .path("/enrollment/grants/consume")
     .input((b) => b.body(meshJoinGrantConsumeInputSchema))
-    .output((b) => b.body(meshJoinGrantConsumeResultSchema))
+    .output((b) => meshJoinGrantConsumeResultSchema)
+    .errors((e) => [
+        // The bootstrap handoff throws MeshNotFoundError when the grant
+        // has been revoked / already used / never existed. The HTTP
+        // exception filter turns this into 404 + MeshDomainErrorPayload
+        // automatically — declaring it here gives the typed client a
+        // typed catch path.
+        ...meshDomainErrorContracts(e),
+    ])
     .build();
 
 export const meshRegisterNodeContract = meshRegisterNodeOps
     .create()
     .path("/enrollment/register")
     .input((b) => b.body(meshRegisterNodeInputSchema))
-    .output((b) => b.body(meshRegisterNodeResultSchema))
+    .output((b) => meshRegisterNodeResultSchema)
     .build();
 
 export const meshRevokeJoinGrantContract = meshJoinGrantRevokeOps
     .create()
     .path("/enrollment/grants/revoke")
     .input((b) => b.body(meshJoinGrantRevokeInputSchema))
-    .output((b) => b.body(meshJoinGrantRevokeResultSchema))
+    .output((b) => meshJoinGrantRevokeResultSchema)
+    .errors((e) => [
+        // Throws MeshNotFoundError (when the grant id doesn't exist) and
+        // MeshAuthorizationError (when the caller isn't super-admin).
+        ...meshDomainErrorContracts(e),
+    ])
     .build();
 
 export const meshTrustKeyringStatusContract = meshTrustKeyringStatusOps
@@ -383,7 +433,36 @@ export const meshTrustStrictRollbackContract = meshTrustStrictRollbackOps
     .output((b) => b.body(meshTrustStrictRollbackResultSchema))
     .build();
 
+export const meshGetNodeConfigContract = meshNodeConfigOps
+    .list()
+    .path("/node/config")
+    .input((b) => b.body(z.object({}).optional()))
+    .output((b) => b.body(meshNodeConfigSchema))
+    .build();
+
+export const meshUpdateNodeConfigContract = meshNodeConfigUpdateOps
+    .create()
+    .path("/node/config")
+    .input((b) => b.body(meshNodeConfigUpdateInputSchema))
+    .output((b) => b.body(meshNodeConfigUpdateResultSchema))
+    .build();
+
+export const meshRegenerateNodeConfigSecretContract = meshNodeConfigRegenerateSecretOps
+    .create()
+    .path("/node/config/regenerate-secret")
+    .input((b) => b.body(z.object({}).optional()))
+    .output((b) => b.body(meshNodeConfigRegenerateSecretResultSchema))
+    .build();
+
+export const meshTestNodeConfigDbContract = meshNodeConfigTestDbOps
+    .create()
+    .path("/node/config/test-db")
+    .input((b) => b.body(meshNodeConfigTestDbInputSchema))
+    .output((b) => b.body(meshNodeConfigTestDbResultSchema))
+    .build();
+
 export const meshContract = oc.tag("Core Mesh").prefix("/mesh").router({
+    ping: meshPingContract,
     getLocalNode: meshGetLocalNodeContract,
     getNodeMetrics: meshGetNodeMetricsContract,
     listPeers: meshListPeersContract,
@@ -416,6 +495,10 @@ export const meshContract = oc.tag("Core Mesh").prefix("/mesh").router({
     trustStrictModeSet: meshTrustStrictModeSetContract,
     trustStrictRolloutPlan: meshTrustStrictRolloutPlanContract,
     trustStrictRollback: meshTrustStrictRollbackContract,
+    getNodeConfig: meshGetNodeConfigContract,
+    updateNodeConfig: meshUpdateNodeConfigContract,
+    regenerateNodeConfigSecret: meshRegenerateNodeConfigSecretContract,
+    testNodeConfigDb: meshTestNodeConfigDbContract,
 });
 
 export type MeshContract = typeof meshContract;

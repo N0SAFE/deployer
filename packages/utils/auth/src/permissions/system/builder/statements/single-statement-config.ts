@@ -223,7 +223,7 @@ export class StatementConfig<TActions extends readonly string[] = readonly strin
    * Create write permissions (create, update, delete)
    */
   writeOnly(): readonly (TActions[number])[] {
-    return this.filter(a => ['create', 'update', 'delete'].includes(a as string));
+    return this.filter(a => ['create', 'update', 'delete'].includes(a));
   }
 
   /**
@@ -237,6 +237,6 @@ export class StatementConfig<TActions extends readonly string[] = readonly strin
    * Only CRUD actions (create, read, update, delete)
    */
   crudOnly(): readonly (TActions[number])[] {
-    return this.filter(a => ['create', 'read', 'update', 'delete'].includes(a as string));
+    return this.filter(a => ['create', 'read', 'update', 'delete'].includes(a));
   }
 }

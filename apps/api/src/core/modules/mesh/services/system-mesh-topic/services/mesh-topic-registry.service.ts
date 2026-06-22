@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { CoreEventStreamPoolService } from "@/core/modules/events/services/core-event-stream-pool.service";
 import type { EventContracts } from "@/core/modules/events/event-contract.builder";
 import {
@@ -10,9 +10,9 @@ import type {
     MeshTopicNamespaceHandle,
 } from "../domain/mesh-topic-types";
 import { MeshTopicNamespaceRuntime } from "../runtime/mesh-topic-namespace-runtime";
-import type { MeshTopicPublisherService } from "./mesh-topic-publisher.service";
-import type { MeshTopicQueryBusService } from "./mesh-topic-query-bus.service";
-import type { MeshTopicResourceIndexService } from "./mesh-topic-resource-index.service";
+import { MeshTopicPublisherService } from "./mesh-topic-publisher.service";
+import { MeshTopicQueryBusService } from "./mesh-topic-query-bus.service";
+import { MeshTopicResourceIndexService } from "./mesh-topic-resource-index.service";
 
 /**
  * Registre des namespaces mesh-topic.
@@ -24,6 +24,7 @@ export class MeshTopicRegistryService {
         string,
         MeshTopicNamespaceRuntime<EventContracts>
     >();
+    private readonly logger = new Logger(MeshTopicRegistryService.name);
 
     constructor(
         private readonly streamPool: CoreEventStreamPoolService,
@@ -46,8 +47,9 @@ export class MeshTopicRegistryService {
         }
 
         const topicNames = Object.keys(definition.contracts) as (keyof TContracts & string)[];
+        // Allow empty contracts (entities-only namespaces like "system-resource")
         if (topicNames.length === 0) {
-            throw new MeshTopicNamespaceNotFoundError(namespace);
+            this.logger.warn(`Registering namespace '${namespace}' with no topic contracts (entities only).`);
         }
 
         const runtime = new MeshTopicNamespaceRuntime(
@@ -98,7 +100,7 @@ export class MeshTopicRegistryService {
             topics: topicNames,
 
             publish: (topic, input, output, options) =>
-                this.publisher.publish(namespace, runtime, String(topic), input, output, options),
+                {this.publisher.publish(namespace, runtime, String(topic), input, output, options)},
 
             subscribe: (topic, input, options) =>
                 runtime.subscribe(topic, input, options),
@@ -120,7 +122,7 @@ export class MeshTopicRegistryService {
                     String(responseTopic),
                     input,
                     options,
-                )  as unknown as Promise<ReturnType<typeof responseTopic extends never ? never : () => unknown>>,
+                ),
 
             registerQueryHandler: (requestTopic, responseTopic, handler) =>
                 this.queryBus.registerHandler(

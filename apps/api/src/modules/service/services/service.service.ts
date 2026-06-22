@@ -348,7 +348,7 @@ export class ServiceService implements OnModuleInit {
 
         if (input.eventTypes && input.eventTypes.length > 0) {
             const accepted = new Set(input.eventTypes);
-            query = query.whereEventName((eventName) => accepted.has(eventName as never));
+            query = query.whereEventName((eventName) => accepted.has(eventName));
         }
 
         if (input.serviceId) {
@@ -552,7 +552,7 @@ export class ServiceService implements OnModuleInit {
                     sequence,
                     replayed,
                     emittedAt: new Date(),
-                } as StreamEventWithMeta<TEvent>;
+                };
             }),
         );
 

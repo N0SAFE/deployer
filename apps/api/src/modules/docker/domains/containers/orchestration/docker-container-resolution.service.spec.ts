@@ -559,7 +559,7 @@ describe("DockerContainerResolutionService", () => {
             await service.listContainers(baseInput);
 
             expect(fetchMock).toHaveBeenCalledTimes(1);
-            const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+            const requestInit = fetchMock.mock.calls[0]?.[1];
             const headers = requestInit?.headers as Record<string, string> | undefined;
             expect(headers?.["x-mesh-local-only"]).toBe("1");
         } finally {

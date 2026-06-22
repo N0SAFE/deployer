@@ -15,6 +15,41 @@
       "when": 1775062346033,
       "tag": "0001_optimal_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1779967212279,
+      "tag": "0002_ancient_colonel_america",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1748438400000,
+      "tag": "0003_add_node_config_database_url",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1780699535351,
+      "tag": "0004_violet_sandman",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1781609835657,
+      "tag": "0005_absent_stark_industries",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1782000000000,
+      "tag": "0006_add_mesh_shared_secret",
+      "breakpoints": true
     }
   ]
 }

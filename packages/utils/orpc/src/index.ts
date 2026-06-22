@@ -25,12 +25,12 @@ export {
 export type {
     ComputeInputSchema,
     ComputeOutputSchema,
-} from "./standard/zod/utils/query-builder";
+} from "./operations/zod/utils/query-builder";
 
 // Convenience re-exports for most common use cases
 export { RouteBuilder, route } from "./builder/core/route-builder";
 export { QueryBuilder, createQueryBuilder, createListQuery, createSearchQuery, createAdvancedQuery } from "./query";
-export type { InferInputSchema, InferOutputSchema, AnyContractBuilder, AnyContractProcedureOrBuilder } from "./utils/type-helpers";
+export type { InferInputSchema, InferOutputSchema, AnyContractBuilder, AnyContractProcedureOrBuilder } from "./types/type-helpers";
 export {
     observable,
     getObservableSchemaDetails,
@@ -56,22 +56,38 @@ export {
     type EventIteratorProtocolVersion,
     type EventSerializer,
     type EventDeserializer,
-} from "./utils/observable/event-iterator";
+} from "./observable/event-iterator";
+export {
+    ObservableLinkPlugin,
+} from "./utils/observable/link-plugin";
 export {
     createObservableQueryUtils,
     type ObservableQueryMode,
     type ObservablePipeInvoker,
     type ObservablePipeTransform,
     type ObservableQueryFnOptions,
-    type StreamedObservableQueryFnOptions,
-    type ObservableOptionsConfig,
     type StreamedObservableOptionsConfig,
+    type LiveObservableOptionsConfig,
     type ObservableProcedureQueryUtils,
     type ObservableQueryUtils,
-} from "./utils/observable/tanstack-query";
+} from "./observable/tanstack-query";
 
 // Re-export RxJS primitives to avoid requiring direct app-level rxjs installs.
 export {
     Observable as RxObservable,
     Subscription as RxSubscription,
 } from "rxjs";
+
+// Re-export shared ORPC mesh error definitions (single source of truth
+// for the contract + the HTTP exception filter).
+export {
+    MESH_ERROR_CODES,
+    MESH_ERROR_HTTP_STATUS,
+    MESH_ERROR_ORPC_CODE,
+    meshDomainErrorContracts,
+    meshDomainErrorPayloadSchema,
+    meshErrorResponseSchema,
+    type MeshDomainErrorPayload,
+    type MeshErrorCode,
+    type MeshErrorResponse,
+} from "./mesh-errors";

@@ -307,7 +307,7 @@ function createFallbackParser(schema: z.ZodType): NuqsParserBuilder {
             return JSON.stringify(nextValue)
         },
         eq: isEqualByValue,
-    }) as NuqsParserBuilder
+    })
 }
 
 function createParserForSchema(
@@ -396,7 +396,7 @@ function createParserForSchema(
             parser = parseAsJson((value: unknown) => {
                 const parsed = unwrappedSchema.safeParse(value)
                 return parsed.success ? parsed.data : null
-            }) as NuqsParserBuilder
+            })
             break
         default:
             parser = createFallbackParser(unwrappedSchema)
@@ -404,7 +404,7 @@ function createParserForSchema(
     }
 
     if (defaultValue !== undefined && defaultValue !== null) {
-        return parser.withDefault(defaultValue as never) as NuqsParserBuilder
+        return parser.withDefault(defaultValue)
     }
 
     return parser
@@ -705,7 +705,7 @@ export function useSearchState<
     >(
         (value, updateOptions) =>
             setRawSearchState(
-                value as Partial<Record<string, unknown>> | null,
+                value,
                 updateOptions
             ),
         [setRawSearchState]

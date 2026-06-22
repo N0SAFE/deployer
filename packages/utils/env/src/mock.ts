@@ -34,17 +34,21 @@ const apiMockEnv: EnvMockForSchema<typeof apiEnvSchema> = {
         "mock-auth-secret-key-for-development-only-change-in-production",
     DEV_AUTH_KEY: "mock-dev-auth-key-for-development-only",
     NEXT_PUBLIC_API_URL: "http://localhost:3001",
-    NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+    NEXT_PUBLIC_APP_URL: "http://localhost:3005",
     DEFAULT_ADMIN_EMAIL: "admin@admin.com",
     DEFAULT_ADMIN_PASSWORD: "adminadmin",
+    DISABLE_AUTO_SCAN: "false",
+    DEV_AUTO_SETUP: "false",
+    ENABLE_SEEDING: "false",
+    SKIP_MIGRATIONS: "false",
 };
 
 const webMockEnv: EnvMockForSchema<typeof webEnvSchema> = {
-    NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+    NEXT_PUBLIC_APP_URL: "http://localhost:3005",
     API_URL: "http://localhost:3001",
     NEXT_PUBLIC_API_URL: "http://localhost:3001",
     NEXT_PUBLIC_API_PORT: "3001",
-    NEXT_PUBLIC_APP_PORT: "3000",
+    NEXT_PUBLIC_APP_PORT: "3005",
     AUTH_SECRET: "mock-auth-secret-key-for-development-only-change-in-production",
     BETTER_AUTH_SECRET:
         "mock-auth-secret-key-for-development-only-change-in-production",
@@ -66,10 +70,10 @@ const docMockEnv: EnvMockForSchema<typeof docEnvSchema> = {};
 const loadBalancerMockEnv: EnvMockForSchema<typeof loadBalancerEnvSchema> = {
     LOAD_BALANCER_PORT: "3010",
     API_URL: "http://localhost:3001",
-    APP_URL: "http://localhost:3000",
+    APP_URL: "http://localhost:3005",
     LB_ROUTE_SECRET: "mock-lb-route-secret-for-development-only",
     LB_ROUTE_SECRET_PREVIOUS: "",
-    LB_REPORT_TTL_MS: "30000",
+    LB_REPORT_TTL_MS: "30050",
     LB_LOAD_REPORT_DEDUPE_TTL_MS: "120000",
     LB_LOAD_REPORT_MAX_HOPS: "2",
     LB_PEER_URLS: "",

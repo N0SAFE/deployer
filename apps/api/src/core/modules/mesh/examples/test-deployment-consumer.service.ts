@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Observable, firstValueFrom, lastValueFrom, toArray } from "rxjs";
-import type { SystemMeshResourceDiscoveryService } from "../services/system-mesh-resource-discovery/system-mesh-resource-discovery.service";
+import { SystemMeshResourceDiscoveryService } from "../services/system-mesh-resource-discovery/system-mesh-resource-discovery.service";
 import type { MeshQueryBuilder } from "../services/system-mesh-resource-discovery/query/mesh-query-builder";
 import type { MeshQueryResult } from "../services/system-mesh-resource-discovery/query/mesh-query-builder-types";
 import { eq, and, gt, contains } from "../services/system-mesh-resource-discovery/query/mesh-where";

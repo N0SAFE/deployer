@@ -207,7 +207,7 @@ export class AuthModule
 		const normalizedOptions: typeof OPTIONS_TYPE =
 			typeof arg1 === "object" && "auth" in (arg1 as object)
 				? (arg1 as typeof OPTIONS_TYPE)
-				: ({ ...(arg2 ?? {}), auth: arg1 as Auth } as typeof OPTIONS_TYPE);
+				: ({ ...(arg2 ?? {}), auth: arg1 as Auth });
 
 		const forRootResult = super.forRoot(normalizedOptions);
 

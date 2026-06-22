@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common'
-import type { SetupInitializeRemoteInput, SetupStreamEvent } from '@repo/contracts-entities'
-import type { Subscriber } from 'rxjs'
+import type { SetupInitializeRemoteInput } from '@repo/contracts-entities'
 import { NodeConfigRepository } from '../repositories/node-config.repository'
-import { InitializationService } from './initialization.service'
-import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service';
+import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service'
+import { EnvService } from '@/config/env/env.service'
+import { runStep, type EmitEvent, SetupStepTracker } from '../utils/setup-runner.utils'
 
 @Injectable()
 export class RemoteInitializationService {
@@ -12,76 +12,113 @@ export class RemoteInitializationService {
     constructor(
         private readonly meshInitializationService: MeshInitializationService,
         private readonly nodeConfigRepository: NodeConfigRepository,
+        private readonly envService: EnvService,
     ) {}
 
+    /**
+     * Run the remote bootstrap flow after reachability has been confirmed.
+     *
+     * Owns: grant_issue → mesh_handshake → register_node → finalize.
+     * Returns the final `{ nodeId, databaseUrl }` so the orchestration
+     * layer can emit the terminal `completed` event.
+     */
     async initialize(
         input: SetupInitializeRemoteInput,
-        subscriber: Subscriber<SetupStreamEvent>,
-    ): Promise<void> {
+        tracker: SetupStepTracker,
+        emit: EmitEvent,
+    ): Promise<{ nodeId: string; databaseUrl: string }> {
+        let nodeId = ''
+        let databaseUrl = ''
+        let meshUrls: string[] = []
+        let peerServiceToken: string | null = null
+        let peerServiceTokenExpiresAt: string | null = null
+        let meshSharedSecret: string | null = null
 
-        // ── Step: mesh_handshake ─────────────────────────────────────────────
-        subscriber.next(InitializationService.stepStart('mesh_handshake', 'Connect to mesh'))
-        const handshakeStart = Date.now()
-        let bootstrapConfig: Awaited<ReturnType<MeshInitializationService['bootstrap']>>
-        try {
-            subscriber.next(InitializationService.stepLog('mesh_handshake', `Connecting to mesh at ${input.meshUrl}…`))
-            bootstrapConfig = await this.meshInitializationService.bootstrap(
+        // Resolve the local server URL once so we can pass it to the
+        // remote mesh as the address it should use to reach us back.
+        const serverUrl = this.resolveServerUrl()
+
+        await runStep(tracker, emit, 'mesh_handshake', 'Connect to mesh', async (stepLog) => {
+            stepLog(`Connecting to mesh at ${input.meshUrl}…`)
+            if (serverUrl) {
+                stepLog(`Advertising server URL: ${serverUrl}`)
+            }
+
+            // Step 1: Issue a one-time join grant on the remote mesh
+            //         using the authenticated Better Auth session.
+            //         The authToken from remoteAuth is a session cookie,
+            //         NOT a join grant token — we must first issue the
+            //         grant via the remote mesh's issueJoinGrant endpoint
+            //         (which requires requireAuth()), then consume it.
+            stepLog('Issuing join grant on remote mesh…')
+            const grantToken = await this.meshInitializationService.issueRemoteJoinGrant(
                 input.meshUrl,
                 input.authToken,
-                // serverUrl is not in the contract input — derive from meshUrl origin or leave empty
-                '',
             )
-            subscriber.next(InitializationService.stepLog('mesh_handshake', `✅ Handshake successful — remote node ${bootstrapConfig.nodeId}`))
-            subscriber.next(InitializationService.stepComplete('mesh_handshake', Date.now() - handshakeStart))
-        } catch (err: unknown) {
-            const error = err instanceof Error ? err.message : String(err)
-            subscriber.next(InitializationService.stepFailed('mesh_handshake', error, Date.now() - handshakeStart))
-            throw err
-        }
+            stepLog('✅ Join grant issued — consuming…')
 
-        // ── Step: register_node ──────────────────────────────────────────────
-        subscriber.next(InitializationService.stepStart('register_node', 'Register this node'))
-        const registerStart = Date.now()
-        let meshUrls: string[] = []
-        try {
-            subscriber.next(InitializationService.stepLog('register_node', 'Fetching peer node URLs…'))
-            meshUrls = await this.meshInitializationService.getMeshNodeUrls(
+            // Step 2: Consume the grant to complete the bootstrap handshake.
+            const bootstrapConfig = await this.meshInitializationService.bootstrap(
                 input.meshUrl,
-                bootstrapConfig.nodeId,
+                grantToken,
+                serverUrl ?? new URL(input.meshUrl).origin,
             )
-            subscriber.next(InitializationService.stepLog('register_node', `✅ Found ${String(meshUrls.length)} peer(s)`))
-            subscriber.next(InitializationService.stepComplete('register_node', Date.now() - registerStart))
-        } catch (err: unknown) {
-            const error = err instanceof Error ? err.message : String(err)
-            subscriber.next(InitializationService.stepFailed('register_node', error, Date.now() - registerStart))
-            throw err
-        }
+            nodeId = bootstrapConfig.nodeId
+            databaseUrl = bootstrapConfig.databaseUrl
+            peerServiceToken = bootstrapConfig.peerServiceToken
+            peerServiceTokenExpiresAt = bootstrapConfig.peerServiceTokenExpiresAt
+            meshSharedSecret = bootstrapConfig.meshSharedSecret
+            stepLog(`✅ Handshake successful — remote node ${bootstrapConfig.nodeId}`)
+        })
 
-        // ── Step: finalize ───────────────────────────────────────────────────
-        subscriber.next(InitializationService.stepStart('finalize', 'Finalize'))
-        const finalizeStart = Date.now()
-        try {
-            subscriber.next(InitializationService.stepLog('finalize', 'Persisting node config…'))
+        await runStep(tracker, emit, 'register_node', 'Register this node', async (stepLog) => {
+            stepLog('Fetching peer node URLs…')
+            meshUrls = await this.meshInitializationService.getMeshNodeUrls(input.meshUrl, nodeId, peerServiceToken)
+            stepLog(`✅ Found ${String(meshUrls.length)} peer(s)`)
+        })
+
+        await runStep(tracker, emit, 'finalize', 'Finalize', async (stepLog) => {
+            stepLog('Persisting node config…')
             const now = new Date().toISOString()
             this.nodeConfigRepository.upsert({
-                nodeId:           bootstrapConfig.nodeId,
-                strategy:         'remote',
+                nodeId,
+                strategy: 'remote',
                 meshUrlsSnapshot: meshUrls,
-                databaseUrl:      bootstrapConfig.databaseUrl,
-                configuredAt:     bootstrapConfig.enrolledAt,
-                updatedAt:        now,
+                databaseUrl,
+                configuredAt: now,
+                peerServiceToken: peerServiceToken ?? undefined,
+                peerServiceTokenExpiresAt: peerServiceTokenExpiresAt ?? undefined,
+                meshSharedSecret: meshSharedSecret ?? undefined,
+                meshSharedSecretUpdatedAt: meshSharedSecret ? now : undefined,
+                updatedAt: now,
             })
-            subscriber.next(InitializationService.stepLog('finalize', '✅ Node config persisted'))
-            subscriber.next(InitializationService.stepComplete('finalize', Date.now() - finalizeStart))
-        } catch (err: unknown) {
-            const error = err instanceof Error ? err.message : String(err)
-            subscriber.next(InitializationService.stepFailed('finalize', error, Date.now() - finalizeStart))
-            throw err
-        }
+            stepLog('✅ Node config persisted')
+        })
 
-        // ── Final event ──────────────────────────────────────────────────────
-        subscriber.next(
-            InitializationService.completed(bootstrapConfig.nodeId, 'remote', bootstrapConfig.databaseUrl),
-        )
+        return { nodeId, databaseUrl }
+    }
+
+    /**
+     * Resolve the public URL that this node advertises to the mesh.
+     *
+     * Uses the same priority as `SystemMeshController.resolveAdvertisedHost`:
+     *   1. `APP_URL` env (canonical — what the operator set in their config)
+     *   2. `NEXT_PUBLIC_APP_URL` env (public web URL — fallback)
+     *
+     * Returns `null` if neither is set or the value is empty. The caller
+     * should fall back to the mesh URL's origin when null.
+     */
+    private resolveServerUrl(): string | null {
+        const candidate = this.envService.get('APP_URL')?.toString().trim()
+            ?? this.envService.get('NEXT_PUBLIC_APP_URL')?.toString().trim()
+        if (!candidate) {
+            return null
+        }
+        try {
+            const parsed = new URL(candidate)
+            return parsed.toString()
+        } catch {
+            return null
+        }
     }
 }

@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import type { EventContracts } from "@/core/modules/events/event-contract.builder";
-import type { SystemMeshTopologyService } from "../../system-mesh-topology/orchestrator/system-mesh-topology.service";
-import type { MeshTopicNamespaceRuntime } from "../runtime/mesh-topic-namespace-runtime";
+import type { EventContracts, EventInput, EventOutput } from "@/core/modules/events/event-contract.builder";
+import { SystemMeshTopologyService } from "../../system-mesh-topology/orchestrator/system-mesh-topology.service";
+import { MeshTopicNamespaceRuntime } from "../runtime/mesh-topic-namespace-runtime";
 import {
     MeshTopicQueryInvalidResponseError,
     MeshTopicQueryTimeoutError,
@@ -35,21 +35,21 @@ export class MeshTopicQueryBusService {
 
     // ─── Request ──────────────────────────────────────────────────────────────
 
-    request(
+    request<TContracts extends EventContracts, KRes extends keyof TContracts>(
         namespace: string,
-        runtime: MeshTopicNamespaceRuntime<EventContracts>,
+        runtime: MeshTopicNamespaceRuntime<TContracts>,
         requestTopic: string,
         responseTopic: string,
-        input: unknown,
+        input: EventInput<TContracts[KRes]>,
         options?: MeshTopicRequestOptions,
-    ): Promise<unknown> {
+    ): Promise<EventOutput<TContracts[KRes]>> {
         const queryId = randomUUID();
         const localNode = this.meshTopology.getLocalNode();
         const timeoutMs = options?.timeoutMs ?? 8_000;
 
-        const validatedInput = runtime.parseInput(requestTopic as never, input);
+        const validatedInput = runtime.parseInput(requestTopic, input);
 
-        return new Promise<unknown>((resolve, reject) => {
+        return new Promise<EventOutput<TContracts[KRes]>>((resolve, reject) => {
             const timeout = setTimeout(() => {
                 this.pending.delete(queryId);
                 reject(new MeshTopicQueryTimeoutError(namespace, responseTopic));

@@ -13,6 +13,102 @@ type SessionUserWithRole = Auth["$Infer"]["Session"]["user"] & {
  */
 declare const AuthenticatedBrand: unique symbol;
 
+// ─── Mesh Context ───────────────────────────────────────────────────────────
+
+/**
+ * A single hop recorded in the mesh parcour — traces the path a request
+ * has travelled across mesh nodes so every downstream node knows the
+ * full chain.
+ */
+export interface MeshParcourEntry {
+    /** Node ID that handled this hop */
+    nodeId: string;
+    /** ISO timestamp when this hop occurred (optional) */
+    timestamp?: string;
+}
+
+/**
+ * Mesh-specific context populated by {@link requireMesh} middleware.
+ *
+ * Carries the verified calling node's identity plus the full routing
+ * trail (parcour) so handlers have full topological awareness without
+ * querying the cluster repository.
+ */
+export interface MeshContext {
+    /** Whether the caller's mesh credentials were successfully verified. */
+    readonly verified: boolean;
+
+    /** Node ID of the immediate caller (the peer that sent this request). */
+    readonly callerNodeId: string;
+
+    /**
+     * Full ordered path this request has traversed through the mesh,
+     * from the **origin** node (index 0) to the **immediate caller**
+     * (last entry).
+     *
+     * Examples:
+     * - `[{ nodeId: "node-a" }]`                    — direct 1-hop call
+     * - `[{ nodeId: "node-a" }, { nodeId: "node-b" }]` — forwarded once
+     */
+    readonly meshParcour: MeshParcourEntry[];
+
+    /** The originating node — shorthand for `meshParcour[0]?.nodeId ?? callerNodeId`. */
+    readonly originNodeId: string;
+
+    /**
+     * The node that forwarded to the immediate caller, or `null` when
+     * the caller is the origin (direct call).
+     */
+    readonly previousCallerNodeId: string | null;
+
+    /** Which credential type was used to verify this request. */
+    readonly peerIdentity: {
+        readonly nodeId: string;
+        readonly tokenType: "peer-service" | "mesh-internal";
+    };
+}
+
+/**
+ * ORPC context that carries mesh routing info.
+ * Use as the input/output type for middlewares that only deal with mesh.
+ */
+export interface ORPCContextWithMesh {
+    mesh: MeshContext;
+    [key: string]: unknown;
+    [key: symbol]: unknown;
+}
+
+/**
+ * ORPC context with BOTH mesh AND auth — for endpoints that need
+ * both verified peer identity AND a user session (either direct or
+ * forwarded through the mesh).
+ *
+ * This is an intersection type (not interface extends) so it works
+ * correctly with both ORPC's MergedInitialContext and standalone use.
+ */
+export type ORPCContextWithAuthAndMesh<TLoggedIn extends boolean = boolean> =
+    ORPCContextWithAuth<TLoggedIn> & ORPCContextWithMesh;
+
+/**
+ * Minimal ORPC context requiring only auth utilities.
+ * Use this for middlewares that only need auth context (most access control).
+ */
+export interface ORPCContextWithAuthOnly<TLoggedIn extends boolean = boolean> {
+    auth: ORPCAuthContext<TLoggedIn>;
+    [key: string]: unknown;
+    [key: symbol]: unknown;
+}
+
+/**
+ * Full ORPC context with request and auth utilities.
+ * Use this for middlewares that need access to the raw request.
+ */
+export interface ORPCContextWithAuth<TLoggedIn extends boolean = boolean> extends ORPCContextWithAuthOnly<TLoggedIn> {
+    request: Request;
+    [key: string]: unknown;
+    [key: symbol]: unknown;
+}
+
 /**
  * Auth context available in ORPC handlers
  * 
@@ -81,26 +177,24 @@ export interface ORPCAuthenticatedContext extends ORPCAuthContext<true> {
 }
 
 /**
- * Type assertion helper for authenticated context
- * Use this after requireAuth() middleware or when you need to manually narrow the type
- * 
+ * Type assertion helper for authenticated context.
+ *
+ * Call this after you have verified `auth.isLoggedIn` at runtime to
+ * narrow the type to `ORPCAuthenticatedContext` (which guarantees
+ * non-null `session` and `user`).
+ *
+ * This is a **trusted narrowing** — the `as` cast is unavoidable here
+ * because TypeScript can't track the conditional mapped types through
+ * runtime checks. We encapsulate it in a single exported function
+ * rather than scattering `as ORPCAuthenticatedContext` at every call
+ * site.
+ *
  * @example
  * ```ts
- * // With requireAuth() middleware (recommended)
- * implement(contract)
- *   .use(requireAuth())
- *   .handler(({ context }) => {
- *     // After middleware, call assertAuthenticated to narrow types
- *     const auth = assertAuthenticated(context.auth);
- *     const userId = auth.user.id; // No ! needed
- *   })
- * 
- * // Without middleware (manual check)
- * implement(contract)
- *   .handler(({ context }) => {
- *     const auth = assertAuthenticated(context.auth); // throws if not authenticated
- *     const userId = auth.user.id;
- *   })
+ * .handler(({ context }) => {
+ *   const auth = assertAuthenticated(context.auth);
+ *   const userId = auth.user.id; // No null check needed
+ * })
  * ```
  */
 export function assertAuthenticated(auth: ORPCAuthContext): ORPCAuthenticatedContext {
@@ -109,3 +203,5 @@ export function assertAuthenticated(auth: ORPCAuthContext): ORPCAuthenticatedCon
   }
   return auth as ORPCAuthenticatedContext;
 }
+
+

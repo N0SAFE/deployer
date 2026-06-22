@@ -3,6 +3,7 @@ import Docker from "dockerode";
 import * as fs from "fs";
 import * as path from "path";
 import { PassThrough } from "stream";
+import { Observable } from "rxjs";
 import { EnvService } from "@/config/env/env.service";
 
 @Injectable()
@@ -10,6 +11,31 @@ export class DockerService {
     private readonly logger = new Logger(DockerService.name);
     private readonly docker: Docker;
     private static readonly DEFAULT_DOCKER_SOCKET_PATH = "/var/run/docker.sock";
+
+    /** The resolved Docker socket path in use (null when using TCP). */
+    private resolvedSocketPath: string | null = null;
+
+    /**
+     * Return the resolved Docker socket path, or `null` if the client is
+     * connected via TCP rather than a Unix socket.
+     */
+    getDockerSocketPath(): string | null {
+        return this.resolvedSocketPath;
+    }
+
+    /**
+     * Return a Docker socket bind-mount string suitable for container
+     * `HostConfig.Binds`, or `null` if the client is connected via TCP.
+     *
+     * @example "/var/run/docker.sock:/var/run/docker.sock"
+     */
+    getDockerSocketBindMount(): string | null {
+        const socketPath = this.resolvedSocketPath;
+        if (!socketPath) {
+            return null;
+        }
+        return `${socketPath}:${socketPath}`;
+    }
 
     private static getErrMsg(err: unknown): string {
         if (err instanceof Error) return err.message;
@@ -139,7 +165,7 @@ export class DockerService {
     private resolveDockerClientConfig(
         dockerHost: unknown,
         dockerPort: unknown,
-    ): { client: Docker; mode: string } {
+    ): { client: Docker; mode: string; socketPath?: string } {
         const hasMountedSocket = fs.existsSync(DockerService.DEFAULT_DOCKER_SOCKET_PATH);
         const parsedEnvPort = typeof dockerPort === "number" ? dockerPort : undefined;
         const hostRaw = typeof dockerHost === "string" ? dockerHost.trim() : "";
@@ -150,6 +176,7 @@ export class DockerService {
                 return {
                     client: new Docker({ socketPath }),
                     mode: `DOCKER_HOST unix socket (${socketPath})`,
+                    socketPath,
                 };
             }
 
@@ -157,6 +184,7 @@ export class DockerService {
                 return {
                     client: new Docker({ socketPath: hostRaw }),
                     mode: `DOCKER_HOST socket path (${hostRaw})`,
+                    socketPath: hostRaw,
                 };
             }
 
@@ -171,6 +199,7 @@ export class DockerService {
                 return {
                     client: new Docker({ socketPath: DockerService.DEFAULT_DOCKER_SOCKET_PATH }),
                     mode: "mounted Docker socket fallback",
+                    socketPath: DockerService.DEFAULT_DOCKER_SOCKET_PATH,
                 };
             }
 
@@ -201,6 +230,7 @@ export class DockerService {
                     return {
                         client: new Docker({ socketPath: DockerService.DEFAULT_DOCKER_SOCKET_PATH }),
                         mode: "mounted Docker socket fallback",
+                        socketPath: DockerService.DEFAULT_DOCKER_SOCKET_PATH,
                     };
                 }
 
@@ -211,6 +241,7 @@ export class DockerService {
                         protocol: parsedUrl.protocol === "https:" ? "https" : "http",
                     }),
                     mode: `DOCKER_HOST URL (${hostRaw})`,
+                    // No socket path when using TCP
                 };
             }
 
@@ -220,6 +251,7 @@ export class DockerService {
                     port: parsedEnvPort,
                 }),
                 mode: `DOCKER_HOST host (${hostRaw})`,
+                // No socket path when using TCP
             };
         }
 
@@ -227,12 +259,14 @@ export class DockerService {
             return {
                 client: new Docker({ socketPath: DockerService.DEFAULT_DOCKER_SOCKET_PATH }),
                 mode: "mounted Docker socket",
+                socketPath: DockerService.DEFAULT_DOCKER_SOCKET_PATH,
             };
         }
 
         return {
             client: new Docker(),
             mode: "dockerode default connection",
+            // No socket path when using default dockerode connection (TCP)
         };
     }
 
@@ -240,8 +274,9 @@ export class DockerService {
         const dockerHost = this.envService.get("DOCKER_HOST");
         const dockerPort = this.envService.get("DOCKER_PORT");
 
-        const { client, mode } = this.resolveDockerClientConfig(dockerHost, dockerPort);
+        const { client, mode, socketPath } = this.resolveDockerClientConfig(dockerHost, dockerPort);
         this.docker = client;
+        this.resolvedSocketPath = socketPath ?? null;
 
         if (fs.existsSync(DockerService.DEFAULT_DOCKER_SOCKET_PATH)) {
             try {
@@ -1325,6 +1360,79 @@ CMD ["npm", "start"]
     }
 
     /**
+     * Execute a command inside a running container and return the exit code + output
+     * WITHOUT throwing on non-zero exit codes.
+     *
+     * Unlike execInContainer (which throws when the command exits non-zero), this
+     * method always returns the exit code and output as data. This is required for
+     * scanner commands (trivy, grype, dive) that may return non-zero exit codes
+     * when they find vulnerabilities — a non-zero exit is a valid result, not a failure.
+     */
+    async execInContainerCapture(containerIdOrName: string, cmd: string[], input?: string): Promise<{ exitCode: number; output: string }> {
+        try {
+            const container = this.docker.getContainer(containerIdOrName);
+            this.logger.debug(`Exec-capture in container ${containerIdOrName}: ${cmd.join(" ")}`);
+            const exec = await container.exec({ Cmd: cmd, AttachStdout: true, AttachStderr: true, AttachStdin: !!input });
+
+            const rawStream: unknown = await exec.start({ hijack: true, stdin: !!input });
+            const inlineOutput = this.extractExecOutputPayload(rawStream);
+            if (inlineOutput !== null) {
+                const execInspect = await exec.inspect();
+                const exitCode = typeof execInspect.ExitCode === "number" ? execInspect.ExitCode : -1;
+                this.logger.debug(`Exec-capture in container ${containerIdOrName} completed with inline payload (exitCode=${String(exitCode)})`);
+                return { exitCode, output: inlineOutput };
+            }
+
+            if (!this.isReadWriteStream(rawStream) && !this.isReadableStream(rawStream)) {
+                throw new Error("exec.start() returned an unexpected non-stream value");
+            }
+
+            const stream = rawStream;
+            const stdoutStream = new PassThrough();
+            const stderrStream = new PassThrough();
+
+            try {
+                this.docker.modem.demuxStream(stream, stdoutStream, stderrStream);
+            } catch (demuxErr) {
+                this.logger.warn("demuxStream failed in exec-capture, attaching to raw stream as fallback", demuxErr);
+                stream.on("data", (chunk: Buffer) => stdoutStream.write(chunk));
+            }
+
+            let output = "";
+            stdoutStream.on("data", (c: Buffer) => {
+                try { output += c.toString("utf8"); } catch { /* skip */ }
+            });
+            stderrStream.on("data", (c: Buffer) => {
+                try { output += c.toString("utf8"); } catch { /* skip */ }
+            });
+
+            if (input) {
+                if (!this.isReadWriteStream(stream)) {
+                    throw new Error("exec-capture stream is not writable while stdin input was provided");
+                }
+                try { (stream).write(input); } catch { /* skip */ }
+                try { (stream).end(); } catch { /* skip */ }
+            }
+
+            await new Promise<void>((resolve, reject) => {
+                stream.on("end", () => { resolve(); });
+                stream.on("close", () => { resolve(); });
+                stream.on("error", (err: Error) => { reject(err); });
+            });
+
+            const execInspect = await exec.inspect();
+            const exitCode = typeof execInspect.ExitCode === "number" ? execInspect.ExitCode : -1;
+
+            this.logger.debug(`Exec-capture in container ${containerIdOrName} completed (exitCode=${String(exitCode)})`);
+            return { exitCode, output };
+        } catch (error: unknown) {
+            const msg = DockerService.getErrMsg(error);
+            this.logger.error(`Exec-capture failed in container ${containerIdOrName}: ${msg}`);
+            return { exitCode: -1, output: msg };
+        }
+    }
+
+    /**
      * Run a command in a short-lived helper container that mounts the same volumes as the
      * target container. This is used as a fallback when exec/start over the Docker API
      * fails due to protocol upgrade issues (HTTP 101) or other attach-related problems.
@@ -1489,6 +1597,193 @@ CMD ["npm", "start"]
             this.logger.error(`Failed to fetch logs for container ${containerIdOrName}:`, DockerService.getErrMsg(error));
             throw error;
         }
+    }
+
+    /**
+     * Stream container logs as an async iterable of decoded line strings.
+     *
+     * Uses Docker's `follow: true` log stream. Each yielded line is a single
+     * line (split on `\n`, with trailing newlines stripped). Multiplexed
+     * stdout/stderr frames are demultiplexed and merged into a single line
+     * stream (stderr is prefixed with `[stderr] ` so callers can distinguish).
+     *
+     * The iterator completes naturally when the underlying stream emits
+     * `end`. Callers can also break out of the `for await` loop early to
+     * stop consuming without leaking the underlying socket — the stream
+     * is destroyed via `.destroy()` on early break.
+     *
+     * @example
+     * ```ts
+     * for await (const line of docker.streamContainerLogs(containerId, { tail: 50 })) {
+     *     emit(InitializationService.stepLog("provision_database", line))
+     * }
+     * ```
+     */
+    async *streamContainerLogs(
+        containerIdOrName: string,
+        options: Docker.ContainerLogsOptions & { stderrPrefix?: string } = {},
+    ): AsyncIterable<string> {
+        const stderrPrefix = options.stderrPrefix ?? "[stderr] ";
+        const container = this.docker.getContainer(containerIdOrName);
+        const rawLogs: unknown = await container.logs({
+            stdout: options.stdout !== false,
+            stderr: options.stderr !== false,
+            follow: true as const,
+            tail: options.tail ?? 0, // 0 = from start of new lines only
+            timestamps: false,
+        });
+
+        if (typeof rawLogs === "string" || this.isBufferLike(rawLogs)) {
+            // Non-stream result (shouldn't happen with follow:true, but guard anyway)
+            const text = typeof rawLogs === "string"
+                ? rawLogs
+                : this.decodeContainerLogsPayload(Buffer.from(rawLogs));
+            for (const line of text.split("\n")) {
+                if (line.length > 0) yield line;
+            }
+            return;
+        }
+
+        if (!this.isReadableStream(rawLogs)) {
+            throw new Error("container.logs(follow:true) returned an unexpected non-stream value");
+        }
+
+        const stream = rawLogs;
+        let pending = Buffer.alloc(0);
+        let streamEnded = false;
+        let streamError: Error | null = null;
+
+        const done = new Promise<void>((resolve, reject) => {
+            stream.on("end", () => { streamEnded = true; resolve(); });
+            stream.on("close", () => { streamEnded = true; resolve(); });
+            stream.on("error", (err: Error) => {
+                streamError = err;
+                reject(err);
+            });
+        });
+
+        try {
+            while (true) {
+                if (streamError) throw streamError;
+
+                // Parse complete frames from the pending buffer
+                if (pending.length >= 8) {
+                    const streamType = pending[0];
+                    if (streamType === 0 || streamType === 1 || streamType === 2) {
+                        const frameLength = pending.readUInt32BE(4);
+                        if (pending.length >= 8 + frameLength) {
+                            const payload = pending.subarray(8, 8 + frameLength);
+                            pending = pending.subarray(8 + frameLength);
+                            const text = payload.toString("utf8");
+                            const prefix = streamType === 2 ? stderrPrefix : "";
+                            for (const line of text.split("\n")) {
+                                if (line.length > 0) yield prefix + line;
+                            }
+                            continue;
+                        }
+                    } else {
+                        // Non-multiplexed stream — treat entire buffer as plain text
+                        const text = pending.toString("utf8");
+                        pending = Buffer.alloc(0);
+                        for (const line of text.split("\n")) {
+                            if (line.length > 0) yield line;
+                        }
+                        continue;
+                    }
+                }
+
+                if (streamEnded) {
+                    // Flush any remaining bytes as a final line
+                    if (pending.length > 0) {
+                        const text = pending.toString("utf8").trim();
+                        if (text.length > 0) yield text;
+                    }
+                    return;
+                }
+
+                // Wait for more data or stream end
+                const moreData = new Promise<void>((resolve) => {
+                    const onData = (chunk: Buffer | string) => {
+                        stream.off("end", onEnd);
+                        stream.off("close", onClose);
+                        stream.off("error", onError);
+                        if (typeof chunk === "string") {
+                            pending = Buffer.concat([pending, Buffer.from(chunk, "utf8")]);
+                        } else if (Buffer.isBuffer(chunk)) {
+                            pending = Buffer.concat([pending, chunk]);
+                        } else if (chunk instanceof Uint8Array) {
+                            pending = Buffer.concat([pending, Buffer.from(chunk)]);
+                        }
+                        resolve();
+                    };
+                    const onEnd = () => { stream.off("data", onData); stream.off("error", onError); resolve(); };
+                    const onClose = () => { stream.off("data", onData); stream.off("error", onError); resolve(); };
+                    const onError = (err: Error) => { stream.off("data", onData); stream.off("end", onEnd); stream.off("close", onClose); streamError = err; resolve(); };
+
+                    stream.once("data", onData);
+                    stream.once("end", onEnd);
+                    stream.once("close", onClose);
+                    stream.once("error", onError);
+                });
+
+                await moreData;
+            }
+        } catch (err) {
+            if (streamError) throw streamError;
+            throw err;
+        } finally {
+            // Always tear down the underlying socket so we don't leak
+            // half-open log streams if the consumer breaks out of the loop.
+            if (typeof (stream as { destroy?: () => void }).destroy === "function") {
+                try { (stream as { destroy: () => void }).destroy(); } catch { /* ignore */ }
+            }
+            // Suppress unhandled rejection from the `done` promise if we broke out early
+            done.catch(() => undefined);
+        }
+    }
+
+    /**
+     * RxJS-friendly wrapper around {@link streamContainerLogs}.
+     *
+     * Yields each decoded log line on a Subject. Completes when the
+     * underlying Docker stream ends, and errors out if the stream errors.
+     * Consumers can subscribe and pipe lines into SSE/log emitters without
+     * having to deal with the async-iterator protocol.
+     *
+     * @example
+     * ```ts
+     * const sub = docker.streamContainerLogs$(containerId, { tail: 0 }).subscribe({
+     *     next: (line) => emit(setupEvent),
+     *     error: (err) => logger.error(err),
+     * });
+     * // ... later, on teardown:
+     * sub.unsubscribe();
+     * ```
+     */
+    streamContainerLogs$(
+        containerIdOrName: string,
+        options: Docker.ContainerLogsOptions & { stderrPrefix?: string } = {},
+    ): Observable<string> {
+        return new Observable<string>((subscriber) => {
+            // Kick off consumption; we keep a flag to avoid duplicate teardown
+            let cancelled = false;
+            void (async () => {
+                try {
+                    for await (const line of this.streamContainerLogs(containerIdOrName, options)) {
+                        if (cancelled) break;
+                        subscriber.next(line);
+                    }
+                    if (!cancelled) subscriber.complete();
+                } catch (err: unknown) {
+                    if (!cancelled) {
+                        subscriber.error(err instanceof Error ? err : new Error(String(err)));
+                    }
+                }
+            })();
+            return () => {
+                cancelled = true;
+            };
+        });
     }
 
     /**

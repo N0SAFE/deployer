@@ -168,7 +168,7 @@ sequenceDiagram
 
 The LB scores each candidate node for a given `(orgId, internal streamKey)` tuple (derived from business realtime routes):
 
-$$
+```latex
 \text{score}(n) =
   0.4 \cdot (1 - \text{cpu}) +
   0.2 \cdot (1 - \text{mem}) +
@@ -177,7 +177,7 @@ $$
   0.1 \cdot (1 - \text{errorRate}) +
   0.2 \cdot \mathbb{1}[\text{isOwner}] +
   0.15 \cdot \frac{\text{priority}}{1000}
-$$
+```
 
 - All inputs are clamped to `[0, 1]`
 - `isOwner` = this node deployed and owns the container → +0.20 head-start

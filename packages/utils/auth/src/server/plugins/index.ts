@@ -148,7 +148,7 @@ export function useInvite(
     // Type assertion is safe here - platformSchemas.roleNames will always be compatible
     // with the RoleSchemaType that invitePlugin expects
     roleSchema: platformSchemas.roleNames,
-  } as InvitePluginOptions<ConfiguredRoleNames>);
+  });
 }
 
 export type InvitePlugin = ReturnType<typeof useInvite>;

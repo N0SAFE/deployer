@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { MeshCoreModule } from "@/core/modules/mesh/mesh-core.module";
+import { CoreDockerModule } from "@/core/modules/docker/docker.module";
 import { EventsModule } from "@/core/modules/events/events.module";
 import { DockerRepositoriesModule } from "../../repositories/docker-repositories.module";
 import { DockerContainerMetricsStreamService } from "./events/docker-container-metrics-stream.service";
@@ -13,7 +14,7 @@ import { DockerContainerRuntimeService } from "./runtime/docker-container-runtim
 import { DockerContainerShellDomainService } from "./runtime/docker-container-shell-domain.service";
 
 @Module({
-  imports: [MeshCoreModule, EventsModule, DockerRepositoriesModule],
+  imports: [MeshCoreModule, CoreDockerModule, EventsModule, DockerRepositoriesModule],
   providers: [
     DockerContainerRuntimeService,
     DockerContainerLogsDomainService,

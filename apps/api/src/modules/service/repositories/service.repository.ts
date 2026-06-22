@@ -152,7 +152,7 @@ export class ServiceRepository {
                             : null,
                     } : {}),
                     ...(metadata !== undefined ? {
-                        metadata: metadata as ServiceRow["metadata"],
+                        metadata: metadata,
                     } : {}),
                     updatedAt: new Date(),
                 })

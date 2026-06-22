@@ -8,6 +8,107 @@ import type { EventContracts, EventInput, EventOutput } from "@/core/modules/eve
 import type { AnyMeshEntity, MeshEntityItem } from "../mesh-entity";
 import type { AnyMeshQuery } from "../mesh-query";
 import type { AnyMeshMutation } from "../mesh-mutation";
+import * as z from "zod/v4";
+
+// ─── Entity accessor helpers ──────────────────────────────────────────────────
+//
+// Support two entity shapes:
+// - mesh-entity style:  { queries: Record<name, AnyMeshQuery>, mutations: ... }
+//   where EachMeshQuery has { inputSchema, outputSchema }
+// - mesh-primitive style: { operations: Record<name, MeshOperation> }
+//   where each operation has { requestSchema, responseSchema }
+
+function getEntityQueries(entity: AnyMeshEntity | { operations?: Record<string, MeshOperation> }):
+  | Record<string, AnyMeshQuery>
+  | undefined {
+  if ("queries" in entity) return entity.queries;
+  return undefined;
+}
+
+function getEntityOperations(entity: { operations?: Record<string, MeshOperation> }):
+  | Record<string, MeshOperation>
+  | undefined {
+  return entity.operations;
+}
+
+// Resolved type for entity queries/mutations/operations
+type ResolvedEntityQuery<T> = T extends AnyMeshQuery
+  ? {
+      input: ReturnType<T["inputSchema"]["parse"]>;
+      output: ReturnType<T["outputSchema"]["parse"]>;
+    }
+  : T extends MeshOperation
+    ? {
+        input: ReturnType<T["requestSchema"]["parse"]>;
+        output: ReturnType<T["responseSchema"]["parse"]>;
+      }
+    : never;
+
+function resolveQueryInfo(entity: AnyMeshEntity, entityKey: string, method: string) {
+  const queries = getEntityQueries(entity);
+  if (queries && method in queries) {
+    const q = queries[method]!;
+    return {
+      input: q.inputSchema.parse({}),
+      output: q.outputSchema.parse({}),
+    };
+  }
+  const ops = getEntityOperations(entity as { operations?: Record<string, MeshOperation> });
+  if (ops && method in ops) {
+    const o = ops[method] as MeshOperation;
+    return {
+      input: o.requestSchema.parse({}),
+      output: o.responseSchema.parse({}),
+    };
+  }
+  return undefined;
+}
+
+// ─── Contract generation helpers ──────────────────────────────────────────────
+// Build MeshEvent contracts (req/res/cancel) from entity operation definitions.
+
+function buildEntityOperationContracts(
+  namespace: string,
+  entityKey: string,
+  operationKey: string,
+): Record<string, { input: z.ZodType; output: z.ZodType }> {
+  const prefix = `${namespace}:${entityKey}:${operationKey}`;
+  const correlationSchema = z.object({
+    organizationId: z.string().nullable().optional(),
+    correlationId: z.string().optional(),
+  });
+
+  return {
+    [`${prefix}:req`]: {
+      input: correlationSchema,
+      output: z.object({
+        correlationId: z.string(),
+        callerNodeId: z.string(),
+        payload: z.record(z.string(), z.unknown()),
+        emittedAt: z.string(),
+      }),
+    },
+    [`${prefix}:res`]: {
+      input: correlationSchema,
+      output: z.object({
+        correlationId: z.string(),
+        responderNodeId: z.string(),
+        payload: z.record(z.string(), z.unknown()),
+        stopPropagation: z.boolean().optional(),
+        emittedAt: z.string(),
+      }),
+    },
+    [`${prefix}:cancel`]: {
+      input: correlationSchema,
+      output: z.object({
+        correlationId: z.string(),
+        callerNodeId: z.string(),
+        reason: z.enum(["caller_stop", "handler_stop"]),
+        emittedAt: z.string(),
+      }),
+    },
+  };
+}
 
 // ─── Topic derivation ─────────────────────────────────────────────────────────
 
@@ -152,10 +253,19 @@ export abstract class InternalBaseMeshService<
   }
 
   protected initializeMeshNamespace(): void {
-    this.handle = this.meshTopicService.registerNamespace({
-      namespace: this.namespace,
-      contracts: this.contracts,
-    });
+    try {
+      this.handle = this.meshTopicService.registerNamespace({
+        namespace: this.namespace,
+        contracts: this.contracts,
+      });
+    } catch (err: unknown) {
+      // Namespace already registered (e.g., duplicate onModuleInit ordering) — safe to skip
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("already registered")) {
+        return;
+      }
+      throw err;
+    }
   }
 
   protected teardownMeshNamespace(): void {
@@ -484,7 +594,7 @@ export abstract class InternalBaseMeshService<
 
   // ─── registerCallHandler() ──────────────────────────────────────────────
 
-  private registerCallHandler<TRequest, TResponse>(
+  protected registerCallHandler<TRequest, TResponse>(
     requestTopic: keyof TContracts,
     responseTopic: keyof TContracts,
     cancelTopic: keyof TContracts,
@@ -621,29 +731,61 @@ export abstract class InternalBaseMeshService<
 
 // ─── BaseMeshService factory ──────────────────────────────────────────────────
 //
-// Creates a typed abstract base class for a specific set of entities.
-// The resulting class exposes static `.entities` with full type preservation.
+// BaseMeshService can be used in two ways:
+//
+// 1. As a factory:  const Base = BaseMeshService({ namespace, entities, contracts });
+//                  class MyService extends Base { ... }
+//    The generated class accepts (meshTopic, meshTopology) and bakes in the config.
+//    Use this when you don't override constructor.
+//
+// 2. As a class constructor:  class MyService extends InternalBaseMeshService { ... }
+//    For services that pass explicit namespace/contracts to super() with 5 args.
+//    Import InternalBaseMeshService directly.
+//
+// Examples:
+//   - SystemMeshResourceService:  uses factory (BaseMeshService({ ns, entities, contracts }))
+//   - DockerContainerMeshService: uses class extension (extends InternalBaseMeshService)
 
 export type BaseMeshServiceConstructor<
-  TEntities extends Record<string, AnyMeshEntity>,
+  TEntities extends Record<string, AnyMeshEntity> = Record<string, AnyMeshEntity>,
+  TContracts extends EventContracts = EventContracts,
 > = abstract new (
   meshTopicService: SystemMeshTopicService,
   meshTopologyService: SystemMeshTopologyService,
-) => InternalBaseMeshService<EventContracts, TEntities> & {
+) => InternalBaseMeshService<TContracts, TEntities> & {
   readonly entityDefinitions: TEntities;
 };
 
+// Factory: creates a typed abstract base class for a specific set of entities.
 export function BaseMeshService<
-  TEntities extends Record<string, AnyMeshEntity>,
+  TEntities extends Record<string, AnyMeshEntity> = Record<string, AnyMeshEntity>,
+  TContracts extends EventContracts = EventContracts,
 >(config: {
   readonly namespace: string;
   readonly entities: TEntities;
-}): BaseMeshServiceConstructor<TEntities> & {
+  readonly contracts?: TContracts;
+}): BaseMeshServiceConstructor<TEntities, TContracts> & {
   readonly entities: TEntities;
   readonly namespace: string;
 } {
+  // Auto-generate contracts from entity operations if not provided
+  let contracts: TContracts = config.contracts ?? ({} as TContracts);
+  if (!config.contracts && config.entities) {
+    const generated: Record<string, { input: z.ZodType; output: z.ZodType }> = {};
+    for (const [entityKey, entity] of Object.entries(config.entities)) {
+      const ops = getEntityOperations(entity as { operations?: Record<string, MeshOperation> });
+      if (ops) {
+        for (const [opKey] of Object.entries(ops)) {
+          const built = buildEntityOperationContracts(config.namespace, entityKey, opKey);
+          Object.assign(generated, built);
+        }
+      }
+    }
+    contracts = generated as TContracts;
+  }
+
   abstract class GeneratedBaseMeshService extends InternalBaseMeshService<
-    EventContracts,
+    TContracts,
     TEntities
   > {
     static readonly entities: TEntities = config.entities;
@@ -657,14 +799,17 @@ export function BaseMeshService<
         meshTopicService,
         meshTopologyService,
         config.namespace,
-        {},
+        contracts,
         config.entities,
       );
     }
   }
 
-  return GeneratedBaseMeshService as unknown as BaseMeshServiceConstructor<TEntities> & {
+  return GeneratedBaseMeshService as unknown as BaseMeshServiceConstructor<TEntities, TContracts> & {
     readonly entities: TEntities;
     readonly namespace: string;
   };
 }
+
+// Backward-compat alias (unused internally but kept for any external consumers)
+export const _BaseMeshServiceClass = InternalBaseMeshService;

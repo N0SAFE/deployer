@@ -1,5 +1,5 @@
-import type { AnySchema } from "../../shared/types";
-import type { ObjectSchema, OptionalSchema, ShouldBeOptional, VoidSchema } from "../../shared/standard-schema-helpers";
+import type { AnySchema } from "../../types/types";
+import type { ObjectSchema, OptionalSchema, ShouldBeOptional, VoidSchema } from "../../types/standard-schema-helpers";
 import { DetailedInputBuilder } from "./builder";
 import type { DetailedInputBuilderSchema } from "./builder";
 

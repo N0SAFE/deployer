@@ -105,7 +105,7 @@ export class ProjectService {
             description: data.description ?? null,
             baseDomain: data.baseDomain ?? null,
             ownerId: data.ownerId,
-            settings: data.settings as Parameters<typeof this.projectRepository.create>[0]["settings"],
+            settings: data.settings,
         });
 
         this.projectEventService.emit(
@@ -133,7 +133,7 @@ export class ProjectService {
             name: data.name,
             description: data.description,
             baseDomain: data.baseDomain,
-            settings: data.settings as Parameters<typeof this.projectRepository.update>[1]["settings"],
+            settings: data.settings,
         });
         if (!updated) throw new NotFoundException(`Project ${id} not found`);
 
@@ -206,7 +206,7 @@ export class ProjectService {
             projectId,
             userId: targetUser.id,
             role: data.role as "owner" | "admin" | "developer" | "viewer",
-            permissions: data.permissions as Parameters<typeof this.projectRepository.createCollaborator>[0]["permissions"],
+            permissions: data.permissions,
             invitedBy: requesterId,
         });
 
@@ -247,7 +247,7 @@ export class ProjectService {
 
         const updated = await this.projectRepository.updateCollaborator(collaborator.id, {
             role: data.role as "owner" | "admin" | "developer" | "viewer" | undefined,
-            permissions: data.permissions as Parameters<typeof this.projectRepository.updateCollaborator>[1]["permissions"],
+            permissions: data.permissions,
         });
         if (!updated) throw new NotFoundException("Collaborator not found");
         return updated;
@@ -345,7 +345,7 @@ export class ProjectService {
         if (env?.projectId !== projectId) {
             throw new NotFoundException(`Environment ${environmentId} not found`);
         }
-        const updated = await this.projectRepository.updateEnvironment(environmentId, data as Parameters<ProjectRepository['updateEnvironment']>[1]);
+        const updated = await this.projectRepository.updateEnvironment(environmentId, data);
         if (!updated) throw new NotFoundException(`Environment ${environmentId} not found`);
         return updated;
     }
@@ -481,7 +481,7 @@ export class ProjectService {
         if (patch.enablePreviewEnvironments !== undefined) settingsPatch.enablePreviewEnvironments = patch.enablePreviewEnvironments;
 
         const updateData: Parameters<typeof this.projectRepository.update>[1] = {
-            settings: { ...currentSettings, ...settingsPatch } as Parameters<typeof this.projectRepository.update>[1]["settings"],
+            settings: { ...currentSettings, ...settingsPatch },
         };
         if (patch.name !== undefined) updateData.name = patch.name;
         if (patch.description !== undefined) updateData.description = patch.description;
@@ -520,7 +520,7 @@ export class ProjectService {
         const current = (project.settings ?? {}) as ProjectSettings;
         const merged = { ...current, ...patch };
         const updated = await this.projectRepository.update(projectId, {
-            settings: merged as Parameters<typeof this.projectRepository.update>[1]["settings"],
+            settings: merged,
         });
         if (!updated) throw new NotFoundException(`Project ${projectId} not found`);
         const s = (updated.settings ?? {}) as ProjectSettings;
@@ -563,7 +563,7 @@ export class ProjectService {
         const current = (project.settings ?? {}) as ProjectSettings;
         const merged = { ...current, ...patch };
         const updated = await this.projectRepository.update(projectId, {
-            settings: merged as Parameters<typeof this.projectRepository.update>[1]["settings"],
+            settings: merged,
         });
         if (!updated) throw new NotFoundException(`Project ${projectId} not found`);
         const s = (updated.settings ?? {}) as ProjectSettings;
@@ -609,7 +609,7 @@ export class ProjectService {
         const current = (project.settings ?? {}) as ProjectSettings;
         const merged = { ...current, ...patch };
         const updated = await this.projectRepository.update(projectId, {
-            settings: merged as Parameters<typeof this.projectRepository.update>[1]["settings"],
+            settings: merged,
         });
         if (!updated) throw new NotFoundException(`Project ${projectId} not found`);
         const s = (updated.settings ?? {}) as ProjectSettings;
@@ -644,7 +644,7 @@ export class ProjectService {
         const current = (project.settings ?? {}) as ProjectSettings;
         const merged = { ...current, ...patch };
         const updated = await this.projectRepository.update(projectId, {
-            settings: merged as Parameters<typeof this.projectRepository.update>[1]["settings"],
+            settings: merged,
         });
         if (!updated) throw new NotFoundException(`Project ${projectId} not found`);
         const s = (updated.settings ?? {}) as ProjectSettings;
@@ -679,7 +679,7 @@ export class ProjectService {
         const current = (project.settings ?? {}) as ProjectSettings;
         const merged = { ...current, ...patch };
         const updated = await this.projectRepository.update(projectId, {
-            settings: merged as Parameters<typeof this.projectRepository.update>[1]["settings"],
+            settings: merged,
         });
         if (!updated) throw new NotFoundException(`Project ${projectId} not found`);
         const s = (updated.settings ?? {}) as ProjectSettings;
@@ -716,7 +716,7 @@ export class ProjectService {
         const merged = { ...current, ...patch };
 
         const updated = await this.projectRepository.update(projectId, {
-            settings: merged as Parameters<typeof this.projectRepository.update>[1]["settings"],
+            settings: merged,
         });
         return updated?.settings ?? merged;
     }
@@ -771,7 +771,7 @@ export class ProjectService {
 
         if (input.eventTypes && input.eventTypes.length > 0) {
             const accepted = new Set(input.eventTypes);
-            query = query.whereEventName((eventName) => accepted.has(eventName as never));
+            query = query.whereEventName((eventName) => accepted.has(eventName));
         }
 
         if (input.projectId) {

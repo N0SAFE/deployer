@@ -3,6 +3,7 @@ import { InitializationService } from "./services/initialization.service";
 import { NodeConfigRepository } from "./repositories/node-config.repository";
 import { RemoteInitializationService } from "./services/remote-initialization.service";
 import { LocalInitializationService } from "./services/local-initialization.service";
+import { SetupEventService } from "./services/setup-event.service";
 import { MeshInitializationModule } from "@/core/modules/mesh/initialization/mesh-initialization.module";
 import { LocalModule } from "../database/local/local.module";
 import { CoreDockerModule } from "../docker/docker.module";
@@ -26,8 +27,9 @@ import { CoreReachabilityModule } from "../reachability/core-reachability.module
         LocalInitializationService,
         RemoteInitializationService,
         InitializationService,
+        SetupEventService,
         NodeConfigRepository,
     ],
-    exports: [InitializationService, NodeConfigRepository],
+    exports: [InitializationService, NodeConfigRepository, LocalInitializationService, RemoteInitializationService, SetupEventService],
 })
 export class CoreInitializationModule {}

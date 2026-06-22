@@ -15,7 +15,7 @@ export interface InternalErrorInsightModule {
 }
 
 export interface InternalErrorCaptureOptions {
-    source: "nest-http" | "orpc" | "better-auth" | "unknown";
+    source: "nest-http" | "orpc" | "better-auth" | "mesh-domain" | "unknown";
     request?: Request;
 }
 
@@ -33,6 +33,7 @@ export class InternalErrorInsightService {
     constructor() {
         this.registerModule(this.createOrpcModule());
         this.registerModule(this.createBetterAuthModule());
+        this.registerModule(this.createMeshDomainModule());
         this.registerModule(this.createNestHttpModule());
         this.registerModule(this.createFallbackModule());
     }
@@ -193,6 +194,30 @@ export class InternalErrorInsightService {
                     message: apiError.body?.message,
                     body: apiError.body,
                 };
+            },
+        };
+    }
+
+    private createMeshDomainModule(): InternalErrorInsightModule {
+        // Lazy-require to avoid a circular import: the filter (which
+        // depends on the insight service) is in turn depended on by the
+        // mesh module, so we can't statically import MeshBaseDomainError
+        // at the top of this file.
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { MeshBaseDomainError } = require("@/core/modules/mesh/shared/domain/mesh-base-error") as typeof import("@/core/modules/mesh/shared/domain/mesh-base-error");
+        return {
+            id: "mesh-domain",
+            supports: (error: unknown) => error instanceof MeshBaseDomainError,
+            describe: (error: unknown) => {
+                if (error instanceof MeshBaseDomainError) {
+                    return {
+                        code: error.code,
+                        httpStatus: error.httpStatus,
+                        orpcCode: error.orpcCode,
+                        message: error.message,
+                    };
+                }
+                return {};
             },
         };
     }

@@ -2,8 +2,7 @@ import { randomUUID } from 'node:crypto'
 import request from 'supertest'
 import { afterAll, beforeAll } from 'vitest'
 import { appContract, setupContract } from '@repo/api-contracts'
-import type { ContractRouterClient } from '@orpc/contract'
-import type { SetupContract } from '@repo/api-contracts'
+import type { AnyContractRouter } from '@orpc/contract'
 import type { Auth } from '@/auth'
 import { AuthCoreService } from '@/core/modules/auth/services/auth-core.service'
 import { SharedApiRuntimeManager } from './shared-api-runtime/manager'
@@ -146,7 +145,7 @@ export { resolveSharedRuntimeMaxConcurrency }
 export async function createSharedSetupOrpcClient(
     options?: SharedRuntimeOrpcClientOptions,
     runtimeOptions?: SharedApiRuntimeOptions,
-): Promise<ContractRouterClient<SetupContract>> {
+): Promise<SharedRuntimeOrpcClient<typeof setupContract>> {
     const runtime = await getSharedApiRuntime(runtimeOptions)
     return createSharedRuntimeOrpcClient(setupContract, runtime, options)
 }

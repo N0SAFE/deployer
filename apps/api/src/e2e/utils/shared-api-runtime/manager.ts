@@ -7,13 +7,14 @@ import { Logger, type INestApplication } from '@nestjs/common'
 import { REQUEST } from '@nestjs/core'
 import { Test, type TestingModule } from '@nestjs/testing'
 import { PostgreSqlContainer } from '@testcontainers/postgresql'
+import Dockerode from 'dockerode'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { Pool } from 'pg'
 import { Wait } from 'testcontainers'
 import { getMockEnv } from '@repo/env/mock'
 import * as schema from '@/config/drizzle/global/schema'
-import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service'
+import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service'
 import {
     GLOBAL_DATABASE_CONNECTION,
     GLOBAL_DATABASE_POOL,
@@ -279,7 +280,7 @@ async function assertRuntimeDatabaseBinding(
     expectedDatabaseUrl: string
 ): Promise<void> {
     const databaseService = moduleRef.get(GlobalDatabaseService)
-    if (!databaseService.isConnected) {
+    if (!databaseService.isHealthy()) {
         throw new Error('GlobalDatabaseService is not connected after app bootstrap')
     }
 
@@ -456,6 +457,38 @@ export class SharedApiRuntimeManager {
         return value
     }
 
+    /**
+     * Remove any Docker containers with the `deployer.managed` label.
+     * These are created by LocalInitializationService.provisionDockerDatabase()
+     * during the `initialize` ORPC call and are never auto-removed because
+     * Postgres keeps them alive. If left running they accumulate across the
+     * test suite and slow down subsequent Docker operations.
+     */
+    private async cleanupDeployerManagedContainers(): Promise<void> {
+        const docker = new Dockerode()
+        const containers = await docker.listContainers({
+            all: true,
+            filters: { label: ['deployer.managed'] },
+        })
+
+        if (containers.length === 0) {
+            return
+        }
+
+        for (const containerInfo of containers) {
+            const dockerContainer = docker.getContainer(containerInfo.Id)
+            try {
+                await dockerContainer.stop({ t: 5 }).catch(() => undefined)
+                await dockerContainer.remove({ force: true }).catch(() => undefined)
+                logStep(
+                    `Cleaned up deployer-managed container: ${containerInfo.Names?.[0] ?? containerInfo.Id}`,
+                )
+            } catch {
+                // already removed or inaccessible — ignore
+            }
+        }
+    }
+
     private async withRuntimeStartStopLock<T>(
         action: () => Promise<T>
     ): Promise<T> {
@@ -482,12 +515,18 @@ export class SharedApiRuntimeManager {
                 const sharedConnectionUri =
                     process.env[SHARED_POSTGRES_CONNECTION_URI_ENV]
                 if (sharedConnectionUri && sharedConnectionUri.length > 0) {
+                    logStep(
+                        `acquireSharedPostgresContainer: using EXTERNAL shared container (${summarizeDatabaseEndpoint(sharedConnectionUri)})`,
+                    );
                     this.sharedPostgresContainerPromise = Promise.resolve(
                         new ExternalSharedPostgresContainerHandle(
                             sharedConnectionUri
                         )
                     )
                 } else {
+                    logStep(
+                        'acquireSharedPostgresContainer: creating NEW container (no shared URI)',
+                    );
                     this.sharedPostgresContainerPromise = new PostgreSqlContainer(
                         'postgres:16-alpine'
                     )
@@ -506,6 +545,9 @@ export class SharedApiRuntimeManager {
 
             const container = await this.sharedPostgresContainerPromise
             this.sharedPostgresContainerRefCount += 1
+            logStep(
+                `acquireSharedPostgresContainer: refCount now ${String(this.sharedPostgresContainerRefCount)}`,
+            );
             return container
         })
     }
@@ -653,32 +695,87 @@ export class SharedApiRuntimeManager {
             return
         }
 
-        try {
-            await withWatchdog(`Nest app close (${key})`, 20_000, async () => {
-                await runtime.app.close()
-            })
-            await withWatchdog(`Nest module close (${key})`, 20_000, async () => {
-                await runtime.moduleRef.close()
-            })
+        // Always clean up containers even if app.close() times out
+        const cleanupContainer = async (): Promise<void> => {
+            // End the pool first — this disconnects the app's Postgres
+            // connections *before* we stop the Docker containers below.
             await runtime.runtimePool.end().catch(() => undefined)
+
             await this.dropRuntimeDatabase(
                 runtime.postgresContainer,
                 runtime.databaseName
             ).catch(() => undefined)
             await this.releaseSharedPostgresContainer().catch(() => undefined)
-        } finally {
-            const snapshot = this.runtimeEnvSnapshotsByKey.get(key)
-            if (snapshot) {
-                this.restoreRuntimeEnv(snapshot)
-                this.runtimeEnvSnapshotsByKey.delete(key)
-            }
+        }
+
+        let appCloseError: Error | undefined
+
+        try {
+            await withWatchdog(`Nest app close (${key})`, 20_000, async () => {
+                await runtime.app.close()
+            })
+        } catch (error) {
+            appCloseError = error instanceof Error ? error : new Error(String(error))
+            logStep(
+                `stopRuntime: app.close failed (${key}): ${appCloseError.message} — continuing with container cleanup`,
+            )
+        }
+
+        try {
+            await withWatchdog(`Nest module close (${key})`, 20_000, async () => {
+                await runtime.moduleRef.close()
+            })
+        } catch (error) {
+            logStep(
+                `stopRuntime: moduleRef.close failed (${key}): ${error instanceof Error ? error.message : String(error)}`,
+            )
+        }
+
+        // Always clean up containers regardless of app/module close failures
+        await cleanupContainer()
+
+        const snapshot = this.runtimeEnvSnapshotsByKey.get(key)
+        if (snapshot) {
+            this.restoreRuntimeEnv(snapshot)
+            this.runtimeEnvSnapshotsByKey.delete(key)
+        }
+
+        // Re-throw app close error after cleanup is complete
+        if (appCloseError) {
+            throw appCloseError
         }
     }
 
     public async stopAllRuntimes(): Promise<void> {
         const keys = [...this.runtimePromisesByKey.keys()]
+        let lastError: Error | undefined
+
         for (const key of keys) {
-            await this.stopRuntime({ instanceKey: key })
+            try {
+                await this.stopRuntime({ instanceKey: key })
+            } catch (error) {
+                lastError = error instanceof Error ? error : new Error(String(error))
+                logStep(
+                    `stopAllRuntimes: runtime "${key}" stop failed: ${lastError.message}`,
+                )
+            }
+        }
+
+        // Clean up any bootstrap Postgres containers created by the setup wizard
+        // (LocalInitializationService.provisionDockerDatabase) during tests.
+        // These carry the "deployer.managed" label and accumulate across the
+        // test suite if not explicitly removed.
+        try {
+            await this.cleanupDeployerManagedContainers()
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            logStep(`stopAllRuntimes: cleanupDeployerManagedContainers failed: ${message}`)
+        }
+
+        if (lastError) {
+            logStep(
+                `stopAllRuntimes: completed with errors — ${keys.length} runtime(s) processed, last error: ${lastError.message}`,
+            )
         }
     }
 

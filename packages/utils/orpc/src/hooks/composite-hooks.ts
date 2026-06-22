@@ -259,7 +259,7 @@ export function createCompositeHooks<TRouter extends object>(
     const pageSize = options?.pageSize ?? compositeOptions.defaultPageSize ?? 20;
     
     const listHook = getOptionalHook<(opts: unknown) => unknown>(
-      baseHooks as Record<string, unknown>,
+      baseHooks,
       'useList'
     );
     
@@ -317,7 +317,7 @@ export function createCompositeHooks<TRouter extends object>(
   function useSelection() {
     const [selected, setSelected] = React.useState<Set<string>>(new Set());
     const deleteHook = getOptionalHook<() => unknown>(
-      baseHooks as Record<string, unknown>,
+      baseHooks,
       'useDelete'
     );
     

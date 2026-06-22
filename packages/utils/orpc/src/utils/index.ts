@@ -3,5 +3,5 @@
  * Provides type inference helpers and runtime utilities.
  */
 
-export * from "./type-helpers";
+export * from "../types/type-helpers";
 export * from "./observable";

@@ -1,7 +1,7 @@
 import { Injectable, type OnModuleInit, Logger } from '@nestjs/common'
 import { EnvService } from '@/config/env/env.service'
-import { NodeMeshConfigRepository } from '../repositories/node-mesh-config.repository'
-import { NodeConfigRepository } from '@/modules/setup/repositories/node-config.repository'
+import { NodeMeshConfigRepository, type NodeMeshConfigRow } from '../repositories/node-mesh-config.repository'
+import { NodeConfigRepository } from '@/core/modules/setup/repositories/node-config.repository'
 import { randomUUID } from 'node:crypto'
 
 export interface MeshConfigTrustKeys {
@@ -129,7 +129,7 @@ export class SystemMeshConfigService implements OnModuleInit {
             nodeId,
             strategy: 'local',
             meshUrlsSnapshot: [],
-            configuredAt: now,
+            configuredAt: null,
             updatedAt: now,
         })
     }
@@ -148,6 +148,12 @@ export class SystemMeshConfigService implements OnModuleInit {
      *   2. meshUrlsSnapshot from NodeConfigRepository ← set by setup wizard
      *   3. MESH_BOOTSTRAP_PEERS env var (dev/CI override)
      *   4. null
+     *
+     * If the local `node_mesh_config` table hasn't been migrated yet
+     * (the `upsert` returns `null`), we fall back to an in-memory
+     * config so the rest of the app can still start. The setup wizard
+     * is the canonical fix for this — but refusing to boot the API
+     * would prevent the wizard from running.
      */
     private ensureMeshConfig() {
         const existing = this.nodeMeshConfigRepo.find()
@@ -201,7 +207,10 @@ export class SystemMeshConfigService implements OnModuleInit {
 
         this.logger.log('Initializing local mesh configuration defaults…')
 
-        return this.nodeMeshConfigRepo.upsert({
+        // Build the in-memory defaults *first* so we can return them
+        // even if the persist attempt fails (e.g. table missing).
+        const fallbackRow: NodeMeshConfigRow = {
+            id: 1,
             nodeServerUrl,
             bootstrapPeersEncrypted,
             syncIntervalMs: SystemMeshConfigService.DEFAULT_SYNC_INTERVAL_MS,
@@ -217,6 +226,26 @@ export class SystemMeshConfigService implements OnModuleInit {
                 SystemMeshConfigService.DEFAULT_CONTROL_ENVELOPE_TRUST_REQUIRED,
             createdAt: now,
             updatedAt: now,
-        })
+        }
+
+        const persisted = this.nodeMeshConfigRepo.upsert({
+            nodeServerUrl,
+            bootstrapPeersEncrypted,
+            syncIntervalMs: SystemMeshConfigService.DEFAULT_SYNC_INTERVAL_MS,
+            trustStrictMinAckRatio:
+                SystemMeshConfigService.DEFAULT_TRUST_STRICT_MIN_ACK_RATIO,
+            trustStrictMaxAckAgeSeconds:
+                SystemMeshConfigService.DEFAULT_TRUST_STRICT_MAX_ACK_AGE_SECONDS,
+            trustStrictRolloutWaveSize:
+                SystemMeshConfigService.DEFAULT_TRUST_STRICT_ROLLOUT_WAVE_SIZE,
+            trustStrictAutoRollback:
+                SystemMeshConfigService.DEFAULT_TRUST_STRICT_AUTO_ROLLBACK,
+            controlEnvelopeTrustRequired:
+                SystemMeshConfigService.DEFAULT_CONTROL_ENVELOPE_TRUST_REQUIRED,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        return persisted ?? fallbackRow;
     }
 }

@@ -41,6 +41,21 @@ import { MeshTopicPublisherService } from './services/system-mesh-topic/services
 import { MeshTopicResourceIndexService } from './services/system-mesh-topic/services/mesh-topic-resource-index.service'
 import { CLOCK_TOKEN, SystemClock } from './shared/primitives/clock';
 import { ID_GENERATOR_TOKEN, SystemIdGenerator } from './shared/primitives/id-generator';
+import { MeshConnectionRegistry } from './connection/mesh-connection-registry';
+import { ServerConnectionConsumerRegistry } from './connection/mesh-consumer-registry';
+import { OwnershipResolverService } from './services/ownership/ownership-resolver.service';
+import { StreamManagerService } from './services/stream-manager/stream-manager.service';
+import { SetupModule } from '@/modules/setup/setup.module';
+import { CoreDockerModule } from '@/core/modules/docker/docker.module';
+import type { MeshNodeCaller } from './services/system-mesh-resource-discovery/query/mesh-query-executor';
+import { MESH_NODE_CALLER_TOKEN } from './tokens';
+
+/** Stub MeshNodeCaller — replace with real impl at runtime */
+class StubMeshNodeCaller implements MeshNodeCaller {
+    async callMany(): Promise<readonly { nodeId: string; items: readonly unknown[]; durationMs: number }[]> {
+        return [];
+    }
+}
 
 const MESH_TOPOLOGY_SERVICES = [
     MeshIdentityService,
@@ -75,6 +90,8 @@ const MESH_TOPIC_SERVICES = [
         SystemMetricsModule,
         MeshRuntimeModule,
         MeshInitializationModule,
+        SetupModule,
+        CoreDockerModule,
     ],
     providers: [
         {
@@ -96,11 +113,18 @@ const MESH_TOPIC_SERVICES = [
         SystemMeshOverlayScopeService,
         SystemMeshResourceDiscoveryService,
         SystemMeshResourceService,
-        MeshQueryExecutor,
+        {
+            provide: MeshQueryExecutor,
+            useFactory: (nodeCaller: MeshNodeCaller) => new MeshQueryExecutor(nodeCaller),
+            inject: [MESH_NODE_CALLER_TOKEN],
+        },
         {
             provide: MESH_SERVICE_TOKEN,
             useExisting: SystemMeshResourceService,
-            multi: true,
+        },
+        {
+            provide: MESH_NODE_CALLER_TOKEN,
+            useClass: StubMeshNodeCaller,
         },
         {
             provide: MeshQueueTransitionService,
@@ -117,6 +141,10 @@ const MESH_TOPIC_SERVICES = [
         MeshStreamRuntimeService,
         MeshInternalRequestService,
         MeshOrchestrationService,
+        OwnershipResolverService,
+        StreamManagerService,
+        MeshConnectionRegistry,
+        ServerConnectionConsumerRegistry,
     ],
     exports: [
         NodeMeshConfigRepository,
@@ -133,6 +161,10 @@ const MESH_TOPIC_SERVICES = [
         MeshStreamRuntimeService,
         MeshInternalRequestService,
         SystemMetricsModule,
+        MeshConnectionRegistry,
+        ServerConnectionConsumerRegistry,
+        OwnershipResolverService,
+        StreamManagerService,
     ],
 })
 export class MeshCoreModule {}

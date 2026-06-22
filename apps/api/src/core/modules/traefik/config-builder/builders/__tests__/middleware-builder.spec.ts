@@ -320,8 +320,8 @@ describe('MiddlewareBuilder', () => {
     it('should support variables in traffic control', () => {
       const { config } = new MiddlewareBuilder('dynamic-rate-limit')
         .rateLimit({
-          average: '~##rateAverage##~' as any,
-          burst: '~##rateBurst##~' as any,
+          average: '~##rateAverage##~',
+          burst: '~##rateBurst##~',
         })
         .build();
 

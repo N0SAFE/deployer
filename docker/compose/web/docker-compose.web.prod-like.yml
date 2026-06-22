@@ -13,6 +13,11 @@ services:
         - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
         - NEXT_PUBLIC_APP_PORT=${NEXT_PUBLIC_APP_PORT:-3000}
         - NEXT_PUBLIC_APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER}
+        - BUILDKIT_INLINE_CACHE=1
+      # Embed BuildKit cache metadata in the image so subsequent builds can pull
+      # the cache from this image (via cache_from) instead of rebuilding from scratch.
+      cache_to:
+        - type=inline
     restart: unless-stopped
     ports:
       - "${NEXT_PUBLIC_APP_PORT:-3000}:${NEXT_PUBLIC_APP_PORT:-3000}"

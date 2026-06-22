@@ -17,7 +17,7 @@
     "@repo/auth": "*",
     "@thallesp/nestjs-better-auth": "catalog:auth",
     "better-auth": "catalog:auth",
-    "typescript": "^5",
+    "typescript": "^6.0.3",
     "express": "catalog:api:nest"
   }
 }

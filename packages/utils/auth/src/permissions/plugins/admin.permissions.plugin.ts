@@ -164,7 +164,7 @@ export class AdminPermissionsPlugin<
                 typeof session.user === "object" &&
                 session.user !== null &&
                 "id" in session.user &&
-                typeof (session.user as { id: unknown }).id === "string"
+                typeof (session.user).id === "string"
                     ? (session.user as { id: string }).id
                     : undefined;
             if (!userId) return false;
@@ -245,7 +245,7 @@ export class AdminPermissionsPlugin<
         if (!hasPermission) {
             throw new PermissionAssertionError({
                 message: errorMessage ?? `Missing required permission: ${JSON.stringify(permissions)}`,
-                permissions: permissions as Record<string, readonly string[]>,
+                permissions: permissions,
             });
         }
     }
@@ -426,7 +426,7 @@ export class AdminPermissionsPlugin<
             body: {
                 userId,
                 // Type assertion needed due to Better Auth's hardcoded "user" | "admin" in setRole.$Infer
-                role: role as ExtractBody<InferParams<TAuth["api"]["setRole"]>>["role"],
+                role: role,
             },
         });
     }

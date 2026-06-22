@@ -3,12 +3,15 @@
 # This version builds the Next.js doc app when the container starts
 # Useful for flexible deployments where you want fresh builds at startup
 # Multi-stage build optimized for caching:
-# base -> pruner -> config-copier -> installer -> source-copier -> builder -> runner
+# base -> pruner-json -> pruner-full -> installer -> builder -> runner
+#
+# The pruner is split in two stages: pruner-json handles only manifests
+# (super-stable cache) and pruner-full bind-mounts sources to produce out/full/.
 
 # ===================================
 # Stage 1: Base - Install global dependencies and set environment
 # ===================================
-FROM oven/bun:1.3.9-alpine AS base
+FROM oven/bun:1.3.14-alpine AS base
 ENV NODE_ENV=production
 
 # Install system dependencies
@@ -20,37 +23,37 @@ RUN --mount=type=cache,target=/root/.bun/install/cache bun install -g turbo@^2 n
 WORKDIR /app
 
 # ===================================
-# Stage 2: Pruner - Prune monorepo for doc app dependencies
+# Stage 2a: pruner-json — manifests only (very stable cache)
 # ===================================
-FROM base AS pruner
+FROM base AS pruner-json
 WORKDIR /app
 
-# Copy full source for turbo prune to analyze and output complete packages
-# turbo prune needs source files to include them in out/full/
-COPY . .
+COPY turbo.json package.json ./
+COPY bun.lock* ./
+COPY --parents **/package.json ./
 
 RUN --mount=type=cache,target=/root/.cache/turbo \
   turbo prune doc --docker
 
+# Inject source.config.ts into out/json/ so the installer stage picks it
+# up via `COPY --from=pruner-json /app/out/json/ .` without an extra
+# build-context COPY. fumadocs-mdx postinstall needs this file to exist.
+COPY apps/doc/source.config.ts /app/out/json/apps/doc/source.config.ts
+
 # ===================================
-# Stage 2.5: Config-Copier - Copy minimal config files for postinstall
+# Stage 2b: pruner-full — sources via bind mount
 # ===================================
-FROM base AS config-copier
+FROM base AS pruner-full
 WORKDIR /app
-COPY --from=pruner /app/out/json/ /tmp/prune-structure/
-# Dynamically copy config files needed by postinstall scripts based on pruned structure
-RUN --mount=type=bind,source=.,target=/mnt/source \
-    cd /mnt/source && \
-    cp package.json turbo.json /app/ 2>/dev/null || true && \
-    cp bun.lock* /app/ 2>/dev/null || true && \
-    # Copy any source.config.ts files for apps that need them (fumadocs postinstall)
-    for appPkg in $(find /tmp/prune-structure/apps -name "package.json" -type f 2>/dev/null); do \
-        appDir=$(dirname "$appPkg" | sed 's|/tmp/prune-structure/||'); \
-        if [ -f "/mnt/source/$appDir/source.config.ts" ]; then \
-            mkdir -p "/app/$appDir" && \
-            cp "/mnt/source/$appDir/source.config.ts" "/app/$appDir/" 2>/dev/null || true; \
-        fi; \
-    done
+
+COPY --from=pruner-json /app/out/json/ ./
+
+RUN --mount=type=bind,target=/src \
+  --mount=type=cache,target=/root/.cache/turbo \
+  cp /src/turbo.json . && \
+  cp /src/bun.lock* . 2>/dev/null || true ; \
+  tar -C /src -cf - apps packages 2>/dev/null | tar -xf - 2>/dev/null || true ; \
+  turbo prune doc --docker
 
 # ===================================
 # Stage 3: Installer - Install dependencies from pruned lockfile
@@ -58,53 +61,26 @@ RUN --mount=type=bind,source=.,target=/mnt/source \
 FROM base AS installer
 WORKDIR /app
 
+# Install build tools (python3/make/g++/musl-dev) required by bun ci to
+# extract optional native dependencies like ssh2 -> cpu-features.
+# Without these, optional deps are installed as empty stub directories
+# (Bun does not run native postinstall scripts on Alpine without them).
+# BuildKit cache mount keeps the apk package cache across builds.
+RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
+    apk add --no-cache python3 make g++ gcc musl-dev
+
 # Install build tools needed for native dependencies
 RUN apk add --no-cache python3 make g++
 
-# Copy only pruned package.json structure for dependency installation (NOT source code)
-COPY --from=pruner /app/out/json/ .
-# Use full lockfile (turbo prune's out/bun.lock is buggy - see turborepo#10783)
-COPY --from=pruner /app/bun.lock ./bun.lock
-# Copy config files needed by postinstall (source.config.ts for fumadocs)
-COPY --from=config-copier /app/ /app/
-# Use bun install instead of bun ci (pruned structure may not match lockfile exactly)
+# Pruned package.json structure from pruner-json (includes a consistent
+# pruned bun.lock — use that one).
+COPY --from=pruner-json /app/out/json/ .
+
 RUN --mount=type=cache,target=/root/.bun --mount=type=cache,target=/root/.cache \
-  bun install --frozen-lockfile || bun install
+  bun ci
 
 # ===================================
-# Stage 4: Source-Copier - Extract only the pruned source files
-# ===================================
-FROM base AS source-copier
-WORKDIR /app
-
-# Copy the pruned output structure to know which workspaces we need
-COPY --from=pruner /app/out/json/ /tmp/prune-structure/
-
-# Copy only the source files for workspaces identified by turbo prune
-RUN --mount=type=bind,from=pruner,source=/app,target=/mnt/pruner \
-    # Copy root config files
-    cp /mnt/pruner/package.json /mnt/pruner/turbo.json /app/ 2>/dev/null || true && \
-    cp /mnt/pruner/bun.lock* /app/ 2>/dev/null || true && \
-    cp /mnt/pruner/bunfig.toml /app/ 2>/dev/null || true && \
-    # Copy pruned apps (full source, not just package.json)
-    for appPkg in $(find /tmp/prune-structure/apps -name "package.json" -type f 2>/dev/null); do \
-        appDir=$(dirname "$appPkg" | sed 's|/tmp/prune-structure/||'); \
-        if [ -d "/mnt/pruner/$appDir" ]; then \
-            mkdir -p "/app/$appDir" && \
-            cp -r /mnt/pruner/$appDir/. /app/$appDir/ 2>/dev/null || true; \
-        fi; \
-    done && \
-    # Copy pruned packages (full source, not just package.json)
-    for pkgJson in $(find /tmp/prune-structure/packages -name "package.json" -type f 2>/dev/null); do \
-        pkgDir=$(dirname "$pkgJson" | sed 's|/tmp/prune-structure/||'); \
-        if [ -d "/mnt/pruner/$pkgDir" ]; then \
-            mkdir -p "/app/$pkgDir" && \
-            cp -r /mnt/pruner/$pkgDir/. /app/$pkgDir/ 2>/dev/null || true; \
-        fi; \
-    done
-
-# ===================================
-# Stage 5: Builder - Generate routes
+# Stage 4: Builder - Generate routes
 # ===================================
 FROM base AS builder
 WORKDIR /app
@@ -112,36 +88,51 @@ WORKDIR /app
 # Install build tools needed for native dependencies
 RUN apk add --no-cache python3 make g++ gcc musl-dev
 
-# Copy pruned source files from source-copier
-COPY --from=source-copier /app/ .
+# Pruned source from pruner-full (out/full/) — local image-to-image COPY
+# out/full/ contains the pruned bun.lock at the root (consistent).
+COPY --from=pruner-full /app/out/full/ .
+# Copy the pruned bun.lock (from out/json/) so turbo can parse workspace
+# info. out/full/ doesn't include a bun.lock at the root.
+COPY --from=pruner-full /app/out/json/bun.lock ./bun.lock
 
-# Copy node_modules from installer using bind mount + tar to preserve symlinks
+# Copy node_modules from installer — single-tar pattern
+# (one tar -cf + one tar -xf, no find/subshell loops, excludes *.map/.cache/.turbo)
 RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
-    # Copy root node_modules
-    cd /mnt/installer && tar cf - node_modules | tar xf - -C /app --owner=root --group=root && \
-    # Copy app-level node_modules if they exist
-    find /mnt/installer/apps -name node_modules -type d 2>/dev/null | while read dir; do \
-        relDir=$(echo "$dir" | sed 's|/mnt/installer/||'); \
-        mkdir -p "/app/$(dirname $relDir)" && \
-        cd /mnt/installer && tar cf - "$relDir" | tar xf - -C /app --owner=root --group=root; \
+    PATHS="node_modules"; \
+    for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules; do \
+        [ -d "/mnt/installer/$d" ] && PATHS="$PATHS $d"; \
     done && \
-    # Copy package-level node_modules if they exist
-    find /mnt/installer/packages -name node_modules -type d 2>/dev/null | while read dir; do \
-        relDir=$(echo "$dir" | sed 's|/mnt/installer/||'); \
-        mkdir -p "/app/$(dirname $relDir)" && \
-        cd /mnt/installer && tar cf - "$relDir" | tar xf - -C /app --owner=root --group=root; \
-    done
+    cd /mnt/installer && \
+    tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
+    tar -xf - -C /app --owner=root --group=root
 
-# Copy turbo cache directories
-COPY --parents --chmod=a+w .turbo/ **/.turbo/ ./
+# Copy turbo cache directories (workspace-level only; root /.turbo doesn't exist)
+COPY --parents --chmod=a+w **/.turbo/ ./
 
 # Run fumadocs-mdx postinstall to generate .source files
-# (postinstall doesn't run in installer stage because source.config.ts isn't there yet)
+# (postinstall didn't run in installer stage because source.config.ts path was
+#  outside out/json/ — now that we use out/full/ instead, this step is a safety net
+#  for cases where the postinstall needs to be re-run after the source is updated.)
 RUN cd apps/doc && bun run postinstall
 
 # Generate routes
-RUN --mount=type=cache,target=/root/.bun --mount=type=cache,target=/root/.cache \
-  bun turbo run generate --filter=doc... --remote-only
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    --mount=type=cache,target=/root/.cache \
+    --mount=type=cache,target=/tmp/turbo-restore,id=turbo-doc-prod-runtime-generate,sharing=locked \
+    set -eux; \
+    if [ -d /tmp/turbo-restore/wt ]; then \
+      cp -an /tmp/turbo-restore/wt/. /app/ 2>/dev/null || true; \
+    fi; \
+    bunx turbo run generate --filter=doc... --remote-only; \
+    rm -rf /tmp/turbo-restore/wt; \
+    mkdir -p /tmp/turbo-restore/wt; \
+    cd /app; \
+    find . -path ./node_modules -prune -o -name .turbo -type d -print0 | \
+      while IFS= read -r -d '' d; do \
+        parent=$(dirname "$d"); \
+        mkdir -p "/tmp/turbo-restore/wt/$parent"; \
+        cp -r "$d" "/tmp/turbo-restore/wt/$parent/"; \
+      done
 
 # ===================================
 # Stage 6: Runner - Production runtime

@@ -24,61 +24,27 @@
  * ```
  */
 
-import { 
-    ZodStandardOperations,
-    zodStandard,
-    createZodStandardOperations,
-    type ZodEntitySchema,
-    type ZodEntityOperationOptions,
-} from "./zod/standard-operations";
-
-/**
- * Standard operations factory object
- * Provides methods to create standard operations for different validation libraries
- */
-export const standard = {
-    /**
-     * Create Zod-based standard operations
-     * 
-     * @param entitySchema - Zod object schema for the entity
-     * @param entityName - Name of the entity (singular, e.g., 'user')
-     * @param options - Optional configuration
-     * @returns ZodStandardOperations instance
-     * 
-     * @example
-     * ```typescript
-     * const userOps = standard.zod(userSchema, 'user', {
-     *   idField: 'id',
-     *   idSchema: z.uuid(),
-     *   timestamps: true,
-     *   softDelete: true,
-     * });
-     * ```
-     */
-    zod: zodStandard,
-};
-
-// Re-export types and classes for direct usage
-export {
-    ZodStandardOperations,
-    zodStandard,
-    createZodStandardOperations,
-    type ZodEntitySchema,
-    type ZodEntityOperationOptions,
-};
+// Re-export all Zod standard operations from canonical location
+export * from "../operations/zod/standard-operations";
+export { type ZodEntitySchema, type ZodEntityOperationOptions } from "../operations/zod/standard-operations";
 
 // Re-export list builder
-export { ListOperationBuilder, createListConfig, createFilterConfig, type BuilderFilterField } from "./zod/list-builder";
+export { ListOperationBuilder, createListConfig, createFilterConfig, type BuilderFilterField } from "../operations/zod/list-builder";
 
-// Re-export base types
+// Re-export base standard operations types
 export {
     StandardOperations as BaseStandardOperations,
     type EntityOperationOptions,
     type ListOperationOptions,
     type ListPlainOptions,
-} from "./base/standard-operations";
+} from "../operations/base/standard-operations";
 
 // Re-export utilities
-export * from "./zod/utils";
-// Note: ./base/types and ./base/schema are not re-exported here to avoid conflicts
-// They can be imported directly if needed from "./base/types" or "./base/schema"
+export * from "../operations/zod/utils";
+
+// Create the standard operations factory for convenience
+import { zodStandard } from "../operations/zod/standard-operations";
+
+export const standard = {
+    zod: zodStandard,
+};

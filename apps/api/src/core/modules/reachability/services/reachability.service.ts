@@ -1,166 +1,86 @@
-import { Injectable, Logger, type OnModuleDestroy } from '@nestjs/common'
-import * as crypto from 'node:crypto'
-
-interface PendingProbe {
-  url: string
-  token: string
-  resolve: (value: boolean) => void
-  promise: Promise<boolean>
-  timer: NodeJS.Timeout,
-  startAt: Date
-}
+import { Injectable, Logger } from '@nestjs/common'
 
 @Injectable()
-export class ReachabilityService implements OnModuleDestroy {
+export class ReachabilityService {
   private readonly logger = new Logger(ReachabilityService.name)
 
-  // Map<token, PendingProbe> — token is the unique key
-  private readonly pendingProbes = new Map<string, PendingProbe>()
-
-  // Map<url, token> — to find an existing probe by URL
-  private readonly urlToToken = new Map<string, string>()
-
-  private readonly TIMEOUT_MS = 30_000
-  private readonly EXTERNAL_FETCHERS = [
-    (url: string) =>
-      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-    (url: string) =>
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  ]
-
-  // ── Public API ──────────────────────────────────────────────────────────────
-
   /**
-   * Returns a Promise<boolean> that resolves when:
-   * - The probe endpoint is hit from outside (callback)
-   * - An external fetcher confirms reachability
-   * - Timeout (resolves false)
+   * Checks whether the given mesh URL is reachable by making a direct
+   * HTTP GET to `{origin}/mesh/ping` with a 5-second timeout.
    *
-   * If a probe is already pending for this URL, returns the existing Promise.
+   * Why `/mesh/ping` and not `/mesh/node/local`?
+   * `getLocalNode` is gated behind `requireAuth() + requireInternalMesh()`
+   * because it returns internal topology (region, zone, roles, lifecycle,
+   * routing mode, …). A pre-auth reachability probe has neither a session
+   * nor an internal key, so it would always 401. `/mesh/ping` is a
+   * purpose-built, unauthenticated route that returns just `{ ok,
+   * version, advertisedHost }` — enough to know the peer is alive and
+   * what URL to dial back, nothing more.
+   *
+   * This is the probe used during the remote setup wizard step; it mirrors
+   * the logic in SetupController.probeMesh.
+   *
+   * @returns An object with reachable flag, latency, and optional metadata
+   *          returned by the remote mesh node.
    */
   async checkMeshUrlReachability(url: string): Promise<{
     url: string
     reachable: boolean
     probeUrl: string
     latencyMs: number
+    advertisedHost?: string
+    version?: string
+    /**
+     * Human-readable failure reason. Populated when `reachable` is false
+     * (network error, non-2xx HTTP response, or connection refused).
+     * Always `undefined` when `reachable` is true.
+     */
+    error?: string
   }> {
-    // Return existing pending probe if already running
-    const existingToken = this.urlToToken.get(url)
-    if (existingToken) {
-      const existingProb = this.pendingProbes.get(existingToken)
-      if (existingProb) {
-        this.logger.debug(`Reusing existing probe for ${url}`)
-        return existingProb.promise.then((reachable) => ({
-          url,
-          reachable,
-          probeUrl: existingProb.url,
-          latencyMs: new Date().getTime() - existingProb.startAt.getTime(),
-        }))
+    let parsed: URL
+    try {
+      parsed = new URL(url.trim())
+    } catch {
+      return { url, reachable: false, probeUrl: url, latencyMs: 0, error: "Invalid URL format" }
+    }
+
+    const start = Date.now()
+    const abort = new AbortController()
+    const timeout = setTimeout(() => { abort.abort() }, 5_000)
+
+    try {
+      this.logger.debug(`Probing mesh reachability at ${parsed.origin}/mesh/ping`)
+      const res = await fetch(`${parsed.origin}/mesh/ping`, {
+        method: 'GET',
+        signal: abort.signal,
+      })
+
+      const latencyMs = Date.now() - start
+
+      if (!res.ok) {
+        this.logger.warn(`Mesh unreachable: HTTP ${String(res.status)} from ${parsed.origin}`)
+        return { url, reachable: false, probeUrl: url, latencyMs, error: `HTTP ${String(res.status)}` }
       }
-    }
 
-    // Create new probe
-    const probe = this.createProbe(url)
-
-    // Trigger external fetchers in background (fire & forget)
-    void this.triggerExternalFetchers(probe.url, probe.token)
-
-    return probe.promise.then((reachable) => ({
-      url,
-      reachable,
-      probeUrl: probe.url,
-      latencyMs: new Date().getTime() - probe.startAt.getTime(),
-    }))
-  }
-
-  /**
-   * Called by the controller when the probe endpoint is hit.
-   * Resolves the pending Promise for the matching token.
-   */
-  resolveProbeByToken(token: string): boolean {
-    const probe = this.pendingProbes.get(token)
-    if (!probe) {
-      this.logger.warn(`No pending probe found for token ${token}`)
-      return false
-    }
-
-    this.logger.log(`✅ Probe resolved for ${probe.url} via callback`)
-    probe.resolve(true)
-    this.cleanupProbe(token)
-    return true
-  }
-
-  // ── Lifecycle ───────────────────────────────────────────────────────────────
-
-  onModuleDestroy(): void {
-    // Resolve all pending probes as false on shutdown
-    for (const [token, probe] of this.pendingProbes) {
-      clearTimeout(probe.timer)
-      probe.resolve(false)
-      this.pendingProbes.delete(token)
-    }
-    this.urlToToken.clear()
-    this.logger.log('All pending probes resolved on shutdown')
-  }
-
-  // ── Private ─────────────────────────────────────────────────────────────────
-
-  private createProbe(url: string): PendingProbe {
-    const token = crypto.randomUUID()
-
-    let _resolve!: (value: boolean) => void
-
-    const promise = new Promise<boolean>((resolve) => {
-      _resolve = resolve
-    })
-
-    const timer = setTimeout(() => {
-      this.logger.warn(`⏰ Probe timeout for ${url}`)
-      _resolve(false)
-      this.cleanupProbe(token)
-    }, this.TIMEOUT_MS)
-
-    const probe: PendingProbe = { url, token, resolve: _resolve, promise, timer, startAt: new Date() }
-
-    this.pendingProbes.set(token, probe)
-    this.urlToToken.set(url, token)
-
-    this.logger.log(`🔗 Probe created for ${url} — token: ${token}`)
-
-    return probe
-  }
-
-  private cleanupProbe(token: string): void {
-    const probe = this.pendingProbes.get(token)
-    if (!probe) return
-    clearTimeout(probe.timer)
-    this.pendingProbes.delete(token)
-    this.urlToToken.delete(probe.url)
-  }
-
-  private async triggerExternalFetchers(url: string, token: string): Promise<void> {
-    const probeUrl = `${url}/_probe/${token}`
-
-    this.logger.debug(`📤 Triggering external fetchers for ${probeUrl}`)
-
-    const fetchers = this.EXTERNAL_FETCHERS.map(async (buildUrl) => {
-      const fetcherUrl = buildUrl(probeUrl)
-      try {
-        const res = await fetch(fetcherUrl, {
-          headers: { 'ngrok-skip-browser-warning': 'true' },
-          signal: AbortSignal.timeout(12_000),
-        })
-        if (res.ok) {
-          this.logger.log(`✅ External fetcher confirmed reachability for ${url}`)
-          // The probe endpoint was hit → resolveProbeByToken() handles the rest
-        }
-      } catch {
-        this.logger.debug(`External fetcher failed: ${new URL(fetcherUrl).hostname}`)
+      const json = await res.json().catch(() => ({})) as Record<string, unknown>
+      this.logger.log(`✅ Mesh reachable at ${parsed.origin} (${latencyMs}ms)`)
+      return {
+        url,
+        reachable: true,
+        probeUrl: url,
+        latencyMs,
+        advertisedHost: typeof json.advertisedHost === 'string' && json.advertisedHost.length > 0
+          ? json.advertisedHost
+          : undefined,
+        version: typeof json.version === 'string' ? json.version : undefined,
       }
-    })
-
-    await Promise.any(fetchers).catch(() => {
-      this.logger.warn(`All external fetchers failed for ${url}`)
-    })
+    } catch (err: unknown) {
+      const latencyMs = Date.now() - start
+      const message = err instanceof Error ? err.message : String(err)
+      this.logger.warn(`Mesh unreachable at ${parsed.origin}: ${message}`)
+      return { url, reachable: false, probeUrl: url, latencyMs, error: message }
+    } finally {
+      clearTimeout(timeout)
+    }
   }
 }

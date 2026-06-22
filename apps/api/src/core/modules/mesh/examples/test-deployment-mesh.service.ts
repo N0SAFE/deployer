@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { z } from "zod/v4";
+import z from "zod/v4";
 import { meshEntity } from "../mesh-entity";
 import { meshQuery } from "../mesh-query";
 import { meshMutation } from "../mesh-mutation";

@@ -64,22 +64,22 @@ import {
     MeshNotFoundError,
 } from '../domain/mesh-errors'
 
-import type { MeshIdentityService } from '../services/mesh-identity.service'
-import type { MeshTrustService } from '../services/mesh-trust.service'
-import type { MeshTrustStrictModeService } from '../services/mesh-trust-strict-mode.service'
-import type { MeshPeerSessionService } from '../services/mesh-peer-session.service'
-import type { MeshHealthMonitorService } from '../services/mesh-health-monitor.service'
-import type { MeshMembershipService } from '../services/mesh-membership.service'
-import type { MeshResourceRegistryService } from '../services/mesh-resource-registry.service'
-import type { MeshStreamRouterService } from '../services/mesh-stream-router.service'
-import type { MeshQueueReplicationService } from '../services/mesh-queue-replication.service'
-import type { MeshControlPlaneService } from '../services/mesh-control-plane.service'
-import type { MeshClusterSyncService } from '../services/mesh-cluster-sync.service'
-import type { MeshStreamSessionService } from '../services/mesh-stream-session.service'
-import type { MeshEnvelopeSideEffectsService } from '../services/mesh-envelope-side-effects.service'
-import type { SystemMeshEventService } from '../../../events/system-mesh-event.service'
-import type { SystemMeshOverlayScopeService } from '../../system-mesh-overlay-scope.service'
-import type { SystemMeshClusterRepository } from '../../../repositories/system-mesh-cluster.repository'
+import { MeshIdentityService } from '../services/mesh-identity.service'
+import { MeshTrustService } from '../services/mesh-trust.service'
+import { MeshTrustStrictModeService } from '../services/mesh-trust-strict-mode.service'
+import { MeshPeerSessionService } from '../services/mesh-peer-session.service'
+import { MeshHealthMonitorService } from '../services/mesh-health-monitor.service'
+import { MeshMembershipService } from '../services/mesh-membership.service'
+import { MeshResourceRegistryService } from '../services/mesh-resource-registry.service'
+import { MeshStreamRouterService } from '../services/mesh-stream-router.service'
+import { MeshQueueReplicationService } from '../services/mesh-queue-replication.service'
+import { MeshControlPlaneService } from '../services/mesh-control-plane.service'
+import { MeshClusterSyncService } from '../services/mesh-cluster-sync.service'
+import { MeshStreamSessionService } from '../services/mesh-stream-session.service'
+import { MeshEnvelopeSideEffectsService } from '../services/mesh-envelope-side-effects.service'
+import { SystemMeshEventService } from '../../../events/system-mesh-event.service'
+import { SystemMeshOverlayScopeService } from '../../system-mesh-overlay-scope.service'
+import { SystemMeshClusterRepository } from '../../../repositories/system-mesh-cluster.repository'
 
 /**
  * Façade orchestratrice du mesh.
@@ -431,9 +431,17 @@ export class SystemMeshTopologyService
         }
     }
 
+    /**
+     * Returns the persisted grant data + the `databaseUrl` the joining
+     * peer should use. The controller is responsible for issuing and
+     * attaching the `peerServiceToken` / `peerServiceTokenExpiresAt`
+     * pair, so the orchestrator deliberately returns a partial
+     * `MeshJoinGrantConsumeResult` (the contract output type minus
+     * those two fields).
+     */
     async consumeJoinGrant(
         input: MeshJoinGrantConsumeInput
-    ): Promise<MeshJoinGrantConsumeResult> {
+    ): Promise<Omit<MeshJoinGrantConsumeResult, "peerServiceToken" | "peerServiceTokenExpiresAt">> {
         const repo = this.requireClusterRepository(
             'consume bootstrap join grants'
         )
@@ -442,10 +450,8 @@ export class SystemMeshTopologyService
             throw new MeshNotFoundError('JoinGrant', 'token')
         }
         return {
+            ...consumed,
             accepted: true,
-            grantId: consumed.grantId,
-            nodeId: consumed.nodeId,
-            enrolledAt: consumed.enrolledAt,
         }
     }
 

@@ -271,7 +271,7 @@ export class DeploymentQueueProcessor {
         return this.deploymentArtifactBuilderService.buildContainerizedArtifact({
             deploymentId: input.deploymentId,
             serviceId: input.serviceId,
-            builder: (input.executionPlan?.builder ?? null) as DeploymentBuilderKind | null,
+            builder: (input.executionPlan?.builder ?? null),
             sourceCheckout: input.sourceCheckout,
             fallbackContainerImage: input.fallbackContainerImage,
             customCommands: input.executionPlan?.customCommands ?? null,

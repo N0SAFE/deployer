@@ -560,7 +560,7 @@ export class QueryBuilder<TConfig extends QueryConfig = QueryConfig> {
     return new QueryBuilder({
       ...this.config,
       pagination: config,
-    } as TConfig & { pagination: TSchema });
+    });
   }
 
   /**
@@ -572,7 +572,7 @@ export class QueryBuilder<TConfig extends QueryConfig = QueryConfig> {
     return new QueryBuilder({
       ...this.config,
       sorting: config,
-    } as TConfig & { sorting: TSchema });
+    });
   }
 
   /**
@@ -584,7 +584,7 @@ export class QueryBuilder<TConfig extends QueryConfig = QueryConfig> {
     return new QueryBuilder({
       ...this.config,
       filtering: config,
-    } as TConfig & { filtering: TSchema });
+    });
   }
 
   /**
@@ -596,7 +596,7 @@ export class QueryBuilder<TConfig extends QueryConfig = QueryConfig> {
     return new QueryBuilder({
       ...this.config,
       search: config,
-    } as TConfig & { search: TSchema });
+    });
   }
 
   /**
@@ -611,7 +611,7 @@ export class QueryBuilder<TConfig extends QueryConfig = QueryConfig> {
         ...this.config.customFields,
         ...fields,
       },
-    } as TConfig & { customFields: TFields });
+    });
   }
 }
 

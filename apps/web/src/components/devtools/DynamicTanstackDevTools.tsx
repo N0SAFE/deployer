@@ -1,7 +1,10 @@
 'use client'
 
 import { useEffect, useState, type ComponentType } from "react";
-import type { TanStackDevToolsProps } from "./TanStackDevTools";
+
+// Local props type - avoids importing from TanStackDevTools at compile time
+// which would trigger the module graph and cause V8 crash
+type TanStackDevToolsProps = Record<string, unknown>;
 
 export const DynamicTanstackDevTools = () => {
     const [DevtoolsComponent, setDevtoolsComponent] = useState<ComponentType<TanStackDevToolsProps> | null>(null)
@@ -19,7 +22,7 @@ export const DynamicTanstackDevTools = () => {
                     return
                 }
 
-                setDevtoolsComponent(() => mod.TanStackDevTools)
+                setDevtoolsComponent(() => mod.TanStackDevTools as ComponentType<TanStackDevToolsProps>)
             })
             .catch(() => {
                 // Keep app functional if devtools chunk fails to load.

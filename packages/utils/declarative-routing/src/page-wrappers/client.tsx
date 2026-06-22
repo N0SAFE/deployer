@@ -120,7 +120,7 @@ function extractAdditionalProps<T extends object>(
     void searchParams
     void children
     void route
-    return rest as Omit<T, 'params' | 'searchParams' | 'children' | 'route'>
+    return rest
 }
 
 function normalizeRecord(value: unknown): Record<string, unknown> {
@@ -249,7 +249,7 @@ function useClientRouteHelpers<
             routePath: runtime?.routePath,
             routeName: runtime?.routeName,
             params,
-            search: searchState as unknown as z.output<Search>,
+            search: searchState,
             urlBuilder: buildUrl,
             buildUrl,
             push,
@@ -273,7 +273,7 @@ function useClientRouteHelpers<
         ]
     )
 
-    const search = (searchState as unknown as z.output<Search>) ?? validatedSearch
+    const search = (searchState) ?? validatedSearch
 
     return { search, route }
 }
@@ -325,8 +325,8 @@ export function createPage<
         // Use React.use() to unwrap promises on the client
         const rawParams = use(props.params)
         const rawSearchParams = use(props.searchParams)
-        const params = schemas.params.parse(rawParams) as z.output<Params>
-        const validatedSearchParams = schemas.search.parse(rawSearchParams) as z.output<Search>
+        const params = schemas.params.parse(rawParams)
+        const validatedSearchParams = schemas.search.parse(rawSearchParams)
         const { search, route } = useClientRouteHelpers(
             params,
             validatedSearchParams,
@@ -438,8 +438,8 @@ export function createSessionPage<
         // Use React.use() to unwrap promises
         const rawParams = use(props.params)
         const rawSearchParams = use(props.searchParams)
-        const params = schemas.params.parse(rawParams) as z.output<Params>
-        const validatedSearchParams = schemas.search.parse(rawSearchParams) as z.output<Search>
+        const params = schemas.params.parse(rawParams)
+        const validatedSearchParams = schemas.search.parse(rawSearchParams)
         const { search, route } = useClientRouteHelpers(
             params,
             validatedSearchParams,

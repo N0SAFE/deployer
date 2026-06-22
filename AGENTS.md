@@ -39,11 +39,11 @@ This file defines how AI coding agents must operate in this repository. It exist
 ## Development Workflows
 
 - Default dev:
-  - `bun run dev` (docker-orchestrated full stack) or local equivalents as documented
+  - `bun --bun run dev` (docker-orchestrated full stack) or local equivalents as documented
   - For scripts within a target, prefer `run-script` MCP tool to execute `package.json` scripts.
 - Build & test:
-  - `bun run build`
-  - `bun run test` or `bun run test:coverage`
+  - `bun --bun run build`
+  - `bun --bun run test` or `bun --bun run test:coverage`
 
 ## Commit Policy
 
@@ -148,7 +148,7 @@ Some tools/scripts are designed to run locally, while others must run inside the
 How to run inside Docker:
 - Prefer starting the stack with `docker-up { mode: "dev", target: "api" }` and then interact via service scripts.
 - For interactive commands, use the provided root scripts, e.g.:
-  - `bun run dev:api:run` — starts a shell inside the API dev container
+  - `bun --bun run dev:api:run` — starts a shell inside the API dev container
   - Once inside, run `bun --bun run db:seed` or the equivalent script
 
 Rule of thumb:

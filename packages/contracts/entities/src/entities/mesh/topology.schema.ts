@@ -163,6 +163,35 @@ export const meshNodeStateSchema = z.object({
 });
 export type MeshNodeState = z.infer<typeof meshNodeStateSchema>;
 
+/**
+ * Public, unauthenticated ping response.
+ *
+ * Exposed at `GET /mesh/ping` so that other nodes can:
+ *   - Verify a peer is reachable before the local node is enrolled in the
+ *     mesh and has any credentials (setup wizard reachability probe,
+ *     bootstrap pre-flight).
+ *   - Read the peer's advertised public URL to dial it back during
+ *     enrollment.
+ *
+ * The route is INTENTIONALLY MINIMAL:
+ *   - `ok`           → liveness marker (always `true` when the API is up)
+ *   - `version`      → API/mesh version string (already public via other
+ *                      diagnostics, useful for compatibility checks)
+ *   - `advertisedHost` → The URL this node tells peers to dial. Derived
+ *                      from public config (no secrets, no internal IP).
+ *
+ * It does NOT expose: nodeId, region, zone, roles, lifecycle state,
+ * routing mode, consistency mode, startedAt, lastSeenAt, metadata, or
+ * any operational topology info. Those live behind the authenticated
+ * `GET /mesh/node/local` route.
+ */
+export const meshPingResultSchema = z.object({
+    ok: z.literal(true),
+    version: z.string().min(1),
+    advertisedHost: z.string().min(1).nullable(),
+});
+export type MeshPingResult = z.infer<typeof meshPingResultSchema>;
+
 export const meshPeerConnectionSchema = z.object({
     connectionId: z.uuid(),
     sourceNodeId: z.uuid(),

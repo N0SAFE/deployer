@@ -19,8 +19,17 @@ function createCleanupHarness(params: {
     getDockerClient,
   };
 
+  const scannerContainerManager = {
+    ensureContainerRunning: vi.fn(async () => true),
+    execInScanner: vi.fn(async () => ({ exitCode: 0, output: "", durationMs: 0 })),
+    stopContainer: vi.fn(async () => undefined),
+    cleanStaleScannerImages: vi.fn(async () => undefined),
+    onModuleDestroy: vi.fn(async () => undefined),
+  };
+
   const repository = new DockerRepository(
     dockerService as never,
+    scannerContainerManager as never,
     {} as never,
   );
 

@@ -163,7 +163,7 @@ export class DockerContainerLogsDomainService {
               subscriber.next(entry);
             }
           },
-          error: (error) => subscriber.error(error),
+          error: (error) => { subscriber.error(error); },
         });
 
       return () => {
@@ -194,7 +194,7 @@ export class DockerContainerLogsDomainService {
       switchMap((result) => {
         const snapshot = result.responses[0]?.snapshot;
         if (!snapshot) {
-          return from([] as Array<{ generatedAt: string; data: DockerContainerProcessEntry[] }>);
+          return from([] as { generatedAt: string; data: DockerContainerProcessEntry[] }[]);
         }
 
         return from([
@@ -250,7 +250,7 @@ export class DockerContainerLogsDomainService {
               subscriber.next(entry);
             }
           },
-          error: (error) => subscriber.error(error),
+          error: (error) => { subscriber.error(error); },
         });
 
       return () => {

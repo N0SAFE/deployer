@@ -389,7 +389,7 @@ export class ProjectRepository {
             if (latestRow) {
                 latestDeployment = {
                     id: latestRow.id,
-                    status: latestRow.status as DeploymentStatus,
+                    status: latestRow.status,
                     createdAt: latestRow.createdAt.toISOString(),
                 };
             }
@@ -614,7 +614,7 @@ export class ProjectRepository {
         if (data.name !== undefined) updates.name = data.name;
         if (data.description !== undefined) updates.description = data.description;
         if (data.variables !== undefined)
-            updates.variables = data.variables as typeof variableTemplates.$inferInsert["variables"];
+            updates.variables = data.variables;
 
         const [row] = await db
             .update(variableTemplates)

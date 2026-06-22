@@ -27,6 +27,24 @@ export class PostgresContainerService extends AbstractDockerContainerService {
         const apiUrl = options.apiUrl?.trim() ?? "http://127.0.0.1:3000";
         const shutdownTimeoutSeconds = options.shutdownTimeoutSeconds ?? 120;
 
+        // Use the official postgres image directly with a simple CMD wrapper that
+        // starts postgres normally. On Linux, the health check from inside the
+        // container cannot reach the host's localhost, so we use a minimal CMD
+        // that just runs postgres with the original entrypoint.
+        //
+        // We avoid building a custom Dockerfile with a health check loop because:
+        // 1) The health check URL (127.0.0.1:3000) from inside the container
+        //    points to the container's own network namespace, not the host.
+        // 2) Backgrounding docker-entrypoint.sh can cause postgres to fail
+        //    silently due to shell process group issues.
+        // 3) The double invocation of docker-entrypoint.sh (ENTRYPOINT + CMD)
+        //    creates unnecessary complexity.
+        //
+        // Instead, we let the image's own ENTRYPOINT handle initialization,
+        // and the container stays alive with postgres as PID 1.
+        // autoRemove will clean it up when the container exits (via explicit
+        // stop or if postgres crashes).
+
         return this.startContainer({
             image: options.image ?? "postgres:16-alpine",
             name: options.name ?? `deployer-bootstrap-postgres-${randomUUID().slice(0, 8)}`,
@@ -36,20 +54,54 @@ export class PostgresContainerService extends AbstractDockerContainerService {
                 "deployer.managed_reason": "bootstrap_database",
             },
             exposedPorts: { "5432/tcp": {} },
-            baseDockerfileContents: this.buildPostgresBootstrapDockerfile(apiUrl, shutdownTimeoutSeconds),
+            autoRemove: true,
+            healthCheck: {
+                test: ["CMD-SHELL", `pg_isready -U ${username} -d ${databaseName}`],
+                interval: 1_000_000_000,   // 1s
+                timeout: 5_000_000_000,     // 5s
+                retries: 30,
+                startPeriod: 5_000_000_000, // 5s grace period
+            },
         });
     }
 
     async getMappedPort(containerId: string, containerPort: number): Promise<number> {
         const container = this.dockerService.getDockerClient().getContainer(containerId);
-        const inspected = await container.inspect();
-        const binding = inspected.NetworkSettings.Ports[`${String(containerPort)}/tcp`]?.[0]?.HostPort;
 
-        if (!binding) {
-            throw new Error(`Container ${containerId} does not expose port ${String(containerPort)}`);
+        // Docker may need a moment after container.start() to bind the ports.
+        // Retry up to 10 times with 1-second delay to handle slow port allocation.
+        const maxRetries = 10;
+        let lastError: Error | undefined;
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const inspected = await container.inspect();
+                const binding = inspected.NetworkSettings.Ports[`${String(containerPort)}/tcp`]?.[0]?.HostPort;
+
+                if (binding) {
+                    return Number(binding);
+                }
+
+                this.logger.debug(
+                    `Port ${String(containerPort)} not yet mapped for container ${containerId} (attempt ${attempt}/${maxRetries})`
+                );
+            } catch (err: unknown) {
+                lastError = err instanceof Error ? err : new Error(String(err));
+                this.logger.debug(
+                    `Inspect failed for container ${containerId} (attempt ${attempt}/${maxRetries}): ${lastError.message}`
+                );
+                // If container no longer exists, stop retrying
+                if (lastError.message.toLowerCase().includes("no such container")) {
+                    throw lastError;
+                }
+            }
+
+            await new Promise((r) => setTimeout(r, 1_000));
         }
 
-        return Number(binding);
+        throw lastError ?? new Error(
+            `Container ${containerId} does not expose port ${String(containerPort)} after ${String(maxRetries)} retries`
+        );
     }
 
     async stopContainer(containerId: string, timeoutSeconds = 10): Promise<void> {

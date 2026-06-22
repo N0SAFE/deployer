@@ -3,7 +3,7 @@
  * Uses Standard Schema instead of Zod
  */
 
-import type { AnySchema } from "../../shared/types";
+import type { AnySchema } from "../../types/types";
 
 /**
  * Schema shape type imported for PathParamBuilderWithExisting
@@ -82,7 +82,7 @@ export function createPathParamBuilder<TExisting extends SchemaShape = Record<ne
             __brand: "PathParam",
             name,
             schema,
-        } as PathParam<TName, TSchema>;
+        };
     }
 
     // Function to create a wildcard path parameter
@@ -92,7 +92,7 @@ export function createPathParamBuilder<TExisting extends SchemaShape = Record<ne
             name,
             schema,
             wildcard: true,
-        } as PathParam<TName, TSchema>;
+        };
     }
 
     // Template tag function

@@ -2171,7 +2171,7 @@ export class DeploymentService implements OnModuleInit {
                     cursor: String(sequence),
                     replayed,
                     emittedAt,
-                } as StreamEventWithMeta<TEvent>;
+                };
             }),
             rxFilter((event): event is StreamEventWithMeta<TEvent> => event !== null),
         );

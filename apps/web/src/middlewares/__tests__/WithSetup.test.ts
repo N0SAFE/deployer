@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse, type NextFetchEvent } from "next/server";
 
 const mocks = vi.hoisted(() => ({
-  setupStatusCall: vi.fn(),
+  getStateCall: vi.fn(),
 }));
 
 vi.mock("@/lib/orpc", () => ({
   orpc: {
     setup: {
-      getStatus: {
-        call: mocks.setupStatusCall,
+      getState: {
+        call: mocks.getStateCall,
       },
     },
   },
@@ -55,7 +55,7 @@ describe("WithSetup middleware", () => {
   const createRequest = (url: string) => new NextRequest(url);
 
   it("redirects any page request to setup when setup is required", async () => {
-    mocks.setupStatusCall.mockResolvedValueOnce({ needsSetup: true });
+    mocks.getStateCall.mockResolvedValueOnce({ needsSetup: true });
 
     const { default: withSetup } = await import("../WithSetup");
     const next = vi.fn().mockReturnValue(NextResponse.next());
@@ -71,7 +71,7 @@ describe("WithSetup middleware", () => {
   });
 
   it("does not redirect setup route to itself when setup is required", async () => {
-    mocks.setupStatusCall.mockResolvedValueOnce({ needsSetup: true });
+    mocks.getStateCall.mockResolvedValueOnce({ needsSetup: true });
 
     const { default: withSetup } = await import("../WithSetup");
     const nextResponse = NextResponse.next();
@@ -86,7 +86,7 @@ describe("WithSetup middleware", () => {
   });
 
   it("passes through when setup is already completed", async () => {
-    mocks.setupStatusCall.mockResolvedValueOnce({ needsSetup: false });
+    mocks.getStateCall.mockResolvedValueOnce({ needsSetup: false });
 
     const { default: withSetup } = await import("../WithSetup");
     const nextResponse = NextResponse.next();

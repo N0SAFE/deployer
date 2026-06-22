@@ -80,7 +80,7 @@ function inspectWhereClause<TItem extends AnyRecord>(
     };
   }
 
-  const fields = Object.keys(clause as AnyRecord);
+  const fields = Object.keys(clause);
   return {
     type: "object",
     description: `{ ${fields.join(", ")} }`,
@@ -178,7 +178,7 @@ export function buildQueryPlan<TItem, TResultShape>(
   }));
 
   const projections: readonly string[] | null = state.selectedFields
-    ? (state.selectedFields as readonly string[])
+    ? (state.selectedFields)
     : null;
 
   const pagination: MeshQueryPlanPagination = {

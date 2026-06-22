@@ -166,7 +166,7 @@ export class CoreEventServiceQueryBuilder<TRow extends CoreEventQueryRow> {
                     return {
                         ...row,
                         [alias]: null,
-                    } as TRow & Record<AliasForService<TService, TAlias>, SelectedServiceEnvelope<TService, K> | null>;
+                    };
                 }
 
                 if (!input.on(row, right)) {
@@ -176,7 +176,7 @@ export class CoreEventServiceQueryBuilder<TRow extends CoreEventQueryRow> {
                 return {
                     ...row,
                     [alias]: right,
-                } as TRow & Record<AliasForService<TService, TAlias>, SelectedServiceEnvelope<TService, K> | null>;
+                };
             }),
             rxFilter(
                 (
@@ -266,7 +266,7 @@ export class CoreEventServiceQueryBuilder<TRow extends CoreEventQueryRow> {
         this.stream$ = this.stream$.pipe(
             rxFilter((row) =>
                 this.rowEnvelopes(row).some((envelope) =>
-                    predicate(envelope.payload as PayloadInRow<TRow>, envelope),
+                    predicate(envelope.payload, envelope),
                 ),
             ),
         );
@@ -279,7 +279,7 @@ export class CoreEventServiceQueryBuilder<TRow extends CoreEventQueryRow> {
         this.stream$ = this.stream$.pipe(
             rxFilter((row) =>
                 this.rowEnvelopes(row).some((envelope) =>
-                    predicate(envelope.eventName as EventNameInRow<TRow>, envelope),
+                    predicate(envelope.eventName, envelope),
                 ),
             ),
         );
@@ -292,7 +292,7 @@ export class CoreEventServiceQueryBuilder<TRow extends CoreEventQueryRow> {
         this.stream$ = this.stream$.pipe(
             rxFilter((row) =>
                 this.rowEnvelopes(row).some((envelope) =>
-                    predicate(envelope.namespace as NamespaceInRow<TRow>, envelope),
+                    predicate(envelope.namespace, envelope),
                 ),
             ),
         );
@@ -377,9 +377,9 @@ export class CoreEventSyncQueryBuilder<TRow extends CoreEventQueryRow = CoreEven
 
     join<TRight extends CoreSyncedEventEnvelope, TAlias extends string = string>(
         input: CoreEventQueryJoinInput<TRow, TRight, TAlias>,
-    ): CoreEventSyncQueryBuilder<TRow & Record<TAlias, TRight | null>> {
+    ): this {
         this.joins.push(input as unknown as CoreEventQueryJoinInternal);
-        return this as unknown as CoreEventSyncQueryBuilder<TRow & Record<TAlias, TRight | null>>;
+        return this;
     }
 
     replay(value: boolean): this {
@@ -464,9 +464,9 @@ export class CoreEventNamespaceBuilder<TService extends BaseEventService<any> | 
         return this;
     }
 
-    fromEventService<T extends BaseEventService<any>>(eventService: T): CoreEventNamespaceBuilder<T> {
+    fromEventService<T extends BaseEventService<any>>(eventService: T): this {
         this.eventService = eventService;
-        return this as unknown as CoreEventNamespaceBuilder<T>;
+        return this;
     }
 
     select<K extends EventNamesOf<NonNullable<TService>>>(

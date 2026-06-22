@@ -1,4 +1,5 @@
 import { NestFactory } from "@nestjs/core";
+import type { INestApplication } from "@nestjs/common";
 import { AppModule } from "./app.module";
 import { apiReference } from "@scalar/nestjs-api-reference";
 import { generateSpec } from "./openapi";
@@ -9,12 +10,35 @@ import { buildAllowedOrigins, normalizeUrl, isLocalhostOrigin } from "./core/uti
 import { logger } from "@repo/logger";
 import { APIErrorExceptionFilter } from "./core/modules/auth/filters/api-error-exception-filter";
 import { InternalErrorExceptionFilter } from "./core/middlewares/internal-error/internal-error-exception.filter";
+import { oc } from "@orpc/contract";
+import { os } from "@orpc/server";
+import { z } from "zod/v4";
 
-async function bootstrap() {
+/**
+ * Maximum time we allow NestJS to spend running `onModuleDestroy` /
+ * `beforeApplicationShutdown` / `onApplicationShutdown` hooks after a
+ * SIGINT/SIGTERM (or `app.close()`) before we force-exit the process.
+ *
+ * Each registered `OnModuleDestroy` / `OnApplicationShutdown` is responsible
+ * for stopping its own resources (scanner containers, mesh connections,
+ * terminal sessions, timers, etc.). The timeout below is a safety net so
+ * the process never hangs forever during teardown — e.g. a stuck Docker
+ * call inside `ScannerContainerManagerService.stopContainer()` must not
+ * block the container stop signal from reaching the orchestrator.
+ */
+const SHUTDOWN_GRACEFUL_TIMEOUT_MS = 30_000;
+
+async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
     snapshot: process.env.NODE_ENV !== "production",
     bodyParser: false, // Disable NestJS body parser for oRPC
   });
+
+  // Listen to process signals (SIGINT / SIGTERM) and trigger NestJS
+  // shutdown hooks (onModuleDestroy → beforeApplicationShutdown →
+  // onApplicationShutdown) instead of dying abruptly and leaving
+  // scanner containers, mesh connections, timers, etc. dangling.
+  app.enableShutdownHooks();
 
   const authService = await app.resolve<AuthService>(AuthService);
 
@@ -113,6 +137,77 @@ async function bootstrap() {
     `📘 OpenAPI JSON available at http://localhost:${String(port)}/openapi.json`
   );
   logger.info(`📗 Scalar API Reference at http://localhost:${String(port)}/reference`);
+
+  registerProcessSignalHandlers(app);
+}
+
+/**
+ * Wire up SIGINT / SIGTERM / uncaughtException / unhandledRejection
+ * handlers so the API process always exits through `app.close()` —
+ * which in turn runs every `OnModuleDestroy` and
+ * `OnApplicationShutdown` hook — rather than dying abruptly and
+ * leaving behind scanner containers, mesh sessions, timers, etc.
+ */
+function registerProcessSignalHandlers(app: INestApplication): void {
+  let shuttingDown = false;
+
+  const performShutdown = (signal: NodeJS.Signals | "uncaughtException" | "unhandledRejection", exitCode: number): void => {
+    if (shuttingDown) {
+      logger.warn(`Received '${signal}' while shutdown is already in progress — ignoring`);
+      return;
+    }
+    shuttingDown = true;
+
+    logger.info(`Received '${signal}' — starting graceful shutdown (timeout ${String(SHUTDOWN_GRACEFUL_TIMEOUT_MS / 1000)}s)`);
+
+    // Force-exit safety net: if NestJS teardown hangs (e.g. a stuck
+    // Docker call inside ScannerContainerManagerService.stopContainer()),
+    // make sure the process still terminates so the orchestrator can
+    // mark it as stopped.
+    const forceExitTimer = setTimeout(() => {
+      logger.error(
+        `Graceful shutdown exceeded ${String(SHUTDOWN_GRACEFUL_TIMEOUT_MS / 1000)}s — forcing process exit`,
+      );
+      process.exit(exitCode);
+    }, SHUTDOWN_GRACEFUL_TIMEOUT_MS);
+
+    // Don't keep the process alive purely for the safety-net timer.
+    if (typeof forceExitTimer.unref === "function") {
+      forceExitTimer.unref();
+    }
+
+    void app
+      .close()
+      .then(() => {
+        clearTimeout(forceExitTimer);
+        logger.info("Graceful shutdown complete — exiting");
+        process.exit(exitCode);
+      })
+      .catch((error: unknown) => {
+        clearTimeout(forceExitTimer);
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error(`Error during graceful shutdown: ${message}`);
+        process.exit(exitCode === 0 ? 1 : exitCode);
+      });
+  };
+
+  process.on("SIGINT", (signal) => {
+    performShutdown(signal, 0);
+  });
+
+  process.on("SIGTERM", (signal) => {
+    performShutdown(signal, 0);
+  });
+
+  process.on("uncaughtException", (error) => {
+    logger.error("Uncaught exception — triggering graceful shutdown", { error });
+    performShutdown("uncaughtException", 1);
+  });
+
+  process.on("unhandledRejection", (reason) => {
+    logger.error("Unhandled promise rejection — triggering graceful shutdown", { reason });
+    performShutdown("unhandledRejection", 1);
+  });
 }
 
 bootstrap().catch((error: unknown) => {

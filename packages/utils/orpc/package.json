@@ -7,7 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./builder": "./src/builder/index.ts",
-    "./standard": "./src/standard/index.ts",
+    "./standard": "./src/operations/index.ts",
     "./query": "./src/query/index.ts",
     "./hooks": "./src/hooks/index.ts"
   },
@@ -22,8 +22,9 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@orpc/contract": "^1.13.5",
+    "@orpc/contract": "^1.14.6",
     "@orpc/client": "catalog:orpc",
+    "@orpc/shared": "catalog:orpc",
     "@orpc/tanstack-query": "catalog:orpc",
     "@standard-schema/spec": "^1.1.0",
     "@tanstack/react-query": "catalog:tanstack",

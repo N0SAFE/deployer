@@ -88,7 +88,7 @@ export class HasPermissionCheck<
     this.permissions =
       typeof permissions === 'function'
         ? {}
-        : (permissions as unknown as PermissionObject);
+        : (permissions);
   }
 
   async check(context: MiddlewareContext): Promise<void> {
@@ -145,7 +145,7 @@ export class HasPermissionByRoleCheck<
     this.permissions =
       typeof permissions === 'function'
         ? {}
-        : (permissions as unknown as PermissionObject);
+        : (permissions);
     this.role = typeof role === 'function' ? undefined : (role as string);
   }
 
@@ -158,7 +158,7 @@ export class HasPermissionByRoleCheck<
 
     if (!hasPermission) {
       throw createPermissionError(
-        permissions as unknown as PermissionObject,
+        permissions,
         `Role '${role as string}' does not have permissions: ${JSON.stringify(permissions)}`
       );
     }
@@ -211,7 +211,7 @@ export class HasRoleCheck<
 
     // Use plugin's assertCheckRole which throws RoleAssertionError
     await plugin.assertCheckRole(
-      roles as string[],
+      roles,
       `Required role: ${(roles as readonly string[]).join(' or ')}`
     );
   }
@@ -260,7 +260,7 @@ export class RequireAdminRoleCheck<
 
     // Use plugin's assertCheckRole
     await plugin.assertCheckRole(
-      this.adminRoles as string[],
+      this.adminRoles,
       'Admin access required'
     );
   }
@@ -332,7 +332,7 @@ export class AdminMiddlewareDefinition<
   ) {
     super(pluginFactory);
     // Default to 'admin' as the admin role - cast needed for generic constraint
-    this.adminRoles = options?.adminRoles ?? (['admin'] as unknown as readonly InferRoleNamesFromBuilder<TPermissionBuilder>[]);
+    this.adminRoles = options?.adminRoles ?? (['admin']);
   }
 
   // ==========================================================================

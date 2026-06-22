@@ -436,7 +436,7 @@ export function addCacheOperations<TRouter>(
         }
         
         // Create enhanced endpoint with cache operations
-        return new Proxy(value as object, {
+        return new Proxy(value, {
           get(endpointTarget: object, endpointProp: string | symbol): unknown {
             if (endpointProp === "cache") {
               return createCacheOperations(value);

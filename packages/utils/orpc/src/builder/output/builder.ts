@@ -15,12 +15,12 @@
 
 import { eventIterator, type Schema } from "@orpc/contract";
 import { DetailedOutputBrand, type DetailedOutput } from "../core/route-builder";
-import type { AnySchema, HTTPMethod, ErrorMap, UnionTuple } from "../../shared/types";
-import type { ObjectSchema, LiteralSchema, VoidSchema, SchemaShape } from "../../shared/standard-schema-helpers";
-import { objectSchema, voidSchema, literalSchema, unionSchema, emptyObjectSchema, getSchemaShape, optionalSchema } from "../../shared/standard-schema-helpers";
+import type { AnySchema, HTTPMethod, ErrorMap, UnionTuple } from "../../types/types";
+import type { ObjectSchema, LiteralSchema, VoidSchema, SchemaShape } from "../../types/standard-schema-helpers";
+import { objectSchema, voidSchema, literalSchema, unionSchema, emptyObjectSchema, getSchemaShape, optionalSchema } from "../../types/standard-schema-helpers";
 import { ProxyBuilderBase } from "../core/proxy-builder.base";
 import type { OutputSchemaProxy } from "./proxy";
-import { observable, type Observable } from "../../utils/observable/contract";
+import { observable, type Observable } from "../../observable/contract";
 
 /**
  * Extract body schema from output type.
@@ -206,7 +206,7 @@ export abstract class DetailedOutputBuilder<
         ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, ExtractOutputHeaders<TData>, TNewBody>, TMethod, TEntitySchema, TErrors> => {
             const detailed = isDetailedMode(this.$data);
             const currentBody = detailed ? this._extractBody() : this._defaultBody();
-            const newBody = typeof schemaOrBuilder === "function" ? (schemaOrBuilder as (current: ExtractOutputBody<TData>) => TNewBody)(currentBody) : schemaOrBuilder;
+            const newBody = typeof schemaOrBuilder === "function" ? (schemaOrBuilder)(currentBody) : schemaOrBuilder;
             const status = detailed ? this._extractStatus() : this._defaultStatus();
             const headers = detailed ? this._extractHeaders() : this._defaultHeaders();
             const built = this._buildDetailedSchema(status, headers, newBody);
@@ -216,7 +216,7 @@ export abstract class DetailedOutputBuilder<
         callable.streamed = <TNewBody extends AnySchema>(schemaOrBuilder: TNewBody | ((current: ExtractOutputBody<TData>) => TNewBody)) => {
             const detailed = isDetailedMode(this.$data);
             const currentBody = detailed ? this._extractBody() : this._defaultBody();
-            const baseSchema = typeof schemaOrBuilder === "function" ? (schemaOrBuilder as (current: ExtractOutputBody<TData>) => TNewBody)(currentBody) : schemaOrBuilder;
+            const baseSchema = typeof schemaOrBuilder === "function" ? (schemaOrBuilder)(currentBody) : schemaOrBuilder;
             const streamedBody = eventIterator(baseSchema) as AnySchema;
             const status = detailed ? this._extractStatus() : this._defaultStatus();
             const headers = detailed ? this._extractHeaders() : this._defaultHeaders();
@@ -265,7 +265,7 @@ export abstract class DetailedOutputBuilder<
         const currentHeaders = detailed ? this._extractHeaders() : this._defaultHeaders();
         const newHeaders =
             typeof schemaOrBuilder === "function"
-                ? (schemaOrBuilder as (current: ExtractOutputHeaders<TData>) => TNewHeaders)(currentHeaders)
+                ? (schemaOrBuilder)(currentHeaders)
                 : typeof schemaOrBuilder === "object" && !("~standard" in schemaOrBuilder)
                   ? (objectSchema(schemaOrBuilder as SchemaShape) as unknown as TNewHeaders)
                   : schemaOrBuilder;
@@ -288,7 +288,7 @@ export abstract class DetailedOutputBuilder<
     ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, ExtractOutputHeaders<TData>>, TMethod, TEntitySchema, TErrors> {
         const detailed = isDetailedMode(this.$data);
         const currentBody = detailed ? this._extractBody() : this._defaultBody();
-        const baseSchema = typeof schemaOrBuilder === "function" ? (schemaOrBuilder as (current: ExtractOutputBody<TData>) => TNewBody)(currentBody) : schemaOrBuilder;
+        const baseSchema = typeof schemaOrBuilder === "function" ? (schemaOrBuilder)(currentBody) : schemaOrBuilder;
         const streamedBody = eventIterator(baseSchema) as AnySchema;
         const status = detailed ? this._extractStatus() : this._defaultStatus();
         const headers = detailed ? this._extractHeaders() : this._defaultHeaders();
@@ -310,7 +310,7 @@ export abstract class DetailedOutputBuilder<
     ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, ExtractOutputHeaders<TData>, ObservableContractSchema<TNewBody>>, TMethod, TEntitySchema, TErrors> {
         const detailed = isDetailedMode(this.$data);
         const currentBody = detailed ? this._extractBody() : this._defaultBody();
-        const baseSchema = typeof schemaOrBuilder === "function" ? (schemaOrBuilder as (current: ExtractOutputBody<TData>) => TNewBody)(currentBody) : schemaOrBuilder;
+        const baseSchema = typeof schemaOrBuilder === "function" ? (schemaOrBuilder)(currentBody) : schemaOrBuilder;
         const observableBody = observable(baseSchema as Schema<unknown, unknown>) as ObservableContractSchema<TNewBody>;
         const status = detailed ? this._extractStatus() : this._defaultStatus();
         const headers = detailed ? this._extractHeaders() : this._defaultHeaders();

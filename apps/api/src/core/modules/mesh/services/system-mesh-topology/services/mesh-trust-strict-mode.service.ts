@@ -2,8 +2,8 @@ import { Inject, Injectable } from "@nestjs/common";
   import { CLOCK_TOKEN, type Clock } from "../../../shared/primitives/clock";
   import { TokenBucket } from "../../../shared/primitives/token-bucket";
   import { MeshAuthorizationError, MeshValidationError } from "../domain/mesh-errors";
-  import type { SystemMeshConfigService } from "../../system-mesh-config.service";
-  import type { MeshTrustService } from "./mesh-trust.service";
+    import { SystemMeshConfigService } from "../../system-mesh-config.service";
+    import { MeshTrustService } from "./mesh-trust.service";
 
   /**
    * Gestion du mode strict + readiness + rollout par vagues + auto-rollback

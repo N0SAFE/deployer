@@ -113,7 +113,7 @@ export class PluginWrapperRegistry<
   ): PluginWrapperRegistry<TAuth, TRegistry & Record<TName, TPlugin>> {
     // Create new Map with existing factories
     const newFactories = new Map(this.factories);
-    newFactories.set(pluginName, factory as PluginWrapperFactory<TAuth, PluginWrapper>);
+    newFactories.set(pluginName, factory);
     
     // Return NEW registry with accumulated types
     return new PluginWrapperRegistry<TAuth, TRegistry & Record<TName, TPlugin>>(
@@ -192,7 +192,7 @@ export class PluginWrapperRegistry<
    * @returns Array of registered plugin names
    */
   getPluginNames(): (keyof TRegistry & string)[] {
-    return Array.from(this.factories.keys()) as (keyof TRegistry & string)[];
+    return Array.from(this.factories.keys());
   }
 
   /**
