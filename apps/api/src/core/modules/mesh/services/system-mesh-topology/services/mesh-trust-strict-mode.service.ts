@@ -209,9 +209,14 @@ import { Inject, Injectable } from "@nestjs/common";
           envName: string,
           fallback: number,
       ): number {
+          // IMPORTANT: invoke the config getter through `Function.prototype.call`
+          // so the receiver (`this.meshConfigService`) is preserved. Detaching
+          // the method (e.g. `cfg()`) makes `this` undefined inside the
+          // config service, which crashes any call that touches
+          // `this.ensureMeshConfig()`. See system-mesh-config.service.ts.
           const cfg = (this.meshConfigService as unknown as Record<string, unknown>)[configMethod];
           const fromConfig = typeof cfg === "function"
-              ? (cfg as () => number | null | undefined)()
+              ? (cfg as (...args: unknown[]) => number | null | undefined).call(this.meshConfigService)
               : null;
           if (typeof fromConfig === "number" && Number.isFinite(fromConfig)) return fromConfig;
           const env = Number(process.env[envName]);

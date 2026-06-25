@@ -415,29 +415,14 @@ export const MOCK_DOCKER_REGISTRIES_ENTITIES: DockerRegistry[] = (() => {
   return Array.from(grouped.values())
 })()
 
+// `MOCK_DOCKER_FLEET_SERVERS` used to contain a 3rd entry whose
+// `nodeId` was `22222222-2222-4222-8222-222222222222` — the deterministic
+// default `MESH_NODE_ID` of the single-instance dev API compose. That
+// default has been removed from the compose, and this mock entry has
+// been deleted entirely so the dashboard can no longer be confused
+// with the dev node ID. Mesh behaviour should be exercised through
+// the docker-compose.mesh-6.compose instead.
 export const MOCK_DOCKER_FLEET_SERVERS: DockerFleetServer[] = [
-  {
-    nodeId: '22222222-2222-4222-8222-222222222222',
-    serverUrl: 'https://fleet-node-a.mock.local',
-    displayName: 'Fleet Node A',
-    status: 'active',
-    healthy: true,
-    lastSeenAt: new Date(),
-    maxCpuMillicores: 32000,
-    maxMemoryMb: 65536,
-    metrics: {
-      cpuUsage: 0.38,
-      memoryUsage: 0.44,
-      activeStreams: 6,
-      queueDepth: 12,
-      reportedAt: new Date(),
-    },
-    allocationSummary: {
-      organizations: 3,
-      cpuMillicores: 12000,
-      memoryMb: 28000,
-    },
-  },
   {
     nodeId: '33333333-3333-4333-8333-333333333333',
     serverUrl: 'https://fleet-node-b.mock.local',

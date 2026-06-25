@@ -10,6 +10,7 @@ import { DockerNetworksOrchestratorService } from "../domains/networks/orchestra
 import { DockerVolumesOrchestratorService } from "../domains/volumes/orchestration/docker-volumes-orchestrator.service";
 import { DockerRegistriesOrchestratorService } from "../domains/registries/orchestration/docker-registries-orchestrator.service";
 import { DockerStacksOrchestratorService } from "../domains/stacks/orchestration/docker-stacks-orchestrator.service";
+import { DockerEntityOrchestratorService } from "../domains/entity/orchestration/docker-entity-orchestrator.service";
 import { map } from "rxjs";
 
 @Controller()
@@ -22,6 +23,7 @@ export class DockerController {
     private readonly dockerVolumesOrchestratorService: DockerVolumesOrchestratorService,
     private readonly dockerRegistriesOrchestratorService: DockerRegistriesOrchestratorService,
     private readonly dockerStacksOrchestratorService: DockerStacksOrchestratorService,
+    private readonly dockerEntityOrchestratorService: DockerEntityOrchestratorService,
     private readonly meshInternalRequestService: MeshInternalRequestService,
   ) {}
 
@@ -364,6 +366,64 @@ export class DockerController {
     return implement(appContract.docker.runtime.activity.detail)
       .use(requireAuth())
       .handler(({ input }) => this.dockerRuntimeOrchestratorService.getRuntimeActivityById(input.query));
+  }
+
+  @Implement(appContract.docker.runtime.activityStream)
+  runtimeActivityStream() {
+    return implement(appContract.docker.runtime.activityStream)
+      .use(requireAuth())
+      .handler(({ input }) => this.dockerRuntimeOrchestratorService.streamRuntimeActivities(input.query ?? {}));
+  }
+
+  // ---------------------------------------------------------------------------
+  // docker.entity — unified live in-memory store for all entity kinds
+  // ---------------------------------------------------------------------------
+
+  @Implement(appContract.docker.entity.list)
+  entityList() {
+    return implement(appContract.docker.entity.list)
+      .use(requireAuth())
+      .handler(async ({ input }) => {
+        switch (input.kind) {
+          case "container":
+            return this.dockerEntityOrchestratorService.listContainers(input)
+          case "image":
+            return this.dockerEntityOrchestratorService.listImages(input)
+          case "network":
+            return this.dockerEntityOrchestratorService.listNetworks(input)
+          case "volume":
+            return this.dockerEntityOrchestratorService.listVolumes(input)
+          default:
+            throw new Error(`Unsupported entity kind: ${String((input as { kind?: string }).kind)}`)
+        }
+      })
+  }
+
+  @Implement(appContract.docker.entity.inspect)
+  entityInspect() {
+    return implement(appContract.docker.entity.inspect)
+      .use(requireAuth())
+      .handler(async ({ input }) => {
+        switch (input.kind) {
+          case "container":
+            return this.dockerEntityOrchestratorService.inspectContainer(input)
+          case "image":
+            return this.dockerEntityOrchestratorService.inspectImage(input)
+          case "network":
+            return this.dockerEntityOrchestratorService.inspectNetwork(input)
+          case "volume":
+            return this.dockerEntityOrchestratorService.inspectVolume(input)
+          default:
+            throw new Error(`Unsupported entity kind: ${String((input as { kind?: string }).kind)}`)
+        }
+      })
+  }
+
+  @Implement(appContract.docker.entity.stream)
+  entityStream() {
+    return implement(appContract.docker.entity.stream)
+      .use(requireAuth())
+      .handler(({ input }) => this.dockerEntityOrchestratorService.streamEntities(input.query ?? {}));
   }
 
   private isMeshLocalOnlyRequest(context: unknown): boolean {

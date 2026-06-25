@@ -297,6 +297,14 @@ export {
 	dockerRuntimeCatalogSchema,
 } from './runtime.schema'
 
+export {
+	dockerEntityKindSchema,
+	dockerEntityRemovedEventSchema,
+	dockerEntityEventSchema,
+	dockerEntityStreamChunkSchema,
+	dockerEntityStreamQuerySchema,
+} from './entity-events.schema'
+
 export type {
 	DockerRuntimeEventSource,
 	DockerDaemonRuntimeAction,
@@ -343,6 +351,14 @@ export type {
 	DockerRuntimeActivityEntityList,
 	DockerRuntimeCatalog,
 } from './runtime.schema'
+
+export type {
+	DockerEntityKind,
+	DockerEntityRemovedEvent,
+	DockerEntityEvent,
+	DockerEntityStreamChunk,
+	DockerEntityStreamQuery,
+} from './entity-events.schema'
 
 export {
 	dockerVulnerabilitySeveritySchema,

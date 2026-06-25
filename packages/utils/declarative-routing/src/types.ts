@@ -137,6 +137,21 @@ export type PageRouteHelpers<
         input?: RouteNavigationInput<Params, Search>,
         options?: RouteNavigationOptions
     ) => string
+    /**
+     * Replace the current URL path parameters. Resolves with the
+     * produced URL. Server-side helpers resolve to the URL string
+     * directly (no navigation occurs on the server).
+     */
+    setParams: (
+        value: z.input<Params> | null,
+        options?: RouteNavigationOptions
+    ) => Promise<string>
+    /**
+     * Mutate the current search/query parameters. Client-side this
+     * updates the URL through `nuqs` (no extra navigation); server-side
+     * it returns the resulting URL.
+     */
+    setSearchParams: (value: z.input<Search> | null) => void
     setSearch: (value: z.input<Search> | null) => Promise<string>
     searchUpdate: (patch: RouteSearchPatch<Search> | null) => Promise<string>
     searchReplace: (value: z.input<Search> | null) => Promise<string>

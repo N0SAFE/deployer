@@ -67,6 +67,143 @@ Do not bypass domain hooks with scattered per-component networking logic. It bre
 Treat contracts as the source of truth for API shapes. If contract changes, API and web must be updated in the same workstream.
 </DocCallout>
 
+## Observable streams — customising the pipe
+
+Contracts that return an `observable` (live or streamed) can be consumed through
+`experimental_liveObservableOptions` / `experimental_streamedObservableOptions` on
+`@repo/orpc-utils`. Both expose a `queryFnOptions.pipe` hook so callers can shape
+the source RxJS observable produced by the procedure.
+
+The `pipe` function **receives the source observable directly** and must return
+the observable that will actually be subscribed to. When `pipe` is omitted the
+source observable is used as-is, which is the right default for status
+indicators and small streams.
+
+```ts
+import { useQuery } from '@tanstack/react-query'
+import { debounceTime, filter, map, switchMap, timer } from 'rxjs'
+import { orpc } from '@/lib/orpc'
+
+// Debounce bursts so we only refetch the container list after the
+// runtime event stream goes quiet for 200ms.
+const containerRuntimeStream = useQuery(
+  orpc.docker.runtime.stream.experimental_liveObservableOptions({
+    input: {
+      query: {
+        filter: { source: { operator: 'eq', value: 'container' } },
+      },
+    },
+    queryFnOptions: {
+      pipe: (obs) => obs.pipe(debounceTime(200)),
+    },
+  }),
+)
+
+// Wrap the source observable in another stream (e.g. wait then subscribe).
+const delayedStream = useQuery(
+  orpc.docker.containers.streams.logs.experimental_streamedObservableOptions({
+    input: { query: { containerId: '…' } },
+    queryFnOptions: {
+      pipe: (obs) => timer(200).pipe(switchMap(() => obs)),
+    },
+  }),
+)
+```
+
+### When to use a custom `pipe`
+
+- **High-frequency event streams** (docker runtime, mesh events) — debounce or
+  throttle so React Query only sees a single value per quiet period.
+- **Filter on the server AND the client** — the server input already filters,
+  but you may want to drop events the page is not interested in.
+- **Coalesce values** — `bufferTime(200)` lets the page receive *batches* of
+  events instead of one-by-one.
+- **Pause / delay subscription** — wrap the source in `timer(200).pipe(switchMap(() => obs))`
+  to wait before attaching.
+
+### When NOT to use a custom `pipe`
+
+- **Status indicators** that need the latest value as soon as it arrives — the
+  default `liveObservableOptions` already keeps the latest value.
+- **Logs / metrics** where every event matters — do not debounce or you will
+  lose data points.
+
+<DocCallout title="Anti-pattern" tone="warning">
+Do not reach for `useContainerLiveUpdate` + `cooldownMs` to debounce a refetch.
+Use the new `pipe` parameter (or a domain hook that wraps it, e.g.
+`useDockerRuntimeRefetchOnStream`) and apply `debounceTime` / `throttleTime`
+directly on the stream. The old pattern cannot filter events and re-renders on
+every emission.
+</DocCallout>
+
+## Unified docker entity API
+
+The `docker.entity` namespace provides a single, type-safe entry point for
+every kind of docker object (container, image, network, volume). It supersedes
+the per-kind `docker.{containers,images,networks,volumes}.list` + the
+low-level `docker.runtime.stream` combination for in-memory live stores.
+
+### Endpoints
+
+- `docker.entity.list({ kind, limit, offset })` — returns the full list of
+  entities for the given kind, projected as `DockerEntityStreamChunk[]` so the
+  client can hydrate its store directly from the payload.
+- `docker.entity.inspect({ kind, id })` — returns a single `DockerEntityStreamChunk`
+  (or `null`) for a specific entity. Use this for lazy-load detail views.
+- `docker.entity.stream({ kinds?, actions? })` — returns a live observable of
+  `DockerEntityStreamChunk`. Each chunk is either a full
+  `DockerEntityEvent` (kind + action + occurredAt + eventId + entity payload)
+  or a `DockerEntityRemovedEvent` (kind + action + id + occurredAt + eventId).
+
+### Canonical client hook
+
+Use `useDockerLiveEntities` / `useDockerLiveEntityKind` /
+`useDockerLiveContainers` / `useDockerLiveImages` / `useDockerLiveNetworks` /
+`useDockerLiveVolumes` from `apps/web/src/domains/docker/use-docker-live.ts`.
+The hooks handle the in-memory store, debouncing, reducer application, and
+periodic reconciliation in one place.
+
+```tsx
+const { data, byId, status, refetch } = useDockerLiveContainers({
+  on: ['create', 'update', 'destroy', 'die'],
+  reconcileIntervalMs: 30_000,
+})
+```
+
+For pages that only need a refetch side-effect (not a full store), use
+`useDockerLiveRefetch`:
+
+```tsx
+useDockerLiveRefetch({
+  on: { container: ['create', 'update', 'destroy'] },
+  onData: () => stackListQuery.refetch(),
+  debounceMs: 1000,
+})
+```
+
+### Why this exists
+
+- **One shape per kind.** The discriminated `DockerEntityStreamChunk` schema
+  means a single reducer can patch/insert/remove across all kinds.
+- **No more follow-up inspect calls.** Each event from `docker.entity.stream`
+  carries the **full entity payload** (with relations), so the client can
+  patch its in-memory store in a single step.
+- **Server-side cache.** The list endpoint goes through
+  `DockerEntityCacheService` (TTL-bounded, ETag-bounded) so bursty reads
+  don't hammer the docker socket.
+- **Centralized recovery.** The `stream` server pipeline observes the
+  `DockerRuntimeEventsStreamService`, filters by kind/actions, and re-emits as
+  enriched chunks. The client no longer needs to handle the raw runtime event
+  payload.
+
+<DocCallout title="Migration tip" tone="info">
+The old `useContainerLiveUpdate` + `cooldownMs` pattern is gone. The new
+`useDockerLiveContainers` (or `useDockerLiveRefetch`) replaces it for the 99%
+case. Pages that genuinely need raw `DockerRuntimeEvent` data (e.g. the
+`/docker/activity` page) should subscribe to `docker.runtime.activity.stream`
+which projects events server-side.
+</DocCallout>
+
 ## Related docs
 
 - [Development Workflow](/docs/dev/development-workflow)

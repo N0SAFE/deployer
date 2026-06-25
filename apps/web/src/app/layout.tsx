@@ -1,11 +1,10 @@
 // import { Monitoring } from 'react-scan/monitoring/next'
-import '@repo/ui/styles/globals.css' // ! load the local stylesheets first to allow for overrides of the ui package components
+import '@repo/ui/styles/globals.css'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet-draw/dist/leaflet.draw.css'
 import 'leaflet.fullscreen/dist/Control.FullScreen.css'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
-import './globals.css'
 // Configure server auth for declarative routing SessionPage wrappers
 // This must be imported before any SessionPage is used
 import '@/routes/configure-auth'

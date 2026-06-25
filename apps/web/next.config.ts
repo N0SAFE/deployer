@@ -45,6 +45,8 @@ function getWorkspaceTranspilePackages(): string[] {
 
 const workspaceTranspilePackages = getWorkspaceTranspilePackages();
 
+console.log(workspaceTranspilePackages)
+
 // Check if we're running in a lint context or other non-build contexts
 const commandLine = process.argv.join(" ");
 const isLintContext =
@@ -104,15 +106,40 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Auto-detected from this app's package.json (@repo/* deps)
   // so adding/removing workspace deps keeps transpilation in sync.
-  transpilePackages: workspaceTranspilePackages,
+  transpilePackages: [
+    ...workspaceTranspilePackages,
+    // Workaround for Turbopack bug: @xyflow/react + framer-motion causes
+    // `evaluate_webpack_loader` panic in Next.js 16.2.x. Transpiling these
+    // packages through the Turbopack transformer (instead of going through
+    // the webpack-loader fallback) avoids the crash. See:
+    // https://github.com/vercel/next.js/issues/93144
+    "@xyflow/react",
+    "@xyflow/system",
+    "framer-motion",
+    "motion",
+    "motion-dom",
+    "motion-utils",
+  ],
   cacheComponents: true,
-  reactCompiler: true,
+  reactCompiler: false,
   // Monorepo: tell Turbopack the workspace root so it can resolve `next` from
   // the hoisted `node_modules` at the repo root. Without this, Next.js 16+ with
   // Turbopack errors with "could not find next/package.json" in Docker
   // (project dir: /app/apps/web/src/app, but `next` is hoisted at /app/node_modules).
   turbopack: {
     root: path.join(__dirname, "../.."),
+    // Workaround for Turbopack bug #93144: @xyflow/react has
+    // `sideEffects: ["*.css"]` which causes Turbopack to auto-include the
+    // package's CSS files. These go through the webpack-loader fallback
+    // (PostCSS) and fail with "invalid type: null, expected a string".
+    // We mark only the xyflow package's CSS files as `raw` type to avoid
+    // breaking Tailwind v4 processing for our own CSS files.
+    rules: {
+      "**/@xyflow/react/dist/base.css": { type: "raw" },
+      "**/@xyflow/react/dist/style.css": { type: "raw" },
+      "**/node_modules/@xyflow/react/**/*.css": { type: "raw" },
+      "**/node_modules/.bun/**/@xyflow/react/**/*.css": { type: "raw" },
+    },
   },
   images: {
     dangerouslyAllowSVG: true,

@@ -49,6 +49,7 @@
   "devDependencies": {
     "@types/node": "catalog:build",
     "@repo/auth": "*",
+    "@repo/use-safe-query-param-states-from-zod": "*",
     "@repo/config-eslint": "*",
     "@repo/config-prettier": "*",
     "@repo/config-typescript": "*",

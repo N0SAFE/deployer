@@ -1,15 +1,14 @@
 'use client'
 
-import { useMemo, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { DockerContainerDetailModalTrigger } from '../_components/container-detail-modal'
 import { DockerInlineLoadingState, DockerTableLoadingRows } from '../_components/docker-loading-states'
 import {
-  buildDockerExceptionalRuntimeStreamInput,
-  useEventTrigger,
   useDockerRuntimeActivityDetail,
   useDockerRuntimeActivityList,
-  useDockerRuntimeSseState,
 } from '@/domains/docker/hooks'
+import { dockerEndpoints } from '@/domains/docker/endpoints'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
@@ -23,7 +22,7 @@ import {
   TableRow,
 } from '@repo/ui/components/shadcn/table'
 import { Activity, Search } from 'lucide-react'
-import type { DockerRuntimeActivityEntity, DockerRuntimeEvent } from '@repo/contracts-entities'
+import type { DockerRuntimeActivityEntity } from '@repo/contracts-entities'
 
 type ActivityStatus = DockerRuntimeActivityEntity['status']
 type ActivityCategory = DockerRuntimeActivityEntity['category']
@@ -60,46 +59,8 @@ function toCategoryBadgeVariant(category: ActivityCategory): 'default' | 'second
   return 'outline'
 }
 
-function parseProgress(actorAttributes: Record<string, string>): number | null {
-  const raw = actorAttributes.scanProgress
-  if (!raw) return null
-  const parsed = Number(raw)
-  if (!Number.isFinite(parsed)) return null
-  if (parsed <= 0) return 0
-  if (parsed >= 100) return 100
-  return Math.round(parsed)
-}
-
-function inferStatusFromEvent(event: DockerRuntimeEvent): ActivityStatus {
-  const scanState = event.actorAttributes.scanState
-  if (scanState === 'queued' || event.action.includes('queued')) return 'queued'
-  if (scanState === 'error' || event.action.includes('error') || event.action.includes('fail')) return 'error'
-  if (scanState === 'completed' || event.action.includes('complete') || event.action.includes('done')) return 'completed'
-  if (event.action.includes('start') || event.action.includes('progress') || event.action.includes('create') || event.action.includes('update') || event.action.includes('pull')) {
-    return 'running'
-  }
-  return 'info'
-}
-
-function inferSeverityFromEvent(event: DockerRuntimeEvent): ActivitySeverity {
-  const scanState = event.actorAttributes.scanState
-  if (scanState === 'error' || event.action.includes('error') || event.action.includes('fail') || event.action === 'die' || event.action === 'kill') {
-    return 'error'
-  }
-  if (event.action === 'delete' || event.action === 'destroy') {
-    return 'warning'
-  }
-  return 'info'
-}
-
-function inferCategoryFromEvent(event: DockerRuntimeEvent): ActivityCategory {
-  if (event.source === 'image') {
-    const imageScanAction = event.action.startsWith('scan_')
-    if (imageScanAction || event.raw.lifecycle === 'image_security_scan') {
-      return 'image-scanning'
-    }
-  }
-  return 'runtime-event'
+function parseProgress(activity: DockerRuntimeActivityEntity): number | null {
+  return activity.progress
 }
 
 function resolveResourceName(activity: DockerRuntimeActivityEntity): string {
@@ -136,38 +97,7 @@ function resolveContainerId(activity: DockerRuntimeActivityEntity): string | und
   return candidate && candidate.trim().length > 0 ? candidate : undefined
 }
 
-function toActivityFromRuntimeEvent(event: DockerRuntimeEvent): DockerRuntimeActivityEntity {
-  const key = event.eventId ?? `${event.source}:${event.action}:${event.actorId ?? 'unknown'}:${event.timestamp}`
-  const status = inferStatusFromEvent(event)
-  const parsedProgress = parseProgress(event.actorAttributes)
-  const progress = parsedProgress ?? (status === 'queued' ? 0 : status === 'running' ? 50 : status === 'completed' ? 100 : null)
-
-  return {
-    id: `live:${key}`,
-    eventId: event.eventId,
-    eventFingerprint: `live:${key}`,
-    flowId: `live:${key}`,
-    dependsOnFlowId: null,
-    source: event.source,
-    action: event.action,
-    actorId: event.actorId,
-    status,
-    category: inferCategoryFromEvent(event),
-    severity: inferSeverityFromEvent(event),
-    progress,
-    stage: event.actorAttributes.scanStage ?? event.actorAttributes.scanState ?? null,
-    scanner: event.actorAttributes.scanScanner ?? null,
-    message: event.actorAttributes.scanMessage ?? event.actorAttributes.scanError ?? null,
-    actorAttributes: event.actorAttributes,
-    payload: event.payload as Record<string, unknown>,
-    raw: event.raw,
-    occurredAt: event.timestamp,
-    createdAt: event.timestamp,
-    updatedAt: event.timestamp,
-  }
-}
-
-const ACTIVITY_STREAM_INPUT = buildDockerExceptionalRuntimeStreamInput()
+const ACTIVITY_STREAM_INPUT = {}
 
 export default function DashboardDockerActivityPage() {
   const [activitySearchTerm, setActivitySearchTerm] = useState('')
@@ -175,7 +105,7 @@ export default function DashboardDockerActivityPage() {
   const [categoryFilter, setCategoryFilter] = useState<'all' | ActivityCategory>('all')
   const [severityFilter, setSeverityFilter] = useState<'all' | ActivitySeverity>('all')
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
-  const [liveEventsByKey, setLiveEventsByKey] = useState<Record<string, DockerRuntimeEvent>>({})
+  const [liveActivitiesByKey, setLiveActivitiesByKey] = useState<Record<string, DockerRuntimeActivityEntity>>({})
 
   const activityListQuery = useDockerRuntimeActivityList({
     query: {
@@ -185,41 +115,79 @@ export default function DashboardDockerActivityPage() {
       sortDirection: 'desc',
     },
   })
-  const { status: runtimeSseStatus } = useDockerRuntimeSseState(ACTIVITY_STREAM_INPUT)
 
-  useEventTrigger(
-    () => true,
-    (event) => {
-      const key = event.eventId ?? `${event.source}:${event.action}:${event.actorId ?? 'unknown'}:${event.timestamp}`
-      setLiveEventsByKey((previous) => {
-        const next = {
-          ...previous,
-          [key]: event,
-        }
-
-        const orderedKeys = Object.values(next)
-          .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime())
-          .map((item) => item.eventId ?? `${item.source}:${item.action}:${item.actorId ?? 'unknown'}:${item.timestamp}`)
-
-        if (orderedKeys.length > 200) {
-          for (const stale of orderedKeys.slice(200)) {
-            delete next[stale]
-          }
-        }
-
-        return next
-      })
-    },
-    {
-      cooldownMs: 150,
-    },
+  // Live activity stream — server-side projects runtime events to
+  // `DockerRuntimeActivityEntity` so the client doesn't have to redo the
+  // status/severity/category inference. Each emission is a fully-formed
+  // activity that we merge with the persisted list below.
+  const liveStreamQuery = useQuery(
+    dockerEndpoints.runtime.activity.stream.experimental_liveObservableOptions({
+      input: { query: undefined },
+    }),
   )
+  const runtimeSseStatus = liveStreamQuery.isError
+    ? 'error'
+    : liveStreamQuery.fetchStatus === 'fetching'
+      ? liveStreamQuery.data
+        ? 'connected'
+        : 'connecting'
+      : liveStreamQuery.data
+        ? 'connected'
+        : 'disconnected'
+
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const liveBufferRef = useRef<DockerRuntimeActivityEntity[]>([])
+  const flushLiveBuffer = () => {
+    const items = liveBufferRef.current
+    liveBufferRef.current = []
+    if (items.length === 0) {
+      return
+    }
+    setLiveActivitiesByKey((previous) => {
+      const next = { ...previous }
+      for (const activity of items) {
+        const key = activity.eventId ?? activity.id
+        next[key] = activity
+      }
+      const orderedKeys = Object.values(next)
+        .sort(
+          (left, right) =>
+            new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime(),
+        )
+        .map((item) => item.eventId ?? item.id)
+      if (orderedKeys.length > 200) {
+        for (const stale of orderedKeys.slice(200)) {
+          delete next[stale]
+        }
+      }
+      return next
+    })
+  }
+
+  useEffect(() => {
+    if (!liveStreamQuery.data) {
+      return
+    }
+    liveBufferRef.current.push(liveStreamQuery.data as DockerRuntimeActivityEntity)
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+    debounceTimerRef.current = setTimeout(flushLiveBuffer, 150)
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+        debounceTimerRef.current = null
+      }
+    }
+  }, [liveStreamQuery.data])
 
   const liveActivities = useMemo<DockerRuntimeActivityEntity[]>(
-    () => Object.values(liveEventsByKey)
-      .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime())
-      .map((event) => toActivityFromRuntimeEvent(event)),
-    [liveEventsByKey],
+    () => Object.values(liveActivitiesByKey)
+      .sort(
+        (left, right) =>
+          new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime(),
+      ),
+    [liveActivitiesByKey],
   )
 
   const persistedActivities = activityListQuery.data?.data ?? []
@@ -298,7 +266,7 @@ export default function DashboardDockerActivityPage() {
     },
   )
 
-  const selectedActivity = useMemo(() => {
+  const selectedActivity = useMemo<DockerRuntimeActivityEntity | null>(() => {
     const inList = mergedActivities.find((activity) => activity.id === selectedActivityId) ?? null
     if (!selectedPersistedActivityId) {
       return inList
@@ -306,10 +274,10 @@ export default function DashboardDockerActivityPage() {
 
     const detailData = selectedActivityDetailQuery.data
     if (detailData && typeof detailData === 'object' && 'body' in detailData) {
-      return detailData.body ?? inList
+      return (detailData as { body: DockerRuntimeActivityEntity | null }).body ?? inList
     }
 
-    return detailData ?? inList
+    return (detailData as DockerRuntimeActivityEntity | undefined) ?? inList
   }, [mergedActivities, selectedActivityDetailQuery.data, selectedActivityId, selectedPersistedActivityId])
 
   const isLoading = activityListQuery.isLoading && mergedActivities.length === 0

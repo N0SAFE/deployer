@@ -11,6 +11,7 @@ import {
   useState,
 } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { debounceTime } from '@repo/orpc-utils'
 import { dockerEndpoints } from './endpoints'
 import { useDeploymentList } from '@/domains/deployment/hooks'
 import { useServiceList } from '@/domains/service/hooks'
@@ -700,67 +701,43 @@ export function useDockerRuntimeEventSubscriber({
   })
 }
 
-export function useEventTrigger(
-  filterCallback: (event: DockerRuntimeEvent) => boolean,
-  callbackCallback: (event: DockerRuntimeEvent) => void,
-  options?: UseEventTriggerOptions,
-): void {
-  useDockerRuntimeEventSubscriber({
-    enabled: options?.enabled ?? true,
-    filter: filterCallback,
-    cooldownMs: options?.cooldownMs,
-    onEvent: callbackCallback,
-  })
+interface UseDockerRuntimeRefetchOnStreamOptions {
+  /**
+   * Restrict the source observable to one or more runtime scopes
+   * (`container`, `image`, `service`, `daemon`, ...). When omitted, every
+   * event emitted by the docker runtime stream is observed.
+   */
+  scopes?: readonly DockerRuntimeScope[]
+  /**
+   * Restrict the source observable to a list of docker event actions
+   * (e.g. `["create", "update", "destroy"]`). Forwarded to the underlying
+   * ORPC stream input.
+   */
+  actions?: readonly string[]
+  /**
+   * Wait this many milliseconds of quiet on the source observable before
+   * emitting a single value. Defaults to `200`. This is the canonical way
+   * to coalesce bursts of docker events into a single refetch signal.
+   */
+  debounceMs?: number
+  enabled?: boolean
+  onData: () => void
 }
 
-export function useContainerLiveUpdate(
-  refetchContainer: () => Promise<unknown> | unknown,
-  {
-    enabled = true,
-    containerId,
-    containerName,
-    includeServiceEvents = true,
-    includeDaemonEvents = true,
-    cooldownMs = 900,
-  }: UseContainerLiveUpdateOptions = {},
-): void {
-  useEventTrigger(
-    (event) => {
-      if (event.source === 'container') {
-        const payload = event.payload
-
-        const matchesContainerId =
-          !containerId
-          || payload.containerId === containerId
-          || event.actorId === containerId
-
-        const matchesContainerName =
-          !containerName
-          || payload.containerName === containerName
-
-        return matchesContainerId && matchesContainerName
-      }
-
-      if (includeServiceEvents && event.source === 'service') {
-        return true
-      }
-
-      if (includeDaemonEvents && event.source === 'daemon') {
-        return true
-      }
-
-      return false
-    },
-    () => {
-      void Promise.resolve(refetchContainer())
-    },
-    {
-      enabled,
-      cooldownMs,
-    },
-  )
-}
-
+/**
+ * Subscribe to the docker runtime SSE stream and invoke `onData` once after
+ * a quiet period (debounced) following any matching event.
+ *
+ * This is the recommended replacement for the legacy
+ * `useContainerLiveUpdate` + `cooldownMs` pattern when the goal is simply
+ * to refetch another query (container list, image list, ...) in response to
+ * docker runtime activity.
+ *
+ * Internally it leverages the new `queryFnOptions.pipe` parameter from
+ * `@repo/orpc-utils` so that consumers can pass `pipe(obs) => obs.pipe(...)`
+ * directly to the underlying stream. Default behavior (no pipe) is to
+ * forward every event unchanged.
+ */
 export function useRealtimeMetrics(
   containerHashes: string[],
   {

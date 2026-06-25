@@ -5,7 +5,7 @@
   "scripts": {
     "build": "next build --turbopack",
     "compile": "next build --experimental-build-mode=compile --turbopack --debug-prerender",
-    "dev": "next dev -p 3021",
+    "dev": "next dev -p 3020",
     "start": "next start -p 3020",
     "postinstall": "fumadocs-mdx",
     "prettify": "prettier . --write --no-error-on-unmatched-pattern",
@@ -22,7 +22,8 @@
     "mermaid": "^11.12.0",
     "next": "catalog:next",
     "react": "catalog:react",
-    "react-dom": "catalog:react"
+    "react-dom": "catalog:react",
+    "tw-animate-css": "catalog:ui"
   },
   "devDependencies": {
     "@eslint/eslintrc": "catalog:linting",
@@ -33,6 +34,7 @@
     "@types/node": "catalog:build",
     "@types/react": "catalog:react",
     "@types/react-dom": "catalog:react",
+    "babel-plugin-react-compiler": "catalog:react-compiler",
     "eslint": "catalog:linting",
     "eslint-config-next": "catalog:next",
     "postcss": "catalog:styling",

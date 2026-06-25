@@ -35,6 +35,12 @@ export const appContract = oc.router({
     setup: setupContract,
     core: coreContract,
     organization: organizationContract,
+    // Mesh sits at the top level of the router because it owns its own
+    // `/mesh` URL prefix. If it were nested (e.g. under `core.mesh.*`)
+    // the path would not match the public route used by both clients
+    // and the OpenAPI spec — see `SystemMeshController` and the
+    // OpenAPILink at `apps/web/src/lib/orpc/links/file-upload-link.ts`.
+    mesh: meshContract,
 });
 
 export type AppContract = typeof appContract;

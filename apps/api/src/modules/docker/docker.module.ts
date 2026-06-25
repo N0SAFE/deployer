@@ -11,6 +11,7 @@ import { DockerNetworksModule } from "./domains/networks/docker-networks.module"
 import { DockerVolumesModule } from "./domains/volumes/docker-volumes.module";
 import { DockerRegistriesModule } from "./domains/registries/docker-registries.module";
 import { DockerStacksModule } from "./domains/stacks/docker-stacks.module";
+import { DockerEntityModule } from "./domains/entity/docker-entity.module";
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { DockerStacksModule } from "./domains/stacks/docker-stacks.module";
     DockerVolumesModule,
     DockerRegistriesModule,
     DockerStacksModule,
+    DockerEntityModule,
   ],
   controllers: [DockerController],
   providers: [],
@@ -38,6 +40,7 @@ import { DockerStacksModule } from "./domains/stacks/docker-stacks.module";
     DockerVolumesModule,
     DockerRegistriesModule,
     DockerStacksModule,
+    DockerEntityModule,
   ],
 })
 export class DockerModule {}

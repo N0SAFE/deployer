@@ -76,6 +76,7 @@ export {
 export {
     Observable as RxObservable,
     Subscription as RxSubscription,
+    debounceTime,
 } from "rxjs";
 
 // Re-export shared ORPC mesh error definitions (single source of truth

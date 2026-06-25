@@ -61,12 +61,38 @@ type AliasKeyMethod<
   ? TMethod
   : (options?: { input?: TInput; queryKey?: QueryKey }) => QueryKey;
 
-export type ObservablePipeInvoker<TValue> = (
-  ...operators: MonoTypeOperatorFunction<TValue>[]
+/**
+ * Transform a source RxJS observable produced by an ORPC stream/live endpoint.
+ *
+ * The function receives the source observable and must return the observable
+ * that will actually be subscribed to. By default the source observable is
+ * subscribed to as-is, which means the caller can apply any RxJS operator
+ * (`filter`, `map`, `debounceTime`, `throttleTime`, `bufferTime`, ...) or wrap
+ * the source in another observable (e.g. `timer(200).pipe(switchMap(() => source$))`).
+ *
+ * @example
+ *   // Debounce bursts before triggering a queryFn update
+ *   useQuery(orpc.docker.runtime.stream.experimental_liveObservableOptions({
+ *     queryFnOptions: { pipe: (obs) => obs.pipe(debounceTime(200)) },
+ *   }))
+ *
+ * @example
+ *   // Wait 200ms before subscribing to the source stream
+ *   useQuery(orpc.docker.container.stream.experimental_streamedObservableOptions({
+ *     queryFnOptions: { pipe: (obs) => timer(200).pipe(switchMap(() => obs)) },
+ *   }))
+ */
+export type ObservablePipeTransform<TValue> = (
+  source$: RxObservable<TValue>,
 ) => RxObservable<TValue>;
 
-export type ObservablePipeTransform<TValue> = (
-  rxjsPipe: ObservablePipeInvoker<TValue>,
+/**
+ * @deprecated Prefer `ObservablePipeTransform` which receives the source
+ * observable directly. This helper is kept for backward compatibility and
+ * mirrors the RxJS `pipe` operator surface.
+ */
+export type ObservablePipeInvoker<TValue> = (
+  ...operators: MonoTypeOperatorFunction<TValue>[]
 ) => RxObservable<TValue>;
 
 export type ObservableQueryFnOptions<TValue> = {
@@ -209,10 +235,7 @@ function applyPipeTransform<TValue>(
     return source$;
   }
 
-  const rxjsPipe: ObservablePipeInvoker<TValue> = (...operators) =>
-    operators.reduce((current$, operator) => current$.pipe(operator), source$);
-
-  return pipeTransform(rxjsPipe);
+  return pipeTransform(source$);
 }
 
 function toObservable<TValue>(source: unknown): RxObservable<TValue> {

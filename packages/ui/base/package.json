@@ -18,7 +18,7 @@
       "import": "./dist/esm/*.mjs",
       "require": "./dist/cjs/*.js"
     },
-    "./styles/globals.css": "./dist/styles/globals.css"
+    "./styles/globals.css": "./src/styles/globals.css"
   },
   "license": "MIT",
   "scripts": {
@@ -111,6 +111,7 @@
     "react-use": "^17.6.0",
     "recharts": "3.8.1",
     "rimraf": "catalog:build",
+    "shadcn": "^4.11.0",
     "sonner": "catalog:ui",
     "tailwind-merge": "catalog:styling",
     "tailwindcss-animate": "catalog:styling",

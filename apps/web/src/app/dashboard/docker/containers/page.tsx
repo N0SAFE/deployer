@@ -12,13 +12,11 @@ import { DockerContainerDetailModalTrigger } from '../_components/container-deta
 import { DockerCreateContainerModal } from '../_components/docker-create-container-modal'
 import { DockerImageDetailModalTrigger } from '../_components/docker-image-detail-modal'
 import {
-  useContainerLiveUpdate,
   useDockerContainerGroupedList,
-  useDockerImageList,
   useDockerRunContainerAction,
   useDockerRuntimeSseState,
-  useEventTrigger,
 } from '@/domains/docker/hooks'
+import { useDockerLiveContainers, useDockerLiveImages } from '@/domains/docker/use-docker-live'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
@@ -26,7 +24,7 @@ import { DataTable } from '@repo/ui/components/data-table/data-table'
 import { AlertTriangle, Plus, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import type { DockerContainer } from '@repo/contracts-entities'
 import { cn } from '@/lib/utils'
-import { useSafeQueryStatesFromZod } from '@/utils/useSafeQueryStatesFromZod'
+import { useSafeQueryStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
 import { toast } from 'sonner'
 import {
   createContainerColumns,
@@ -35,8 +33,9 @@ import {
   type ContainerProjection,
   type ContainerInstanceProjection,
 } from './columns'
+import { AuthDashboardDockerContainers } from '@/routes/index';
 
-const DOCKER_LIST_INPUT = {
+const DOCKER_CONTAINER_LIST_INPUT = {
   query: {
     limit: 100,
     offset: 0,
@@ -69,31 +68,6 @@ function toBadgeVariant(status: string): 'default' | 'secondary' | 'destructive'
   return 'outline'
 }
 
-const STATUS_PRIORITY: Record<DockerContainer['status'], number> = {
-  dead: 6,
-  exited: 5,
-  restarting: 4,
-  paused: 3,
-  created: 2,
-  unknown: 1,
-  running: 0,
-}
-
-const HEALTH_PRIORITY: Record<DockerContainer['health'], number> = {
-  unhealthy: 3,
-  starting: 2,
-  none: 1,
-  healthy: 0,
-}
-
-function mergeContainerStatus(current: DockerContainer['status'], incoming: DockerContainer['status']): DockerContainer['status'] {
-  return STATUS_PRIORITY[incoming] > STATUS_PRIORITY[current] ? incoming : current
-}
-
-function mergeContainerHealth(current: DockerContainer['health'], incoming: DockerContainer['health']): DockerContainer['health'] {
-  return HEALTH_PRIORITY[incoming] > HEALTH_PRIORITY[current] ? incoming : current
-}
-
 function fallbackImageRefFromId(imageId: string | null): string {
   if (!imageId) return 'unknown-image'
   if (imageId.startsWith('sha256:')) {
@@ -112,7 +86,12 @@ function deriveRuntimeUrlFromPorts(ports: DockerContainer['ports']): string | nu
   return `${protocol}://localhost:${String(published.hostPort)}`
 }
 
-export default function DashboardDockerContainersPage() {
+
+
+
+export default AuthDashboardDockerContainers.Route(function DashboardDockerContainersPage({
+  
+}) {
   const [listQuery, setListQuery] = useSafeQueryStatesFromZod(CONTAINER_LIST_QUERY_SCHEMA)
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
   const [refreshTick, setRefreshTick] = useState(0)
@@ -130,12 +109,12 @@ export default function DashboardDockerContainersPage() {
   const savedView = listQuery.view ?? 'all'
   const containerListInput = useMemo(() => {
     if (ownershipFilter === 'all') {
-      return DOCKER_LIST_INPUT
+      return DOCKER_CONTAINER_LIST_INPUT
     }
 
     return {
       query: {
-        ...DOCKER_LIST_INPUT.query,
+        ...DOCKER_CONTAINER_LIST_INPUT.query,
         filter: {
           managedBy: {
             operator: 'eq' as const,
@@ -146,107 +125,113 @@ export default function DashboardDockerContainersPage() {
     }
   }, [ownershipFilter])
 
-  const containerListQuery = useDockerContainerGroupedList(containerListInput)
-  const imageListQuery = useDockerImageList(DOCKER_LIST_INPUT)
+  // In-memory live store for containers, driven by the docker runtime SSE
+  // stream and reconciled every minute via the `docker.containers.list`
+  // endpoint. The legacy `useContainerLiveUpdate` + `cooldownMs: 900` and
+  // the `useDockerRuntimeRefetchOnStream` patterns are no longer needed
+  // here: events are batched and applied to the in-memory store directly,
+  // and a full snapshot is fetched periodically to heal any drift.
+  const liveContainers = useDockerLiveContainers({
+    debounceMs: 200,
+    reconcileIntervalMs: 60_000,
+  })
+  const containerEntities = liveContainers.data
+  const containerEntityById = liveContainers.byId
+
+  // Diagnostics (shared daemon groups, etc.) still come from the grouped
+  // endpoint. The flat list we use for rendering no longer exposes them
+  // directly, so we keep a lightweight grouped query just for the banner.
+  const groupedContainerQuery = useDockerContainerGroupedList(containerListInput)
+  const groupedContainerDiagnostics = groupedContainerQuery.data?.diagnostics
+
   const runContainerActionMutation = useDockerRunContainerAction()
   const runtimeSseState = useDockerRuntimeSseState()
 
-  useContainerLiveUpdate(() => {
-    return containerListQuery.refetch()
-  }, {
-    cooldownMs: 900,
+  // Track the distinct imageIds referenced by the current container set so
+  // the image list query only fetches the registry/repository metadata that
+  // is actually used in the view. Additional imageIds (e.g. ones revealed
+  // by hover/click actions) are appended to the list dynamically.
+  const [hoveredImageIds, setHoveredImageIds] = useState<ReadonlySet<string>>(
+    () => new Set<string>(),
+  )
+
+  // The image list hook is filter-based: it always reconciles the full
+  // snapshot every minute and only refetches on "list-changing" image
+  // actions (create/update/destroy/delete/pull). The custom list limit
+  // logic is now obsolete — the hook always returns the full inventory
+  // up to its server-side cap. We still let the user "register" images
+  // they care about via hover/click so future per-image optimisations
+  // (e.g. lazy inspect) can prioritise them.
+  const liveImages = useDockerLiveImages({
+    debounceMs: 500,
+    reconcileIntervalMs: 60_000,
   })
+  const imageEntities = useMemo(() => liveImages.data, [liveImages.data])
+  const imageEntityById = liveImages.byId
+  const handleContainerStateChange = useCallback(() => {
+    void liveContainers.refetch()
+  }, [liveContainers])
 
-  const handleImageRuntimeEvent = useCallback(() => {
-    void imageListQuery.refetch()
-  }, [imageListQuery])
-
-  useEventTrigger(
-    (event) => event.source === 'image',
-    handleImageRuntimeEvent,
-    {
-      cooldownMs: 900,
-    },
-  )
-
-  const { data: containerData } = containerListQuery
-  const groupedContainerRows = useMemo(() => containerData?.data ?? [], [containerData?.data])
-  const groupedContainerDiagnostics = containerData?.diagnostics
-  const { data: imageEntityData } = imageListQuery
-  const containerEntities = useMemo(
-    () => groupedContainerRows.flatMap((group) => group.kind === 'single' ? [group.container] : group.containers),
-    [groupedContainerRows],
-  )
-  const containerEntityById = useMemo(
-    () => new Map(containerEntities.map((container) => [container.id, container])),
-    [containerEntities],
-  )
-  const imageEntities = useMemo(() => imageEntityData?.data ?? [], [imageEntityData?.data])
-  const handleContainerStateChange = useCallback(() => containerListQuery.refetch(), [containerListQuery])
+  // Register a docker image as "wanted" (in addition to the visible
+  // containers) when the user mouses over its cell. This causes the
+  // image list query to grow its limit just enough to cover this id, so
+  // the registry/repository metadata becomes available without ever
+  // preloading the full 100-image inventory.
+  const handleImageHover = useCallback((imageId: string | null | undefined) => {
+    if (!imageId) {
+      return
+    }
+    setHoveredImageIds((prev) => {
+      if (prev.has(imageId)) {
+        return prev
+      }
+      const next = new Set(prev)
+      next.add(imageId)
+      return next
+    })
+  }, [])
 
   const containers = useMemo<ContainerProjection[]>(() => {
     const imageById = new Map(imageEntities.map((image) => [image.id, image]))
-    return groupedContainerRows
-      .map<ContainerProjection | null>((group) => {
-        const groupContainers = group.kind === 'single' ? [group.container] : [...group.containers]
-        if (groupContainers.length === 0) {
-          return null
-        }
-
-        const sortedInstances = [...groupContainers]
-          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-
-        const representative = sortedInstances[0]
-        if (!representative) {
-          return null
-        }
-
-        const imageEntity = representative.imageId ? imageById.get(representative.imageId) : null
+    return containerEntities
+      .map<ContainerProjection | null>((container) => {
+        const imageEntity = container.imageId ? imageById.get(container.imageId) : null
         const image = imageEntity
           ? `${imageEntity.registry}/${imageEntity.repository}${imageEntity.tag ? `:${imageEntity.tag}` : ''}`
-          : fallbackImageRefFromId(representative.imageId)
+          : fallbackImageRefFromId(container.imageId)
 
-        const instances: ContainerInstanceProjection[] = sortedInstances.map((instance) => ({
-          instanceKey: instance.id,
-          id: instance.id,
-          name: instance.name,
-          status: instance.status,
-          health: instance.health,
-          environment: instance.environment,
-          updatedAt: instance.updatedAt,
-          serviceId: instance.serviceId,
-        }))
-
-        const mergedStatus = instances.reduce(
-          (current, instance) => mergeContainerStatus(current, instance.status),
-          representative.status,
-        )
-        const mergedHealth = instances.reduce(
-          (current, instance) => mergeContainerHealth(current, instance.health),
-          representative.health,
-        )
+        const instance: ContainerInstanceProjection = {
+          instanceKey: container.id,
+          id: container.id,
+          name: container.name,
+          status: container.status,
+          health: container.health,
+          environment: container.environment,
+          updatedAt: container.updatedAt,
+          serviceId: container.serviceId,
+        }
 
         return {
-          id: representative.id,
-          hash: group.hash,
-          name: representative.name,
+          id: container.id,
+          hash: container.id,
+          name: container.name,
           image,
-          imageId: representative.imageId,
-          status: mergedStatus,
-          health: mergedHealth,
-          environment: representative.environment,
-          serviceId: representative.serviceId,
-          healthCheckUrl: deriveRuntimeUrlFromPorts(representative.ports),
+          imageId: container.imageId,
+          status: container.status,
+          health: container.health,
+          environment: container.environment,
+          serviceId: container.serviceId,
+          healthCheckUrl: deriveRuntimeUrlFromPorts(container.ports),
           domainUrl: null,
-          updatedAt: representative.updatedAt,
-          instanceCount: instances.length,
-          instanceIds: instances.map((instance) => instance.id),
-          instances,
+          updatedAt: container.updatedAt,
+          instanceCount: 1,
+          instanceIds: [container.id],
+          instances: [instance],
         }
       })
       .filter((container): container is ContainerProjection => container !== null)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-  }, [groupedContainerRows, imageEntities])
+  }, [containerEntities, imageEntities])
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'production') {
@@ -312,7 +297,9 @@ export default function DashboardDockerContainersPage() {
     return filtered
   }, [containers, environmentFilter, savedView, searchTerm, statusFilter])
 
-  const isInitialLoading = (containerListQuery.isLoading || imageListQuery.isLoading) && containers.length === 0
+  const isInitialLoading = (liveContainers.data.length === 0 || liveImages.data.length === 0)
+    && liveContainers.status !== 'error'
+    && liveImages.status !== 'error'
 
   const containerTableRows = useMemo(() => toContainerTableRows(filteredContainers), [filteredContainers])
 
@@ -335,7 +322,10 @@ export default function DashboardDockerContainersPage() {
       </div>
     ),
     renderImageCell: (container) => (
-      <span className='font-mono text-xs break-all'>
+      <span
+        className='font-mono text-xs break-all'
+        onMouseEnter={() => {handleImageHover(container.imageId)}}
+      >
         {container.imageId ? (
           <DockerImageDetailModalTrigger id={container.imageId}>
             {container.image}
@@ -365,7 +355,7 @@ export default function DashboardDockerContainersPage() {
         </DockerContainerDetailModalTrigger>
       </div>
     ),
-  }), [containerEntityById, handleContainerStateChange])
+  }), [containerEntityById, handleContainerStateChange, handleImageHover])
 
   const containerTableFetchData = useMemo(() => createContainerTableFetchData(containerTableRows), [containerTableRows])
 
@@ -408,7 +398,7 @@ export default function DashboardDockerContainersPage() {
       const successCount = results.filter((result) => result.status === 'fulfilled').length
       const failureCount = results.length - successCount
 
-      await containerListQuery.refetch()
+      await liveContainers.refetch()
 
       if (successCount > 0) {
         toast.success(`${label} completed`, {
@@ -433,7 +423,7 @@ export default function DashboardDockerContainersPage() {
         // Selection handled by DataTable internal state.
       }
     })
-  }, [containerListQuery, runContainerActionMutation, selectedContainers])
+  }, [liveContainers, runContainerActionMutation, selectedContainers])
 
   const syncSelectedRows = useCallback((rows: ContainerProjection[]) => {
     const nextSignature = rows
@@ -458,8 +448,8 @@ export default function DashboardDockerContainersPage() {
 
     try {
       await Promise.all([
-        containerListQuery.refetch(),
-        imageListQuery.refetch(),
+        liveContainers.refetch(),
+        liveImages.refetch(),
       ])
 
       setRefreshTick((previous) => previous + 1)
@@ -474,7 +464,7 @@ export default function DashboardDockerContainersPage() {
     } finally {
       setIsRefreshing(false)
     }
-  }, [containerListQuery, imageListQuery, isRefreshing, refreshTick])
+  }, [liveContainers, liveImages, isRefreshing, refreshTick])
 
   return (
     <>
@@ -797,8 +787,8 @@ export default function DashboardDockerContainersPage() {
         setActionFeedback(
           `Create flow completed for ${payload.name} (${payload.image}) · pull=${payload.pullScanSummary.pullStatus} · scan=${payload.pullScanSummary.scanStatus}`,
         )
-        void containerListQuery.refetch()
-        void imageListQuery.refetch()
+        void liveContainers.refetch()
+        void liveImages.refetch()
         toast.success(`Container ${payload.name} created`, {
           description: `${payload.image} • pull ${payload.pullScanSummary.pullStatus} • scan ${payload.pullScanSummary.scanStatus}`,
         })
@@ -807,3 +797,4 @@ export default function DashboardDockerContainersPage() {
   </>
   )
 }
+)

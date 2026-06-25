@@ -24,7 +24,7 @@ import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
 import { Download, Loader2, Play, RefreshCw, Search, Shield, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { DataTable } from '@repo/ui/components/data-table/data-table'
-import { useSafeQueryStatesFromZod } from '@/utils/useSafeQueryStatesFromZod'
+import { useSafeQueryStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
 import {
   createImageColumns,
   createImageSubRowColumns,
@@ -43,6 +43,7 @@ import {
   imageFilterConfig,
   mapImageSortByToTableSort,
 } from './filter-config'
+import { AuthDashboardDockerImages } from '@/routes/index';
 
 const DEPLOYMENT_LIST_INPUT = {
   query: {
@@ -140,7 +141,10 @@ function ImagesTableLoadingSkeleton() {
   )
 }
 
-export default function DashboardDockerImagesPage() {
+
+export default AuthDashboardDockerImages.Route(function DashboardDockerImagesPage({
+  searchParams
+}) {
   const [listQuery, setListQuery] = useSafeQueryStatesFromZod(IMAGE_LIST_QUERY_SCHEMA)
   const [inspectImageId, setInspectImageId] = useState<string | null>(null)
   const [inspectInitialTab, setInspectInitialTab] = useState<'overview' | 'layers' | 'security' | 'labels'>('overview')
@@ -508,3 +512,4 @@ export default function DashboardDockerImagesPage() {
     </div>
   )
 }
+)

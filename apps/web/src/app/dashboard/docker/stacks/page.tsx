@@ -15,7 +15,8 @@ import {
   DockerSelectionToggle,
 } from '../_components/docker-page-utilities'
 import { useDockerDataTable } from '../_components/use-docker-data-table'
-import { useContainerLiveUpdate, useDockerStackList } from '@/domains/docker/hooks'
+import { useDockerStackList } from '@/domains/docker/hooks'
+import { useDockerLiveRefetch } from '@/domains/docker/use-docker-live'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
@@ -29,7 +30,7 @@ import {
 } from '@repo/ui/components/shadcn/table'
 import { Separator } from '@repo/ui/components/shadcn/separator'
 import { Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
-import { useSafeQueryStatesFromZod } from '@/utils/useSafeQueryStatesFromZod'
+import { useSafeQueryStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
 
 const STACK_LIST_INPUT = {
   query: {
@@ -96,8 +97,10 @@ export default function DashboardDockerStacksPage() {
     void stackListQuery.refetch()
   }, [stackListQuery])
 
-  useContainerLiveUpdate(handleContainerLiveUpdate, {
-    cooldownMs: 1000,
+  useDockerLiveRefetch({
+    on: { container: ['create', 'update', 'destroy', 'die', 'start', 'stop', 'restart'] },
+    onData: handleContainerLiveUpdate,
+    debounceMs: 1000,
   })
 
   const { data: stackData } = stackListQuery

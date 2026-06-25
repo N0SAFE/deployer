@@ -1,0 +1,16 @@
+{
+    "extends": "@repo/config-typescript/react-library",
+    "compilerOptions": {
+        "outDir": "dist",
+        "declaration": true,
+        "declarationMap": true,
+        "jsx": "react-jsx",
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "moduleResolution": "bundler",
+        "target": "ES2020",
+        "lib": ["ES2022", "dom", "dom.iterable"]
+    },
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "dist"]
+}

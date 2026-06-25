@@ -92,7 +92,7 @@ RUN apk add --no-cache python3 make g++ gcc musl-dev
 # out/json/ contains a consistent pruned bun.lock — use that one.
 COPY --from=pruner-json /app/out/json/ .
 
-RUN --mount=type=cache,target=/root/.bun --mount=type=cache,target=/root/.cache \
+RUN --mount=type=cache,target=/root/.bun/install/cache \
   bun ci
 
 # ===================================
@@ -119,7 +119,7 @@ RUN mkdir -p /app/apps/web/routes && chmod -R 755 /app/apps/web/routes
 RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
     PATHS="node_modules"; \
     for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules; do \
-        [ -d "/mnt/installer/$d" ] && PATHS="$PATHS $d"; \
+        if [ -d "/mnt/installer/$d" ]; then PATHS="$PATHS $d"; fi; \
     done && \
     cd /mnt/installer && \
     tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
@@ -236,7 +236,7 @@ RUN --mount=type=bind,from=builder,source=/app,target=/mnt/builder \
     # streams lose per-package symlinks during extraction)
     PATHS="node_modules"; \
     for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules; do \
-        [ -d "/mnt/builder/$d" ] && PATHS="$PATHS $d"; \
+        if [ -d "/mnt/builder/$d" ]; then PATHS="$PATHS $d"; fi; \
     done && \
     cd /mnt/builder && \
     tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
@@ -250,7 +250,8 @@ RUN --mount=type=bind,from=builder,source=/app,target=/mnt/builder \
 # (type defs, build tools, test runners, etc.) to keep the image minimal
 # and reduce attack surface. `bun pm prune` reads each workspace's
 # package.json devDependencies and removes them from node_modules.
-RUN bun pm prune --production
+RUN --mount=type=cache,target=/root/.bun/install/cache,sharing=locked \
+    bun install --frozen-lockfile --production
 
 # Switch to nextjs user
 USER nextjs

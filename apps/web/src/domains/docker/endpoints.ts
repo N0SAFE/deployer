@@ -66,7 +66,13 @@ export const dockerEndpoints = {
     activity: {
       list: orpc.docker.runtime.activity.list,
       detail: orpc.docker.runtime.activity.detail,
+      stream: orpc.docker.runtime.activityStream,
     },
+  },
+  entity: {
+    list: orpc.docker.entity.list,
+    inspect: orpc.docker.entity.inspect,
+    stream: orpc.docker.entity.stream,
   },
 } as const
 

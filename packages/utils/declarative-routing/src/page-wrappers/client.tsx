@@ -2,25 +2,23 @@
 
 /**
  * Client-side page wrapper utilities
- * 
+ *
  * This file provides the client implementations that:
- * 1. Unwrap params/searchParams promises using React.use() (client-side)
- * 2. Validate params/search using Zod schemas
- * 3. Use the useSession hook for session access (using injected auth adapter)
- * 
- * The package.json conditional exports ensure:
- * - Server bundles (react-server condition): Use server.ts
- * - Client bundles (default condition): Use this file
- * 
- * IMPORTANT: All React.use() calls that access dynamic data (params/searchParams)
- * must be wrapped in a Suspense boundary for SSG/prerendering to work correctly.
- * This is a Next.js 15+ requirement.
+ * 1. Read URL params and search state via Next.js's router hooks
+ *    (no `React.use()` of Promise props — those are kept for backward
+ *    compatibility on the server, but on the client we now go
+ *    straight to the live URL via `useSafeQueryParamStatesFromZod`).
+ * 2. Validate the raw values with the provided Zod schemas.
+ * 3. Use the `useSession` hook from the configured client auth adapter.
  */
 
-import React, { use, Suspense } from 'react'
-import { useRouter } from 'next/navigation'
+import React, { Suspense } from 'react'
+import { useParams as useNextParams, useRouter } from 'next/navigation'
 import queryString from 'query-string'
 import { z } from 'zod'
+
+import { useSafeQueryParamStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
+
 import type {
     Session,
     ClientAuthAdapter,
@@ -45,33 +43,11 @@ let clientAuthAdapter: ClientAuthAdapter | null = null
 /**
  * Configure the client-side auth adapter.
  * Must be called before using client session wrappers.
- * 
- * @example
- * ```tsx
- * // In your app's client setup (e.g., provider)
- * import { configureClientAuth } from '@repo/declarative-routing/page-wrappers'
- * import { useSession } from '@/lib/auth'
- * 
- * configureClientAuth({
- *   useSession: () => {
- *     const session = useSession()
- *     return {
- *       data: session.data,
- *       isPending: session.isPending,
- *       refetch: session.refetch,
- *     }
- *   }
- * })
- * ```
  */
 export function configureClientAuth(adapter: ClientAuthAdapter): void {
     clientAuthAdapter = adapter
 }
 
-/**
- * Get the configured client auth adapter.
- * Throws if not configured.
- */
 function getClientAuthAdapter(): ClientAuthAdapter {
     if (!clientAuthAdapter) {
         throw new Error(
@@ -97,16 +73,10 @@ type NextPagePropsInternal<
 // Helper Functions
 // ============================================================================
 
-/**
- * Helper to cast a component to the correct type.
- */
 function asPageComponent<T>(component: React.ComponentType<T>): React.ComponentType<T> {
     return component
 }
 
-/**
- * Helper to extract additional props.
- */
 function extractAdditionalProps<T extends object>(
     props: T
 ): Omit<T, 'params' | 'searchParams' | 'children' | 'route'> {
@@ -130,6 +100,18 @@ function normalizeRecord(value: unknown): Record<string, unknown> {
     return {}
 }
 
+function isZodObjectSchema(
+    schema: z.ZodType
+): schema is z.ZodObject<z.ZodRawShape> {
+    return (
+        typeof schema === 'object' &&
+        schema !== null &&
+        'shape' in schema &&
+        typeof (schema as { shape?: unknown }).shape === 'object' &&
+        (schema as { shape?: unknown }).shape !== null
+    )
+}
+
 function fallbackBuildUrl(
     path: string,
     search?: Record<string, unknown>
@@ -141,30 +123,64 @@ function fallbackBuildUrl(
     return query ? `${path}?${query}` : path
 }
 
+// ============================================================================
+// Route helpers
+// ============================================================================
+
+/**
+ * Client-side route helpers. Reads the live URL state via
+ * `useSafeQueryParamStatesFromZod` (and Next.js's `useParams`) and
+ * exposes typed setters to update either the URL path parameters
+ * (via `router.push`/`router.replace`) or the search/query string
+ * (via the nuqs-backed setter).
+ */
 function useClientRouteHelpers<
     Params extends z.ZodType,
     Search extends z.ZodType,
 >(
-    params: z.output<Params>,
-    validatedSearch: z.output<Search>,
+    schemas: SchemasConfig<Params, Search>,
     runtime: RouteRuntimeConfig<Params, Search> | undefined,
     router: ReturnType<typeof useRouter>
 ): {
+    params: z.output<Params>
     search: z.output<Search>
     route: PageRouteHelpers<Params, Search>
 } {
-    const searchState = validatedSearch
+    // Live URL path parameters (Next.js).
+    const rawNextParams = useNextParams()
+    const parsedParams = schemas.params.safeParse(rawNextParams)
+    const params: z.output<Params> = parsedParams.success
+        ? parsedParams.data
+        : (schemas.params.parse({}) as z.output<Params>)
+
+    // Live URL search state (nuqs-backed, fully reactive).
+    const searchSchema = schemas.search
+    const [search, setSearchParamsRaw] = ((): [
+        z.output<Search>,
+        (value: z.input<Search> | null) => void,
+    ] => {
+        if (isZodObjectSchema(searchSchema)) {
+            const [state, setter] = useSafeQueryParamStatesFromZod(searchSchema)
+            return [
+                state as z.output<Search>,
+                setter as unknown as (value: z.input<Search> | null) => void,
+            ]
+        }
+        // Fallback for non-object schemas: read from URL on demand.
+        const fallback: z.output<Search> = searchSchema.parse(
+            normalizeRecord(rawNextParams)
+        ) as z.output<Search>
+        return [fallback, () => undefined]
+    })()
 
     const buildUrl = React.useCallback(
         (nextParams?: z.input<Params>, nextSearch?: z.input<Search>) => {
             if (runtime?.buildUrl) {
                 return runtime.buildUrl(nextParams, nextSearch)
             }
-
             const pathname =
                 runtime?.routePath ??
                 (typeof window !== 'undefined' ? window.location.pathname : '')
-
             return fallbackBuildUrl(pathname, normalizeRecord(nextSearch))
         },
         [runtime]
@@ -177,13 +193,12 @@ function useClientRouteHelpers<
         ) => {
             const href = buildUrl(
                 (input?.params ?? (params as z.input<Params>)),
-                (input?.search ??
-                    (searchState as unknown as z.input<Search>))
+                (input?.search ?? (search as z.input<Search>))
             )
             router.push(href, { scroll: options?.scroll })
             return href
         },
-        [buildUrl, params, router, searchState]
+        [buildUrl, params, router, search]
     )
 
     const replace = React.useCallback(
@@ -193,67 +208,85 @@ function useClientRouteHelpers<
         ) => {
             const href = buildUrl(
                 (input?.params ?? (params as z.input<Params>)),
-                (input?.search ??
-                    (searchState as unknown as z.input<Search>))
+                (input?.search ?? (search as z.input<Search>))
             )
             router.replace(href, { scroll: options?.scroll })
             return href
         },
-        [buildUrl, params, router, searchState]
+        [buildUrl, params, router, search]
     )
 
-        const searchUpdate = React.useCallback(
-            (patch: RouteSearchPatch<Search> | null) => {
-            const next = {
-                ...normalizeRecord(searchState),
-            }
+    const setParams = React.useCallback(
+        (
+            value: z.input<Params> | null,
+            options?: RouteNavigationOptions
+        ): Promise<string> => {
+            const nextParams =
+                value ?? (schemas.params.parse({}) as z.input<Params>)
+            const href = buildUrl(nextParams, search as z.input<Search>)
+            router.replace(href, { scroll: options?.scroll })
+            return Promise.resolve(href)
+        },
+        [buildUrl, router, schemas.params, search]
+    )
 
+    const searchUpdate = React.useCallback(
+        (patch: RouteSearchPatch<Search> | null) => {
+            const next: Record<string, unknown> = { ...normalizeRecord(search) }
             if (patch && typeof patch === 'object') {
-                for (const [key, value] of Object.entries(patch)) {
-                    if (value === null || value === undefined) {
+                for (const [key, val] of Object.entries(patch)) {
+                    if (val === null || val === undefined) {
                         // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
                         delete next[key]
                     } else {
-                        next[key] = value
+                        next[key] = val
                     }
                 }
             }
-
+            setSearchParamsRaw(next as z.input<Search>)
             const href = buildUrl(params as z.input<Params>, next as z.input<Search>)
-            router.replace(href, { scroll: false })
-                return Promise.resolve(href)
+            return Promise.resolve(href)
         },
-        [buildUrl, params, router, searchState]
+        [buildUrl, params, search, setSearchParamsRaw]
     )
 
     const searchReplace = React.useCallback(
-            (value: z.input<Search> | null) => {
+        (value: z.input<Search> | null) => {
+            setSearchParamsRaw(value)
             const href = buildUrl(
                 params as z.input<Params>,
                 (value ?? ({} as z.input<Search>))
             )
-            router.replace(href, { scroll: false })
-                return Promise.resolve(href)
+            return Promise.resolve(href)
         },
-        [buildUrl, params, router]
+        [buildUrl, params, setSearchParamsRaw]
     )
 
-        const searchReset = React.useCallback(() => {
+    const searchReset = React.useCallback(() => {
+        setSearchParamsRaw(null)
         const href = buildUrl(params as z.input<Params>, {} as z.input<Search>)
-        router.replace(href, { scroll: false })
-            return Promise.resolve(href)
-    }, [buildUrl, params, router])
+        return Promise.resolve(href)
+    }, [buildUrl, params, setSearchParamsRaw])
+
+    const setSearchParams = React.useCallback(
+        (value: z.input<Search> | null) => {
+            setSearchParamsRaw(value)
+        },
+        [setSearchParamsRaw]
+    )
 
     const route = React.useMemo<PageRouteHelpers<Params, Search>>(
         () => ({
             routePath: runtime?.routePath,
             routeName: runtime?.routeName,
             params,
-            search: searchState,
+            search,
             urlBuilder: buildUrl,
             buildUrl,
             push,
             replace,
+            setParams,
+            setSearchParams,
             setSearch: searchReplace,
             searchUpdate,
             searchReplace,
@@ -266,16 +299,16 @@ function useClientRouteHelpers<
             replace,
             runtime?.routeName,
             runtime?.routePath,
+            search,
             searchReplace,
             searchReset,
-            searchState,
             searchUpdate,
+            setParams,
+            setSearchParams,
         ]
     )
 
-    const search = (searchState) ?? validatedSearch
-
-    return { search, route }
+    return { params, search, route }
 }
 
 // ============================================================================
@@ -283,28 +316,12 @@ function useClientRouteHelpers<
 // ============================================================================
 
 /**
- * Creates a client page wrapper that unwraps and validates params/search.
- * 
- * On the client, we use React.use() to unwrap the promises from Next.js
- * and validate them with Zod schemas before passing to the component.
- * 
- * IMPORTANT: The inner component that calls React.use() is wrapped in a Suspense
- * boundary to support Next.js 15+ SSG/prerendering where accessing dynamic data
- * (searchParams) requires Suspense.
- * 
- * @example
- * ```tsx
- * // page.tsx (Client Component)
- * 'use client'
- * import { createPage } from '@repo/declarative-routing/page-wrappers'
- * 
- * export default createPage(
- *   { params: z.object({ id: z.string() }), search: z.object({}) },
- *   ({ params, searchParams }) => {
- *     return <div>ID: {params.id}</div>
- *   }
- * )
- * ```
+ * Creates a client page wrapper that validates params/search and exposes
+ * reactive setters through the `route` helper.
+ *
+ * The inner component uses `useSafeQueryParamStatesFromZod` directly so
+ * the wrapper participates in the live URL state (no extra navigation
+ * for query updates).
  */
 export function createPage<
     Params extends z.ZodType,
@@ -316,36 +333,26 @@ export function createPage<
     runtime?: RouteRuntimeConfig<Params, Search>
 ): React.ComponentType<NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps> {
     type WrapperProps = NextPagePropsInternal<Params, Search> & BasePageProps & AdditionalProps
-    
-    // Inner component that unwraps promises using React.use()
-    // Must be inside Suspense boundary for SSG/prerendering compatibility
+
     function InnerComponent(props: WrapperProps): React.ReactNode {
         const router = useRouter()
-
-        // Use React.use() to unwrap promises on the client
-        const rawParams = use(props.params)
-        const rawSearchParams = use(props.searchParams)
-        const params = schemas.params.parse(rawParams)
-        const validatedSearchParams = schemas.search.parse(rawSearchParams)
-        const { search, route } = useClientRouteHelpers(
-            params,
-            validatedSearchParams,
+        const { params, search, route } = useClientRouteHelpers<Params, Search>(
+            schemas,
             runtime,
             router
         )
         const additionalProps = extractAdditionalProps(props)
-        
+
         const componentProps: UnwrappedPageProps<Params, Search> & AdditionalProps = {
             ...(additionalProps as AdditionalProps),
             params,
             searchParams: search,
             route,
         }
-        
+
         return <Component {...componentProps} />
     }
-    
-    // Outer wrapper with Suspense boundary for SSG/prerendering support
+
     function WrappedComponent(props: WrapperProps): React.ReactNode {
         return (
             <Suspense fallback={null}>
@@ -353,12 +360,12 @@ export function createPage<
             </Suspense>
         )
     }
-    
-    const displayName = (Component as { displayName?: string; name?: string }).displayName 
-        ?? (Component as { name?: string }).name 
+
+    const displayName = (Component as { displayName?: string; name?: string }).displayName
+        ?? (Component as { name?: string }).name
         ?? 'Component'
     WrappedComponent.displayName = `ClientPage(${displayName})`
-    
+
     return asPageComponent<WrapperProps>(WrappedComponent)
 }
 
@@ -385,28 +392,7 @@ export function withPage<
 // ============================================================================
 
 /**
- * Creates a client-side session-aware page wrapper that:
- * 1. Unwraps params/searchParams using React.use()
- * 2. Uses the useSession hook from the configured auth adapter
- * 3. Passes session and loading state as props
- * 
- * IMPORTANT: The inner component that calls React.use() is wrapped in a Suspense
- * boundary to support Next.js 15+ SSG/prerendering where accessing dynamic data
- * (searchParams) requires Suspense.
- * 
- * @example
- * ```tsx
- * 'use client'
- * import { createSessionPage } from '@repo/declarative-routing/page-wrappers'
- * 
- * export default createSessionPage(
- *   { params: z.object({ id: z.string() }), search: z.object({}) },
- *   ({ params, searchParams, session, isLoading }) => {
- *     if (isLoading) return <div>Loading...</div>
- *     return <div>{session?.user.name} - {params.id}</div>
- *   }
- * )
- * ```
+ * Creates a client-side session-aware page wrapper.
  */
 export function createSessionPage<
     Params extends z.ZodType,
@@ -416,52 +402,41 @@ export function createSessionPage<
 >(
     schemas: SchemasConfig<Params, Search>,
     Component: React.ComponentType<
-        UnwrappedPageProps<Params, Search> & 
-        AdditionalProps & 
+        UnwrappedPageProps<Params, Search> &
+        AdditionalProps &
         ClientSessionProps<S>
     >,
     _options?: SessionOptions,
     runtime?: RouteRuntimeConfig<Params, Search>
 ): React.ComponentType<NextPagePropsInternal<Params, Search> & BasePageProps & Omit<AdditionalProps, keyof ClientSessionProps<S>>> {
-    // _options is kept for API consistency with server.tsx but not needed on client
     void _options
-    
+
     type WrapperProps = NextPagePropsInternal<Params, Search> & BasePageProps & Omit<AdditionalProps, keyof ClientSessionProps<S>>
-    
-    // Inner component that unwraps promises using React.use()
-    // Must be inside Suspense boundary for SSG/prerendering compatibility
+
     function InnerComponent(props: WrapperProps): React.ReactNode {
         const authAdapter = getClientAuthAdapter()
         const sessionHook = authAdapter.useSession()
         const router = useRouter()
-        
-        // Use React.use() to unwrap promises
-        const rawParams = use(props.params)
-        const rawSearchParams = use(props.searchParams)
-        const params = schemas.params.parse(rawParams)
-        const validatedSearchParams = schemas.search.parse(rawSearchParams)
-        const { search, route } = useClientRouteHelpers(
-            params,
-            validatedSearchParams,
+        const { params, search, route } = useClientRouteHelpers<Params, Search>(
+            schemas,
             runtime,
             router
         )
         const additionalProps = extractAdditionalProps(props)
-        
+
         const componentProps = {
             ...(additionalProps as AdditionalProps),
             params,
             searchParams: search,
             route,
             session: sessionHook.data ?? null,
-            isLoading: sessionHook.isPending,
+            isLoading: sessionHook.isPending === true,
             refetch: () => { void sessionHook.refetch() },
         } as UnwrappedPageProps<Params, Search> & AdditionalProps & ClientSessionProps<S>
-        
+
         return <Component {...componentProps} />
     }
-    
-    // Outer wrapper with Suspense boundary for SSG/prerendering support
+
     function WrappedComponent(props: WrapperProps): React.ReactNode {
         return (
             <Suspense fallback={null}>
@@ -469,12 +444,12 @@ export function createSessionPage<
             </Suspense>
         )
     }
-    
-    const displayName = (Component as { displayName?: string; name?: string }).displayName 
-        ?? (Component as { name?: string }).name 
+
+    const displayName = (Component as { displayName?: string; name?: string }).displayName
+        ?? (Component as { name?: string }).name
         ?? 'Component'
     WrappedComponent.displayName = `ClientSessionPage(${displayName})`
-    
+
     return asPageComponent<WrapperProps>(WrappedComponent)
 }
 
@@ -484,23 +459,6 @@ export function createSessionPage<
 
 /**
  * Higher-Order Component that wraps a component with session access.
- * Uses the configured client auth adapter's useSession hook.
- * 
- * @example
- * ```tsx
- * 'use client'
- * import { withClientSession } from '@repo/declarative-routing/page-wrappers'
- * 
- * interface MyComponentProps {
- *   title: string
- * }
- * 
- * function MyComponent({ title, session, isLoading }: MyComponentProps & ClientSessionProps) {
- *   return <div>{title}: {session?.user.name}</div>
- * }
- * 
- * export default withClientSession(MyComponent)
- * ```
  */
 export function withClientSession<
     P extends ClientSessionProps<S>,
@@ -511,81 +469,41 @@ export function withClientSession<
     function WithSessionComponent(props: Omit<P, keyof ClientSessionProps<S>>): React.ReactNode {
         const authAdapter = getClientAuthAdapter()
         const sessionHook = authAdapter.useSession()
-        
+
         const enhancedProps = {
             ...props,
             session: sessionHook.data ?? null,
-            isLoading: sessionHook.isPending,
+            isLoading: sessionHook.isPending === true,
             refetch: () => { void sessionHook.refetch() },
         } as P
-        
+
         return <WrappedComponent {...enhancedProps} />
     }
-    
+
     const displayName = (WrappedComponent as { displayName?: string; name?: string }).displayName
         ?? (WrappedComponent as { name?: string }).name
         ?? 'Component'
     WithSessionComponent.displayName = `WithClientSession(${displayName})`
-    
+
     return WithSessionComponent
 }
 
 // ============================================================================
-// Factory Pattern - Create pre-configured page wrappers
+// Factory Pattern
 // ============================================================================
 
-/**
- * Configuration for creating page wrappers with auth injection.
- */
 export type CreatePageWrappersConfig<S extends Session = Session> = {
-    /**
-     * Client auth adapter - provides useSession hook.
-     */
     auth: ClientAuthAdapter
-    /**
-     * @internal Type marker for session type inference - not used at runtime
-     */
     _sessionType?: S
 }
 
-/**
- * Creates pre-configured page wrapper functions with auth already injected.
- * This is the client-side version that uses useSession hook.
- * 
- * @example
- * ```tsx
- * // In a client module
- * 'use client'
- * import { createPageWrappers } from '@repo/declarative-routing/page-wrappers'
- * import { useSession } from '@/lib/auth'
- * 
- * export const { createPage, createSessionPage } = createPageWrappers({
- *   auth: {
- *     useSession: () => {
- *       const session = useSession()
- *       return { data: session.data, isPending: session.isPending, refetch: session.refetch }
- *     }
- *   },
- * })
- * ```
- */
 export function createPageWrappers<S extends Session = Session>(
     config: CreatePageWrappersConfig<S>
 ) {
-    // Configure the global auth adapter
     configureClientAuth(config.auth)
-    
-    // Return bound versions of the page wrappers
+
     return {
-        /**
-         * Create a page that unwraps params/search using React.use().
-         */
         createPage,
-        
-        /**
-         * Create a session-aware page with auth already configured.
-         * Uses useSession hook from configured adapter.
-         */
         createSessionPage: <
             Params extends z.ZodType,
             Search extends z.ZodType,
@@ -593,8 +511,8 @@ export function createPageWrappers<S extends Session = Session>(
         >(
             schemas: SchemasConfig<Params, Search>,
             Component: React.ComponentType<
-                UnwrappedPageProps<Params, Search> & 
-                AdditionalProps & 
+                UnwrappedPageProps<Params, Search> &
+                AdditionalProps &
                 ClientSessionProps<S>
             >,
             options?: SessionOptions,

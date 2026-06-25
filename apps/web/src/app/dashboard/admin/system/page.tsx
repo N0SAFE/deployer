@@ -699,9 +699,6 @@ export default function AdminSystemPage() {
     }
   }
 
-  const surfaceCardClass =
-    'border-slate-200/80 bg-white/85 shadow-sm backdrop-blur supports-backdrop-filter:bg-white/70 dark:border-slate-800 dark:bg-slate-950/45'
-
   const shortId = (id: string | undefined | null, len = 8): string => {
     if (!id) return '—'
     return id.length > len ? id.slice(0, len) : id
@@ -763,7 +760,7 @@ export default function AdminSystemPage() {
         </div>
 
         {/* ── Tabs ──────────────────────────────────────────────────────── */}
-        <Tabs defaultValue="fleet" className="space-y-4">
+        <Tabs defaultValue="fleet" className="space-y-4" orientation="vertical">
           <TabsList className="inline-flex w-full md:w-auto">
             <TabsTrigger value="fleet" className="gap-2"><Server className="h-4 w-4" /> Fleet & Capacity</TabsTrigger>
             <TabsTrigger value="mesh" className="gap-2"><Network className="h-4 w-4" /> Mesh Control</TabsTrigger>

@@ -507,12 +507,12 @@ export abstract class InternalBaseMeshService<
     let reason: "timeout" | "killer_switch" = "timeout";
 
     await new Promise<void>((resolve) => {
-      const timeout = setTimeout(() => {
-        timedOut = true;
-        responseSubscription.unsubscribe();
-        resolve();
-      }, timeoutMs);
-
+      // Declare the subscription BEFORE the timeout so the timeout
+      // callback can safely `unsubscribe()` it. The previous layout
+      // (timeout declared first, subscription second) tripped a TDZ
+      // `ReferenceError` whenever the timeout fired before the next
+      // tick, which then triggered a graceful-shutdown path on the
+      // container.
       const responseSubscription = mesh
         .observe$(
           responseTopic,
@@ -559,6 +559,12 @@ export abstract class InternalBaseMeshService<
             resolve();
           }
         });
+
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        responseSubscription.unsubscribe();
+        resolve();
+      }, timeoutMs);
 
       const requestEnvelope: MeshRequestEnvelope<TRequest> = {
         correlationId,

@@ -24,7 +24,7 @@ import {
 import { Separator } from '@repo/ui/components/shadcn/separator'
 import { Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useSafeQueryStatesFromZod } from '@/utils/useSafeQueryStatesFromZod'
+import { useSafeQueryStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
 
 const NETWORK_LIST_INPUT = {
   query: {

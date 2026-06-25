@@ -7,6 +7,7 @@ import type {
   DockerRuntimeActivityListInput,
 } from "@repo/api-contracts/modules/docker/runtime/activity";
 import type { DockerImageInspectStreamQueryInput } from "@repo/api-contracts/modules/docker/images/stream-inspect";
+import type { DockerRuntimeActivityStreamInput } from "@repo/api-contracts/modules/docker/runtime/activity-stream";
 import type { DockerRuntimeEventsStreamQueryInput } from "@repo/api-contracts/modules/docker/runtime/shared";
 import { AppLogger } from "@repo/logger";
 import { DockerRuntimeActivityDomainService } from "./docker-runtime-activity-domain.service";
@@ -59,6 +60,15 @@ export class DockerRuntimeOrchestratorService {
     });
 
     return this.dockerRuntimeActivityDomainService.getRuntimeActivityById(input);
+  }
+
+  streamRuntimeActivities(input: DockerRuntimeActivityStreamInput = {}) {
+    this.debug("DockerRuntimeOrchestratorService.streamRuntimeActivities", {
+      source: input?.source,
+      action: input?.action,
+    });
+
+    return this.dockerRuntimeActivityDomainService.streamActivities(input);
   }
 
   streamContainerInspect(input: DockerContainerInspectStreamQueryInput) {

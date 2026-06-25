@@ -29,19 +29,19 @@ const OBSERVABLE_PIPE_TAB_CONFIG: Record<
 > = {
   identity: {
     label: "Identity",
-    subtitle: "pipe(map(x => x))",
-    pipe: (p) => p(rxjsMap((value) => value)),
+    subtitle: "obs.pipe(map(x => x))",
+    pipe: (obs) => obs.pipe(rxjsMap((value) => value)),
   },
   "warnings-errors": {
     label: "Warn + Error",
-    subtitle: "pipe(filter(level !== 'info'))",
-    pipe: (p) => p(rxjsFilter((value) => value.level !== "info")),
+    subtitle: "obs.pipe(filter(level !== 'info'))",
+    pipe: (obs) => obs.pipe(rxjsFilter((value) => value.level !== "info")),
   },
   annotated: {
     label: "Annotated",
-    subtitle: "pipe(map(message => '[PIPE] ...'))",
-    pipe: (p) =>
-      p(
+    subtitle: "obs.pipe(map(message => '[PIPE] ...'))",
+    pipe: (obs) =>
+      obs.pipe(
         rxjsMap((value) => ({
           ...value,
           message: `[PIPE] ${value.message}`,
@@ -338,7 +338,7 @@ export function StreamedObservableOptionsQueryPanel() {
       input: { ...DEFAULT_INPUT },
       queryKey: ["streamLogs", "streamed-observable", runToken],
       queryFnOptions: {
-        pipe: (rxjsPipe) => rxjsPipe(rxjsMap((value) => value)),
+        pipe: (obs) => obs.pipe(rxjsMap((value) => value)),
       },
     }),
   );

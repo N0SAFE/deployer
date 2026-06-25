@@ -80,7 +80,7 @@ RUN apk add --no-cache python3 make g++ gcc musl-dev
 # out/bun.lock (root of out/) is corrupted — see turborepo#10783.
 COPY --from=pruner-json /app/out/json/ .
 
-RUN --mount=type=cache,target=/root/.bun --mount=type=cache,target=/root/.cache \
+RUN --mount=type=cache,target=/root/.bun/install/cache \
   bun ci
 
 # ===================================
@@ -104,7 +104,7 @@ COPY --from=pruner-full /app/out/json/bun.lock ./bun.lock
 RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
     PATHS="node_modules"; \
     for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules; do \
-        [ -d "/mnt/installer/$d" ] && PATHS="$PATHS $d"; \
+        if [ -d "/mnt/installer/$d" ]; then PATHS="$PATHS $d"; fi; \
     done && \
     cd /mnt/installer && \
     tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
@@ -157,9 +157,19 @@ RUN --mount=type=bind,from=builder,source=/app,target=/mnt/builder \
     cp -r /mnt/builder/apps/api/dist /app/apps/api/ && \
     cp /mnt/builder/apps/api/package.json /app/apps/api/ && \
     cp -r /mnt/builder/apps/api/scripts /app/apps/api/ && \
-    # Copy drizzle migrations to the path expected by CLI (./src/config/drizzle/migrations)
+    # Copy drizzle migrations to the paths expected by CLI when running
+    # from `apps/api/dist/`. The compiled code resolves migration paths
+    # relative to `import.meta.url` of the dist files. cli.js uses 2 `../`
+    # (→ /app/apps/config/drizzle) and bundled chunks use 4 `../`
+    # (→ /config/drizzle). Mirror the drizzle folder at all paths.
     mkdir -p /app/apps/api/src/config && \
     cp -r /mnt/builder/apps/api/src/config/drizzle /app/apps/api/src/config/drizzle && \
+    mkdir -p /app/apps/api/dist/config && \
+    cp -r /mnt/builder/apps/api/src/config/drizzle /app/apps/api/dist/config/drizzle && \
+    mkdir -p /app/apps/config && \
+    cp -r /mnt/builder/apps/api/src/config/drizzle /app/apps/config/drizzle && \
+    mkdir -p /config && \
+    cp -r /mnt/builder/apps/api/src/config/drizzle /config/drizzle && \
     # Copy packages based on their package.json exports field
     # This parses exports to find which directories (src, dist, etc.) are actually needed
     for pkgJson in /mnt/builder/packages/*/package.json /mnt/builder/packages/*/*/package.json; do \
@@ -187,7 +197,7 @@ RUN --mount=type=bind,from=builder,source=/app,target=/mnt/builder \
     # streams lose per-package symlinks during extraction)
     PATHS="node_modules"; \
     for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules; do \
-        [ -d "/mnt/builder/$d" ] && PATHS="$PATHS $d"; \
+        if [ -d "/mnt/builder/$d" ]; then PATHS="$PATHS $d"; fi; \
     done && \
     cd /mnt/builder && \
     tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
@@ -195,13 +205,13 @@ RUN --mount=type=bind,from=builder,source=/app,target=/mnt/builder \
     # Set ownership for all copied files
     chown -R nestjs:nodejs /app
 
-# Prune devDependencies from node_modules for the final production image.
+# Re-install in production mode to drop devDependencies from node_modules.
 # We installed ALL deps (dev + prod) in the installer stage so the builder
-# could compile TypeScript. Now that the build is done, remove devDeps
-# (type defs, build tools, test runners, etc.) to keep the image minimal
-# and reduce attack surface. `bun pm prune` reads each workspace's
-# package.json devDependencies and removes them from node_modules.
-RUN bun pm prune --production
+# could compile TypeScript. Now that the build is done, re-run install with
+# --production to keep only runtime dependencies. Note: bun 1.3.x does not
+# support `bun pm prune` (unknown command), so we re-install instead.
+RUN --mount=type=cache,target=/root/.bun/install/cache,sharing=locked \
+    bun install --frozen-lockfile --production
 
 # Switch to non-root user
 USER nestjs

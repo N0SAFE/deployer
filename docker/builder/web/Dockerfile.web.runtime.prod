@@ -71,7 +71,7 @@ RUN apk add --no-cache python3 make g++
 # out/json/ contains a consistent pruned bun.lock — use that one.
 COPY --from=pruner-json /app/out/json/ .
 
-RUN --mount=type=cache,target=/root/.bun --mount=type=cache,target=/root/.cache \
+RUN --mount=type=cache,target=/root/.bun/install/cache \
   bun ci
 
 # ===================================
@@ -98,7 +98,7 @@ RUN mkdir -p /app/apps/web/routes && chmod -R 755 /app/apps/web/routes
 RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
     PATHS="node_modules"; \
     for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules; do \
-        [ -d "/mnt/installer/$d" ] && PATHS="$PATHS $d"; \
+        if [ -d "/mnt/installer/$d" ]; then PATHS="$PATHS $d"; fi; \
     done && \
     cd /mnt/installer && \
     tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \

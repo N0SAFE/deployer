@@ -88,6 +88,15 @@ function createOrpcInternal(): OrpcClient {
 // This adds .cache property to all query endpoints with get/set/update/invalidate/remove methods
 export const orpc: OrpcClient = createOrpcInternal();
 
+/**
+ * Raw ORPC client (callable). Use this when you need to make a direct
+ * call outside of `useQuery` / `useMutation` — e.g. inside a custom
+ * `fetch` function for an SSE-driven in-memory store.
+ *
+ * For React components, prefer the `orpc` TanStack utils + `useQuery`.
+ */
+export const orpcClient = client;
+
 // Export appContract for type checking and testing
 export { appContract };
 

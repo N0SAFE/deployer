@@ -107,10 +107,17 @@ export class SystemMeshController {
         });
     }
 
+    // Dashboard-facing operations are gated by `requireAuth()` (logged-in
+    // user session) instead of `requireMesh()` (peer-to-peer internal key).
+    // The dashboard at /dashboard/admin/system is a user-facing tool; it
+    // does not hold the mesh shared secret and shouldn't need to. Peer-only
+    // operations (`heartbeatPeer`, `publishControlEnvelope`, `streamSession`,
+    // `upsertResourceIndex`, `registerNode`) keep `requireMesh()` below.
+
     @Implement(meshContract.getLocalNode)
     getLocalNode() {
         return implement(meshContract.getLocalNode)
-            .use(requireMesh())
+            .use(requireAuth())
             .handler(() => {
                 return this.meshTopologyService.getLocalNode();
             });
@@ -119,7 +126,7 @@ export class SystemMeshController {
     @Implement(meshContract.getNodeMetrics)
     getNodeMetrics() {
         return implement(meshContract.getNodeMetrics)
-            .use(requireMesh())
+            .use(requireAuth())
             .handler(async () => {
                 return this.systemMetricsService.getSnapshot();
             });
@@ -128,7 +135,7 @@ export class SystemMeshController {
     @Implement(meshContract.listPeers)
     listPeers() {
         return implement(meshContract.listPeers)
-            .use(requireMesh())
+            .use(requireAuth())
             .handler(() => {
                 return this.meshTopologyService.listPeers();
             });
@@ -137,7 +144,7 @@ export class SystemMeshController {
     @Implement(meshContract.listPeerSessions)
     listPeerSessions() {
         return implement(meshContract.listPeerSessions)
-            .use(requireMesh())
+            .use(requireAuth())
             .handler(() => {
                 return this.meshTopologyService.listPeerSessions();
             });
@@ -146,7 +153,7 @@ export class SystemMeshController {
     @Implement(meshContract.listEventStreams)
     listEventStreams() {
         return implement(meshContract.listEventStreams)
-            .use(requireMesh())
+            .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.coreEventSyncService.listStreams(input.query);
             });
@@ -155,7 +162,7 @@ export class SystemMeshController {
     @Implement(meshContract.findEventStreamById)
     findEventStreamById() {
         return implement(meshContract.findEventStreamById)
-            .use(requireMesh())
+            .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.coreEventSyncService.getStreamById(input.params.id);
             });
@@ -164,7 +171,7 @@ export class SystemMeshController {
     @Implement(meshContract.subscribeEventStream)
     subscribeEventStream() {
         return implement(meshContract.subscribeEventStream)
-            .use(requireMesh())
+            .use(requireAuth())
             .handler(({ input }) => {
                 return this.coreEventSyncService.streamSync({
                     id: input.params.id,
@@ -177,7 +184,7 @@ export class SystemMeshController {
     @Implement(meshContract.planStreamRoute)
     planStreamRoute() {
         return implement(meshContract.planStreamRoute)
-            .use(requireMesh())
+            .use(requireAuth())
             .handler(({ input, context }) => {
                 return this.meshTopologyService.planStreamRoute({
                     ...input,
@@ -189,7 +196,7 @@ export class SystemMeshController {
     @Implement(meshContract.connectPeer)
     connectPeer() {
         return implement(meshContract.connectPeer)
-            .use(requireMesh())
+            .use(requireAuth())
             .handler(({ input }) => {
                 return this.meshTopologyService.connectPeer(input);
             });
@@ -198,7 +205,7 @@ export class SystemMeshController {
     @Implement(meshContract.disconnectPeer)
     disconnectPeer() {
         return implement(meshContract.disconnectPeer)
-            .use(requireMesh())
+            .use(requireAuth())
             .handler(({ input }) => {
                 return this.meshTopologyService.disconnectPeer(input.params.sessionId, input.body);
             });
@@ -216,7 +223,7 @@ export class SystemMeshController {
     @Implement(meshContract.membershipSnapshot)
     membershipSnapshot() {
         return implement(meshContract.membershipSnapshot)
-            .use(requireMesh())
+            .use(requireAuth())
             .handler(({ context }) => {
                 return this.meshTopologyService.getMembershipSnapshot({
                     organizationId: this.resolveOrganizationScope(null, context),
@@ -227,7 +234,7 @@ export class SystemMeshController {
     @Implement(meshContract.reconcileMembership)
     reconcileMembership() {
         return implement(meshContract.reconcileMembership)
-            .use(requireMesh())
+            .use(requireAuth())
             .handler(({ input, context }) => {
                 return this.meshTopologyService.reconcileMembership({
                     ...input,
@@ -239,7 +246,7 @@ export class SystemMeshController {
     @Implement(meshContract.streamTopology)
     streamTopology() {
         return implement(meshContract.streamTopology)
-            .use(requireMesh())
+            .use(requireAuth())
             .handler(({ input, context }) => {
                 return this.meshTopologyService.observeTopology({
                     organizationId: this.resolveOrganizationScope(null, context),
@@ -254,7 +261,7 @@ export class SystemMeshController {
     @Implement(meshContract.streamEvents)
     streamEvents() {
         return implement(meshContract.streamEvents)
-            .use(requireMesh())
+            .use(requireAuth())
             .handler(({ input, context }) => {
                 return this.meshTopologyService.observeRuntimeEvents({
                     organizationId: this.resolveOrganizationScope(null, context),
@@ -288,7 +295,7 @@ export class SystemMeshController {
     @Implement(meshContract.lookupResource)
     lookupResource() {
         return implement(meshContract.lookupResource)
-            .use(requireMesh())
+            .use(requireAuth())
             .handler(({ input, context }) => {
                 return this.meshTopologyService.lookupResource({
                     ...input,
@@ -312,7 +319,7 @@ export class SystemMeshController {
     @Implement(meshContract.planQueuePartition)
     planQueuePartition() {
         return implement(meshContract.planQueuePartition)
-            .use(requireMesh())
+            .use(requireAuth())
             .handler(({ input, context }) => {
                 return this.meshTopologyService.planQueuePartitionOwnership({
                     ...input,

@@ -220,6 +220,18 @@ function createServerRouteHelpers<
     const searchReset = () =>
         Promise.resolve(buildUrl(params as z.input<Params>, {} as z.input<Search>))
 
+    const setParams = (value: z.input<Params> | null) => {
+        const nextParams =
+            value ?? ({} as z.input<Params>)
+        return Promise.resolve(buildUrl(nextParams, search as z.input<Search>))
+    }
+
+    const setSearchParams = (_value: z.input<Search> | null) => {
+        // Server-side: no-op, just return a resolved promise. The URL is
+        // already on the response; client navigation takes care of state.
+        return Promise.resolve()
+    }
+
     return {
         routePath: runtime?.routePath,
         routeName: runtime?.routeName,
@@ -229,6 +241,8 @@ function createServerRouteHelpers<
         buildUrl,
         push: navigate,
         replace,
+        setParams,
+        setSearchParams,
         setSearch,
         searchUpdate,
         searchReplace,

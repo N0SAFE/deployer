@@ -5,10 +5,10 @@ import { DockerContainerDetailModalTrigger } from '../_components/container-deta
 import { DockerInlineLoadingState, DockerTableLoadingRows } from '../_components/docker-loading-states'
 import { DockerImageDetailModalTrigger } from '../_components/docker-image-detail-modal'
 import {
-  useContainerLiveUpdate,
   useDockerContainerList,
   useDockerImageList,
 } from '@/domains/docker/hooks'
+import { useDockerLiveRefetch } from '@/domains/docker/use-docker-live'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
@@ -96,11 +96,13 @@ export default function DashboardDockerShellPage() {
   const { data: containerEntityData } = containerListQuery
   const { data: imageEntityData } = imageListQuery
 
-  useContainerLiveUpdate(() => {
-    void imageListQuery.refetch()
-    return containerListQuery.refetch()
-  }, {
-    cooldownMs: 900,
+  useDockerLiveRefetch({
+    on: { container: ['create', 'update', 'destroy', 'die', 'start', 'stop', 'restart', 'kill', 'pause', 'unpause', 'rename', 'attach', 'detach'] },
+    onData: () => {
+      void imageListQuery.refetch()
+      void containerListQuery.refetch()
+    },
+    debounceMs: 900,
   })
 
   const containerEntities = useMemo(() => containerEntityData?.data ?? [], [containerEntityData?.data])

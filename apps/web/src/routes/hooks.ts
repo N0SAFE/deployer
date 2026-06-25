@@ -4,7 +4,7 @@ import {
     useSearchParams as useNextSearchParams,
 } from 'next/navigation'
 import { z } from 'zod'
-import { QueryStateFromZodOptions, useSafeQueryStatesFromZod } from '../utils/useSafeQueryStatesFromZod'
+import { QueryStateFromZodOptions, useSafeQueryStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
 
 import { emptySchema, RouteBuilder } from './makeRoute'
 

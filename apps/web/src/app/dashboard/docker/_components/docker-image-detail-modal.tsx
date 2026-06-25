@@ -1,7 +1,8 @@
 'use client'
 
 import { type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { useDockerImageInspect, useDockerImageSecurityScanStream, useDockerRuntimeEntityDetail, useEventTrigger } from '@/domains/docker/hooks'
+import { useDockerImageInspect, useDockerImageSecurityScanStream, useDockerRuntimeEntityDetail } from '@/domains/docker/hooks'
+import { useDockerLiveRefetch } from '@/domains/docker/use-docker-live'
 import {
   dockerImageInspectDetailSchema,
   type DockerImageSecurityScanEvent,
@@ -988,16 +989,14 @@ function DockerImageDetailContent({
     setSecuritySubTab('pulling')
   }, [activeTab, hasCompletedScan, scannerExecutionLogEvents.length])
 
-  useEventTrigger(
-    (event) => matchesRuntimeImageEvent(event, id) && REFETCH_INSPECT_RUNTIME_ACTIONS.has(event.action),
-    () => {
+  useDockerLiveRefetch({
+    on: { image: ['pull', 'create', 'import', 'load', 'tag', 'untag', 'push', 'delete', 'prune'] },
+    onData: () => {
       void imageInspectQuery.refetch()
     },
-    {
-      enabled: open,
-      cooldownMs: 650,
-    },
-  )
+    enabled: open,
+    debounceMs: 650,
+  })
 
   useEffect(() => {
     const events = streamEventsForActiveSession

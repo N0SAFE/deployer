@@ -39,6 +39,7 @@ import {
   dockerRuntimeEventsStreamContract,
   dockerRuntimeSnapshotContract,
 } from "./runtime";
+import { dockerEntityContract, dockerEntityStreamContract, dockerEntityInspectContract, dockerEntityListContract, dockerEntityListInputSchema, dockerEntityInspectInputSchema, dockerEntityStreamInputSchema } from "./entity";
 
 export const dockerContract = oc.tag("Core Docker").prefix("/docker").router({
   containers: dockerContainersContract,
@@ -48,6 +49,7 @@ export const dockerContract = oc.tag("Core Docker").prefix("/docker").router({
   registries: dockerRegistriesContract,
   stacks: dockerStacksContract,
   runtime: dockerRuntimeContract,
+  entity: dockerEntityContract,
 });
 
 export type DockerContract = typeof dockerContract;
@@ -90,4 +92,17 @@ export {
   dockerRuntimeContract,
   dockerRuntimeEventsStreamContract,
   dockerRuntimeSnapshotContract,
+  dockerEntityContract,
+  dockerEntityListContract,
+  dockerEntityInspectContract,
+  dockerEntityStreamContract,
+  dockerEntityListInputSchema,
+  dockerEntityInspectInputSchema,
+  dockerEntityStreamInputSchema,
 };
+
+export type {
+  DockerEntityListInput,
+  DockerEntityInspectInput,
+  DockerEntityStreamInput,
+} from "./entity";

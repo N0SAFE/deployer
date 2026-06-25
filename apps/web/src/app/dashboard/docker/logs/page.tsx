@@ -6,11 +6,11 @@ import { DockerContainerDetailModalTrigger } from '../_components/container-deta
 import { DockerInlineLoadingState } from '../_components/docker-loading-states'
 import { DockerSelectionToggle } from '../_components/docker-page-utilities'
 import {
-  useContainerLiveUpdate,
   useDockerContainerList,
   useDockerRuntimeSseState,
   useDockerServiceList,
 } from '@/domains/docker/hooks'
+import { useDockerLiveRefetch } from '@/domains/docker/use-docker-live'
 import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
@@ -72,8 +72,10 @@ export default function DashboardDockerLogsPage() {
     return serviceListQuery.refetch()
   }, [containerListQuery, serviceListQuery])
 
-  useContainerLiveUpdate(handleContainerLiveUpdate, {
-    cooldownMs: 900,
+  useDockerLiveRefetch({
+    on: { container: ['create', 'update', 'destroy', 'die', 'start', 'stop', 'restart'] },
+    onData: handleContainerLiveUpdate,
+    debounceMs: 900,
   })
 
   const { data: containerEntityData } = containerListQuery

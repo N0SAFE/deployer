@@ -97,10 +97,42 @@ export class InitializationService implements OnModuleInit {
                 this.logger.log(
                     '✅ Node already configured — unblocking dependent modules'
                 )
+                // Persisted config may be missing databaseUrl if the env var
+                // wasn't set during the original auto-setup, or it may have
+                // been written as an empty string. Fall back to the current
+                // process env so a later operator change to .env doesn't
+                // permanently brick the node. We also persist the resolved
+                // URL back to the row so subsequent restarts pick it up
+                // consistently.
+                const storedUrl = config.databaseUrl?.trim() ?? ''
+                const resolvedDatabaseUrl =
+                    storedUrl.length > 0
+                        ? storedUrl
+                        : (process.env.DATABASE_URL?.trim() ?? '') || null
+                if (
+                    storedUrl.length === 0 &&
+                    resolvedDatabaseUrl &&
+                    config.strategy === 'local'
+                ) {
+                    this.nodeConfigRepository.upsert({
+                        nodeId: config.nodeId,
+                        strategy: config.strategy,
+                        databaseUrl: resolvedDatabaseUrl,
+                        configuredAt:
+                            config.configuredAt instanceof Date
+                                ? config.configuredAt.toISOString()
+                                : String(config.configuredAt),
+                        meshUrlsSnapshot: config.meshUrlsSnapshot ?? [],
+                        updatedAt: new Date().toISOString(),
+                    })
+                    this.logger.log(
+                        '🩹 Repaired node_config row with current DATABASE_URL'
+                    )
+                }
                 this.emitCompleted({
                     nodeId: config.nodeId,
                     connectedAt: new Date(config.configuredAt),
-                    databaseUrl: config.databaseUrl,
+                    databaseUrl: resolvedDatabaseUrl,
                     strategy: config.strategy,
                 })
             } else if (this.envService.get("DEV_AUTO_SETUP")) {

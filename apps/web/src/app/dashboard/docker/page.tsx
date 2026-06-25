@@ -1,12 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { DockerContainerDetailModalTrigger } from './_components/container-detail-modal'
 import { DockerInlineLoadingState, DockerTableLoadingRows } from './_components/docker-loading-states'
 import {
-  useContainerLiveUpdate,
-  useEventTrigger,
   useDockerContainerList,
   useDockerImageList,
   useDockerFleetServers,
@@ -14,6 +12,7 @@ import {
   useDockerRuntimeSseState,
   useDockerServiceList,
 } from '@/domains/docker/hooks'
+import { useDockerLiveRefetch } from '@/domains/docker/use-docker-live'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
@@ -93,25 +92,15 @@ export default function DashboardDockerPage() {
   const runtimeSnapshotQuery = useDockerRuntimeSnapshot()
   const { status: runtimeSseStatus } = useDockerRuntimeSseState()
 
-  useContainerLiveUpdate(() => {
-    void containerListQuery.refetch()
-    void imageListQuery.refetch()
-    return serviceListQuery.refetch()
-  }, {
-    cooldownMs: 1000,
-  })
-
-  const handleNodeRuntimeEvent = useCallback(() => {
-    void serviceListQuery.refetch()
-  }, [serviceListQuery])
-
-  useEventTrigger(
-    (event) => event.source === 'node',
-    handleNodeRuntimeEvent,
-    {
-      cooldownMs: 1000,
+  useDockerLiveRefetch({
+    on: { container: ['create', 'update', 'destroy', 'die', 'start', 'stop', 'restart', 'kill', 'pause', 'unpause', 'rename', 'attach', 'detach'] },
+    onData: () => {
+      void containerListQuery.refetch()
+      void imageListQuery.refetch()
+      void serviceListQuery.refetch()
     },
-  )
+    debounceMs: 1000,
+  })
 
   const { data: containerEntityData, error: containersError } = containerListQuery
   const { data: imageEntityData, error: imagesError } = imageListQuery
