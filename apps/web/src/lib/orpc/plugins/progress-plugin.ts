@@ -3,6 +3,7 @@
 // ============================================
 
 import { StandardLinkOptions, StandardLinkPlugin } from "@orpc/client/standard";
+import { createContextFilterDebugLogger } from "@/lib/logging/context-filter-debug";
 
 export interface ProgressEvent {
   loaded: number;
@@ -18,6 +19,9 @@ type ProgressSubscriber = (event: ProgressEvent) => void;
 const PROGRESS_SUBSCRIPTION_SYMBOL = Symbol("orpc.progress.subscription");
 const PROGRESS_TRACKER_SYMBOL = Symbol("orpc.progress.tracker");
 
+// Debug logger gated by APP_DEBUG_CONTEXT_FILTER env var
+const debugLogger = createContextFilterDebugLogger("ProgressPlugin", "orpc-progress");
+
 // ============================================
 // Progress Subscription Manager
 // ============================================
@@ -29,78 +33,78 @@ class ProgressSubscription {
   private latestEvent: ProgressEvent | null = null;
 
   subscribe(callback: ProgressSubscriber): () => void {
-    console.log('[ProgressPlugin] Subscribing to general progress events');
+    debugLogger("Subscribing to general progress events");
     this.subscribers.add(callback);
-    console.log(`[ProgressPlugin] Total general subscribers: ${String(this.subscribers.size)}`);
+    debugLogger("Total general subscribers", { count: this.subscribers.size });
 
     // Send latest event to new subscriber if available
     if (this.latestEvent) {
-      console.log('[ProgressPlugin] Sending latest event to new subscriber:', this.latestEvent);
+      debugLogger("Sending latest event to new subscriber", { event: this.latestEvent });
       callback(this.latestEvent);
     }
 
     return () => {
-      console.log('[ProgressPlugin] Unsubscribing from general progress events');
+      debugLogger("Unsubscribing from general progress events");
       this.subscribers.delete(callback);
     };
   }
 
   subscribeUpload(callback: ProgressSubscriber): () => void {
-    console.log('[ProgressPlugin] Subscribing to upload progress events');
+    debugLogger("Subscribing to upload progress events");
     this.uploadSubscribers.add(callback);
-    console.log(`[ProgressPlugin] Total upload subscribers: ${String(this.uploadSubscribers.size)}`);
+    debugLogger("Total upload subscribers", { count: this.uploadSubscribers.size });
     return () => {
-      console.log('[ProgressPlugin] Unsubscribing from upload progress events');
+      debugLogger("Unsubscribing from upload progress events");
       this.uploadSubscribers.delete(callback);
     };
   }
 
   subscribeDownload(callback: ProgressSubscriber): () => void {
-    console.log('[ProgressPlugin] Subscribing to download progress events');
+    debugLogger("Subscribing to download progress events");
     this.downloadSubscribers.add(callback);
-    console.log(`[ProgressPlugin] Total download subscribers: ${String(this.downloadSubscribers.size)}`);
+    debugLogger("Total download subscribers", { count: this.downloadSubscribers.size });
     return () => {
-      console.log('[ProgressPlugin] Unsubscribing from download progress events');
+      debugLogger("Unsubscribing from download progress events");
       this.downloadSubscribers.delete(callback);
     };
   }
 
   emit(event: ProgressEvent) {
-    console.log(`[ProgressPlugin] Emitting ${event.phase} progress:`, {
+    debugLogger("Emitting progress", {
       loaded: event.loaded,
       total: event.total,
       percentage: event.percentage.toFixed(2),
-      phase: event.phase
+      phase: event.phase,
     });
     this.latestEvent = event;
 
     // Emit to all general subscribers
-    console.log(`[ProgressPlugin] Notifying ${String(this.subscribers.size)} general subscribers`);
+    debugLogger("Notifying general subscribers", { count: this.subscribers.size });
     this.subscribers.forEach((callback) => {
       try {
         callback(event);
       } catch (error) {
-        console.error("Error in progress subscriber:", error);
+        debugLogger("subscriber_error", { error });
       }
     });
 
     // Emit to phase-specific subscribers
     if (event.phase === "upload") {
-      console.log(`[ProgressPlugin] Notifying ${String(this.uploadSubscribers.size)} upload subscribers`);
+      debugLogger("Notifying upload subscribers", { count: this.uploadSubscribers.size });
       this.uploadSubscribers.forEach((callback) => {
         try {
           callback(event);
         } catch (error) {
-          console.error("Error in upload subscriber:", error);
+          debugLogger("upload_subscriber_error", { error });
         }
       });
     } else if (event.phase === "download") {
-      console.log(`[ProgressPlugin] Notifying ${String(this.downloadSubscribers.size)} download subscribers`);
+      debugLogger("Notifying download subscribers", { count: this.downloadSubscribers.size });
       this.downloadSubscribers.forEach((callback) => {
         try {
           callback(event);
         } catch (error) {
-          console.error("Error in download subscriber:", error);
+          debugLogger("download_subscriber_error", { error });
         }
       });
     }
@@ -142,7 +146,7 @@ class ProgressTracker {
   }
 
   updateUpload(loaded: number, total: number) {
-    console.log(`[ProgressTracker] Upload progress update: ${String(loaded)}/${String(total)} bytes`);
+    debugLogger("Upload progress update", { loaded, total });
     this.uploadLoaded = loaded;
     this.uploadTotal = total;
 
@@ -158,7 +162,7 @@ class ProgressTracker {
   }
 
   updateDownload(loaded: number, total: number) {
-    console.log(`[ProgressTracker] Download progress update: ${String(loaded)}/${String(total)} bytes`);
+    debugLogger("Download progress update", { loaded, total });
     this.downloadLoaded = loaded;
     this.downloadTotal = total;
 
@@ -194,26 +198,26 @@ async function createUploadProgressStream(
   body: BodyInit,
   tracker: ProgressTracker,
 ): Promise<ReadableStream<Uint8Array>> {
-  console.log('[ProgressPlugin] Creating upload progress stream');
+  debugLogger("Creating upload progress stream");
   let stream: ReadableStream<Uint8Array>;
   let total = 0;
   
 
   if (body instanceof ReadableStream) {
-    console.log('[ProgressPlugin] Body is ReadableStream (size unknown)');
+    debugLogger("Body is ReadableStream (size unknown)");
     stream = body as ReadableStream<Uint8Array>;
   } else if (body instanceof Blob) {
     total = body.size;
-    console.log(`[ProgressPlugin] Body is Blob (size: ${String(total)} bytes)`);
+    debugLogger("Body is Blob", { total });
     stream = body.stream();
   } else if (body instanceof ArrayBuffer) {
     total = body.byteLength;
-    console.log(`[ProgressPlugin] Body is ArrayBuffer (size: ${String(total)} bytes)`);
+    debugLogger("Body is ArrayBuffer", { total });
     stream = new Blob([body]).stream();
   } else if (body instanceof FormData) {
     // FormData doesn't have a direct size property and can't be converted to Blob directly
     // We'll stream it without a known size
-    console.log(`[ProgressPlugin] Body is FormData (size unknown)`);
+    debugLogger("Body is FormData (size unknown)");
     const response = new Response(body);
     const blob = await response.blob();
     total = blob.size;
@@ -221,18 +225,18 @@ async function createUploadProgressStream(
   } else if (typeof body === "string") {
     const blob = new Blob([body]);
     total = blob.size;
-    console.log(`[ProgressPlugin] Body is string (size: ${String(total)} bytes)`);
+    debugLogger("Body is string", { total });
     stream = blob.stream();
   } else if (body instanceof URLSearchParams) {
     const blob = new Blob([body.toString()]);
     total = blob.size;
-    console.log(`[ProgressPlugin] Body is URLSearchParams (size: ${String(total)} bytes)`);
+    debugLogger("Body is URLSearchParams", { total });
     stream = blob.stream();
   } else {
     const serialized = typeof body === 'object' ? JSON.stringify(body) : String(body);
     const blob = new Blob([serialized]);
     total = blob.size;
-    console.log(`[ProgressPlugin] Body is unknown type (size: ${String(total)} bytes)`);
+    debugLogger("Body is unknown type", { total });
     stream = blob.stream();
   }
 
@@ -241,14 +245,14 @@ async function createUploadProgressStream(
 
   return new ReadableStream({
     async start(controller) {
-      console.log('[ProgressPlugin] Starting upload stream read');
+      debugLogger("Starting upload stream read");
       try {
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         while (true) {
           const { done, value } = await reader.read();
 
           if (done) {
-            console.log('[ProgressPlugin] Upload stream read complete');
+            debugLogger("Upload stream read complete");
             if (total > 0) {
               tracker.updateUpload(total, total);
             }
@@ -263,13 +267,13 @@ async function createUploadProgressStream(
           controller.enqueue(value);
         }
       } catch (error) {
-        console.error('[ProgressPlugin] Error in upload stream:', error);
+        debugLogger("upload_stream_error", { error });
         controller.error(error);
         throw error;
       }
     },
     async cancel() {
-      console.log('[ProgressPlugin] Upload stream cancelled');
+      debugLogger("Upload stream cancelled");
       await reader.cancel();
     },
   });
@@ -303,13 +307,13 @@ export class ProgressPlugin<
     link.clientInterceptors.push(async (options) => {
       const { context, request } = options;
 
-      console.log('[ProgressPlugin] ===== Client Interceptor called =====');
-      console.log('[ProgressPlugin] Context:', context);
-      console.log('[ProgressPlugin] Request body:', request.body ? 'present' : 'none');
+      debugLogger("Client Interceptor called");
+      debugLogger("Context", { context });
+      debugLogger("Request body", { present: Boolean(request.body) });
 
       // Check if we have any progress callbacks
       if (!context.onProgress && !context.onUploadProgress && !context.onDownloadProgress) {
-        console.log('[ProgressPlugin] No progress callbacks, skipping');
+        debugLogger("No progress callbacks, skipping");
         return await options.next(options);
       }
 
@@ -319,15 +323,15 @@ export class ProgressPlugin<
       const unsubscribers: (() => void)[] = [];
 
       if (context.onProgress) {
-        console.log('[ProgressPlugin] Found onProgress callback, subscribing');
+        debugLogger("Found onProgress callback, subscribing");
         unsubscribers.push(subscription.subscribe(context.onProgress));
       }
       if (context.onUploadProgress) {
-        console.log('[ProgressPlugin] Found onUploadProgress callback, subscribing');
+        debugLogger("Found onUploadProgress callback, subscribing");
         unsubscribers.push(subscription.subscribeUpload(context.onUploadProgress));
       }
       if (context.onDownloadProgress) {
-        console.log('[ProgressPlugin] Found onDownloadProgress callback, subscribing');
+        debugLogger("Found onDownloadProgress callback, subscribing");
         unsubscribers.push(subscription.subscribeDownload(context.onDownloadProgress));
       }
 
@@ -346,13 +350,13 @@ export class ProgressPlugin<
       context[PROGRESS_TRACKER_SYMBOL] = tracker;
       context[PROGRESS_SUBSCRIPTION_SYMBOL] = subscription;
 
-      console.log('[ProgressPlugin] Wrapping request body and calling next');
+      debugLogger("Wrapping request body and calling next");
 
       try {
         // Wrap request body if present
         let modifiedRequest = request;
         if (request.body) {
-          console.log('[ProgressPlugin] Wrapping request body for upload progress');
+          debugLogger("Wrapping request body for upload progress");
           const progressStream = await createUploadProgressStream(request.body as BodyInit, tracker);
           modifiedRequest = {
             ...request,
@@ -367,10 +371,10 @@ export class ProgressPlugin<
         });
       } finally {
         // Cleanup subscriptions
-        console.log('[ProgressPlugin] Cleaning up subscriptions');
+        debugLogger("Cleaning up subscriptions");
         unsubscribers.forEach((unsubscribe) => { unsubscribe() });
         subscription.clear();
-        console.log('[ProgressPlugin] ===== Client Interceptor cleanup complete =====');
+        debugLogger("Client Interceptor cleanup complete");
       }
     });
   }
