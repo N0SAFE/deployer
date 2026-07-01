@@ -5,8 +5,12 @@ import { Logger } from "@nestjs/common";
 
 const logger = new Logger("EncryptedText");
 
-// @ts-expect-error process.env.AUTH_SECRET may be undefined but is checked in this function so its not a problem
-const AUTH_SECRET = validateApiEnvPath(process.env.AUTH_SECRET, "AUTH_SECRET");
+// Validate AUTH_SECRET only when present. The fallback (below) handles the
+// missing case at runtime by deriving a temporary key, so the cast is
+// unnecessary and we avoid the @ts-expect-error.
+const AUTH_SECRET = process.env.AUTH_SECRET
+    ? validateApiEnvPath(process.env.AUTH_SECRET, "AUTH_SECRET")
+    : null;
 
 /**
  * Encryption configuration

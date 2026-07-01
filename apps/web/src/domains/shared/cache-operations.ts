@@ -349,8 +349,7 @@ export function createCacheOperations<TEndpoint>(
     return {
       get: (queryClient: QueryClient) => {
         const queryKey = queryKeyFn();
-        // @ts-expect-error - queryKey type is complex, but runtime behavior is correct
-        return queryClient.getQueryData(queryKey);
+        return queryClient.getQueryData(queryKey as never);
       },
 
       set: (
