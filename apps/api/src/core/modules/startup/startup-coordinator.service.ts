@@ -46,7 +46,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { DEPLOYER_VERSION, semverCompare } from "@/core/utils/deployer-version";
 import { NodeConfigRepository } from "@/core/modules/setup/repositories/node-config.repository";
-import { SetupState, type NodeConfigRow } from "@/config/drizzle/local/schema/node-config";
+import type { SetupState, NodeConfigRow } from "@/config/drizzle/local/schema/node-config";
 import { MeshInitializationService } from "@/core/modules/mesh/initialization/services/mesh-initialization.service";
 import { MeshVersionService, type VersionComparisonResult } from "./mesh-version.service";
 
@@ -373,8 +373,7 @@ export class StartupCoordinatorService {
         phase: "upgrade_trigger",
         status: "blocked",
         message: comparison.message,
-        comparison,
-        meshUrls,
+        code: "VERSION_MISMATCH",
       };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);

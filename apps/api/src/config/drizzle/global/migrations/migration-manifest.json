@@ -81,7 +81,7 @@
     },
     {
       "version": "0011",
-      "name": "mesh_coordination_tables",
+      "name": "cynical_goliath",
       "minAppVersion": ">=2.0.0",
       "minSchemaVersion": "0010",
       "description": "schema_version, cluster_migration_state, migration manifest, registration guard"

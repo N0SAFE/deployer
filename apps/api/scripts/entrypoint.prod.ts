@@ -204,6 +204,7 @@ function phaseCreateDefaultAdmin(config: EntrypointConfig): void {
  *   2  DB not ready (transient — caller may retry)
  *   3  Schema not ready (migrations needed)
  *   4  Registration error (real failure)
+ *   5  Registration DENIED — node code too old for cluster schema
  */
 function phaseRegisterMeshNode(config: EntrypointConfig): void {
   if (!existsSync(config.cliEntrypoint)) {
@@ -222,6 +223,9 @@ function phaseRegisterMeshNode(config: EntrypointConfig): void {
         console.log('⏳  Mesh node registration deferred — global DB not ready yet')
       } else if (status === 3) {
         console.log('⚠️  Mesh node registration deferred — global DB tables missing (migrations not yet applied)')
+      } else if (status === 5) {
+        console.log('❌  Mesh node registration DENIED — this node\'s code is too old for the cluster schema')
+        console.log('    Action: Deploy a newer app version that includes all migrations already applied to the global DB.')
       } else {
         console.log(`⚠️  Mesh node registration failed with exit code ${status} — check container logs for details`)
       }

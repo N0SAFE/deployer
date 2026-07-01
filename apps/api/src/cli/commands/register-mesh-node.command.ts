@@ -16,6 +16,10 @@ import { fileURLToPath } from 'url';
  *  2  DB connectivity error (global Postgres unreachable)
  *  3  Schema error (required tables don't exist — migrations needed)
  *  4  Registration error (insert/update conflict that can't be resolved)
+ *  5  Registration DENIED — registration guard blocked the node
+ *       Reason: NODE_TOO_OLD — code missing migrations already applied to DB
+ *       Reason: MANIFEST_OUTDATED — manifest currentSchemaVersion behind DB
+ *       Reason: MANIFEST_MISSING_OR_INVALID — manifest file missing/corrupted
  */
 
 const UUID_LIKE_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -32,6 +36,12 @@ const APP_VERSION: string = (() => {
     return '0.0.0';
   }
 })();
+
+// Migration manifest path (resolved relative to package.json)
+const MANIFEST_PATH = join(
+  __dirname, '..', '..', '..',
+  'src', 'config', 'drizzle', 'global', 'migrations', 'migration-manifest.json'
+);
 
 @Command({
   name: 'register-mesh-node',
@@ -54,7 +64,8 @@ export class RegisterMeshNodeCommand extends CommandRunner {
    * Called from entrypoint.dev.ts / entrypoint.prod.ts via:
    *   bun --bun src/cli.ts register-mesh-node
    *
-   * Lifecycle: validate → check DB → check schema → register → report version.
+   * Lifecycle: validate → check DB → check schema → registration guard →
+   *            register → report version → check peers.
    * Every phase produces a clear exit code + log message so callers can decide
    * whether to retry, escalate, or ignore.
    */
@@ -87,6 +98,17 @@ export class RegisterMeshNodeCommand extends CommandRunner {
         `Run database migrations first.`
       );
       process.exit(3);
+    }
+
+    // ── Phase 3.5: Registration Guard 🛡️ ──────────────────────────────────
+    const guardResult = await this.runRegistrationGuard();
+    if (!guardResult.allowed) {
+      this.logger.error(`❌ REGISTRATION DENIED: ${guardResult.reason}`);
+      for (const line of guardResult.detail) {
+        this.logger.error(`   ${line}`);
+      }
+      this.logger.error(`   Action: ${guardResult.action}`);
+      process.exit(5);
     }
 
     // ── Phase 4: Registration (idempotent) ────────────────────────────────
@@ -374,6 +396,122 @@ export class RegisterMeshNodeCommand extends CommandRunner {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.debug(`Peer consistency check skipped: ${message}`);
     }
+  }
+
+  /*
+   * ─── Phase 3.5: Registration Guard ──────────────────────────────────────────
+   *
+   * Validates that this node's code contains ALL migrations already applied
+   * to the global DB. Prevents outdated code from operating on an incompatible
+   * schema. Also validates that the migration manifest's currentSchemaVersion
+   * is not behind the DB's actual applied version.
+   *
+   * Returns { allowed: true } if the guard passes, or { allowed: false, reason,
+   * detail, action } with a human-readable explanation.
+   */
+  private async runRegistrationGuard(): Promise<
+    { allowed: true }
+    | { allowed: false; reason: string; detail: string[]; action: string }
+  > {
+    // 1. Load migration manifest from disk
+    let manifest: {
+      currentSchemaVersion: string
+      migrations: Array<{ version: string; name: string }>
+    }
+    try {
+      const raw = readFileSync(MANIFEST_PATH, 'utf-8')
+      manifest = JSON.parse(raw)
+      if (!manifest.migrations || !Array.isArray(manifest.migrations)) {
+        throw new Error('Manifest has no migrations array')
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return {
+        allowed: false,
+        reason: 'MANIFEST_MISSING_OR_INVALID',
+        detail: [
+          `Migration manifest at ${MANIFEST_PATH} could not be read or parsed.`,
+          `Error: ${message}`,
+        ],
+        action: 'Ensure migration-manifest.json exists and is valid JSON.',
+      }
+    }
+
+    // 2. Load applied migrations from the DB
+    let dbAppliedVersions: string[]
+    try {
+      const migrations = await this.databaseService.db.execute<{ version: string }>(
+        sql`SELECT version FROM "__drizzle_migrations" ORDER BY version`
+      )
+      dbAppliedVersions = migrations.rows.map(r => r.version)
+    } catch {
+      // __drizzle_migrations doesn't exist yet — no migrations applied
+      this.logger.log('ℹ️  No __drizzle_migrations table — no migrations have been applied yet')
+      return { allowed: true }
+    }
+
+    if (dbAppliedVersions.length === 0) {
+      this.logger.log('ℹ️  No migrations applied in the global DB yet — guard passes trivially')
+      return { allowed: true }
+    }
+
+    // 3. Check: every DB-applied migration must exist in the manifest
+    const manifestVersions = new Set(manifest.migrations.map(m => m.version))
+    const missingFromCode = dbAppliedVersions.filter(v => !manifestVersions.has(v))
+
+    if (missingFromCode.length > 0) {
+      const missingNames = missingFromCode.map(v => {
+        const entry = manifest.migrations.find(m => m.version === v)
+        return entry ? `${v}_${entry.name}` : v
+      })
+      return {
+        allowed: false,
+        reason: 'NODE_TOO_OLD',
+        detail: [
+          `This node's code is missing migrations already applied to the global DB:`,
+          ...missingNames.map(n => `  • ${n}`),
+          ``,
+          `Current cluster schema version: ${dbAppliedVersions.at(-1)}`,
+          `This node's max schema version: ${manifest.currentSchemaVersion}`,
+        ],
+        action: `Deploy app version that includes migrations ${missingNames.join(', ')} before this node can join.`,
+      }
+    }
+
+    // 4. Check: manifest.currentSchemaVersion >= max DB version
+    const dbMaxVersion = dbAppliedVersions.at(-1) ?? '0000'
+    if (this.compareVersionStrings(dbMaxVersion, manifest.currentSchemaVersion) > 0) {
+      return {
+        allowed: false,
+        reason: 'MANIFEST_OUTDATED',
+        detail: [
+          `Migration manifest declares currentSchemaVersion as "${manifest.currentSchemaVersion}"`,
+          `but the global DB has migrations up to "${dbMaxVersion}" applied.`,
+          `The manifest is out of date.`,
+        ],
+        action: `Update currentSchemaVersion in migration-manifest.json to "${dbMaxVersion}" and ensure all migration files exist.`,
+      }
+    }
+
+    this.logger.log(
+      `✅ Registration guard passed — ${dbAppliedVersions.length} migration(s) checked, ` +
+      `cluster at ${dbMaxVersion}, manifest at ${manifest.currentSchemaVersion}`
+    )
+    return { allowed: true }
+  }
+
+  /**
+   * Compare two 4-digit migration version strings numerically.
+   * Returns negative if a < b, positive if a > b, 0 if equal.
+   */
+  private compareVersionStrings(a: string, b: string): number {
+    const na = parseInt(a, 10)
+    const nb = parseInt(b, 10)
+    if (isNaN(na) || isNaN(nb)) {
+      // Fallback to string comparison if parsing fails
+      return a.localeCompare(b)
+    }
+    return na - nb
   }
 
   /*

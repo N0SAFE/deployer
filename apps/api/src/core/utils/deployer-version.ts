@@ -39,7 +39,7 @@ function resolveVersion(): string {
     _cachedVersion = "0.0.0";
   }
 
-  return _cachedVersion;
+  return _cachedVersion!;
 }
 
 /** The deployer's app version as resolved from package.json (e.g. "1.0.0"). */

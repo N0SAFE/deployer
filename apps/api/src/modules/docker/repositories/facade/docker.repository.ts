@@ -16,7 +16,8 @@ import { dockerRuntimeActivities } from "@/config/drizzle/global/schema/docker-r
 import { deployments, projects, services } from "@/config/drizzle/global/schema/deployment";
 import type { DockerContainerListInput } from "@repo/api-contracts/modules/docker/containers/shared";
 import type { DockerImageListInput } from "@repo/api-contracts/modules/docker/images/list";
-import type { DockerodeContainerList } from "@repo/contracts-entities";
+import { dockerodeContainerListSchema, dockerodeImageSummarySchema, dockerodeImageInspectSchema, dockerodeNetworkSummarySchema, dockerodeVolumeListResponseSchema, type DockerodeContainerList } from "@repo/contracts-entities";
+import z from "zod/v4"
 import type { DockerNetworkListInput } from "@repo/api-contracts/modules/docker/networks/list";
 import type { DockerRegistryListInput } from "@repo/api-contracts/modules/docker/registries/list";
 import type { DockerStackListInput } from "@repo/api-contracts/modules/docker/stacks/list";
@@ -861,22 +862,27 @@ export class DockerRepository {
     });
   }
 
-  private async listRawContainers() {
+  private async listRawContainers(): Promise<DockerodeContainerList[]> {
     const docker = this.dockerService.getDockerClient();
-    return (await docker.listContainers({ all: true })) as unknown as Record<string, unknown>[];
+    const raw = await docker.listContainers({ all: true });
+    const result = dockerodeContainerListSchema.array().safeParse(raw);
+    if (result.success) {
+      return result.data;
+    }
+    // Fallback: coerce each item individually, dropping invalid ones
+    return raw
+      .filter((item: unknown) => dockerodeContainerListSchema.safeParse(item).success)
+      .map((item: unknown) => dockerodeContainerListSchema.parse(item));
   }
 
   async listContainers(input: DockerContainerListInput) {
     const rawContainers = await this.listRawContainers();
 
     const mapped = rawContainers.map((container) => {
-      // Partial raw data — will be fully validated by normalizer's schema
-      const labels: Record<string, string> = (container.Labels ?? {}) as Record<string, string>;
-
-      // Use the link resolver (deployment module) if available, else defaults
-      const rawName = typeof container.Names?.[0] === "string" ? container.Names[0].replace(/^\//, "") : ""
-      const rawId = typeof container.Id === "string" ? container.Id : ""
-      const rawImage = typeof container.Image === "string" ? container.Image : "unknown-image"
+      const labels = container.Labels;
+      const rawName = container.Names[0]?.replace(/^\//, "") ?? ""
+      const rawId = container.Id
+      const rawImage = container.Image ?? "unknown-image"
 
       const enrichment = this.linkResolver?.resolveEnrichment(
         labels,
@@ -1310,8 +1316,8 @@ export class DockerRepository {
     const rawContainers = await this.listRawContainers();
     const usedByContainerIds = rawContainers
       .filter((container) => {
-        const containerImageId = typeof container.ImageID === "string" ? container.ImageID : "";
-        const containerImageName = typeof container.Image === "string" ? container.Image : "";
+        const containerImageId = container.ImageID ?? "";
+        const containerImageName = container.Image ?? "";
 
         if (containerImageId.length > 0 && containerImageId === inspectId) {
           return true;
@@ -1319,7 +1325,7 @@ export class DockerRepository {
 
         return repoTags.includes(containerImageName);
       })
-      .map((container) => String(container.Id ?? ""))
+      .map((container) => container.Id)
       .filter((id) => id.length > 0);
 
     const vulnerabilityScanTargets = [inspectId, ...repoTags]
@@ -2157,18 +2163,25 @@ export class DockerRepository {
 
     for (const candidate of candidates) {
       try {
-        return (await docker.getImage(candidate).inspect()) as unknown as Record<string, unknown>;
+        const raw = await docker.getImage(candidate).inspect();
+        const parsed = dockerodeImageInspectSchema.safeParse(raw);
+        if (parsed.success) return parsed.data as unknown as Record<string, unknown>;
       } catch {
         // Try next candidate.
       }
     }
 
-    const images = (await docker.listImages()) as unknown as Record<string, unknown>[];
-    const resolvedCandidates = this.buildImageInspectCandidatesFromImageList(imageId, images);
+    const imageList = await docker.listImages();
+    const parsedImages = z.array(dockerodeImageSummarySchema).safeParse(imageList);
+    const images = parsedImages.success ? parsedImages.data : [];
+
+    const resolvedCandidates = this.buildImageInspectCandidatesFromImageList(imageId, images as unknown as Record<string, unknown>[]);
 
     for (const candidate of resolvedCandidates) {
       try {
-        return (await docker.getImage(candidate).inspect()) as unknown as Record<string, unknown>;
+        const raw = await docker.getImage(candidate).inspect();
+        const parsed = dockerodeImageInspectSchema.safeParse(raw);
+        if (parsed.success) return parsed.data as unknown as Record<string, unknown>;
       } catch {
         // Try next candidate.
       }
@@ -3884,7 +3897,9 @@ export class DockerRepository {
 
   async listImages(input: DockerImageListInput) {
     const docker = this.dockerService.getDockerClient();
-    const rawImages = (await docker.listImages()) as unknown as Record<string, unknown>[];
+    const raw = await docker.listImages();
+    const parsed = z.array(dockerodeImageSummarySchema).safeParse(raw);
+    const rawImages: Record<string, unknown>[] = parsed.success ? parsed.data as unknown as Record<string, unknown>[] : [];
 
     const mapped: DockerImage[] = [];
 
@@ -3958,7 +3973,9 @@ export class DockerRepository {
 
   async listNetworks(input: DockerNetworkListInput) {
     const docker = this.dockerService.getDockerClient();
-    const rawNetworks = (await docker.listNetworks()) as unknown as Record<string, unknown>[];
+    const raw = await docker.listNetworks();
+    const parsed = z.array(dockerodeNetworkSummarySchema).safeParse(raw);
+    const rawNetworks: Record<string, unknown>[] = parsed.success ? parsed.data as unknown as Record<string, unknown>[] : [];
 
     const mapped = rawNetworks.map((network) => {
       const ipamConfig = ((network.IPAM as { Config?: Record<string, unknown>[] } | undefined)?.Config ?? [])[0] ?? {};
@@ -4025,7 +4042,8 @@ export class DockerRepository {
       }
     }
 
-    const rawVolumes = (volumesResult.Volumes ?? []) as unknown as Record<string, unknown>[];
+    const parsedVolumes = dockerodeVolumeListResponseSchema.safeParse(volumesResult);
+    const rawVolumes: Record<string, unknown>[] = parsedVolumes.success ? parsedVolumes.data.Volumes as unknown as Record<string, unknown>[] : [];
 
     const mapped = rawVolumes.map((volume) =>
       dockerVolumeSchema.parse({
@@ -4138,24 +4156,24 @@ export class DockerRepository {
     const groupedByStack = new Map<string, DockerStack>();
 
     for (const raw of rawContainers) {
-      const labels: Record<string, string> = (raw.Labels ?? {}) as Record<string, string>;
+      const labels = raw.Labels;
       const stackName =
         labels["com.docker.compose.project"] ??
         labels["com.docker.stack.namespace"] ??
         "standalone";
 
-      const rawId = typeof raw.Id === "string" ? raw.Id : "";
-      const rawName = typeof raw.Names?.[0] === "string" ? raw.Names[0].replace(/^\//, "") : "";
+      const rawId = raw.Id;
+      const rawName = raw.Names[0]?.replace(/^\//, "") ?? "";
 
       // Use normalizer for docker-specific conversion, link resolver for enrichment
       const enrichment = this.linkResolver?.resolveEnrichment(
         labels,
         rawName || rawId,
         rawId,
-        typeof raw.Image === "string" ? raw.Image : "unknown-image",
+        raw.Image ?? "unknown-image",
         labels["deployer.network_mode"] ?? null,
       );
-      const typed = this.normalizer.normalizeContainer(raw as Parameters<typeof this.normalizer.normalizeContainer>[0], enrichment ?? {
+      const typed = this.normalizer.normalizeContainer(raw, enrichment ?? {
         projectId: labels["com.docker.compose.project"] ?? rawId,
         serviceId: labels["com.docker.compose.service"] ?? rawId,
         environment: null,
