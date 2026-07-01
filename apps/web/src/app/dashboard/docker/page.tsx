@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { AuthDashboardDockerActivity, AuthDashboardDockerContainers, AuthDashboardDockerImages, AuthDashboardDockerLogs, AuthDashboardDockerNetworks, AuthDashboardDockerRegistry, AuthDashboardDockerStacks, AuthDashboardDockerVolumes } from '@/routes'
 import { useMemo } from 'react'
 import { DockerContainerDetailModalTrigger } from './_components/container-detail-modal'
 import { DockerInlineLoadingState, DockerTableLoadingRows } from './_components/docker-loading-states'
@@ -251,28 +252,28 @@ export default function DashboardDockerPage() {
         <div className="p-4">
           <div className="mb-3 flex flex-wrap gap-2">
             <Button asChild variant="outline" size="sm" className="h-8">
-              <Link href="/dashboard/docker/containers">Containers</Link>
+              <AuthDashboardDockerContainers.Link>Containers</AuthDashboardDockerContainers.Link>
             </Button>
             <Button asChild variant="outline" size="sm" className="h-8">
-              <Link href="/dashboard/docker/logs">Logs</Link>
+              <AuthDashboardDockerLogs.Link>Logs</AuthDashboardDockerLogs.Link>
             </Button>
             <Button asChild variant="outline" size="sm" className="h-8">
-              <Link href="/dashboard/docker/images">Images</Link>
+              <AuthDashboardDockerImages.Link>Images</AuthDashboardDockerImages.Link>
             </Button>
             <Button asChild variant="outline" size="sm" className="h-8">
-              <Link href="/dashboard/docker/networks">Networks</Link>
+              <AuthDashboardDockerNetworks.Link>Networks</AuthDashboardDockerNetworks.Link>
             </Button>
             <Button asChild variant="outline" size="sm" className="h-8">
-              <Link href="/dashboard/docker/volumes">Volumes</Link>
+              <AuthDashboardDockerVolumes.Link>Volumes</AuthDashboardDockerVolumes.Link>
             </Button>
             <Button asChild variant="outline" size="sm" className="h-8">
-              <Link href="/dashboard/docker/stacks">Stacks</Link>
+              <AuthDashboardDockerStacks.Link>Stacks</AuthDashboardDockerStacks.Link>
             </Button>
             <Button asChild variant="outline" size="sm" className="h-8">
-              <Link href="/dashboard/docker/registry">Registry</Link>
+              <AuthDashboardDockerRegistry.Link>Registry</AuthDashboardDockerRegistry.Link>
             </Button>
             <Button asChild variant="outline" size="sm" className="h-8">
-              <Link href="/dashboard/docker/activity">Activity</Link>
+              <AuthDashboardDockerActivity.Link>Activity</AuthDashboardDockerActivity.Link>
             </Button>
           </div>
 

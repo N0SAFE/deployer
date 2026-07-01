@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { AuthDashboardDeployments } from '@/routes'
 import { useMemo, useState } from 'react'
 import { MOCK_PROJECTS, MOCK_SERVICES_BY_PROJECT } from '@/mocks/platform'
 import { MOCK_DEPLOYMENTS, MOCK_INCIDENTS, MOCK_NOTIFICATIONS } from '@/mocks/platform/entities/operations.mock'
@@ -255,10 +256,10 @@ export default function DashboardProjectsPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
-            <Link href="/dashboard/deployments">
+            <AuthDashboardDeployments.Link>
               Open global deployments
               <ArrowRight className="ml-2 size-4" />
-            </Link>
+            </AuthDashboardDeployments.Link>
           </Button>
           <Button onClick={() => {setCreateDialogOpen(true)}} className="gap-2">
             <Plus className="size-4" />

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { AuthDashboardDeployments, AuthDashboardDockerActivity, AuthDashboardDockerShell } from '@/routes'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DockerContainerDetailModalTrigger } from '../_components/container-detail-modal'
 import { DockerInlineLoadingState } from '../_components/docker-loading-states'
@@ -852,13 +853,13 @@ export default function DashboardDockerLogsPage() {
           <div className="border-t border-border/60 px-4 py-2">
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild variant="outline" size="sm">
-                <Link href="/dashboard/docker/activity">Activity stream</Link>
+                <AuthDashboardDockerActivity.Link>Activity stream</AuthDashboardDockerActivity.Link>
               </Button>
               <Button asChild variant="outline" size="sm">
-                <Link href="/dashboard/docker/shell">Shell cockpit</Link>
+                <AuthDashboardDockerShell.Link>Shell cockpit</AuthDashboardDockerShell.Link>
               </Button>
               <Button asChild variant="outline" size="sm">
-                <Link href="/dashboard/deployments">Deployment logs</Link>
+                <AuthDashboardDeployments.Link>Deployment logs</AuthDashboardDeployments.Link>
               </Button>
             </div>
           </div>

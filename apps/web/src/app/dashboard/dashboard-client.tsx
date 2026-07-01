@@ -1,6 +1,7 @@
 'use client'
 
 import { useOrganizations, useAllOrganizationPendingInvitations } from '@/domains/organization/hooks'
+import { AuthDashboardAdminOrganizations, AuthDashboardAdminOrganizationsNew, AuthDashboardAdminSystem, AuthDashboardAdminUsers } from '@/routes'
 import { useAcceptInvitation, useRejectInvitation } from '@/domains/invitation/hooks'
 import {
   Card,
@@ -200,30 +201,30 @@ export function DashboardOverviewClient({ isAdmin, userRole }: DashboardOverview
         <CardContent className="space-y-2">
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
-              <Link href="/dashboard/admin/organizations/new">
+              <AuthDashboardAdminOrganizationsNew.Link>
                 <Building2 className="h-4 w-4 mr-2" />
                 Create Organization
-              </Link>
+              </AuthDashboardAdminOrganizationsNew.Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/dashboard/admin/organizations">
+              <AuthDashboardAdminOrganizations.Link>
                 <Users className="h-4 w-4 mr-2" />
                 View All Organizations
-              </Link>
+              </AuthDashboardAdminOrganizations.Link>
             </Button>
             {isAdmin && (
               <>
                 <Button asChild variant="outline">
-                  <Link href="/dashboard/admin/users">
+                  <AuthDashboardAdminUsers.Link>
                     <Users className="h-4 w-4 mr-2" />
                     Manage Users
-                  </Link>
+                  </AuthDashboardAdminUsers.Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link href="/dashboard/admin/system">
+                  <AuthDashboardAdminSystem.Link>
                     <Users className="h-4 w-4 mr-2" />
                     System Dashboard
-                  </Link>
+                  </AuthDashboardAdminSystem.Link>
                 </Button>
               </>
             )}

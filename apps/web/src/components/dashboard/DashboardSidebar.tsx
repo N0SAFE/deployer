@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Home as HomeRoute } from '@/routes'
+import { Home as HomeRoute, AuthDashboardProfile } from '@/routes'
 import { useSession, signOut } from '@/lib/auth'
 import { revalidateAllAction } from '@/components/signout/revalidateAll.action'
 import {
@@ -347,10 +347,10 @@ export function DashboardSidebar() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/dashboard/profile" className="cursor-pointer">
+                  <AuthDashboardProfile.Link className="cursor-pointer">
                     <UserCircle className="mr-2 size-4" />
                     Profile
-                  </Link>
+                  </AuthDashboardProfile.Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => void handleSignOut()} className="cursor-pointer text-destructive focus:text-destructive">

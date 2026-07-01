@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { AuthDashboardDeployments, AuthDashboardProjects } from '@/routes'
 import { useMemo, useState } from 'react'
 import {
   MOCK_DEPENDENCIES_BY_PROJECT,
@@ -207,10 +208,10 @@ export default function DashboardServicesPage() {
             Refresh
           </Button>
           <Button asChild variant="outline">
-            <Link href="/dashboard/projects">
+            <AuthDashboardProjects.Link>
               Open projects
               <ArrowRight className="ml-2 size-4" />
-            </Link>
+            </AuthDashboardProjects.Link>
           </Button>
         </div>
       </div>
@@ -436,16 +437,16 @@ export default function DashboardServicesPage() {
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-3">
           <Button asChild variant="outline" className="justify-between">
-            <Link href="/dashboard/deployments">
+            <AuthDashboardDeployments.Link>
               Global deployments
               <ArrowRight className="size-4" />
-            </Link>
+            </AuthDashboardDeployments.Link>
           </Button>
           <Button asChild variant="outline" className="justify-between">
-            <Link href="/dashboard/projects">
+            <AuthDashboardProjects.Link>
               Project operations
               <ArrowRight className="size-4" />
-            </Link>
+            </AuthDashboardProjects.Link>
           </Button>
           <Button
             type="button"

@@ -306,7 +306,7 @@ export class DockerRepository {
       return undefined;
     }
 
-    const rawEntry = (filter as Record<string, unknown>)[key];
+    const rawEntry = Reflect.get(filter, key);
     if (!rawEntry || typeof rawEntry !== "object") {
       return undefined;
     }
@@ -810,10 +810,16 @@ export class DockerRepository {
       return null;
     }
 
-    const candidate = value as Record<string, unknown>;
-    const memory = typeof candidate.memory === "string" ? candidate.memory : undefined;
-    const cpu = typeof candidate.cpu === "string" ? candidate.cpu : undefined;
-    const storage = typeof candidate.storage === "string" ? candidate.storage : undefined;
+    // Use `in` + `typeof` narrowing instead of a `Record<string, unknown>`
+    // cast — the truth comes from the runtime check, not a type lie.
+    const memory =
+      "memory" in value && typeof value.memory === "string" ? value.memory : undefined;
+    const cpu =
+      "cpu" in value && typeof value.cpu === "string" ? value.cpu : undefined;
+    const storage =
+      "storage" in value && typeof value.storage === "string"
+        ? value.storage
+        : undefined;
 
     if (!memory && !cpu && !storage) {
       return null;
@@ -827,7 +833,7 @@ export class DockerRepository {
       return null;
     }
 
-    const entries = Object.entriesReflect.get(value, "filter")(
+    const entries = Object.entries(value).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string",
     );
 
@@ -1012,7 +1018,7 @@ export class DockerRepository {
     }
 
     const deploymentIds = [...deploymentIdSet];
-    const deploymentRows: ContainerLinkedDeploymentRecord[] =
+    const deploymentRows =
       deploymentIds.length === 0
         ? []
         : await this.globalDatabaseService.db
@@ -1398,14 +1404,14 @@ export class DockerRepository {
 
     const generatedAt = new Date().toISOString();
     const labels = inspect.Config?.Labels ?? {};
-    const envEntries = this.toStringArray(inspect.Config?.Env);
-    const healthcheckTest = this.toStringArray(inspect.Config?.Healthcheck?.Test);
+    const envEntries = this.toStringArray(inspect.Config.Env);
+    const healthcheckTest = this.toStringArray(inspect.Config.Healthcheck?.Test);
     const healthcheckCommand =
       healthcheckTest.length > 1
         ? healthcheckTest.slice(1).join(" ")
         : (healthcheckTest[0] ?? null);
 
-    const networkConfig = Object.entries(inspect.NetworkSettings?.Networks ?? {}).map(
+    const networkConfig = Object.entries(inspect.NetworkSettings.Networks ?? {}).map(
       ([networkName, networkAttachment]) => ({
         networkId: networkAttachment.NetworkID || networkName,
         name: networkName,
@@ -1416,9 +1422,9 @@ export class DockerRepository {
         gateway: networkAttachment.Gateway || null,
         macAddress: networkAttachment.MacAddress || null,
         aliases: this.toStringArray(networkAttachment.Aliases),
-        dnsServers: this.toStringArray(inspect.HostConfig?.Dns),
-        dnsSearch: this.toStringArray(inspect.HostConfig?.DnsSearch),
-        dnsOptions: this.toStringArray(inspect.HostConfig?.DnsOptions),
+        dnsServers: this.toStringArray(inspect.HostConfig.Dns),
+        dnsSearch: this.toStringArray(inspect.HostConfig.DnsSearch),
+        dnsOptions: this.toStringArray(inspect.HostConfig.DnsOptions),
         extraHosts: this.toStringArray(inspect.HostConfig?.ExtraHosts),
       }),
     );

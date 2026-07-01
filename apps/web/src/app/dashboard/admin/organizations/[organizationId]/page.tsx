@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useParams } from '@/routes/hooks'
-import { AuthDashboardAdminOrganizationsOrganizationId } from '@/routes'
+import { AuthDashboardAdminOrganizations, AuthDashboardAdminOrganizationsOrganizationId } from '@/routes'
 import { useOrganization, useOrganizationMembers } from '@/domains/organization/hooks'
 import {
   useCheckMyFleetAdmission,
@@ -81,12 +81,12 @@ export default function AdminOrganizationDetailPage() {
   if (orgError || !organization) {
     return (
       <div className="container mx-auto max-w-350 py-8 space-y-6">
-        <Link href="/dashboard/admin/organizations">
+        <AuthDashboardAdminOrganizations.Link>
           <Button variant="ghost" className="-ml-2">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to organizations
           </Button>
-        </Link>
+        </AuthDashboardAdminOrganizations.Link>
         <Card className="border-destructive">
           <CardContent className="pt-6">
             <p className="text-destructive">Failed to load organization</p>
@@ -99,12 +99,12 @@ export default function AdminOrganizationDetailPage() {
   return (
     <div className="container mx-auto max-w-350 py-8 space-y-6">
       {/* Header */}
-      <Link href="/dashboard/admin/organizations">
+      <AuthDashboardAdminOrganizations.Link>
         <Button variant="ghost" className="-ml-2 mb-2">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
-      </Link>
+      </AuthDashboardAdminOrganizations.Link>
       <div className="rounded-xl border border-slate-200/70 bg-linear-to-b from-white to-slate-50/70 p-5 shadow-sm dark:border-slate-800 dark:from-slate-950 dark:to-slate-900/50">
         <h1 className="text-3xl font-bold tracking-tight">{organization.name}</h1>
         <p className="mt-1 text-muted-foreground">@{organization.slug}</p>

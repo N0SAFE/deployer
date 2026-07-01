@@ -1,6 +1,5 @@
-import { AuthDashboard } from '@/routes'
+import { AuthDashboard, AuthDashboardProjects, AuthDashboardDeployments, AuthDashboardAdminOrganizations, AuthDashboardAdminSystem } from '@/routes'
 import { PageTimingLogger } from '@/lib/timing'
-import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
@@ -148,28 +147,28 @@ export default AuthDashboard.SessionRoute(({ session }) => {
 
           <div className="grid gap-3 md:grid-cols-2">
             <Button asChild variant="default" className="justify-between">
-              <Link href="/dashboard/projects">
+              <AuthDashboardProjects.Link>
                 Open projects workspace
                 <ArrowRight className="size-4" />
-              </Link>
+              </AuthDashboardProjects.Link>
             </Button>
             <Button asChild variant="outline" className="justify-between">
-              <Link href="/dashboard/deployments">
+              <AuthDashboardDeployments.Link>
                 Review deployment timeline
                 <ArrowRight className="size-4" />
-              </Link>
+              </AuthDashboardDeployments.Link>
             </Button>
             <Button asChild variant="outline" className="justify-between">
-              <Link href="/dashboard/admin/organizations">
+              <AuthDashboardAdminOrganizations.Link>
                 Manage organizations
                 <ArrowRight className="size-4" />
-              </Link>
+              </AuthDashboardAdminOrganizations.Link>
             </Button>
             <Button asChild variant="outline" className="justify-between">
-              <Link href="/dashboard/admin/system">
+              <AuthDashboardAdminSystem.Link>
                 Open control plane
                 <ArrowRight className="size-4" />
-              </Link>
+              </AuthDashboardAdminSystem.Link>
             </Button>
           </div>
         </CardContent>

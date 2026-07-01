@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { AuthDashboardProjects } from '@/routes'
 import Link from 'next/link'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
@@ -131,10 +132,10 @@ export default function DashboardDeploymentsPage() {
             Refresh
           </Button>
           <Button asChild variant="outline">
-            <Link href="/dashboard/projects">
+            <AuthDashboardProjects.Link>
               Open projects
               <ArrowRight className="ml-2 size-4" />
-            </Link>
+            </AuthDashboardProjects.Link>
           </Button>
         </div>
       </div>
