@@ -30,10 +30,25 @@ import z from "zod/v4"
 
 // ─── Container summary (docker.listContainers) ───────────────────────────────
 
+/**
+ * Port as returned by docker.listContainers().
+ * Each container summary includes an array of these.
+ */
+export const dockerodePortSchema = z.object({
+  IP: z.string().optional(),
+  PrivatePort: z.number().optional(),
+  PublicPort: z.number().optional(),
+  Type: z.string().optional(),
+})
+
+export type DockerodePort = z.infer<typeof dockerodePortSchema>
+
+/**
+ * Port binding as returned by docker.getContainer().inspect().
+ * The HostConfig.PortBindings map uses these as array values.
+ */
 export const dockerodePortBindingSchema = z.object({
-  /** Host IP the port is bound to */
   HostIp: z.string().optional(),
-  /** Host port number as a string (dockerode returns strings) */
   HostPort: z.string().optional(),
 })
 
@@ -60,7 +75,7 @@ export const dockerodeContainerListSchema = z.object({
   Labels: z.record(z.string(), z.string()).default({}),
   State: z.string().optional(),
   Status: z.string().optional(),
-  Ports: z.array(dockerodePortBindingSchema).default([]),
+  Ports: z.array(dockerodePortSchema).default([]),
   Mounts: z.array(dockerodeMountSchema).default([]),
   Created: z.number().optional(),
   /** Docker network settings (partial — only what we read) */

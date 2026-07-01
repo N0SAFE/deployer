@@ -54,10 +54,16 @@ function runDiagnostics(config: EntrypointConfig): void {
  * mesh layer itself (see docs/global-db-migration.md). The migration
  * coordinator lives in the API/mesh services and checks schema versions
  * across all peer nodes before applying any migration.
+ *
+ * Exit code handling from the CLI command:
+ *   0  Success (registered, already registered, or gracefully skipped)
+ *   2  DB not ready (transient — caller may retry)
+ *   3  Schema not ready (migrations needed — caller should escalate)
+ *   4  Registration error (real failure — caller should escalate)
  */
 function registerMeshNode(config: EntrypointConfig): void {
   if (!existsSync(config.registerMeshNodeCommand)) {
-    console.log('⚠️  cli command entrypoint not found at', config.registerMeshNodeCommand, ', skipping')
+    console.log('⚠️  CLI entrypoint not found at', config.registerMeshNodeCommand, ', skipping')
     return
   }
 
@@ -67,8 +73,16 @@ function registerMeshNode(config: EntrypointConfig): void {
     shell: true,
   })
 
-  if (result.status !== 0) {
-    console.log('⚠️  Mesh node registration skipped — global DB may not be ready yet (non-fatal)')
+  if (result.status === null) {
+    console.log('⚠️  Mesh node registration process was killed or failed to spawn')
+  } else if (result.status === 0) {
+    console.log('✔️  Mesh node registration finished')
+  } else if (result.status === 2) {
+    console.log('⏳  Mesh node registration deferred — global DB not ready yet (will retry on next startup)')
+  } else if (result.status === 3) {
+    console.log('⚠️  Mesh node registration deferred — global DB tables missing (migrations not yet applied)')
+  } else {
+    console.log(`⚠️  Mesh node registration failed with exit code ${result.status} — check container logs for details`)
   }
 }
 

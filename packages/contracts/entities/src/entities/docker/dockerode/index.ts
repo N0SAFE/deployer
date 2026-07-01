@@ -18,6 +18,7 @@
  */
 
 export {
+  dockerodePortSchema,
   dockerodePortBindingSchema,
   dockerodeMountSchema,
   dockerodeContainerListSchema,
@@ -26,6 +27,7 @@ export {
   dockerodeHealthcheckConfigSchema,
   dockerodeRestartPolicySchema,
   dockerodeContainerInspectSchema,
+  type DockerodePort,
   type DockerodePortBinding,
   type DockerodeMount,
   type DockerodeContainerList,

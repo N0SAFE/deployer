@@ -121,18 +121,35 @@ function createDefaultAdmin(): void {
 
 /**
  * Register current mesh node in global DB (idempotent)
+ *
+ * Exit code handling from the CLI command:
+ *   0  Success (registered, already registered, or gracefully skipped)
+ *   2  DB not ready (transient — caller may want to retry)
+ *   3  Schema not ready (migrations needed)
+ *   4  Registration error (real failure)
  */
 function registerMeshNode(config: EntrypointConfig): void {
   if (!existsSync(config.cliEntrypoint)) {
-    console.log('⚠️  cli entrypoint not found at', config.cliEntrypoint, ', skipping')
+    console.log('⚠️  CLI entrypoint not found at', config.cliEntrypoint, ', skipping')
     return
   }
 
+  console.log('🌐 Registering mesh node in global DB...')
   try {
-    console.log('🌐 Registering mesh node in global DB...')
     execSync(`bun --bun ${config.cliEntrypoint} register-mesh-node`, { stdio: 'inherit' })
   } catch (error) {
-    console.error('⚠️  Mesh node registration failed (continuing):', error)
+    if (error instanceof Error && 'status' in error) {
+      const status = (error as { status?: number }).status;
+      if (status === 2) {
+        console.log('⏳  Mesh node registration deferred — global DB not ready yet')
+      } else if (status === 3) {
+        console.log('⚠️  Mesh node registration deferred — global DB tables missing (migrations not yet applied)')
+      } else {
+        console.log(`⚠️  Mesh node registration failed with exit code ${status} — check container logs for details`)
+      }
+    } else {
+      console.error('⚠️  Mesh node registration failed (continuing):', error)
+    }
   }
 }
 

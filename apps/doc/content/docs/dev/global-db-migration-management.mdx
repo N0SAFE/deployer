@@ -134,6 +134,221 @@ The migration coordinator should also **periodically re-report** the schema vers
 
 ---
 
+## CLI Command Flow Specification
+
+Every CLI command in the migration lifecycle follows a **phased execution model** with specific exit codes. This ensures that callers (entrypoint scripts, Docker Compose, orchestration tools) can make informed decisions about retries, escalation, and error reporting.
+
+### `register-mesh-node` Command
+
+**Source:** `apps/api/src/cli/commands/register-mesh-node.command.ts`
+
+**Purpose:** Register this API node in `cluster_nodes`, report its schema version, and check peer consistency.
+
+**Called from:** `entrypoint.dev.ts` / `entrypoint.prod.ts` via `bun --bun src/cli.ts register-mesh-node`
+
+#### Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Start] --> B{Phase 1: Pre-flight}
+    B -->|MESH_NODE_ID missing| C1[⏭️ Log info, exit 0]
+    B -->|MESH_NODE_ID not UUID| C2[⏭️ Log info, exit 0]
+    B -->|Valid config| D{Phase 2: DB Connectivity}
+    
+    D -->|Auth failure| E1[❌ Log error, exit 1]
+    D -->|Network error| E2[⚠️ Log warn, exit 2]
+    D -->|SELECT 1 OK| F{Phase 3: Schema Readiness}
+    
+    F -->|cluster_nodes missing| G1[⚠️ Log warn, exit 3]
+    F -->|Tables exist| H{Phase 4: Registration}
+    
+    H -->|Already registered| I1[✅ Log info, update metadata]
+    H -->|New registration| I2[✅ Log success, insert]
+    H -->|Duplicate key race| I3[⚠️ Log info, treat as success]
+    H -->|Connection lost| I4[❌ Log error, exit 4]
+    H -->|Other error| I5[❌ Log error, exit 4]
+    
+    I1 --> J{Phase 5: Schema Version}
+    I2 --> J
+    I3 --> J
+    
+    J -->|__drizzle_migrations exists| K1[📋 Read, upsert]
+    J -->|__drizzle_migrations missing| K2[ℹ️ Log, skip]
+    K1 --> L{Phase 6: Peer Check}
+    K2 --> L
+    
+    L -->|No peers| M1[ℹ️ Log first node]
+    L -->|All match| M2[✅ Log consistent]
+    L -->|Mismatch found| M3[⚠️ Log warn with details]
+    L -->|Table missing| M4[🔇 Log debug, skip]
+    
+    M1 --> N[✅ Exit 0]
+    M2 --> N
+    M3 --> N
+    M4 --> N
+```
+
+#### Phase Details
+
+##### Phase 1: Pre-flight (no DB access)
+Validates environment variables without any network or database interaction.
+
+| Condition | Log | Exit Code | Rationale |
+|-----------|-----|-----------|-----------|
+| `MESH_NODE_ID` not set | `⏭️ Skipping: MESH_NODE_ID is not set` | 0 | Graceful skip — not an error (single-node setup, env not configured) |
+| `MESH_NODE_ID` not valid UUID | `⏭️ Skipping: MESH_NODE_ID "${id}" is not a valid UUID` | 0 | Graceful skip — the ID format is wrong but that's a config issue, not a crash |
+| Neither `MESH_NODE_SERVER_URL` nor `APP_URL` set | `⚠️ Falling back to default http://api:${API_PORT}` | 0 | Continues with default — works in Docker Compose |
+| Valid config | — | continues | Ready for DB phase |
+
+##### Phase 2: DB Connectivity
+Attempts `SELECT 1` against the global Postgres to confirm reachability.
+
+| Error Signature | Diagnosis | Log | Exit Code |
+|-----------------|-----------|-----|-----------|
+| `password` / `auth` / `role` in message | Authentication or role misconfiguration | `❌ Global DB authentication failed: ${message}` | 1 |
+| `ECONNREFUSED` / `ENOTFOUND` / `ETIMEDOUT` | Postgres not running or unreachable (transient) | `⚠️ Global DB unreachable (transient): ${message}` | 2 |
+| Any other error | Unexpected connectivity failure | `⚠️ Global DB connectivity check failed: ${message}` | 2 |
+
+**Exit code 2 semantics:** The caller (entrypoint) should NOT retry immediately — the node will try again on next startup. In Docker Compose, Postgres usually starts before the API, so this is a safety net for edge cases.
+
+##### Phase 3: Schema Readiness
+Checks whether required tables exist via `information_schema.tables`.
+
+| Condition | Log | Exit Code | Guidance |
+|-----------|-----|-----------|----------|
+| `cluster_nodes` exists | — | continues | Ready for registration |
+| `cluster_nodes` missing | `⚠️ Table "cluster_nodes" does not exist — migrations not yet applied` | 3 | Run `bun --bun run api -- db:migrate` first |
+| Error during check | `⚠️ Could not verify schema readiness: ${message}` | 3 | DB is reachable but query failed — unexpected state |
+
+**Exit code 3 semantics:** This is the most important diagnostic exit code. It means the global DB is reachable but uninitialized. The solution is to run migrations.
+
+##### Phase 4: Registration (idempotent)
+Performs the actual `cluster_nodes` insert or update.
+
+| Path | Condition | Log | Exit Code |
+|------|-----------|-----|-----------|
+| Already exists | `SELECT` returns a row | `✅ Mesh node already registered: ${nodeId}` | 0 |
+| New registration | `INSERT` succeeds | `✅ Registered mesh node: ${nodeId} (${url})` | 0 |
+| Unique violation race | `INSERT` hits `23505` / `duplicate key` | `⚠️ Node ${nodeId} was just registered by a concurrent process` | 0 |
+| Connection lost mid-op | `ECONNREFUSED` / connection error | `❌ Lost connection to global DB while registering node ${nodeId}` | 4 |
+| Any other error | Unexpected | `❌ Failed to register mesh node ${nodeId}: ${message}` | 4 |
+
+**Exit code 4 semantics:** Real failure that needs investigation. The DB was reachable (Phase 2 passed) but the operation failed. This could be a permissions issue, a schema mismatch, or a transient error that should be retried manually.
+
+##### Phase 5: Schema Version Reporting
+Reads `__drizzle_migrations` and upserts into `schema_version`. **Non-critical** — failure does NOT block registration.
+
+| Condition | Log | Exit Code | Note |
+|-----------|-----|-----------|------|
+| `__drizzle_migrations` exists, `schema_version` exists | `📋 Schema version reported: ${version} (${count} migration(s))` | 0 | Full success |
+| `__drizzle_migrations` missing (fresh DB) | `ℹ️ No __drizzle_migrations table found` | 0 | Expected for brand-new deployments |
+| `schema_version` upsert fails | `⚠️ Could not report schema version — schema_version table may not exist yet` | 0 | Table not created yet (needs migration 0000) |
+
+**All paths exit 0** because schema version reporting is informational. The registration is the critical path.
+
+##### Phase 6: Peer Consistency Check
+Queries `schema_version` for all other nodes and reports mismatches. **Pure informational** — never blocks.
+
+| Condition | Log | Exit Code |
+|-----------|-----|-----------|
+| No other nodes in `schema_version` | `ℹ️ No peer nodes found in schema_version — this is the first node` | 0 |
+| All peers match this node's version | `✅ All ${count} peer node(s) are on schema version ${version}` | 0 |
+| Version mismatch found | `⚠️ Schema version mismatch detected across the cluster:` + list | 0 |
+| `schema_version` table missing | debug log (silent in production) | 0 |
+
+---
+
+### `migrate` Command
+
+**Source:** `apps/api/src/cli/commands/migrate.command.ts`
+
+**Purpose:** Apply all pending global Postgres database migrations.
+
+**Called from:** Docker Compose `migrate` one-shot service, or manually via `bun --bun run api -- db:migrate`
+
+#### Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Start] --> B{Phase 1: SQLite Check}
+    B -->|OK| C{Phase 2: Postgres Connectivity}
+    B -->|Fail| D1[❌ Log error, exit 1]
+    
+    C -->|SELECT 1 OK| E{Phase 3: Apply Migrations}
+    C -->|Fail| D2[❌ Log error, exit 2]
+    
+    E -->|Success| F[✅ Log success, exit 0]
+    E -->|ECONNREFUSED| G1[❌ Log error, exit 2]
+    E -->|Migration file error| G2[❌ Log error, exit 2]
+    E -->|Duplicate objects warn| G3[⚠️ Log warn, exit 2]
+    E -->|Other error| G4[❌ Log error, exit 2]
+```
+
+#### Phase Details
+
+##### Phase 1: SQLite Verification
+Verifies that SQLite tables exist (created by `LocalModule`'s factory during NestJS bootstrap).
+
+| Condition | Log | Exit Code |
+|-----------|-----|-----------|
+| Tables present | `✅ SQLite database: ${count} tables present` | 0 |
+| Query fails | `❌ Local SQLite check failed: ${message}` | 1 |
+
+**Exit code 1:** The SQLite file is corrupted or inaccessible. This is fatal because the local database is required for node operation.
+
+##### Phase 2: Postgres Connectivity
+Same `SELECT 1` check as the register command.
+
+| Condition | Log | Exit Code |
+|-----------|-----|-----------|
+| Connection OK | `✅ Postgres connection verified` | 0 |
+| Connection fails | `❌ Cannot reach global Postgres: ${message}` | 2 |
+
+##### Phase 3: Apply Migrations
+Runs Drizzle's `migrate()` function.
+
+| Condition | Log | Exit Code |
+|-----------|-----|-----------|
+| All migrations applied | `✅ Postgres database migrations completed successfully` | 0 |
+| Connection lost mid-migration | `❌ Postgres connection lost during migration: ${message}` | 2 |
+| Migration file error | `❌ Migration file error: ${message}` | 2 |
+| Duplicate objects (partial apply) | `⚠️ Migration reports duplicate objects: ${message}` | 2 |
+| Other error | `❌ Postgres migration failed: ${message}` | 2 |
+
+**Exit code 2:** Migration failure. The most common causes are:
+1. Postgres went down during migration (retry after restarting Postgres)
+2. A migration file has a syntax error (fix the file, regenerate)
+3. The migration was partially applied and the retry hits a conflict (manual resolution needed)
+
+---
+
+### Entrypoint Exit Code Handling
+
+Both `entrypoint.dev.ts` and `entrypoint.prod.ts` call `register-mesh-node` as a subprocess and interpret its exit code:
+
+```typescript
+if (result.status === null) {
+  // Process was killed or failed to spawn — unexpected
+} else if (result.status === 0) {
+  // Success — registration complete or gracefully skipped
+} else if (result.status === 2) {
+  // DB not ready — log as deferred (transient, will retry on next restart)
+} else if (result.status === 3) {
+  // Schema not ready — log as migration-needed (actions required)
+} else {
+  // Real failure — log as error with exit code for debugging
+}
+```
+
+**Important design decision:** The entrypoints **never block** on registration failure. The API process starts regardless, because:
+- DB connectivity may be temporarily disrupted (Docker Compose race)
+- Migrations may not have run yet (first-time setup)
+- The node should still function for local-only operations
+
+The registration status is purely observational — it tells operators whether the node is participating in the mesh.
+
+---
+
 ## Node Startup Protocol
 
 This is the core algorithm. Every API node runs this on startup **before** accepting traffic.

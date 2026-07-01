@@ -391,6 +391,7 @@ export type {
 	DockerImageSecurityScanEventType,
 	DockerImageSecurityScanEvent,
 } from './entities/docker.schema'
+export * from './entities/docker/dockerode'
 export * from './entities/user'
 export * from './entities/template'
 export * from './entities/setup'
