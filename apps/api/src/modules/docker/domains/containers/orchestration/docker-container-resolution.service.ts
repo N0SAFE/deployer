@@ -119,11 +119,7 @@ interface PeerFallbackAttemptResult {
 }
 
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used to walk nested payloads without
- * an `as Record<string, unknown>` cast.
- */
+
 @Injectable()
 export class DockerContainerResolutionService {
     private readonly logger = new Logger(DockerContainerResolutionService.name);

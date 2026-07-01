@@ -6,11 +6,7 @@ import { isRecord, isObjectLike } from "@repo/type-guards"
 
 @Injectable()
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used in place of `as Record<string, unknown>`
- * to avoid the runtime lie.
- */
+
 export class DockerImageCatalogRepository {
   constructor(private readonly dockerRepository: DockerRepository) {}
 
@@ -73,17 +69,17 @@ export class DockerImageCatalogRepository {
   private getFilterValue(input: DockerImageListInput, key: "registry" | "repository" | "tag"): string | null {
     const filter = input.filter;
 
-    if (!filter || typeof filter !== "object") {
+    if (!isRecord(filter)) {
       return null;
     }
 
-    const raw = (filter as Record<string, unknown>)[key];
+    const raw = filter[key];
 
-    if (!raw || typeof raw !== "object") {
+    if (!isObjectLike(raw)) {
       return null;
     }
 
-    const value = (raw as { value?: unknown }).value;
+    const value = raw.value;
     if (typeof value !== "string") {
       return null;
     }

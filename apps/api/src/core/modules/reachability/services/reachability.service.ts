@@ -1,11 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used in place of `as Record<string, unknown>`
- * to avoid the runtime lie.
- */
+
 @Injectable()
 export class ReachabilityService {
   private readonly logger = new Logger(ReachabilityService.name)
@@ -68,17 +64,18 @@ export class ReachabilityService {
         return { url, reachable: false, probeUrl: url, latencyMs, error: `HTTP ${String(res.status)}` }
       }
 
-      const json = await res.json().catch(() => ({})) as Record<string, unknown>
+      const json = await res.json().catch(() => ({}))
+      const record = isRecord(json) ? json : {}
       this.logger.log(`✅ Mesh reachable at ${parsed.origin} (${latencyMs}ms)`)
       return {
         url,
         reachable: true,
         probeUrl: url,
         latencyMs,
-        advertisedHost: typeof json.advertisedHost === 'string' && json.advertisedHost.length > 0
-          ? json.advertisedHost
+        advertisedHost: typeof record.advertisedHost === 'string' && record.advertisedHost.length > 0
+          ? record.advertisedHost
           : undefined,
-        version: typeof json.version === 'string' ? json.version : undefined,
+        version: typeof record.version === 'string' ? record.version : undefined,
       }
     } catch (err: unknown) {
       const latencyMs = Date.now() - start

@@ -9,27 +9,23 @@ import { isRecord, isObjectLike } from "@repo/type-guards"
 @Injectable()
 
 /**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used in place of `as Record<string, unknown>`
- * to avoid the runtime lie.
+ * Resolves the deployment storage policy from the service's custom data
+ * (when set via the service metadata). Uses runtime type guards from
+ * @repo/type-guards in place of `as Record<string, unknown>` casts to
+ * avoid the runtime lie.
  */
 export class ServiceCustomDataStoragePolicyResolverService implements DeploymentStoragePolicyResolver {
     readonly name = "service-custom-data-storage";
     readonly priority = 200;
 
     resolve(input: ResolveDeploymentStoragePolicyInput) {
-        const metadata = input.serviceMetadata;
-        if (!metadata || typeof metadata !== "object") {
+        const customData = input.serviceMetadata?.customData;
+        if (!isRecord(customData)) {
             return undefined;
         }
 
-        const customData = metadata.customData;
-        if (!customData || typeof customData !== "object" || Array.isArray(customData)) {
-            return undefined;
-        }
-
-        const storage = (customData as Record<string, unknown>).storage;
-        if (!storage || typeof storage !== "object" || Array.isArray(storage)) {
+        const storage = customData.storage;
+        if (!isObjectLike(storage)) {
             return undefined;
         }
 

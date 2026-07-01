@@ -27,11 +27,7 @@ type StreamEventWithMeta<T extends object> = T & {
     emittedAt: Date;
 };
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used in place of `as Record<string, unknown>`
- * to avoid the runtime lie.
- */
+
 @Injectable()
 export class ServiceService implements OnModuleInit {
     constructor(

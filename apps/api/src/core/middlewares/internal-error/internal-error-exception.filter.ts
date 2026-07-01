@@ -11,11 +11,7 @@ import { InternalErrorInsightService } from "./internal-error-insight.service";
 import { MeshBaseDomainError } from "@/core/modules/mesh/shared/domain/mesh-base-error";
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used in place of `as Record<string, unknown>`
- * to avoid the runtime lie.
- */
+
 /**
  * Global NestJS exception filter.
  *
@@ -86,7 +82,7 @@ export class InternalErrorExceptionFilter implements ExceptionFilter {
                         }
                         : {
                             statusCode: status,
-                            ...(exceptionResponse as Record<string, unknown>),
+                            ...(isRecord(exceptionResponse) ? exceptionResponse : {}),
                         };
 
                 response.status(status).json({

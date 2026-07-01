@@ -27,12 +27,6 @@ export interface DeploymentProjectionDriftReport {
 }
 
 @Injectable()
-
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used in place of `as Record<string, unknown>`
- * to avoid the runtime lie.
- */
 export class DeploymentReadModelProjectorService {
     private readonly projections = new Map<string, DeploymentReadModelProjection>();
     private lastProcessedCreatedAt: Date | null = null;
@@ -71,10 +65,7 @@ export class DeploymentReadModelProjectorService {
                 continue;
             }
 
-            const payload =
-                parsed.data.payload && typeof parsed.data.payload === "object"
-                    ? (parsed.data.payload as Record<string, unknown>)
-                    : {};
+            const payload = isRecord(parsed.data.payload) ? parsed.data.payload : {};
 
             this.projections.set(parsed.data.aggregateId, {
                 deploymentId: parsed.data.aggregateId,

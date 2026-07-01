@@ -7,10 +7,7 @@ import { isRecord, isObjectLike } from "@repo/type-guards"
  * MeshFilterOperator.evaluate — same logic, same behavior.
  */
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys.
- */
+
 export function reconstructFilter<T>(descriptor: MeshFilterDescriptor): (item: T) => boolean {
   switch (descriptor.op) {
     case "always":

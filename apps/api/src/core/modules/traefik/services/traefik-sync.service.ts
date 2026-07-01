@@ -20,10 +20,7 @@ import type {
  * Generated Traefik configuration structure for YAML output
  */
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys.
- */
+
 interface GeneratedTraefikConfig {
   http: {
     services: Record<string, { loadBalancer: { servers: { url: string }[] } }>;
@@ -503,7 +500,8 @@ export class TraefikSyncService {
 
       // If it's a string, try to parse it as JSON
       if (typeof config === 'string') {
-        return isRecord(JSON.parse(config)) ? JSON.parse(config) as Record<string, unknown> : {};
+        const parsed = JSON.parse(config);
+        return isRecord(parsed) ? parsed : {};
       }
 
       // For other types, return a fallback

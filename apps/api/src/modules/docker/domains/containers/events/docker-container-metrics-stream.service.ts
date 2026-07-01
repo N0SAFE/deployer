@@ -32,11 +32,7 @@ interface ContainerMetricsSelector {
 const DEFAULT_METRICS_INTERVAL_MS = 400;
 
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used to walk nested metrics payloads
- * without an `as Record<string, unknown>` cast.
- */
+
 @Injectable()
 export class DockerContainerMetricsStreamService extends AbstractDomainEventStreamService {
   protected readonly streamDomain = "docker";

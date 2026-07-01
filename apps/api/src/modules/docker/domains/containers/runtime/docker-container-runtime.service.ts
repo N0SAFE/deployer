@@ -34,11 +34,7 @@ import { DockerService as CoreDockerService } from "@/core/modules/docker/servic
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used in place of `as Record<string, unknown>`
- * to avoid the runtime lie.
- */
+
 interface TerminalSessionEvent {
   sessionId: string;
   timestamp: string;
@@ -904,15 +900,14 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
   }
 
   private isReadWriteStream(value: unknown): value is TerminalSessionStream {
-    if (!value || typeof value !== "object") {
+    if (!isRecord(value)) {
       return false;
     }
 
-    const record = value as Record<string, unknown>;
     return (
-      typeof record.write === "function"
-      && typeof record.on === "function"
-      && typeof record.destroy === "function"
+      typeof value.write === "function"
+      && typeof value.on === "function"
+      && typeof value.destroy === "function"
     );
   }
 

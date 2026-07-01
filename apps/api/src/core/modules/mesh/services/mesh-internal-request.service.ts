@@ -4,11 +4,7 @@ import { SystemMeshConfigService } from "@/core/modules/mesh/services/system-mes
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used in place of `as Record<string, unknown>`
- * to avoid the runtime lie.
- */
+
 const DEFAULT_REPLAY_WINDOW_MS = 30_000;
 
 export const MESH_INTERNAL_KEY_HEADER = "x-mesh-internal-key";
@@ -113,17 +109,16 @@ export class MeshInternalRequestService {
             return request.headers;
         }
 
-        if (typeof request !== "object") {
+        if (!isRecord(request)) {
             return null;
         }
 
-        const withHeaders = request as { headers?: unknown };
-        if (typeof withHeaders.headers !== "undefined") {
-            return this.resolveHeaders(withHeaders.headers);
+        if (typeof request.headers !== "undefined") {
+            return this.resolveHeaders(request.headers);
         }
 
         const normalized = new Headers();
-        for (const [key, rawValue] of Object.entries(request as Record<string, unknown>)) {
+        for (const [key, rawValue] of Object.entries(request)) {
             if (typeof rawValue === "string") {
                 normalized.set(key, rawValue);
                 continue;

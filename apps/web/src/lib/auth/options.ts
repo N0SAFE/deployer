@@ -1,4 +1,3 @@
-import { BetterAuthClientOptions } from 'better-auth'
 import { createAuthClientFactory } from '@repo/auth/client'
 import { getBaseApiUrl } from '../api-url'
 

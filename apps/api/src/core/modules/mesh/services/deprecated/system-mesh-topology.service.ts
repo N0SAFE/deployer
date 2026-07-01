@@ -84,11 +84,7 @@ import { MeshPartitionPolicy, type PartitionPolicyResult } from "../mesh-partiti
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used in place of `as Record<string, unknown>`
- * to avoid the runtime lie.
- */
+
 interface QueuePartitionCandidate {
     nodeId: string;
     ownerServerUrl: string | null;

@@ -1,9 +1,9 @@
-import { AppLogger } from '@repo/logger'
-/* eslint-disable @typescript-eslint/no-unnecessary-condition */
 'use client'
+
 
 // Using typed routing: replace raw next/link with declarative routes
 
+import { AppLogger } from '@repo/logger'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
 import { Alert, AlertDescription } from '@repo/ui/components/shadcn/alert'
@@ -51,6 +51,7 @@ export default AuthSignin.Route(({ searchParams }) => {
                 setFieldErrors(zodFieldErrors(parsed.error))
                 return
             }
+        
 
             setIsLoading(true)
             const res = await authClient.signIn.email({
@@ -58,7 +59,7 @@ export default AuthSignin.Route(({ searchParams }) => {
                 password: parsed.data.password,
             })
 
-            if (res?.error) {
+            if (res.error) {
                 const errorMessage = res.error.message ?? 'Authentication failed'
                 setError(errorMessage)
                 setIsLoading(false)

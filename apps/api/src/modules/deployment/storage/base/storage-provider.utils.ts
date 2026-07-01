@@ -8,10 +8,7 @@ import {
 } from "./storage-policy.schema";
 
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys.
- */
+
 const storageEnvelopeSchema = z
     .object({
         customData: z.record(z.string(), z.unknown()).optional(),

@@ -21,10 +21,7 @@ import type {
  * live stream (`docker-runtime-activity-domain.service.ts`).
  */
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys.
- */
+
 @Injectable()
 export class DockerRuntimeActivityProjectorService {
   project(event: DockerRuntimeEvent): DockerRuntimeActivityEntity {

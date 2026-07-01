@@ -57,11 +57,6 @@ interface RuntimeEventFieldFilter {
 type DockerRawEvent = Record<string, unknown>;
 
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used to walk nested payloads without
- * an `as Record<string, unknown>` cast.
- */
 @Injectable()
 export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamService {
   protected readonly streamDomain = "docker";

@@ -15,10 +15,7 @@ import { isRecord, isObjectLike } from "@repo/type-guards"
  *   .exists()
  */
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys.
- */
+
 export class MeshResourceSubQueryBuilder<
     TCandidate extends MeshResourceLocation,
     TOutput extends AnyRecord,

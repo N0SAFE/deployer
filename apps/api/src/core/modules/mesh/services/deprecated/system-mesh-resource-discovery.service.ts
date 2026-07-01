@@ -364,10 +364,7 @@ function isMeshResourceOfKind<TKind extends MeshResourceKind>(
 }
 
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys.
- */
+
 @Injectable()
 export class SystemMeshResourceDiscoveryService {
     constructor(private readonly topologyService: SystemMeshTopologyService) {}

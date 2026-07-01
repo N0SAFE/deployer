@@ -13,7 +13,7 @@ import {
  * when the devtools dev-auth flag is enabled. This keeps auth-related
  * behavior colocated under `lib/auth/plugins`.
  */
-export const masterTokenClient = (): BetterAuthClientPlugin =>
+export const masterTokenClient = () =>
     ({
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         getActions: (_$fetch: BetterFetch, _$store: ClientStore, _options: BetterAuthClientOptions | undefined) => {

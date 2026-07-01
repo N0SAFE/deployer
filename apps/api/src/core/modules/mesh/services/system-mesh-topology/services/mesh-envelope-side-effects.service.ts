@@ -22,11 +22,7 @@ import { isRecord, isObjectLike } from "@repo/type-guards"
    */
   @Injectable()
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used in place of `as Record<string, unknown>`
- * to avoid the runtime lie.
- */
+
 export class MeshEnvelopeSideEffectsService {
       constructor(
           private readonly identity: MeshIdentityService,
@@ -130,15 +126,14 @@ export class MeshEnvelopeSideEffectsService {
 
           const keys: { keyId: string; algorithm: "HS256"; secret: string; status: "active" | "previous" }[] = [];
           for (const item of raw) {
-              if (!item || typeof item !== "object") continue;
-              const v = item as Record<string, unknown>;
+              if (!isRecord(item)) continue;
               if (
-                  typeof v.keyId === "string" && v.keyId.length > 0 &&
-                  v.algorithm === "HS256" &&
-                  typeof v.secretMaterial === "string" && v.secretMaterial.length > 0 &&
-                  (v.status === "active" || v.status === "previous")
+                  typeof item.keyId === "string" && item.keyId.length > 0 &&
+                  item.algorithm === "HS256" &&
+                  typeof item.secretMaterial === "string" && item.secretMaterial.length > 0 &&
+                  (item.status === "active" || item.status === "previous")
               ) {
-                  keys.push({ keyId: v.keyId, algorithm: "HS256", secret: v.secretMaterial, status: v.status });
+                  keys.push({ keyId: item.keyId, algorithm: "HS256", secret: item.secretMaterial, status: item.status });
               }
           }
           if (keys.length === 0) return;

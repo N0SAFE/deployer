@@ -27,10 +27,7 @@ import { DockerEntityCacheService } from "./docker-entity-cache.service"
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys.
- */
+
 const KINDS_WITH_FLAT_LIST: ReadonlySet<DockerEntityKind> = new Set<DockerEntityKind>([
   "container",
   "image",

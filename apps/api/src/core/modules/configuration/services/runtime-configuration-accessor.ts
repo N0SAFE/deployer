@@ -16,10 +16,7 @@ import { ConfigurationResolverService } from "./configuration-resolver.service";
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys.
- */
+
 const resolver = new ConfigurationResolverService(new ConfigurationDefinitionService());
 
 const PROVIDER_TYPE_SET = new Set<ConfigurationProviderType>([

@@ -30,6 +30,7 @@ import type { DeploymentStateMachineScopeConfigInput } from "@/core/modules/depl
 import { deploymentRunnerKindSchema } from "@/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import type { ResolvedRuntimeConfiguration } from "@/core/modules/configuration/schemas/runtime-configuration.schema";
 import { UploadBundleRegistryService } from "../providers/upload/upload-bundle-registry.service";
+import { isRecord } from "@repo/type-guards"
 import type { DeploymentListInput } from "@repo/api-contracts/modules/deployment/list";
 import type { DeploymentTriggerInput } from "@repo/api-contracts/modules/deployment/crud";
 import type { PlatformRole, ProjectRole } from "@repo/auth";
@@ -98,11 +99,6 @@ import type {
 } from "@repo/contracts-entities";
 
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used in place of `as Record<string, unknown>`
- * to avoid the runtime lie.
- */
 const CANCELLABLE_STATUSES = ["pending", "queued", "building", "deploying"] as const;
 
 interface StreamReplayInput {
@@ -2346,11 +2342,11 @@ export class DeploymentService implements OnModuleInit {
         metadata: Record<string, unknown> | null | undefined,
     ): Record<string, unknown> | undefined {
         const candidate = metadata?.deploymentStateMachine;
-        if (!candidate || typeof candidate !== "object") {
+        if (!isRecord(candidate)) {
             return undefined;
         }
 
-        return candidate as Record<string, unknown>;
+        return candidate;
     }
 
 }

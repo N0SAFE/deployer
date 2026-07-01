@@ -41,10 +41,7 @@ import { isRecord, isObjectLike } from "@repo/type-guards"
  * Uses F-bounded polymorphism to preserve the concrete filter type through recursion.
  */
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys.
- */
+
 export interface FilterWithLogical {
     _and?: unknown;
     _or?: unknown;

@@ -8,6 +8,7 @@ import type {
   EventInput,
   EventOutput,
 } from './event-contract.builder';
+import { isRecord } from '@repo/type-guards';
 
 export const BASE_EVENT_SERVICE_SYMBOL = Symbol.for('core.events.base-service');
 
@@ -47,11 +48,7 @@ export interface AnyEventEmission<T extends EventContract> {
  * Event subscription tracking
  */
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used in place of `as Record<string, unknown>`
- * to avoid the runtime lie.
- */
+
 interface EventSubscriptionData<T> {
   eventName: string;
   subject: Subject<T>;
@@ -912,7 +909,7 @@ export class BaseEventMergeBuilder {
               domainServiceName: selection.service.domainServiceName,
               referenceScope: selection.service.referenceScope,
               eventName,
-              input: event.input as Record<string, unknown>,
+              input: isRecord(event.input) ? event.input : {},
               output: event.output,
               emittedAt: new Date().toISOString(),
             })),

@@ -12,21 +12,16 @@ import * as crypto from "node:crypto";
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used in place of `as Record<string, unknown>`
- * to avoid the runtime lie.
- */
+
 const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
 
 type ServiceRow = typeof services.$inferSelect;
 
 function toDto(row: ServiceRow) {
+    const builtConfig = row.traefikConfig?.build();
     return {
         ...row,
-        traefikConfig: row.traefikConfig
-            ? (row.traefikConfig.build() as unknown as Record<string, unknown>)
-            : null,
+        traefikConfig: builtConfig && isRecord(builtConfig) ? builtConfig : null,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
     };

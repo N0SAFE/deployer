@@ -34,11 +34,7 @@ export abstract class BasePooledEventService<
     options?: PooledEventObserveOptions,
   ): Observable<EventOutput<TContracts[K]>> {
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used in place of `as Record<string, unknown>`
- * to avoid the runtime lie.
- */
+
 const replayLimit = options?.replayLimit;
     const includePersisted = options?.includePersisted ?? true;
     const afterSequence = options?.afterSequence;
@@ -99,9 +95,9 @@ const replayLimit = options?.replayLimit;
       return value.map((item) => this.toStableValue(item));
     }
 
-    if (typeof value === "object" && value !== null) {
+    if (isRecord(value)) {
       return Object.fromEntries(
-        Object.entries(value as Record<string, unknown>)
+        Object.entries(value)
           .sort(([left], [right]) => left.localeCompare(right))
           .map(([key, nested]) => [key, this.toStableValue(nested)]),
       );

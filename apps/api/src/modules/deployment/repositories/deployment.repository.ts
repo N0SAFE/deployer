@@ -21,12 +21,6 @@ import type {
 import { deploymentStreamSchema, type DeploymentStream } from "@repo/contracts-entities";
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
-
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used in place of `as Record<string, unknown>`
- * to avoid the runtime lie.
- */
 const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
 
 // ─── Local types ─────────────────────────────────────────────────────────────
@@ -95,18 +89,24 @@ function toDto(row: DeploymentRow) {
     };
 }
 
-function toLogDto(row: DeploymentLogRow) {
-    const metadataRecord =
-        row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
-            ? (row.metadata as Record<string, unknown>)
-            : null;
+/**
+ * Safely extract an optional string value from a record-like metadata object.
+ * The DB column only declares `duration`, `exitCode`, `containerLogs`, and
+ * `errorStack` but the actual JSON can contain additional fields (correlationId,
+ * traceId, spanId) stored by the event emitter.
+ */
+function getMetaString(record: Record<string, unknown> | null, key: string): string | null {
+    if (!record) return null;
+    const val = record[key];
+    return typeof val === "string" ? val : null;
+}
 
-    const correlationId =
-        metadataRecord && typeof metadataRecord.correlationId === "string"
-            ? metadataRecord.correlationId
-            : null;
-    const traceId = metadataRecord && typeof metadataRecord.traceId === "string" ? metadataRecord.traceId : null;
-    const spanId = metadataRecord && typeof metadataRecord.spanId === "string" ? metadataRecord.spanId : null;
+function toLogDto(row: DeploymentLogRow) {
+    const metadataRecord = isRecord(row.metadata) ? row.metadata : null;
+
+    const correlationId = getMetaString(metadataRecord, "correlationId");
+    const traceId = getMetaString(metadataRecord, "traceId");
+    const spanId = getMetaString(metadataRecord, "spanId");
 
     return {
         ...row,

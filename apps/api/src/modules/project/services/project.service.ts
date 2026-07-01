@@ -26,10 +26,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys.
- */
+
 interface ProjectSettings {
     // General config (supplementary fields; name/description/baseDomain are top-level columns)
     defaultBranch?: string;

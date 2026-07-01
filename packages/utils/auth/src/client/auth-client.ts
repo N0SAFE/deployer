@@ -13,32 +13,13 @@ import {
 // Extract the actual auth type from the factory return type
 type AuthInstance = ReturnType<typeof betterAuthFactory>['auth']
 
-export interface CreateAuthClientFactoryOptions {
-  /**
-   * Base path for auth endpoints
-   * @default '/api/auth'
-   */
-  basePath?: string
-  /**
-   * Base URL for the application
-   */
-  baseURL: string
-  /**
-   * Additional plugins to add to the auth client
-   * @default []
-   */
-  additionalPlugins?: BetterAuthClientPlugin[]
-  /**
-   * Fetch options
-   */
-  fetchOptions?: BetterAuthClientOptions['fetchOptions']
-}
+export type CreateAuthClientFactoryOptions = Pick<BetterAuthClientOptions, 'basePath' | 'baseURL' | "fetchOptions"> & { additionalPlugins?: BetterAuthClientOptions['plugins'] }
 
 /**
  * Factory function to create a Better Auth client with default plugins
  * and support for additional plugins
  */
-export const createAuthClientFactory = (options: CreateAuthClientFactoryOptions) => {
+export const createAuthClientFactory = <Options extends CreateAuthClientFactoryOptions>(options: Options) => {
   const {
     basePath = '/api/auth',
     baseURL,
@@ -59,10 +40,9 @@ export const createAuthClientFactory = (options: CreateAuthClientFactoryOptions)
       useAdminClient(),
       useOrganizationClient(),
       inferAdditionalFields<AuthInstance>(),
-      ...additionalPlugins,
+      ...additionalPlugins as Options['additionalPlugins'] & [],
     ],
   } satisfies BetterAuthClientOptions
 
-   
   return createAuthClient(clientOptions)
 }

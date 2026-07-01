@@ -8,10 +8,7 @@ import { EnvService } from "@/config/env/env.service";
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys.
- */
+
 @Injectable()
 export class DockerService {
     private readonly logger = new Logger(DockerService.name);

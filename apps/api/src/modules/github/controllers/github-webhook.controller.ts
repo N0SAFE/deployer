@@ -14,10 +14,7 @@ import { WebhookIdempotencyService } from "../services/webhook-idempotency.servi
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys.
- */
+
 // T032: Webhook-driven preview create/update orchestration.
 // T036: Webhook idempotency keys and duplicate-delivery handling.
 @Controller("webhooks/github")

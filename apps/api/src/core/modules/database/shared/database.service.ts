@@ -17,12 +17,6 @@ export abstract class BaseDatabaseService<
     isHealthy(): boolean {
         try {
             // Duck-typed health checks to avoid importing runtime-specific DB libs
-
-            /**
-             * Type guard that narrows `unknown` to a record-like object so we can
-             * index it with string keys. Used in place of `as Record<string, unknown>`
-             * to avoid the runtime lie.
-             */
             const anyDb = this._db
             if ('run' in anyDb) {
                 // likely Bun SQLite
