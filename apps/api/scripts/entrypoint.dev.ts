@@ -7,7 +7,6 @@ import zod from 'zod/v4'
 
 interface EntrypointConfig {
   diagnosePath: string
-  migrateScript: string
   registerMeshNodeCommand: string
 }
 
@@ -49,27 +48,12 @@ function runDiagnostics(config: EntrypointConfig): void {
 }
 
 /**
- * Run database migrations (Postgres global DB)
- */
-function runMigrations(config: EntrypointConfig): void {
-  const apiPackageJson = 'package.json'
-
-  if (!existsSync(apiPackageJson)) {
-    console.log('⚠️  package.json missing, skipping migrations')
-    return
-  }
-
-  console.log('📦 Running database migrations...')
-  try {
-    execSync(`bun run ${config.migrateScript}`, { stdio: 'inherit' })
-    console.log('✅ Database migrations completed')
-  } catch (error) {
-    console.log('⚠️  db:migrate skipped — global DB may not be ready yet (non-fatal)')
-  }
-}
-
-/**
  * Register current mesh node in global DB (idempotent)
+ *
+ * Note: Global DB migrations are NOT run here — they are managed by the
+ * mesh layer itself (see docs/global-db-migration.md). The migration
+ * coordinator lives in the API/mesh services and checks schema versions
+ * across all peer nodes before applying any migration.
  */
 function registerMeshNode(config: EntrypointConfig): void {
   if (!existsSync(config.registerMeshNodeCommand)) {
@@ -144,7 +128,6 @@ function startProcesses(): void {
 function main(): void {
   const config: EntrypointConfig = {
     diagnosePath: 'scripts/diagnose-build.ts',
-    migrateScript: 'db:migrate',
     registerMeshNodeCommand: 'src/cli.ts',
   }
 
@@ -155,15 +138,13 @@ function main(): void {
 
   runDiagnostics(config)
 
-  // Run migrations first (schema must exist before mesh registration)
-  // Note: In full docker-compose mode, migrations are also handled by the
-  // dedicated api-db-migrate-dev one-shot container. Running them here too
-  // makes the dev entrypoint self-sufficient regardless of orchestration.
-  runMigrations(config)
-
   // Register this API node in global mesh metadata on every startup
   registerMeshNode(config)
 
+  // Database setup is orchestrated by dedicated one-shot Docker services:
+  // migrate -> default-admin -> seed
+  console.log('⏭️  Skipping DB setup in API entrypoint (handled by setup services)')
+  
   startProcesses()
 }
 

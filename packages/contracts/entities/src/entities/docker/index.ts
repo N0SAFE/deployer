@@ -386,3 +386,8 @@ export type {
 	DockerImageSecurityScanEventType,
 	DockerImageSecurityScanEvent,
 } from './security'
+
+export { dockerodeContainerListSchema, dockerodeContainerInspectSchema } from './dockerode'
+export { dockerodeImageSummarySchema, dockerodeImageInspectSchema } from './dockerode'
+export { dockerodeNetworkSummarySchema } from './dockerode'
+export { dockerodeVolumeEntrySchema, dockerodeVolumeListResponseSchema } from './dockerode'
