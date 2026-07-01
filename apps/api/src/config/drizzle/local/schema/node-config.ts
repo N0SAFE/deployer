@@ -1,6 +1,27 @@
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
+ * Setup state machine for the node startup protocol.
+ *
+ * States:
+ *   not_started       — Node has never been set up. Setup wizard required.
+ *   setup_in_progress — Setup wizard is actively running.
+ *   setup_done        — Setup completed successfully. Normal operation.
+ *   upgrade_pending   — Setup done, but a version mismatch was detected
+ *                       and the upgrade protocol is running.
+ *   upgrade_in_progress — Upgrade is actively being applied across the mesh.
+ *   upgrade_failed    — Upgrade was attempted but failed. Manual intervention
+ *                       or rollback needed.
+ */
+export type SetupState =
+  | "not_started"
+  | "setup_in_progress"
+  | "setup_done"
+  | "upgrade_pending"
+  | "upgrade_in_progress"
+  | "upgrade_failed";
+
+/**
  * Stores node-level configuration that persists between restarts.
  * Single-row table (id = 1 always).
  * Managed by the local SQLite database — no Postgres required.
@@ -16,6 +37,30 @@ export const nodeConfig = sqliteTable("node_config", {
 
     /** Bootstrap strategy: "local" or "remote" */
     strategy: text("strategy", { enum: ["local", "remote"] }).notNull(),
+
+    /**
+     * Current state of the node setup protocol.
+     * Determines which path the startup coordinator takes.
+     * Defaults to "not_started" for fresh installs.
+     */
+    setupState: text("setup_state", {
+      enum: ["not_started", "setup_in_progress", "setup_done", "upgrade_pending", "upgrade_in_progress", "upgrade_failed"],
+    }).notNull().default("not_started"),
+
+    /**
+     * The deployer version (apps/api/package.json) at the time of setup.
+     * Compared against mesh peers on every startup to detect version drift.
+     * Null on nodes that have never completed setup.
+     */
+    deployerVersion: text("deployer_version"),
+
+    /**
+     * The deployer version (apps/api/package.json) at the time of the
+     * last successful upgrade. Compared against deployerVersion to
+     * determine whether an upgrade is in progress.
+     * Null on nodes that have never been upgraded.
+     */
+    upgradedAtVersion: text("upgraded_at_version"),
 
     /** Mesh bootstrap URL snapshot, stored locally for reconnect order */
     meshUrlsSnapshot: text("mesh_urls_snapshot", { mode: "json" }).$type<string[]>(),
@@ -61,6 +106,9 @@ export const nodeConfig = sqliteTable("node_config", {
      */
     meshSharedSecretUpdatedAt: text("mesh_shared_secret_updated_at"),
 });
+
+export type NodeConfigRow = typeof nodeConfig.$inferSelect;
+export type NewNodeConfigRow = typeof nodeConfig.$inferInsert;
 
 export type NodeConfigRow = typeof nodeConfig.$inferSelect;
 export type NewNodeConfigRow = typeof nodeConfig.$inferInsert;
