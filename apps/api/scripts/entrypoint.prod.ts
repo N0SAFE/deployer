@@ -1,9 +1,21 @@
 #!/usr/bin/env -S bun
 
-import { existsSync } from 'fs'
-import { execSync, spawn } from 'child_process'
+import { existsSync, readFileSync } from 'fs'
+import { execSync, spawn, spawnSync } from 'child_process'
 import { validateApiEnv, apiEnvIsValid, validateApiEnvSafe, validateApiEnvPath } from '@repo/env'
 import zod from 'zod/v4'
+
+// ─── Version ───────────────────────────────────────────────────────────────────
+// Read deployer version from package.json at module load time using
+// readFileSync (not require()) to work with verbatimModuleSyntax + ESM.
+const DEPLOYER_VERSION: string = (() => {
+  try {
+    const raw = readFileSync('package.json', 'utf-8')
+    return JSON.parse(raw).version ?? '0.0.0'
+  } catch {
+    return '0.0.0'
+  }
+})()
 
 interface EntrypointConfig {
   skipMigrations: boolean
@@ -13,12 +25,104 @@ interface EntrypointConfig {
   cliEntrypoint: string
 }
 
+// ─── Startup Protocol ──────────────────────────────────────────────────────────
+
 /**
- * Validate environment variables at startup
+ * Phase 1: Extract deployer version from package.json.
  */
-function validateEnvironment(): void {
+function phaseVersionExtraction(): string {
+  console.log('════════════════════════════════════════════════════════')
+  console.log(`📦 Deployer version: ${DEPLOYER_VERSION}`)
+  console.log('════════════════════════════════════════════════════════\n')
+  return DEPLOYER_VERSION
+}
+
+/**
+ * Phase 2: Check node setup state via CLI.
+ *
+ * Exit codes from the CLI command:
+ *   0  Setup is done and version is consistent — ready to start
+ *   1  Setup is done but version mismatch detected (upgrade may be needed)
+ *   2  Setup has never been started (setup wizard required)
+ *   3  Setup was in progress but interrupted
+ *   4  Setup failed / upgrade failed previous
+ *   5  Error reading config or other unexpected failure
+ */
+function phaseStartupCheck(config: EntrypointConfig): {
+  setupState: string
+  deployerVersion: string
+  nodeId: string | null
+  strategy: string | null
+  configuredAt: string | null
+  message: string
+  exitCode: number
+} {
+  console.log('🔍 Checking node setup state...')
+
+  if (!existsSync(config.cliEntrypoint)) {
+    console.log('⚠️  CLI entrypoint not found at', config.cliEntrypoint)
+    return {
+      setupState: 'unknown',
+      deployerVersion: DEPLOYER_VERSION,
+      nodeId: null,
+      strategy: null,
+      configuredAt: null,
+      message: `CLI entrypoint not found at ${config.cliEntrypoint}`,
+      exitCode: 5,
+    }
+  }
+
+  const result = spawnSync('bun', ['--bun', config.cliEntrypoint, 'node-startup-check'], {
+    encoding: 'utf-8',
+    shell: true,
+  })
+
+  if (result.status === null) {
+    console.log('⚠️  Startup check process was killed or failed to spawn')
+    return {
+      setupState: 'unknown',
+      deployerVersion: DEPLOYER_VERSION,
+      nodeId: null,
+      strategy: null,
+      configuredAt: null,
+      message: 'Startup check process was killed or failed to spawn',
+      exitCode: 5,
+    }
+  }
+
+  try {
+    const output = JSON.parse(result.stdout ?? '{}')
+    console.log(`  State: ${output.setupState ?? 'unknown'}`)
+    console.log(`  Node:  ${output.nodeId ?? 'not configured'}`)
+    console.log(`  Strategy: ${output.strategy ?? 'not set'}`)
+    if (output.configuredAt) {
+      console.log(`  Configured at: ${output.configuredAt}`)
+    }
+    console.log(`  Deployer version: ${output.deployerVersion ?? DEPLOYER_VERSION}`)
+    if (output.message) {
+      console.log(`  ${output.message}`)
+    }
+    return output
+  } catch {
+    console.log(`  Exit code: ${result.status} — no parsable JSON output`)
+    return {
+      setupState: result.status === 0 ? 'setup_done' : result.status === 2 ? 'not_started' : 'unknown',
+      deployerVersion: DEPLOYER_VERSION,
+      nodeId: null,
+      strategy: null,
+      configuredAt: null,
+      message: `Exit code ${result.status}`,
+      exitCode: result.status ?? 5,
+    }
+  }
+}
+
+/**
+ * Phase 3: Validate environment variables
+ */
+function phaseValidateEnvironment(): void {
   console.log('🔍 Validating environment variables...')
-  
+
   if (!apiEnvIsValid(process.env)) {
     const result = validateApiEnvSafe(process.env)
     console.error('❌ Environment validation failed:')
@@ -27,14 +131,14 @@ function validateEnvironment(): void {
     }
     process.exit(1)
   }
-  
+
   console.log('✅ Environment validation passed\n')
 }
 
 /**
- * Run diagnostics if available
+ * Phase 4: Run diagnostics if available
  */
-function runDiagnostics(config: EntrypointConfig): void {
+function phaseDiagnostics(config: EntrypointConfig): void {
   if (existsSync(config.diagnosePath)) {
     console.log('════════════════════════════════════════════════════════')
     console.log('Running Build Environment Diagnostics...')
@@ -51,9 +155,9 @@ function runDiagnostics(config: EntrypointConfig): void {
 }
 
 /**
- * Run database migrations
+ * Phase 5: Run database migrations (production)
  */
-function runMigrations(config: EntrypointConfig): void {
+function phaseRunMigrations(config: EntrypointConfig): void {
   if (config.skipMigrations) {
     console.log('⏭️  SKIP_MIGRATIONS set, skipping migrations and seeding')
     return
@@ -66,69 +170,42 @@ function runMigrations(config: EntrypointConfig): void {
     return
   }
 
-  console.log('Found package.json - running migrations')
-
+  console.log('📦 Running database migrations...')
   try {
-    console.log('📦 Running database migrations...')
     execSync(`bun run ${config.migrateScript}`, { stdio: 'inherit' })
+    console.log('✅ Database migrations applied')
   } catch (error) {
     console.error('⚠️  db:migrate failed (continuing)')
   }
 }
 
 /**
- * Run database seeding (optional, controlled by environment)
+ * Phase 6: Create default admin user if needed
  */
-function runSeeding(config: EntrypointConfig): void {
-  if (config.skipMigrations) {
-    console.log('⏭️  SKIP_MIGRATIONS set, skipping seeding')
-    return
-  }
-
-  // Only seed if explicitly enabled via ENABLE_SEEDING=true
-  if (!validateApiEnvPath(process.env.ENABLE_SEEDING, 'ENABLE_SEEDING')) {
-    console.log('⏭️  ENABLE_SEEDING not set, skipping seeding (production mode)')
-    return
-  }
-
-  try {
-    console.log('🌱 Running database seeding...')
-    execSync(`bun run ${config.seedScript}`, { stdio: 'inherit' })
-  } catch (error) {
-    console.error('⚠️  db:seed failed (continuing)')
-  }
-}
-
-/**
- * Create default admin user if needed
- */
-function createDefaultAdmin(): void {
-  const cliEntrypoint = 'dist/cli.js'
-
-  if (!existsSync(cliEntrypoint)) {
-    console.log('⚠️  cli entrypoint not found at', cliEntrypoint, ', skipping')
+function phaseCreateDefaultAdmin(config: EntrypointConfig): void {
+  if (!existsSync(config.cliEntrypoint)) {
+    console.log('⚠️  cli entrypoint not found at', config.cliEntrypoint, ', skipping')
     return
   }
 
   try {
     console.log('👤 Creating default admin user if needed...')
-    execSync(`bun --bun ${cliEntrypoint} create-default-admin`, { stdio: 'inherit' })
+    execSync(`bun --bun ${config.cliEntrypoint} create-default-admin`, { stdio: 'inherit' })
   } catch (error) {
     console.error('⚠️  Failed to create default admin user:', error)
-    // Don't exit - this is not critical
   }
 }
 
 /**
- * Register current mesh node in global DB (idempotent)
+ * Phase 7: Register mesh node in global DB (idempotent)
  *
  * Exit code handling from the CLI command:
  *   0  Success (registered, already registered, or gracefully skipped)
- *   2  DB not ready (transient — caller may want to retry)
+ *   2  DB not ready (transient — caller may retry)
  *   3  Schema not ready (migrations needed)
  *   4  Registration error (real failure)
  */
-function registerMeshNode(config: EntrypointConfig): void {
+function phaseRegisterMeshNode(config: EntrypointConfig): void {
   if (!existsSync(config.cliEntrypoint)) {
     console.log('⚠️  CLI entrypoint not found at', config.cliEntrypoint, ', skipping')
     return
@@ -137,6 +214,7 @@ function registerMeshNode(config: EntrypointConfig): void {
   console.log('🌐 Registering mesh node in global DB...')
   try {
     execSync(`bun --bun ${config.cliEntrypoint} register-mesh-node`, { stdio: 'inherit' })
+    console.log('✔️  Mesh node registration finished')
   } catch (error) {
     if (error instanceof Error && 'status' in error) {
       const status = (error as { status?: number }).status;
@@ -154,10 +232,84 @@ function registerMeshNode(config: EntrypointConfig): void {
 }
 
 /**
+ * Phase 8: Run database seeding (optional, controlled by environment)
+ */
+function phaseRunSeeding(config: EntrypointConfig): void {
+  if (config.skipMigrations) {
+    console.log('⏭️  SKIP_MIGRATIONS set, skipping seeding')
+    return
+  }
+
+  if (!validateApiEnvPath(process.env.ENABLE_SEEDING, 'ENABLE_SEEDING')) {
+    console.log('⏭️  ENABLE_SEEDING not set, skipping seeding (production mode)')
+    return
+  }
+
+  try {
+    console.log('🌱 Running database seeding...')
+    execSync(`bun run ${config.seedScript}`, { stdio: 'inherit' })
+  } catch (error) {
+    console.error('⚠️  db:seed failed (continuing)')
+  }
+}
+
+/**
+ * Phase 9: Interpret the startup check result and decide next action
+ */
+function phaseInterpretResult(checkResult: {
+  setupState: string
+  deployerVersion: string
+  nodeId: string | null
+  message: string
+  exitCode: number
+}): boolean {
+  console.log('\n════════════════════════════════════════════════════════')
+  console.log(`📋 Startup Check Result: ${checkResult.setupState} (exit code ${checkResult.exitCode})`)
+  console.log('════════════════════════════════════════════════════════\n')
+
+  switch (checkResult.exitCode) {
+    case 0:
+      console.log('✅ Node is properly configured and ready to start.')
+      console.log(`   Node ID: ${checkResult.nodeId}`)
+      console.log(`   Version: ${checkResult.deployerVersion}`)
+      return true
+
+    case 1:
+      console.log('⚠️  Node setup is done but version may have changed.')
+      console.log(`   ${checkResult.message}`)
+      console.log('   The API will perform a full version check on startup.')
+      return true
+
+    case 2:
+      console.log('⏳ Node has not been set up yet. Starting in setup mode.')
+      console.log(`   Version: ${checkResult.deployerVersion}`)
+      return true
+
+    case 3:
+      console.log('❌ Setup was interrupted before completion.')
+      console.log('   Please reset the node configuration and run the setup wizard again.')
+      return false
+
+    case 4:
+      console.log('❌ A previous upgrade attempt failed.')
+      console.log('   Manual intervention or rollback is required.')
+      return false
+
+    case 5:
+    default:
+      console.log('❌ Cannot determine node startup state.')
+      console.log(`   ${checkResult.message}`)
+      return false
+  }
+}
+
+/**
  * Start API in production mode
  */
-function startAPI(): void {
-  const mode = validateApiEnvPath(process.env.ENABLE_SEEDING, 'ENABLE_SEEDING') ? 'production-like (with mock data)' : 'production'
+function phaseStartAPI(): void {
+  const mode = validateApiEnvPath(process.env.ENABLE_SEEDING, 'ENABLE_SEEDING')
+    ? 'production-like (with mock data)'
+    : 'production'
   console.log(`🚀 Starting API in ${mode} mode...`)
 
   try {
@@ -169,7 +321,18 @@ function startAPI(): void {
 }
 
 /**
- * Main entrypoint
+ * Main entrypoint — implements the full node startup protocol:
+ *
+ *   1. Extract deployer version from package.json
+ *   2. Check node setup state via CLI
+ *   3. Validate environment variables
+ *   4. Run diagnostics
+ *   5. Run database migrations
+ *   6. Create default admin user
+ *   7. Register mesh node in global DB
+ *   8. Run database seeding (if enabled)
+ *   9. Interpret startup check result
+ *  10. Start API process
  */
 function main(): void {
   const config: EntrypointConfig = {
@@ -180,27 +343,52 @@ function main(): void {
     cliEntrypoint: 'dist/cli.js',
   }
 
-  const mode = validateApiEnvPath(process.env.ENABLE_SEEDING, 'ENABLE_SEEDING') ? 'Production-Like (with mock data)' : 'Production'
+  const mode = validateApiEnvPath(process.env.ENABLE_SEEDING, 'ENABLE_SEEDING')
+    ? 'Production-Like (with mock data)'
+    : 'Production'
   console.log(`🎯 API ${mode} Entrypoint Started\n`)
 
-  // Validate environment before starting
-  validateEnvironment()
+  // ── Phase 1: Version Extraction ──────────────────────────────────────
+  const _version = phaseVersionExtraction()
 
-  runDiagnostics(config)
-  
-  // Run migrations first (schema must exist before any user creation)
-  runMigrations(config)
-  
-  // Create default admin BEFORE seeding so seed can detect existing admin
-  createDefaultAdmin()
+  // ── Phase 2: Startup Check ───────────────────────────────────────────
+  const checkResult = phaseStartupCheck(config)
 
-  // Register this API node in global mesh metadata on every startup
-  registerMeshNode(config)
-  
-  // Run seeding after admin creation (only in production-like mode)
-  runSeeding(config)
-  
-  startAPI()
+  // ── Phase 3: Environment Validation ──────────────────────────────────
+  phaseValidateEnvironment()
+
+  // ── Phase 4: Diagnostics ─────────────────────────────────────────────
+  phaseDiagnostics(config)
+
+  // ── Phase 5: Database Migrations ─────────────────────────────────────
+  phaseRunMigrations(config)
+
+  // ── Phase 6: Default Admin ───────────────────────────────────────────
+  phaseCreateDefaultAdmin(config)
+
+  // ── Phase 7: Mesh Node Registration ──────────────────────────────────
+  // (Only register if setup is done — on fresh nodes this will be
+  //  handled by the setup wizard itself)
+  if (checkResult.exitCode === 0 || checkResult.exitCode === 1) {
+    phaseRegisterMeshNode(config)
+  } else {
+    console.log('⏭️  Skipping mesh node registration — setup not yet complete')
+  }
+
+  // ── Phase 8: Seeding ─────────────────────────────────────────────────
+  phaseRunSeeding(config)
+
+  // ── Phase 9: Interpret Result ────────────────────────────────────────
+  const shouldProceed = phaseInterpretResult(checkResult)
+
+  if (!shouldProceed) {
+    console.error('❌ Startup check failed — cannot start API')
+    process.exit(1)
+  }
+
+  // ── Phase 10: Start API ──────────────────────────────────────────────
+  console.log('⏭️  Mesh connection and version verification handled by API services')
+  phaseStartAPI()
 }
 
 main()

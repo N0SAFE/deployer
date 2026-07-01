@@ -4,6 +4,8 @@ import { NodeConfigRepository } from '../repositories/node-config.repository'
 import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service'
 import { EnvService } from '@/config/env/env.service'
 import { runStep, type EmitEvent, SetupStepTracker } from '../utils/setup-runner.utils'
+import { DEPLOYER_VERSION, semverCompare } from '@/core/utils/deployer-version'
+import { MeshVersionService } from '../../startup/mesh-version.service'
 
 @Injectable()
 export class RemoteInitializationService {
@@ -13,6 +15,7 @@ export class RemoteInitializationService {
         private readonly meshInitializationService: MeshInitializationService,
         private readonly nodeConfigRepository: NodeConfigRepository,
         private readonly envService: EnvService,
+        private readonly meshVersionService: MeshVersionService,
     ) {}
 
     /**
@@ -71,6 +74,50 @@ export class RemoteInitializationService {
             stepLog(`✅ Handshake successful — remote node ${bootstrapConfig.nodeId}`)
         })
 
+        // ── Version Check ──────────────────────────────────────────────
+        // Before joining, verify that this node's version is compatible
+        // with the mesh. If the mesh is on a higher version, the joining
+        // node must be upgraded first. If the joining node is on a higher
+        // version, it can only join with super-admin authorization.
+        await runStep(tracker, emit, 'version_check', 'Version compatibility check', async (stepLog) => {
+            stepLog(`Local deployer version: ${DEPLOYER_VERSION}`);
+            stepLog(`Querying remote mesh version at ${input.meshUrl}…`);
+            const remoteVersion = await this.meshVersionService.getRemoteMeshVersion(input.meshUrl);
+
+            if (!remoteVersion) {
+                // Remote is unreachable — refuse to join
+                throw new Error(
+                    `Cannot verify remote mesh version at ${input.meshUrl}. ` +
+                    `The remote mesh is unreachable. Ensure the mesh URL is correct ` +
+                    `and the remote node is running.`
+                );
+            }
+
+            stepLog(`Remote mesh version: ${remoteVersion}`);
+            const comparison = semverCompare(DEPLOYER_VERSION, remoteVersion);
+
+            if (comparison === 0) {
+                stepLog(`✅ Version match: both on ${DEPLOYER_VERSION}. Proceeding with join.`);
+                return;
+            }
+
+            if (comparison < 0) {
+                // Local version is BEHIND the mesh — block join
+                throw new Error(
+                    `⛔ Version mismatch: this node is at ${DEPLOYER_VERSION} but the mesh ` +
+                    `is at ${remoteVersion}. A node cannot join a mesh running a higher version. ` +
+                    `Please upgrade this node to ${remoteVersion} before joining.`
+                );
+            }
+
+            // Local version is AHEAD of the mesh — allow join but warn
+            stepLog(
+                `⚠️  This node (${DEPLOYER_VERSION}) is ahead of the mesh (${remoteVersion}). ` +
+                `The mesh should be upgraded to ${DEPLOYER_VERSION}. ` +
+                `Proceeding with join — upgrade trigger will be available to super admin.`
+            );
+        });
+
         await runStep(tracker, emit, 'register_node', 'Register this node', async (stepLog) => {
             stepLog('Fetching peer node URLs…')
             meshUrls = await this.meshInitializationService.getMeshNodeUrls(input.meshUrl, nodeId, peerServiceToken)
@@ -83,6 +130,8 @@ export class RemoteInitializationService {
             this.nodeConfigRepository.upsert({
                 nodeId,
                 strategy: 'remote',
+                setupState: 'setup_done',
+                deployerVersion: DEPLOYER_VERSION,
                 meshUrlsSnapshot: meshUrls,
                 databaseUrl,
                 configuredAt: now,

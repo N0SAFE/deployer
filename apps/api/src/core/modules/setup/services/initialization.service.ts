@@ -16,6 +16,7 @@ import type { EmitEvent } from '../utils/setup-runner.utils'
 import { runStep } from '../utils/setup-runner.utils'
 import { ReachabilityService } from '../../reachability/services/reachability.service'
 import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service'
+import { DEPLOYER_VERSION } from '@/core/utils/deployer-version'
 
 
 export interface SetupCompletionStatus {
@@ -117,6 +118,8 @@ export class InitializationService implements OnModuleInit {
                     this.nodeConfigRepository.upsert({
                         nodeId: config.nodeId,
                         strategy: config.strategy,
+                        setupState: (config.setupState as string) === 'setup_done' ? 'setup_done' : 'setup_done',
+                        deployerVersion: config.deployerVersion ?? DEPLOYER_VERSION,
                         databaseUrl: resolvedDatabaseUrl,
                         configuredAt:
                             config.configuredAt instanceof Date
@@ -147,6 +150,8 @@ export class InitializationService implements OnModuleInit {
                 this.nodeConfigRepository.upsert({
                     nodeId,
                     strategy: 'local',
+                    setupState: 'setup_done',
+                    deployerVersion: DEPLOYER_VERSION,
                     databaseUrl: process.env.DATABASE_URL ?? null,
                     configuredAt: new Date().toISOString(),
                     meshUrlsSnapshot: [],

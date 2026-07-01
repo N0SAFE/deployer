@@ -23,6 +23,7 @@ import {
     type EmitEvent,
 } from "../utils/setup-runner.utils";
 import { resolveDockerHostIp } from "../utils/docker-host.utils";
+import { DEPLOYER_VERSION } from "@/core/utils/deployer-version";
 
 /**
  * Local bootstrap flow.
@@ -148,6 +149,8 @@ export class LocalInitializationService {
             this.nodeConfigRepository.upsert({
                 nodeId,
                 strategy: "local",
+                setupState: "setup_done",
+                deployerVersion: DEPLOYER_VERSION,
                 meshUrlsSnapshot: [],
                 configuredAt:     now,
                 updatedAt:        now,

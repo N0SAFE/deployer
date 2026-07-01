@@ -8,6 +8,7 @@ import { MeshInitializationModule } from "@/core/modules/mesh/initialization/mes
 import { LocalModule } from "../database/local/local.module";
 import { CoreDockerModule } from "../docker/docker.module";
 import { CoreReachabilityModule } from "../reachability/core-reachability.module";
+import { MeshVersionService } from "../startup/mesh-version.service";
 
 /**
  * Global Setup Module
@@ -29,7 +30,8 @@ import { CoreReachabilityModule } from "../reachability/core-reachability.module
         InitializationService,
         SetupEventService,
         NodeConfigRepository,
+        MeshVersionService,
     ],
-    exports: [InitializationService, NodeConfigRepository, LocalInitializationService, RemoteInitializationService, SetupEventService],
+    exports: [InitializationService, NodeConfigRepository, LocalInitializationService, RemoteInitializationService, SetupEventService, MeshVersionService],
 })
 export class CoreInitializationModule {}

@@ -1,0 +1,90 @@
+{
+  "$schema": "./migration-manifest.schema.json",
+  "currentSchemaVersion": "0011",
+  "migrations": [
+    {
+      "version": "0000",
+      "name": "brave_steve_rogers",
+      "minAppVersion": ">=1.0.0",
+      "minSchemaVersion": null,
+      "description": "Initial auth tables"
+    },
+    {
+      "version": "0001",
+      "name": "wealthy_maelstrom",
+      "minAppVersion": ">=1.0.0",
+      "minSchemaVersion": "0000",
+      "description": "Passkey table, column defaults"
+    },
+    {
+      "version": "0002",
+      "name": "whole_sumo",
+      "minAppVersion": ">=1.0.0",
+      "minSchemaVersion": "0001",
+      "description": "Session/role columns"
+    },
+    {
+      "version": "0003",
+      "name": "dusty_firestar",
+      "minAppVersion": ">=1.0.0",
+      "minSchemaVersion": "0002",
+      "description": "Seed version tracking"
+    },
+    {
+      "version": "0004",
+      "name": "cool_bruce_banner",
+      "minAppVersion": ">=1.0.0",
+      "minSchemaVersion": "0003",
+      "description": "Org/invitation/push tables"
+    },
+    {
+      "version": "0005",
+      "name": "chief_blade",
+      "minAppVersion": ">=1.2.0",
+      "minSchemaVersion": "0004",
+      "description": "Deployment domain tables"
+    },
+    {
+      "version": "0006",
+      "name": "ancient_iron_patriot",
+      "minAppVersion": ">=1.5.0",
+      "minSchemaVersion": "0005",
+      "description": "Mesh cluster tables"
+    },
+    {
+      "version": "0007",
+      "name": "smooth_martin_li",
+      "minAppVersion": ">=1.5.0",
+      "minSchemaVersion": "0006",
+      "description": "Node ID unique constraint"
+    },
+    {
+      "version": "0008",
+      "name": "past_scream",
+      "minAppVersion": ">=1.5.0",
+      "minSchemaVersion": "0007",
+      "description": "Cluster index cleanup"
+    },
+    {
+      "version": "0009",
+      "name": "bouncy_hellfire_club",
+      "minAppVersion": ">=1.8.0",
+      "minSchemaVersion": "0008",
+      "description": "Docker security scans (v1)"
+    },
+    {
+      "version": "0010",
+      "name": "gigantic_stranger",
+      "minAppVersion": ">=1.8.0",
+      "minSchemaVersion": "0009",
+      "description": "Docker runtime activities + lifecycle"
+    },
+    {
+      "version": "0011",
+      "name": "mesh_coordination_tables",
+      "minAppVersion": ">=2.0.0",
+      "minSchemaVersion": "0010",
+      "description": "schema_version, cluster_migration_state, migration manifest, registration guard"
+    }
+  ]
+}
