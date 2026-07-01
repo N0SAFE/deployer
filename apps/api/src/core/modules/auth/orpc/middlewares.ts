@@ -1,3 +1,4 @@
+import { logger } from '@repo/logger';
 import { fromNodeHeaders } from "better-auth/node";
 import type { IncomingHttpHeaders } from "http";
 import type { Auth } from "@/auth";
@@ -66,7 +67,7 @@ function toWebHeaders(headers: Headers | IncomingHttpHeaders | Record<string, st
  * This middleware should be added globally in the ORPC module configuration
  */
 export function createAuthMiddleware(auth: Auth) {
-    console.log('Creating auth middleware');
+    logger.debug('auth', 'Creating auth middleware');
     return os.$context<{
         request: Request;
     }>().middleware(async (opts) => {

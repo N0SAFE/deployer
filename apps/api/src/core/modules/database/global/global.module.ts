@@ -17,7 +17,7 @@ const logger = new Logger('GlobalModule')
         {
             provide: GLOBAL_DATABASE_POOL,
             useFactory: async (InitializationService: InitializationService): Promise<Pool> => {
-                console.log('⏳ Checking setup before opening DB pool…')
+                logger.log('⏳ Checking setup before opening DB pool…')
 
                 // Eagerly check config BEFORE waiting for setup.
                 // waitForSetup() would block forever if called first because

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { CanActivate, ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import type { Auth } from "@/core/modules/auth/types/auth";
@@ -186,7 +186,7 @@ export class RoleGuard implements CanActivate {
           throw error;
         }
 
-        console.error('Permission check failed:', error);
+        this.logger.error('Permission check failed', error);
         throw new APIError(500, {
           code: "INTERNAL_SERVER_ERROR",
           message: "Permission validation failed",

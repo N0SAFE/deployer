@@ -70,7 +70,7 @@
  * ```
  */
 
-import { Controller, Get, Param, UseGuards } from "@nestjs/common";
+import { Controller, Get, Logger, Param, UseGuards } from "@nestjs/common";
 import { ApiOperation, ApiResponse, ApiTags, ApiParam, ApiBearerAuth } from "@nestjs/swagger";
 import { oc } from "@orpc/contract";
 import { implement, Implement } from "@orpc/nest";
@@ -303,6 +303,7 @@ export { testContracts as testAuthPatternsContract };
 @Controller()
 export class TestController {
     constructor(private readonly authService: AuthService) {}
+  private readonly logger = new Logger(TestController.name)
 
     // =========================================================================
     // NESTJS GUARD-BASED PATTERNS
@@ -717,7 +718,7 @@ export class TestController {
                 ctx => {
                     // ctx.input.organizationId - from TInput
                     // ctx.context.auth.user.id - properly typed from ORPCContextWithAuthOnly<true>
-                    console.log('User ID from context:', ctx.context.auth.user.id);
+                    this.logger.log('User ID from context', { userId: ctx.context.auth.user.id });
                     return ctx.input.organizationId;
                 }
             ))
