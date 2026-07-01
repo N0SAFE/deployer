@@ -77,6 +77,109 @@ export const dockerEntityEventSchema = z.discriminatedUnion('kind', [
 export type DockerEntityEvent = z.infer<typeof dockerEntityEventSchema>
 
 /**
+ * Discriminated schema for constructing a `DockerEntityEvent` chunk from
+ * a fully-parsed entity + the stream envelope fields. The API uses this
+ * to assemble the chunk for the wire without spreading + type-asserting
+ * the entity — the resulting chunk is typed and contract-conformant by
+ * construction.
+ */
+const dockerEntityEventEnvelopeSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('container'),
+    entity: dockerContainerEntitySchema,
+    action: z.string().min(1),
+    occurredAt: z.string(),
+    eventId: z.string().nullable(),
+  }),
+  z.object({
+    kind: z.literal('image'),
+    entity: dockerImageEntitySchema,
+    action: z.string().min(1),
+    occurredAt: z.string(),
+    eventId: z.string().nullable(),
+  }),
+  z.object({
+    kind: z.literal('network'),
+    entity: dockerNetworkEntitySchema,
+    action: z.string().min(1),
+    occurredAt: z.string(),
+    eventId: z.string().nullable(),
+  }),
+  z.object({
+    kind: z.literal('volume'),
+    entity: dockerVolumeEntitySchema,
+    action: z.string().min(1),
+    occurredAt: z.string(),
+    eventId: z.string().nullable(),
+  }),
+])
+
+/**
+ * Build a `DockerEntityEvent` chunk from a parsed entity + envelope.
+ * The returned value is fully typed and guaranteed contract-conformant
+ * (Zod validates the output and applies any defaults).
+ */
+export function buildDockerEntityEventChunk(input: {
+  kind: "container"
+  entity: z.infer<typeof dockerContainerEntitySchema>
+  action: string
+  occurredAt: string
+  eventId: string | null
+}): z.infer<typeof dockerContainerEntitySchema> & {
+  kind: "container"
+  action: string
+  occurredAt: string
+  eventId: string | null
+}
+export function buildDockerEntityEventChunk(input: {
+  kind: "image"
+  entity: z.infer<typeof dockerImageEntitySchema>
+  action: string
+  occurredAt: string
+  eventId: string | null
+}): z.infer<typeof dockerImageEntitySchema> & {
+  kind: "image"
+  action: string
+  occurredAt: string
+  eventId: string | null
+}
+export function buildDockerEntityEventChunk(input: {
+  kind: "network"
+  entity: z.infer<typeof dockerNetworkEntitySchema>
+  action: string
+  occurredAt: string
+  eventId: string | null
+}): z.infer<typeof dockerNetworkEntitySchema> & {
+  kind: "network"
+  action: string
+  occurredAt: string
+  eventId: string | null
+}
+export function buildDockerEntityEventChunk(input: {
+  kind: "volume"
+  entity: z.infer<typeof dockerVolumeEntitySchema>
+  action: string
+  occurredAt: string
+  eventId: string | null
+}): z.infer<typeof dockerVolumeEntitySchema> & {
+  kind: "volume"
+  action: string
+  occurredAt: string
+  eventId: string | null
+}
+export function buildDockerEntityEventChunk(input: {
+  kind: DockerEntityKind
+  entity: unknown
+  action: string
+  occurredAt: string
+  eventId: string | null
+}): DockerEntityEvent {
+  const envelope = dockerEntityEventEnvelopeSchema.parse(input)
+  const { kind, entity, ...rest } = envelope
+  return { ...entity, ...rest } as DockerEntityEvent
+}
+
+/**
  * Wrapper around the discriminated union so a server can send a single
  * `DockerEntityStreamChunk` per emission, even if the entity is gone.
  */

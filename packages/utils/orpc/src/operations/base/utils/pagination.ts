@@ -10,6 +10,15 @@ import { s } from "../schema";
 /**
  * Pagination configuration options
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 export type PaginationConfig = {
     defaultLimit: number;
     maxLimit: number;
@@ -147,9 +156,9 @@ export function createPaginationSchema<TConfig extends Partial<PaginationConfig>
             validate: (value: unknown) => {
                 const input = typeof value === "object" && value !== null ? value : {};
                 const withDefaults = {
-                    limit: (input as Record<string, unknown>).limit ?? defaultLimit,
-                    ...(includeOffset && { offset: (input as Record<string, unknown>).offset ?? 0 }),
-                    ...(includePage && { page: (input as Record<string, unknown>).page ?? 1 }),
+                    limit: Reflect.get(isRecord(input) ? input : {}, "limit") ?? defaultLimit,
+                    ...(includeOffset && { offset: Reflect.get(isRecord(input) ? input : {}, "offset") ?? 0 }),
+                    ...(includePage && { page: Reflect.get(isRecord(input) ? input : {}, "page") ?? 1 }),
                     ...input,
                 };
                 return schema["~standard"].validate(withDefaults);

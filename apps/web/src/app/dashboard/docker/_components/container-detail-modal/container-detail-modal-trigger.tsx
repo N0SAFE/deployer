@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   useDockerCloseContainerTerminalSession,
   useDockerContainerEventsStream,
@@ -64,6 +64,15 @@ import {
   DockerContainerTerminalTab,
 } from './tabs'
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 interface DockerContainerDetailModalTriggerProps {
   id: string
   container?: DockerContainer | null
@@ -71,6 +80,21 @@ interface DockerContainerDetailModalTriggerProps {
   children: ReactNode
   className?: string
   initialTab?: string
+}
+
+/**
+ * Internal props for the heavy modal content. Inherits the entity-bound
+ * fields (id, container, onContainerStateChange, initialTab) from the
+ * trigger props and adds `open` / `onOpenChange` for controlled state.
+ * `children` is intentionally omitted — the trigger consumes it for the
+ * button label, the content renders its own JSX.
+ */
+type DockerContainerDetailModalContentProps = Omit<
+  DockerContainerDetailModalTriggerProps,
+  "children" | "className"
+> & {
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
 const debugDockerModalLogs = createContextFilterDebugLogger('DockerContainerDetailModalTrigger', 'docker-web-modal')
@@ -91,7 +115,7 @@ function coerceContainerLogEntry(payload: unknown): DockerContainerLogEntry | nu
     return null
   }
 
-  const record = payload as Record<string, unknown>
+  const record = isRecord(payload) ? payload : {}
 
   const rawMessage =
     typeof record.message === 'string'
@@ -172,7 +196,7 @@ function extractContainerLogEntries(payload: unknown, depth = 0): DockerContaine
     return []
   }
 
-  const record = payload as Record<string, unknown>
+  const record = isRecord(payload) ? payload : {}
   const nestedCandidates = [
     record.body,
     record.data,
@@ -225,7 +249,7 @@ function resolveFallbackPayloadMessage(payload: unknown, depth = 0): string | nu
     return null
   }
 
-  const record = payload as Record<string, unknown>
+  const record = isRecord(payload) ? payload : {}
 
   for (const key of ['message', 'log', 'line'] as const) {
     if (typeof record[key] === 'string' && record[key].trim().length > 0) {
@@ -302,7 +326,67 @@ export function DockerContainerDetailModalTrigger({
   className,
   initialTab = 'overview',
 }: DockerContainerDetailModalTriggerProps) {
+  // Trigger is intentionally tiny: it owns ONLY the open/close flag and
+  // renders a button. The heavy modal content (20+ useState + ~10 queries
+  // + 2k lines of JSX) lives in a separate function that is mounted
+  // *only* while the dialog is open. Without this split, every cell of
+  // the container table (60 rows × 3 triggers = 180 instances) would
+  // run the full hook set on every SSE event, even when the user never
+  // opens a single modal.
   const [open, setOpen] = useState(false)
+
+  const handleOpen = useCallback(() => {
+    setOpen(true)
+  }, [])
+
+  const handleOpenChange = useCallback((next: boolean) => {
+    setOpen(next)
+  }, [])
+
+  return (
+    <>
+      <button
+        type="button"
+        className={className ?? 'underline-offset-4 hover:underline text-left'}
+        onClick={handleOpen}
+      >
+        {children}
+      </button>
+      {open ? (
+        <DockerContainerDetailModalContent
+          id={id}
+          container={container}
+          onContainerStateChange={onContainerStateChange}
+          initialTab={initialTab}
+          open={open}
+          onOpenChange={handleOpenChange}
+        />
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * Heavy container detail modal — only mounted while the dialog is open.
+ * Owns all the state, queries, and JSX for the modal body. Splitting
+ * this out from the trigger keeps the per-row trigger cost at O(1)
+ * (just one button + one useState) instead of O(20+ useState + 10
+ * useQuery + 2k JSX lines) per row.
+ */
+function DockerContainerDetailModalContent({
+  id,
+  container = null,
+  onContainerStateChange,
+  initialTab = 'overview',
+  open,
+  onOpenChange,
+}: DockerContainerDetailModalContentProps) {
+  // Sync the controlled `open` state with the trigger's intent: when
+  // the user closes the modal, the trigger sets `open` to false which
+  // unmounts this component entirely (no residual state).
+  // `open` is read by the `<Dialog>` below to keep the radix portal in
+  // sync with the trigger.
+  void open
   const [activeTab, setActiveTab] = useState('overview')
   const [expandedLayerId, setExpandedLayerId] = useState<string | null>(null)
   const [streamingEnabled, setStreamingEnabled] = useState(true)
@@ -1781,17 +1865,7 @@ export function DockerContainerDetailModalTrigger({
 
   return (
     <>
-      <button
-        type="button"
-        className={className ?? 'underline-offset-4 hover:underline text-left'}
-        onClick={() => {
-          setActiveTab(initialTab)
-          setOpen(true)
-        }}
-      >
-        {children}
-      </button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="w-[96vw]! max-w-350! h-[85vh] max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <div className="flex items-start justify-between gap-3">
@@ -2039,7 +2113,7 @@ export function DockerContainerDetailModalTrigger({
               type="button"
               variant="outline"
               onClick={() => {
-                setOpen(false)
+                onOpenChange(false)
               }}
             >
               Close
@@ -2124,7 +2198,7 @@ export function DockerContainerDetailModalTrigger({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isEditFileOpen} onOpenChange={(openState) => {
+      <Dialog open={isEditFileOpen} onOpenChange={(openState: boolean) => {
         setIsEditFileOpen(openState)
         if (!openState) {
           setEditingFilePath(null)

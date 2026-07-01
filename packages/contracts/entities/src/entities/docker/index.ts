@@ -303,6 +303,7 @@ export {
 	dockerEntityEventSchema,
 	dockerEntityStreamChunkSchema,
 	dockerEntityStreamQuerySchema,
+	buildDockerEntityEventChunk,
 } from './entity-events.schema'
 
 export type {

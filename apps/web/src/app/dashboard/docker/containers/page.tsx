@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useDeferredValue, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { z } from 'zod'
 import { DockerBatchOperationsBar, DockerSavedViewSelect } from '../_components/docker-operations-controls'
 import { DockerInlineLoadingState } from '../_components/docker-loading-states'
@@ -32,6 +32,7 @@ import {
   toContainerTableRows,
   type ContainerProjection,
   type ContainerInstanceProjection,
+  type ContainerTableRow,
 } from './columns'
 import { AuthDashboardDockerContainers } from '@/routes/index';
 
@@ -138,6 +139,17 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
   const containerEntities = liveContainers.data
   const containerEntityById = liveContainers.byId
 
+  // Stabilize references that change on every SSE event so the DataTable
+  // and its column/fetch callbacks don't get recreated (and trigger
+  // re-fetch + cell rebuild) on every stream update. We expose stable
+  // getters/refs that always read the latest value at call time.
+  const containerEntityByIdRef = useRef(containerEntityById)
+  containerEntityByIdRef.current = containerEntityById
+  const getContainerEntityById = useCallback(
+    (id: string) => containerEntityByIdRef.current.get(id),
+    [],
+  )
+
   // Diagnostics (shared daemon groups, etc.) still come from the grouped
   // endpoint. The flat list we use for rendering no longer exposes them
   // directly, so we keep a lightweight grouped query just for the banner.
@@ -191,67 +203,79 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
     })
   }, [])
 
-  const containers = useMemo<ContainerProjection[]>(() => {
-    const imageById = new Map(imageEntities.map((image) => [image.id, image]))
-    return containerEntities
-      .map<ContainerProjection | null>((container) => {
-        const imageEntity = container.imageId ? imageById.get(container.imageId) : null
-        const image = imageEntity
-          ? `${imageEntity.registry}/${imageEntity.repository}${imageEntity.tag ? `:${imageEntity.tag}` : ''}`
-          : fallbackImageRefFromId(container.imageId)
+  // Defer the heavy container projection + sort to the background. SSE
+  // events fire every ~200ms; without `useDeferredValue` each event would
+  // synchronously rebuild the full projection array (object creation +
+  // sort), which dominates the frame budget and drops FPS to ~1.
+  //
+  // The non-deferred versions (`nonDeferred*`) are kept ONLY for the
+  // fetch ref and the table's `key` prop — both need the up-to-date
+  // count immediately so the table can remount and re-fetch when the
+  // dataset first arrives (otherwise the table shows empty forever).
+  const deferredContainerEntities = useDeferredValue(containerEntities)
+  const deferredImageEntities = useDeferredValue(imageEntities)
 
-        const instance: ContainerInstanceProjection = {
-          instanceKey: container.id,
-          id: container.id,
-          name: container.name,
-          status: container.status,
-          health: container.health,
-          environment: container.environment,
-          updatedAt: container.updatedAt,
-          serviceId: container.serviceId,
-        }
+  const buildContainerProjections = useCallback(
+    (
+      sourceContainers: typeof containerEntities,
+      sourceImages: typeof imageEntities,
+    ): ContainerProjection[] => {
+      const imageById = new Map(sourceImages.map((image) => [image.id, image]))
+      return sourceContainers
+        .map<ContainerProjection | null>((container) => {
+          const imageEntity = container.imageId ? imageById.get(container.imageId) : null
+          const image = imageEntity
+            ? `${imageEntity.registry}/${imageEntity.repository}${imageEntity.tag ? `:${imageEntity.tag}` : ''}`
+            : fallbackImageRefFromId(container.imageId)
 
-        return {
-          id: container.id,
-          hash: container.id,
-          name: container.name,
-          image,
-          imageId: container.imageId,
-          status: container.status,
-          health: container.health,
-          environment: container.environment,
-          serviceId: container.serviceId,
-          healthCheckUrl: deriveRuntimeUrlFromPorts(container.ports),
-          domainUrl: null,
-          updatedAt: container.updatedAt,
-          instanceCount: 1,
-          instanceIds: [container.id],
-          instances: [instance],
-        }
-      })
-      .filter((container): container is ContainerProjection => container !== null)
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-  }, [containerEntities, imageEntities])
+          const instance: ContainerInstanceProjection = {
+            instanceKey: container.id,
+            id: container.id,
+            name: container.name,
+            status: container.status,
+            health: container.health,
+            environment: container.environment,
+            updatedAt: container.updatedAt,
+            serviceId: container.serviceId,
+          }
 
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'production') {
-      return
-    }
+          return {
+            id: container.id,
+            hash: container.id,
+            name: container.name,
+            image,
+            imageId: container.imageId,
+            status: container.status,
+            health: container.health,
+            environment: container.environment,
+            serviceId: container.serviceId,
+            healthCheckUrl: deriveRuntimeUrlFromPorts(container.ports),
+            domainUrl: null,
+            updatedAt: container.updatedAt,
+            instanceCount: 1,
+            instanceIds: [container.id],
+            instances: [instance],
+          }
+        })
+        .filter((container): container is ContainerProjection => container !== null)
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    },
+    [],
+  )
 
-    const duplicateGroups = containers.filter((container) => container.instanceCount > 1)
-    const totalInstances = containers.reduce((acc, container) => acc + container.instanceCount, 0)
+  // Non-deferred projections — used by the fetch ref and the table key
+  // so the table always has the freshest data when it re-fetches.
+  const nonDeferredContainers = useMemo(
+    () => buildContainerProjections(containerEntities, imageEntities),
+    [buildContainerProjections, containerEntities, imageEntities],
+  )
 
-    console.info('[docker:containers] grouping diagnostics', {
-      totalGroups: containers.length,
-      duplicateGroups: duplicateGroups.length,
-      totalInstances,
-      sampleDuplicateGroups: duplicateGroups.slice(0, 5).map((container) => ({
-        name: container.name,
-        hash: container.hash,
-        instanceCount: container.instanceCount,
-      })),
-    })
-  }, [containers])
+  // Deferred projections — used for UI rendering. The heavy work here
+  // is deferred so the main thread stays free for ~60 FPS interaction.
+  const containers = useMemo(
+    () => buildContainerProjections(deferredContainerEntities, deferredImageEntities),
+    [buildContainerProjections, deferredContainerEntities, deferredImageEntities],
+  )
 
   const environments = useMemo(() => {
     return Array.from(
@@ -267,35 +291,53 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
     return Array.from(new Set(containers.map((container) => container.status)))
   }, [containers])
 
-  const filteredContainers = useMemo(() => {
-    const normalizedSearch = typeof searchTerm === 'string'
-      ? searchTerm.trim().toLowerCase()
-      : ''
+  const filterContainerProjections = useCallback(
+    (source: ContainerProjection[]): ContainerProjection[] => {
+      const normalizedSearch = typeof searchTerm === 'string'
+        ? searchTerm.trim().toLowerCase()
+        : ''
 
-    const filtered = containers.filter((container) => {
-      if (savedView === 'failed' && !(container.status === 'dead' || container.status === 'exited' || container.health === 'unhealthy')) return false
-      if (savedView === 'active' && container.status !== 'running') return false
-      if (savedView === 'production' && container.environment !== 'production') return false
-      if (environmentFilter !== 'all' && container.environment !== environmentFilter) {
-        return false
-      }
-      if (statusFilter !== 'all' && container.status !== statusFilter) {
-        return false
-      }
-      if (!normalizedSearch) {
-        return true
-      }
+      return source.filter((container) => {
+        if (savedView === 'failed' && !(container.status === 'dead' || container.status === 'exited' || container.health === 'unhealthy')) return false
+        if (savedView === 'active' && container.status !== 'running') return false
+        if (savedView === 'production' && container.environment !== 'production') return false
+        if (environmentFilter !== 'all' && container.environment !== environmentFilter) {
+          return false
+        }
+        if (statusFilter !== 'all' && container.status !== statusFilter) {
+          return false
+        }
+        if (!normalizedSearch) {
+          return true
+        }
 
-      return (
-        container.name.toLowerCase().includes(normalizedSearch)
-        || container.image.toLowerCase().includes(normalizedSearch)
-        || container.serviceId.toLowerCase().includes(normalizedSearch)
-        || container.status.toLowerCase().includes(normalizedSearch)
-      )
-    })
+        return (
+          container.name.toLowerCase().includes(normalizedSearch)
+          || container.image.toLowerCase().includes(normalizedSearch)
+          || container.serviceId.toLowerCase().includes(normalizedSearch)
+          || container.status.toLowerCase().includes(normalizedSearch)
+        )
+      })
+    },
+    [environmentFilter, savedView, searchTerm, statusFilter],
+  )
 
-    return filtered
-  }, [containers, environmentFilter, savedView, searchTerm, statusFilter])
+  // Non-deferred filtered rows — used ONLY for the fetch ref and the
+  // table `key` so the table always sees the freshest dataset.
+  const nonDeferredFilteredContainers = useMemo(
+    () => filterContainerProjections(nonDeferredContainers),
+    [filterContainerProjections, nonDeferredContainers],
+  )
+  const nonDeferredContainerTableRows = useMemo(
+    () => toContainerTableRows(nonDeferredFilteredContainers),
+    [nonDeferredFilteredContainers],
+  )
+
+  // Deferred filtered rows — used for UI rendering (stats, export, etc.).
+  const filteredContainers = useMemo(
+    () => filterContainerProjections(containers),
+    [filterContainerProjections, containers],
+  )
 
   const isInitialLoading = (liveContainers.data.length === 0 || liveImages.data.length === 0)
     && liveContainers.status !== 'error'
@@ -303,13 +345,20 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
 
   const containerTableRows = useMemo(() => toContainerTableRows(filteredContainers), [filteredContainers])
 
+  // Keep the latest non-deferred table rows in a ref so the fetch
+  // callback always reads the freshest dataset (the deferred values
+  // used for UI rendering would be stale and cause the table to show
+  // empty results).
+  const containerTableRowsRef = useRef<ContainerTableRow[]>(nonDeferredContainerTableRows)
+  containerTableRowsRef.current = nonDeferredContainerTableRows
+
   const containerColumns = useMemo(() => createContainerColumns({
     getStatusVariant: toBadgeVariant,
     renderNameCell: (container) => (
       <div className='font-medium'>
         <DockerContainerDetailModalTrigger
           id={container.id}
-          container={containerEntityById.get(container.id)}
+          container={getContainerEntityById(container.id)}
           onContainerStateChange={handleContainerStateChange}
         >
           {container.name}
@@ -337,7 +386,7 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
       <div className='flex items-center gap-1.5'>
         <DockerContainerDetailModalTrigger
           id={container.id}
-          container={containerEntityById.get(container.id)}
+          container={getContainerEntityById(container.id)}
           onContainerStateChange={handleContainerStateChange}
           initialTab='logs'
           className='inline-flex h-7 items-center rounded border border-border/60 px-2 text-xs hover:bg-muted hover:no-underline'
@@ -346,7 +395,7 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
         </DockerContainerDetailModalTrigger>
         <DockerContainerDetailModalTrigger
           id={container.id}
-          container={containerEntityById.get(container.id)}
+          container={getContainerEntityById(container.id)}
           onContainerStateChange={handleContainerStateChange}
           initialTab='terminal'
           className='inline-flex h-7 items-center rounded border border-border/60 px-2 text-xs hover:bg-muted hover:no-underline'
@@ -355,12 +404,108 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
         </DockerContainerDetailModalTrigger>
       </div>
     ),
-  }), [containerEntityById, handleContainerStateChange, handleImageHover])
+  }), [getContainerEntityById, handleContainerStateChange, handleImageHover])
 
-  const containerTableFetchData = useMemo(() => createContainerTableFetchData(containerTableRows), [containerTableRows])
+  const containerTableFetchData = useMemo(
+    () => createContainerTableFetchData(() => containerTableRowsRef.current),
+    [],
+  )
 
-  const healthyCount = filteredContainers.filter((container) => container.status === 'running' && container.health === 'healthy').length
-  const failedCount = filteredContainers.filter((container) => container.status === 'dead' || container.status === 'exited' || container.health === 'unhealthy').length
+  // Stable DataTable props. Without these, every SSE tick would create
+  // fresh inline objects/functions, forcing the DataTable's internal
+  // `useReactTable` and cell renderers to rebuild — which is the
+  // single biggest contributor to the 1 FPS frame budget.
+  const getDataTableColumns = useCallback(() => containerColumns, [containerColumns])
+  const getDataTableSubRowColumns = useCallback(
+    () => [] as never[],
+    [],
+  )
+  const fetchByIds = useCallback(async () => [] as ContainerTableRow[], [])
+  const dataTableExportConfig = useMemo(
+    () => ({
+      entityName: 'docker-containers',
+      headers: ['name', 'image', 'status', 'health', 'environment', 'serviceId', 'updatedAt'],
+      columnMapping: {
+        name: 'Container',
+        image: 'Image',
+        status: 'Status',
+        health: 'Health',
+        environment: 'Environment',
+        serviceId: 'Service',
+        updatedAt: 'Updated',
+      },
+      columnWidths: [
+        { wch: 24 },
+        { wch: 40 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 24 },
+      ],
+      enableCsv: true,
+      enableExcel: true,
+    }),
+    [],
+  )
+  const dataTablePageSizeOptions = useMemo(() => [10, 20, 50, 100], [])
+  const dataTableOnRowClick = useCallback(() => undefined, [])
+  const dataTableSubRowsConfig = useMemo(
+    () => ({ enabled: false, mode: 'same-columns' as const }),
+    [],
+  )
+  const dataTableConfig = useMemo(
+    () => ({
+      enableRowSelection: true,
+      enableClickRowSelect: false,
+      enableDateFilter: false,
+      enableColumnFilters: false,
+      enableColumnVisibility: true,
+      enableSearch: true,
+      enableExport: true,
+      enableUrlState: false,
+      enableColumnResizing: true,
+      enableKeyboardNavigation: true,
+      defaultSortBy: 'updatedAt',
+      defaultSortOrder: 'desc',
+      searchPlaceholder: 'Search containers, image, service…',
+      columnResizingTableId: 'docker-containers-enhanced-table',
+      size: 'sm',
+    }),
+    [],
+  )
+
+  const { healthyCount, failedCount } = useMemo(() => {
+    let healthy = 0
+    let failed = 0
+    for (const container of filteredContainers) {
+      if (container.status === 'running' && container.health === 'healthy') {
+        healthy += 1
+      } else if (
+        container.status === 'dead'
+        || container.status === 'exited'
+        || container.health === 'unhealthy'
+      ) {
+        failed += 1
+      }
+    }
+    return { healthyCount: healthy, failedCount: failed }
+  }, [filteredContainers])
+
+  const exportRows = useMemo(
+    () => filteredContainers.map((container) => ({
+      id: container.id,
+      hash: container.hash,
+      name: container.name,
+      instances: container.instanceCount,
+      image: container.image,
+      status: container.status,
+      environment: container.environment,
+      serviceId: container.serviceId,
+      updatedAt: container.updatedAt,
+    })),
+    [filteredContainers],
+  )
 
   const selectedContainers = selectedContainerRows
   const sharedDaemonGroups = groupedContainerDiagnostics?.sharedDaemonGroups ?? []
@@ -439,6 +584,14 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
     setSelectedContainerRows(rows)
   }, [])
 
+  const handleRenderToolbarContent = useCallback(
+    ({ selectedRows }: { selectedRows: ContainerProjection[] }) => {
+      syncSelectedRows(selectedRows)
+      return null
+    },
+    [syncSelectedRows],
+  )
+
   const handleRefresh = useCallback(async () => {
     if (isRefreshing) {
       return
@@ -465,6 +618,21 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
       setIsRefreshing(false)
     }
   }, [liveContainers, liveImages, isRefreshing, refreshTick])
+
+  const handleContainerCreated = useCallback((payload: {
+    name: string
+    image: string
+    pullScanSummary: { pullStatus: string; scanStatus: string }
+  }) => {
+    setActionFeedback(
+      `Create flow completed for ${payload.name} (${payload.image}) · pull=${payload.pullScanSummary.pullStatus} · scan=${payload.pullScanSummary.scanStatus}`,
+    )
+    void liveContainers.refetch()
+    void liveImages.refetch()
+    toast.success(`Container ${payload.name} created`, {
+      description: `${payload.image} • pull ${payload.pullScanSummary.pullStatus} • scan ${payload.pullScanSummary.scanStatus}`,
+    })
+  }, [liveContainers, liveImages])
 
   return (
     <>
@@ -641,17 +809,7 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
             <div className="ml-auto">
               <DockerExportActions
                 filenameBase="docker-containers"
-                rows={filteredContainers.map((container) => ({
-                  id: container.id,
-                  hash: container.hash,
-                  name: container.name,
-                  instances: container.instanceCount,
-                  image: container.image,
-                  status: container.status,
-                  environment: container.environment,
-                  serviceId: container.serviceId,
-                  updatedAt: container.updatedAt,
-                }))}
+                rows={exportRows}
               />
             </div>
           </div>
@@ -708,51 +866,18 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
 
         <div className="min-h-0 flex-1 px-2 pb-2 [&_.table-container]:max-h-[calc(100vh-29rem)] [&_.table-container]:overflow-y-auto">
           <DataTable
-            getColumns={() => containerColumns}
-            getSubRowColumns={() => []}
+            key={nonDeferredContainerTableRows.length}
+            getColumns={getDataTableColumns}
+            getSubRowColumns={getDataTableSubRowColumns}
             fetchDataFn={containerTableFetchData}
-            fetchByIdsFn={async () => []}
-            exportConfig={{
-              entityName: 'docker-containers',
-              headers: ['name', 'image', 'status', 'health', 'environment', 'serviceId', 'updatedAt'],
-              columnMapping: {
-                name: 'Container',
-                image: 'Image',
-                status: 'Status',
-                health: 'Health',
-                environment: 'Environment',
-                serviceId: 'Service',
-                updatedAt: 'Updated',
-              },
-              columnWidths: [{ wch: 24 }, { wch: 40 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 24 }],
-              enableCsv: true,
-              enableExcel: true,
-            }}
+            fetchByIdsFn={fetchByIds}
+            exportConfig={dataTableExportConfig}
             idField='rowId'
-            pageSizeOptions={[10, 20, 50, 100]}
-            renderToolbarContent={({ selectedRows }: { selectedRows: ContainerProjection[] }) => {
-              syncSelectedRows(selectedRows)
-              return null
-            }}
-            onRowClick={() => undefined}
-            subRowsConfig={{ enabled: false, mode: 'same-columns' }}
-            config={{
-              enableRowSelection: true,
-              enableClickRowSelect: false,
-              enableDateFilter: false,
-              enableColumnFilters: false,
-              enableColumnVisibility: true,
-              enableSearch: true,
-              enableExport: true,
-              enableUrlState: false,
-              enableColumnResizing: true,
-              enableKeyboardNavigation: true,
-              defaultSortBy: 'updatedAt',
-              defaultSortOrder: 'desc',
-              searchPlaceholder: 'Search containers, image, service…',
-              columnResizingTableId: 'docker-containers-enhanced-table',
-              size: 'sm',
-            }}
+            pageSizeOptions={dataTablePageSizeOptions}
+            renderToolbarContent={handleRenderToolbarContent}
+            onRowClick={dataTableOnRowClick}
+            subRowsConfig={dataTableSubRowsConfig}
+            config={dataTableConfig}
           />
         </div>
 
@@ -783,16 +908,7 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
     <DockerCreateContainerModal
       open={isCreateModalOpen}
       onOpenChange={setIsCreateModalOpen}
-      onCreated={(payload) => {
-        setActionFeedback(
-          `Create flow completed for ${payload.name} (${payload.image}) · pull=${payload.pullScanSummary.pullStatus} · scan=${payload.pullScanSummary.scanStatus}`,
-        )
-        void liveContainers.refetch()
-        void liveImages.refetch()
-        toast.success(`Container ${payload.name} created`, {
-          description: `${payload.image} • pull ${payload.pullScanSummary.pullStatus} • scan ${payload.pullScanSummary.scanStatus}`,
-        })
-      }}
+      onCreated={handleContainerCreated}
     />
   </>
   )

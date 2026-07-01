@@ -1,5 +1,14 @@
 import { ensureUrlStateHistoryPatched } from "./history-sync";
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 type TypedArray = Int8Array | Uint8Array | Uint8ClampedArray | Int16Array | Uint16Array | Int32Array | Uint32Array | Float32Array | Float64Array;
 
 // Define a type for comparing values that can handle most common types
@@ -189,7 +198,7 @@ export function isDeepEqual(a: Comparable, b: Comparable): boolean {
       
       // Compare values
       for (const key of keysA) {
-        if (!compare((a as Record<string, unknown>)[key] as Comparable, (b as Record<string, unknown>)[key] as Comparable)) return false;
+        if (!compare(Reflect.get(isRecord(a) ? a : {}, "key") as Comparable, Reflect.get(isRecord(b) ? b : {}, "key") as Comparable)) return false;
       }
       
       return true;
@@ -207,7 +216,7 @@ export function isDeepEqual(a: Comparable, b: Comparable): boolean {
 
     for (const key of keysA) {
       if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
-      if (!compare((a as Record<string, unknown>)[key] as Comparable, (b as Record<string, unknown>)[key] as Comparable)) return false;
+      if (!compare(Reflect.get(isRecord(a) ? a : {}, "key") as Comparable, Reflect.get(isRecord(b) ? b : {}, "key") as Comparable)) return false;
     }
     
     return true;

@@ -26,6 +26,15 @@ import { reconstructObservableFromEventIterator } from "../../observable/event-i
  * });
  * ```
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 export class ObservableLinkPlugin<T extends ClientContext> implements StandardLinkPlugin<T> {
   /**
    * Low order ensures this plugin runs before most other interceptors,

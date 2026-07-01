@@ -141,7 +141,7 @@ function resolvePathValue(record: AnyRecord, key: string, pathSegments: readonly
             return undefined;
         }
 
-        current = (current as Record<string, unknown>)[segment];
+        current = Reflect.get(isRecord(current) ? current : {}, "segment");
     }
 
     return current;
@@ -360,6 +360,15 @@ function isMeshResourceOfKind<TKind extends MeshResourceKind>(
     kind: TKind,
 ): candidate is MeshResourceOfKind<TKind> {
     return candidate.kind === kind;
+}
+
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 @Injectable()
@@ -828,7 +837,7 @@ export class MeshResourceSubQueryBuilder<
             if (!scope || typeof scope !== "object") {
                 return false;
             }
-            const record = scope as Record<string, unknown>;
+            const record = isRecord(scope) ? scope : {};
             return record[String(key)] === value;
         });
         return this;
@@ -844,7 +853,7 @@ export class MeshResourceSubQueryBuilder<
             if (!scope || typeof scope !== "object") {
                 return false;
             }
-            const record = scope as Record<string, unknown>;
+            const record = isRecord(scope) ? scope : {};
             return values.includes(record[String(key)] as TScope[TKey]);
         });
         return this;
@@ -860,7 +869,7 @@ export class MeshResourceSubQueryBuilder<
             if (!scope || typeof scope !== "object") {
                 return false;
             }
-            const record = scope as Record<string, unknown>;
+            const record = isRecord(scope) ? scope : {};
             const resolved = record[String(key)];
             return typeof resolved === "string" ? resolved.includes(value) : false;
         });
@@ -900,7 +909,7 @@ export class MeshResourceSubQueryBuilder<
                 return undefined;
             }
 
-            const record = current as Record<string, unknown>;
+            const record = isRecord(current) ? current : {};
             current = record[segment];
         }
 

@@ -173,7 +173,7 @@ function extractStringEnumValues(schema: z.ZodType): string[] {
     }
     const values = (schema as { _def?: { values?: unknown } })._def?.values
     if (values && typeof values === 'object') {
-        return Object.values(values as Record<string, unknown>).filter(
+        return Object.valuesReflect.get(values, "filter")(
             (value): value is string => typeof value === 'string'
         )
     }

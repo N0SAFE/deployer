@@ -134,7 +134,7 @@ function isZodSchema(value: unknown): value is z.ZodType {
 }
 
 function getSchemaDef(schema: z.ZodType): Record<string, unknown> {
-    return schema.def as unknown as Record<string, unknown>
+    return isRecord(schema.def) ? schema.def : {}
 }
 
 function getSchemaType(schema: z.ZodType): string {
@@ -526,7 +526,7 @@ export function usePush<
                 }
                 
                 // Add search params
-                const searchStr = queryString.stringify(search as Record<string, unknown>, {
+                const searchStr = queryString.stringify(isRecord(search) ? search : {}, {
                     skipNull: true,
                     skipEmptyString: true,
                 })
@@ -677,7 +677,7 @@ export function useSearchState<
         () =>
             normalizeSearchState(
                 route.searchSchema,
-                rawSearchState as Record<string, unknown>,
+                isRecord(rawSearchState) ? rawSearchState : {},
                 defaultSearchState
             ),
         [defaultSearchState, rawSearchState, route.searchSchema]

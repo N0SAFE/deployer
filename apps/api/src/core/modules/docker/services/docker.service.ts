@@ -6,6 +6,15 @@ import { PassThrough } from "stream";
 import { Observable } from "rxjs";
 import { EnvService } from "@/config/env/env.service";
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 @Injectable()
 export class DockerService {
     private readonly logger = new Logger(DockerService.name);
@@ -89,7 +98,7 @@ export class DockerService {
             return null;
         }
 
-        const record = raw as Record<string, unknown>;
+        const record = isRecord(raw) ? raw : {};
         const outputCandidate = record.output;
 
         if (typeof outputCandidate === "string") {
@@ -1051,7 +1060,7 @@ CMD ["npm", "start"]
             return false;
         }
 
-        const record = error as Record<string, unknown>;
+        const record = isRecord(error) ? error : {};
         if (record.statusCode === 404) {
             return true;
         }
@@ -1064,8 +1073,8 @@ CMD ["npm", "start"]
         const jsonMessage =
             typeof record.json === "object"
             && record.json !== null
-            && typeof (record.json as Record<string, unknown>).message === "string"
-                ? ((record.json as Record<string, unknown>).message as string).toLowerCase()
+            && typeof Reflect.get(isRecord(record.json) ? record.json : {}, "message") === "string"
+                ? (Reflect.get(isRecord(record.json) ? record.json : {}, "message") as string).toLowerCase()
                 : "";
 
         return jsonMessage.includes("no such container");

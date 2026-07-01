@@ -12,6 +12,16 @@ interface ContainerStreamEntity {
 
 const debugContainerLogsStream = createContextFilterDebugLogger('DockerLogsStreamHook', 'docker-web-logs')
 
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used by `resolveFallbackPayloadMessage`
+ * to walk nested payloads without an `as Record<string, unknown>`
+ * cast.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 function resolveFallbackPayloadMessage(payload: unknown, depth = 0): string | null {
   if (depth > 6 || payload == null) {
     return null
@@ -49,7 +59,13 @@ function resolveFallbackPayloadMessage(payload: unknown, depth = 0): string | nu
     return null
   }
 
-  const record = payload as Record<string, unknown>
+  // After the `Array.isArray` and `typeof !== "object"` checks, the
+  // only remaining type is a non-array object. Use the `isRecord`
+  // type guard to narrow without a cast.
+  if (!isRecord(payload)) {
+    return null
+  }
+  const record = payload
 
   for (const directKey of ['message', 'log', 'line'] as const) {
     if (typeof record[directKey] === 'string' && record[directKey].trim().length > 0) {

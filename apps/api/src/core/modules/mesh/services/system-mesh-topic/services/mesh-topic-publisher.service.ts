@@ -58,6 +58,20 @@ export class MeshTopicPublisherService {
         // 3. Propage
         if (options?.propagate === false) return;
 
+        // Single-node fast path: when there are no remote peers, the
+        // control plane has nothing to forward to. Local subscribers
+        // already received the event via `runtime.emit()` above. Skipping
+        // the control plane here prevents the `TokenBucket` (which caps
+        // at 200 publishes/s) from being drained by self-only emissions
+        // — the docker event stream alone can emit hundreds of
+        // `event_publish` envelopes per second during container churn,
+        // which would otherwise spam `Control envelope rate limit
+        // exceeded` warnings and drop legitimate cross-node propagation.
+        const remoteNodeCount = this.meshTopology
+            .getMembershipSnapshot()
+            .nodes.length;
+        if (remoteNodeCount === 0) return;
+
         const localNode = this.meshTopology.getLocalNode();
         this.meshTopology.publishControlEnvelope({
             envelopeId: randomUUID(),

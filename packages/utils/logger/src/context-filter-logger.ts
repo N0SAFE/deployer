@@ -1,5 +1,14 @@
 import type { LogData, Logger } from "./index";
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 export type ContextFilterLoggerSource = unknown;
 
 export type ContextFilterLoggerOptions = {
@@ -297,7 +306,7 @@ export class ContextFilterLogger {
     }
 
     if (typeof source === "object" && source !== null) {
-      const record = source as Record<string, unknown>;
+      const record = isRecord(source) ? source : {};
 
       const className = this.readStringCandidate(record, [
         "className",
@@ -353,7 +362,7 @@ export class ContextFilterLogger {
       }
 
       if (typeof value === "object" && value !== null) {
-        const constructorName = this.extractConstructorName(value as Record<string, unknown>);
+        const constructorName = this.extractConstructorName(isRecord(value) ? value : {});
         if (constructorName) {
           return constructorName;
         }

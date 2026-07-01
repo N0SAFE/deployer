@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common"
 import { Observable } from "rxjs"
+import { map, filter } from "rxjs/operators"
 import type {
   DockerEntityListInput,
   DockerEntityInspectInput,
@@ -8,6 +9,16 @@ import type {
 import {
   type DockerEntityKind,
   type DockerEntityStreamChunk,
+  dockerContainerSchema,
+  dockerImageSchema,
+  dockerNetworkSchema,
+  dockerVolumeSchema,
+  dockerEntityStreamChunkSchema,
+  buildDockerEntityEventChunk,
+  type DockerContainer,
+  type DockerImage,
+  type DockerNetwork,
+  type DockerVolume,
 } from "@repo/contracts-entities"
 import { AppLogger } from "@repo/logger"
 import { DockerEntityDomainService } from "./docker-entity-domain.service"
@@ -97,10 +108,22 @@ export class DockerEntityOrchestratorService {
       kinds: input.kinds,
       actions: input.actions,
     })
-    return this.dockerEntityDomainService.streamEntities({
-      kinds: input.kinds,
-      actions: input.actions,
-    })
+    return this.dockerEntityDomainService
+      .streamEntities({
+        kinds: input.kinds,
+        actions: input.actions,
+      })
+      .pipe(
+        // ORPC's output validation only runs on synchronous returns, not
+        // on each emission of an observable. So we must validate + coerce
+        // every emitted chunk here, on the producer side. The `map`
+        // operator runs the full chunk schema (with defaults applied) and
+        // emits the *parsed* value, so the client never sees `undefined`
+        // for fields like `ports`, `serviceId`, etc. Invalid chunks are
+        // dropped via `filter`.
+        map((chunk) => this.coerceStreamChunk(chunk)),
+        filter((chunk): chunk is DockerEntityStreamChunk => chunk !== null),
+      )
   }
 
   // ---------------------------------------------------------------------------
@@ -112,9 +135,38 @@ export class DockerEntityOrchestratorService {
     fetcher: () => Promise<{ entities: unknown[]; etag: string; hit: boolean }>,
   ): Promise<DockerEntityListResult<TKind>> {
     const result = await fetcher()
+    const occurredAt = new Date().toISOString()
+    // Wrap each entity as a `DockerEntityEvent` chunk so the response shape
+    // is consistent with `docker.entity.stream` (a client hydrating its
+    // in-memory store from a list response uses the exact same reducer as
+    // for streamed events). The chunk is built by `buildDockerEntityEventChunk`
+    // which runs the full chunk schema — this is the type-safe construction:
+    // the result is a fully-typed `DockerEntityStreamChunk` with every
+    // default field filled, and any malformed entity is rejected at the
+    // Zod layer (no `as unknown as` casts).
+    const data: DockerEntityStreamChunk[] = []
+    for (const raw of result.entities) {
+      const valid = this.validateEntityBase(kind, raw)
+      if (!valid) continue
+      try {
+        const chunk = buildDockerEntityEventChunk({
+          kind: kind as Parameters<typeof buildDockerEntityEventChunk>[0]["kind"],
+          entity: valid as never,
+          action: "snapshot",
+          occurredAt,
+          eventId: null,
+        })
+        data.push(chunk as DockerEntityStreamChunk)
+      } catch (error) {
+        this.scopedLogger.debug(
+          "[docker-entity-orchestrator] dropping unconstructible entity in runList",
+          { kind, message: error instanceof Error ? error.message : String(error) },
+        )
+      }
+    }
     return {
       kind,
-      data: result.entities as DockerEntityStreamChunk[],
+      data,
       etag: result.etag,
       hit: result.hit,
     }
@@ -128,13 +180,108 @@ export class DockerEntityOrchestratorService {
     if (!entity) {
       return null
     }
-    return {
-      ...(entity as Record<string, unknown>),
-      kind,
-      action: "snapshot",
-      occurredAt: new Date().toISOString(),
-      eventId: null,
-    } as unknown as DockerEntityStreamChunk
+    const valid = this.validateEntityBase(kind, entity)
+    if (!valid) {
+      return null
+    }
+    try {
+      return buildDockerEntityEventChunk({
+        kind: kind as Parameters<typeof buildDockerEntityEventChunk>[0]["kind"],
+        entity: valid as never,
+        action: "snapshot",
+        occurredAt: new Date().toISOString(),
+        eventId: null,
+      }) as DockerEntityStreamChunk
+    } catch (error) {
+      this.scopedLogger.debug(
+        "[docker-entity-orchestrator] dropping unconstructible entity in runInspect",
+        { kind, message: error instanceof Error ? error.message : String(error) },
+      )
+      return null
+    }
+  }
+
+  /**
+   * Strictly validate a raw entity payload against the per-kind base
+   * schema. This is the contract boundary: anything below this line is
+   * the source of truth, anything above is a typed `DockerEntityStreamChunk`
+   * the client can trust. Returns the parsed (coerced/defaulted) entity
+   * on success, or `null` if the entity does not satisfy the contract.
+   */
+  private validateEntityBase(
+    kind: DockerEntityKind,
+    raw: unknown,
+  ): DockerContainer | DockerImage | DockerNetwork | DockerVolume | null {
+    if (kind === "container") {
+      const parsed = dockerContainerSchema.safeParse(raw)
+      if (!parsed.success) {
+        this.scopedLogger.warn(
+          "[docker-entity-orchestrator] dropping invalid container entity",
+          { issues: parsed.error.issues },
+        )
+        return null
+      }
+      return parsed.data
+    }
+    if (kind === "image") {
+      const parsed = dockerImageSchema.safeParse(raw)
+      if (!parsed.success) {
+        this.scopedLogger.warn(
+          "[docker-entity-orchestrator] dropping invalid image entity",
+          { issues: parsed.error.issues },
+        )
+        return null
+      }
+      return parsed.data
+    }
+    if (kind === "network") {
+      const parsed = dockerNetworkSchema.safeParse(raw)
+      if (!parsed.success) {
+        this.scopedLogger.warn(
+          "[docker-entity-orchestrator] dropping invalid network entity",
+          { issues: parsed.error.issues },
+        )
+        return null
+      }
+      return parsed.data
+    }
+    if (kind === "volume") {
+      const parsed = dockerVolumeSchema.safeParse(raw)
+      if (!parsed.success) {
+        this.scopedLogger.warn(
+          "[docker-entity-orchestrator] dropping invalid volume entity",
+          { issues: parsed.error.issues },
+        )
+        return null
+      }
+      return parsed.data
+    }
+    return null
+  }
+
+  /**
+   * Validate a stream chunk against the canonical contract AND return
+   * the coerced value. The `dockerEntityStreamChunkSchema` encodes the
+   * per-kind entity shape via the discriminated union, so a single
+   * `safeParse` fills every default (e.g. `ports: []`) and rejects
+   * genuinely broken payloads. Returns the parsed chunk on success, or
+   * `null` to drop the chunk from the stream.
+   *
+   * This is the producer-side boundary: orpc's output validation only
+   * runs on synchronous returns, not on each observable emission, so
+   * we must coerce here to guarantee the web client never sees
+   * `undefined` for any contracted field.
+   */
+  private coerceStreamChunk(chunk: unknown): DockerEntityStreamChunk | null {
+    const result = dockerEntityStreamChunkSchema.safeParse(chunk)
+    if (!result.success) {
+      this.scopedLogger.debug(
+        "[docker-entity-orchestrator] dropping invalid stream chunk",
+        { issues: result.error.issues },
+      )
+      return null
+    }
+    return result.data
   }
 
   private debug(source: string, context?: Record<string, unknown>): void {

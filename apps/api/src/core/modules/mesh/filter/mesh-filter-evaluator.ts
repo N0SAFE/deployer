@@ -5,6 +5,15 @@ import type { MeshFilterDescriptor } from "./mesh-filter.types";
  * The reconstructed function is semantically identical to the client-side
  * MeshFilterOperator.evaluate — same logic, same behavior.
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 export function reconstructFilter<T>(descriptor: MeshFilterDescriptor): (item: T) => boolean {
   switch (descriptor.op) {
     case "always":
@@ -29,19 +38,19 @@ export function reconstructFilter<T>(descriptor: MeshFilterDescriptor): (item: T
       return (item) => !descriptor.values.includes(item[descriptor.field] as never);
     case "exists": {
       return (item) => {
-        const v = (item as Record<string, unknown>)[descriptor.field];
+        const v = (isRecord(item) ? item : {})[descriptor.field];
         return v !== undefined && v !== null;
       };
     }
     case "missing": {
       return (item) => {
-        const v = (item as Record<string, unknown>)[descriptor.field];
+        const v = (isRecord(item) ? item : {})[descriptor.field];
         return v === undefined || v === null;
       };
     }
     case "matches": {
       const re = new RegExp(descriptor.pattern, descriptor.flags);
-      return (item) => re.test(String((item as Record<string, unknown>)[descriptor.field]));
+      return (item) => re.test(String((isRecord(item) ? item : {})[descriptor.field]));
     }
     case "and": {
       const fns = descriptor.operands.map((op) => reconstructFilter<T>(op));

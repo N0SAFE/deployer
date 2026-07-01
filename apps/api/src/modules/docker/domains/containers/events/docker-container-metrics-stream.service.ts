@@ -30,6 +30,16 @@ interface ContainerMetricsSelector {
 
 const DEFAULT_METRICS_INTERVAL_MS = 400;
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used to walk nested metrics payloads
+ * without an `as Record<string, unknown>` cast.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 @Injectable()
 export class DockerContainerMetricsStreamService extends AbstractDomainEventStreamService {
   protected readonly streamDomain = "docker";
@@ -51,7 +61,7 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
   }
 
   stream(query: DockerRuntimeEventsStreamQueryInput): Observable<DockerRuntimeEvent> {
-    const rawQuery = query as Record<string, unknown>;
+    const rawQuery = isRecord(query) ? query : {};
     const filterNode = this.isRuntimeEventFilterNode(rawQuery.filter)
       ? rawQuery.filter
       : undefined;
@@ -135,7 +145,7 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
     }
 
     const events = filteredSamples.map((sample) => {
-      const sampleRecord = sample as unknown as Record<string, unknown>;
+      const sampleRecord = isRecord(sample) ? sample : {};
       const sampleId = this.readString(sampleRecord, ["id", "containerId"]);
 
       const sampleStats = sampleId
@@ -144,7 +154,7 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
 
       return this.toContainerMetricEvent(
         sampleRecord,
-        sampleStats as unknown as Record<string, unknown> | undefined,
+        isRecord(sampleStats) ? sampleStats : undefined,
         timestamp,
         now,
       );
@@ -214,7 +224,7 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
           container.stats({ stream: false }),
         ]);
 
-        const rawStats = rawStatsUnknown as unknown as Record<string, unknown>;
+        const rawStats = isRecord(rawStatsUnknown) ? rawStatsUnknown : {};
 
         const cpuDelta =
           this.readNumber(rawStats, ["cpu_stats.cpu_usage.total_usage"])
@@ -298,12 +308,12 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
       return 0;
     }
 
-    return Object.values(networks as Record<string, unknown>).reduce<number>((sum, networkStats) => {
+    return Object.values(isRecord(networks) ? networks : {}).reduce<number>((sum, networkStats) => {
       if (typeof networkStats !== "object" || networkStats === null) {
         return sum;
       }
 
-      const numeric = this.readNumber(networkStats as Record<string, unknown>, [key]);
+      const numeric = this.readNumber(isRecord(networkStats) ? networkStats : {}, [key]);
       return sum + numeric;
     }, 0);
   }
@@ -319,7 +329,7 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
         return sum;
       }
 
-      const record = entry as Record<string, unknown>;
+      const record = isRecord(entry) ? entry : {};
       const entryOp = this.readString(record, ["op"]);
       if (entryOp !== op) {
         return sum;
@@ -410,7 +420,7 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
     sample: systeminformation.Systeminformation.DockerContainerData,
     selector: ContainerMetricsSelector,
   ): boolean {
-    const sampleRecord = sample as unknown as Record<string, unknown>;
+    const sampleRecord = isRecord(sample) ? sample : {};
     const sampleId = this.readString(sampleRecord, ["id", "containerId"]);
     const sampleName =
       this.readString(sampleRecord, ["name", "containerName"]) ??
@@ -502,7 +512,7 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
       return [];
     }
 
-    return Object.entries(value as Record<string, unknown>)
+    return Object.entries(isRecord(value) ? value : {})
       .sort(([leftKey], [rightKey]) => this.compareObjectKeys(leftKey, rightKey))
       .map(([, entryValue]) => entryValue)
       .filter((item): item is RuntimeEventFilterNode => this.isRuntimeEventFilterNode(item));
@@ -517,7 +527,7 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
       return false;
     }
 
-    const record = value as Record<string, unknown>;
+    const record = isRecord(value) ? value : {};
     return typeof record.operator === "string" && "value" in record;
   }
 
@@ -530,7 +540,7 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
       return [];
     }
 
-    return Object.entries(value as Record<string, unknown>)
+    return Object.entries(isRecord(value) ? value : {})
       .sort(([leftKey], [rightKey]) => this.compareObjectKeys(leftKey, rightKey))
       .map(([, entryValue]) => entryValue);
   }
@@ -605,8 +615,8 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
 
   private readByPath(source: Record<string, unknown>, path: string): unknown {
     return path.split(".").reduce<unknown>((current, segment) => {
-      if (typeof current === "object" && current !== null && segment in (current as Record<string, unknown>)) {
-        return (current as Record<string, unknown>)[segment];
+      if (typeof current === "object" && current !== null && segment in (isRecord(current) ? current : {})) {
+        return (isRecord(current) ? current : {})[segment];
       }
 
       return undefined;

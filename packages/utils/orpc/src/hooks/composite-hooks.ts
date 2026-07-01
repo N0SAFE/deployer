@@ -68,8 +68,7 @@ export function createCompositeHooks<TRouter extends object>(
     const queryClient = compositeOptions.useQueryClient();
     
     // Try to find list, create, update, delete hooks
-    const hooksRecord = baseHooks as Record<string, unknown>;
-    const listHook = getOptionalHook<(opts: unknown) => unknown>(hooksRecord, 'useList');
+        const listHook = getOptionalHook<(opts: unknown) => unknown>(hooksRecord, 'useList');
     const createHook = getOptionalHook<() => unknown>(hooksRecord, 'useCreate');
     const updateHook = getOptionalHook<() => unknown>(hooksRecord, 'useUpdate');
     const deleteHook = getOptionalHook<() => unknown>(hooksRecord, 'useDelete');
@@ -147,15 +146,14 @@ export function createCompositeHooks<TRouter extends object>(
     const [page, setPage] = React.useState(1);
     const pageSize = options?.pageSize ?? compositeOptions.defaultPageSize ?? 20;
     
-    const hooksRecord = baseHooks as Record<string, unknown>;
-    const listHook = getOptionalHook<(opts: unknown) => unknown>(hooksRecord, 'useList');
+        const listHook = getOptionalHook<(opts: unknown) => unknown>(hooksRecord, 'useList');
     const countHook = getOptionalHook<() => unknown>(hooksRecord, 'useCount');
     
     const listQuery = listHook?.({
       limit: pageSize,
       offset: (page - 1) * pageSize,
-      ...options?.filter as Record<string, unknown>,
-      ...options?.sort as Record<string, unknown>
+      ...options?.filter as object,
+      ...options?.sort as object
     }) as QueryResult<{ data?: unknown[]; meta?: unknown; count?: number }> | undefined;
     
     const countQuery = countHook?.() as QueryResult<{ count?: number }> | undefined;
@@ -210,8 +208,7 @@ export function createCompositeHooks<TRouter extends object>(
    * ```
    */
   function useFormData(id: string) {
-    const hooksRecord = baseHooks as Record<string, unknown>;
-    const findByIdHook = getOptionalHook<(value: string) => unknown>(hooksRecord, 'useFindById');
+        const findByIdHook = getOptionalHook<(value: string) => unknown>(hooksRecord, 'useFindById');
     const updateHook = getOptionalHook<() => unknown>(hooksRecord, 'useUpdate');
     
     const query = findByIdHook?.(id) as QueryResult | undefined;
@@ -266,8 +263,8 @@ export function createCompositeHooks<TRouter extends object>(
     const query = listHook?.({
       limit: pageSize,
       offset,
-      ...options?.filter as Record<string, unknown>,
-      ...options?.sort as Record<string, unknown>
+      ...options?.filter as object,
+      ...options?.sort as object
     }) as QueryResult<{ data?: unknown[]; meta?: { hasMore?: boolean } }> | undefined;
     
     // Accumulate items

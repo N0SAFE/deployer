@@ -12,6 +12,15 @@ export abstract class BaseDatabaseService<DB extends NodePgDatabase<typeof globa
     isHealthy(): boolean {
         try {
             // Duck-typed health checks to avoid importing runtime-specific DB libs
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
             const anyDb = this._db as unknown as Record<string, unknown>
             if (typeof anyDb.run === 'function') {
                 // likely Bun SQLite

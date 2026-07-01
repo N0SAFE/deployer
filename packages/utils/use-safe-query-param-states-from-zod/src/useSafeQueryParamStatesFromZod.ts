@@ -26,6 +26,15 @@ import { useDebouncedCallback } from './useDebouncedCallback'
  * Build a `nuqs` parser map from a Zod object schema. The result is
  * stable across renders thanks to `useMemo`.
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 function buildParserMap<T extends z.ZodObject>(
     schema: T
 ): Record<keyof z.infer<T> & string, ReturnType<typeof createParserForZodField>> {

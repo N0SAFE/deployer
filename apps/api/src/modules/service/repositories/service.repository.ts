@@ -10,6 +10,15 @@ import type { ServiceCreateInput } from "@repo/api-contracts/modules/service/cru
 import type { ServiceUpdateInput } from "@repo/api-contracts/modules/service/crud/update";
 import * as crypto from "node:crypto";
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
 
 type ServiceRow = typeof services.$inferSelect;

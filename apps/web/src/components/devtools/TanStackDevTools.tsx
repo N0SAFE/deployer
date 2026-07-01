@@ -41,6 +41,15 @@ import { Switch } from "@repo/ui/components/shadcn/switch";
 import z from "zod/v4";
 
 // Plugin Components
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 const ReactQueryPlugin: TanStackDevtoolsReactPlugin = {
   id: "react-query",
   name: "React Query",

@@ -6,6 +6,15 @@ function inferLogLevel(message: string): DockerContainerLogEntry['level'] {
   return 'info'
 }
 
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used to walk nested log payloads without
+ * an `as Record<string, unknown>` cast.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 function coerceContainerLogEntry(payload: unknown): DockerContainerLogEntry | null {
   const direct = dockerContainerLogEntrySchema.safeParse(payload)
   if (direct.success) {
@@ -16,7 +25,8 @@ function coerceContainerLogEntry(payload: unknown): DockerContainerLogEntry | nu
     return null
   }
 
-  const record = payload as Record<string, unknown>
+  if (!isRecord(payload)) return null
+  const record = payload
 
   const rawMessage =
     typeof record.message === 'string'
@@ -97,7 +107,8 @@ export function extractContainerLogEntries(payload: unknown, depth = 0): DockerC
     return []
   }
 
-  const record = payload as Record<string, unknown>
+  if (!isRecord(payload)) return []
+  const record = payload
   const nestedCandidates = [
     record.body,
     record.data,

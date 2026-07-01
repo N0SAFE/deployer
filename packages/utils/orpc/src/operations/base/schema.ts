@@ -32,6 +32,15 @@ import { voidSchema as _voidSchema, neverSchema } from "../../types/standard-sch
 /**
  * Re-exported from shared — single canonical implementation
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 export function voidSchema() { return _voidSchema(); }
 export function never() { return neverSchema(); }
 

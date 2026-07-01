@@ -178,6 +178,15 @@ export type ObservableQueryUtils<TInputOrOrpc, TStreamValue = never> = [TStreamV
   ? ObservableRouterQueryUtils<TInputOrOrpc>
   : ObservableProcedureQueryUtils<TInputOrOrpc, TStreamValue>;
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 function isObjectLike(value: unknown): value is object {
   return (typeof value === "object" && value !== null) || typeof value === "function";
 }

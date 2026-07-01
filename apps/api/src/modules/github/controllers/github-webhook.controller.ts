@@ -15,6 +15,15 @@ import { WebhookIdempotencyService } from "../services/webhook-idempotency.servi
 // T032: Webhook-driven preview create/update orchestration.
 // T036: Webhook idempotency keys and duplicate-delivery handling.
 @Controller("webhooks/github")
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 export class GithubWebhookController {
     private readonly logger = new Logger(GithubWebhookController.name);
 
@@ -60,16 +69,16 @@ export class GithubWebhookController {
         payload: unknown,
         deliveryId: string,
     ): Promise<{ received: true; deliveryId: string; action?: string; reason?: string }> {
-        const pr = payload as Record<string, unknown>;
+        const pr = isRecord(payload) ? payload : {};
         const action = pr.action as string | undefined;
-        const prData = pr.pull_request as Record<string, unknown> | undefined;
+        const prData = isRecord(pr.pull_request) ? pr.pull_request : undefined;
 
         if (!action || !prData) {
             throw new BadRequestException("Malformed pull_request webhook payload");
         }
 
         const prNumber = prData.number as number | undefined;
-        const head = prData.head as Record<string, unknown> | undefined;
+        const head = isRecord(prData.head) ? prData.head : undefined;
         const branchName = head?.ref as string | undefined;
         const commitSha = head?.sha as string | undefined;
         const merged = Boolean(prData.merged);
@@ -80,7 +89,7 @@ export class GithubWebhookController {
 
         // TODO(T032): resolve actual serviceId from repository identifier once
         // the github provider registry is wired. Using repository full_name as placeholder.
-        const repo = pr.repository as Record<string, unknown> | undefined;
+        const repo = isRecord(pr.repository) ? pr.repository : undefined;
         const serviceId = (repo?.full_name as string | undefined) ?? "unknown";
 
         const result = await this.dispatchService.dispatchPrEvent({

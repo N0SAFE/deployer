@@ -16,6 +16,15 @@ export interface MasterTokenActions {
  * Runtime type-guard that narrows an `AuthClient` to include the master-token
  * plugin actions when they are present on the object.
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 export function hasMasterTokenPlugin<TClient>(
   client: TClient
 ): client is TClient & MasterTokenActions {

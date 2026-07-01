@@ -25,6 +25,15 @@ import { DockerRuntimeEventsStreamService } from "../../../common/events/docker-
 import { CoreEventStreamPoolService } from "@/core/modules/events/services/core-event-stream-pool.service"
 import { DockerEntityCacheService } from "./docker-entity-cache.service"
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 const KINDS_WITH_FLAT_LIST: ReadonlySet<DockerEntityKind> = new Set<DockerEntityKind>([
   "container",
   "image",
@@ -287,7 +296,7 @@ export class DockerEntityDomainService {
 
   private eventMatchesFilter(event: DockerRuntimeEvent, filter: unknown): boolean {
     if (!filter) return true
-    const node = filter as Record<string, unknown>
+    const node = isRecord(filter) ? filter : {}
     const sourceClause = node.source as { value?: string } | undefined
     if (sourceClause && sourceClause.value && sourceClause.value !== event.source) {
       return false
@@ -349,7 +358,7 @@ export class DockerEntityDomainService {
       return null
     }
     return {
-      ...(entity as Record<string, unknown>),
+      ...(isRecord(entity) ? entity : {}),
       kind,
       action: event.action,
       occurredAt: event.timestamp,
@@ -396,7 +405,7 @@ export class DockerEntityDomainService {
         return { payload: flat, ttlMs: this.listTtlMs() }
       },
     )
-    const flatList = payload as TFlat[]
+    const flatList = payload
     const entities = flatList.map((flat) => this.wrapAsEntity(kind, flat)) as TEntity[]
     return { flat: flatList, entities, etag, hit }
   }
@@ -427,7 +436,7 @@ export class DockerEntityDomainService {
       return flat as unknown as TEntity
     }
     return {
-      ...(flat as Record<string, unknown>),
+      ...(isRecord(flat) ? flat : {}),
       relations: undefined,
     } as unknown as TEntity
   }

@@ -15,6 +15,15 @@ import {
 } from "../storage/base/storage-provider.interface";
 import { runtimeRunnerOptionsSchema } from "../providers/base/runtime-runner-options.schema";
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 type RuntimeConvergenceSource = "runtimeRunnerOptions" | "legacyResult" | "default";
 
 interface RuntimeConvergenceConfigResolution {
@@ -826,7 +835,7 @@ export class DeploymentExecutionWorkflowService {
             return null;
         }
 
-        const sanitized = Object.entries(raw as Record<string, unknown>).reduce<Record<string, string>>(
+        const sanitized = Object.entries(isRecord(raw) ? raw : {}).reduce<Record<string, string>>(
             (accumulator, [key, value]) => {
                 const normalizedKey = key.trim();
                 if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(normalizedKey)) {
@@ -913,7 +922,7 @@ export class DeploymentExecutionWorkflowService {
             return null;
         }
 
-        const candidateRecord = healthSummary as Record<string, unknown>;
+        const candidateRecord = isRecord(healthSummary) ? healthSummary : {};
         const directRoute = candidateRecord.route;
         const directDomainUrl = candidateRecord.domainUrl;
 

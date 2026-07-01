@@ -75,6 +75,15 @@ export type {
 /**
  * Generate all hooks for an ORPC router with automatic cache invalidation.
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 export function createRouterHooks<TContract extends object, TRouter extends object = TContract>(
   router: TRouter,
   options: RouterHooksOptions<TContract, TRouter>
@@ -95,7 +104,7 @@ export function createRouterHooks<TContract extends object, TRouter extends obje
   procedureNames.forEach(name => {
     const procedure = router[name] as unknown;
     const operationType = detectOperationType(procedure, name);
-    const typedProcedure = procedure as Record<string, unknown>;
+    const typedProcedure = procedure as object;
 
     switch (operationType) {
       case 'query':
@@ -142,7 +151,7 @@ export function createRouterHooks<TContract extends object, TRouter extends obje
 
   queries.forEach(name => {
     const hookName = options.hookNaming?.(name) ?? `use${name.charAt(0).toUpperCase()}${name.slice(1)}`;
-    const procedure = (router as Record<string, unknown>)[name] as { queryOptions: unknown; queryKey: unknown };
+    const procedure = Reflect.get(router, "name") as { queryOptions: unknown; queryKey: unknown };
     hooks[hookName] = createQueryHook(procedure);
 
     queryKeys[name] = (input?: unknown) => {
@@ -162,10 +171,10 @@ export function createRouterHooks<TContract extends object, TRouter extends obje
     const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
 
     const liveHookName = options.hookNaming?.(`live${capitalizedName}`) ?? `useLive${capitalizedName}`;
-    hooks[liveHookName] = createLiveQueryHook((router as Record<string, unknown>)[name] as { experimental_liveOptions?: unknown; queryOptions?: unknown; queryKey?: unknown });
+    hooks[liveHookName] = createLiveQueryHook(Reflect.get(router, "name") as { experimental_liveOptions?: unknown; queryOptions?: unknown; queryKey?: unknown });
 
     const streamedHookName = options.hookNaming?.(`streamed${capitalizedName}`) ?? `useStreamed${capitalizedName}`;
-    hooks[streamedHookName] = createStreamedQueryHook((router as Record<string, unknown>)[name] as { experimental_streamedOptions?: unknown; queryOptions?: unknown; queryKey?: unknown });
+    hooks[streamedHookName] = createStreamedQueryHook(Reflect.get(router, "name") as { experimental_streamedOptions?: unknown; queryOptions?: unknown; queryKey?: unknown });
 
     if (options.debug) {
       console.log(`Generated streaming hooks for "${name}":`);
@@ -184,7 +193,7 @@ export function createRouterHooks<TContract extends object, TRouter extends obje
       const results: { queryKey: unknown; input?: unknown; scope?: 'all' | 'exact' }[] = [];
 
       const add = (queryName: string, input: unknown, scope: 'all' | 'exact') => {
-        const queryProcedure = (router as Record<string, unknown>)[queryName] as Record<string, unknown> | undefined;
+        const queryProcedure = Reflect.get(router, "queryName") as Record<string, unknown> | undefined;
         if (!queryProcedure?.queryKey) {
           if (options.debug) {
             console.warn(`Query procedure "${queryName}" not found for invalidation`);
@@ -216,7 +225,7 @@ export function createRouterHooks<TContract extends object, TRouter extends obje
       return results;
     };
 
-    const mutationProcedure = (router as Record<string, unknown>)[name] as { mutationOptions: unknown; queryKey?: unknown };
+    const mutationProcedure = Reflect.get(router, "name") as { mutationOptions: unknown; queryKey?: unknown };
     hooks[hookName] = createMutationHook(
       mutationProcedure,
       name,

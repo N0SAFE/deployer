@@ -24,6 +24,15 @@ import { s } from "../../operations/base/schema";
 /**
  * Query builder - exposes current query schema and entity schema for direct chaining
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 export class QueryBuilder<TQuery extends AnySchema, TParams extends AnySchema, TBody extends AnySchema, THeaders extends AnySchema, TEntitySchema extends AnySchema> {
     constructor(
         private _parent: DetailedInputBuilder<TParams, TQuery, TBody, THeaders, TEntitySchema>,
@@ -368,7 +377,7 @@ export class DetailedInputBuilder<
         const isTemplateFn = (value: unknown): value is TemplateFn => typeof value === "function";
 
         // Extract existing params shape at runtime
-        const existingParamsShape = typeof this.$params === "object" ? ((this.$params as Record<string, unknown> & Record<symbol, SchemaShape>)[Symbol.for("standard-schema:shape")] ?? {}) : {};
+        const existingParamsShape = typeof this.$params === "object" ? ((isRecord(this.$params) ? this.$params as Record<string, unknown> & Record<symbol, SchemaShape> : {} as Record<string, unknown> & Record<symbol, SchemaShape>)[Symbol.for("standard-schema:shape")] ?? {}) : {};
 
         // Overload 2: Object + template function
         if (typeof paramsOrModifier === "object" && paramsOrModifier !== null && !("~standard" in paramsOrModifier) && isTemplateFn(templateFnIfNewParams)) {
@@ -691,7 +700,7 @@ function isFieldOptional(field: AnySchema): boolean {
     }
     // Universal fallback: validate undefined — if it succeeds, the field accepts undefined
     try {
-        const result = (field as { "~standard": { validate: (v: unknown) => unknown } })["~standard"].validate(undefined) as Record<string, unknown>;
+        const result = isRecord((field as { "~standard": { validate: (v: unknown) => unknown } })["~standard"].validate(undefined)) ? (field as { "~standard": { validate: (v: unknown) => unknown } })["~standard"].validate(undefined) as Record<string, unknown> : {};
         return "value" in result;
     } catch {
         return false;

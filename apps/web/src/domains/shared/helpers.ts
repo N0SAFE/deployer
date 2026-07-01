@@ -64,6 +64,20 @@ type MaybeOptionalOptions<TOptions> = Record<never, never> extends TOptions ? [o
  * if (response.error) return new Thrower(response.error)
  * ```
  */
+
+/**
+ * Type guard for `{ message: string }` — narrows `unknown` to an
+ * object with a string `message` field without a cast.
+ */
+function isObjectWithMessage(
+  value: object,
+): value is { message: string } {
+  return (
+    "message" in value &&
+    typeof value.message === "string"
+  )
+}
+
 export class Thrower<TError = unknown> extends Error {
   /**
    * Unique brand property for type-level discrimination
@@ -77,8 +91,8 @@ export class Thrower<TError = unknown> extends Error {
     const message =
       error instanceof Error
         ? error.message
-        : typeof error === "object" && error !== null
-          ? ((error as Record<string, unknown>).message as string)
+        : typeof error === "object" && error !== null && isObjectWithMessage(error)
+          ? error.message
           : String(error);
 
     super(message);
@@ -119,14 +133,12 @@ export class BetterAuthError extends Error {
 export function isBetterAuthError(
   result: unknown,
 ): result is { data: null; error: { status: number; statusText: string } } {
-  return (
-    result !== null &&
-    typeof result === "object" &&
-    "data" in result &&
-    (result as Record<string, unknown>).data === null &&
-    "error" in result &&
-    (result as Record<string, unknown>).error !== null
-  );
+  if (result === null || typeof result !== "object") return false
+  // After the `in` check, TypeScript knows the property exists but not
+  // its type. Use a type guard to narrow without a cast.
+  if (!("data" in result)) return false
+  if (!("error" in result)) return false
+  return result.data === null && result.error !== null
 }
 
 /**

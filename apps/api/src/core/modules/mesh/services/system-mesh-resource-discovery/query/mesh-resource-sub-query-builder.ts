@@ -13,6 +13,15 @@ import type { MeshResourceQueryBuilder } from "./mesh-resource-query-builder";
  *   .whereContains("tags", "prod")
  *   .exists()
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 export class MeshResourceSubQueryBuilder<
     TCandidate extends MeshResourceLocation,
     TOutput extends AnyRecord,
@@ -28,7 +37,7 @@ export class MeshResourceSubQueryBuilder<
     whereEq<TKey extends keyof TScope>(key: TKey, value: TScope[TKey]): this {
         this.predicates.push((scope) => {
             if (!scope || typeof scope !== "object") return false;
-            return (scope as Record<string, unknown>)[String(key)] === value;
+            return Reflect.get(isRecord(scope) ? scope : {}, String(key)) === value;
         });
         return this;
     }
@@ -41,7 +50,7 @@ export class MeshResourceSubQueryBuilder<
     whereIn<TKey extends keyof TScope>(key: TKey, values: readonly TScope[TKey][]): this {
         this.predicates.push((scope) => {
             if (!scope || typeof scope !== "object") return false;
-            return values.includes((scope as Record<string, unknown>)[String(key)] as TScope[TKey]);
+            return values.includes(Reflect.get(isRecord(scope) ? scope : {}, String(key)) as TScope[TKey]);
         });
         return this;
     }
@@ -54,7 +63,7 @@ export class MeshResourceSubQueryBuilder<
     whereContains<TKey extends keyof TScope>(key: TKey, value: string): this {
         this.predicates.push((scope) => {
             if (!scope || typeof scope !== "object") return false;
-            const resolved = (scope as Record<string, unknown>)[String(key)];
+            const resolved = Reflect.get(isRecord(scope) ? scope : {}, String(key));
             return typeof resolved === "string" ? resolved.includes(value) : false;
         });
         return this;
@@ -90,7 +99,7 @@ export class MeshResourceSubQueryBuilder<
         let current: unknown = scope;
         for (const segment of dotPath.split(".").filter(Boolean)) {
             if (!current || typeof current !== "object") return undefined;
-            current = (current as Record<string, unknown>)[segment];
+            current = Reflect.get(isRecord(current) ? current : {}, "segment");
         }
         return current;
     }

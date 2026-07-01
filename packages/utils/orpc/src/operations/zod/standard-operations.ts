@@ -112,6 +112,15 @@ export type ZodEntityOperationOptions<TEntitySchema extends ZodEntitySchema, TId
  * const listContract = userOps.list({ pagination: { defaultLimit: 20 } }).build();
  * ```
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 export class ZodStandardOperations<
     TEntity extends ZodEntitySchema = ZodEntitySchema,
     TIdField extends string = "id",

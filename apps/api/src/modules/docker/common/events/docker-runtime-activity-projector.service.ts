@@ -19,6 +19,15 @@ import type {
  * the persistence layer (`docker-runtime-activity.repository.ts`) and the
  * live stream (`docker-runtime-activity-domain.service.ts`).
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 @Injectable()
 export class DockerRuntimeActivityProjectorService {
   project(event: DockerRuntimeEvent): DockerRuntimeActivityEntity {
@@ -68,7 +77,7 @@ export class DockerRuntimeActivityProjectorService {
       scanner,
       message,
       actorAttributes: event.actorAttributes,
-      payload: event.payload as Record<string, unknown>,
+      payload: isRecord(event.payload) ? event.payload : {},
       raw: event.raw,
       occurredAt: occurredAt.toISOString(),
       createdAt: now.toISOString(),
@@ -130,16 +139,16 @@ export class DockerRuntimeActivityProjectorService {
   }
 
   private resolveMessage(event: DockerRuntimeEvent): string | null {
-    const payload = event.payload as Record<string, unknown>
+    const payload = isRecord(event.payload) ? event.payload : {}
     const candidates = [
-      payload.containerName,
-      payload.imageName,
-      payload.repository,
-      payload.networkName,
-      payload.volumeName,
-      payload.serviceName,
-      payload.daemonName,
-      payload.builderName,
+      payload["containerName"],
+      payload["imageName"],
+      payload["repository"],
+      payload["networkName"],
+      payload["volumeName"],
+      payload["serviceName"],
+      payload["daemonName"],
+      payload["builderName"],
     ]
     for (const candidate of candidates) {
       if (typeof candidate === "string" && candidate.trim().length > 0) {

@@ -20,6 +20,15 @@ import {
 } from '@repo/ui/components/shadcn/dialog'
 import { Activity, Network, Timer, TriangleAlert } from 'lucide-react'
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 const MAP_ANCHOR: [number, number] = [48.8566, 2.3522]
 
 function hashNodeId(nodeId: string): number {

@@ -28,14 +28,23 @@ type ZodKind =
  * (added in Zod v4). Older versions exposed it under `_def`. We check
  * both for forward-compatibility without resorting to `any`.
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 function getSchemaDef(schema: z.ZodType): Record<string, unknown> {
     const def = (schema as { def?: unknown }).def
     if (def && typeof def === 'object') {
-        return def as Record<string, unknown>
+        return isRecord(def) ? def : {}
     }
     const legacy = (schema as { _def?: unknown })._def
     if (legacy && typeof legacy === 'object') {
-        return legacy as Record<string, unknown>
+        return isRecord(legacy) ? legacy : {}
     }
     return {}
 }
@@ -77,7 +86,7 @@ function mapTypeString(value: string): ZodKind {
         normalized === 'union' ||
         normalized === 'nativeenum'
     ) {
-        return normalized as ZodKind
+        return normalized;
     }
     return 'unknown'
 }
@@ -134,7 +143,7 @@ export function isZodInteger(schema: z.ZodType): boolean {
     if (Array.isArray(checks)) {
         return checks.some((check) => {
             if (!check || typeof check !== 'object') return false
-            const record = check as Record<string, unknown>
+            const record = isRecord(check) ? check : {}
             if (record.kind === 'int' || record.kind === 'integer') {
                 return true
             }

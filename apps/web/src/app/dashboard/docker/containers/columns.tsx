@@ -127,8 +127,11 @@ export function createContainerColumns({
   ]
 }
 
-export function createContainerTableFetchData(rows: ContainerTableRow[]) {
+export function createContainerTableFetchData(
+  getRows: () => ContainerTableRow[],
+) {
   return async (params: ContainerTableFetchParams) => {
+    const rows = getRows()
     const { page, limit, search, sort_by, sort_order } = params
     const normalizedSearch = search.trim().toLowerCase()
 

@@ -2,6 +2,15 @@ import { Injectable } from "@nestjs/common";
 import { signMeshToken, verifyMeshToken } from "@repo/auth/mesh";
 import { SystemMeshConfigService } from "@/core/modules/mesh/services/system-mesh-config.service";
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 const DEFAULT_REPLAY_WINDOW_MS = 30_000;
 
 export const MESH_INTERNAL_KEY_HEADER = "x-mesh-internal-key";

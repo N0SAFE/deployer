@@ -6,6 +6,15 @@ import { DockerService } from "./docker.service";
 // Types
 // ============================================================================
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 export type ScannerType = "trivy" | "grype" | "dive";
 
 export interface ScannerExecResult {
@@ -223,8 +232,8 @@ export class ScannerContainerManagerService implements OnModuleDestroy {
     } else {
       // TCP mode — attempt to reconstruct DOCKER_HOST from the dockerode client
       const dockerClient = this.dockerService.getDockerClient();
-      const host = (dockerClient as Record<string, unknown>).host as string | undefined;
-      const port = (dockerClient as Record<string, unknown>).port as number | undefined;
+      const host = Reflect.get(isRecord(dockerClient) ? dockerClient : {}, "host") as string | undefined;
+      const port = Reflect.get(isRecord(dockerClient) ? dockerClient : {}, "port") as number | undefined;
       if (host && port) {
         envVars.push(`DOCKER_HOST=tcp://${host}:${String(port)}`);
       }

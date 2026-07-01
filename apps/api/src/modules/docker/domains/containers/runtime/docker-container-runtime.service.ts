@@ -32,6 +32,15 @@ import {
 } from "@repo/contracts-entities";
 import { DockerService as CoreDockerService } from "@/core/modules/docker/services/docker.service";
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 interface TerminalSessionEvent {
   sessionId: string;
   timestamp: string;

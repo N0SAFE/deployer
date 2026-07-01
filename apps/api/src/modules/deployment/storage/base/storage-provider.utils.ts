@@ -6,6 +6,15 @@ import {
     type DeploymentStoragePolicy,
 } from "./storage-policy.schema";
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 const storageEnvelopeSchema = z
     .object({
         customData: z.record(z.string(), z.unknown()).optional(),
@@ -35,11 +44,11 @@ function mergeStorageConfig(
 
         const serviceRecord =
             serviceSection && typeof serviceSection === "object" && !Array.isArray(serviceSection)
-                ? (serviceSection as Record<string, unknown>)
+                ? (isRecord(serviceSection) ? serviceSection : {})
                 : undefined;
         const triggerRecord =
             triggerSection && typeof triggerSection === "object" && !Array.isArray(triggerSection)
-                ? (triggerSection as Record<string, unknown>)
+                ? (isRecord(triggerSection) ? triggerSection : {})
                 : undefined;
 
         if (!serviceRecord && !triggerRecord) {
@@ -75,7 +84,7 @@ function extractRawStorageType(input: DeploymentTriggerInput): string | undefine
         return undefined;
     }
 
-    const rawType = (storageCandidate as Record<string, unknown>).type;
+    const rawType = (isRecord(storageCandidate) ? storageCandidate : {}).type;
     return typeof rawType === "string" && rawType.length > 0 ? rawType : undefined;
 }
 

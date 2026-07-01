@@ -65,6 +65,7 @@ export default AuthSignin.Route(({ searchParams }) => {
             }
 
             setIsLoading(false)
+            console.log(searchParams)
             void redirect(searchParams.redirectTo ?? searchParams.callbackUrl ?? '/')
         },
     })

@@ -39,6 +39,15 @@ import type { GlobalDatabase as Database } from "@/core/modules/database/service
  * Constraint for filter objects with recursive _and/_or logical nesting.
  * Uses F-bounded polymorphism to preserve the concrete filter type through recursion.
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 export interface FilterWithLogical {
     _and?: unknown;
     _or?: unknown;
@@ -132,11 +141,11 @@ function resolveFilter<TFilter extends Record<string, unknown>>(
     const parts: (SQL | undefined)[] = [];
 
     const resolverEntries = Object.entries(resolvers) as [string, (entry: never) => SQL | undefined][];
-    const filterRecord = filter as Record<string, unknown>;
+    const filterRecord = isRecord(filter) ? filter : {};
     for (const [key, resolver] of resolverEntries) {
         const entry = filterRecord[key];
         if (entry != null) {
-            const entryValue = (entry as Record<string, unknown>).value;
+            const entryValue = Reflect.get(entry, "value");
             const enriched = Object.assign({}, entry, { common: createCommonOperators(entryValue) });
             parts.push(resolver(enriched as never));
         }

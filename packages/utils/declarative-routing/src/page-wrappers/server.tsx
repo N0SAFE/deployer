@@ -133,8 +133,8 @@ function extractAdditionalProps<T extends object>(
 }
 
 function normalizeRecord(value: unknown): Record<string, unknown> {
-    if (typeof value === 'object' && value !== null) {
-        return value as Record<string, unknown>
+    if (isObjectLike(value)) {
+        return value
     }
     return {}
 }
@@ -201,10 +201,10 @@ function createServerRouteHelpers<
 
     const searchUpdate = (patch: RouteSearchPatch<Search> | null) => {
         const currentSearch = isObjectLike(search)
-            ? (search as Record<string, unknown>)
+            ? search
             : {}
         const patchRecord = patch && isObjectLike(patch)
-            ? (patch as Record<string, unknown>)
+            ? patch
             : {}
 
         const nextSearch = {

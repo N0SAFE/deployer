@@ -46,6 +46,15 @@ export interface AnyEventEmission<T extends EventContract> {
 /**
  * Event subscription tracking
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 interface EventSubscriptionData<T> {
   eventName: string;
   subject: Subject<T>;

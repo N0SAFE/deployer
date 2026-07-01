@@ -7,11 +7,17 @@ import z from "zod/v4";
  * `data` reuses the discriminated `DockerEntityStreamChunk` shape so a
  * client can hydrate the in-memory store directly from the list payload
  * (or ignore the metadata and re-apply events as usual).
+ *
+ * `etag` and `hit` are optional metadata: the server returns an etag
+ * fingerprint for the snapshot (so the client can do conditional
+ * re-renders) and a `hit` flag so the client can tell whether the
+ * payload came from the in-memory cache or was freshly computed.
  */
 const dockerEntityListResponseSchema = z.object({
   kind: z.string().min(1),
   data: z.array(dockerEntityStreamChunkSchema),
   etag: z.string().min(1).optional(),
+  hit: z.boolean().optional(),
 })
 export type DockerEntityListResponse = z.infer<typeof dockerEntityListResponseSchema>
 

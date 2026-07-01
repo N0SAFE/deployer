@@ -1677,7 +1677,9 @@ export function DockerImageDetailModalTrigger({ id, children, className, initial
       <button type="button" className={className ?? 'underline-offset-4 hover:underline text-left'} onClick={() => setOpen(true)}>
         {children}
       </button>
-      <DockerImageDetailContent id={id} open={open} onOpenChange={setOpen} initialTab={initialTab} />
+      {open ? (
+        <DockerImageDetailContent id={id} open={open} onOpenChange={setOpen} initialTab={initialTab} />
+      ) : null}
     </>
   )
 }

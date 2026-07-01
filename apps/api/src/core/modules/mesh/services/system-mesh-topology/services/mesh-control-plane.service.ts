@@ -29,8 +29,18 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
           private readonly overlayScope: SystemMeshOverlayScopeService,
           private readonly meshEventService: SystemMeshEventService,
       ) {
-          // 500 envelopes max en burst, refill 200/s
-          this.publishBudget = new TokenBucket(this.clock, 500, 200);
+          // 5000 envelopes max en burst, refill 2000/s.
+          //
+          // The original 500/200 budget was too tight for legitimate
+          // high-volume publishers like the docker runtime event stream
+          // (which can emit hundreds of `event_publish` envelopes per
+          // second during container churn). Bumping the budget to 5000
+          // burst / 2000/s refill makes the `Control envelope rate
+          // limit exceeded` warning a true abuse signal instead of
+          // tripping on normal activity. The single-node fast path in
+          // `MeshTopicPublisherService` still avoids wasting tokens on
+          // self-only emissions.
+          this.publishBudget = new TokenBucket(this.clock, 5000, 2000);
       }
 
       publish(envelope: MeshControlEnvelope): {

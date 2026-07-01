@@ -2,6 +2,15 @@ import { Injectable } from "@nestjs/common";
 import { nodeConfig } from "@/config/drizzle/local/schema";
 import { LocalDatabaseService } from "../../database/local/local-database.service";
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 export type NodeConfigRow = typeof nodeConfig.$inferSelect;
 
 @Injectable()
@@ -53,8 +62,8 @@ export class NodeConfigRepository {
     getMeshSharedSecret(): string | null {
         const row = this.find();
         if (!row) return null;
-        return (row as Record<string, unknown>).meshSharedSecret as string | null
-            ?? (row as Record<string, unknown>).mesh_shared_secret as string | null
+        return Reflect.get(isRecord(row) ? row : {}, "meshSharedSecret") as string | null
+            ?? Reflect.get(isRecord(row) ? row : {}, "mesh_shared_secret") as string | null
             ?? null;
     }
 }

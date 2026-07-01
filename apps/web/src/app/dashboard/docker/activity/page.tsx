@@ -24,6 +24,15 @@ import {
 import { Activity, Search } from 'lucide-react'
 import type { DockerRuntimeActivityEntity } from '@repo/contracts-entities'
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 type ActivityStatus = DockerRuntimeActivityEntity['status']
 type ActivityCategory = DockerRuntimeActivityEntity['category']
 type ActivitySeverity = DockerRuntimeActivityEntity['severity']
@@ -64,7 +73,7 @@ function parseProgress(activity: DockerRuntimeActivityEntity): number | null {
 }
 
 function resolveResourceName(activity: DockerRuntimeActivityEntity): string {
-  const payload = activity.payload as Record<string, unknown>
+  const payload = isRecord(activity.payload) ? activity.payload : {}
   const candidates = [
     payload.containerName,
     payload.imageName,
@@ -87,7 +96,7 @@ function resolveResourceName(activity: DockerRuntimeActivityEntity): string {
 }
 
 function resolveContainerId(activity: DockerRuntimeActivityEntity): string | undefined {
-  const payload = activity.payload as Record<string, unknown>
+  const payload = isRecord(activity.payload) ? activity.payload : {}
   const candidate = typeof payload.containerId === 'string'
     ? payload.containerId
     : activity.source === 'container' && typeof activity.actorId === 'string'

@@ -22,6 +22,15 @@ import type {
 // Typed settings stored in project.settings JSONB
 // ---------------------------------------------------------------------------
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 interface ProjectSettings {
     // General config (supplementary fields; name/description/baseDomain are top-level columns)
     defaultBranch?: string;
@@ -138,7 +147,7 @@ export class ProjectService {
         if (!updated) throw new NotFoundException(`Project ${id} not found`);
 
         const changedFields = Object.keys(data).filter(
-            (key) => (data as Record<string, unknown>)[key] !== undefined,
+            (key) => Reflect.get(isRecord(data) ? data : {}, "key") !== undefined,
         );
         this.projectEventService.emit(
             "projectUpdated",
@@ -712,7 +721,7 @@ export class ProjectService {
         const project = await this.projectRepository.findById(projectId);
         if (!project) throw new NotFoundException(`Project ${projectId} not found`);
 
-        const current = (project.settings ?? {}) as Record<string, unknown>;
+        const current = isRecord(project.settings ?? {}) ? (project.settings ?? {}) : {};
         const merged = { ...current, ...patch };
 
         const updated = await this.projectRepository.update(projectId, {

@@ -23,90 +23,90 @@ export {
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
-export function eq<T, K extends keyof T>(field: K, value: T[K]): MeshFilterOperator<T> {
+export function eq<T extends object, K extends keyof T>(field: K, value: T[K]): MeshFilterOperator<T> {
   const descriptor: MeshFilterDescriptor = { op: "eq", field: field as string, value: value as Scalar };
-  const evaluate = (item: T) => (item as Record<string, unknown>)[field as string] === value;
+  const evaluate = (item: T) => Reflect.get(item, field as string) === value;
   const operator = (source: Observable<T>) => source.pipe(filter(evaluate));
   return Object.assign(operator, { descriptor, evaluate });
 }
 
-export function neq<T, K extends keyof T>(field: K, value: T[K]): MeshFilterOperator<T> {
+export function neq<T extends object, K extends keyof T>(field: K, value: T[K]): MeshFilterOperator<T> {
   const descriptor: MeshFilterDescriptor = { op: "neq", field: field as string, value: value as Scalar };
-  const evaluate = (item: T) => (item as Record<string, unknown>)[field as string] !== value;
+  const evaluate = (item: T) => Reflect.get(item, field as string) !== value;
   const operator = (source: Observable<T>) => source.pipe(filter(evaluate));
   return Object.assign(operator, { descriptor, evaluate });
 }
 
-export function gt<T, K extends keyof T>(field: K, value: number): MeshFilterOperator<T> {
+export function gt<T extends object, K extends keyof T>(field: K, value: number): MeshFilterOperator<T> {
   const descriptor: MeshFilterDescriptor = { op: "gt", field: field as string, value };
-  const evaluate = (item: T) => (item as Record<string, unknown>)[field as string] as number > value;
+  const evaluate = (item: T) => Reflect.get(item, field as string) as number > value;
   const operator = (source: Observable<T>) => source.pipe(filter(evaluate));
   return Object.assign(operator, { descriptor, evaluate });
 }
 
-export function gte<T, K extends keyof T>(field: K, value: number): MeshFilterOperator<T> {
+export function gte<T extends object, K extends keyof T>(field: K, value: number): MeshFilterOperator<T> {
   const descriptor: MeshFilterDescriptor = { op: "gte", field: field as string, value };
-  const evaluate = (item: T) => (item as Record<string, unknown>)[field as string] as number >= value;
+  const evaluate = (item: T) => Reflect.get(item, field as string) as number >= value;
   const operator = (source: Observable<T>) => source.pipe(filter(evaluate));
   return Object.assign(operator, { descriptor, evaluate });
 }
 
-export function lt<T, K extends keyof T>(field: K, value: number): MeshFilterOperator<T> {
+export function lt<T extends object, K extends keyof T>(field: K, value: number): MeshFilterOperator<T> {
   const descriptor: MeshFilterDescriptor = { op: "lt", field: field as string, value };
-  const evaluate = (item: T) => (item as Record<string, unknown>)[field as string] as number < value;
+  const evaluate = (item: T) => Reflect.get(item, field as string) as number < value;
   const operator = (source: Observable<T>) => source.pipe(filter(evaluate));
   return Object.assign(operator, { descriptor, evaluate });
 }
 
-export function lte<T, K extends keyof T>(field: K, value: number): MeshFilterOperator<T> {
+export function lte<T extends object, K extends keyof T>(field: K, value: number): MeshFilterOperator<T> {
   const descriptor: MeshFilterDescriptor = { op: "lte", field: field as string, value };
-  const evaluate = (item: T) => (item as Record<string, unknown>)[field as string] as number <= value;
+  const evaluate = (item: T) => Reflect.get(item, field as string) as number <= value;
   const operator = (source: Observable<T>) => source.pipe(filter(evaluate));
   return Object.assign(operator, { descriptor, evaluate });
 }
 
-export function inSet<T, K extends keyof T>(field: K, values: readonly T[K][]): MeshFilterOperator<T> {
+export function inSet<T extends object, K extends keyof T>(field: K, values: readonly T[K][]): MeshFilterOperator<T> {
   const descriptor: MeshFilterDescriptor = { op: "in", field: field as string, values: [...values] as Scalar[] };
-  const evaluate = (item: T) => values.includes((item as Record<string, unknown>)[field as string] as T[K]);
+  const evaluate = (item: T) => values.includes(Reflect.get(item, field as string) as T[K]);
   const operator = (source: Observable<T>) => source.pipe(filter(evaluate));
   return Object.assign(operator, { descriptor, evaluate });
 }
 
-export function notIn<T, K extends keyof T>(field: K, values: readonly T[K][]): MeshFilterOperator<T> {
+export function notIn<T extends object, K extends keyof T>(field: K, values: readonly T[K][]): MeshFilterOperator<T> {
   const descriptor: MeshFilterDescriptor = { op: "notIn", field: field as string, values: [...values] as Scalar[] };
-  const evaluate = (item: T) => !values.includes((item as Record<string, unknown>)[field as string] as T[K]);
+  const evaluate = (item: T) => !values.includes(Reflect.get(item, field as string) as T[K]);
   const operator = (source: Observable<T>) => source.pipe(filter(evaluate));
   return Object.assign(operator, { descriptor, evaluate });
 }
 
-export function exists<T, K extends keyof T>(field: K): MeshFilterOperator<T> {
+export function exists<T extends object, K extends keyof T>(field: K): MeshFilterOperator<T> {
   const descriptor: MeshFilterDescriptor = { op: "exists", field: field as string };
   const evaluate = (item: T) => {
-    const v = (item as Record<string, unknown>)[field as string];
+    const v = Reflect.get(item, field);
     return v !== undefined && v !== null;
   };
   const operator = (source: Observable<T>) => source.pipe(filter(evaluate));
   return Object.assign(operator, { descriptor, evaluate });
 }
 
-export function missing<T, K extends keyof T>(field: K): MeshFilterOperator<T> {
+export function missing<T extends object, K extends keyof T>(field: K): MeshFilterOperator<T> {
   const descriptor: MeshFilterDescriptor = { op: "missing", field: field as string };
   const evaluate = (item: T) => {
-    const v = (item as Record<string, unknown>)[field as string];
+    const v = Reflect.get(item, field);
     return v === undefined || v === null;
   };
   const operator = (source: Observable<T>) => source.pipe(filter(evaluate));
   return Object.assign(operator, { descriptor, evaluate });
 }
 
-export function matches<T, K extends keyof T>(field: K, pattern: RegExp): MeshFilterOperator<T> {
+export function matches<T extends object, K extends keyof T>(field: K, pattern: RegExp): MeshFilterOperator<T> {
   const descriptor: MeshFilterDescriptor = {
     op: "matches",
     field: field as string,
     pattern: pattern.source,
     flags: pattern.flags,
   };
-  const evaluate = (item: T) => pattern.test(String((item as Record<string, unknown>)[field as string]));
+  const evaluate = (item: T) => pattern.test(String(Reflect.get(item, field as string)));
   const operator = (source: Observable<T>) => source.pipe(filter(evaluate));
   return Object.assign(operator, { descriptor, evaluate });
 }

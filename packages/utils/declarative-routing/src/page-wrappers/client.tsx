@@ -44,6 +44,15 @@ let clientAuthAdapter: ClientAuthAdapter | null = null
  * Configure the client-side auth adapter.
  * Must be called before using client session wrappers.
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 export function configureClientAuth(adapter: ClientAuthAdapter): void {
     clientAuthAdapter = adapter
 }
@@ -131,7 +140,7 @@ function fallbackBuildUrl(
  * Client-side route helpers. Reads the live URL state via
  * `useSafeQueryParamStatesFromZod` (and Next.js's `useParams`) and
  * exposes typed setters to update either the URL path parameters
- * (via `router.push`/`router.replace`) or the search/query string
+ * (via `router.push`/`router.replace`ad) or the search/query string
  * (via the nuqs-backed setter).
  */
 function useClientRouteHelpers<
@@ -151,7 +160,7 @@ function useClientRouteHelpers<
     const parsedParams = schemas.params.safeParse(rawNextParams)
     const params: z.output<Params> = parsedParams.success
         ? parsedParams.data
-        : (schemas.params.parse({}) as z.output<Params>)
+        : schemas.params.parse({})
 
     // Live URL search state (nuqs-backed, fully reactive).
     const searchSchema = schemas.search
@@ -167,9 +176,9 @@ function useClientRouteHelpers<
             ]
         }
         // Fallback for non-object schemas: read from URL on demand.
-        const fallback: z.output<Search> = searchSchema.parse(
+        const fallback = searchSchema.parse(
             normalizeRecord(rawNextParams)
-        ) as z.output<Search>
+        )
         return [fallback, () => undefined]
     })()
 

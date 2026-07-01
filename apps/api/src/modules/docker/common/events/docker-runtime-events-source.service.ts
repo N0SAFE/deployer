@@ -55,6 +55,16 @@ interface RuntimeEventFieldFilter {
 
 type DockerRawEvent = Record<string, unknown>;
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used to walk nested payloads without
+ * an `as Record<string, unknown>` cast.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 @Injectable()
 export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamService {
   protected readonly streamDomain = "docker";
@@ -68,7 +78,7 @@ export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamS
   }
 
   stream(query: DockerRuntimeEventsStreamQueryInput): Observable<DockerRuntimeEvent> {
-    const rawQuery = query as Record<string, unknown>;
+    const rawQuery = isRecord(query) ? query : {};
     const filter = this.isRuntimeEventFilterNode(rawQuery.filter)
       ? rawQuery.filter
       : undefined;
@@ -249,7 +259,7 @@ export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamS
 
     const actorAttributesRaw =
       actor && typeof actor.Attributes === "object" && actor.Attributes !== null
-        ? (actor.Attributes as Record<string, unknown>)
+        ? isRecord(actor.Attributes) ? actor.Attributes : {}
         : {};
 
     const actorAttributes = this.toStringRecord(actorAttributesRaw);
@@ -562,7 +572,7 @@ export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamS
       return false;
     }
 
-    const record = value as Record<string, unknown>;
+    const record = isRecord(value) ? value : {};
     return typeof record.operator === "string" && "value" in record;
   }
 
@@ -670,7 +680,7 @@ export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamS
       return [];
     }
 
-    return Object.entries(value as Record<string, unknown>)
+    return Object.entries(isRecord(value) ? value : {})
       .sort(([leftKey], [rightKey]) => this.compareObjectKeys(leftKey, rightKey))
       .map(([, entryValue]) => entryValue);
   }
@@ -684,7 +694,7 @@ export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamS
       return [];
     }
 
-    return Object.entries(value as Record<string, unknown>)
+    return Object.entries(isRecord(value) ? value : {})
       .sort(([leftKey], [rightKey]) => this.compareObjectKeys(leftKey, rightKey))
       .map(([, entryValue]) => entryValue)
       .filter((item): item is RuntimeEventFilterNode => this.isRuntimeEventFilterNode(item));

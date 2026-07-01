@@ -15,8 +15,8 @@ export type MutationResult<TVariables = unknown, TData = unknown> = {
 };
 
 export function getOptionalHook<THook>(
-  hooks: Record<string, unknown>,
+  hooks: object,
   name: string
 ): THook | undefined {
-  return hooks[name] as THook | undefined;
+  return Reflect.get(hooks, name) as THook | undefined;
 }

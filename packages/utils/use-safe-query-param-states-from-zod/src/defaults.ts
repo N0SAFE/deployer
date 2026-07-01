@@ -23,6 +23,15 @@ import {
  *  - Otherwise, fall back to a sensible empty value (`''`, `0`, `false`,
  *    `[]`, an empty object, or the first enum/literal value).
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 export function getZodObjectDefaults<T extends z.ZodObject>(
     schema: T
 ): z.infer<T> {

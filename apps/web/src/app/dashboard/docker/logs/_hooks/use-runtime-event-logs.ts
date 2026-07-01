@@ -39,9 +39,12 @@ function chunkToLogLine(chunk: DockerEntityStreamChunk): LogLineProjection {
   }
 
   // Full entity chunk: project the per-kind id + name.
-  const entity = chunk as Record<string, unknown>
-  const id = typeof entity.id === 'string' ? entity.id : null
-  const name = typeof entity.name === 'string' ? entity.name : id
+  // Use `in` + `typeof` narrowing instead of a `Record<string, unknown>`
+  // cast — the truth comes from the runtime check, not a type lie.
+  const id =
+    'id' in chunk && typeof chunk.id === 'string' ? chunk.id : null
+  const name =
+    'name' in chunk && typeof chunk.name === 'string' ? chunk.name : id
   return {
     id:
       chunk.eventId

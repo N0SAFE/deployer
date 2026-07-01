@@ -39,6 +39,15 @@ export const MAX_FILTER_DEPTH = 10;
  * @param vars    Resolved dynamic variables from EngineContext.
  * @param depth   Internal recursion counter — do not pass externally.
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 export function matchFilter<
     TSchema extends object = Record<
         string,

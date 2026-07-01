@@ -827,7 +827,7 @@ export class DockerRepository {
       return null;
     }
 
-    const entries = Object.entries(value as Record<string, unknown>).filter(
+    const entries = Object.entriesReflect.get(value, "filter")(
       (entry): entry is [string, string] => typeof entry[1] === "string",
     );
 
@@ -1511,8 +1511,8 @@ export class DockerRepository {
       networkMode: inspect.HostConfig?.NetworkMode || null,
       cgroupnsMode:
         (inspect.HostConfig as Record<string, unknown> | undefined)?.CgroupnsMode &&
-        typeof (inspect.HostConfig as Record<string, unknown>).CgroupnsMode === "string"
-          ? ((inspect.HostConfig as Record<string, unknown>).CgroupnsMode as string)
+        typeof Reflect.get(inspect.HostConfig, "CgroupnsMode") === "string"
+          ? (Reflect.get(inspect.HostConfig, "CgroupnsMode") as string)
           : null,
       watchMode: this.detectWatchModeFromLabels(labels),
       healthcheckCommand,
@@ -1643,9 +1643,9 @@ export class DockerRepository {
     const labels =
       typeof inspect.Config === "object"
       && inspect.Config !== null
-      && typeof (inspect.Config as Record<string, unknown>).Labels === "object"
-      && (inspect.Config as Record<string, unknown>).Labels !== null
-        ? ((inspect.Config as Record<string, unknown>).Labels as Record<string, string>)
+      && typeof Reflect.get(inspect.Config, "Labels") === "object"
+      && Reflect.get(inspect.Config, "Labels") !== null
+        ? (Reflect.get(inspect.Config, "Labels") as Record<string, string>)
         : {};
 
     const rootFs =
@@ -3732,8 +3732,8 @@ export class DockerRepository {
     const jsonMessage =
       typeof record.json === "object"
       && record.json !== null
-      && typeof (record.json as Record<string, unknown>).message === "string"
-        ? ((record.json as Record<string, unknown>).message as string).toLowerCase()
+      && typeof Reflect.get(record.json, "message") === "string"
+        ? (Reflect.get(record.json, "message") as string).toLowerCase()
         : "";
 
     return jsonMessage.includes("no such container");

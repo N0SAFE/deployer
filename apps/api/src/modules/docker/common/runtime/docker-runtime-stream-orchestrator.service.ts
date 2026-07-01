@@ -68,6 +68,16 @@ interface InspectTrigger {
     origin: InspectTriggerOrigin;
 }
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used to walk nested payloads without
+ * an `as Record<string, unknown>` cast.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 @Injectable()
 export class DockerRuntimeStreamOrchestratorService {
     private static streamTraceSequence = 0;
@@ -90,7 +100,7 @@ export class DockerRuntimeStreamOrchestratorService {
     ) {}
 
     stream(query: DockerRuntimeEventsStreamQueryInput): Observable<DockerRuntimeEvent> {
-        const rawQuery = query as Record<string, unknown>;
+        const rawQuery = isRecord(query) ? query : {};
         const traceId = this.nextStreamTraceId();
         const since = typeof rawQuery.since === "string" ? rawQuery.since : undefined;
         const until = typeof rawQuery.until === "string" ? rawQuery.until : undefined;
@@ -479,7 +489,7 @@ export class DockerRuntimeStreamOrchestratorService {
             return false;
         }
 
-        const record = value as Record<string, unknown>;
+        const record = isRecord(value) ? value : {};
         return typeof record.operator === "string" && "value" in record;
     }
 
@@ -534,7 +544,7 @@ export class DockerRuntimeStreamOrchestratorService {
     }
 
     private getRuntimeEventFieldValue(event: DockerRuntimeEvent, field: string): unknown {
-        const eventRecord = event as Record<string, unknown>;
+        const eventRecord = isRecord(event) ? event : {};
         if (field in eventRecord && field !== "payload") {
             return eventRecord[field];
         }
@@ -585,7 +595,7 @@ export class DockerRuntimeStreamOrchestratorService {
 
     private toRecord(value: unknown): Record<string, unknown> {
         if (typeof value === "object" && value !== null) {
-            return value as Record<string, unknown>;
+            return isRecord(value) ? value : {};
         }
         return {};
     }
@@ -836,7 +846,7 @@ export class DockerRuntimeStreamOrchestratorService {
             return [];
         }
 
-        return Object.entries(value as Record<string, unknown>)
+        return Object.entries(isRecord(value) ? value : {})
             .sort(([leftKey], [rightKey]) => this.compareObjectKeys(leftKey, rightKey))
             .map(([, entryValue]) => entryValue)
             .filter((item): item is RuntimeEventFilterNode => this.isRuntimeEventFilterNode(item));
@@ -987,7 +997,7 @@ export class DockerRuntimeStreamOrchestratorService {
             return [];
         }
 
-        return Object.entries(value as Record<string, unknown>)
+        return Object.entries(isRecord(value) ? value : {})
             .sort(([leftKey], [rightKey]) => this.compareObjectKeys(leftKey, rightKey))
             .map(([, entryValue]) => entryValue);
     }
@@ -1045,7 +1055,7 @@ export class DockerRuntimeStreamOrchestratorService {
             return false;
         }
 
-        const record = error as Record<string, unknown>;
+        const record = isRecord(error) ? error : {};
 
         if (record.statusCode === 404 || record.status === 404) {
             return true;

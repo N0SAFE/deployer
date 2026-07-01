@@ -290,7 +290,7 @@ function getUploadWorker(): Worker {
  * Returns a Response with streaming body created from MessageChannel
  */
 function uploadWithWorker(
-  input: Record<string, unknown>,
+  input: object,
   endpoint: string,
   onProgress?: (event: { loaded: number; total: number; percentage: number }) => void
 ): Promise<Response> {
@@ -512,12 +512,13 @@ export class FileUploadOpenAPILink<TContext extends ClientContext> extends OpenA
         console.log('[FileUploadLink] Intercepted file upload, using XMLHttpRequest for progress');
 
         try {
-          // Input already contains the data with File objects
-          const inputData = input as Record<string, unknown>;
-
-          // Use Web Worker with XMLHttpRequest for upload with progress
-          // uploadWithWorker returns a Response with streaming body from MessageChannel
-          const response = await uploadWithWorker(inputData, requestUrl, onProgress);
+          // `input` is typed as `unknown` by the ORPC link signature.
+          // Narrow with a type guard so `uploadWithWorker` receives a
+          // real `object` — no `as Record<string, unknown>` cast.
+          if (typeof input !== "object" || input === null) {
+            throw new Error("[FileUploadLink] file upload input is not an object")
+          }
+          const response = await uploadWithWorker(input, requestUrl, onProgress);
             
           // Return the streamed Response directly
           return response;
@@ -533,7 +534,7 @@ export class FileUploadOpenAPILink<TContext extends ClientContext> extends OpenA
       }
 
       // Fallback to standard fetch (shouldn't happen with OpenAPILink)
-      return fetch(request, init as RequestInit);
+      return fetch(request, init);
     };
 
     // Call parent constructor with wrapped fetch

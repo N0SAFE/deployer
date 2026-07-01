@@ -117,6 +117,16 @@ interface PeerFallbackAttemptResult {
     response?: DockerContainerListResponsePayload;
 }
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used to walk nested payloads without
+ * an `as Record<string, unknown>` cast.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 @Injectable()
 export class DockerContainerResolutionService {
     private readonly logger = new Logger(DockerContainerResolutionService.name);
@@ -1295,7 +1305,7 @@ export class DockerContainerResolutionService {
             return null;
         }
 
-        const source = input as Record<string, unknown>;
+        const source = isRecord(input) ? input : {};
         const id = this.asNonEmptyString(source.id) ?? null;
         if (!id) {
             return null;
@@ -1375,8 +1385,8 @@ export class DockerContainerResolutionService {
         const parsed = dockerImageSchema.safeParse(input);
 
         const source = parsed.success
-            ? (parsed.data as unknown as Record<string, unknown>)
-            : (input && typeof input === "object" ? (input as Record<string, unknown>) : null);
+            ? (isRecord(parsed.data) ? parsed.data : {})
+            : (isRecord(input) ? input : null);
 
         if (!source) {
             return null;
@@ -1490,7 +1500,7 @@ export class DockerContainerResolutionService {
             return {};
         }
 
-        const entries = Object.entries(value as Record<string, unknown>).filter(
+        const entries = Object.entries(isRecord(value) ? value : {}).filter(
             (entry): entry is [string, string] => typeof entry[1] === "string",
         );
 
@@ -1507,7 +1517,7 @@ export class DockerContainerResolutionService {
             return undefined;
         }
 
-        const rawEntry = (input.filter as Record<string, unknown>)[key];
+        const rawEntry = Reflect.get(isRecord(input.filter) ? input.filter : {}, "key");
         if (!rawEntry || typeof rawEntry !== "object") {
             return undefined;
         }
@@ -1728,7 +1738,7 @@ export class DockerContainerResolutionService {
                     return null;
                 }
 
-                const port = item as Record<string, unknown>;
+                const port = isRecord(item) ? item : {};
                 const containerPort =
                     typeof port.containerPort === "number" &&
                     Number.isInteger(port.containerPort) &&

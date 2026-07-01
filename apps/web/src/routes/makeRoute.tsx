@@ -930,7 +930,10 @@ export function makeRoute<
         const params: Record<string, unknown> = {}
         for (const key of paramKeys) {
             if (key in props) {
-                params[key] = (props as Record<string, unknown>)[key]
+                // `Reflect.get` is type-safe (proper property lookup,
+                // returns `unknown`) — no `as Record<string, unknown>`
+                // cast needed.
+                params[key] = Reflect.get(props, key)
             }
         }
         

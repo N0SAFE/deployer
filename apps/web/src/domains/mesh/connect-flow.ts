@@ -60,6 +60,15 @@ export function buildMeshEndpointUrl(serverUrl: string): string {
   return parsed.toString();
 }
 
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 function parseSessionData(raw: unknown): {
   sessionId?: string;
   userId?: string;
@@ -70,15 +79,15 @@ function parseSessionData(raw: unknown): {
     return {};
   }
 
-  const source = raw as Record<string, unknown>;
+  const source = isRecord(raw) ? raw : {};
   const sessionCandidate =
     source.session && typeof source.session === "object"
-      ? (source.session as Record<string, unknown>)
+      ? isRecord(source.session) ? source.session : {}
       : source;
 
   const userCandidate =
     source.user && typeof source.user === "object"
-      ? (source.user as Record<string, unknown>)
+      ? isRecord(source.user) ? source.user : {}
       : undefined;
 
   const sessionId =

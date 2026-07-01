@@ -155,6 +155,7 @@ export {
 	dockerEntityEventSchema,
 	dockerEntityStreamChunkSchema,
 	dockerEntityStreamQuerySchema,
+	buildDockerEntityEventChunk,
 	dockerVulnerabilitySeveritySchema,
 	dockerVulnerabilityScannerSchema,
 	dockerVulnerabilityEntrySchema,

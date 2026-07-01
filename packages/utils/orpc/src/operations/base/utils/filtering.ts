@@ -98,6 +98,15 @@ export const NULL_OPERATORS = ["isNull", "isNotNull"] as const satisfies readonl
 /**
  * Create a filtering config schema with attached config data
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 export function createFilteringConfigSchema<
     TFields extends Record<string, FieldFilterConfig>,
     TAllowLogical extends boolean = true

@@ -24,6 +24,15 @@ import { getProcedureMeta, withMeta } from "./type-helpers";
  *
  * @internal
  */
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 export const ROUTE_METHOD_META_KEY = "__orpc_route_builder_method__" as const;
 
 /**
@@ -157,14 +166,14 @@ export function createRouteMethodMeta<TMethod extends HTTPMethod>(method: TMetho
  * ```
  */
 export function hasRouteMethodMeta(procedure: AnyContractProcedureOrBuilder): boolean {
-    const metaObj = getProcedureMeta(procedure) as Record<string, unknown> | undefined;
+    const metaObj = getProcedureMeta(procedure);
     
     if (!metaObj || typeof metaObj !== "object") return false;
   
     const routeMeta = metaObj[ROUTE_METHOD_META_KEY];
     if (!routeMeta || typeof routeMeta !== "object") return false;
 
-    const routeMetaObj = routeMeta as Record<string, unknown>;
+    const routeMetaObj = isRecord(routeMeta) ? routeMeta : {};
     const method = routeMetaObj.method;
     return typeof method === "string" && method.length > 0;
 }
@@ -194,7 +203,7 @@ export function getRouteMethod(procedure: AnyContractProcedureOrBuilder): HTTPMe
     }
 
     // Extract metadata using the helper from type-helpers
-    const meta = getProcedureMeta(procedure) as Record<string, unknown> | undefined;
+    const meta = getProcedureMeta(procedure);
     if (!meta || typeof meta !== "object") return undefined;
     
     const routeMeta = meta[ROUTE_METHOD_META_KEY] as { method: HTTPMethod } | undefined;

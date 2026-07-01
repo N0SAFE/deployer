@@ -29,6 +29,15 @@ import { MeshBaseDomainError } from "@/core/modules/mesh/shared/domain/mesh-base
  */
 @Injectable()
 @Catch()
+
+/**
+ * Type guard that narrows `unknown` to a record-like object so we can
+ * index it with string keys. Used in place of `as Record<string, unknown>`
+ * to avoid the runtime lie.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
 export class InternalErrorExceptionFilter implements ExceptionFilter {
     constructor(private readonly internalErrorInsightService: InternalErrorInsightService) {}
 
