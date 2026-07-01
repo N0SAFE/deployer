@@ -6,11 +6,13 @@ import { DockerContainerLinksRepository } from "./containers/links/docker-contai
 import { DockerImageCatalogRepository } from "./images/catalog/docker-image-catalog.repository";
 import { DockerImageSecurityRepository } from "./images/security/docker-image-security.repository";
 import { DockerRuntimeActivityRepository } from "./runtime/docker-runtime-activity.repository";
+import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-normalizer.service";
 
 @Module({
   imports: [DatabaseModule, CoreDockerModule],
   providers: [
     DockerRepository,
+    ContainerDockerodeNormalizer,
     DockerContainerLinksRepository,
     DockerImageCatalogRepository,
     DockerImageSecurityRepository,
@@ -18,6 +20,7 @@ import { DockerRuntimeActivityRepository } from "./runtime/docker-runtime-activi
   ],
   exports: [
     DockerRepository,
+    ContainerDockerodeNormalizer,
     DockerContainerLinksRepository,
     DockerImageCatalogRepository,
     DockerImageSecurityRepository,

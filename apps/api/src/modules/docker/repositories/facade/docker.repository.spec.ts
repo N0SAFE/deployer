@@ -31,6 +31,7 @@ function createCleanupHarness(params: {
     dockerService as never,
     scannerContainerManager as never,
     {} as never,
+    {} as never,
   );
 
   const delaySpy = vi.fn(async () => undefined);

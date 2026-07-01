@@ -25,6 +25,8 @@ import { DeploymentMeshHandlerRegistrar } from "./mesh/registrars/deployment-mes
 import { PreviewEnvOverlayService } from "./preview/preview-env-overlay.service";
 import { DeploymentStorageProvidersModule } from "./storage/storage-providers.module";
 import { GitModule } from "@/core/modules/git/git/git.module";
+import { CONTAINER_LINK_RESOLVER } from "@/core/modules/docker/services/container-link-resolver.interface";
+import { DeploymentContainerLinkService } from "./services/container-link.service";
 import { DeploymentArtifactBuilderService } from "./builders/deployment-artifact-builder.service";
 import { EventsModule } from "@/core/modules/events/events.module";
 
@@ -60,6 +62,11 @@ import { EventsModule } from "@/core/modules/events/events.module";
         DeploymentQueueProcessor,
         DeploymentArtifactBuilderService,
         PreviewEnvOverlayService,
+        DeploymentContainerLinkService,
+        {
+            provide: CONTAINER_LINK_RESOLVER,
+            useExisting: DeploymentContainerLinkService,
+        },
     ],
     exports: [
         DeploymentService,

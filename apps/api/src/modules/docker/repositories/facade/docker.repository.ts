@@ -1,9 +1,12 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, Optional, Logger, NotFoundException } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
 import { ScannerContainerManagerService } from "@/core/modules/docker/services/scanner-container-manager.service";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
+import { ContainerDockerodeNormalizer } from "../../shared/container-dockerode-normalizer.service";
+import { CONTAINER_LINK_RESOLVER } from "@/core/modules/docker/services/container-link-resolver.interface";
+import type { IContainerLinkResolver } from "@/core/modules/docker/services/container-link-resolver.interface";
 import {
   dockerImageSecurityLifecycle,
   dockerImageSecurityScanHistory,
@@ -13,6 +16,7 @@ import { dockerRuntimeActivities } from "@/config/drizzle/global/schema/docker-r
 import { deployments, projects, services } from "@/config/drizzle/global/schema/deployment";
 import type { DockerContainerListInput } from "@repo/api-contracts/modules/docker/containers/shared";
 import type { DockerImageListInput } from "@repo/api-contracts/modules/docker/images/list";
+import type { DockerodeContainerList } from "@repo/contracts-entities";
 import type { DockerNetworkListInput } from "@repo/api-contracts/modules/docker/networks/list";
 import type { DockerRegistryListInput } from "@repo/api-contracts/modules/docker/registries/list";
 import type { DockerStackListInput } from "@repo/api-contracts/modules/docker/stacks/list";
@@ -22,7 +26,6 @@ import type {
   DockerRuntimeActivityListInput,
 } from "@repo/api-contracts/modules/docker/runtime/activity";
 import {
-  dockerContainerSchema,
   dockerContainerLinkedDeploymentSchema,
   dockerContainerLinkedProjectSchema,
   dockerContainerLinkedServiceSchema,
@@ -266,6 +269,9 @@ export class DockerRepository {
     private readonly dockerService: DockerService,
     private readonly scannerContainerManager: ScannerContainerManagerService,
     private readonly globalDatabaseService: GlobalDatabaseService,
+    private readonly normalizer: ContainerDockerodeNormalizer,
+    @Optional() @Inject(CONTAINER_LINK_RESOLVER)
+    private readonly linkResolver?: IContainerLinkResolver,
   ) {}
 
   async getLocalDockerDaemonId(): Promise<string | null> {
@@ -1141,133 +1147,37 @@ export class DockerRepository {
 
   async listContainers(input: DockerContainerListInput) {
     const rawContainers = await this.listRawContainers();
-    const deploymentIds = [...new Set(rawContainers
-      .map((container) => {
-        const labels = (container.Labels as Record<string, string> | undefined) ?? {};
-        const deploymentId = labels["deployer.deployment_id"];
-        return typeof deploymentId === "string" && deploymentId.trim().length > 0
-          ? deploymentId.trim()
-          : null;
-      })
-      .filter((deploymentId): deploymentId is string => deploymentId !== null))];
-    const deploymentContextById = await this.loadDeploymentContexts(deploymentIds);
 
     const mapped = rawContainers.map((container) => {
-      const labels = (container.Labels as Record<string, string> | undefined) ?? {};
-      const deploymentIdLabel = labels["deployer.deployment_id"];
-      const deploymentId =
-        typeof deploymentIdLabel === "string" && deploymentIdLabel.trim().length > 0
-          ? deploymentIdLabel.trim()
-          : null;
-      const context: DeploymentContext | undefined = deploymentId
-        ? deploymentContextById.get(deploymentId)
-        : undefined;
+      // Partial raw data — will be fully validated by normalizer's schema
+      const labels: Record<string, string> = (container.Labels ?? {}) as Record<string, string>;
 
-      const ports = ((container.Ports as Record<string, unknown>[] | undefined) ?? []).map((port) => {
-        const protocol: "tcp" | "udp" = String(port.Type ?? "tcp") === "udp" ? "udp" : "tcp";
+      // Use the link resolver (deployment module) if available, else defaults
+      const rawName = typeof container.Names?.[0] === "string" ? container.Names[0].replace(/^\//, "") : ""
+      const rawId = typeof container.Id === "string" ? container.Id : ""
+      const rawImage = typeof container.Image === "string" ? container.Image : "unknown-image"
 
-        return {
-          containerPort: Number(port.PrivatePort ?? 0),
-          hostPort: port.PublicPort == null ? null : Number(port.PublicPort),
-          protocol,
-        };
-      });
-
-      const networkIds = Object.keys(
-        ((container.NetworkSettings as { Networks?: Record<string, unknown> } | undefined)?.Networks ?? {}),
-      );
-
-      const createdAt =
-        typeof container.Created === "number"
-          ? new Date(container.Created * 1000).toISOString()
-          : new Date().toISOString();
-
-      const name = String((container.Names as string[] | undefined)?.[0] ?? "").replace(/^\//, "") || String(container.Id ?? "unknown-container");
-
-      const containerId = String(container.Id ?? "");
-      const imageId =
-        (typeof container.ImageID === "string" && container.ImageID.length > 0
-          ? container.ImageID
-          : null);
-      const imageRef = typeof container.Image === "string" && container.Image.length > 0
-        ? container.Image
-        : "unknown-image";
-      const environment = this.resolveContainerEnvironment(context, labels, name);
-      const networkMode =
-        (typeof labels["deployer.network_mode"] === "string" && labels["deployer.network_mode"].trim().length > 0
-          ? labels["deployer.network_mode"].trim()
-          : null)
-        ?? (typeof (container.HostConfig as { NetworkMode?: unknown } | undefined)?.NetworkMode === "string"
-          ? ((container.HostConfig as { NetworkMode?: string }).NetworkMode ?? null)
-          : null);
-      const volumeIds = ((container.Mounts as Record<string, unknown>[] | undefined) ?? [])
-        .map((mount) => {
-          if (typeof mount.Name === "string" && mount.Name.length > 0) {
-            return mount.Name;
-          }
-          if (typeof mount.Source === "string" && mount.Source.length > 0) {
-            return mount.Source;
-          }
-          return null;
-        })
-        .filter((value): value is string => value !== null);
-
-      const ownership = this.resolveContainerOwnership({
+      const enrichment = this.linkResolver?.resolveEnrichment(
         labels,
-        context,
-        imageRef,
-        networkMode,
-      });
+        rawName || rawId,
+        rawId,
+        rawImage,
+        labels["deployer.network_mode"] ?? null,
+      ) ?? {
+        projectId: labels["com.docker.compose.project"] ?? rawId,
+        serviceId: labels["com.docker.compose.service"] ?? rawId,
+        environment: null,
+        managedBy: "orphan" as const,
+        managedReason: null,
+        managedDeploymentId: null,
+        managedServiceId: null,
+        managedProjectId: null,
+        managedImageRef: null,
+        managedNetworkMode: null,
+        logsStreamId: null,
+      };
 
-      const serviceId = ownership.managedServiceId
-        ?? this.resolveContainerServiceId(context, labels, name, containerId);
-      const projectId = ownership.managedProjectId
-        ?? this.resolveContainerProjectId(context, labels, serviceId, name);
-
-      const stateText = typeof container.State === "string" ? container.State : undefined;
-
-      const hash = this.buildContainerHash({
-        managedBy: ownership.managedBy,
-        managedDeploymentId: ownership.managedDeploymentId,
-        managedServiceId: ownership.managedServiceId,
-        managedProjectId: ownership.managedProjectId,
-        projectId,
-        serviceId,
-        name,
-        imageId,
-        environment,
-        ports,
-      });
-
-      return dockerContainerSchema.parse({
-        id: containerId,
-        hash,
-        name,
-        projectId,
-        serviceId,
-        stackId: labels["com.docker.compose.project"] ?? labels["com.docker.stack.namespace"] ?? null,
-        imageId,
-        status: this.normalizeContainerStatus(stateText),
-        health: this.extractHealthStatusFromContainerSummary(container),
-        environment,
-        cpuPercent: null,
-        memoryPercent: null,
-        restartCount: 0,
-        ports,
-        networkIds,
-        volumeIds,
-        managedBy: ownership.managedBy,
-        managedReason: ownership.managedReason,
-        managedDeploymentId: ownership.managedDeploymentId,
-        managedServiceId: ownership.managedServiceId,
-        managedProjectId: ownership.managedProjectId,
-        managedImageRef: ownership.managedImageRef,
-        managedNetworkMode: ownership.managedNetworkMode,
-        logsStreamId: ownership.logsStreamId,
-        startedAt: null,
-        createdAt,
-        updatedAt: new Date().toISOString(),
-      });
+      return this.normalizer.normalizeContainer(container as DockerodeContainerList, enrichment);
     });
 
     const filtered = mapped.filter((item) => {
