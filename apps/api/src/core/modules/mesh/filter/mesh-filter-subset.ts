@@ -5,10 +5,10 @@ import type { MeshFilterDescriptor } from "./mesh-filter.types";
  * i.e., everything filterA would match, filterB also matches.
  */
 export function isFilterSubset(filterA: MeshFilterDescriptor, filterB: MeshFilterDescriptor): boolean {
-  if ((filterB as any).op === "always") return true;
-  if ((filterA as any).op === "never") return true;
-  if ((filterB as any).op === "never") return false;
-  if ((filterA as any).op === "always") return (filterB as any).op === "always";
+  if (filterB.op === "always") return true;
+  if (filterA.op === "never") return true;
+  if (filterB.op === "never") return false;
+  if (filterA.op === "always") return false;
 
   // eq(field, X) ⊆ in(field, [..., X, ...])
   if (filterA.op === "eq" && filterB.op === "in") {
@@ -82,7 +82,7 @@ export function hasFilterOverlap(a: MeshFilterDescriptor, b: MeshFilterDescripto
   }
 
   // Default: assume overlap for different fields
-  if ((a as any).field && (b as any).field && (a as any).field !== (b as any).field) {
+  if ("field" in a && "field" in b && a.field !== b.field) {
     return true; // different fields could coexist
   }
 

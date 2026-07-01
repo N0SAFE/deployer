@@ -16,7 +16,7 @@ function toError(value: unknown): Error {
 
 export function observableToAsyncIterable<T>(observable: Observable<T> | AsyncIterable<T>): AsyncIterable<T> {
     // If an AsyncIterable was passed already, return it directly
-    if (typeof (observable as any)[Symbol.asyncIterator] === 'function') {
+    if (Symbol.asyncIterator in observable) {
         return observable as AsyncIterable<T>;
     }
     const queue: T[] = [];

@@ -91,12 +91,14 @@ async function bootstrap(): Promise<void> {
    
   http.get("/openapi.json", async (_req, res) => {
     try {
+      const generatedSpec = await generateSpec()
+      const authSchema = await authService.generateAuthOpenAPISchema()
       const mergeResult = merge([
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        { oas: (await generateSpec()) as any },
+        { oas: generatedSpec as Parameters<typeof merge>[0][number]["oas"] },
         {
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          oas: (await authService.generateAuthOpenAPISchema()) as any,
+          oas: authSchema as Parameters<typeof merge>[0][number]["oas"],
           pathModification: { prepend: "/api/auth" },
         },
       ]);

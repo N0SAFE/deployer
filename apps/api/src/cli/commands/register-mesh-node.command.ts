@@ -27,29 +27,33 @@ export class RegisterMeshNodeCommand extends CommandRunner {
       return;
     }
 
-    const existing = await this.databaseService.db
-      .select({ nodeId: schema.clusterNodes.nodeId })
-      .from(schema.clusterNodes)
-      .where(eq(schema.clusterNodes.nodeId, config.nodeId))
-      .limit(1);
+    try {
+      const existing = await this.databaseService.db
+        .select({ nodeId: schema.clusterNodes.nodeId })
+        .from(schema.clusterNodes)
+        .where(eq(schema.clusterNodes.nodeId, config.nodeId))
+        .limit(1);
 
-    if (existing.length > 0) {
-      this.logger.log(`✅ Mesh node already registered: ${config.nodeId}`);
-      return;
+      if (existing.length > 0) {
+        this.logger.log(`✅ Mesh node already registered: ${config.nodeId}`);
+        return;
+      }
+
+      await this.databaseService.db.insert(schema.clusterNodes).values({
+        nodeId: config.nodeId,
+        serverUrl: config.serverUrl,
+        status: 'active',
+        healthy: true,
+        metadata: {
+          source: 'startup-bootstrap',
+        },
+        lastSeenAt: new Date(),
+      });
+
+      this.logger.log(`✅ Registered mesh node: ${config.nodeId} (${config.serverUrl})`);
+    } catch (error) {
+      this.logger.warn(`Mesh node registration skipped — global DB may not be ready yet (${error instanceof Error ? error.message : 'unknown error'})`);
     }
-
-    await this.databaseService.db.insert(schema.clusterNodes).values({
-      nodeId: config.nodeId,
-      serverUrl: config.serverUrl,
-      status: 'active',
-      healthy: true,
-      metadata: {
-        source: 'startup-bootstrap',
-      },
-      lastSeenAt: new Date(),
-    });
-
-    this.logger.log(`✅ Registered mesh node: ${config.nodeId} (${config.serverUrl})`);
   }
 
   private getConfig(): { nodeId: string; serverUrl: string } | null {

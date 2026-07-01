@@ -63,7 +63,7 @@ export default Setup.Route(({ searchParams }) => {
 
   // Error fetching setup state
   if (isError) {
-    return <ErrorScreen message={error?.message ?? "Unknown error"} onRetry={() => refetch()} />;
+    return <ErrorScreen message={error.message ?? "Unknown error"} onRetry={() => refetch()} />;
   }
 
   // Setup already done — redirecting (will flash loading briefly)

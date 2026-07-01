@@ -7,6 +7,7 @@ import zod from 'zod/v4'
 
 interface EntrypointConfig {
   diagnosePath: string
+  migrateScript: string
   registerMeshNodeCommand: string
 }
 
@@ -48,6 +49,26 @@ function runDiagnostics(config: EntrypointConfig): void {
 }
 
 /**
+ * Run database migrations (Postgres global DB)
+ */
+function runMigrations(config: EntrypointConfig): void {
+  const apiPackageJson = 'package.json'
+
+  if (!existsSync(apiPackageJson)) {
+    console.log('⚠️  package.json missing, skipping migrations')
+    return
+  }
+
+  console.log('📦 Running database migrations...')
+  try {
+    execSync(`bun run ${config.migrateScript}`, { stdio: 'inherit' })
+    console.log('✅ Database migrations completed')
+  } catch (error) {
+    console.log('⚠️  db:migrate skipped — global DB may not be ready yet (non-fatal)')
+  }
+}
+
+/**
  * Register current mesh node in global DB (idempotent)
  */
 function registerMeshNode(config: EntrypointConfig): void {
@@ -56,14 +77,14 @@ function registerMeshNode(config: EntrypointConfig): void {
     return
   }
 
-  try {
-    console.log('🌐 Registering mesh node in global DB...')
-    spawnSync('bun', ['--bun', config.registerMeshNodeCommand, 'register-mesh-node'], {
-      stdio: 'inherit',
-      shell: true,
-    })
-  } catch (error) {
-    console.error('⚠️  Mesh node registration failed (continuing):', error)
+  console.log('🌐 Registering mesh node in global DB...')
+  const result = spawnSync('bun', ['--bun', config.registerMeshNodeCommand, 'register-mesh-node'], {
+    stdio: 'inherit',
+    shell: true,
+  })
+
+  if (result.status !== 0) {
+    console.log('⚠️  Mesh node registration skipped — global DB may not be ready yet (non-fatal)')
   }
 }
 
@@ -123,6 +144,7 @@ function startProcesses(): void {
 function main(): void {
   const config: EntrypointConfig = {
     diagnosePath: 'scripts/diagnose-build.ts',
+    migrateScript: 'db:migrate',
     registerMeshNodeCommand: 'src/cli.ts',
   }
 
@@ -133,13 +155,15 @@ function main(): void {
 
   runDiagnostics(config)
 
+  // Run migrations first (schema must exist before mesh registration)
+  // Note: In full docker-compose mode, migrations are also handled by the
+  // dedicated api-db-migrate-dev one-shot container. Running them here too
+  // makes the dev entrypoint self-sufficient regardless of orchestration.
+  runMigrations(config)
+
   // Register this API node in global mesh metadata on every startup
   registerMeshNode(config)
 
-  // Database setup is orchestrated by dedicated one-shot Docker services:
-  // migrate -> default-admin -> seed
-  console.log('⏭️  Skipping DB setup in API entrypoint (handled by setup services)')
-  
   startProcesses()
 }
 
