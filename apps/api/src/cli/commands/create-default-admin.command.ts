@@ -1,5 +1,5 @@
 import { Command, CommandRunner } from 'nest-commander';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { EnvService } from '@/config/env/env.service';
 import { apiEnvSchema } from '@repo/env';
 import zod from 'zod/v4';
@@ -19,6 +19,7 @@ type CreateDefaultAdminEnv = zod.infer<typeof createDefaultAdminEnvSchema>;
 })
 @Injectable()
 export class CreateDefaultAdminCommand extends CommandRunner {
+  private readonly logger = new Logger(CreateDefaultAdminCommand.name);
   private readonly commandEnvService: EnvService<CreateDefaultAdminEnv>;
   
   constructor(
@@ -30,7 +31,7 @@ export class CreateDefaultAdminCommand extends CommandRunner {
   }
 
   async run(): Promise<void> {
-    console.log('🔐 Checking for default admin user...');
+    this.logger.log('🔐 Checking for default admin user...');
 
     try {
       // Validate required env vars through typed schema access
@@ -40,13 +41,13 @@ export class CreateDefaultAdminCommand extends CommandRunner {
       const password = await this.cliAuthService.ensureDefaultAdminUser();
 
       if (password === null) {
-        console.error('❌ Failed to ensure default admin user');
+        this.logger.error('❌ Failed to ensure default admin user');
         process.exit(1);
       }
 
-      console.log('✅ Default admin user is configured and ready');
+      this.logger.log('✅ Default admin user is configured and ready');
     } catch (error) {
-      console.error('❌ Failed to create admin user:', error);
+      this.logger.error('❌ Failed to create admin user:', error);
       throw error;
     }
   }

@@ -27,8 +27,6 @@ type StreamEventWithMeta<T extends object> = T & {
     emittedAt: Date;
 };
 
-@Injectable()
-
 /**
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys. Used in place of `as Record<string, unknown>`
@@ -37,6 +35,8 @@ type StreamEventWithMeta<T extends object> = T & {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
+
+@Injectable()
 export class ServiceService implements OnModuleInit {
     constructor(
         private readonly serviceRepository: ServiceRepository,

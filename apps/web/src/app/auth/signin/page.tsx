@@ -1,3 +1,4 @@
+import { AppLogger } from '@repo/logger'
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
 'use client'
 
@@ -65,7 +66,7 @@ export default AuthSignin.Route(({ searchParams }) => {
             }
 
             setIsLoading(false)
-            console.log(searchParams)
+            const __signinLogger = new AppLogger('web').scope('Signin'); __signinLogger.debug('signin flow', { searchParams })
             void redirect(searchParams.redirectTo ?? searchParams.callbackUrl ?? '/')
         },
     })

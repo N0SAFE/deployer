@@ -1,3 +1,5 @@
+import { AppLogger } from '@repo/logger'
+
 /**
  * Page Performance Timing Utilities
  * 
@@ -14,6 +16,8 @@
 // Server-Side Timing
 // ============================================================================
 
+const timingLogger = new AppLogger('web').scope('ServerTiming')
+
 /**
  * Measure the execution time of an async operation on the server
  */
@@ -27,16 +31,12 @@ export async function serverTiming<T>(
     const result = await operation()
     const duration = performance.now() - start
     
-    console.log(
-      `⏱️  [Server] ${label}: ${duration.toFixed(2)}ms`
-    )
+    timingLogger.debug(`[Server] ${label}: ${duration.toFixed(2)}ms`)
     
     return result
   } catch (error) {
     const duration = performance.now() - start
-    console.error(
-      `⏱️  [Server] ${label}: FAILED after ${duration.toFixed(2)}ms`
-    )
+    timingLogger.error(`[Server] ${label}: FAILED after ${duration.toFixed(2)}ms`)
     throw error
   }
 }
@@ -54,9 +54,7 @@ export function createPageTimer(pageName: string) {
      */
     mark(label: string) {
       const elapsed = performance.now() - start
-      console.log(
-        `⏱️  [${pageName}] ${label}: +${elapsed.toFixed(2)}ms`
-      )
+      timingLogger.debug(`[${pageName}] ${label}: +${elapsed.toFixed(2)}ms`)
     },
     
     /**
@@ -65,9 +63,7 @@ export function createPageTimer(pageName: string) {
     end() {
       const duration = performance.now() - start
       const icon = duration > 1000 ? '🐢' : duration > 500 ? '⚠️' : '✅'
-      console.log(
-        `${icon} [${pageName}] Total server time: ${duration.toFixed(2)}ms`
-      )
+      timingLogger.debug(`${icon} [${pageName}] Total server time: ${duration.toFixed(2)}ms`)
       return duration
     }
   }

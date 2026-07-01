@@ -1,5 +1,5 @@
 import { Command, CommandRunner } from 'nest-commander';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { EnvService } from '@/config/env/env.service';
 import { eq } from 'drizzle-orm';
 import * as schema from '@/config/drizzle/global/schema';
@@ -13,6 +13,7 @@ const UUID_LIKE_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f
 })
 @Injectable()
 export class RegisterMeshNodeCommand extends CommandRunner {
+  private readonly logger = new Logger(RegisterMeshNodeCommand.name);
   constructor(
     private readonly databaseService: GlobalDatabaseService,
     private readonly envService: EnvService,
@@ -33,7 +34,7 @@ export class RegisterMeshNodeCommand extends CommandRunner {
       .limit(1);
 
     if (existing.length > 0) {
-      console.log(`✅ Mesh node already registered: ${config.nodeId}`);
+      this.logger.log(`✅ Mesh node already registered: ${config.nodeId}`);
       return;
     }
 
@@ -48,19 +49,19 @@ export class RegisterMeshNodeCommand extends CommandRunner {
       lastSeenAt: new Date(),
     });
 
-    console.log(`✅ Registered mesh node: ${config.nodeId} (${config.serverUrl})`);
+    this.logger.log(`✅ Registered mesh node: ${config.nodeId} (${config.serverUrl})`);
   }
 
   private getConfig(): { nodeId: string; serverUrl: string } | null {
     const nodeId = this.envService.get('MESH_NODE_ID')?.toString().trim();
 
     if (!nodeId) {
-      console.log('⏭️  Skipping mesh node registration: MESH_NODE_ID is missing');
+      this.logger.log('⏭️  Skipping mesh node registration: MESH_NODE_ID is missing');
       return null;
     }
 
     if (!UUID_LIKE_REGEX.test(nodeId)) {
-      console.log('⏭️  Skipping mesh node registration: node id must be UUID');
+      this.logger.log('⏭️  Skipping mesh node registration: node id must be UUID');
       return null;
     }
 

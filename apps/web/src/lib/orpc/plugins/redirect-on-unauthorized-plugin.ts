@@ -1,7 +1,10 @@
+import { AppLogger } from '@repo/logger'
 import { StandardLinkOptions, StandardLinkPlugin } from '@orpc/client/standard'
 import { toAbsoluteUrl } from '@/lib/utils'
 import clientRedirect from '@/actions/redirect'
 import { redirect, RedirectType } from 'next/navigation'
+
+const pluginLogger = new AppLogger('web').scope('RedirectOnUnauthorized')
 
 /**
  * Plugin that automatically redirects to login page on 401 Unauthorized errors
@@ -67,7 +70,7 @@ export class RedirectOnUnauthorizedPlugin<
                     'status' in error &&
                     error.status === 401
                 ) {
-                    console.log('ORPC Unauthorized - redirecting to login')
+                    pluginLogger.debug('ORPC Unauthorized - redirecting to login')
                     
                     const loginUrl = toAbsoluteUrl('/login')
                     

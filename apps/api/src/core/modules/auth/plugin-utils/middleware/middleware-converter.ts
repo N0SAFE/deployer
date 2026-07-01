@@ -18,10 +18,13 @@ import {
   UnauthorizedException,
   BadRequestException,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { os } from '@orpc/server';
 import type { MiddlewareCheck, MiddlewareContext, MiddlewareErrorCode } from './middleware-check';
 import type { ORPCContextWithAuthOnly } from '@/core/modules/auth/orpc';
+
+const logger = new Logger('MiddlewareConverter');
 
 // ============================================================================
 // Error Mapping
@@ -148,7 +151,7 @@ export function createNestGuard(
         return true;
       } catch (error) {
         if (logErrors) {
-          console.error(`[MiddlewareGuard] ${check.name} failed:`, error);
+          logger.error(`[MiddlewareGuard] ${check.name} failed:`, error);
         }
 
         const errorCode = check.getErrorCode();
@@ -207,7 +210,7 @@ export function createCompositeNestGuard(
           await check.check(context);
         } catch (error) {
           if (logErrors) {
-            console.error(`[CompositeGuard] ${check.name} failed:`, error);
+            logger.error(`[CompositeGuard] ${check.name} failed:`, error);
           }
 
           const errorCode = check.getErrorCode();
@@ -397,7 +400,7 @@ export function createDynamicNestGuard<TInput = unknown>(
         return true;
       } catch (error) {
         if (logErrors) {
-          console.error(`[DynamicGuard] ${check.name} failed:`, error);
+          logger.error(`[DynamicGuard] ${check.name} failed:`, error);
         }
 
         const errorCode = check.getErrorCode();
@@ -688,7 +691,7 @@ export function createOrpcMiddleware(
       return await next({ context });
     } catch (error) {
       if (logErrors) {
-        console.error(`[OrpcMiddleware] ${check.name} failed:`, error);
+        logger.error(`[OrpcMiddleware] ${check.name} failed:`, error);
       }
 
       const errorCode = mapToOrpcErrorCode(check.getErrorCode());
@@ -749,7 +752,7 @@ export function createCompositeOrpcMiddleware(
         await check.check(middlewareContext);
       } catch (error) {
         if (logErrors) {
-          console.error(`[CompositeOrpcMiddleware] ${check.name} failed:`, error);
+          logger.error(`[CompositeOrpcMiddleware] ${check.name} failed:`, error);
         }
 
         const errorCode = mapToOrpcErrorCode(check.getErrorCode());

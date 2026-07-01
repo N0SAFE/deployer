@@ -1429,7 +1429,7 @@ export class DockerRepository {
       }),
     );
 
-    const portMappings = Object.entries(inspect.NetworkSettings?.Ports ?? {}).flatMap(
+    const portMappings = Object.entries(inspect.NetworkSettings.Ports).flatMap(
       ([containerPortWithProtocol, hostBindings]) => {
         const [containerPortRaw, protocolRaw] = containerPortWithProtocol.split("/");
         const containerPort = Number(containerPortRaw);
@@ -1499,22 +1499,22 @@ export class DockerRepository {
     });
 
     const runtimeConfig = {
-      user: inspect.Config?.User || null,
-      workingDir: inspect.Config?.WorkingDir || null,
-      entrypoint: this.toStringArray(inspect.Config?.Entrypoint),
-      command: this.toStringArray(inspect.Config?.Cmd),
-      restartPolicy: inspect.HostConfig?.RestartPolicy?.Name || "no",
+      user: inspect.Config.User || null,
+      workingDir: inspect.Config.WorkingDir || null,
+      entrypoint: this.toStringArray(inspect.Config.Entrypoint),
+      command: this.toStringArray(inspect.Config.Cmd),
+      restartPolicy: inspect.HostConfig.RestartPolicy?.Name || "no",
       restartMaxRetries:
-        typeof inspect.HostConfig?.RestartPolicy?.MaximumRetryCount === "number"
+        typeof inspect.HostConfig.RestartPolicy?.MaximumRetryCount === "number"
         && inspect.HostConfig.RestartPolicy.MaximumRetryCount > 0
           ? inspect.HostConfig.RestartPolicy.MaximumRetryCount
           : null,
-      privileged: Boolean(inspect.HostConfig?.Privileged),
-      readOnlyRootFs: Boolean(inspect.HostConfig?.ReadonlyRootfs),
-      oomKillDisable: Boolean(inspect.HostConfig?.OomKillDisable),
-      ipcMode: inspect.HostConfig?.IpcMode || null,
-      pidMode: inspect.HostConfig?.PidMode || null,
-      networkMode: inspect.HostConfig?.NetworkMode || null,
+      privileged: Boolean(inspect.HostConfig.Privileged),
+      readOnlyRootFs: Boolean(inspect.HostConfig.ReadonlyRootfs),
+      oomKillDisable: Boolean(inspect.HostConfig.OomKillDisable),
+      ipcMode: inspect.HostConfig.IpcMode || null,
+      pidMode: inspect.HostConfig.PidMode || null,
+      networkMode: inspect.HostConfig.NetworkMode || null,
       cgroupnsMode:
         (inspect.HostConfig as Record<string, unknown> | undefined)?.CgroupnsMode &&
         typeof Reflect.get(inspect.HostConfig, "CgroupnsMode") === "string"
@@ -1522,9 +1522,9 @@ export class DockerRepository {
           : null,
       watchMode: this.detectWatchModeFromLabels(labels),
       healthcheckCommand,
-      healthcheckIntervalSec: this.toHealthcheckSeconds(inspect.Config?.Healthcheck?.Interval),
-      healthcheckTimeoutSec: this.toHealthcheckSeconds(inspect.Config?.Healthcheck?.Timeout),
-      healthcheckRetries: inspect.Config?.Healthcheck?.Retries ?? null,
+      healthcheckIntervalSec: this.toHealthcheckSeconds(inspect.Config.Healthcheck?.Interval),
+      healthcheckTimeoutSec: this.toHealthcheckSeconds(inspect.Config.Healthcheck?.Timeout),
+      healthcheckRetries: inspect.Config.Healthcheck?.Retries ?? null,
     };
 
     const composeServiceName = labels["com.docker.compose.service"]
@@ -1551,36 +1551,36 @@ export class DockerRepository {
           projectName: composeProjectName,
           composeFilePath: composeConfigPath,
           dependsOn: composeDependsOn,
-          dns: this.toStringArray(inspect.HostConfig?.Dns),
-          dnsSearch: this.toStringArray(inspect.HostConfig?.DnsSearch),
-          dnsOptions: this.toStringArray(inspect.HostConfig?.DnsOptions),
+          dns: this.toStringArray(inspect.HostConfig.Dns),
+          dnsSearch: this.toStringArray(inspect.HostConfig.DnsSearch),
+          dnsOptions: this.toStringArray(inspect.HostConfig.DnsOptions),
           memLimitMb:
-            typeof inspect.HostConfig?.Memory === "number" && inspect.HostConfig.Memory > 0
+            typeof inspect.HostConfig.Memory === "number" && inspect.HostConfig.Memory > 0
               ? Math.round(inspect.HostConfig.Memory / (1024 * 1024))
               : null,
           memReservationMb:
-            typeof inspect.HostConfig?.MemoryReservation === "number" && inspect.HostConfig.MemoryReservation > 0
+            typeof inspect.HostConfig.MemoryReservation === "number" && inspect.HostConfig.MemoryReservation > 0
               ? Math.round(inspect.HostConfig.MemoryReservation / (1024 * 1024))
               : null,
           cpus:
-            typeof inspect.HostConfig?.NanoCpus === "number" && inspect.HostConfig.NanoCpus > 0
+            typeof inspect.HostConfig.NanoCpus === "number" && inspect.HostConfig.NanoCpus > 0
               ? Number((inspect.HostConfig.NanoCpus / 1_000_000_000).toFixed(2))
               : null,
           cpuShares:
-            typeof inspect.HostConfig?.CpuShares === "number" && inspect.HostConfig.CpuShares > 0
+            typeof inspect.HostConfig.CpuShares === "number" && inspect.HostConfig.CpuShares > 0
               ? inspect.HostConfig.CpuShares
               : null,
-          restart: inspect.HostConfig?.RestartPolicy?.Name || null,
+          restart: inspect.HostConfig.RestartPolicy?.Name || null,
           profiles: labels["com.docker.compose.project.working_dir"] ? ["default"] : [],
-          ports: Object.keys(inspect.Config?.ExposedPorts ?? {}),
-          volumes: Object.keys(inspect.Config?.Volumes ?? {}),
+          ports: Object.keys(inspect.Config.ExposedPorts ?? {}),
+          volumes: Object.keys(inspect.Config.Volumes ?? {}),
           labels,
           rawYaml: [
             "services:",
             `  ${composeServiceName ?? "service"}:`,
-            `    image: ${inspect.Config?.Image ?? "unknown"}`,
-            `    restart: ${inspect.HostConfig?.RestartPolicy?.Name ?? "no"}`,
-            ...Object.keys(inspect.Config?.ExposedPorts ?? {}).map((port) => `    # exposed: ${port}`),
+            `    image: ${inspect.Config.Image ?? "unknown"}`,
+            `    restart: ${inspect.HostConfig.RestartPolicy?.Name ?? "no"}`,
+            ...Object.keys(inspect.Config.ExposedPorts ?? {}).map((port) => `    # exposed: ${port}`),
           ].join("\n"),
         }
       : null;
@@ -1588,7 +1588,7 @@ export class DockerRepository {
     let layerIds = this.extractRootFsLayers(inspect);
 
     if (layerIds.length === 0) {
-      const imageCandidates = [inspect.Image, inspect.Config?.Image]
+      const imageCandidates = [inspect.Image, inspect.Config.Image]
         .filter((candidate): candidate is string => typeof candidate === "string" && candidate.trim().length > 0)
         .map((candidate) => candidate.trim());
 
@@ -2316,7 +2316,7 @@ export class DockerRepository {
       },
       scope: "local",
       from: "docker-image-lifecycle",
-      eventId: `lifecycle:${lifecycleEventType}:${payload.imageIdentifierNormalized}:${Date.now()}`,
+      eventId: `lifecycle:${lifecycleEventType}:${payload.imageIdentifierNormalized}:${String(Date.now())}`,
       nodeId: null,
       timestamp: new Date().toISOString(),
       timestampNano: null,
@@ -3501,7 +3501,7 @@ export class DockerRepository {
    * container is unavailable (e.g. image not built yet, disabled).
    */
   private async executeScannerViaSharedContainer(
-    scanner: string,
+    scanner: "trivy" | "grype" | "dive",
     command: string[],
     fallbackConfig: ScannerExecutionConfig,
     progressOptions: ScannerExecutionProgressOptions = {},
@@ -3563,7 +3563,7 @@ export class DockerRepository {
 
     if (socketBind) {
       const hostPath = socketBind.split(":")[0];
-      envVars.push(`DOCKER_HOST=unix://${hostPath}`);
+      envVars.push(`DOCKER_HOST=unix://${String(hostPath)}`);
     }
 
     const created = await this.dockerService.createContainer({
@@ -4186,7 +4186,7 @@ export class DockerRepository {
 
     const efficiencyScore = efficiencyMatch ? Number(efficiencyMatch[1]) : null;
     const estimatedWastedPercent = wastedPercentMatch ? Number(wastedPercentMatch[1]) : null;
-    const estimatedWastedBytes = wastedSizeMatch?.[1] && wastedSizeMatch?.[2]
+    const estimatedWastedBytes = wastedSizeMatch?.[1] && wastedSizeMatch[2]
       ? this.parseByteValue(wastedSizeMatch[1], wastedSizeMatch[2])
       : null;
 

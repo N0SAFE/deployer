@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { nanoid } from 'nanoid';
 import { eq } from 'drizzle-orm';
@@ -39,6 +39,7 @@ export interface CliAuthContext {
  */
 @Injectable()
 export class CliAuthService {
+  private readonly logger = new Logger(CliAuthService.name);
   constructor(
     private readonly databaseService: GlobalDatabaseService,
     private readonly authCoreService: AuthCoreService,
@@ -79,7 +80,7 @@ export class CliAuthService {
 
     // Strategy 1: Try master token authentication
     if (devAuthKey && enableMasterToken) {
-      if (verbose) console.log('   🔑 Trying master token authentication...');
+      if (verbose) this.logger.log('   🔑 Trying master token authentication...');
       try {
         const authHeaders = new Headers({
           Authorization: `Bearer ${devAuthKey}`,
@@ -99,7 +100,7 @@ export class CliAuthService {
         };
       } catch (error) {
         if (verbose) {
-          console.log(`   ⚠️ Master token auth failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          this.logger.log(`   ⚠️ Master token auth failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
     }
@@ -107,7 +108,7 @@ export class CliAuthService {
     // Strategy 2: Try default admin credentials
     const adminPassword = envAdminPassword ?? defaultAdminPassword;
     if (defaultAdminEmail && adminPassword) {
-      if (verbose) console.log('   🔑 Trying default admin credentials...');
+      if (verbose) this.logger.log('   🔑 Trying default admin credentials...');
       try {
         const session = await this.signInAsUser(defaultAdminEmail, adminPassword);
         if (session) {
@@ -125,13 +126,13 @@ export class CliAuthService {
         }
       } catch (error) {
         if (verbose) {
-          console.log(`   ⚠️ Default admin auth failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          this.logger.log(`   ⚠️ Default admin auth failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
     }
 
     // Strategy 3: Create temporary seed user
-    if (verbose) console.log('   🔑 Creating temporary seed user...');
+    if (verbose) this.logger.log('   🔑 Creating temporary seed user...');
     return await this.createTempUser({ verbose });
   }
 
@@ -227,7 +228,7 @@ export class CliAuthService {
       updatedAt: now,
     });
 
-    if (verbose) console.log(`   ✅ Created temporary CLI user (ID: ${userId})`);
+    if (verbose) this.logger.log(`   ✅ Created temporary CLI user (ID: ${userId})`);
 
     // Sign in as temp user
     const session = await this.signInAsUser(TEMP_SEED_USER_EMAIL, tempPassword);
@@ -241,9 +242,9 @@ export class CliAuthService {
     return {
       headers: session.headers,
       cleanup: async () => {
-        if (verbose) console.log('\n🧹 Cleaning up temporary CLI user...');
+        if (verbose) this.logger.log('\n🧹 Cleaning up temporary CLI user...');
         await this.deleteTempUser(userId, accountId);
-        if (verbose) console.log('   ✅ Temporary CLI user deleted');
+        if (verbose) this.logger.log('   ✅ Temporary CLI user deleted');
       },
       method: 'temp-seed-user',
     };
@@ -281,11 +282,11 @@ export class CliAuthService {
     const devAuthEmail = this.configService.get<string>('DEFAULT_ADMIN_EMAIL');
 
     if (!devAuthEmail) {
-      console.log('ℹ️  DEFAULT_ADMIN_EMAIL not configured, skipping dev auth user creation');
+      this.logger.log('ℹ️  DEFAULT_ADMIN_EMAIL not configured, skipping dev auth user creation');
       return;
     }
 
-    console.log(`🔐 Creating dev auth user for email: ${devAuthEmail}...`);
+    this.logger.log(`🔐 Creating dev auth user for email: ${devAuthEmail}...`);
 
     // Check if user already exists using direct database query
     const existingUser = await this.databaseService.db
@@ -306,11 +307,11 @@ export class CliAuthService {
           })
           .where(eq(schema.user.id, existing.id));
 
-        console.log(`✅ Upgraded dev auth user role to superAdmin: ${devAuthEmail} (ID: ${existing.id})`);
+        this.logger.log(`✅ Upgraded dev auth user role to superAdmin: ${devAuthEmail} (ID: ${existing.id})`);
         return;
       }
 
-      console.log(`✅ Dev auth user already exists: ${devAuthEmail} (ID: ${existing.id})`);
+      this.logger.log(`✅ Dev auth user already exists: ${devAuthEmail} (ID: ${existing.id})`);
       return;
     }
 
@@ -351,11 +352,11 @@ export class CliAuthService {
         updatedAt: now,
       });
 
-      console.log(`✅ Created dev auth user: ${devAuthEmail} (ID: ${userId})`);
-      console.log(`   This user can be impersonated using DEV_AUTH_KEY in development mode`);
+      this.logger.log(`✅ Created dev auth user: ${devAuthEmail} (ID: ${userId})`);
+      this.logger.log(`   This user can be impersonated using DEV_AUTH_KEY in development mode`);
     } catch (error) {
       // If user creation fails, log and continue
-      console.warn(`⚠️  Could not create dev auth user: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(`⚠️  Could not create dev auth user: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -371,11 +372,11 @@ export class CliAuthService {
     const envPassword = this.configService.get<string>('DEFAULT_ADMIN_PASSWORD');
 
     if (!defaultAdminEmail) {
-      console.log('ℹ️  DEFAULT_ADMIN_EMAIL not configured, skipping default admin user creation');
+      this.logger.log('ℹ️  DEFAULT_ADMIN_EMAIL not configured, skipping default admin user creation');
       return null;
     }
 
-    console.log(`👤 Checking for default admin user: ${defaultAdminEmail}...`);
+    this.logger.log(`👤 Checking for default admin user: ${defaultAdminEmail}...`);
 
     // Check if user already exists using direct database query
     const existingUser = await this.databaseService.db
@@ -396,9 +397,9 @@ export class CliAuthService {
           })
           .where(eq(schema.user.id, existing.id));
 
-        console.log(`✅ Upgraded default admin user role to superAdmin: ${defaultAdminEmail} (ID: ${existing.id})`);
+        this.logger.log(`✅ Upgraded default admin user role to superAdmin: ${defaultAdminEmail} (ID: ${existing.id})`);
       } else {
-        console.log(`✅ Default admin user already exists: ${defaultAdminEmail} (ID: ${existing.id})`);
+        this.logger.log(`✅ Default admin user already exists: ${defaultAdminEmail} (ID: ${existing.id})`);
       }
 
       // Return env password if available (user might need it for auth)
@@ -444,23 +445,23 @@ export class CliAuthService {
 
       if (!envPassword) {
         const separator = '═'.repeat(60);
-        console.log(`\n${separator}`);
-        console.log(`🔑 DEFAULT ADMIN USER CREATED`);
-        console.log(separator);
-        console.log(`   Email:    ${defaultAdminEmail}`);
-        console.log(`   Password: ${password}`);
-        console.log(`   User ID:  ${userId}`);
-        console.log(separator);
-        console.log(`⚠️  SAVE THIS PASSWORD! It won't be shown again.`);
-        console.log(`   You can also set DEFAULT_ADMIN_PASSWORD env var to use a specific password.`);
-        console.log(`${separator}\n`);
+        this.logger.log(`\n${separator}`);
+        this.logger.log(`🔑 DEFAULT ADMIN USER CREATED`);
+        this.logger.log(separator);
+        this.logger.log(`   Email:    ${defaultAdminEmail}`);
+        this.logger.log(`   Password: ${password}`);
+        this.logger.log(`   User ID:  ${userId}`);
+        this.logger.log(separator);
+        this.logger.log(`⚠️  SAVE THIS PASSWORD! It won't be shown again.`);
+        this.logger.log(`   You can also set DEFAULT_ADMIN_PASSWORD env var to use a specific password.`);
+        this.logger.log(`${separator}\n`);
       } else {
-        console.log(`✅ Created default admin user: ${defaultAdminEmail} (ID: ${userId})`);
+        this.logger.log(`✅ Created default admin user: ${defaultAdminEmail} (ID: ${userId})`);
       }
 
       return password;
     } catch (error) {
-      console.warn(`⚠️  Could not create default admin user: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(`⚠️  Could not create default admin user: ${error instanceof Error ? error.message : String(error)}`);
       return null;
     }
   }

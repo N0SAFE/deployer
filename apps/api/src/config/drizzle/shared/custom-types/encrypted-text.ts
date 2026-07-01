@@ -1,6 +1,9 @@
 import { customType } from "drizzle-orm/pg-core";
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
 import { validateApiEnvPath } from "@repo/env";
+import { Logger } from "@nestjs/common";
+
+const logger = new Logger("EncryptedText");
 
 // @ts-expect-error process.env.AUTH_SECRET may be undefined but is checked in this function so its not a problem
 const AUTH_SECRET = validateApiEnvPath(process.env.AUTH_SECRET, "AUTH_SECRET");
@@ -13,7 +16,7 @@ const AUTH_SECRET = validateApiEnvPath(process.env.AUTH_SECRET, "AUTH_SECRET");
 const ENCRYPTION_KEY = AUTH_SECRET
     ? Buffer.from(AUTH_SECRET, "hex")
     : (() => {
-          console.warn(
+          logger.warn(
               "⚠️  WARNING: ENCRYPTION_KEY not found in environment variables. " +
                   "Using a temporary key. This is NOT secure for production! " +
                   "Generate a key with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
@@ -53,7 +56,7 @@ function encrypt(text: string): string {
         // Combine salt, iv, authTag, and encrypted data
         return `${salt.toString("hex")}:${iv.toString("hex")}:${authTag.toString("hex")}:${encrypted}`;
     } catch (error) {
-        console.error("Encryption error:", error);
+        logger.error("Encryption error:", { error });
         throw new Error("Failed to encrypt data");
     }
 }
@@ -89,7 +92,7 @@ function decrypt(encryptedText: string): string {
 
         return decrypted;
     } catch (error) {
-        console.error("Decryption error:", error);
+        logger.error("Decryption error:", { error });
         throw new Error("Failed to decrypt data");
     }
 }

@@ -25,10 +25,13 @@ import { getCookieCache, getSessionCookie } from 'better-auth/cookies'
 import { cookies } from 'next/headers'
 import { unstable_rethrow } from 'next/navigation'
 import { validateEnvSafe } from '#/env'
+import { AppLogger } from '@repo/logger'
 import type { Session } from '@/lib/auth'
 
 // Validate environment variables
 const env = validateEnvSafe(process.env).data
+
+const cookieLogger = new AppLogger('web').scope('CookieSession')
 
 /**
  * Cached session type from Better Auth cookie
@@ -62,7 +65,7 @@ export async function getRawSessionCookie(): Promise<string | null> {
     } catch (error) {
         // Re-throw internal Next.js errors (PPR bailout, redirects, etc.)
         unstable_rethrow(error)
-        console.error('🍪 getRawSessionCookie: ERROR', error)
+        cookieLogger.error('getRawSessionCookie: ERROR', { error })
         return null
     }
 }
@@ -95,7 +98,7 @@ export async function getRawSessionCookie(): Promise<string | null> {
  */
 export async function getSessionFromCookie(): Promise<Session | null> {
     if (!env?.BETTER_AUTH_SECRET) {
-        console.warn(`🍪 getSessionFromCookie: BETTER_AUTH_SECRET not configured`)
+        cookieLogger.warn('getSessionFromCookie: BETTER_AUTH_SECRET not configured')
         return null
     }
 
@@ -114,7 +117,7 @@ export async function getSessionFromCookie(): Promise<Session | null> {
     } catch (error) {
         // Re-throw internal Next.js errors (PPR bailout, redirects, etc.)
         unstable_rethrow(error)
-        console.error(`🍪 getSessionFromCookie: ERROR`, error)
+        cookieLogger.error('getSessionFromCookie: ERROR', { error })
         return null
     }
 }

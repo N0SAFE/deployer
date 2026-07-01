@@ -1,5 +1,8 @@
 import { TraefikConfigBuilder } from "@/core/modules/traefik/config-builder/builders";
+import { Logger } from "@nestjs/common";
 import { customType } from "drizzle-orm/pg-core";
+
+const logger = new Logger("TraefikConfigBuilder");
 
 /**
  * Serializes a TraefikConfigBuilder to JSON string for database storage
@@ -13,7 +16,7 @@ export function serializeTraefikConfigBuilder(value: TraefikConfigBuilder): stri
     // Serialize to JSON string for storage
     return JSON.stringify(config);
   } catch (error) {
-    console.error("Failed to serialize TraefikConfigBuilder to database:", error);
+    logger.error("Failed to serialize TraefikConfigBuilder to database", { error });
     // Return empty config as fallback
     return JSON.stringify({});
   }
@@ -30,7 +33,7 @@ export function deserializeTraefikConfigBuilder(value: string): TraefikConfigBui
     // Use the static load method to create a builder from the config
     return TraefikConfigBuilder.load(value);
   } catch (error) {
-    console.error("Failed to deserialize TraefikConfigBuilder from database:", error);
+    logger.error("Failed to deserialize TraefikConfigBuilder from database", { error });
     // Return empty builder as fallback
     return new TraefikConfigBuilder();
   }

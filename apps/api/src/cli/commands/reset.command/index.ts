@@ -1,5 +1,5 @@
 import { Command, CommandRunner } from 'nest-commander';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { resetLocal } from './local';
 import { LocalDatabaseService } from '@/core/modules/database/local/local-database.service';
 
@@ -20,9 +20,9 @@ export class ResetCommand extends CommandRunner {
     try {
       resetLocal(this.localDatabaseService.db);
       
-      console.log(`✅ Finished reset operation`);
+      this.logger.log(`✅ Finished reset operation`);
     } catch (error) {
-      console.error('❌ Reset failed:', error);
+      this.logger.error('❌ Reset failed:', error);
       throw error;
     }
     return Promise.resolve();

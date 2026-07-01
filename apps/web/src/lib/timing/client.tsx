@@ -11,6 +11,7 @@
 
 import { useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
+import { AppLogger } from '@repo/logger'
 
 // ============================================================================
 // Types
@@ -82,10 +83,10 @@ function logTiming(
     ? ` | ${Object.entries(meta).map(([k, v]) => `${k}=${String(v)}`).join(', ')}`
     : ''
   
-  console.log(
-    `${icon} [Client/${type}] ${pageName}: ${formatDuration(duration)}${metaStr}`
-  )
+  timingLogger.debug(`[Client/${type}] ${pageName}: ${formatDuration(duration)}${metaStr}`)
 }
+
+const timingLogger = new AppLogger('web').scope('ClientTiming')
 
 // ============================================================================
 // Timing Components
@@ -168,9 +169,7 @@ export function useRenderTiming(componentName: string) {
     if (renderCount.current > 0) {
       // Only log re-renders, not initial mount
       const icon = renderTime > 16 ? '⚠️' : '✅'
-      console.log(
-        `${icon} [Re-render] ${componentName}: ${formatDuration(renderTime)} (render #${String(renderCount.current)})`
-      )
+      timingLogger.debug(`[Re-render] ${componentName}: ${formatDuration(renderTime)} (render #${String(renderCount.current)})`)
     }
     
     lastRenderTime.current = performance.now()

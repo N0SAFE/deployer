@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/config/drizzle/global/schema';
 import type { CliAuthService} from '../../services/cli-auth.service';
@@ -9,13 +10,15 @@ import { Roles, ORGANIZATION_ROLES, type OrganizationRole } from '@repo/auth/per
 // Seed version identifier - increment this when you want to re-seed
 export const SEED_VERSION = 'v1.2.0';
 
+const logger = new Logger('SeedGlobal');
+
 export async function seedGlobal(
   globalDb: NodePgDatabase<typeof schema>,
   authCoreService: AuthCoreService,
   cliAuthService: CliAuthService
 ) {
   let authContext: CliAuthContext | null = null;
-  console.log(`📦 Applying global seed version ${SEED_VERSION}...`);
+  logger.log(`📦 Applying global seed version ${SEED_VERSION}...`);
 
   try {
     // Check if this seed version has already been applied
@@ -26,8 +29,8 @@ export async function seedGlobal(
       .limit(1);
 
     if (existingSeed.length > 0 && existingSeed[0]) {
-      console.log(`✅ Seed version ${SEED_VERSION} already applied at ${existingSeed[0].appliedAt.toISOString()}`);
-      console.log('   Skipping seeding. To re-seed, increment SEED_VERSION in seed.command.ts');
+      logger.log(`✅ Seed version ${SEED_VERSION} already applied at ${existingSeed[0].appliedAt.toISOString()}`);
+      logger.log('   Skipping seeding. To re-seed, increment SEED_VERSION in seed.command.ts');
       return;
     }
 
@@ -36,19 +39,19 @@ export async function seedGlobal(
     // BOOTSTRAP: Create dev auth user first (via direct DB) - needed for masterTokenPlugin
     let start = Date.now();
     await cliAuthService.ensureDevAuthUser();
-    console.log(`   ⏱️ Bootstrap user: ${String(Date.now() - start)}ms`);
+    logger.log(`   ⏱️ Bootstrap user: ${String(Date.now() - start)}ms`);
 
     // BOOTSTRAP: Create default admin user if not created by create-default-admin command
     start = Date.now();
     const defaultAdminPassword = await cliAuthService.ensureDefaultAdminUser();
-    console.log(`   ⏱️ Default admin check: ${String(Date.now() - start)}ms`);
+    logger.log(`   ⏱️ Default admin check: ${String(Date.now() - start)}ms`);
 
     // Get authenticated headers using smart auth strategy
-    console.log('\n🔐 Obtaining authentication for seeding...');
+    logger.log('\n🔐 Obtaining authentication for seeding...');
     start = Date.now();
     authContext = await cliAuthService.getAuthenticatedHeaders({ defaultAdminPassword });
-    console.log(`   ✅ Authenticated via: ${authContext.method}`);
-    console.log(`   ⏱️ Auth setup: ${String(Date.now() - start)}ms`);
+    logger.log(`   ✅ Authenticated via: ${authContext.method}`);
+    logger.log(`   ⏱️ Auth setup: ${String(Date.now() - start)}ms`);
 
     // Get typed plugins bound to auth headers - this preserves proper typing from the registry
     const plugins = authCoreService.getRegistry().getAll(authContext.headers) as unknown as {
@@ -86,7 +89,7 @@ export async function seedGlobal(
     };
 
     // Create users for each platform role using authenticated admin plugin
-    console.log('\n📝 Creating users with platform roles...');
+    logger.log('\n📝 Creating users with platform roles...');
     start = Date.now();
     const userCreationPromises: Promise<void>[] = [];
     
@@ -107,7 +110,7 @@ export async function seedGlobal(
         }).then(userResult => {
           const user = userResult.user;
           seededData.users.push({ role, id: user.id, email, password });
-          console.log(`   Created ${role} user ${String(i)}: ${email} (ID: ${user.id})`);
+          logger.log(`   Created ${role} user ${String(i)}: ${email} (ID: ${user.id})`);
         });
         
         userCreationPromises.push(promise);
@@ -115,10 +118,10 @@ export async function seedGlobal(
     }
     
     await Promise.all(userCreationPromises);
-    console.log(`   ⏱️ Users created: ${String(Date.now() - start)}ms`);
+    logger.log(`   ⏱️ Users created: ${String(Date.now() - start)}ms`);
 
     // Create test organizations using Better Auth API
-    console.log('\n🏢 Creating test organizations with Better Auth API...');
+    logger.log('\n🏢 Creating test organizations with Better Auth API...');
     start = Date.now();
 
     const testOrganizations = [
@@ -137,14 +140,14 @@ export async function seedGlobal(
         name: orgResult.name,
         slug: orgResult.slug,
       });
-      console.log(`   Created organization: ${orgResult.name} (ID: ${orgResult.id})`);
+      logger.log(`   Created organization: ${orgResult.name} (ID: ${orgResult.id})`);
     });
     
     await Promise.all(orgCreationPromises);
-    console.log(`   ⏱️ Test organizations created: ${String(Date.now() - start)}ms`);
+    logger.log(`   ⏱️ Test organizations created: ${String(Date.now() - start)}ms`);
 
     // Create one organization per user
-    console.log('\n🏢 Creating personal organizations for each user...');
+    logger.log('\n🏢 Creating personal organizations for each user...');
     start = Date.now();
     
     const personalOrgPromises = seededData.users.map(async (userData) => {
@@ -162,14 +165,14 @@ export async function seedGlobal(
         name: orgResult.name,
         slug: orgResult.slug,
       });
-      console.log(`   Created personal org: ${orgResult.name} (ID: ${orgResult.id})`);
+      logger.log(`   Created personal org: ${orgResult.name} (ID: ${orgResult.id})`);
     });
     
     await Promise.all(personalOrgPromises);
-    console.log(`   ⏱️ Personal organizations created: ${String(Date.now() - start)}ms`);
+    logger.log(`   ⏱️ Personal organizations created: ${String(Date.now() - start)}ms`);
 
     // Assign users to test organizations only (not personal organizations)
-    console.log('\n👥 Assigning users to test organizations...');
+    logger.log('\n👥 Assigning users to test organizations...');
     start = Date.now();
     
     const platformToOrgRoleMap: Record<string, OrganizationRole> = {
@@ -183,21 +186,21 @@ export async function seedGlobal(
     
     for (const org of seededData.organizations) {
       if (!testOrgIds.includes(org.id)) {
-        console.log(`\n   ⏭️ Skipping personal organization: ${org.name} (user is already owner)`);
+        logger.log(`\n   ⏭️ Skipping personal organization: ${org.name} (user is already owner)`);
         continue;
       }
       
-      console.log(`\n   Organization: ${org.name}`);
+      logger.log(`\n   Organization: ${org.name}`);
       
       for (const userData of seededData.users) {
         const orgRole = platformToOrgRoleMap[userData.role] ?? 'member';
         
         const promise = orgPlugin.addMember(org.id, userData.id, orgRole)
           .then(() => {
-            console.log(`      Added ${userData.email} as ${orgRole}`);
+            logger.log(`      Added ${userData.email} as ${orgRole}`);
           })
           .catch((error: unknown) => {
-            console.warn(`      ⚠️ Could not add ${userData.email}: ${error instanceof Error ? error.message : String(error)}`);
+            logger.warn(`      ⚠️ Could not add ${userData.email}: ${error instanceof Error ? error.message : String(error)}`);
           });
         
         memberAdditionPromises.push(promise);
@@ -205,25 +208,25 @@ export async function seedGlobal(
     }
     
     await Promise.all(memberAdditionPromises);
-    console.log(`   ⏱️ Members added to test organizations: ${String(Date.now() - start)}ms`);
+    logger.log(`   ⏱️ Members added to test organizations: ${String(Date.now() - start)}ms`);
 
     // Record that this seed version has been applied
     await globalDb.insert(schema.seedVersion).values({
       version: SEED_VERSION,
     });
 
-    console.log(`\n✅ Global Database seeded successfully (version ${SEED_VERSION})`);
-    console.log(`   ⏱️ Total seed time: ${String(Date.now() - totalStart)}ms`);
+    logger.log(`\n✅ Global Database seeded successfully (version ${SEED_VERSION})`);
+    logger.log(`   ⏱️ Total seed time: ${String(Date.now() - totalStart)}ms`);
 
   } catch (error) {
-    console.error("❌ Global Seeding failed:", error);
+    logger.error("❌ Global Seeding failed:", error);
     throw error;
   } finally {
     if (authContext) {
       try {
         await authContext.cleanup();
       } catch (cleanupError) {
-        console.warn(`⚠️ Cleanup warning: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`);
+        logger.warn(`⚠️ Cleanup warning: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`);
       }
     }
   }

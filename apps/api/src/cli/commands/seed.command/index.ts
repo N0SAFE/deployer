@@ -1,5 +1,5 @@
 import { Command, CommandRunner } from 'nest-commander';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { seedLocal } from './local';
 import { LocalDatabaseService } from '@/core/modules/database/local/local-database.service';
 
@@ -9,6 +9,7 @@ import { LocalDatabaseService } from '@/core/modules/database/local/local-databa
 })
 @Injectable()
 export class SeedCommand extends CommandRunner {
+  private readonly logger = new Logger(SeedCommand.name);
   constructor(
     private readonly localDatabaseService: LocalDatabaseService,
   ) {
@@ -16,12 +17,12 @@ export class SeedCommand extends CommandRunner {
   }
 
   async run(): Promise<void> {
-    console.log(`🌱 Seeding database...`);
+    this.logger.log(`🌱 Seeding database...`);
     
     try {
       seedLocal(this.localDatabaseService.db);
     } catch (error) {
-      console.error("❌ Seeding failed:", error);
+      this.logger.error("❌ Seeding failed:", error);
       throw error;
     }
     return Promise.resolve();

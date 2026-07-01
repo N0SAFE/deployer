@@ -1,3 +1,5 @@
+import { AppLogger } from '@repo/logger'
+
 /**
  * Data Mode Configuration
  *
@@ -6,6 +8,8 @@
  */
 
 export type DataMode = 'mock' | 'live'
+
+const dataModeLogger = new AppLogger('web').scope('DataMode')
 
 /**
  * Get current data mode from environment or runtime flag
@@ -32,7 +36,7 @@ export function getDataMode(): DataMode {
 export function setDataMode(mode: DataMode): void {
   if (typeof window !== 'undefined') {
     (window as any).__DATA_MODE__ = mode
-    console.log(`[Data Mode] Switched to ${mode}`)
+    dataModeLogger.debug(`[Data Mode] Switched to ${mode}`)
     // Force page refresh to load new data
     window.location.reload()
   }

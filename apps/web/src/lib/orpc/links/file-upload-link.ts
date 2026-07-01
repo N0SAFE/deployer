@@ -11,6 +11,7 @@
 import { OpenAPILink } from "@orpc/openapi-client/fetch";
 import type { ContractRouter, Meta } from "@orpc/contract";
 import type { ClientContext, NestedClient, Client } from "@orpc/client";
+import { createContextFilterDebugLogger } from "@/lib/logging/context-filter-debug";
 
 /**
  * Progress event for file uploads
@@ -96,6 +97,9 @@ class UploadRegistry {
 
 // Global upload registry
 export const uploadRegistry = new UploadRegistry();
+
+// Module-level debug logger gated by NEXT_PUBLIC_APP_DEBUG_CONTEXT_FILTER env var
+const fileUploadDebug = createContextFilterDebugLogger("FileUploadLink", "orpc-file-upload");
 
 /**
  * Creates a Web Worker that handles file uploads with XMLHttpRequest
@@ -380,14 +384,14 @@ function uploadWithWorker(
       } else if (type === 'progress') {
         uploadRegistry.updateUpload(uploadId, { progress });
         if (onProgress) {
-          console.log(`[FileUploadLink] Upload progress: ${String(progress.percentage)}%`);
+          fileUploadDebug("Upload progress", { percentage: progress.percentage });
           onProgress(progress);
         }
       } else if (type === 'responseStart') {
         // Store response metadata
         responseMetadata = { status, statusText, contentType };
       } else if (type === 'complete') {
-        console.log('[FileUploadLink] Upload completed successfully');
+        fileUploadDebug("Upload completed successfully");
         uploadRegistry.updateUpload(uploadId, {
           status: 'completed',
           endTime: Date.now(),
@@ -408,7 +412,7 @@ function uploadWithWorker(
         // Cleanup listener
         worker.removeEventListener('message', messageHandler);
       } else if (type === 'error') {
-        console.error('[FileUploadLink] Upload failed:', error);
+        fileUploadDebug("Upload failed", { error });
         uploadRegistry.updateUpload(uploadId, {
           status: 'failed',
           error,
@@ -509,7 +513,7 @@ export class FileUploadOpenAPILink<TContext extends ClientContext> extends OpenA
       // 2. We have an onProgress callback
       // 3. We're in the browser (not SSR)
       if (isFileUpload && onProgress && typeof window !== 'undefined') {
-        console.log('[FileUploadLink] Intercepted file upload, using XMLHttpRequest for progress');
+        fileUploadDebug("Intercepted file upload, using XMLHttpRequest for progress");
 
         try {
           // `input` is typed as `unknown` by the ORPC link signature.
@@ -523,7 +527,7 @@ export class FileUploadOpenAPILink<TContext extends ClientContext> extends OpenA
           // Return the streamed Response directly
           return response;
         } catch (error) {
-          console.error('[FileUploadLink] Error during XHR upload:', error);
+          fileUploadDebug("Error during XHR upload", { error });
           // Fall through to regular fetch on error
         }
       }

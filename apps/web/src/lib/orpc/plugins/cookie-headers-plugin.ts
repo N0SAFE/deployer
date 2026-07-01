@@ -1,4 +1,7 @@
+import { AppLogger } from '@repo/logger'
 import { StandardLinkOptions, StandardLinkPlugin } from '@orpc/client/standard'
+
+const cookieLogger = new AppLogger('web').scope('CookieHeadersPlugin')
 
 /**
  * Cookie and Headers Plugin for ORPC Client
@@ -39,9 +42,7 @@ export class CookieHeadersPlugin<TContext extends {
           const nh = await import('next/headers')
           headers.cookie = (await nh.cookies()).toString()
         } catch {
-          console.log(
-            'Warning: next/headers could not be imported. Are you running in a non-Next.js environment?'
-          )
+          cookieLogger.warn('next/headers could not be imported. Are you running in a non-Next.js environment?')
           
           // Fallback: merge context cookies with existing cookies
           const existing = Array.isArray(headers.cookie)

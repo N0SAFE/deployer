@@ -14,16 +14,16 @@ function runSqliteMigrations(sqlite: BunSqliteDatabase): void {
     const migrationsDir = fileURLToPath(
         new URL("../../../../config/drizzle/local/migrations", import.meta.url)
     );
-    console.log(`[LocalModule] Checking migrations at: ${migrationsDir}`);
+    logger.log(`Checking migrations at: ${migrationsDir}`);
     if (!fs.existsSync(migrationsDir)) {
         logger.warn(`Local migrations directory not found at ${migrationsDir}, skipping`);
         return;
     }
     const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort();
-    console.log(`[LocalModule] Found ${files.length} migration files: ${files.join(", ")}`);
+    logger.log(`Found ${files.length} migration files: ${files.join(", ")}`);
     for (const file of files) {
         const sql = fs.readFileSync(path.join(migrationsDir, file), "utf8");
-        console.log(`[LocalModule] Running migration: ${file}`);
+        logger.log(`Running migration: ${file}`);
         // Drizzle Kit separates statements with `--> statement-breakpoint`.
         // `bun:sqlite`'s `run()` only executes a single statement at a time
         // and `exec()` is deprecated, so we split the file and run each
@@ -40,7 +40,7 @@ function runSqliteMigrations(sqlite: BunSqliteDatabase): void {
                 sqlite.run(stmt);
             } catch (err: unknown) {
                 const msg = err instanceof Error ? err.message : String(err);
-                console.log(`[LocalModule] Migration ${file} statement result: ${msg}`);
+                logger.log(`Migration ${file} statement result: ${msg}`);
                 const isBenign =
                     msg.includes("already exists") ||
                     msg.includes("duplicate column") ||
@@ -60,18 +60,18 @@ function runSqliteMigrations(sqlite: BunSqliteDatabase): void {
         {
             provide: LOCAL_DATABASE_CONNECTION,
             useFactory: () => {
-                console.log(`⏳ Initializing local SQLite database connection...`);
+                logger.log("Initializing local SQLite database connection...");
                 const dbPath = process.env.NODE_LOCAL_DB_PATH ?? "/app/data/local.db";
-                console.log(`Using local SQLite database path: ${dbPath}`);
+                logger.log(`Using local SQLite database path: ${dbPath}`);
                 const dir = path.dirname(dbPath);
-                console.log(`Ensuring local data directory exists at path: ${dir}`);
+                logger.log(`Ensuring local data directory exists at path: ${dir}`);
                 if (!fs.existsSync(dir)) {
-                    console.log("creating local data directory for SQLite database at path: " + dir);
+                    logger.log("creating local data directory for SQLite database at path: " + dir);
                     fs.mkdirSync(dir, { recursive: true });
-                    console.log(`Created local data directory: ${dir}`);
+                    logger.log(`Created local data directory: ${dir}`);
                 }
 
-                console.log(`Opening local SQLite database: ${dbPath}`);
+                logger.log(`Opening local SQLite database: ${dbPath}`);
                 const sqlite = new BunSqliteDatabase(dbPath);
                 sqlite.run("PRAGMA journal_mode = WAL");
 
