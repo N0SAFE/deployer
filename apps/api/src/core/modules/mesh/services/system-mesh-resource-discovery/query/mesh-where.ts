@@ -309,6 +309,10 @@ export function applyObjectWhere<TItem>(
           // Field operators
           const opKeys = Object.keys(value);
           for (const op of opKeys) {
+            // Dynamic operator value — the type genuinely is unknown at compile
+            // time because it depends on `op` at runtime. Using `any` is the
+            // pragmatic choice here since each comparison site narrows as needed.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
             const v = (value as any)[op];
             switch (op) {
               case '_eq':
@@ -392,7 +396,7 @@ export function createFilter<TRecord extends AnyRecord>(
   // The builder is expected to return a plain object representing the filter.
   // Call it and return its result directly.
    
-  return (builder as any)();
+  return builder();
 }
 
 // Standalone filter creator for simple use cases
