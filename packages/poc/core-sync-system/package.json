@@ -1,26 +1,27 @@
 {
-  "name": "@repo/poc-core-sync-system",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsgo -b && vite build",
-    "preview": "vite preview",
-    "type-check": "tsgo --noEmit"
-  },
-  "dependencies": {
-    "@xyflow/react": "^12.10.0",
-    "react": "catalog:react",
-    "react-dom": "catalog:react"
-  },
-  "devDependencies": {
-    "@repo/config-typescript": "*",
-    "@types/node": "catalog:build",
-    "@types/react": "catalog:react",
-    "@types/react-dom": "catalog:react",
-    "@vitejs/plugin-react": "catalog:testing",
-    "@typescript/native-preview": "catalog:build",
-    "vite": "catalog:build"
-  }
+    "name": "@repo/poc-core-sync-system",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "tsgo -b && vite build",
+        "preview": "vite preview",
+        "type-check": "tsgo --noEmit"
+    },
+    "dependencies": {
+        "@repo/type-guards": "*",
+        "@xyflow/react": "^12.10.0",
+        "react": "catalog:react",
+        "react-dom": "catalog:react"
+    },
+    "devDependencies": {
+        "@repo/config-typescript": "*",
+        "@types/node": "catalog:build",
+        "@types/react": "catalog:react",
+        "@types/react-dom": "catalog:react",
+        "@vitejs/plugin-react": "catalog:testing",
+        "@typescript/native-preview": "catalog:build",
+        "vite": "catalog:build"
+    }
 }

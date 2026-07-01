@@ -23,6 +23,7 @@
         "test:coverage": "vitest run --coverage"
     },
     "dependencies": {
+        "@repo/type-guards": "*",
         "nuqs": "catalog:web",
         "zod": "catalog:utils"
     },

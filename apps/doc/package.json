@@ -1,44 +1,45 @@
 {
-  "name": "doc",
-  "version": "0.0.0",
-  "private": true,
-  "scripts": {
-    "build": "next build --turbopack",
-    "compile": "next build --experimental-build-mode=compile --turbopack --debug-prerender",
-    "dev": "next dev -p 3020",
-    "start": "next start -p 3020",
-    "postinstall": "fumadocs-mdx",
-    "prettify": "prettier . --write --no-error-on-unmatched-pattern",
-    "format": "bun run prettify",
-    "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-    "lint": "eslint",
-    "type-check": "tsgo --noEmit"
-  },
-  "dependencies": {
-    "fumadocs-core": "catalog:doc",
-    "fumadocs-mdx": "catalog:doc",
-    "fumadocs-ui": "catalog:doc",
-    "lucide-react": "catalog:ui",
-    "mermaid": "^11.12.0",
-    "next": "catalog:next",
-    "react": "catalog:react",
-    "react-dom": "catalog:react",
-    "tw-animate-css": "catalog:ui"
-  },
-  "devDependencies": {
-    "@eslint/eslintrc": "catalog:linting",
-    "@repo/config-eslint": "*",
-    "@repo/config-prettier": "*",
-    "@tailwindcss/postcss": "catalog:styling",
-    "@types/mdx": "catalog:doc",
-    "@types/node": "catalog:build",
-    "@types/react": "catalog:react",
-    "@types/react-dom": "catalog:react",
-    "babel-plugin-react-compiler": "catalog:react-compiler",
-    "eslint": "catalog:linting",
-    "eslint-config-next": "catalog:next",
-    "postcss": "catalog:styling",
-    "tailwindcss": "catalog:styling",
-    "@typescript/native-preview": "catalog:build"
-  }
+    "name": "doc",
+    "version": "0.0.0",
+    "private": true,
+    "scripts": {
+        "build": "next build --turbopack",
+        "compile": "next build --experimental-build-mode=compile --turbopack --debug-prerender",
+        "dev": "next dev -p 3020",
+        "start": "next start -p 3020",
+        "postinstall": "fumadocs-mdx",
+        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "format": "bun run prettify",
+        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "lint": "eslint",
+        "type-check": "tsgo --noEmit"
+    },
+    "dependencies": {
+        "@repo/type-guards": "*",
+        "fumadocs-core": "catalog:doc",
+        "fumadocs-mdx": "catalog:doc",
+        "fumadocs-ui": "catalog:doc",
+        "lucide-react": "catalog:ui",
+        "mermaid": "^11.12.0",
+        "next": "catalog:next",
+        "react": "catalog:react",
+        "react-dom": "catalog:react",
+        "tw-animate-css": "catalog:ui"
+    },
+    "devDependencies": {
+        "@eslint/eslintrc": "catalog:linting",
+        "@repo/config-eslint": "*",
+        "@repo/config-prettier": "*",
+        "@tailwindcss/postcss": "catalog:styling",
+        "@types/mdx": "catalog:doc",
+        "@types/node": "catalog:build",
+        "@types/react": "catalog:react",
+        "@types/react-dom": "catalog:react",
+        "babel-plugin-react-compiler": "catalog:react-compiler",
+        "eslint": "catalog:linting",
+        "eslint-config-next": "catalog:next",
+        "postcss": "catalog:styling",
+        "tailwindcss": "catalog:styling",
+        "@typescript/native-preview": "catalog:build"
+    }
 }

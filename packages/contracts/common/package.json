@@ -1,23 +1,24 @@
 {
-  "name": "@repo/contracts-common",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
-  "exports": {
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts"
-  },
-  "scripts": {
-    "type-check": "tsgo --noEmit"
-  },
-  "dependencies": {
-    "zod": "catalog:utils"
-  },
-  "devDependencies": {
-    "@types/node": "catalog:build",
-    "@repo/config-typescript": "*",
-    "@typescript/native-preview": "catalog:build"
-  }
+    "name": "@repo/contracts-common",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": "./src/index.ts",
+        "./*": "./src/*.ts"
+    },
+    "scripts": {
+        "type-check": "tsgo --noEmit"
+    },
+    "dependencies": {
+        "@repo/type-guards": "*",
+        "zod": "catalog:utils"
+    },
+    "devDependencies": {
+        "@types/node": "catalog:build",
+        "@repo/config-typescript": "*",
+        "@typescript/native-preview": "catalog:build"
+    }
 }

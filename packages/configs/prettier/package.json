@@ -34,10 +34,13 @@
     "license": "ISC",
     "description": "",
     "devDependencies": {
-        "@types/node": "catalog:build", 
+        "@types/node": "catalog:build",
         "@repo/config-vitest": "*",
         "prettier": "catalog:linting",
         "prettier-plugin-tailwindcss": "catalog:linting",
         "vitest": "catalog:testing"
+    },
+    "dependencies": {
+        "@repo/type-guards": "*"
     }
 }

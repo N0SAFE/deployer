@@ -1,67 +1,68 @@
 {
-  "name": "@repo/cli-declarative-routing",
-  "version": "0.1.20",
-  "description": "Declarative routes for React (monorepo fork)",
-  "bin": {
-    "declarative-routing": "dist/index.js"
-  },
-  "private": true,
-  "files": [
-    "dist",
-    "assets"
-  ],
-  "exports": "./dist/index.js",
-  "scripts": {
-    "prepublish": "bun run build",
-    "dev": "bun --bun scripts/build.ts --watch",
-    "build": "bun --bun scripts/build.ts",
-    "prettify": "prettier . --write --no-error-on-unmatched-pattern",
-    "format": "bun run prettify",
-    "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage",
-    "type-check": "tsgo --noEmit",
-    "migrate:unified-info-files": "bun --bun migrations/2026-01-01-unified-info-files.migration.ts"
-  },
-  "keywords": [],
-  "author": {
-    "name": "Jack Herrington",
-    "email": "jherr@pobox.com"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ProNextJS/declarative-routing"
-  },
-  "license": "MIT",
-  "devDependencies": {
-    "@repo/config-prettier": "*",
-    "@repo/config-vitest": "*",
-    "@types/diff": "catalog:utils",
-    "@types/fs-extra": "catalog:utils",
-    "@types/prompts": "catalog:utils",
-    "@vitest/coverage-v8": "catalog:testing",
-    "@vitest/ui": "catalog:testing",
-    "type-fest": "catalog:utils",
-    "@typescript/native-preview": "catalog:build",
-    "vitest": "catalog:testing"
-  },
-  "dependencies": {
-    "@antfu/ni": "catalog:utils",
-    "@parcel/watcher": "catalog:build",
-    "boxen": "catalog:ui",
-    "commander": "catalog:utils",
-    "diff": "catalog:utils",
-    "execa": "catalog:utils",
-    "fs-extra": "catalog:utils",
-    "glob": "catalog:utils",
-    "handlebars": "catalog:utils",
-    "kleur": "catalog:utils",
-    "log-symbols": "catalog:utils",
-    "magicast": "catalog:utils",
-    "ora": "catalog:ui",
-    "prompts": "catalog:utils",
-    "zod": "catalog:utils"
-  }
+    "name": "@repo/cli-declarative-routing",
+    "version": "0.1.20",
+    "description": "Declarative routes for React (monorepo fork)",
+    "bin": {
+        "declarative-routing": "dist/index.js"
+    },
+    "private": true,
+    "files": [
+        "dist",
+        "assets"
+    ],
+    "exports": "./dist/index.js",
+    "scripts": {
+        "prepublish": "bun run build",
+        "dev": "bun --bun scripts/build.ts --watch",
+        "build": "bun --bun scripts/build.ts",
+        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "format": "bun run prettify",
+        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:ui": "vitest --ui",
+        "test:coverage": "vitest run --coverage",
+        "type-check": "tsgo --noEmit",
+        "migrate:unified-info-files": "bun --bun migrations/2026-01-01-unified-info-files.migration.ts"
+    },
+    "keywords": [],
+    "author": {
+        "name": "Jack Herrington",
+        "email": "jherr@pobox.com"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ProNextJS/declarative-routing"
+    },
+    "license": "MIT",
+    "devDependencies": {
+        "@repo/config-prettier": "*",
+        "@repo/config-vitest": "*",
+        "@types/diff": "catalog:utils",
+        "@types/fs-extra": "catalog:utils",
+        "@types/prompts": "catalog:utils",
+        "@vitest/coverage-v8": "catalog:testing",
+        "@vitest/ui": "catalog:testing",
+        "type-fest": "catalog:utils",
+        "@typescript/native-preview": "catalog:build",
+        "vitest": "catalog:testing"
+    },
+    "dependencies": {
+        "@antfu/ni": "catalog:utils",
+        "@parcel/watcher": "catalog:build",
+        "@repo/type-guards": "*",
+        "boxen": "catalog:ui",
+        "commander": "catalog:utils",
+        "diff": "catalog:utils",
+        "execa": "catalog:utils",
+        "fs-extra": "catalog:utils",
+        "glob": "catalog:utils",
+        "handlebars": "catalog:utils",
+        "kleur": "catalog:utils",
+        "log-symbols": "catalog:utils",
+        "magicast": "catalog:utils",
+        "ora": "catalog:ui",
+        "prompts": "catalog:utils",
+        "zod": "catalog:utils"
+    }
 }

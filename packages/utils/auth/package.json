@@ -1,56 +1,57 @@
 {
-  "name": "@repo/auth",
-  "version": "1.0.0",
-  "description": "Shared authentication configuration for Better Auth",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
-  "exports": {
-    ".": "./src/index.ts",
-    "./server": "./src/server/index.ts",
-    "./client": "./src/client/index.ts",
-    "./permissions": "./src/permissions/index.ts",
-    "./permissions/plugins": "./src/permissions/plugins/index.ts",
-    "./react": "./src/react/index.ts",
-    "./react/session": {
-      "react-server": "./src/react/session/server.ts",
-      "default": "./src/react/session/client.ts"
+    "name": "@repo/auth",
+    "version": "1.0.0",
+    "description": "Shared authentication configuration for Better Auth",
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": "./src/index.ts",
+        "./server": "./src/server/index.ts",
+        "./client": "./src/client/index.ts",
+        "./permissions": "./src/permissions/index.ts",
+        "./permissions/plugins": "./src/permissions/plugins/index.ts",
+        "./react": "./src/react/index.ts",
+        "./react/session": {
+            "react-server": "./src/react/session/server.ts",
+            "default": "./src/react/session/client.ts"
+        },
+        "./react/session/client": "./src/react/session/client.ts",
+        "./react/session/server": "./src/react/session/server.ts",
+        "./mesh": "./src/mesh/index.ts"
     },
-    "./react/session/client": "./src/react/session/client.ts",
-    "./react/session/server": "./src/react/session/server.ts",
-    "./mesh": "./src/mesh/index.ts"
-  },
-  "scripts": {
-    "prettify": "prettier . --write --no-error-on-unmatched-pattern",
-    "format": "bun run prettify",
-    "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-    "lint": "eslint . --fix",
-    "type-check": "tsgo --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
-  },
-  "dependencies": {
-    "@simplewebauthn/server": "^13.2.2",
-    "better-auth": "catalog:auth",
-    "cookie": "^1.1.1",
-    "react": "catalog:react",
-    "sonner": "catalog:ui",
-    "zod": "catalog:utils"
-  },
-  "devDependencies": {
-    "@types/node": "catalog:build",
-    "eslint": "catalog:linting",
-    "@repo/config-eslint": "*",
-    "@repo/config-prettier": "*",
-    "@repo/config-typescript": "*",
-    "@types/react": "catalog:react",
-    "@typescript/native-preview": "catalog:build",
-    "vitest": "catalog:testing",
-    "@vitest/coverage-v8": "catalog:testing",
-    "server-only": "^0.0.1"
-  },
-  "peerDependencies": {
-    "drizzle-orm": "catalog:database",
-    "@tanstack/react-query": "catalog:tanstack"
-  }
+    "scripts": {
+        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "format": "bun run prettify",
+        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "lint": "eslint . --fix",
+        "type-check": "tsgo --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage"
+    },
+    "dependencies": {
+        "@repo/type-guards": "*",
+        "@simplewebauthn/server": "^13.2.2",
+        "better-auth": "catalog:auth",
+        "cookie": "^1.1.1",
+        "react": "catalog:react",
+        "sonner": "catalog:ui",
+        "zod": "catalog:utils"
+    },
+    "devDependencies": {
+        "@types/node": "catalog:build",
+        "eslint": "catalog:linting",
+        "@repo/config-eslint": "*",
+        "@repo/config-prettier": "*",
+        "@repo/config-typescript": "*",
+        "@types/react": "catalog:react",
+        "@typescript/native-preview": "catalog:build",
+        "vitest": "catalog:testing",
+        "@vitest/coverage-v8": "catalog:testing",
+        "server-only": "^0.0.1"
+    },
+    "peerDependencies": {
+        "drizzle-orm": "catalog:database",
+        "@tanstack/react-query": "catalog:tanstack"
+    }
 }

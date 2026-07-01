@@ -1,49 +1,50 @@
 {
-  "name": "@repo/api-contracts",
-  "version": "0.0.0",
-  "private": true,
-  "main": "./index.ts",
-  "types": "./index.ts",
-  "exports": {
-    ".": {
-      "import": "./index.ts",
-      "types": "./index.ts"
+    "name": "@repo/api-contracts",
+    "version": "0.0.0",
+    "private": true,
+    "main": "./index.ts",
+    "types": "./index.ts",
+    "exports": {
+        ".": {
+            "import": "./index.ts",
+            "types": "./index.ts"
+        },
+        "./*": "./*.ts"
     },
-    "./*": "./*.ts"
-  },
-  "scripts": {
-    "clean": "rm -rf dist",
-    "build": "bun scripts/build.ts",
-    "compile": "bun x cross-env COMPILE_MODE=true bun run build",
-    "prettify": "prettier . --write --no-error-on-unmatched-pattern",
-    "format": "bun run prettify",
-    "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-    "dev": "bun run build -- --watch",
-    "lint": "bunx eslint .",
-    "type-check": "tsgo --noEmit"
-  },
-  "dependencies": {
-    "@orpc/contract": "catalog:orpc",
-    "@orpc/shared": "catalog:orpc",
-    "@repo/contracts-common": "*",
-    "@repo/contracts-entities": "*",
-    "@repo/orpc-utils": "*",
-    "@repo/provider-schema": "*",
-    "@repo/auth": "*",
-    "zod": "catalog:utils"
-  },
-  "peerDependencies": {
-    "@orpc/contract": "catalog:orpc",
-    "@orpc/shared": "catalog:orpc",
-    "zod": "catalog:utils"
-  },
-  "devDependencies": {
-    "@types/node": "catalog:build",
-    "chokidar": "catalog:build",
-    "@repo/config-eslint": "*",
-    "@repo/config-prettier": "*",
-    "eslint": "catalog:linting",
-    "@repo/config-typescript": "*",
-    "@typescript/native-preview": "catalog:build"
-  }
+    "scripts": {
+        "clean": "rm -rf dist",
+        "build": "bun scripts/build.ts",
+        "compile": "bun x cross-env COMPILE_MODE=true bun run build",
+        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "format": "bun run prettify",
+        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "dev": "bun run build -- --watch",
+        "lint": "bunx eslint .",
+        "type-check": "tsgo --noEmit"
+    },
+    "dependencies": {
+        "@orpc/contract": "catalog:orpc",
+        "@orpc/shared": "catalog:orpc",
+        "@repo/auth": "*",
+        "@repo/contracts-common": "*",
+        "@repo/contracts-entities": "*",
+        "@repo/orpc-utils": "*",
+        "@repo/provider-schema": "*",
+        "@repo/type-guards": "*",
+        "zod": "catalog:utils"
+    },
+    "peerDependencies": {
+        "@orpc/contract": "catalog:orpc",
+        "@orpc/shared": "catalog:orpc",
+        "zod": "catalog:utils"
+    },
+    "devDependencies": {
+        "@types/node": "catalog:build",
+        "chokidar": "catalog:build",
+        "@repo/config-eslint": "*",
+        "@repo/config-prettier": "*",
+        "eslint": "catalog:linting",
+        "@repo/config-typescript": "*",
+        "@typescript/native-preview": "catalog:build"
+    }
 }

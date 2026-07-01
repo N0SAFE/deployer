@@ -40,6 +40,7 @@
     "license": "ISC",
     "description": "",
     "dependencies": {
+        "@repo/type-guards": "*",
         "concurrently": "^10.0.3",
         "rimraf": "catalog:build"
     },

@@ -12,9 +12,6 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { GithubWebhookDispatchService } from "../services/github-webhook-dispatch.service";
 import { WebhookIdempotencyService } from "../services/webhook-idempotency.service";
 
-// T032: Webhook-driven preview create/update orchestration.
-// T036: Webhook idempotency keys and duplicate-delivery handling.
-@Controller("webhooks/github")
 
 /**
  * Type guard that narrows `unknown` to a record-like object so we can
@@ -24,6 +21,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
+// T032: Webhook-driven preview create/update orchestration.
+// T036: Webhook idempotency keys and duplicate-delivery handling.
+@Controller("webhooks/github")
 export class GithubWebhookController {
     private readonly logger = new Logger(GithubWebhookController.name);
 

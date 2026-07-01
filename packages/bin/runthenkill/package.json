@@ -1,30 +1,36 @@
 {
-  "name": "@repo/runthenkill",
-  "version": "1.0.0",
-  "description": "CLI tool to run a process and manage port state after termination",
-  "main": "index.ts",
-  "bin": {
-    "runthenkill": "./index.ts"
-  },
-  "scripts": {
-    "prettify": "prettier . --write --no-error-on-unmatched-pattern",
-    "format": "bun run prettify",
-    "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-    "type-check": "tsgo --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
-  },
-  "keywords": ["cli", "port", "process", "kill"],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "commander": "catalog:utils"
-  },
-  "devDependencies": {
-    "@repo/config-prettier": "*",
-    "@repo/config-vitest": "*",
-    "vitest": "catalog:testing",
-    "@types/node": "catalog:build"
-  }
+    "name": "@repo/runthenkill",
+    "version": "1.0.0",
+    "description": "CLI tool to run a process and manage port state after termination",
+    "main": "index.ts",
+    "bin": {
+        "runthenkill": "./index.ts"
+    },
+    "scripts": {
+        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "format": "bun run prettify",
+        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "type-check": "tsgo --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage"
+    },
+    "keywords": [
+        "cli",
+        "port",
+        "process",
+        "kill"
+    ],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "@repo/type-guards": "*",
+        "commander": "catalog:utils"
+    },
+    "devDependencies": {
+        "@repo/config-prettier": "*",
+        "@repo/config-vitest": "*",
+        "vitest": "catalog:testing",
+        "@types/node": "catalog:build"
+    }
 }
