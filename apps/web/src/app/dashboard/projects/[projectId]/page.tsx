@@ -60,16 +60,13 @@ import { toast } from 'sonner'
 import { ENV_NAMES, type EnvName } from '@repo/contracts-common'
 import { matchFilter, type DFilter, type DFilterOperator } from '@repo/auth'
 import type { FixtureDependency, ServiceConfigEntry } from '@repo/contracts-entities'
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 
 /**
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 type EnvironmentScopeSource = 'core-default' | 'status-by-environment' | 'execution-override' | 'deployment-scope'
 
 interface ServiceEnvironmentContract {

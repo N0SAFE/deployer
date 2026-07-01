@@ -24,16 +24,13 @@ import { DockerNetworksOrchestratorService } from "../../networks/orchestration/
 import { DockerRuntimeEventsStreamService } from "../../../common/events/docker-runtime-events-stream.service"
 import { CoreEventStreamPoolService } from "@/core/modules/events/services/core-event-stream-pool.service"
 import { DockerEntityCacheService } from "./docker-entity-cache.service"
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 
 /**
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 const KINDS_WITH_FLAT_LIST: ReadonlySet<DockerEntityKind> = new Set<DockerEntityKind>([
   "container",
   "image",

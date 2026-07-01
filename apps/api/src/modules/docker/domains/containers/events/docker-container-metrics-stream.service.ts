@@ -11,6 +11,7 @@ import { AppLogger } from "@repo/logger";
 import { DockerService as CoreDockerService } from "@/core/modules/docker/services/docker.service";
 import { AbstractDomainEventStreamService } from "@/core/modules/events/services/abstract-domain-event-stream.service";
 import { CoreEventStreamPoolService } from "@/core/modules/events/services/core-event-stream-pool.service";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 interface RuntimeEventFilterNode {
   [key: string]: unknown;
@@ -36,10 +37,6 @@ const DEFAULT_METRICS_INTERVAL_MS = 400;
  * index it with string keys. Used to walk nested metrics payloads
  * without an `as Record<string, unknown>` cast.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 @Injectable()
 export class DockerContainerMetricsStreamService extends AbstractDomainEventStreamService {
   protected readonly streamDomain = "docker";

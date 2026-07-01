@@ -57,8 +57,5 @@
         "@vitejs/plugin-react": "catalog:testing",
         "jsdom": "catalog:testing",
         "vitest": "catalog:testing"
-    },
-    "dependencies": {
-        "@repo/type-guards": "*"
     }
 }

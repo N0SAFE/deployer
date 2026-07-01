@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { isRecord, isObjectLike } from "@repo/type-guards"
   import {
       meshNodeStateSchema,
       meshPeerConnectionSchema,
@@ -26,10 +27,7 @@ import { Injectable } from "@nestjs/common";
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-  export class MeshEnvelopeSideEffectsService {
+export class MeshEnvelopeSideEffectsService {
       constructor(
           private readonly identity: MeshIdentityService,
           private readonly membership: MeshMembershipService,

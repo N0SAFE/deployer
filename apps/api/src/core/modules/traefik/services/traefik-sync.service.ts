@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isRecord } from "@repo/type-guards";
 import * as yaml from 'yaml';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -23,10 +24,6 @@ import type {
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 interface GeneratedTraefikConfig {
   http: {
     services: Record<string, { loadBalancer: { servers: { url: string }[] } }>;

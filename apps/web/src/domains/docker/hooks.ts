@@ -18,6 +18,9 @@ import { useServiceList } from '@/domains/service/hooks'
 import { useFleetServers } from '@/domains/fleet/hooks'
 import { useMeshEventStreams, useMeshSseState } from '@/domains/mesh/hooks'
 import {
+} from "@repo/contracts-entities";
+import { isRecord, isObjectLike } from "@repo/type-guards";
+import {
   dockerContainerRuntimeEventSchema,
   dockerImageSecurityScanEventSchema,
   dockerContainerMetricPointSchema,
@@ -34,10 +37,6 @@ import {
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 type QueryPagination = {
   limit?: number
   offset?: number

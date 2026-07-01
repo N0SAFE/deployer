@@ -39,6 +39,7 @@ import { Button } from "@repo/ui/components/shadcn/button";
 import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import { Switch } from "@repo/ui/components/shadcn/switch";
 import z from "zod/v4";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 // Plugin Components
 
@@ -47,9 +48,6 @@ import z from "zod/v4";
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 const ReactQueryPlugin: TanStackDevtoolsReactPlugin = {
   id: "react-query",
   name: "React Query",

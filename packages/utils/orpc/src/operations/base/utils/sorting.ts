@@ -6,6 +6,7 @@
 import type { AnySchema, SchemaWithConfig, ObjectSchema } from "../types";
 import { CONFIG_SYMBOL, withConfig } from "../types";
 import { s } from "../schema";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
  * Sorting configuration type
@@ -27,9 +28,6 @@ export type SortingConfig<TFields extends readonly string[] = readonly string[]>
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 export function createSortingConfigSchema<
     TFields extends readonly string[],
     TAllowMultiple extends boolean = false,

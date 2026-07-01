@@ -51,6 +51,7 @@ import type {
     DockerRuntimeCatalogResponsePayload,
 } from "../mesh/docker-container-mesh.service";
 import { DockerContainerMeshService } from "../mesh/docker-container-mesh.service";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 const MESH_FANOUT_LIMIT = 500;
 const PEER_FALLBACK_TIMEOUT_MS = 1_750;
@@ -123,10 +124,6 @@ interface PeerFallbackAttemptResult {
  * index it with string keys. Used to walk nested payloads without
  * an `as Record<string, unknown>` cast.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 @Injectable()
 export class DockerContainerResolutionService {
     private readonly logger = new Logger(DockerContainerResolutionService.name);

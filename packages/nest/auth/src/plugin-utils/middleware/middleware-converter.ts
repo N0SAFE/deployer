@@ -22,6 +22,7 @@ import {
 import { os } from '@orpc/server';
 import type { MiddlewareCheck, MiddlewareContext, MiddlewareErrorCode } from './middleware-check';
 import type { ORPCContextWithAuthOnly } from '@/core/modules/auth/orpc';
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 // ============================================================================
 // Error Mapping
@@ -36,9 +37,6 @@ import type { ORPCContextWithAuthOnly } from '@/core/modules/auth/orpc';
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 function createNestException(code: MiddlewareErrorCode, message: string): Error {
   switch (code) {
     case 'UNAUTHORIZED':

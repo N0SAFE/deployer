@@ -1,16 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { nodeConfig } from "@/config/drizzle/local/schema";
 import { LocalDatabaseService } from "../../database/local/local-database.service";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 
 /**
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 export type NodeConfigRow = typeof nodeConfig.$inferSelect;
 
 @Injectable()

@@ -8,6 +8,7 @@
  * case where the schema is flat.
  */
 import type { z } from 'zod'
+import { isRecord, isObjectLike } from '@repo/type-guards'
 
 import {
     getZodDefault,
@@ -29,9 +30,6 @@ import {
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 export function getZodObjectDefaults<T extends z.ZodObject>(
     schema: T
 ): z.infer<T> {

@@ -16,6 +16,7 @@ import z from "zod/v4";
 import { MAX_FILTER_DEPTH } from "./filter-matcher";
 import { Variable } from "./types";
 import type { ProjectResource, ResourceRule } from "./types";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 // ---------------------------------------------------------------------------
 // Resource & action schemas
@@ -27,9 +28,6 @@ import type { ProjectResource, ResourceRule } from "./types";
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 const PROJECT_RESOURCES_LIST = [
     "project",
     "service",

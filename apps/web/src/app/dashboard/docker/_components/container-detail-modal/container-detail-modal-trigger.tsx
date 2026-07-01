@@ -50,6 +50,9 @@ import { DockerModalQuickActions } from '../docker-modal-quick-actions'
 import { toast } from 'sonner'
 import { DockerContainerLogsTab } from '../../containers/_components/container-detail-modal/logs-tab'
 import {
+} from "./tabs";
+import { isRecord, isObjectLike } from "@repo/type-guards";
+import {
   DockerContainerComposeTab,
   DockerContainerConfigTab,
   DockerContainerEnvTab,
@@ -69,10 +72,6 @@ import {
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 interface DockerContainerDetailModalTriggerProps {
   id: string
   container?: DockerContainer | null

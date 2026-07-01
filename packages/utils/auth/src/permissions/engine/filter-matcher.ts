@@ -15,6 +15,7 @@
 
 import type { DFilter, DFilterOperator, DynamicVars, FilterableScalar } from "./types";
 import { isVariable } from "./types";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
  * Maximum allowed nesting depth for a DFilter condition.
@@ -45,9 +46,6 @@ export const MAX_FILTER_DEPTH = 10;
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 export function matchFilter<
     TSchema extends object = Record<
         string,

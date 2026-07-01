@@ -6,6 +6,7 @@
 import type { AnySchema, ObjectSchema, SchemaWithConfig } from "../types";
 import { CONFIG_SYMBOL, withConfig } from "../types";
 import { s } from "../schema";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
  * Pagination configuration options
@@ -15,10 +16,6 @@ import { s } from "../schema";
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 export type PaginationConfig = {
     defaultLimit: number;
     maxLimit: number;

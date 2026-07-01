@@ -1,4 +1,5 @@
 import type { DeploymentTriggerInput } from "@repo/api-contracts/modules/deployment/crud";
+import { isRecord } from "@repo/type-guards";
 import z from "zod/v4";
 import { deploymentStorageTypeSchema, type DeploymentStorageType } from "./storage-provider.interface";
 import {
@@ -11,10 +12,6 @@ import {
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 const storageEnvelopeSchema = z
     .object({
         customData: z.record(z.string(), z.unknown()).optional(),

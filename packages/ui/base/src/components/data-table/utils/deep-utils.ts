@@ -1,14 +1,11 @@
 import { ensureUrlStateHistoryPatched } from "./history-sync";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 
 /**
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 type TypedArray = Int8Array | Uint8Array | Uint8ClampedArray | Int16Array | Uint16Array | Int32Array | Uint32Array | Float32Array | Float64Array;
 
 // Define a type for comparing values that can handle most common types

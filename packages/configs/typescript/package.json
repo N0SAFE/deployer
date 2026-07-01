@@ -23,8 +23,5 @@
     },
     "publishConfig": {
         "access": "public"
-    },
-    "dependencies": {
-        "@repo/type-guards": "*"
     }
 }

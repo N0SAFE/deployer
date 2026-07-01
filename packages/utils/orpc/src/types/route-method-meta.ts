@@ -2,6 +2,7 @@
 import type { HTTPMethod } from "@orpc/contract";
 import type { AnyContractBuilder, AnyContractProcedureOrBuilder } from "./type-helpers";
 import { getProcedureMeta, withMeta } from "./type-helpers";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
  * @fileoverview Mount method helper for ORPC contracts
@@ -29,10 +30,6 @@ import { getProcedureMeta, withMeta } from "./type-helpers";
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 export const ROUTE_METHOD_META_KEY = "__orpc_route_builder_method__" as const;
 
 /**

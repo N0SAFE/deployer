@@ -4,6 +4,7 @@ import { coreDomainEventEnvelopeSchema } from "@repo/contracts-entities";
 import { localEventOutbox } from "@/config/drizzle/global/schema/runtime";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { DeploymentRepository } from "../repositories/deployment.repository";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 export interface DeploymentReadModelProjection {
     deploymentId: string;
@@ -32,9 +33,6 @@ export interface DeploymentProjectionDriftReport {
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 export class DeploymentReadModelProjectorService {
     private readonly projections = new Map<string, DeploymentReadModelProjection>();
     private lastProcessedCreatedAt: Date | null = null;

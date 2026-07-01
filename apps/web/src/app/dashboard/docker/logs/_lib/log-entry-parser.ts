@@ -1,4 +1,5 @@
 import { dockerContainerLogEntrySchema, type DockerContainerLogEntry } from '@repo/contracts-entities'
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 function inferLogLevel(message: string): DockerContainerLogEntry['level'] {
   if (/\b(error|fatal|panic)\b/iu.test(message)) return 'error'
@@ -11,10 +12,6 @@ function inferLogLevel(message: string): DockerContainerLogEntry['level'] {
  * index it with string keys. Used to walk nested log payloads without
  * an `as Record<string, unknown>` cast.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 function coerceContainerLogEntry(payload: unknown): DockerContainerLogEntry | null {
   const direct = dockerContainerLogEntrySchema.safeParse(payload)
   if (direct.success) {

@@ -32,10 +32,6 @@ type StreamEventWithMeta<T extends object> = T & {
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 @Injectable()
 export class ServiceService implements OnModuleInit {
     constructor(

@@ -1,6 +1,7 @@
 import type { MeshResourceLocation } from "@repo/contracts-entities";
 import type { AnyRecord, MeshCandidatePredicate } from "../types/mesh-resource-discovery-types";
 import type { MeshResourceQueryBuilder } from "./mesh-resource-query-builder";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
  * Builder de sous-requête sur un scope extrait d'un candidat.
@@ -18,10 +19,6 @@ import type { MeshResourceQueryBuilder } from "./mesh-resource-query-builder";
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 export class MeshResourceSubQueryBuilder<
     TCandidate extends MeshResourceLocation,
     TOutput extends AnyRecord,

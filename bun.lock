@@ -439,9 +439,6 @@
     "packages/configs/eslint": {
       "name": "@repo/config-eslint",
       "version": "0.0.0",
-      "dependencies": {
-        "@repo/type-guards": "*",
-      },
       "devDependencies": {
         "@darraghor/eslint-plugin-nestjs-typed": "^7.1.22",
         "@eslint/compat": "^2.0.1",
@@ -476,9 +473,6 @@
     "packages/configs/prettier": {
       "name": "@repo/config-prettier",
       "version": "1.0.0",
-      "dependencies": {
-        "@repo/type-guards": "*",
-      },
       "devDependencies": {
         "@repo/config-vitest": "*",
         "@types/node": "catalog:build",
@@ -490,9 +484,6 @@
     "packages/configs/tailwind": {
       "name": "@repo/config-tailwind",
       "version": "0.0.0",
-      "dependencies": {
-        "@repo/type-guards": "*",
-      },
       "devDependencies": {
         "@repo/config-prettier": "*",
         "@repo/config-typescript": "*",
@@ -507,9 +498,6 @@
     "packages/configs/typescript": {
       "name": "@repo/config-typescript",
       "version": "0.0.0",
-      "dependencies": {
-        "@repo/type-guards": "*",
-      },
       "devDependencies": {
         "@repo/config-prettier": "*",
         "@repo/config-vitest": "*",
@@ -519,9 +507,6 @@
     "packages/configs/vitest": {
       "name": "@repo/config-vitest",
       "version": "1.0.0",
-      "dependencies": {
-        "@repo/type-guards": "*",
-      },
       "devDependencies": {
         "@testing-library/jest-dom": "catalog:testing",
         "@testing-library/react": "catalog:testing",

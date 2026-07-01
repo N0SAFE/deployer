@@ -4,6 +4,7 @@ import type { StandardLinkPlugin, StandardLinkOptions } from "@orpc/client/stand
 import type { ClientContext } from "@orpc/client";
 import { OBSERVABLE_DETAILS_SYMBOL, toAsyncIteratorFromObservable, type Observable } from "../../observable/contract";
 import { reconstructObservableFromEventIterator } from "../../observable/event-iterator";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
  * StandardLinkPlugin that reconciles Observable ↔ AsyncIterable at the transport boundary.
@@ -32,9 +33,6 @@ import { reconstructObservableFromEventIterator } from "../../observable/event-i
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 export class ObservableLinkPlugin<T extends ClientContext> implements StandardLinkPlugin<T> {
   /**
    * Low order ensures this plugin runs before most other interceptors,

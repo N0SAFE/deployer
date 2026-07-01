@@ -1,4 +1,7 @@
 import {
+} from "@nestjs/common";
+import { isRecord } from "@repo/type-guards";
+import {
     BadRequestException,
     ConflictException,
     ForbiddenException,
@@ -27,10 +30,6 @@ import type {
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 interface ProjectSettings {
     // General config (supplementary fields; name/description/baseDomain are top-level columns)
     defaultBranch?: string;

@@ -29,6 +29,7 @@ import {
 import NProgress from 'nprogress'
 import queryString from 'query-string'
 import type { RouteBuilder } from './make-route'
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 // ============================================================================
 // Types
@@ -124,10 +125,6 @@ type InferSearch<T> = T extends RouteBuilder<z.ZodType, infer S>
 type InferParams<T> = T extends RouteBuilder<infer P, z.ZodType>
     ? z.output<P>
     : never
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null
-}
 
 function isZodSchema(value: unknown): value is z.ZodType {
     return isRecord(value) && typeof value.safeParse === 'function'

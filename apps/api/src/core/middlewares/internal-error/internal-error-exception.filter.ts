@@ -9,16 +9,13 @@ import type { Request, Response } from "express";
 import { getInternalErrorRequestContext } from "./internal-error-context";
 import { InternalErrorInsightService } from "./internal-error-insight.service";
 import { MeshBaseDomainError } from "@/core/modules/mesh/shared/domain/mesh-base-error";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 /**
  * Global NestJS exception filter.
  *

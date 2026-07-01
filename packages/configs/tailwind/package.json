@@ -22,8 +22,5 @@
         "tailwindcss": "catalog:styling",
         "tailwindcss-animate": "catalog:styling",
         "vitest": "catalog:testing"
-    },
-    "dependencies": {
-        "@repo/type-guards": "*"
     }
 }

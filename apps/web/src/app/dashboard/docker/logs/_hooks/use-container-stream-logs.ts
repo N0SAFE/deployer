@@ -4,6 +4,7 @@ import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-deb
 import { useLogger } from '@/lib/logging/use-logger'
 import { extractContainerLogEntries } from '../_lib/log-entry-parser'
 import { CONTAINER_STREAM_LOG_LIMIT, type LogLineProjection } from '../_models/logs.types'
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 interface ContainerStreamEntity {
   id: string
@@ -18,10 +19,6 @@ const debugContainerLogsStream = createContextFilterDebugLogger('DockerLogsStrea
  * to walk nested payloads without an `as Record<string, unknown>`
  * cast.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 function resolveFallbackPayloadMessage(payload: unknown, depth = 0): string | null {
   if (depth > 6 || payload == null) {
     return null

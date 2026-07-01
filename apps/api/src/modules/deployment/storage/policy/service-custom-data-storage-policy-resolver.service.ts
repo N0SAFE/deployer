@@ -4,6 +4,7 @@ import type {
     ResolveDeploymentStoragePolicyInput,
 } from "../base/storage-policy-resolver.interface";
 import { deploymentStoragePolicySchema } from "../base/storage-policy.schema";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 @Injectable()
 
@@ -12,9 +13,6 @@ import { deploymentStoragePolicySchema } from "../base/storage-policy.schema";
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 export class ServiceCustomDataStoragePolicyResolverService implements DeploymentStoragePolicyResolver {
     readonly name = "service-custom-data-storage";
     readonly priority = 200;

@@ -6,6 +6,7 @@ import {
   type EventOutput,
 } from "@/core/modules/events/event-contract.builder";
 import type { CoreEventStreamPoolService } from "./core-event-stream-pool.service";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 export interface PooledEventObserveOptions {
   replayLimit?: number;
@@ -38,10 +39,7 @@ export abstract class BasePooledEventService<
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-    const replayLimit = options?.replayLimit;
+const replayLimit = options?.replayLimit;
     const includePersisted = options?.includePersisted ?? true;
     const afterSequence = options?.afterSequence;
 

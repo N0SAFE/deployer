@@ -16,6 +16,9 @@ import React from 'react'
 import queryString from 'query-string'
 import { z } from 'zod'
 import type {
+} from "../types";
+import { isRecord, isObjectLike } from "@repo/type-guards";
+import type {
     Session,
     ServerAuthAdapter,
     SessionOptions,
@@ -137,10 +140,6 @@ function normalizeRecord(value: unknown): Record<string, unknown> {
         return value
     }
     return {}
-}
-
-function isObjectLike(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null
 }
 
 function buildFallbackUrl(

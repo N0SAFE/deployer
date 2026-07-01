@@ -19,6 +19,7 @@ import { DockerContainerMetricsStreamService } from "../../domains/containers/ev
 import { DockerRepository } from "../../repositories/facade/docker.repository";
 import { AppLogger } from "@repo/logger";
 import { DockerRuntimeEventsStreamService } from "../events/docker-runtime-events-stream.service";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 type DockerKnownSource = Exclude<DockerRuntimeEvent["source"], "unknown">;
 
@@ -74,10 +75,6 @@ interface InspectTrigger {
  * index it with string keys. Used to walk nested payloads without
  * an `as Record<string, unknown>` cast.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 @Injectable()
 export class DockerRuntimeStreamOrchestratorService {
     private static streamTraceSequence = 0;

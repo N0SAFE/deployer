@@ -28,6 +28,7 @@ import type {
 } from "./types";
 import { SHAPE_SYMBOL } from "./types";
 import { voidSchema as _voidSchema, neverSchema } from "../../types/standard-schema-helpers";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
  * Re-exported from shared — single canonical implementation
@@ -38,9 +39,6 @@ import { voidSchema as _voidSchema, neverSchema } from "../../types/standard-sch
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 export function voidSchema() { return _voidSchema(); }
 export function never() { return neverSchema(); }
 

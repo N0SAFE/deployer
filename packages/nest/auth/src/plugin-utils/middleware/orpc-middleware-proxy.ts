@@ -48,6 +48,7 @@ import {
   type OrpcMiddlewareOptions,
 } from './middleware-converter';
 import type { ORPCContextWithAuthOnly } from '@/core/modules/auth/orpc';
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 // ============================================================================
 // Types
@@ -148,9 +149,6 @@ export type OrpcMiddlewareProxy<T> = {
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 function buildMiddlewareContext(
   input: unknown
 ): { headers: Headers; params: Record<string, string>; query: Record<string, string>; body: unknown } {

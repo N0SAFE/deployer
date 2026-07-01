@@ -1,4 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
  * Type guard to check if column has id and size
@@ -9,9 +10,6 @@ import type { ColumnDef } from "@tanstack/react-table";
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 function hasIdAndSize<TData>(
   column: ColumnDef<TData, unknown>
 ): column is ColumnDef<TData, unknown> & { id: string; size: number } {

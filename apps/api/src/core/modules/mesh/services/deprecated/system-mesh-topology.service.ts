@@ -81,6 +81,7 @@ import { SystemMeshLogicService } from "../system-mesh-logic.service";
 import { SystemMeshOverlayScopeService } from "../system-mesh-overlay-scope.service";
 import { SystemMeshConfigService } from "../system-mesh-config.service";
 import { MeshPartitionPolicy, type PartitionPolicyResult } from "../mesh-partition-policy";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 
 /**
@@ -88,9 +89,6 @@ import { MeshPartitionPolicy, type PartitionPolicyResult } from "../mesh-partiti
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 interface QueuePartitionCandidate {
     nodeId: string;
     ownerServerUrl: string | null;

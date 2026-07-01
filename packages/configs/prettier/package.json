@@ -39,8 +39,5 @@
         "prettier": "catalog:linting",
         "prettier-plugin-tailwindcss": "catalog:linting",
         "vitest": "catalog:testing"
-    },
-    "dependencies": {
-        "@repo/type-guards": "*"
     }
 }

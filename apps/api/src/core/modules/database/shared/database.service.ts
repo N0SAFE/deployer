@@ -1,8 +1,13 @@
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import type * as globalSchema from "@/config/drizzle/global/schema";
-import type * as localSchema from "@/config/drizzle/local/schema";
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
+import type * as globalSchema from '@/config/drizzle/global/schema'
+import type * as localSchema from '@/config/drizzle/local/schema'
+import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
 
-export abstract class BaseDatabaseService<DB extends NodePgDatabase<typeof globalSchema> | Record<string, unknown>> {
+export abstract class BaseDatabaseService<
+    DB extends
+        | NodePgDatabase<typeof globalSchema>
+        | BunSQLiteDatabase<typeof localSchema>,
+> {
     constructor(private readonly _db: DB) {}
 
     get db(): DB {
@@ -13,21 +18,18 @@ export abstract class BaseDatabaseService<DB extends NodePgDatabase<typeof globa
         try {
             // Duck-typed health checks to avoid importing runtime-specific DB libs
 
-/**
- * Type guard that narrows `unknown` to a record-like object so we can
- * index it with string keys. Used in place of `as Record<string, unknown>`
- * to avoid the runtime lie.
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-            const anyDb = this._db as unknown as Record<string, unknown>
-            if (typeof anyDb.run === 'function') {
+            /**
+             * Type guard that narrows `unknown` to a record-like object so we can
+             * index it with string keys. Used in place of `as Record<string, unknown>`
+             * to avoid the runtime lie.
+             */
+            const anyDb = this._db
+            if ('run' in anyDb) {
                 // likely Bun SQLite
-                ;(anyDb.run)('SELECT 1')
-            } else if (typeof anyDb.execute === 'function') {
+                anyDb.run('SELECT 1')
+            } else if ('execute' in anyDb) {
                 // likely Postgres
-                ;(anyDb.execute)('SELECT 1')
+                anyDb.execute('SELECT 1')
             } else {
                 throw new Error('Unsupported database type')
             }

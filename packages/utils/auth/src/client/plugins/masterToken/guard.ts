@@ -1,4 +1,5 @@
 import type { MasterTokenManager as _MasterTokenManager } from './state'
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 // The runtime plugin exposes these actions on the auth client.
 export interface MasterTokenActions {
@@ -22,9 +23,6 @@ export interface MasterTokenActions {
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 export function hasMasterTokenPlugin<TClient>(
   client: TClient
 ): client is TClient & MasterTokenActions {

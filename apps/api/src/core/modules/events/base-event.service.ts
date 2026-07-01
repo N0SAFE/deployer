@@ -52,9 +52,6 @@ export interface AnyEventEmission<T extends EventContract> {
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 interface EventSubscriptionData<T> {
   eventName: string;
   subject: Subject<T>;

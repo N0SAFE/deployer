@@ -1,4 +1,5 @@
 import type { MeshFilterDescriptor } from "./mesh-filter.types";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
  * Reconstruct a MeshFilterDescriptor into an evaluator function.
@@ -10,10 +11,6 @@ import type { MeshFilterDescriptor } from "./mesh-filter.types";
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 export function reconstructFilter<T>(descriptor: MeshFilterDescriptor): (item: T) => boolean {
   switch (descriptor.op) {
     case "always":

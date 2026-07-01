@@ -20,6 +20,7 @@ import type { PathParam, PathParamBuilderWithExisting, ParamsToSchemaShape } fro
 import { createPathParamBuilder } from "../core/params-builder";
 import { ProxyBuilderBase } from "../core/proxy-builder.base";
 import { s } from "../../operations/base/schema";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
  * Query builder - exposes current query schema and entity schema for direct chaining
@@ -29,10 +30,6 @@ import { s } from "../../operations/base/schema";
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 export class QueryBuilder<TQuery extends AnySchema, TParams extends AnySchema, TBody extends AnySchema, THeaders extends AnySchema, TEntitySchema extends AnySchema> {
     constructor(
         private _parent: DetailedInputBuilder<TParams, TQuery, TBody, THeaders, TEntitySchema>,

@@ -5,6 +5,9 @@ import { useQuery } from '@tanstack/react-query'
 import { dockerEndpoints } from './endpoints'
 import { orpcClient } from '@/lib/orpc'
 import type {
+} from "@repo/contracts-entities";
+import { isRecord, isObjectLike } from "@repo/type-guards";
+import type {
   DockerContainer,
   DockerImage,
   DockerNetwork,
@@ -23,10 +26,6 @@ import type {
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 export type DockerLiveEntityStatus =
   | 'idle'
   | 'connecting'

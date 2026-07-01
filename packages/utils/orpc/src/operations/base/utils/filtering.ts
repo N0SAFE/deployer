@@ -6,6 +6,7 @@
 import type { AnySchema, SchemaWithConfig, ObjectSchema } from "../types";
 import { CONFIG_SYMBOL, withConfig } from "../types";
 import { s } from "../schema";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
  * Available filter operators
@@ -104,9 +105,6 @@ export const NULL_OPERATORS = ["isNull", "isNotNull"] as const satisfies readonl
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 export function createFilteringConfigSchema<
     TFields extends Record<string, FieldFilterConfig>,
     TAllowLogical extends boolean = true

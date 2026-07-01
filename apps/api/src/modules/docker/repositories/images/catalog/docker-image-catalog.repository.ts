@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import type { DockerImageListInput } from "@repo/api-contracts/modules/docker/images/list";
 import type { DockerImage } from "@repo/contracts-entities";
 import { DockerRepository } from "../../facade/docker.repository";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 @Injectable()
 
@@ -10,9 +11,6 @@ import { DockerRepository } from "../../facade/docker.repository";
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 export class DockerImageCatalogRepository {
   constructor(private readonly dockerRepository: DockerRepository) {}
 

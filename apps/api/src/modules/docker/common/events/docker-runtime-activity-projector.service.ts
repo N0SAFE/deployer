@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common"
+import { isRecord } from "@repo/type-guards";
 import type {
   DockerRuntimeEvent,
   DockerRuntimeActivityEntity,
@@ -24,10 +25,6 @@ import type {
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 @Injectable()
 export class DockerRuntimeActivityProjectorService {
   project(event: DockerRuntimeEvent): DockerRuntimeActivityEntity {

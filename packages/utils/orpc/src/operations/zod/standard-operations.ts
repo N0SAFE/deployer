@@ -33,6 +33,7 @@ import {
 } from "./utils";
 import { RouteBuilder } from "../../builder/core/route-builder";
 import type { VoidSchema } from "../../types/standard-schema-helpers";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
  * Zod entity schema type - requires ZodObject for schema manipulation
@@ -118,9 +119,6 @@ export type ZodEntityOperationOptions<TEntitySchema extends ZodEntitySchema, TId
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 export class ZodStandardOperations<
     TEntity extends ZodEntitySchema = ZodEntitySchema,
     TIdField extends string = "id",

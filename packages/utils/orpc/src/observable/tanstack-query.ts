@@ -8,6 +8,7 @@ import type { QueryFunctionContext, QueryKey, UseQueryOptions } from "@tanstack/
 import { Observable as RxjsObservable } from "rxjs";
 import type { MonoTypeOperatorFunction, Observable as RxObservable } from "rxjs";
 import { reconstructObservableFromEventIterator } from "./event-iterator";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 export type ObservableQueryMode = "observable" | "streamed-observable";
 
@@ -184,9 +185,6 @@ export type ObservableQueryUtils<TInputOrOrpc, TStreamValue = never> = [TStreamV
  * index it with string keys. Used in place of `as Record<string, unknown>`
  * to avoid the runtime lie.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
 function isObjectLike(value: unknown): value is object {
   return (typeof value === "object" && value !== null) || typeof value === "function";
 }

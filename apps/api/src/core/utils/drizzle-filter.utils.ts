@@ -34,6 +34,7 @@
 import { and, or, asc, desc, count, eq, ne, like, ilike, gt, gte, lt, lte, type AnyColumn, type SQL, type InferSelectModel } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import type { GlobalDatabase as Database } from "@/core/modules/database/services/global-database.service";
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
  * Constraint for filter objects with recursive _and/_or logical nesting.
@@ -44,10 +45,6 @@ import type { GlobalDatabase as Database } from "@/core/modules/database/service
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 export interface FilterWithLogical {
     _and?: unknown;
     _or?: unknown;

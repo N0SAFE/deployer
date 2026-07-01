@@ -4,6 +4,7 @@
  * sprinkle `any` casts around the implementation.
  */
 import type { z } from 'zod'
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /** Possible Zod type discriminants we care about. */
 type ZodKind =
@@ -33,10 +34,6 @@ type ZodKind =
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
 function getSchemaDef(schema: z.ZodType): Record<string, unknown> {
     const def = (schema as { def?: unknown }).def
     if (def && typeof def === 'object') {
