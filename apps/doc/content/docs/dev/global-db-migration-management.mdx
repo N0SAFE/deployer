@@ -1,107 +1,378 @@
 ---
 title: Global DB Migration Management
-description: Mesh-coordinated schema migration protocol for the shared PostgreSQL database across multiple API nodes.
+description: Multi-node safe schema migration protocol with global version registry, node registration guard, uniform version enforcement, and auto-update for the shared PostgreSQL database.
 order: 8
 ---
 
 <DocMeta source="apps/api architecture + mesh design" scope="v3" />
 
-## Problem Statement
+## Architecture Overview
 
-The platform uses a **dual-database architecture**:
+The platform uses a **dual-database architecture** with potentially many API nodes sharing one global PostgreSQL database.
 
 | Database | Scope | Technology | Coordination |
 |----------|-------|------------|--------------|
-| **Global** (PostgreSQL) | Shared across ALL nodes | Drizzle ORM + `node-postgres` | **Needs mesh coordination** — multiple nodes share one DB |
-| **Local** (SQLite) | Per-node private state | Better Sqlite3 (via better-sqlite3) | None — each node owns its own |
+| **Global** (PostgreSQL) | Shared across ALL nodes | Drizzle ORM + `node-postgres` | **Mesh-coordinated** — multi-node version registry, guards, and auto-update |
+| **Local** (SQLite) | Per-node private state | Better Sqlite3 | None — each node owns its own |
 
-### Why This Matters
+### Core Principles
 
-In a multi-node deployment, the global database is **shared infrastructure**. If two API nodes start simultaneously, both could attempt to apply the same migration. While Drizzle's migrator is **idempotent** (it tracks which migration files have been applied in the `__drizzle_migrations` table), concurrent attempts can cause:
+1. **Migration manifest as contract** — Every migration file declares minimum app/schema version requirements. The manifest is the single source of truth.
+2. **Registration guard** — A node can only join the mesh if its code contains ALL migrations already applied to the global DB. This prevents outdated code from operating on an incompatible schema.
+3. **Minimum version check** — Migrations only proceed when ALL active nodes have the minimum app version required by that migration's manifest entry.
+4. **Uniform version enforcement** — All nodes in the mesh must run compatible versions. Mismatches are detected, reported, and surfaced via health checks.
+5. **Global version registry** — The `cluster_migration_state` table tracks cluster-wide schema version, required app version, and consensus node IDs.
+6. **Auto-update capability** — Nodes can detect newer versions and self-update via Docker image pull + restart or git pull + rebuild.
 
-- **Lock contention** on the migrations tracking table
-- **Partial migration states** if one node crashes mid-migration
-- **Version drift** where nodes running different code versions would disagree on the schema
-- **Transient failures** from race conditions (duplicate column errors, deadlocks)
+### The Big Picture
 
-### The Core Requirement
+```mermaid
+flowchart TB
+    subgraph "Central Registry (Global DB)"
+        PG[("PostgreSQL<br/>Global DB")]
+        SV[("schema_version<br/>per node")]
+        CMS[("cluster_migration_state<br/>singleton")]
+    end
 
-> **Schema migrations must only proceed when the mesh cluster is in a consistent state** — all nodes agree on the current schema version.
+    subgraph "Code-Based Registry"
+        MANIFEST[("migration-manifest.json<br/>declares requirements")]
+    end
 
-**This document defines the protocol for achieving that.**
+    subgraph "Node A (v2.1.0)"
+        A1[Startup Protocol]
+        A2[Registration Guard ✅]
+        A3[Migration Coordinator]
+        A4[Schema: 0011]
+    end
+
+    subgraph "Node B (v2.1.0)"
+        B1[Startup Protocol]
+        B2[Registration Guard ✅]
+        B3[Migration Coordinator]
+        B4[Schema: 0011]
+    end
+
+    subgraph "Node C (v1.5.0 - outdated)"
+        C1[Startup Protocol]
+        C2[Registration Guard ❌]
+        C3[BLOCKED]
+    end
+
+    PG --- A1 & B1 & C1
+    SV --- A1 & B1 & C1
+    CMS --- A1 & B1 & C1
+    MANIFEST --- A2 & B2 & C2
+
+    A1 <-->|Mesh WebSocket| B1
+    A1 <-.->|Mesh WebSocket| C1
+    B1 <-.->|Mesh WebSocket| C1
+
+    style C2 fill:#ff4444,color:#fff
+    style C3 fill:#ff4444,color:#fff
+```
 
 ---
 
-## Schema Version Tracking
+## Version Tracking Tables
 
-### The `schema_version` Table
+These tables are created by **migration 0011** (the next migration after the current latest 0010).
 
-A new global table to track the current schema version of each node and the cluster consensus:
+### `schema_version` — Per-Node Schema State
+
+Each node has exactly one row, updated on every startup and periodically every 60 seconds.
 
 ```typescript
 // apps/api/src/config/drizzle/global/schema/schema-version.schema.ts
-import { pgTable, text, timestamp, integer, jsonb } from 'drizzle-orm/pg-core'
+import { pgTable, text, timestamp, jsonb } from 'drizzle-orm/pg-core'
 
-/**
- * Tracks the schema version of each mesh node and the cluster-wide consensus.
- *
- * - One row per node (node_id).
- * - When all nodes report the same `schema_version`, the cluster is consistent.
- * - A node may be on a LOWER version if it hasn't started/reconnected recently.
- * - A node should NEVER be on a HIGHER version than the others — that would mean
- *   it applied migrations that others don't know about, which is a critical anomaly.
- */
 export const schemaVersion = pgTable('schema_version', {
-  // Node identity
   nodeId: text('node_id').primaryKey(),
 
-  // Schema version from the migration files (e.g. "0010" from the last applied migration file name)
-  // Derived from the Drizzle migrations meta-table: SELECT max(version) FROM __drizzle_migrations
+  // Latest migration version applied by this node
+  // e.g. "0011" from the last entry in __drizzle_migrations
   schemaVersion: text('schema_version').notNull(),
 
-  // The exact list of applied migration file names (for detailed comparison)
+  // Full ordered list of applied migration file names
+  // e.g. ["0000_brave_steve_rogers", ..., "0011_mesh_coordination"]
   appliedMigrations: jsonb('applied_migrations').notNull().$type<string[]>(),
 
-  // Node's current app version (from package.json or VERSION file)
+  // Application version from package.json
+  // e.g. "2.1.0"
   appVersion: text('app_version').notNull(),
 
-  // When this node last reported / verified its schema version
+  // When this node last verified its schema state
   lastVerification: timestamp('last_verification', { withTimezone: true })
     .notNull()
     .defaultNow(),
 
-  // When this row was first created
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
 
-  // When this row was last updated
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
 })
-
-export type SchemaVersion = typeof schemaVersion.$inferSelect
-export type NewSchemaVersion = typeof schemaVersion.$inferInsert
 ```
 
-### How It Gets Populated
+### `cluster_migration_state` — Cluster-Wide Schema Target
 
-Every node, on startup and periodically, reads the applied migrations from `__drizzle_migrations` and upserts its row in `schema_version`:
+A singleton row (always `id = 1`) that tracks the cluster's migration progress and enforced requirements.
 
 ```typescript
-// Pseudocode — runs in the migration coordinator service
+// apps/api/src/config/drizzle/global/schema/cluster-migration-state.schema.ts
+import { pgTable, text, timestamp, jsonb, integer } from 'drizzle-orm/pg-core'
+
+export const clusterMigrationState = pgTable('cluster_migration_state', {
+  id: integer('id').primaryKey().default(1),
+
+  // The highest migration version that ALL active consensus nodes have applied.
+  // Advances only when the cluster reaches agreement.
+  clusterSchemaVersion: text('cluster_schema_version').notNull(),
+
+  // The minimum app version (semver) required to be in the cluster.
+  // Nodes with appVersion < requiredAppVersion are marked outdated.
+  // Computed from the migration manifest's highest minAppVersion.
+  requiredAppVersion: text('required_app_version').notNull(),
+
+  // List of active node IDs that contributed to the current consensus.
+  // Updated each time consensus is re-evaluated.
+  consensusNodeIds: jsonb('consensus_node_ids').notNull().$type<string[]>(),
+
+  // Optimistic locking — incremented on every update.
+  // Used to detect concurrent updates and prevent write conflicts.
+  recordVersion: integer('record_version').notNull().default(1),
+
+  // Last time consensus was verified.
+  lastConsensusAt: timestamp('last_consensus_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+})
+```
+
+---
+
+## Migration Manifest — The Code-Based Registry
+
+The manifest is a JSON file at `apps/api/src/config/drizzle/global/migrations/migration-manifest.json`. It is the **single source of truth** for migration requirements. Every migration file has a corresponding manifest entry declaring its minimum app version and minimum schema version prerequisites.
+
+```json
+{
+  "$schema": "./migration-manifest.schema.json",
+  "currentSchemaVersion": "0011",
+  "migrations": [
+    {
+      "version": "0000",
+      "name": "brave_steve_rogers",
+      "minAppVersion": ">=1.0.0",
+      "minSchemaVersion": null,
+      "description": "Initial auth tables"
+    },
+    {
+      "version": "0001",
+      "name": "wealthy_maelstrom",
+      "minAppVersion": ">=1.0.0",
+      "minSchemaVersion": "0000",
+      "description": "Passkey table, column defaults"
+    },
+    {
+      "version": "0002",
+      "name": "whole_sumo",
+      "minAppVersion": ">=1.0.0",
+      "minSchemaVersion": "0001",
+      "description": "Session/role columns"
+    },
+    {
+      "version": "0003",
+      "name": "dusty_firestar",
+      "minAppVersion": ">=1.0.0",
+      "minSchemaVersion": "0002",
+      "description": "Seed version tracking"
+    },
+    {
+      "version": "0004",
+      "name": "cool_bruce_banner",
+      "minAppVersion": ">=1.0.0",
+      "minSchemaVersion": "0003",
+      "description": "Org/invitation/push tables"
+    },
+    {
+      "version": "0005",
+      "name": "chief_blade",
+      "minAppVersion": ">=1.2.0",
+      "minSchemaVersion": "0004",
+      "description": "Deployment domain tables"
+    },
+    {
+      "version": "0006",
+      "name": "ancient_iron_patriot",
+      "minAppVersion": ">=1.5.0",
+      "minSchemaVersion": "0005",
+      "description": "Mesh cluster tables"
+    },
+    {
+      "version": "0007",
+      "name": "smooth_martin_li",
+      "minAppVersion": ">=1.5.0",
+      "minSchemaVersion": "0006",
+      "description": "Node ID unique constraint"
+    },
+    {
+      "version": "0008",
+      "name": "past_scream",
+      "minAppVersion": ">=1.5.0",
+      "minSchemaVersion": "0007",
+      "description": "Cluster index cleanup"
+    },
+    {
+      "version": "0009",
+      "name": "bouncy_hellfire_club",
+      "minAppVersion": ">=1.8.0",
+      "minSchemaVersion": "0008",
+      "description": "Docker security scans (v1)"
+    },
+    {
+      "version": "0010",
+      "name": "gigantic_stranger",
+      "minAppVersion": ">=1.8.0",
+      "minSchemaVersion": "0009",
+      "description": "Docker runtime activities + lifecycle"
+    },
+    {
+      "version": "0011",
+      "name": "mesh_coordination_tables",
+      "minAppVersion": ">=2.0.0",
+      "minSchemaVersion": "0010",
+      "description": "schema_version, cluster_migration_state, migration manifest, registration guard"
+    }
+  ]
+}
+```
+
+### Manifest Schema Validation
+
+```typescript
+// apps/api/src/config/drizzle/global/migrations/migration-manifest.schema.ts
+import { z } from 'zod/v4'
+
+export const migrationEntrySchema = z.object({
+  version: z.string().regex(/^\d{4}$/),
+  name: z.string().min(1),
+  minAppVersion: z.string().regex(/^[><=!~^]+\d+\.\d+\.\d+/),
+  minSchemaVersion: z.string().nullable(),
+  description: z.string().optional(),
+})
+
+export const migrationManifestSchema = z.object({
+  currentSchemaVersion: z.string().regex(/^\d{4}$/),
+  migrations: z.array(migrationEntrySchema),
+})
+
+export type MigrationManifest = z.infer<typeof migrationManifestSchema>
+export type MigrationEntry = z.infer<typeof migrationEntrySchema>
+```
+
+### Critical Rules
+
+| Rule | Enforcement | Why |
+|------|-------------|-----|
+| Every migration must have a manifest entry | Code review + CLI validation script | Without the entry, the system can't determine requirements |
+| `currentSchemaVersion` must match the last migration file | CI check | The manifest is the source of truth; drift causes registration to fail |
+| `minAppVersion` must increase or stay the same | CI check | If a later migration requires a LOWER version, older nodes could bypass requirements |
+| Manifest is checked on every `register-mesh-node` call | Runtime | Ensures the node's code matches what the cluster expects |
+
+---
+
+## The Complete Startup Protocol
+
+Every API node runs this protocol on startup, **before** it can serve traffic or accept mesh connections.
+
+### 10-Phase Flow
+
+```mermaid
+flowchart TD
+    START([Node starts]) --> A[Phase 1: Read migration-manifest.json]
+    A --> B[Phase 2: Connect to global DB]
+    B --> C{Phase 3: Can reach DB?}
+    C -->|No| C1[⏳ Exit 2: DB not ready]
+    C -->|Yes| D[Phase 4: Apply pending migrations<br/>via Drizzle migrator]
+
+    D --> E[Phase 5: Upsert own schema_version]
+    E --> F[Phase 6: Read cluster_migration_state]
+
+    F --> G{Phase 7: Registration Guard 🛡️}
+    G -->|Code missing migrations<br/>that DB already has| G1[❌ Exit 5: NODE_TOO_OLD]
+    G -->|Manifest outdated| G2[❌ Exit 5: MANIFEST_OUTDATED]
+    G -->|Compatible| H[Phase 8: Check peer versions]
+
+    H --> I{Phase 9: Consensus Check}
+    I -->|This node behind peers| I1[❌ Exit 5: NODE_BEHIND_CLUSTER]
+    I -->|Peers behind this node| I2[⚠️ Emit warning, allow registration]
+    I -->|All consistent| I3[✅ Update cluster_migration_state]
+    I -->|No peers| I4[ℹ️ Create initial cluster_migration_state]
+
+    I3 --> J[Phase 10: Register in cluster_nodes ✅]
+    I4 --> J
+```
+
+### Phase-by-Phase Specification
+
+#### Phase 1: Read migration-manifest.json
+
+Read the manifest from disk. This tells the node:
+- Which migrations exist in this code version
+- What the current schema version should be after applying all of them
+- What app version is required for each migration
+
+**Failure handling:** If the manifest is missing, malformed, or fails Zod validation:
+- Log error: `❌ Migration manifest missing or corrupted at {path}. Cannot verify schema compatibility.`
+- Exit code 5 (registration denied)
+
+#### Phase 2-3: DB Connectivity
+
+Standard `SELECT 1` check against the global PostgreSQL.
+
+| Condition | Exit Code | Action |
+|-----------|-----------|--------|
+| `SELECT 1` succeeds | continues | Proceed to migration |
+| Auth failure (password/role) | 1 | Configuration error — fix env vars |
+| Network error (ECONNREFUSED) | 2 | Transient — retry on next restart |
+
+#### Phase 4: Apply Pending Migrations
+
+Run Drizzle's `migrate()` function. This is **idempotent**:
+- Reads `__drizzle_migrations` to see what's already applied
+- Applies only migrations not yet in the tracking table
+- PostgreSQL's MVCC ensures safe concurrent execution
+
+**Important:** Migration 0011 creates the `schema_version` and `cluster_migration_state` tables. Before migration 0011:
+- These tables don't exist
+- The node falls back to basic registration (skip version checks)
+- This ensures backward compatibility with nodes still on schema 0010
+
+#### Phase 5: Upsert Own Schema Version
+
+Write the node's state into `schema_version`:
+
+```typescript
 async function reportSchemaVersion(nodeId: string): Promise<void> {
-  // 1. Read applied migrations from Drizzle's meta table
   const migrations = await db.execute<{ version: string }>(
     sql`SELECT version FROM "__drizzle_migrations" ORDER BY version`
   )
   const appliedVersions = migrations.rows.map(r => r.version)
   const latestVersion = appliedVersions.at(-1) ?? '0000'
-  const appVersion = pkg.version
+  const appVersion = readPackageVersion()
 
-  // 2. Upsert into schema_version
   await db
     .insert(schemaVersion)
     .values({
@@ -124,799 +395,729 @@ async function reportSchemaVersion(nodeId: string): Promise<void> {
 }
 ```
 
-### Periodic Verification
+**Graceful skip:** If the `schema_version` table doesn't exist yet (pre-0011 cluster), catch the error and skip the phase.
 
-The migration coordinator should also **periodically re-report** the schema version (every 60 seconds, or on mesh peer sync) so that:
+#### Phase 6: Read cluster_migration_state
 
-- Newly joined nodes discover current state quickly
-- The cluster detects version drift promptly
-- Stale entries are identified by their `lastVerification` timestamp
+If the table doesn't exist (pre-0011), this phase is skipped.
 
----
+If it exists, read the singleton row to learn:
+- `clusterSchemaVersion`: what the cluster thinks the current version is
+- `requiredAppVersion`: minimum app version to be in the cluster
+- `consensusNodeIds`: which nodes participated in the last consensus
 
-## CLI Command Flow Specification
+#### Phase 7: Registration Guard 🛡️
 
-Every CLI command in the migration lifecycle follows a **phased execution model** with specific exit codes. This ensures that callers (entrypoint scripts, Docker Compose, orchestration tools) can make informed decisions about retries, escalation, and error reporting.
-
-### `register-mesh-node` Command
-
-**Source:** `apps/api/src/cli/commands/register-mesh-node.command.ts`
-
-**Purpose:** Register this API node in `cluster_nodes`, report its schema version, and check peer consistency.
-
-**Called from:** `entrypoint.dev.ts` / `entrypoint.prod.ts` via `bun --bun src/cli.ts register-mesh-node`
-
-#### Flow Diagram
-
-```mermaid
-flowchart TD
-    A[Start] --> B{Phase 1: Pre-flight}
-    B -->|MESH_NODE_ID missing| C1[⏭️ Log info, exit 0]
-    B -->|MESH_NODE_ID not UUID| C2[⏭️ Log info, exit 0]
-    B -->|Valid config| D{Phase 2: DB Connectivity}
-    
-    D -->|Auth failure| E1[❌ Log error, exit 1]
-    D -->|Network error| E2[⚠️ Log warn, exit 2]
-    D -->|SELECT 1 OK| F{Phase 3: Schema Readiness}
-    
-    F -->|cluster_nodes missing| G1[⚠️ Log warn, exit 3]
-    F -->|Tables exist| H{Phase 4: Registration}
-    
-    H -->|Already registered| I1[✅ Log info, update metadata]
-    H -->|New registration| I2[✅ Log success, insert]
-    H -->|Duplicate key race| I3[⚠️ Log info, treat as success]
-    H -->|Connection lost| I4[❌ Log error, exit 4]
-    H -->|Other error| I5[❌ Log error, exit 4]
-    
-    I1 --> J{Phase 5: Schema Version}
-    I2 --> J
-    I3 --> J
-    
-    J -->|__drizzle_migrations exists| K1[📋 Read, upsert]
-    J -->|__drizzle_migrations missing| K2[ℹ️ Log, skip]
-    K1 --> L{Phase 6: Peer Check}
-    K2 --> L
-    
-    L -->|No peers| M1[ℹ️ Log first node]
-    L -->|All match| M2[✅ Log consistent]
-    L -->|Mismatch found| M3[⚠️ Log warn with details]
-    L -->|Table missing| M4[🔇 Log debug, skip]
-    
-    M1 --> N[✅ Exit 0]
-    M2 --> N
-    M3 --> N
-    M4 --> N
-```
-
-#### Phase Details
-
-##### Phase 1: Pre-flight (no DB access)
-Validates environment variables without any network or database interaction.
-
-| Condition | Log | Exit Code | Rationale |
-|-----------|-----|-----------|-----------|
-| `MESH_NODE_ID` not set | `⏭️ Skipping: MESH_NODE_ID is not set` | 0 | Graceful skip — not an error (single-node setup, env not configured) |
-| `MESH_NODE_ID` not valid UUID | `⏭️ Skipping: MESH_NODE_ID "${id}" is not a valid UUID` | 0 | Graceful skip — the ID format is wrong but that's a config issue, not a crash |
-| Neither `MESH_NODE_SERVER_URL` nor `APP_URL` set | `⚠️ Falling back to default http://api:${API_PORT}` | 0 | Continues with default — works in Docker Compose |
-| Valid config | — | continues | Ready for DB phase |
-
-##### Phase 2: DB Connectivity
-Attempts `SELECT 1` against the global Postgres to confirm reachability.
-
-| Error Signature | Diagnosis | Log | Exit Code |
-|-----------------|-----------|-----|-----------|
-| `password` / `auth` / `role` in message | Authentication or role misconfiguration | `❌ Global DB authentication failed: ${message}` | 1 |
-| `ECONNREFUSED` / `ENOTFOUND` / `ETIMEDOUT` | Postgres not running or unreachable (transient) | `⚠️ Global DB unreachable (transient): ${message}` | 2 |
-| Any other error | Unexpected connectivity failure | `⚠️ Global DB connectivity check failed: ${message}` | 2 |
-
-**Exit code 2 semantics:** The caller (entrypoint) should NOT retry immediately — the node will try again on next startup. In Docker Compose, Postgres usually starts before the API, so this is a safety net for edge cases.
-
-##### Phase 3: Schema Readiness
-Checks whether required tables exist via `information_schema.tables`.
-
-| Condition | Log | Exit Code | Guidance |
-|-----------|-----|-----------|----------|
-| `cluster_nodes` exists | — | continues | Ready for registration |
-| `cluster_nodes` missing | `⚠️ Table "cluster_nodes" does not exist — migrations not yet applied` | 3 | Run `bun --bun run api -- db:migrate` first |
-| Error during check | `⚠️ Could not verify schema readiness: ${message}` | 3 | DB is reachable but query failed — unexpected state |
-
-**Exit code 3 semantics:** This is the most important diagnostic exit code. It means the global DB is reachable but uninitialized. The solution is to run migrations.
-
-##### Phase 4: Registration (idempotent)
-Performs the actual `cluster_nodes` insert or update.
-
-| Path | Condition | Log | Exit Code |
-|------|-----------|-----|-----------|
-| Already exists | `SELECT` returns a row | `✅ Mesh node already registered: ${nodeId}` | 0 |
-| New registration | `INSERT` succeeds | `✅ Registered mesh node: ${nodeId} (${url})` | 0 |
-| Unique violation race | `INSERT` hits `23505` / `duplicate key` | `⚠️ Node ${nodeId} was just registered by a concurrent process` | 0 |
-| Connection lost mid-op | `ECONNREFUSED` / connection error | `❌ Lost connection to global DB while registering node ${nodeId}` | 4 |
-| Any other error | Unexpected | `❌ Failed to register mesh node ${nodeId}: ${message}` | 4 |
-
-**Exit code 4 semantics:** Real failure that needs investigation. The DB was reachable (Phase 2 passed) but the operation failed. This could be a permissions issue, a schema mismatch, or a transient error that should be retried manually.
-
-##### Phase 5: Schema Version Reporting
-Reads `__drizzle_migrations` and upserts into `schema_version`. **Non-critical** — failure does NOT block registration.
-
-| Condition | Log | Exit Code | Note |
-|-----------|-----|-----------|------|
-| `__drizzle_migrations` exists, `schema_version` exists | `📋 Schema version reported: ${version} (${count} migration(s))` | 0 | Full success |
-| `__drizzle_migrations` missing (fresh DB) | `ℹ️ No __drizzle_migrations table found` | 0 | Expected for brand-new deployments |
-| `schema_version` upsert fails | `⚠️ Could not report schema version — schema_version table may not exist yet` | 0 | Table not created yet (needs migration 0000) |
-
-**All paths exit 0** because schema version reporting is informational. The registration is the critical path.
-
-##### Phase 6: Peer Consistency Check
-Queries `schema_version` for all other nodes and reports mismatches. **Pure informational** — never blocks.
-
-| Condition | Log | Exit Code |
-|-----------|-----|-----------|
-| No other nodes in `schema_version` | `ℹ️ No peer nodes found in schema_version — this is the first node` | 0 |
-| All peers match this node's version | `✅ All ${count} peer node(s) are on schema version ${version}` | 0 |
-| Version mismatch found | `⚠️ Schema version mismatch detected across the cluster:` + list | 0 |
-| `schema_version` table missing | debug log (silent in production) | 0 |
-
----
-
-### `migrate` Command
-
-**Source:** `apps/api/src/cli/commands/migrate.command.ts`
-
-**Purpose:** Apply all pending global Postgres database migrations.
-
-**Called from:** Docker Compose `migrate` one-shot service, or manually via `bun --bun run api -- db:migrate`
-
-#### Flow Diagram
-
-```mermaid
-flowchart TD
-    A[Start] --> B{Phase 1: SQLite Check}
-    B -->|OK| C{Phase 2: Postgres Connectivity}
-    B -->|Fail| D1[❌ Log error, exit 1]
-    
-    C -->|SELECT 1 OK| E{Phase 3: Apply Migrations}
-    C -->|Fail| D2[❌ Log error, exit 2]
-    
-    E -->|Success| F[✅ Log success, exit 0]
-    E -->|ECONNREFUSED| G1[❌ Log error, exit 2]
-    E -->|Migration file error| G2[❌ Log error, exit 2]
-    E -->|Duplicate objects warn| G3[⚠️ Log warn, exit 2]
-    E -->|Other error| G4[❌ Log error, exit 2]
-```
-
-#### Phase Details
-
-##### Phase 1: SQLite Verification
-Verifies that SQLite tables exist (created by `LocalModule`'s factory during NestJS bootstrap).
-
-| Condition | Log | Exit Code |
-|-----------|-----|-----------|
-| Tables present | `✅ SQLite database: ${count} tables present` | 0 |
-| Query fails | `❌ Local SQLite check failed: ${message}` | 1 |
-
-**Exit code 1:** The SQLite file is corrupted or inaccessible. This is fatal because the local database is required for node operation.
-
-##### Phase 2: Postgres Connectivity
-Same `SELECT 1` check as the register command.
-
-| Condition | Log | Exit Code |
-|-----------|-----|-----------|
-| Connection OK | `✅ Postgres connection verified` | 0 |
-| Connection fails | `❌ Cannot reach global Postgres: ${message}` | 2 |
-
-##### Phase 3: Apply Migrations
-Runs Drizzle's `migrate()` function.
-
-| Condition | Log | Exit Code |
-|-----------|-----|-----------|
-| All migrations applied | `✅ Postgres database migrations completed successfully` | 0 |
-| Connection lost mid-migration | `❌ Postgres connection lost during migration: ${message}` | 2 |
-| Migration file error | `❌ Migration file error: ${message}` | 2 |
-| Duplicate objects (partial apply) | `⚠️ Migration reports duplicate objects: ${message}` | 2 |
-| Other error | `❌ Postgres migration failed: ${message}` | 2 |
-
-**Exit code 2:** Migration failure. The most common causes are:
-1. Postgres went down during migration (retry after restarting Postgres)
-2. A migration file has a syntax error (fix the file, regenerate)
-3. The migration was partially applied and the retry hits a conflict (manual resolution needed)
-
----
-
-### Entrypoint Exit Code Handling
-
-Both `entrypoint.dev.ts` and `entrypoint.prod.ts` call `register-mesh-node` as a subprocess and interpret its exit code:
+**This is the most critical safety check in the system.** Before a node can register, it must prove its code is compatible with the cluster's current schema state.
 
 ```typescript
-if (result.status === null) {
-  // Process was killed or failed to spawn — unexpected
-} else if (result.status === 0) {
-  // Success — registration complete or gracefully skipped
-} else if (result.status === 2) {
-  // DB not ready — log as deferred (transient, will retry on next restart)
-} else if (result.status === 3) {
-  // Schema not ready — log as migration-needed (actions required)
-} else {
-  // Real failure — log as error with exit code for debugging
+type RegistrationGuardResult =
+  | { allowed: true }
+  | { allowed: false; reason: 'NODE_TOO_OLD'; missingMigrations: string[] }
+  | { allowed: false; reason: 'MANIFEST_OUTDATED'; currentSchemaVersion: string }
+  | { allowed: false; reason: 'MANIFEST_MISSING_OR_INVALID'; error: string }
+
+async function registrationGuard(db: GlobalDatabase, manifest: MigrationManifest): Promise<RegistrationGuardResult> {
+  // 1. Read all migrations already applied in the global DB
+  const appliedInDb = await db.execute<{ version: string }>(
+    sql`SELECT version FROM "__drizzle_migrations" ORDER BY version`
+  )
+  const dbVersions = new Set(appliedInDb.rows.map(r => r.version))
+
+  // 2. Read the node's own migration versions from the manifest
+  const myVersions = new Set(manifest.migrations.map(m => m.version))
+
+  // 3. Check: every DB-applied migration must exist in my files
+  const missingFromCode = [...dbVersions].filter(v => !myVersions.has(v))
+  if (missingFromCode.length > 0) {
+    return {
+      allowed: false,
+      reason: 'NODE_TOO_OLD',
+      missingMigrations: missingFromCode,
+    }
+  }
+
+  // 4. Check: manifest's currentSchemaVersion >= max DB version
+  const dbMaxVersion = [...dbVersions].sort().at(-1) ?? '0000'
+  if (compareVersions(dbMaxVersion, manifest.currentSchemaVersion) > 0) {
+    return {
+      allowed: false,
+      reason: 'MANIFEST_OUTDATED',
+      currentSchemaVersion: manifest.currentSchemaVersion,
+    }
+  }
+
+  return { allowed: true }
 }
 ```
 
-**Important design decision:** The entrypoints **never block** on registration failure. The API process starts regardless, because:
-- DB connectivity may be temporarily disrupted (Docker Compose race)
-- Migrations may not have run yet (first-time setup)
-- The node should still function for local-only operations
+**Blocked output example:**
+```
+❌ REGISTRATION DENIED: Node code is too old for this cluster.
+   Missing migrations already applied to global DB:
+     - 0011_mesh_coordination_tables
+   Current cluster schema: 0011
+   This node's max schema: 0010
+   Action: Deploy app version >=2.0.0 to this node before it can join.
+```
 
-The registration status is purely observational — it tells operators whether the node is participating in the mesh.
+#### Phase 8: Check Peer Versions
+
+Query `schema_version` for all active peers and compare their app versions + schema versions against the manifest requirements.
+
+```typescript
+type PeerVersionState = {
+  nodeId: string
+  schemaVersion: string
+  appVersion: string
+  satisfiesMinAppVersion: boolean  // does appVersion meet manifest's latest minAppVersion?
+}
+```
+
+#### Phase 9: Consensus Check
+
+Determine cluster consensus state and take appropriate action:
+
+| Local State | Peer State | Cluster Migration State | Action | Traffic? |
+|-------------|-----------|------------------------|--------|----------|
+| = peers | = peers | exists, matches | ✅ Consistent — update consensus, register | ✅ Yes |
+| = peers | = peers | exists, behind | ✅ Advance cluster_migration_state to match | ✅ Yes |
+| = peers | = peers | doesn't exist | Create initial cluster_migration_state (first node) | ✅ Yes |
+| > peers | < peers | exists | ⚠️ Peers behind — warn, allow | ⚠️ Yes (degraded) |
+| < peers | > peers | exists | ❌ Node behind cluster | ❌ No, blocked |
+| < peers | > peers | doesn't exist | ❌ Node behind cluster | ❌ No, blocked |
+| = peers | < peers (app version) | exists | ⚠️ Peer app version too low for pending migrations | ⚠️ Yes (degraded) |
+
+#### Phase 10: Register in cluster_nodes
+
+Only reached after passing Phases 7-9. Idempotent insert with conflict handling.
 
 ---
 
-## Node Startup Protocol
+## Registration Guard — Detailed Logic
 
-This is the core algorithm. Every API node runs this on startup **before** accepting traffic.
+The registration guard is the centerpiece of multi-node safety. Here is its complete decision tree:
+
+```mermaid
+flowchart TD
+    START([Registration Guard Start]) --> A[Read __drizzle_migrations<br/>from global DB]
+    A --> B[Read migration-manifest.json<br/>from this node's code]
+    B --> C{manifest valid?}
+    
+    C -->|Missing or invalid| D[❌ EXIT 5<br/>MANIFEST_MISSING_OR_INVALID]
+    C -->|Valid| E[Build set of DB-applied versions]
+    
+    E --> F[Build set of code-available versions]
+    F --> G{Every DB version<br/>exists in code?}
+    
+    G -->|YES| H{manifest.currentSchemaVersion<br/>>= maxDbVersion?}
+    G -->|NO - missing in code| I[❌ EXIT 5: NODE_TOO_OLD]
+    
+    I --> J[Log detailed error with missing versions]
+    J --> K[Return: REGISTRATION_DENIED]
+    
+    H -->|NO - manifest outdated| L[❌ EXIT 5: MANIFEST_OUTDATED]
+    H -->|YES| M[✅ Guard PASSED]
+    
+    M --> N[Proceed to Phase 8: Peer Check]
+    
+    style I fill:#ff4444,color:#fff
+    style L fill:#ff4444,color:#fff
+    style M fill:#22c55e,color:#fff
+```
+
+### Edge Cases
+
+| Scenario | Detection | Action |
+|----------|-----------|--------|
+| Node v1.0 tries to join cluster at schema 0010 | Guard identifies migrations 0005-0010 missing from v1.0's code | ❌ **Block**. Log: "Missing migrations 0005-0010. Update to >= v2.0.0." |
+| Fresh DB, first node ever | `__drizzle_migrations` empty → no DB versions to compare | ✅ Allow. Apply all migrations. Become the first node. |
+| Node has code for migrations not yet applied to DB | Manifest lists `currentSchemaVersion` > DB max version | ✅ Allow. Node will apply pending migrations in Phase 4. |
+| Node restarts with SAME code version as before | Both DB and code have the same migrations | ✅ Allow. Guard passes trivially. |
+| `migration-manifest.json` has syntax error | JSON parse or Zod validation fails | ❌ **Block**. Log: "Manifest corrupted" |
+| Node's app version is below cluster_migration_state.requiredAppVersion | Phase 6 reads `requiredAppVersion: ">=2.0.0"`, node's version is "1.5.0" | ❌ **Block** in Phase 9. Log: "Node version 1.5.0 is below cluster minimum >=2.0.0." |
+| `schema_version` table doesn't exist (pre-0011 cluster) | Phase 5 can't upsert | ⚠️ Degrade gracefully. Skip Phases 5-9, go directly to basic registration. |
+
+---
+
+## Version Compatibility Matrix
+
+The `migration-manifest.json` defines the exact compatibility matrix:
+
+| App Version | Compatible Schema | Can Apply Migrations Up To | Registration Guard Result |
+|-------------|-------------------|----------------------------|---------------------------|
+| `1.0.x` | 0000-0004 | 0004 | ✅ If cluster ≤ 0004 |
+| `1.2.x` - `1.4.x` | 0000-0005 | 0005 | ✅ If cluster ≤ 0005 |
+| `1.5.x` - `1.7.x` | 0000-0008 | 0008 | ✅ If cluster ≤ 0008 |
+| `1.8.x` - `1.9.x` | 0000-0010 | 0010 | ✅ If cluster ≤ 0010 |
+| `>=2.0.0` | 0000-0011+ | 0011+ | ✅ Always compatible (current) |
+
+**Key rule:** A node can always apply NEWER migrations (if its code has them), but can NEVER join a cluster with migrations it doesn't know about.
+
+---
+
+## Uniform Version Enforcement
+
+### How Enforcement Works
+
+The `cluster_migration_state` table has a `requiredAppVersion` field. This is computed as the **highest `minAppVersion` across all applied migrations**.
+
+For example, if the cluster has applied migrations up to 0011, and migration 0011 requires `>=2.0.0`, then `requiredAppVersion = ">=2.0.0"`.
+
+**Enforcement points:**
+
+1. **Registration guard** (Phase 7): Blocks nodes whose code is missing migrations
+2. **Peer version check** (Phase 9): Detects nodes running below `requiredAppVersion`
+3. **Health endpoint**: Exposes version mismatches for monitoring/alerting
+4. **Mesh event emission**: Version anomalies are broadcast to all nodes
+
+### What Happens to Outdated Nodes
+
+Outdated nodes in the mesh are:
+
+| Situation | Status | Traffic? | Action |
+|-----------|--------|----------|--------|
+| Schema version behind peers | Stale | ⚠️ Allowed (degraded) | Warning logged, event emitted |
+| App version < requiredAppVersion | Outdated | ⚠️ Allowed (degraded) | Warning logged, health check flags it |
+| Both behind | Stale + Outdated | ⚠️ Allowed (degraded) | Operator should update immediately |
+| Crashes and restarts with old code | Blocked by guard | ❌ No | Node can't rejoin until updated |
+
+**Important:** Stale/outdated nodes already in the mesh continue serving but are flagged. The guard only prevents NEW registrations.
+
+---
+
+## Migration Execution Protocol
+
+### When a Migration Can Run
+
+A migration can run ONLY when **all** conditions are met:
+
+```
+For migration "0011_mesh_coordination_tables" to run:
+  ✓ This node's appVersion satisfies minAppVersion (>=2.0.0)
+  ✓ Cluster's clusterSchemaVersion >= minSchemaVersion (>=0010)
+  ✓ ALL active nodes in schema_version have appVersion satisfying >=2.0.0
+  ✓ This node's code has the migration file
+  ✓ No other migration is currently in progress (advisory lock)
+```
+
+### Advisory Lock
+
+To minimize contention between concurrent migration attempts:
+
+```sql
+-- Acquire a PostgreSQL advisory lock before running migrations
+SELECT pg_advisory_lock(hashtext('migration_coordinator'));
+
+-- Apply migrations
+-- ...
+
+-- Release the lock
+SELECT pg_advisory_unlock(hashtext('migration_coordinator'));
+```
+
+**Note:** This is an optimization, not a correctness requirement. Drizzle's migrator is already idempotent and transaction-safe. The advisory lock just reduces log noise from concurrent attempts.
+
+### After Migration Success
+
+The node that applied the migration should update `cluster_migration_state`:
+
+```typescript
+async function advanceClusterState(
+  db: GlobalDatabase,
+  newSchemaVersion: string,
+  minAppVersion: string,
+  consensusNodeIds: string[]
+): Promise<void> {
+  // Use the existing row or create one
+  const existing = await db.select().from(clusterMigrationState).where(eq(clusterMigrationState.id, 1))
+
+  if (existing.length === 0) {
+    // First time — insert
+    await db.insert(clusterMigrationState).values({
+      id: 1,
+      clusterSchemaVersion: newSchemaVersion,
+      requiredAppVersion: minAppVersion,
+      consensusNodeIds,
+      lastConsensusAt: new Date(),
+    })
+  } else {
+    // Update with optimistic locking
+    const current = existing[0]!
+    const result = await db
+      .update(clusterMigrationState)
+      .set({
+        clusterSchemaVersion: sql`GREATEST(${clusterMigrationState.clusterSchemaVersion}, ${newSchemaVersion})`,
+        requiredAppVersion: minAppVersion,
+        consensusNodeIds,
+        lastConsensusAt: new Date(),
+        recordVersion: current.recordVersion + 1,
+      })
+      .where(
+        and(
+          eq(clusterMigrationState.id, 1),
+          eq(clusterMigrationState.recordVersion, current.recordVersion)  // optimistic lock
+        )
+      )
+
+    if (result.rowCount === 0) {
+      // Optimistic lock failure — another node updated it concurrently
+      // Re-read and re-try or accept the other node's update
+      this.logger.warn('cluster_migration_state was concurrently updated by another node — accepting their update')
+    }
+  }
+}
+```
+
+---
+
+## Node Registration Guard — What Happens at Every Exit Code
+
+### `register-mesh-node` Exit Codes
+
+| Exit Code | Meaning | When | Example Log |
+|-----------|---------|------|-------------|
+| 0 | Success or graceful skip | Node registered, already exists, or MESH_NODE_ID not configured | `✅ Registered mesh node: abc-123` |
+| 1 | Configuration error | Bad env vars, can't determine server URL | `❌ MESH_NODE_ID is not a valid UUID` |
+| 2 | DB not ready | `SELECT 1` failed (transient) | `⚠️ Global DB unreachable: ECONNREFUSED` |
+| 3 | Migrations needed | `cluster_nodes` or `schema_version` table missing | `⚠️ Table "cluster_nodes" does not exist` |
+| 4 | Registration failed | DB error during insert | `❌ Failed to register: connection lost` |
+| **5** | **Registration DENIED** | Guard blocked the node (code too old for cluster) | `❌ REGISTRATION DENIED: NODE_TOO_OLD` |
+
+### Exit Code 5 — Detailed Messages
+
+| Reason | Message | Suggested Action |
+|--------|---------|------------------|
+| `NODE_TOO_OLD` | Node code is missing migrations already applied to global DB: 0011_mesh_coordination_tables. | Deploy app version >=2.0.0 to this node. |
+| `MANIFEST_OUTDATED` | Migration manifest schema version 0010 is behind DB version 0011. | Update migration-manifest.json to currentSchemaVersion: "0011" |
+| `MANIFEST_MISSING_OR_INVALID` | Migration manifest missing or corrupted at apps/api/src/config/drizzle/global/migrations/migration-manifest.json | Ensure the manifest file exists and is valid JSON matching the Zod schema. |
+| `NODE_BEHIND_CLUSTER` | Node schema version 0010 is behind cluster consensus 0011. This node cannot safely serve traffic. | Deploy newer app version or rollback cluster to 0010. |
+
+---
+
+## Auto-Update Protocol
+
+Nodes can auto-update to the latest version when a new release is available.
+
+### Mode 1: Docker-Based (Production)
 
 ```mermaid
 sequenceDiagram
-    participant Node as New Node
-    participant GlobalDB as Global DB (PostgreSQL)
-    participant Mesh as Mesh Layer (Peers)
+    participant Node as Node X (v2.0.0)
+    participant Registry as Container Registry
+    participant DB as Global DB
+    participant Mesh as Mesh Layer
 
-    Node->>Node: 1. Read local expected schema version<br/>(from migration files on disk)
-    Node->>GlobalDB: 2. Run Drizzle migrator<br/>(idempotent — skips already-applied)
-    Node->>GlobalDB: 3. Read __drizzle_migrations for<br/>actual applied versions
-    Node->>GlobalDB: 4. Upsert own row in schema_version
-
-    Node->>GlobalDB: 5. Query ALL peer rows from schema_version
-    Note over Node: If no peers exist → this is the first node<br/>→ migration is done, proceed
-
-    alt All peers match this node's version
-        Node->>GlobalDB: 6a. No actions needed — cluster is consistent
-        Node->>Node: 7a. Mark as "ready for traffic"
-    else Some peers have LOWER version (stale nodes)
-        Node->>Node: 6b. Cluster is INCONSISTENT
-        Node->>Mesh: 7b. Emit MeshEvent: schema_version_mismatch<br/>{ staleNodes: [...], currentVersion, staleVersion }
-        Node->>Node: 8b. Log WARN: "N nodes behind current schema. Update them before continuing."
-        Node->>Node: 9b. Do NOT start serving traffic<br/>(or start in degraded read-only mode)
-    else Some peers have HIGHER version (anomaly)
-        Node->>Node: 6c. CRITICAL: Node is behind!
-        Node->>Mesh: 7c. Emit MeshEvent: schema_version_anomaly<br/>{ aheadNodes: [...], }
-        Node->>Node: 8c. Log ERROR: "Node schema is BEHIND cluster. Deploy newer version or rollback cluster."
-        Node->>Node: 9c. Do NOT start — fail fast
-    end
+    Node->>DB: Read cluster_migration_state
+    DB->>Node: { requiredAppVersion: ">=2.1.0", clusterSchemaVersion: "0012" }
+    
+    Node->>Node: Check version: current=2.0.0, cluster requires >=2.1.0
+    Note over Node: Node is outdated for the required app version
+    
+    Node->>Registry: docker pull n0safe/api:latest
+    Registry-->>Node: Downloaded image digest: sha256:...
+    
+    Node->>Mesh: Emit: node_updating { nodeId, fromVersion: "2.0.0", toVersion: "2.1.0" }
+    Node->>Node: Save pending-update marker in local SQLite
+    Node->>Node: gracefulShutdown()
+    
+    Note over Node: Container restarts with new image
+    Note over Node: Startup protocol re-runs with v2.1.0 code
+    Note over Node: Registration guard passes (v2.1.0 has all migrations)
+    Node->>DB: Upsert schema_version with appVersion: "2.1.0"
+    Node->>Mesh: Emit: node_updated { nodeId, newVersion: "2.1.0" }
 ```
 
-### Detailed Protocol Steps
+### Mode 2: Git-Based (Development)
 
-#### Step 1: Discover Expected Version
+```mermaid
+sequenceDiagram
+    participant Node as Dev Node (v2.0.0)
+    participant Git as Git Repository
+    participant Script as bun run self-update
 
-The node discovers what schema version its code expects by checking which migration files exist on disk:
-
-```typescript
-// Discovery strategy: read migration folder + Drizzle meta
-async function discoverExpectedVersion(): Promise<{
-  fileMigration: string  // last version from migration files on disk
-  appliedMigration: string // last version from __drizzle_migrations
-  pendingMigrations: string[] // files not yet applied
-}> {
-  // 1. List migration files from the migrations folder
-  const migrationFiles = await fs.readdir('src/config/drizzle/global/migrations')
-  const fileVersions = migrationFiles
-    .filter(f => f.endsWith('.sql'))
-    .map(f => f.split('_')[0])  // "0010_something.sql" → "0010"
-    .sort()
-
-  const fileMigration = fileVersions.at(-1) ?? '0000'
-
-  // 2. Read applied migrations from __drizzle_migrations
-  const applied = await db.execute<{ version: string }>(
-    sql`SELECT version FROM "__drizzle_migrations" ORDER BY version`
-  )
-  const appliedVersions = applied.rows.map(r => r.version)
-  const appliedMigration = appliedVersions.at(-1) ?? '0000'
-
-  // 3. Compute pending
-  const pendingMigrations = fileVersions.filter(v => !appliedVersions.includes(v))
-
-  return { fileMigration, appliedMigration, pendingMigrations }
-}
+    Node->>Script: bun run self-update
+    Script->>Script: Check current version vs latest tag
+    Script->>Git: git fetch origin --tags
+    Script->>Git: git log v2.0.0..origin/main --oneline
+    
+    Note over Script: Update available: v2.1.0
+    
+    Script->>Git: git pull origin main
+    Script->>Script: bun install
+    Script->>Script: bun --bun run build
+    
+    Note over Script: Write update marker to SQLite node_config: pendingUpdate = "2.1.0"
+    Script->>Script: exit(0) — supervisor restarts
+    
+    Note over Node: Startup protocol re-runs
+    Node->>Node: Read migration-manifest.json (now includes 0012)
+    Node->>Node: Registration guard passes (new code has all migrations)
+    Node->>DB: Apply any pending migrations
+    Node->>DB: Upsert schema_version with appVersion: "2.1.0"
 ```
 
-#### Step 2: Apply Local Pending Migrations
-
-If there are pending migrations (files on disk not yet applied), the node applies them **locally first** using Drizzle's migrator. This is safe because:
-- The migrator is **idempotent** — it checks `__drizzle_migrations` before applying
-- If another node already applied version X, this node's migrator skips it
-- If two nodes try to apply version X simultaneously, PostgreSQL locking handles the race
+### Self-Update CLI Command
 
 ```typescript
-async function applyPendingMigrations(pending: string[]): Promise<void> {
-  if (pending.length === 0) {
-    logger.info('No pending migrations to apply')
-    return
-  }
+// apps/api/src/cli/commands/self-update.command.ts
+@Command({ name: 'self-update', description: 'Check for and apply updates' })
+export class SelfUpdateCommand extends CommandRunner {
+  async run(): Promise<void> {
+    const currentVersion = this.getCurrentVersion()
+    const latestVersion = await this.checkForUpdate()
 
-  logger.info(`Applying ${pending.length} pending migration(s)...`)
-
-  // Drizzle's migrate() function is safe for concurrent calls
-  await migrate(db, { migrationsFolder: MIGRATIONS_PATH })
-
-  logger.info(`Migrations applied successfully`)
-}
-```
-
-#### Steps 3-4: Report Own Schema Version
-
-```typescript
-await reportSchemaVersion(nodeId)
-```
-
-This upserts the node's current state into `schema_version`.
-
-#### Step 5: Query Peer Schema Versions
-
-```typescript
-async function getPeerSchemaVersions(): Promise<SchemaVersion[]> {
-  const rows = await db
-    .select()
-    .from(schemaVersion)
-    .where(ne(schemaVersion.nodeId, thisNodeId))
-
-  return rows
-}
-```
-
-#### Steps 6-9: Version Comparison and Decision
-
-```typescript
-type ClusterConsensus =
-  | { status: 'consistent' }
-  | { status: 'stale_nodes'; staleNodes: string[]; staleVersion: string; currentVersion: string }
-  | { status: 'ahead_nodes'; aheadNodes: string[]; aheadVersion: string; localVersion: string }
-  | { status: 'no_peers' }
-
-async function evaluateClusterConsensus(
-  localVersion: string,
-  peers: SchemaVersion[]
-): Promise<ClusterConsensus> {
-  if (peers.length === 0) {
-    return { status: 'no_peers' }
-  }
-
-  const peerVersions = new Set(peers.map(p => p.schemaVersion))
-
-  // All peers at same version as local? Perfect.
-  if (peerVersions.size === 1 && peerVersions.has(localVersion)) {
-    return { status: 'consistent' }
-  }
-
-  // Some peers are behind
-  const stalePeers = peers.filter(p => p.schemaVersion < localVersion)
-  if (stalePeers.length > 0) {
-    return {
-      status: 'stale_nodes',
-      staleNodes: stalePeers.map(p => p.nodeId),
-      staleVersion: stalePeers[0]!.schemaVersion,
-      currentVersion: localVersion,
-    }
-  }
-
-  // Some peers are ahead — this node is behind
-  const aheadPeers = peers.filter(p => p.schemaVersion > localVersion)
-  if (aheadPeers.length > 0) {
-    return {
-      status: 'ahead_nodes',
-      aheadNodes: aheadPeers.map(p => p.nodeId),
-      aheadVersion: aheadPeers[0]!.schemaVersion,
-      localVersion,
-    }
-  }
-
-  // Multiple different versions among peers (general inconsistency)
-  return {
-    status: 'ahead_nodes',
-    aheadNodes: peers.filter(p => p.schemaVersion > localVersion).map(p => p.nodeId),
-    aheadVersion: [...peerVersions].sort().at(-1)!,
-    localVersion,
-  }
-}
-```
-
----
-
-## Startup Decision Matrix
-
-| Local State | Peer State | Action | Traffic Ready? |
-|-------------|-----------|--------|----------------|
-| Migrations applied | No peers exist | Report version, continue | ✅ Yes (first node) |
-| Migrations applied | All peers match | Report version, continue | ✅ Yes |
-| Pending migrations | No peers exist | Apply, report, continue | ✅ Yes (first node) |
-| Pending migrations | All peers match | Apply, report, continue | ✅ Yes |
-| Migrations applied | Some peers behind | Report version, emit warning, continue | ⚠️ Yes (graceful) |
-| Pending migrations | Some peers on higher version | **DO NOT APPLY** — node is behind cluster | ❌ No |
-| Any | Some peers on lower AND higher | Cluster is fractured — manual intervention needed | ❌ No |
-
-### Graceful Degradation
-
-When there are **stale nodes** but this node is consistent with the newest ones:
-
-- The node can still serve traffic
-- It should emit a cluster-wide warning via the mesh event system
-- It should expose the stale node list via a health/status endpoint so ops can take action
-
-### Hard Block
-
-When this node is **behind the cluster** (peers have higher schema version):
-
-- **Do not apply migrations** — this would be applying NEW migrations without knowing the current full schema state
-- **Do not start serving traffic** — the schema might be incompatible
-- Log a clear error: "Node X is behind the cluster. Deploy version Y to catch up."
-- Expose this in the health check so the orchestrator doesn't route traffic to it
-
----
-
-## Migration Execution
-
-### Why Drizzle's Migrator Is Safe for Concurrent Use
-
-Drizzle's `migrate()` function works by:
-
-1. Reading all migration files from the migrations folder
-2. Checking `__drizzle_migrations` to see which have been applied
-3. Applying only the unapplied ones in order
-4. Recording each applied migration in `__drizzle_migrations`
-
-This is safe because:
-- PostgreSQL's MVCC ensures consistent reads of `__drizzle_migrations`
-- The migrator uses **serializable** semantics for the tracking table
-- If two nodes apply the same migration concurrently, PostgreSQL's locking prevents duplicate application
-- The `__drizzle_migrations` insert is the single source of truth
-
-### Migration Service
-
-```typescript
-// apps/api/src/core/modules/database/global/services/global-migration-coordinator.service.ts
-@Injectable()
-export class GlobalMigrationCoordinatorService {
-  private readonly logger = new AppLogger('api').scope(GlobalMigrationCoordinatorService.name)
-  private readonly MIGRATIONS_PATH = 'src/config/drizzle/global/migrations'
-
-  constructor(
-    private readonly db: GlobalDatabaseService,
-    private readonly meshEventService: MeshEventService,
-    private readonly config: ConfigService,
-  ) {}
-
-  /**
-   * Full startup migration protocol.
-   * Called once during NestJS onModuleInit or via a dedicated lifecycle hook.
-   */
-  async runStartupProtocol(): Promise<MigrationStartupResult> {
-    const nodeId = this.config.get('NODE_ID')!
-    const startTime = Date.now()
-
-    // Phase 1: Ensure schema_version table exists (it's part of the base schema)
-    // This table should be created by migration 0000 or a "bootstrap" migration.
-    // If the table doesn't exist, we can't run the protocol — fall back to
-    // a safe default (apply migrations directly).
-
-    // Phase 2: Apply local pending migrations
-    const expected = await this.discoverExpectedVersion()
-    if (expected.pendingMigrations.length > 0) {
-      await migrate(this.db.getClient(), { migrationsFolder: this.MIGRATIONS_PATH })
+    if (!latestVersion || latestVersion === currentVersion) {
+      this.logger.log(`✅ Already at latest version: ${currentVersion}`)
+      return
     }
 
-    // Phase 3: Report own version
-    await this.reportSchemaVersion(nodeId)
+    this.logger.log(`📦 Update available: ${currentVersion} → ${latestVersion}`)
 
-    // Phase 4: Evaluate cluster
-    const peers = await this.getPeerSchemaVersions(nodeId)
-    const consensus = await this.evaluateClusterConsensus(expected.fileMigration, peers)
+    // Save update marker so the entrypoint knows this is an intentional update
+    await this.saveUpdateMarker(latestVersion)
 
-    switch (consensus.status) {
-      case 'consistent':
-      case 'no_peers':
-        return { status: 'ready', duration: Date.now() - startTime }
+    this.logger.log(`🔄 Restarting to apply update...`)
+    process.exit(0)  // Docker supervisor / restart policy handles restart
+  }
 
-      case 'stale_nodes':
-        this.logger.warn(
-          `Cluster has stale nodes: ${consensus.staleNodes.join(', ')} ` +
-          `(version ${consensus.staleVersion} vs current ${consensus.currentVersion}). ` +
-          `Update stale nodes to match.`
-        )
-        await this.meshEventService.emit('schema_version_mismatch', {
-          type: 'stale_nodes',
-          staleNodes: consensus.staleNodes,
-          currentVersion: consensus.currentVersion,
-          staleVersion: consensus.staleVersion,
-          detectedBy: nodeId,
-        })
-        return { status: 'ready_with_warnings', staleNodes: consensus.staleNodes, duration: Date.now() - startTime }
-
-      case 'ahead_nodes':
-        this.logger.error(
-          `This node (${nodeId}) is BEHIND the cluster. ` +
-          `Peers ${consensus.aheadNodes.join(', ')} are on version ${consensus.aheadVersion}, ` +
-          `but this node is on ${consensus.localVersion}. ` +
-          `Deploy a newer version or rollback the cluster.`
-        )
-        await this.meshEventService.emit('schema_version_anomaly', {
-          type: 'node_behind',
-          aheadNodes: consensus.aheadNodes,
-          aheadVersion: consensus.aheadVersion,
-          localVersion: consensus.localVersion,
-          nodeId,
-        })
-        return { status: 'blocked', reason: 'node_behind_cluster', duration: Date.now() - startTime }
+  private async checkForUpdate(): Promise<string | null> {
+    // Strategy 1: Check container registry for newer image tag
+    try {
+      const manifest = await fetch('https://registry.n0safe.io/v2/api/manifests/latest')
+      const labels = manifest.headers.get('docker-image-labels')
+      // ...
+    } catch {
+      // Strategy 2: Check git tags
+      // ...
     }
+    return null
   }
 
-  // ... private helper methods as described above
+  private async saveUpdateMarker(version: string): Promise<void> {
+    // Write to a well-known path that the entrypoint checks
+    await fs.writeFile('/tmp/pending-update.json', JSON.stringify({
+      version,
+      triggeredAt: new Date().toISOString(),
+    }))
+  }
 }
 ```
 
-### Lifecycle Integration
+### Entrypoint Update Detection
 
-The coordinator should be triggered automatically when the NestJS application starts:
+Both `entrypoint.dev.ts` and `entrypoint.prod.ts` should check for update markers:
 
 ```typescript
-// Option A: Module lifecycle hook
-@Module({ /* ... */ })
-export class GlobalDatabaseModule implements OnModuleInit {
-  constructor(private readonly coordinator: GlobalMigrationCoordinatorService) {}
-
-  async onModuleInit() {
-    const result = await this.coordinator.runStartupProtocol()
-    if (result.status === 'blocked') {
-      // Log and let the health check reflect the blocking state
-      // The application starts but reports unhealthy
-    }
-  }
-}
-
-// Option B: Dedicated CLI command for manual/script usage
-// bun --bun run cli db:migrate:global
-```
-
-### Health Check Integration
-
-The migration status should be exposed via the health endpoint:
-
-```typescript
-@Injectable()
-export class MigrationHealthIndicator {
-  private status: 'ok' | 'behind' | 'blocked' = 'ok'
-  private details: Record<string, unknown> = {}
-
-  setStatus(status: 'ok' | 'behind' | 'blocked', details?: Record<string, unknown>) {
-    this.status = status
-    this.details = details ?? {}
-  }
-
-  async getHealth(): Promise<HealthIndicatorResult> {
-    return {
-      globalDbMigration: {
-        status: this.status === 'ok' ? 'up' : 'down',
-        ...this.details,
-      },
-    }
+function checkPendingUpdate(): void {
+  const markerPath = '/tmp/pending-update.json'
+  if (existsSync(markerPath)) {
+    const marker = JSON.parse(readFileSync(markerPath, 'utf-8'))
+    console.log(`🔄 Completing update to ${marker.version}...`)
+    // Log the successful update
+    console.log(`✅ Node updated to version ${marker.version}`)
+    rmSync(markerPath)
   }
 }
 ```
 
----
+### Self-Update Detection Strategies
 
-## Event System Integration
-
-The migration coordinator should emit mesh events so the cluster can react:
-
-### Events
-
-| Event | Trigger | Payload | Consumer |
-|-------|---------|---------|----------|
-| `schema_version_updated` | Node reports its version | `{ nodeId, schemaVersion, appVersion, appliedMigrations }` | Mesh peer sync, monitoring |
-| `schema_version_mismatch` | Stale nodes detected | `{ type: 'stale_nodes', staleNodes, currentVersion, staleVersion, detectedBy }` | Admin dashboard, alerts |
-| `schema_version_anomaly` | Node behind cluster | `{ type: 'node_behind', aheadNodes, aheadVersion, localVersion, nodeId }` | Health checks, auto-remediation |
-| `migration_applied` | A migration was just applied | `{ nodeId, version, migrationName, duration }` | Audit log, streaming UI |
-
-### Error Contracts (ORPC)
-
-Following the existing [ORPC error patterns](/docs/dev/orpc):
-
-```typescript
-const migrationErrorContracts = {
-  SCHEMA_MISMATCH: error()
-    .message("Cluster schema version mismatch")
-    .status(503)
-    .data(z.object({
-      staleNodes: z.array(z.string()),
-      currentVersion: z.string(),
-      staleVersion: z.string(),
-    })),
-  NODE_BEHIND: error()
-    .message("Node schema is behind cluster")
-    .status(503)
-    .data(z.object({
-      nodeVersion: z.string(),
-      clusterVersion: z.string(),
-      aheadNodes: z.array(z.string()),
-    })),
-}
-```
-
----
-
-## Error Scenarios
-
-### Scenario 1: Network Partition During Migration
-
-```
-Node A (version 0010) ──┐
-                        ├── Global DB ──┐
-Node B (version 0005) ──┘              │
-                                        │
-Node C (new, version 0010) ─────────────┘
-```
-
-If Node C starts during a network partition where it can see the DB but not the mesh peers:
-
-1. Node C queries `schema_version` → sees Node A and Node B rows
-2. Node C applies any pending migrations (idempotent)
-3. Node C reports its version (0010)
-4. Partition prevents C from knowing that Node B is offline and behind
-
-**Mitigation**: The migration coordinator should also check `mesh_cluster_nodes` for the **expected** set of peers. If some nodes are missing from `schema_version` but present in `cluster_nodes`, they are either offline or partitioned. In either case, **do not block** — the online nodes are consistent.
-
-### Scenario 2: Concurrent Migration
-
-```
-Node A ──┐
-         ├── Global DB
-Node B ──┘
-Both start simultaneously, both try to apply migration 0011
-```
-
-1. Both read `__drizzle_migrations` → last applied is 0010
-2. Both try to apply 0011
-3. Drizzle's migrator runs in a transaction
-4. First node to commit records 0011 in `__drizzle_migrations`
-5. Second node's transaction detects the conflict → rolls back → re-reads `__drizzle_migrations` → sees 0011 applied → skips
-
-**Result**: Migration 0011 is applied exactly once. Both nodes converge. This is safe by design.
-
-### Scenario 3: Two Nodes with Different Code Versions
-
-```
-Node A (app v2.0, schema 0010)
-Node B (app v1.5, schema 0005)
-Node C (new, app v2.0, schema 0010)
-```
-
-Node C starts:
-
-1. Applies any pending migrations (none — Node A already applied 0010)
-2. Reports own version 0010
-3. Queries peers → Node A at 0010, Node B at 0005
-4. **Decision**: Cluster is inconsistent (Node B stale)
-5. Node C starts with warning, emits event, exposes in health check
-6. **Outcome**: Node C serves normally, but ops is alerted about Node B
-
-### Scenario 4: Node Rejoining After Long Absence
-
-A node that was offline for weeks rejoins. Its schema version is far behind.
-
-1. Node queries `__drizzle_migrations` → migration files on disk are old
-2. But wait — the migration files are part of the code, so if the node was updated, it has the files
-3. If the node was NOT updated (same code version) → its schema version matches peers → fine
-4. If the node WAS updated (newer code with migration files) → it applies pending migrations
-5. If the code is OLDER than peers → `ahead_nodes` scenario → blocked
-
-**Key insight**: Migration files live in the codebase. A node that hasn't been updated doesn't have the new migration files. So the scenario of "long-absent node with old code rejoining modern cluster" resolves to `ahead_nodes` → blocked, which is correct.
-
-### Scenario 5: Schema Version Table Doesn't Exist
-
-If the `schema_version` table itself doesn't exist (fresh DB, no migrations applied yet):
-
-1. The coordinator should catch the `relation "schema_version" does not exist` error
-2. Fall back to: create the table as part of the bootstrap migration sequence
-3. The `schema_version` table should be created by migration 0000 (the first migration)
-4. If even migration 0000 hasn't been applied, the DB is empty — safe to apply all migrations
-
-```typescript
-async function ensureSchemaVersionTable(): Promise<void> {
-  try {
-    await db.execute(sql`SELECT 1 FROM schema_version LIMIT 1`)
-  } catch {
-    // Table doesn't exist — create it as part of bootstrap
-    // This is a one-time migration that should also be in migration 0000
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS schema_version (
-        node_id TEXT PRIMARY KEY,
-        schema_version TEXT NOT NULL,
-        applied_migrations JSONB NOT NULL DEFAULT '[]',
-        app_version TEXT NOT NULL,
-        last_verification TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `)
-  }
-}
-```
+| Strategy | How It Works | Best For |
+|----------|-------------|----------|
+| **Docker registry API** | Query registry for latest tag, compare with current image | Production Docker deployments |
+| **Git tags** | `git fetch --tags && git describe --tags origin/main` | Development environments |
+| **Version manifest URL** | Fetch `https://releases.n0safe.io/versions.json` for latest | Air-gapped environments |
+| **Cluster recommendation** | Read `cluster_migration_state.requiredAppVersion` and infer target | Auto-detect from cluster needs |
 
 ---
 
 ## Integration with Existing Mesh Services
 
-The migration coordinator integrates with several existing services:
+### MeshClusterSyncService
 
-### Peer Discovery
+The existing peer sync service should sync `schema_version` data. When a peer updates its schema version, the sync propagates it to all connected nodes.
 
-Uses `MeshClusterSyncService` (or directly queries `cluster_nodes` table) to discover expected peers:
+### Health Check Integration
 
-```typescript
-async function getExpectedPeers(): Promise<string[]> {
-  const rows = await db
-    .select({ nodeId: clusterNodes.nodeId })
-    .from(clusterNodes)
-    .where(eq(clusterNodes.status, 'active'))
-  return rows.map(r => r.nodeId)
-}
-```
+The health endpoint should expose migration status:
 
-### Event Emission
-
-Uses the existing mesh event system (`SystemMeshTopicService` or `CoreEventStreamPoolService`) to emit schema version events. This allows:
-
-- Admin dashboards to show real-time migration status
-- Alerting systems to detect stuck clusters
-- Other services to react (e.g., load balancer to avoid stale nodes)
-
-### Health Endpoint
-
-The existing `/health` endpoint should include migration status:
-
-```typescript
-// Register the migration health indicator
-@Injectable()
-export class HealthController {
-  constructor(
-    private readonly health: HealthCheckService,
-    private readonly migrationHealth: MigrationHealthIndicator,
-  ) {}
-
-  @Get('health')
-  @HealthCheck()
-  check() {
-    return this.health.check([
-      () => this.migrationHealth.getHealth(),
-    ])
+```json
+{
+  "status": "ok",
+  "info": {
+    "globalDbMigration": {
+      "status": "up",
+      "schemaVersion": "0011",
+      "appVersion": "2.1.0",
+      "clusterConsensus": "consistent",
+      "peersCount": 3,
+      "outdatedPeers": []
+    }
   }
 }
 ```
 
-### Docker Compose Service Changes
+### Mesh Events
 
-The existing `migrate` docker-compose service should be replaced by the mesh-coordinated startup. The dependency chain becomes:
+New migration-related events for the mesh event system:
 
-```yaml
-services:
-  api:
-    depends_on:
-      postgres:
-        condition: service_healthy
-    # No more migrate service dependency — migration is internal
-```
+| Event | Trigger | Payload | Consumers |
+|-------|---------|---------|-----------|
+| `migration_applied` | A migration was just applied | `{ nodeId, version, name, duration }` | Audit log, admin UI |
+| `node_schema_updated` | Node's schema_version upserted | `{ nodeId, schemaVersion, appVersion }` | Mesh peer sync, monitoring |
+| `cluster_schema_advanced` | cluster_migration_state updated | `{ oldVersion, newVersion, appliedBy }` | All nodes react to new state |
+| `registration_denied` | Node blocked by registration guard | `{ nodeId, reason, missingMigrations }` | Admin alert |
+| `node_update_available` | New version detected | `{ currentVersion, latestVersion }` | Admin UI, auto-update trigger |
+| `node_updating` | Node is about to restart for update | `{ nodeId, fromVersion, toVersion }` | Mesh routing table update |
+| `node_updated` | Node completed update | `{ nodeId, newVersion }` | Mesh routing table update |
+| `peer_version_mismatch` | Peer app version below requiredAppVersion | `{ peerNodeId, peerAppVersion, requiredVersion }` | Admin alert, auto-update trigger |
 
 ---
 
-## Rollback Strategy
+## Error Scenarios — Complete Catalog
 
-### Code Rollback
+### Scenario A: Stale Node Attempts to Join
 
-If a migration needs to be rolled back:
+```
+Cluster: Schema 0010, Nodes: A(v2.0.0, 0010), B(v2.0.0, 0010)
+Attempting: Node C(v1.5.0, 0006)
+```
 
-1. **Write a reversal migration**: Create a new migration file that reverses the schema change
-2. **Deploy the reversal**: Add the reversal migration to all nodes
-3. **Let the nodes converge**: Each node applies the reversal on next startup
-4. **Verify cluster consensus**: The `schema_version` table should converge
+1. Node C connects to global DB
+2. C's migration files: goes up to 0008 (v1.5.x includes 0007-0008)
+3. Phase 7 (Registration Guard):
+   - DB has migrations: 0000-0010
+   - C's code has migrations: 0000-0008
+   - Missing from C: 0009, 0010
+4. ❌ **`NODE_TOO_OLD`** — Exit code 5
+
+**Result:** Registration denied. Node C must update to >= v1.8.0.
+
+### Scenario B: Critically Old Node
+
+```
+Cluster: Schema 0010, Nodes: A(v2.0.0), B(v2.0.0)
+Attempting: Node C(v1.0.0, 0004)
+```
+
+1. Phase 7 (Registration Guard):
+   - DB has migrations: 0000-0010
+   - C's code has migrations: 0000-0004
+   - Missing from C: 0005, 0006, 0007, 0008, 0009, 0010
+2. ❌ **`NODE_TOO_OLD`** — Exit code 5
+
+**Result:** Registration denied. Node C must update to >= v2.0.0.
+
+### Scenario C: Fresh Cluster, First Node
+
+```
+Cluster: Empty DB, no nodes
+Attempting: Node A(v2.0.0)
+```
+
+1. Phase 4: Drizzle applies ALL migrations from 0000 to 0011
+2. Phase 7: `__drizzle_migrations` has 12 entries. A's code has 12 entries. ✅ ALL PRESENT
+3. Phase 8: No peers → first node
+4. Phase 9: Create initial `cluster_migration_state` with `clusterSchemaVersion: "0011"`
+5. Phase 10: Register in `cluster_nodes` ✅
+
+**Result:** Node A is the cluster's first node.
+
+### Scenario D: Concurrent Migration Attempt
+
+```
+Cluster: Schema 0010, Nodes: A(v2.0.0), B(v2.0.0)
+New migration 0011 is added. Both nodes restart simultaneously.
+```
+
+1. Node A Phase 4: Drizzle starts applying 0011
+2. Node B Phase 4: Drizzle starts applying 0011
+3. Node A acquires `pg_advisory_lock` first, applies 0011
+4. Node B's Drizzle run detects 0011 already applied → skips it
+5. Both report `schema_version: 0011`
+6. Both pass registration guard
+7. Both register
+
+**Result:** Safe. Migration applied exactly once.
+
+### Scenario E: Node Restarts With Same Old Code After Cluster Advanced
+
+```
+Cluster: Schema 0011, Nodes: A(v2.0.0), B(v2.0.0). Cluster advanced to 0011.
+Node C(v1.8.0, 0010) restarts.
+```
+
+1. Phase 4: C's code has migrations only up to 0010. Drizzle skips 0011 (no file).
+2. Phase 5: C reports `schemaVersion: 0010`
+3. Phase 6: C reads `cluster_migration_state: { clusterSchemaVersion: "0011", requiredAppVersion: ">=2.0.0" }`
+4. Phase 7 (Registration Guard):
+   - DB has: 0000-0011
+   - C's code has: 0000-0010
+   - Missing: 0011
+5. ❌ **`NODE_TOO_OLD`** — Exit code 5
+
+**Result:** Registration denied. C must update to >= v2.0.0.
+
+### Scenario F: Long-Running Node That Never Restarts (Node Still On Old Code)
+
+```
+Cluster advances from Schema 0010 → 0011 (migration applied by Node A)
+Node B: running schema 0010 code for 60 days, never restarted
+```
+
+**While Node B is running with old code:**
+- Node B serves traffic for features that don't depend on 0011 tables
+- Node B's `schema_version` shows 0010 (stale)
+- `cluster_migration_state` shows `clusterSchemaVersion: "0011"` (Node A updated it)
+- Health checks show the mismatch but don't disrupt existing traffic
+- When Node B eventually restarts → Scenario E applies
+
+**Result:** Graceful degradation. Traffic continues; Node B must update before next restart.
+
+### Scenario G: Fresh Node With Higher Code Version Than Existing Cluster
+
+```
+Cluster: Schema 0006, Nodes: A(v1.5.0, 0006)
+Attempting: Node D(v2.0.0, 0011)
+```
+
+1. Phase 4: Drizzle applies migrations 0007-0011 (newer files exist in D's code)
+2. Phase 5: D reports `schemaVersion: 0011`
+3. Phase 7: Guard passes (all DB migrations exist in D's code)
+4. Phase 8: A is at schema 0006
+5. Phase 9: A is behind, but D can serve. Warning emitted.
+6. Phase 10: D registers ✅
+
+**Result:** Node D joins as the advanced node. Node A is stale. Both serve traffic; A has degraded status.
+
+### Scenario H: Migration Manifest Is Outdated
+
+```
+Cluster: Schema 0011, manifest says "0011"
+Developer adds migration 0012 but FORGETS to update manifest
+```
+
+1. Phase 4: Drizzle applies 0012. `__drizzle_migrations` now has up to 0012.
+2. Phase 7 (Registration Guard):
+   - DB has: 0000-0012
+   - Code has: 0000-0011 (manifest), but migration file 0012 exists on disk!
+   - Manifest says `currentSchemaVersion: "0011"` but DB has 0012
+3. ❌ **`MANIFEST_OUTDATED`** — Exit code 5
+4. Log: "Migration manifest schema version 0011 is behind DB version 0012. Update migration-manifest.json."
+
+**Result:** Registration is blocked, forcing the developer to update the manifest. This prevents accidental drift between the manifest and the actual migrations.
+
+### Scenario I: Registry Guard With Missing Manifest
+
+```
+Node starts without migration-manifest.json (deleted, never created, or volume mount issue)
+```
+
+1. Phase 1: Read manifest fails — file not found
+2. ❌ **`MANIFEST_MISSING_OR_INVALID`** — Exit code 5
+3. Log: "Migration manifest missing or corrupted. Cannot verify schema compatibility."
+4. Node never reaches the DB.
+
+**Result:** Registration blocked. Node can't join until the manifest is restored.
+
+---
+
+## CLI Command Exit Codes Summary
+
+### `register-mesh-node`
+
+| Exit Code | Meaning | When | Example |
+|-----------|---------|------|---------|
+| 0 | Success or graceful skip | Registered, already exists, or MESH_NODE_ID not set | `✅ Registered mesh node` |
+| 1 | Configuration error | Bad env vars | `❌ Invalid UUID` |
+| 2 | DB not ready | Transient connectivity failure | `⚠️ ECONNREFUSED` |
+| 3 | Migrations needed | Tables missing | `⚠️ cluster_nodes not found` |
+| 4 | Registration failed | DB error during insert | `❌ Connection lost` |
+| **5** | **Registration DENIED** | Guard blocked the node | `❌ NODE_TOO_OLD` or `❌ MANIFEST_OUTDATED` or `❌ NODE_BEHIND_CLUSTER` |
+
+### `migrate`
+
+| Exit Code | Meaning | When |
+|-----------|---------|------|
+| 0 | Success | All migrations applied |
+| 1 | SQLite verify failed | Local DB corrupted |
+| 2 | Postgres failed | DB unreachable, file error, or migration failure |
+
+---
+
+## Implementation Plan
+
+### Phase 1: Schema Tables + Manifest (Migration 0011)
+- [ ] Create `schema-version.schema.ts` with `schema_version` table
+- [ ] Create `cluster-migration-state.schema.ts` with `cluster_migration_state` table
+- [ ] Create `migration-manifest.schema.ts` (Zod schema for manifest validation)
+- [ ] Create `migration-manifest.json` with entries for migrations 0000-0011
+- [ ] Generate Drizzle migration 0011
+- [ ] Export both schemas from `global/schema/index.ts`
+- [ ] Apply: `db:generate` then `db:push` (dev) or `db:migrate` (prod)
+
+### Phase 2: Registration Guard
+- [ ] Add `readMigrationManifest()` utility function to `register-mesh-node.command.ts`
+- [ ] Add `registrationGuard()` function implementing the guard logic
+- [ ] Wire guard into Phase 7 of the command (before Phase 4 registration)
+- [ ] Add exit code 5 handling in both entrypoints
+- [ ] Handle backward compatibility (pre-0011, manifest missing gracefully)
+
+### Phase 3: GlobalMigrationCoordinatorService
+- [ ] Create `GlobalMigrationCoordinatorService` in `apps/api/src/core/modules/database/global/services/`
+- [ ] Implement the full 10-phase startup protocol
+- [ ] Add `MigrationHealthIndicator` for health endpoint
+- [ ] Wire into `GlobalDatabaseModule.onModuleInit()`
+
+### Phase 4: Peer Version Sync
+- [ ] Add periodic schema_version re-reporting (every 60s)
+- [ ] Update `MeshClusterSyncService` to include schema version data
+- [ ] Add migration events to the mesh event system
+
+### Phase 5: Self-Update Command
+- [ ] Create `self-update.command.ts`
+- [ ] Add update marker mechanism in entrypoints
+- [ ] Implement Docker registry version check
+- [ ] Implement git tag version check (dev mode)
+
+### Phase 6: Testing & Documentation
+- [ ] Unit tests for registration guard (all 12+ edge cases)
+- [ ] Integration test: two nodes starting simultaneously
+- [ ] Integration test: old node blocked from joining
+- [ ] Chaos test: DB lost mid-migration
+- [ ] E2E test: full cluster upgrade cycle (v1.0 → v2.0 with migration 0011)
+- [ ] Add migration manifest validation to CI
+
+---
+
+## Glossary
+
+| Term | Definition |
+|------|------------|
+| **Schema version** | The version number of the last applied migration (e.g., "0011") |
+| **App version** | The semantic version of the application code (e.g., "2.1.0") |
+| **Migration manifest** | JSON file at `migrations/migration-manifest.json` listing all migrations with their requirements |
+| **Registration guard** | Phase 7 check that prevents outdated nodes from joining the cluster |
+| **Cluster consensus** | Agreement among all active nodes on the current schema version |
+| **Admission lock** | PostgreSQL advisory lock that prevents concurrent migration attempts |
+| **Update marker** | A temp file (`/tmp/pending-update.json`) that signals a pending self-update to the entrypoint |
+| **Stale node** | A node whose schema version is behind the cluster's current target |
+| **Outdated node** | A node whose app version is below the cluster's minimum requirement |
+| **Global version registry** | The combination of `cluster_migration_state` (cluster-wide target) + `schema_version` (per-node state) |
+| **Optimistic locking** | Using `recordVersion` to detect concurrent writes to `cluster_migration_state` |
+
+---
+
+## Related Documentation
+
+- [Database Lifecycle](/docs/dev/database-lifecycle) — Schema ownership, migration commands, dev/prod flow
+- [Architecture Overview](/docs/architecture/architecture) — System boundaries, multi-node topology
+- [Mesh-Consumer Boundary Pattern](/docs/architecture/mesh-consumer-boundary-pattern) — Mesh responsibilities vs domain responsibilities
+- [Event System Streams](/docs/dev/event-system-streams) — Mesh event system used for migration events
+- [ORPC Type-Safe API](/docs/dev/orpc) — Error contracts and typed endpoints
+- [Production Deployment](/docs/deployment/production-deployment) — Full deployment sequence
+- [Mesh Peer Selection Algorithm](/docs/architecture/mesh-peer-selection-algorithm) — How the mesh picks coordinator roles
 
 ### Data Rollback
 

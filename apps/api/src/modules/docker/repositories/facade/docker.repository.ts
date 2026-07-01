@@ -4416,34 +4416,48 @@ export class DockerRepository {
 
     const groupedByStack = new Map<string, DockerStack>();
 
-    for (const container of rawContainers) {
-      const labels = (container.Labels as Record<string, string> | undefined) ?? {};
+    for (const raw of rawContainers) {
+      const labels: Record<string, string> = (raw.Labels ?? {}) as Record<string, string>;
       const stackName =
         labels["com.docker.compose.project"] ??
         labels["com.docker.stack.namespace"] ??
         "standalone";
-      const context: DeploymentContext | undefined = undefined;
 
-      const containerId = String(container.Id ?? "");
-      const containerStatus = this.normalizeContainerStatus(String(container.State ?? "unknown"));
-      const name = String((container.Names as string[] | undefined)?.[0] ?? "").replace(/^\//, "") || String(container.Id ?? "unknown-container");
-      const serviceId = this.resolveContainerServiceId(context, labels, name, containerId);
-      const projectId = this.resolveContainerProjectId(context, labels, serviceId, name);
+      const rawId = typeof raw.Id === "string" ? raw.Id : "";
+      const rawName = typeof raw.Names?.[0] === "string" ? raw.Names[0].replace(/^\//, "") : "";
+
+      // Use normalizer for docker-specific conversion, link resolver for enrichment
+      const enrichment = this.linkResolver?.resolveEnrichment(
+        labels,
+        rawName || rawId,
+        rawId,
+        typeof raw.Image === "string" ? raw.Image : "unknown-image",
+        labels["deployer.network_mode"] ?? null,
+      );
+      const typed = this.normalizer.normalizeContainer(raw as Parameters<typeof this.normalizer.normalizeContainer>[0], enrichment ?? {
+        projectId: labels["com.docker.compose.project"] ?? rawId,
+        serviceId: labels["com.docker.compose.service"] ?? rawId,
+        environment: null,
+        managedBy: "orphan" as const,
+        managedReason: null,
+        managedDeploymentId: null,
+        managedServiceId: null,
+        managedProjectId: null,
+        managedImageRef: null,
+        managedNetworkMode: null,
+        logsStreamId: null,
+      });
 
       const existing = groupedByStack.get(stackName);
       const serviceRef = {
-        serviceId,
-        imageId: String(container.ImageID ?? "") || null,
-        containerIds: [containerId],
-        networkIds: Object.keys(
-          ((container.NetworkSettings as { Networks?: Record<string, unknown> } | undefined)?.Networks ?? {}),
-        ),
-        volumeIds: ((container.Mounts as Record<string, unknown>[] | undefined) ?? [])
-          .map((mount) => (typeof mount.Name === "string" ? mount.Name : null))
-          .filter((value): value is string => value !== null),
+        serviceId: typed.serviceId,
+        imageId: typed.imageId,
+        containerIds: [typed.id],
+        networkIds: typed.networkIds,
+        volumeIds: typed.volumeIds,
         replicas: 1,
         desiredReplicas: 1,
-        status: containerStatus,
+        status: typed.status,
       } as const;
 
       if (!existing) {
@@ -4452,18 +4466,18 @@ export class DockerRepository {
           dockerStackSchema.parse({
             id: stackName,
             name: stackName,
-            projectId,
+            projectId: typed.projectId,
             status:
-              containerStatus === "running"
+              typed.status === "running"
                 ? "healthy"
-                : containerStatus === "exited" || containerStatus === "dead"
+                : typed.status === "exited" || typed.status === "dead"
                   ? "failed"
                   : "degraded",
             services: [serviceRef],
             networkIds: [...serviceRef.networkIds],
             volumeIds: [...serviceRef.volumeIds],
             labels: {},
-            createdAt: new Date().toISOString(),
+            createdAt: typed.createdAt,
             updatedAt: new Date().toISOString(),
           }),
         );
@@ -4471,7 +4485,7 @@ export class DockerRepository {
       }
 
       const nextStatus =
-        existing.status === "failed" || containerStatus === "dead" || containerStatus === "exited"
+        existing.status === "failed" || typed.status === "dead" || typed.status === "exited"
           ? "failed"
           : existing.status;
 

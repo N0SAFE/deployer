@@ -13,3 +13,5 @@ export * from "./cluster";
 export * from "./runtime";
 export * from "./docker-security-scan";
 export * from "./docker-runtime-activity";
+export * from "./schema-version";
+export * from "./cluster-migration-state";
