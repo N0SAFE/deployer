@@ -105,6 +105,7 @@ import {
   Users,
   XCircle,
 } from 'lucide-react'
+import type { MeshNodeRole, MeshRoutingMode, MeshPartitionConsistencyMode } from '@repo/contracts-entities'
 import Image from 'next/image'
 import { AuthDashboardAdminOrganizationsOrganizationId } from '@/routes'
 import { toast } from 'sonner'
@@ -659,9 +660,9 @@ export default function AdminSystemPage() {
         region: editRegion.trim() || null,
         zone: editZone.trim() || null,
         version: editVersion.trim() || null,
-        roles: editRoles.trim() ? editRoles.split(',').map((s) => s.trim() as any) : null,
-        routingMode: (editRoutingMode as any) || null,
-        consistencyMode: (editConsistencyMode as any) || null,
+        roles: editRoles.trim() ? editRoles.split(',').map((s) => s.trim()).filter(Boolean) as MeshNodeRole[] : null,
+        routingMode: (editRoutingMode || null) as MeshRoutingMode | null,
+        consistencyMode: (editConsistencyMode || null) as MeshPartitionConsistencyMode | null,
       })
       setShowConfigForm(false)
       toast.success('Node configuration updated')
@@ -1740,7 +1741,7 @@ export default function AdminSystemPage() {
                           setEditNodeId(cfg?.nodeId ?? localNode?.nodeId ?? '')
                           setEditStrategy(cfg?.strategy === 'remote' ? 'remote' : 'local')
                           setEditMeshUrls((cfg?.meshUrlsSnapshot ?? []).join('\n'))
-                          setEditDatabaseUrl((cfg as any)?.databaseUrl ?? '')
+                          setEditDatabaseUrl('databaseUrl' in cfg ? (cfg as { databaseUrl?: string }).databaseUrl ?? '' : '')
                           setEditRegion(localNode?.region ?? '')
                           setEditZone(localNode?.zone ?? '')
                           setEditVersion(localNode?.version ?? '')
@@ -2027,7 +2028,7 @@ export default function AdminSystemPage() {
                             </TableCell>
                             {showSecrets && (
                               <TableCell className="font-mono text-xs max-w-48 truncate">
-                                {'secretMaterial' in key ? (key as any).secretMaterial : '—'}
+                                {'secretMaterial' in key ? (key as { secretMaterial?: string }).secretMaterial ?? '—' : '—'}
                               </TableCell>
                             )}
                           </TableRow>

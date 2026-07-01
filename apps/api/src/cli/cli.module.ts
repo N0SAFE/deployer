@@ -12,6 +12,7 @@ import { MigrateCommand } from './commands/migrate.command';
 import { ResetCommand } from './commands/reset.command/index';
 import { CreateDefaultAdminCommand } from './commands/create-default-admin.command';
 import { RegisterMeshNodeCommand } from './commands/register-mesh-node.command';
+import { NodeStartupCheckCommand } from './commands/node-startup-check.command';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { RegisterMeshNodeCommand } from './commands/register-mesh-node.command';
     ResetCommand,
     CreateDefaultAdminCommand,
     RegisterMeshNodeCommand,
+    NodeStartupCheckCommand,
   ],
 })
 export class CLIModule {}
