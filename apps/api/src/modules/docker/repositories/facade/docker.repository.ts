@@ -3899,14 +3899,14 @@ export class DockerRepository {
     const docker = this.dockerService.getDockerClient();
     const raw = await docker.listImages();
     const parsed = z.array(dockerodeImageSummarySchema).safeParse(raw);
-    const rawImages: Record<string, unknown>[] = parsed.success ? parsed.data as unknown as Record<string, unknown>[] : [];
+    const rawImages = parsed.success ? parsed.data : [];
 
     const mapped: DockerImage[] = [];
 
     for (const image of rawImages) {
-      const imageId = typeof image.Id === "string" ? image.Id.trim() : "";
-      const repoTags = ((image.RepoTags as string[] | undefined) ?? []).filter((tag) => tag && tag !== "<none>:<none>");
-      const repoDigests = this.toStringArray(image.RepoDigests as string | string[] | undefined);
+      const imageId = image.Id.trim();
+      const repoTags = (image.RepoTags ?? []).filter((tag) => tag !== "<none>:<none>");
+      const repoDigests = this.toStringArray(image.RepoDigests ?? []);
       const resolvedPrimaryTag = this.resolvePrimaryImageTag(repoTags, repoDigests);
       const fallbackRepository = this.buildFallbackImageRepository(imageId);
       const fallbackRegistry = "local";
