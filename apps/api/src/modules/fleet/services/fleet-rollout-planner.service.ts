@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { BadRequestError } from "@/core/errors/app-error";
 import type { DependencyTemplateConfig } from "@repo/contracts-entities";
 import type { ServiceDag } from "./service-dag.service";
 
@@ -113,7 +114,7 @@ export class FleetRolloutPlannerService {
         if (firstLayer !== undefined && firstLayer.length > 0) {
             const canaryServiceId = firstLayer[0];
             if (canaryServiceId === undefined) {
-                throw new Error("[FleetRolloutPlannerService] invariant violation: firstLayer is non-empty but index 0 is undefined");
+                throw new BadRequestError("[FleetRolloutPlannerService] invariant violation: firstLayer is non-empty but index 0 is undefined");
             }
             // First service in first layer gets a canary wave
             waves.push({

@@ -1,5 +1,6 @@
 import { Process, Processor, OnQueueFailed } from "@nestjs/bull";
 import { Logger, Optional } from "@nestjs/common";
+import { BadRequestError } from "@/core/errors/app-error";
 import type { Job } from "bull";
 import { randomUUID } from "crypto";
 import { DeploymentService } from "../services/deployment.service";
@@ -151,7 +152,7 @@ export class DeploymentQueueProcessor {
 
         const lockToken = claimed.lockToken;
         if (!lockToken) {
-            throw new Error(`Claimed queue job '${claimed.id}' is missing a lock token`);
+            throw new BadRequestError(`Claimed queue job '${claimed.id}' is missing a lock token`);
         }
 
         const heartbeatTimer = setInterval(() => {
@@ -265,7 +266,7 @@ export class DeploymentQueueProcessor {
         fallbackContainerImage: string | null;
     }): Promise<string | null> {
         if (!this.deploymentArtifactBuilderService) {
-            throw new Error("DeploymentArtifactBuilderService is required for builder stage execution");
+            throw new BadRequestError("DeploymentArtifactBuilderService is required for builder stage execution");
         }
 
         return this.deploymentArtifactBuilderService.buildContainerizedArtifact({

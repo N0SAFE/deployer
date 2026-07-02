@@ -366,7 +366,7 @@ export class DeploymentRepository {
 
             return [created];
         });
-        if (!row) throw new Error("Failed to create deployment");
+        if (!row) throw new ConflictError("Failed to create deployment");
         return toDto(row);
     }
 
@@ -720,7 +720,7 @@ export class DeploymentRepository {
 
             return [created];
         });
-        if (!row) throw new Error("Failed to insert deployment log");
+        if (!row) throw new ConflictError("Failed to insert deployment log");
         return toLogDto(row);
     }
 
@@ -770,7 +770,7 @@ export class DeploymentRepository {
             .returning();
 
         if (!row) {
-            throw new Error("Failed to create deployment rollback");
+            throw new ConflictError("Failed to create deployment rollback");
         }
 
         return toRollbackDto(row);

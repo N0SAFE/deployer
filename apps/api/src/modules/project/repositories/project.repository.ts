@@ -12,6 +12,7 @@ import { localEventOutbox } from "@/config/drizzle/global/schema/runtime";
 import { and, asc, count, desc, eq, ilike, inArray } from "drizzle-orm";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";
+import { ConflictError } from "@/core/errors/app-error";
 import type { ProjectListInput } from "@repo/api-contracts/modules/project/list";
 
 // ---------------------------------------------------------------------------
@@ -233,7 +234,7 @@ export class ProjectRepository {
 
             return [created];
         });
-        if (!row) throw new Error("Failed to create project");
+        if (!row) throw new ConflictError("Failed to create project");
         return transformProject(row);
     }
 
