@@ -740,7 +740,7 @@ export class ProjectService {
         const resolved = data.template.replace(/\$\{([^}]+)\}/g, (_match, key: unknown) => {
             return `<${String(key)}>`;
         });
-        return { resolved, variables: {} as Record<string, string> };
+        return { resolved, variables: {} satisfies Record<string, string> };
     }
 
     async getAvailableVariables(

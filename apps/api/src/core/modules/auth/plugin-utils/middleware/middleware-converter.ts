@@ -99,9 +99,9 @@ function defaultContextExtractor(executionContext: ExecutionContext): Middleware
 
   // Extract and safely type the request properties
   // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-  const params = (request.params ?? {}) as Record<string, string>;
+  const params: Record<string, string> = request.params ?? {};
   // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-  const query = (request.query ?? {}) as Record<string, string>;
+  const query: Record<string, string> = request.query ?? {};
   // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
   const body = request.body as unknown;
   // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -816,7 +816,7 @@ export function extractCheckMetadata(check: MiddlewareCheck): {
     description: check.description,
     errorCode: check.getErrorCode(),
     errorMessage: check.getErrorMessage(),
-    permissions: 'permissions' in check ? (check.permissions as Record<string, string[]>) : undefined,
+    permissions: 'permissions' in check && isRecord(check.permissions) ? check.permissions as Record<string, string[]> : undefined,
     roles: 'requiredRoles' in check ? (check.requiredRoles as readonly string[]) : undefined,
   };
 }
