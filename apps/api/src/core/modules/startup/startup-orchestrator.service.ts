@@ -16,7 +16,8 @@
  * for the app to be healthy.
  */
 
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
+import type { OnModuleInit } from "@nestjs/common";
 import { migrate as migratePg } from "drizzle-orm/node-postgres/migrator";
 import { sql } from "drizzle-orm";
 import { fileURLToPath } from "node:url";

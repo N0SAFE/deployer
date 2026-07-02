@@ -21,7 +21,7 @@ export const clusterMigrationState = pgTable("cluster_migration_state", {
 
   /// The minimum app version (semver range) required to be in the cluster.
   /// Nodes with appVersion below this are considered outdated and may be blocked.
-  /// Computed from the migration manifest's highest minAppVersion.
+  /// Derived from package.json version at registration time.
   requiredAppVersion: text("required_app_version").notNull(),
 
   /// List of active node IDs that contributed to the current consensus.

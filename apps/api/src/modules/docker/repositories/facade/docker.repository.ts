@@ -18,6 +18,7 @@ import type { DockerContainerListInput } from "@repo/api-contracts/modules/docke
 import type { DockerImageListInput } from "@repo/api-contracts/modules/docker/images/list";
 import { dockerodeContainerListSchema, dockerodeImageSummarySchema, dockerodeImageInspectSchema, dockerodeNetworkSummarySchema, dockerodeVolumeListResponseSchema, type DockerodeContainerList } from "@repo/contracts-entities";
 import z from "zod/v4"
+import { isRecord } from "@repo/type-guards"
 import type { DockerNetworkListInput } from "@repo/api-contracts/modules/docker/networks/list";
 import type { DockerRegistryListInput } from "@repo/api-contracts/modules/docker/registries/list";
 import type { DockerStackListInput } from "@repo/api-contracts/modules/docker/stacks/list";
@@ -941,21 +942,17 @@ export class DockerRepository {
   }
 
   private extractRootFsLayers(source: unknown): string[] {
-    if (!source || typeof source !== "object") {
+    if (!isRecord(source)) {
       return [];
     }
 
-    const record = source as Record<string, unknown>;
-
     const rootFsCandidate = (() => {
-      const upper = record.RootFS;
-      if (upper && typeof upper === "object") {
-        return upper as Record<string, unknown>;
+      if (isRecord(source.RootFS)) {
+        return source.RootFS;
       }
 
-      const lower = record.RootFs;
-      if (lower && typeof lower === "object") {
-        return lower as Record<string, unknown>;
+      if (isRecord(source.RootFs)) {
+        return source.RootFs;
       }
 
       return null;
@@ -1125,7 +1122,7 @@ export class DockerRepository {
       pidMode: inspect.HostConfig.PidMode || null,
       networkMode: inspect.HostConfig.NetworkMode || null,
       cgroupnsMode:
-        (inspect.HostConfig as Record<string, unknown> | undefined)?.CgroupnsMode &&
+        isRecord(inspect.HostConfig) && inspect.HostConfig.CgroupnsMode &&
         typeof Reflect.get(inspect.HostConfig, "CgroupnsMode") === "string"
           ? (Reflect.get(inspect.HostConfig, "CgroupnsMode") as string)
           : null,
@@ -1265,12 +1262,12 @@ export class DockerRepository {
 
     const rootFs =
       typeof inspect.RootFS === "object" && inspect.RootFS !== null
-        ? (inspect.RootFS as Record<string, unknown>)
+        ? isRecord(inspect.RootFS) ? inspect.RootFS : {}
         : {};
 
     const config =
       typeof inspect.Config === "object" && inspect.Config !== null
-        ? (inspect.Config as Record<string, unknown>)
+        ? isRecord(inspect.Config) ? inspect.Config : {}
         : {};
 
     const createdAt =
@@ -1569,7 +1566,7 @@ export class DockerRepository {
         scanner,
         message,
         actorAttributes: event.actorAttributes,
-        payload: event.payload as Record<string, unknown>,
+        payload: isRecord(event.payload) ? event.payload : {},
         raw: event.raw,
         occurredAt,
         createdAt: now,
@@ -2020,7 +2017,7 @@ export class DockerRepository {
   }
 
   private resolveRuntimeActivityMessage(event: DockerRuntimeEvent): string | null {
-    const payload = event.payload as Record<string, unknown>;
+    const payload: Record<string, unknown> = isRecord(event.payload) ? event.payload : {};
     const candidates = [
       payload.containerName,
       payload.imageName,
@@ -2041,7 +2038,7 @@ export class DockerRepository {
   }
 
   private createRuntimeActivityFingerprint(event: DockerRuntimeEvent): string {
-    const payload = event.payload as Record<string, unknown>;
+    const payload = isRecord(event.payload) ? event.payload : {};
     return createHash("sha1")
       .update(
         [
