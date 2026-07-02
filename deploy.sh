@@ -501,22 +501,22 @@ print_info "Building Docker images (this may take a while)..."
 cd "$PROJECT_DIR"
 
 # Run docker-compose as the actual user (with sudo privileges for docker)
-if su - "$ACTUAL_USER" -c "cd $PROJECT_DIR && docker-compose -f docker/compose/docker-compose.prod.yml --env-file .env.prod up -d --build"; then
-    print_success "Docker containers started successfully"
+if su - "$ACTUAL_USER" -c "cd $PROJECT_DIR && docker-compose -f docker/compose/deployer/docker-compose.deployer.yml --env-file .env.prod up -d --build"; then
+    print_success "Docker container started successfully"
     print_info "PostgreSQL is accessible via Docker bridge gateway (already configured)"
 else
-    print_error "Failed to start Docker containers"
-    print_info "Check logs with: docker-compose -f docker/compose/docker-compose.prod.yml logs"
+    print_error "Failed to start Docker container"
+    print_info "Check logs with: docker-compose -f docker/compose/deployer/docker-compose.deployer.yml logs"
     exit 1
 fi
 
-# Wait for services to be healthy
-print_info "Waiting for services to start..."
+# Wait for service to be healthy
+print_info "Waiting for service to start..."
 sleep 10
 
 # Check container status
 print_header "📊 Container Status"
-su - "$ACTUAL_USER" -c "cd $PROJECT_DIR && docker-compose -f docker/compose/docker-compose.prod.yml ps"
+su - "$ACTUAL_USER" -c "cd $PROJECT_DIR && docker-compose -f docker/compose/deployer/docker-compose.deployer.yml ps"
 
 # Configure firewall (if UFW is available)
 print_header "🔥 Configuring Firewall"
