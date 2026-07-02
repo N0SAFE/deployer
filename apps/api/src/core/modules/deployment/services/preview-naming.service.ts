@@ -36,19 +36,19 @@ export class PreviewNamingService {
         switch (input.namingStrategy) {
             case "pr": {
                 if (input.prNumber == null) {
-                    throw new Error("namingStrategy=pr requires prNumber");
+                    throw new BadRequestError("namingStrategy=pr requires prNumber");
                 }
                 return `pr-${String(input.prNumber)}`;
             }
             case "branch": {
                 if (!input.branchName) {
-                    throw new Error("namingStrategy=branch requires branchName");
+                    throw new BadRequestError("namingStrategy=branch requires branchName");
                 }
                 return this.toSlug(input.branchName);
             }
             case "branch_hash": {
                 if (!input.branchName) {
-                    throw new Error("namingStrategy=branch_hash requires branchName");
+                    throw new BadRequestError("namingStrategy=branch_hash requires branchName");
                 }
                 const slug = this.toSlug(input.branchName);
                 const hashSeed = `${input.serviceId}:${input.branchName}:${input.commitSha ?? ""}`;

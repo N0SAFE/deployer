@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { BadRequestError } from "@/core/errors/app-error";
 import { createHash } from "node:crypto";
 import type {
     DockerContainerGroupedListInput,
@@ -1282,7 +1283,7 @@ export class DockerContainerResolutionService {
 
         const first = sorted[0];
         if (!first) {
-            throw new Error("No inspect response returned from mesh");
+            throw new BadRequestError("No inspect response returned from mesh");
         }
 
         return dockerContainerInspectDetailSchema.parse(first.detail);
