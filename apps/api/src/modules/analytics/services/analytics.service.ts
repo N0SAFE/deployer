@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { NotFoundError } from "@/core/errors/app-error";
 import { randomUUID } from "node:crypto";
 
 const DEFAULT_CPU_CORES = 4;
@@ -168,7 +169,7 @@ export class AnalyticsService {
         const first = data[0];
 
         if (!first) {
-            throw new Error("No resource metrics available");
+            throw new NotFoundError("No resource metrics available");
         }
 
         const peak = data.reduce((acc, current) => ({

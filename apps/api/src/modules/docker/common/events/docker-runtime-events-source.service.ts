@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { BadRequestError } from "@/core/errors/app-error";
 import {
   Observable,
   defer,
@@ -140,7 +141,7 @@ export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamS
       ).pipe(
         mergeMap((eventStream) => {
           if (!this.isReadableStream(eventStream)) {
-            throw new Error("docker.getEvents() did not return a readable stream");
+            throw new BadRequestError("docker.getEvents() did not return a readable stream");
           }
 
           const bufferState = { value: "" };

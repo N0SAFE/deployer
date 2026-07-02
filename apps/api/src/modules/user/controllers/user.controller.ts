@@ -1,4 +1,5 @@
 import { Controller } from "@nestjs/common";
+import { BadRequestError, NotFoundError, ConflictError } from "@/core/errors/app-error";
 import { Implement, implement } from "@orpc/nest";
 import { userContract } from "@repo/api-contracts";
 import { UserService } from "../services/user.service";
@@ -34,7 +35,7 @@ export class UserController {
         return implement(userContract.findById).use(requireAuth()).handler(async ({ input }) => {
             const userId = input.params.id;
             if (!userId) {
-                throw new Error("Missing user id parameter");
+                throw new BadRequestError("Missing user id parameter");
             }
             const user = await this.userService.findUserById(userId);
             if (!user) {
@@ -59,7 +60,7 @@ export class UserController {
         return implement(userContract.create).use(requireAuth()).handler(async ({ input }) => {
             const user = await this.userService.createUser(input);
             if (!user) {
-                throw new Error("Failed to create user");
+                throw new ConflictError("Failed to create user");
             }
             return {
                 status: 201,
@@ -83,7 +84,7 @@ export class UserController {
             const { id, ...updateData } = input;
             const user = await this.userService.updateUser(id, updateData);
             if (!user) {
-                throw new Error("User not found");
+                throw new NotFoundError("User not found");
             }
             return {
                 id: user.id,
@@ -102,7 +103,7 @@ export class UserController {
         return implement(userContract.delete).use(requireAuth()).handler(async ({ input }) => {
             const userId = input.params.id;
             if (!userId) {
-                throw new Error("Missing user id parameter");
+                throw new BadRequestError("Missing user id parameter");
             }
             const user = await this.userService.deleteUser(userId);
             if (!user) {

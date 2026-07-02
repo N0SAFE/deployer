@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { ConflictError } from "@/core/errors/app-error";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { pushSubscription, userVapidKeys } from "@/config/drizzle/global/schema/auth";
 import { eq, and } from "drizzle-orm";
@@ -38,7 +39,7 @@ export class PushRepository {
             .returning();
 
         if (!result) {
-            throw new Error("Failed to create VAPID keys");
+            throw new ConflictError("Failed to create VAPID keys");
         }
 
         return result;
@@ -93,7 +94,7 @@ export class PushRepository {
             .returning();
 
         if (!result) {
-            throw new Error("Failed to create push subscription");
+            throw new ConflictError("Failed to create push subscription");
         }
 
         return result;
@@ -120,7 +121,7 @@ export class PushRepository {
             .returning();
 
         if (!result) {
-            throw new Error("Failed to update push subscription");
+            throw new ConflictError("Failed to update push subscription");
         }
 
         return result;

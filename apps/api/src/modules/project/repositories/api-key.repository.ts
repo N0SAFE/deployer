@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { ConflictError } from "@/core/errors/app-error";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { apiKeys } from "@/config/drizzle/global/schema/deployment";
 import { eq, and } from "drizzle-orm";
@@ -56,7 +57,7 @@ export class ApiKeyRepository {
     async create(input: ApiKeyCreateInput): Promise<ApiKeyRow> {
         const db = this.databaseService.db;
         const results = await db.insert(apiKeys).values(input).returning();
-        if (!results[0]) throw new Error("Failed to create API key");
+        if (!results[0]) throw new ConflictError("Failed to create API key");
         return results[0];
     }
 

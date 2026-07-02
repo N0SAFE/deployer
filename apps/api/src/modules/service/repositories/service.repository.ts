@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { ConflictError } from "@/core/errors/app-error";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { services, serviceDependencies } from "@/config/drizzle/global/schema/deployment";
 import { localEventOutbox } from "@/config/drizzle/global/schema/runtime";
@@ -136,7 +137,7 @@ export class ServiceRepository {
             return [created];
         });
         if (!row) {
-            throw new Error("Failed to create service");
+            throw new ConflictError("Failed to create service");
         }
         return toDto(row);
     }
@@ -322,7 +323,7 @@ export class ServiceRepository {
             .values({ serviceId, dependsOnServiceId, isRequired })
             .returning();
         if (!row) {
-            throw new Error("Failed to add dependency");
+            throw new ConflictError("Failed to add dependency");
         }
         return {
             id: row.id,

@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { ConflictError } from "@/core/errors/app-error";
 import { nodeConfig } from "@/config/drizzle/local/schema";
 import { LocalDatabaseService } from "../../database/local/local-database.service";
 import { isRecord, isObjectLike } from "@repo/type-guards"
@@ -41,7 +42,7 @@ export class NodeConfigRepository {
             .run();
         const row = this.find();
         if (!row) {
-            throw new Error("NodeConfig upsert succeeded but row was not found");
+            throw new ConflictError("NodeConfig upsert succeeded but row was not found");
         }
         return row;
     }
