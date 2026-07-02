@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
-  import { CLOCK_TOKEN, type Clock } from "../../../shared/primitives/clock";
+import { isRecord } from "@repo/type-guards";
+import { CLOCK_TOKEN, type Clock } from "../../../shared/primitives/clock";
   import { TokenBucket } from "../../../shared/primitives/token-bucket";
   import { MeshAuthorizationError, MeshValidationError } from "../domain/mesh-errors";
     import { SystemMeshConfigService } from "../../system-mesh-config.service";
@@ -214,7 +215,8 @@ import { Inject, Injectable } from "@nestjs/common";
           // the method (e.g. `cfg()`) makes `this` undefined inside the
           // config service, which crashes any call that touches
           // `this.ensureMeshConfig()`. See system-mesh-config.service.ts.
-          const cfg = (this.meshConfigService as unknown as Record<string, unknown>)[configMethod];
+          const configService = isRecord(this.meshConfigService) ? this.meshConfigService : {};
+          const cfg = configService[configMethod];
           const fromConfig = typeof cfg === "function"
               ? (cfg as (...args: unknown[]) => number | null | undefined).call(this.meshConfigService)
               : null;

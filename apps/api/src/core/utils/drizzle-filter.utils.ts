@@ -304,7 +304,8 @@ export function listBuilder<TFilter extends Record<string, unknown>>(
                 throw new Error("pagination() must be called before execute()");
             }
 
-            const from = table as unknown as FromParam;
+            // Drizzle's table type is a complex generic that can't be narrowed statically.
+            const from = table;
 
             // Calculate limit and offset based on pagination type
             let limit: number;
@@ -335,6 +336,8 @@ export function listBuilder<TFilter extends Record<string, unknown>>(
             }
 
             // Build queries
+            // The from() call is inherently dynamic — Drizzle's generic chain
+            // types don't compose statically when the table is a type parameter.
             let dataQ = ensureDynamic(db.select().from(from) as unknown as QueryChain<InferSelectModel<TTable>[]>);
             let countQ = ensureDynamic(db.select({ count: count() }).from(from) as unknown as QueryChain<{ count: number }[]>);
 

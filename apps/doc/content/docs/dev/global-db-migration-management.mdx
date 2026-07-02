@@ -1,6 +1,6 @@
 ---
 title: Global DB Migration Management
-description: Multi-node safe schema migration protocol with global version registry, node registration guard, uniform version enforcement, and auto-update for the shared PostgreSQL database.
+description: Multi-node safe schema migration protocol using Drizzle auto-generated journal, NestJS lifecycle startup orchestrator, mesh registration guard, and versioned container images.
 order: 8
 ---
 
@@ -17,58 +17,45 @@ The platform uses a **dual-database architecture** with potentially many API nod
 
 ### Core Principles
 
-1. **Migration manifest as contract** — Every migration file declares minimum app/schema version requirements. The manifest is the single source of truth.
-2. **Registration guard** — A node can only join the mesh if its code contains ALL migrations already applied to the global DB. This prevents outdated code from operating on an incompatible schema.
-3. **Minimum version check** — Migrations only proceed when ALL active nodes have the minimum app version required by that migration's manifest entry.
-4. **Uniform version enforcement** — All nodes in the mesh must run compatible versions. Mismatches are detected, reported, and surfaced via health checks.
-5. **Global version registry** — The `cluster_migration_state` table tracks cluster-wide schema version, required app version, and consensus node IDs.
-6. **Auto-update capability** — Nodes can detect newer versions and self-update via Docker image pull + restart or git pull + rebuild.
+1. **Drizzle `_journal.json` as SSOT** — Drizzle auto-generates `meta/_journal.json` tracking every migration. This is the single source of truth — no manually maintained manifest.
+2. **`package.json` version for compatibility** — Semver from `apps/api/package.json` is the only version considered. No per-migration version requirements.
+3. **Registration guard** — A node can only join the mesh if its code contains ALL migrations already applied to the global DB. This prevents outdated code from operating on an incompatible schema.
+4. **Self-contained startup** — The NestJS app runs all startup tasks (migrations, admin creation, mesh registration) in `OnModuleInit` lifecycle hooks. No external CLI commands needed.
+5. **Uniform version enforcement** — All nodes in the mesh must run compatible schemas. Mismatches are detected, reported, and surfaced via health checks.
+6. **Global version registry** — The `schema_version` table tracks per-node schema and app versions.
+7. **Single-container deployment** — In production, API + Web run in one container. Upgrading is just pulling a new image from the registry.
+8. **CI/CD pipeline** — Pushing a version tag triggers automatic Docker image build + push to GHCR.
 
 ### The Big Picture
 
 ```mermaid
 flowchart TB
-    subgraph "Central Registry (Global DB)"
-        PG[("PostgreSQL<br/>Global DB")]
+    subgraph "Container Registry (GHCR)"
+        REGISTRY[("ghcr.io/sebille/deployer")]
+    end
+
+    subgraph "Production Node A"
+        APIA["NestJS API<br/>(StartupOrchestrator)"]
+        WEBA["Next.js Web Server"]
+        JOURNALA["Drizzle _journal.json"]
+    end
+
+    subgraph "Production Node B"
+        APIB["NestJS API<br/>(StartupOrchestrator)"]
+        WEBB["Next.js Web Server"]
+        JOURNALB["Drizzle _journal.json"]
+    end
+
+    subgraph "Global PostgreSQL"
+        PG[("Global DB")]
         SV[("schema_version<br/>per node")]
-        CMS[("cluster_migration_state<br/>singleton")]
     end
 
-    subgraph "Code-Based Registry"
-        MANIFEST[("migration-manifest.json<br/>declares requirements")]
-    end
-
-    subgraph "Node A (v2.1.0)"
-        A1[Startup Protocol]
-        A2[Registration Guard ✅]
-        A3[Migration Coordinator]
-        A4[Schema: 0011]
-    end
-
-    subgraph "Node B (v2.1.0)"
-        B1[Startup Protocol]
-        B2[Registration Guard ✅]
-        B3[Migration Coordinator]
-        B4[Schema: 0011]
-    end
-
-    subgraph "Node C (v1.5.0 - outdated)"
-        C1[Startup Protocol]
-        C2[Registration Guard ❌]
-        C3[BLOCKED]
-    end
-
-    PG --- A1 & B1 & C1
-    SV --- A1 & B1 & C1
-    CMS --- A1 & B1 & C1
-    MANIFEST --- A2 & B2 & C2
-
-    A1 <-->|Mesh WebSocket| B1
-    A1 <-.->|Mesh WebSocket| C1
-    B1 <-.->|Mesh WebSocket| C1
-
-    style C2 fill:#ff4444,color:#fff
-    style C3 fill:#ff4444,color:#fff
+    REGISTRY -->|docker pull| APIA
+    REGISTRY -->|docker pull| APIB
+    APIA --> PG
+    APIB --> PG
+    APIA -.->|Mesh WebSocket| APIB
 ```
 
 ---
@@ -162,29 +149,58 @@ export const clusterMigrationState = pgTable('cluster_migration_state', {
 
 ---
 
-## Migration Manifest — The Code-Based Registry
+## Migration Journal — Auto-Generated Source of Truth
 
-The manifest is a JSON file at `apps/api/src/config/drizzle/global/migrations/migration-manifest.json`. It is the **single source of truth** for migration requirements. Every migration file has a corresponding manifest entry declaring its minimum app version and minimum schema version prerequisites.
+Drizzle Kit auto-generates `meta/_journal.json` in the migrations folder every time you run `drizzle-kit generate`. This is the **single source of truth** — no manually maintained manifest is needed.
+
+The hand-maintained `migration-manifest.json` has been **removed** as part of the v2 architecture. The `_journal.json` is always in sync with the migration files because Drizzle generates it.
 
 ```json
+// apps/api/src/config/drizzle/global/migrations/meta/_journal.json
 {
-  "$schema": "./migration-manifest.schema.json",
-  "currentSchemaVersion": "0011",
-  "migrations": [
-    {
-      "version": "0000",
-      "name": "brave_steve_rogers",
-      "minAppVersion": ">=1.0.0",
-      "minSchemaVersion": null,
-      "description": "Initial auth tables"
-    },
-    {
-      "version": "0001",
-      "name": "wealthy_maelstrom",
-      "minAppVersion": ">=1.0.0",
-      "minSchemaVersion": "0000",
-      "description": "Passkey table, column defaults"
-    },
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    { "idx": 0, "version": "7", "when": 1700000000, "tag": "0000_initial_schema", "breakpoints": true },
+    { "idx": 1, "version": "7", "when": 1700001000, "tag": "0011_cynical_goliath", "breakpoints": true }
+  ]
+}
+```
+
+### Key Fields
+
+| Field | Description |
+|-------|-------------|
+| `version` | Drizzle journal format version |
+| `dialect` | Database dialect (`postgresql`, `sqlite`, `mysql`) |
+| `entries[].idx` | Sequential migration index (0-based) |
+| `entries[].tag` | Migration filename (e.g., `0011_cynical_goliath`) |
+| `entries[].breakpoints` | Whether this migration creates a snapshot |
+
+### MigrationJournalService
+
+File: `apps/api/src/core/utils/migration-journal.service.ts`
+
+Provides typed access to the journal:
+
+```typescript
+const journal = journalService.load()
+// { entries: [{ idx: 0, tag: "0000_...", ... }, ...] }
+
+journalService.getMigrationTags()      // ["0000_...", ..., "0011_..."]
+journalService.getLatestMigrationTag() // "0011_cynical_goliath"
+journalService.getMigrationCount()     // 12
+journalService.hasMigration(tag)       // true/false
+```
+
+### Why `_journal.json` Instead of a Hand-Maintained Manifest?
+
+| Concern | Hand-maintained manifest | Auto-generated journal |
+|---------|------------------------|------------------------|
+| **Accuracy** | Human must remember to update it | Always in sync — generated by Drizzle |
+| **Per-migration versions** | `minAppVersion`, `minSchemaVersion` required | None needed — package.json semver is SSOT |
+| **Maintenance burden** | Update manifest for every migration | Zero — Drizzle handles it |
+| **Error cases** | MANIFEST_MISSING, MANIFEST_OUTDATED | Only JOURAL_MISSING — can't be outdated |
     {
       "version": "0002",
       "name": "whole_sumo",
@@ -293,7 +309,132 @@ export type MigrationEntry = z.infer<typeof migrationEntrySchema>
 
 ---
 
-## The Complete Startup Protocol
+## Startup Architecture: Lifecycle Hooks
+
+In production, startup tasks run **inside the NestJS process** via `StartupOrchestratorService.onModuleInit()`. No external CLI commands or separate startup scripts are needed.
+
+### Flow
+
+```mermaid
+flowchart LR
+    START([Container starts]) --> A["entrypoint.prod.ts starts"]
+    A --> B["Validates environment variables"]
+    B --> C["Starts NestJS API (bootstrap())"]
+    C --> D["NestJS emits onModuleInit event"]
+    D --> E["StartupOrchestrator.onModuleInit()"]
+    E --> F["1. Run Drizzle migrations"]
+    F --> G["2. Create default admin"]
+    G --> H["3. Register mesh node"]
+    H --> I["4. Report schema version"]
+    I --> J["API ready to serve traffic"]
+    J --> K["entrypoint also starts Next.js web server"]
+```
+
+### StartupOrchestratorService
+
+File: `apps/api/src/core/modules/startup/startup-orchestrator.service.ts`
+
+Each step is independent — failures in later steps don't block the app:
+
+```typescript
+@Injectable()
+export class StartupOrchestratorService implements OnModuleInit {
+  private startupComplete = false
+  private startupErrors: string[] = []
+
+  async onModuleInit(): Promise<void> {
+    await this.runMigrations()        // Step 1: Run pending Drizzle migrations
+    await this.createDefaultAdmin()   // Step 2: Create default admin
+    await this.registerMeshNode()     // Step 3: Register this node in the mesh
+    await this.reportSchemaVersion()  // Step 4: Report schema version
+    this.startupComplete = true
+  }
+}
+```
+
+### Step Details
+
+#### Step 1: Run Drizzle Migrations
+
+Uses the programmatic Drizzle migrator:
+
+```typescript
+import { migrate } from 'drizzle-orm/node-postgres/migrator'
+
+private async runMigrations(): Promise<void> {
+  await migrate(this.globalDatabaseService.db, {
+    migrationsFolder: resolve('src/config/drizzle/global/migrations'),
+  })
+}
+```
+
+Migrations are **idempotent** — Drizzle tracks applied migrations in `__drizzle_migrations` and only runs new ones.
+
+#### Step 2: Create Default Admin
+
+Shells out to the CLI command (runs in the same process space):
+
+```typescript
+private async createDefaultAdmin(): Promise<void> {
+  const { execSync } = await import('child_process')
+  execSync('bun --bun dist/cli.js create-default-admin', { stdio: 'inherit' })
+}
+```
+
+#### Step 3: Register Mesh Node
+
+Uses raw SQL to upsert the node in `cluster_nodes`:
+
+```typescript
+private async registerMeshNode(): Promise<void> {
+  const nodeId = this.envService.get('NODE_ID')
+  const clusterId = this.envService.get('CLUSTER_ID')
+  await this.globalDatabaseService.db.execute(
+    sql`INSERT INTO cluster_nodes (node_id, cluster_id, ...)
+        VALUES (...) ON CONFLICT (node_id) DO UPDATE SET ...`
+  )
+}
+```
+
+#### Step 4: Report Schema Version
+
+Reads the journal and upserts into `schema_version`:
+
+```typescript
+private async reportSchemaVersion(): Promise<void> {
+  const journal = this.journalService.load()
+  const latestTag = journal.entries.at(-1)?.tag ?? 'none'
+  const appVersion = readPackageJson().version
+  await this.globalDatabaseService.db.execute(
+    sql`INSERT INTO schema_version (...) VALUES (...)
+        ON CONFLICT (node_id) DO UPDATE SET ...`
+  )
+}
+```
+
+### Why Lifecycle Hooks Instead of CLI Commands?
+
+| Concern | Old approach (CLI commands) | New approach (lifecycle hooks) |
+|---------|---------------------------|-------------------------------|
+| **Dependencies** | Separate process, separate DI context | Same DI context as the app |
+| **Error handling** | Exit codes, stdout parsing | Native try/catch, structured logging |
+| **Startup time** | Sequential process spawns | Direct method calls |
+| **Config access** | Env vars passed explicitly | DI-injected services |
+| **Production deployment** | Many containers, complex entrypoint | Single container, simple entrypoint |
+
+### Unified Production Entrypoint
+
+The simplified `entrypoint.prod.ts` just starts both servers:
+
+```typescript
+// apps/api/scripts/entrypoint.prod.ts
+async function main() {
+  validateEnvironment()
+  const api = await startApi()        // NestJS handles startup in lifecycle hooks
+  const web = await startWeb()        // Next.js web server (if built assets exist)
+  await keepAlive()                   // Wait for either process to exit
+}
+```
 
 Every API node runs this protocol on startup, **before** it can serve traffic or accept mesh connections.
 
@@ -496,34 +637,27 @@ Only reached after passing Phases 7-9. Idempotent insert with conflict handling.
 
 ## Registration Guard — Detailed Logic
 
-The registration guard is the centerpiece of multi-node safety. Here is its complete decision tree:
+The registration guard prevents outdated nodes from joining the mesh. It compares Drizzle's `__drizzle_migrations` table against the auto-generated `_journal.json`.
+
+### Flow
 
 ```mermaid
 flowchart TD
-    START([Registration Guard Start]) --> A[Read __drizzle_migrations<br/>from global DB]
-    A --> B[Read migration-manifest.json<br/>from this node's code]
-    B --> C{manifest valid?}
-    
-    C -->|Missing or invalid| D[❌ EXIT 5<br/>MANIFEST_MISSING_OR_INVALID]
-    C -->|Valid| E[Build set of DB-applied versions]
-    
-    E --> F[Build set of code-available versions]
-    F --> G{Every DB version<br/>exists in code?}
-    
-    G -->|YES| H{manifest.currentSchemaVersion<br/>>= maxDbVersion?}
-    G -->|NO - missing in code| I[❌ EXIT 5: NODE_TOO_OLD]
-    
-    I --> J[Log detailed error with missing versions]
-    J --> K[Return: REGISTRATION_DENIED]
-    
-    H -->|NO - manifest outdated| L[❌ EXIT 5: MANIFEST_OUTDATED]
-    H -->|YES| M[✅ Guard PASSED]
-    
-    M --> N[Proceed to Phase 8: Peer Check]
-    
-    style I fill:#ff4444,color:#fff
-    style L fill:#ff4444,color:#fff
-    style M fill:#22c55e,color:#fff
+    START([Guard starts]) --> A[Load _journal.json<br/>via MigrationJournalService]
+    A --> B{Journal exists?}
+    B -->|No| C[BLOCK: JOUAL_MISSING_OR_INVALID]
+    B -->|Yes| D[Query __drizzle_migrations<br/>from global DB]
+    D --> E{Table exists?}
+    E -->|No| F[No migrations applied yet<br/>Guard passes trivially]
+    E -->|Yes| G{Any applied migrations?}
+    G -->|No| F
+    G -->|Yes| H[Compare each DB tag<br/>against journal entries]
+    H --> I{All DB tags in journal?}
+    I -->|No| J[BLOCK: NODE_TOO_OLD]
+    I -->|Yes| K[PASS - node can register]
+
+    style J fill:#ff4444,color:#fff
+    style K fill:#22c55e,color:#fff
 ```
 
 ### Edge Cases
@@ -540,13 +674,16 @@ flowchart TD
 
 ---
 
-## Version Compatibility Matrix
+## Version Compatibility
 
-The `migration-manifest.json` defines the exact compatibility matrix:
+App version from `package.json` is the single source of truth for version compatibility. The `_journal.json` tracks which migrations exist in the current code.
 
-| App Version | Compatible Schema | Can Apply Migrations Up To | Registration Guard Result |
-|-------------|-------------------|----------------------------|---------------------------|
-| `1.0.x` | 0000-0004 | 0004 | ✅ If cluster ≤ 0004 |
+| Situation | Guard Result |
+|-----------|-------------|
+| Node has all DB-applied migrations in its journal | ✅ Pass — node can register |
+| DB has migrations not in node's journal | ❌ Block — NODE_TOO_OLD |
+| Fresh DB (no migrations applied) | ✅ Pass — node becomes first |
+| Journal file missing/corrupted | ❌ Block — JOURAL_MISSING_OR_INVALID |
 | `1.2.x` - `1.4.x` | 0000-0005 | 0005 | ✅ If cluster ≤ 0005 |
 | `1.5.x` - `1.7.x` | 0000-0008 | 0008 | ✅ If cluster ≤ 0008 |
 | `1.8.x` - `1.9.x` | 0000-0010 | 0010 | ✅ If cluster ≤ 0010 |
