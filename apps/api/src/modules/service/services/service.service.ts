@@ -192,7 +192,7 @@ export class ServiceService implements OnModuleInit {
         }
 
         const changedFields = Object.keys(input).filter(
-            (key) => (input as Record<string, unknown>)[key] !== undefined,
+            (key) => input[key as keyof typeof input] !== undefined,
         );
         this.serviceEventService.emit(
             "serviceUpdated",

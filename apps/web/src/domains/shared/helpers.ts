@@ -1074,6 +1074,7 @@ export function wrapWithInvalidations<
 
   for (const endpointName in endpoints) {
     const endpoint = endpoints[endpointName];
+    // Dynamic index on a generic union — cast is required
     const rawInvalidationFn = (invalidations as Record<string, unknown>)[endpointName];
 
     if (rawInvalidationFn && typeof rawInvalidationFn === 'function') {
