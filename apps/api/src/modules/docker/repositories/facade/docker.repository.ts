@@ -123,23 +123,6 @@ interface ContainerLinkedProjectRecord {
   updatedAt: Date;
 }
 
-const DOCKER_CONTAINER_STATUSES: DockerContainer["status"][] = [
-  "created",
-  "running",
-  "paused",
-  "restarting",
-  "exited",
-  "dead",
-  "unknown",
-];
-
-const DOCKER_CONTAINER_HEALTH_STATUSES: DockerContainer["health"][] = [
-  "healthy",
-  "unhealthy",
-  "starting",
-  "none",
-];
-
 const DOCKER_NETWORK_DRIVERS: DockerNetwork["driver"][] = [
   "bridge",
   "overlay",
@@ -154,17 +137,6 @@ const DOCKER_NETWORK_SCOPES: DockerNetwork["scope"][] = [
   "swarm",
   "global",
 ];
-
-const DEPLOYMENT_ENVIRONMENT_ALIASES: Record<string, DockerContainer["environment"]> = {
-  production: "production",
-  prod: "production",
-  staging: "staging",
-  stage: "staging",
-  preview: "preview",
-  pr: "preview",
-  development: "development",
-  dev: "development",
-};
 
 const VULNERABILITY_SCAN_TIMEOUT_MS = 120_000;
 const VULNERABILITY_LOG_POLL_INTERVAL_MS = 500;

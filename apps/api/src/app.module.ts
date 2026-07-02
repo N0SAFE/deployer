@@ -38,6 +38,7 @@ import { InternalErrorContextMiddleware } from "./core/middlewares/internal-erro
 import { InternalErrorInsightService } from "./core/middlewares/internal-error/internal-error-insight.service";
 import { InternalErrorExceptionFilter } from "./core/middlewares/internal-error/internal-error-exception.filter";
 import { APIErrorExceptionFilter } from "./core/modules/auth/filters/api-error-exception-filter";
+import { StartupModule } from "./core/modules/startup/startup.module";
 
 declare module "@orpc/nest" {
     /**
@@ -82,6 +83,7 @@ declare module "@orpc/nest" {
         EventsModule,
         SystemModule,
         PermissionModule,
+        StartupModule,
         ORPCModule.forRootAsync({
             router: appContract,
             useFactory: (

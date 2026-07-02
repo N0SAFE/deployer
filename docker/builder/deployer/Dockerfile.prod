@@ -1,0 +1,214 @@
+# syntax=docker/dockerfile:1-labs
+# Unified Production Dockerfile — Single container for API + Web
+#
+# Builds both the NestJS API and the Next.js web app in a single multi-stage
+# build. The runtime image runs both services via the unified entrypoint.
+#
+# Architecture:
+#   base → pruner-json → pruner-full → installer → builder → runner
+#
+# The pruner is split in two stages for cache efficiency:
+#   pruner-json: manifests only (rarely changes → stable cache)
+#   pruner-full: sources via bind mount (doesn't participate in cache key)
+
+# =====================================================================
+# Stage 1: Base — Install global dependencies and set environment
+# =====================================================================
+FROM oven/bun:1.3.14-alpine AS base
+ENV NODE_ENV=production
+
+# Install system dependencies and Node.js
+# jq is needed to parse package.json exports in runner stage
+RUN apk add --no-cache libc6-compat tar nodejs jq
+
+# Install global tools with cache mount
+RUN --mount=type=cache,target=/root/.bun/install/cache bun install -g turbo@^2 node-gyp
+WORKDIR /app
+
+# =====================================================================
+# Stage 2a: pruner-json — manifests only (very stable cache)
+# Input  : turbo.json + root package.json + bun.lock + **/package.json
+# Output : out/json/  (pruned package.json structure)
+# Cache  : invalidates ONLY when a manifest or lockfile changes
+# =====================================================================
+FROM base AS pruner-json
+WORKDIR /app
+
+# Root manifests (rarely change)
+COPY turbo.json package.json ./
+COPY bun.lock* ./
+# All package.json files across the monorepo (preserves directory structure)
+COPY --parents **/package.json ./
+
+RUN --mount=type=cache,target=/root/.cache/turbo \
+  turbo prune api web --docker
+
+# =====================================================================
+# Stage 2b: pruner-full — sources via bind mount
+# Input  : out/json/ from pruner-json + bind-mounted build context
+# Output : out/full/  (pruned source files)
+# Cache  : bind mount is not in the cache key → only pruner-json output matters
+# =====================================================================
+FROM base AS pruner-full
+WORKDIR /app
+
+COPY --from=pruner-json /app/out/json/ ./
+
+RUN --mount=type=bind,target=/src \
+  --mount=type=cache,target=/root/.cache/turbo \
+  cp /src/turbo.json . && \
+  cp /src/bun.lock* . 2>/dev/null || true ; \
+  tar -C /src -cf - apps packages 2>/dev/null | tar -xf - 2>/dev/null || true ; \
+  turbo prune api web --docker
+
+# =====================================================================
+# Stage 3: Installer — Install dependencies for pruned workspaces only
+# =====================================================================
+FROM base AS installer
+WORKDIR /app
+
+# Install build tools (python3/make/g++/musl-dev) required by bun ci to
+# extract optional native dependencies like ssh2 -> cpu-features.
+RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
+    apk add --no-cache python3 make g++ gcc musl-dev
+
+# Copy ONLY the pruned package.json structure (not all workspaces)
+COPY --from=pruner-json /app/out/json/ .
+
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+  bun ci
+
+# =====================================================================
+# Stage 4: Builder — Build the application
+# =====================================================================
+FROM base AS builder
+WORKDIR /app
+
+# Install build tools needed for native dependencies
+RUN apk add --no-cache python3 make g++ gcc musl-dev
+
+# Pruned source from pruner-full (out/full/)
+COPY --from=pruner-full /app/out/full/ .
+# Copy the pruned bun.lock (from out/json/)
+COPY --from=pruner-full /app/out/json/bun.lock ./bun.lock
+
+# Copy node_modules from installer — single-tar pattern
+RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
+    PATHS="node_modules"; \
+    for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules; do \
+        if [ -d "/mnt/installer/$d" ]; then PATHS="$PATHS $d"; fi; \
+    done && \
+    cd /mnt/installer && \
+    tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
+    tar -xf - -C /app --owner=root --group=root
+
+# Copy turbo cache directories
+COPY --parents --chmod=a+w **/.turbo/ ./
+
+# Build the web app first (generates routes, then builds Next.js)
+# web:build script runs generate (routes + OpenAPI) then next build
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    --mount=type=cache,target=/root/.cache \
+    --mount=type=cache,target=/tmp/turbo-restore,id=turbo-deployer-prod,sharing=locked \
+    set -eux; \
+    if [ -d /tmp/turbo-restore/wt ]; then \
+      cp -an /tmp/turbo-restore/wt/. /app/ 2>/dev/null || true; \
+    fi; \
+    # Build API and its dependencies
+    bunx turbo run build --filter=api... --remote-only; \
+    # Build web and its dependencies (includes Next.js compilation)
+    bunx turbo run build --filter=web... --remote-only; \
+    rm -rf /tmp/turbo-restore/wt; \
+    mkdir -p /tmp/turbo-restore/wt; \
+    cd /app; \
+    find . -path ./node_modules -prune -o -name .turbo -type d -print0 | \
+      while IFS= read -r -d '' d; do \
+        parent=$(dirname "$d"); \
+        mkdir -p "/tmp/turbo-restore/wt/$parent"; \
+        cp -r "$d" "/tmp/turbo-restore/wt/$parent/"; \
+      done
+
+# =====================================================================
+# Stage 5: Runner — Production runtime (single container)
+# =====================================================================
+FROM base AS runner
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apk add --no-cache curl wget bash && \
+    addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nestjs
+
+# Copy both API and web built artifacts from builder
+RUN --mount=type=bind,from=builder,source=/app,target=/mnt/builder \
+    # Root workspace files
+    cp /mnt/builder/package.json /mnt/builder/turbo.json /app/ && \
+    # ─── API artifacts ───────────────────────────────────────────────── \
+    mkdir -p /app/apps/api && \
+    cp -r /mnt/builder/apps/api/dist /app/apps/api/ && \
+    cp /mnt/builder/apps/api/package.json /app/apps/api/ && \
+    cp -r /mnt/builder/apps/api/scripts /app/apps/api/ && \
+    # Drizzle migrations at all expected paths \
+    mkdir -p /app/apps/api/src/config && \
+    cp -r /mnt/builder/apps/api/src/config/drizzle /app/apps/api/src/config/drizzle && \
+    mkdir -p /app/apps/api/dist/config && \
+    cp -r /mnt/builder/apps/api/src/config/drizzle /app/apps/api/dist/config/drizzle && \
+    mkdir -p /app/apps/config && \
+    cp -r /mnt/builder/apps/api/src/config/drizzle /app/apps/config/drizzle && \
+    mkdir -p /config && \
+    cp -r /mnt/builder/apps/api/src/config/drizzle /config/drizzle && \
+    # ─── Web artifacts ───────────────────────────────────────────────── \
+    mkdir -p /app/apps/web && \
+    cp -r /mnt/builder/apps/web/.next /app/apps/web/.next && \
+    cp /mnt/builder/apps/web/package.json /app/apps/web/ && \
+    cp -r /mnt/builder/apps/web/scripts /app/apps/web/ && \
+    cp -r /mnt/builder/apps/web/public /app/apps/web/ 2>/dev/null || true && \
+    cp -r /mnt/builder/apps/web/next.config.ts /app/apps/web/ 2>/dev/null || true && \
+    cp -r /mnt/builder/apps/web/node_modules /app/apps/web/node_modules 2>/dev/null || true && \
+    # ─── Copy packages exports ───────────────────────────────────────── \
+    for pkgJson in /mnt/builder/packages/*/package.json /mnt/builder/packages/*/*/package.json; do \
+        [ -f "$pkgJson" ] || continue; \
+        pkgDir=$(dirname "$pkgJson"); \
+        relDir=${pkgDir#/mnt/builder/}; \
+        mkdir -p "/app/$relDir"; \
+        cp "$pkgJson" "/app/$relDir/"; \
+        exports=$(jq -r '.exports // empty' "$pkgJson" 2>/dev/null); \
+        if [ -n "$exports" ]; then \
+            for exportKey in $(echo "$exports" | jq -r 'to_entries[] | select(.key != "./package.json") | .value // empty | if type == "string" then . else .default // .import // .require // empty end' 2>/dev/null); do \
+                srcPath="$pkgDir/$exportKey"; \
+                if [ -d "$srcPath" ]; then \
+                    mkdir -p "/app/$relDir/$exportKey"; \
+                    cp -r "$srcPath/" "/app/$relDir/$exportKey/"; \
+                fi; \
+            done; \
+        else \
+            for subdir in dist src; do \
+                if [ -d "$pkgDir/$subdir" ]; then \
+                    mkdir -p "/app/$relDir/$subdir"; \
+                    cp -r "$pkgDir/$subdir/" "/app/$relDir/$subdir/"; \
+                fi; \
+            done; \
+        fi; \
+    done && \
+    # ─── node_modules ────────────────────────────────────────────────── \
+    mkdir -p /app/node_modules && \
+    cp -r /mnt/builder/node_modules/.package-lock.json /app/node_modules/ 2>/dev/null || true; \
+    cp -r /mnt/builder/node_modules/.modules.yaml /app/node_modules/ 2>/dev/null || true; \
+    for mod in /mnt/builder/node_modules/*/package.json; do \
+        [ -f "$mod" ] || continue; \
+        modDir=$(dirname "$mod"); \
+        modName=$(basename "$modDir"); \
+        mkdir -p "/app/node_modules/$modName"; \
+        cp -r "$modDir/" "/app/node_modules/$modName/"; \
+    done && \
+    # ─── Copy entrypoint script ──────────────────────────────────────── \
+    cp /mnt/builder/apps/api/scripts/entrypoint.prod.ts /app/apps/api/scripts/entrypoint.prod.ts
+
+# Set working directory to API app for the entrypoint
+WORKDIR /app/apps/api
+
+# Expose ports for API and web
+EXPOSE ${API_PORT:-3001} ${NEXT_PUBLIC_APP_PORT:-3000}
+
+# Run the unified entrypoint
+ENTRYPOINT ["bun", "--bun", "scripts/entrypoint.prod.ts"]

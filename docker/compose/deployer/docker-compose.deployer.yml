@@ -1,0 +1,59 @@
+# Single-container deployer — runs both API + Web in one container.
+#
+# This is the production deployment target. Upgrading is just:
+#   docker compose pull
+#   docker compose up -d
+#
+# The unified entrypoint handles:
+#   - NestJS API (with startup orchestrator for migrations, mesh, admin)
+#   - Next.js web server (serves pre-built static + SSR)
+
+services:
+  deployer:
+    container_name: ${COMPOSE_PROJECT_NAME:-tgclub}-deployer
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-sebille}/deployer:latest
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-3001}:${API_PORT:-3001}"
+      - "${NEXT_PUBLIC_APP_PORT:-3000}:${NEXT_PUBLIC_APP_PORT:-3000}"
+    networks:
+      - deployer_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      # Runtime
+      - NODE_ENV=production
+      - LOG_LEVEL=${LOG_LEVEL:-warn}
+
+      # Database
+      - DATABASE_URL=${DATABASE_URL}
+      - LOCAL_DB_PATH=${LOCAL_DB_PATH:-/data/local.db}
+
+      # API Configuration
+      - API_PORT=${API_PORT:-3001}
+      - MESH_NODE_ID=${MESH_NODE_ID}
+      - MESH_NODE_SERVER_URL=${MESH_NODE_SERVER_URL}
+
+      # Web Configuration
+      - NEXT_PUBLIC_APP_PORT=${NEXT_PUBLIC_APP_PORT:-3000}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
+      # Authentication
+      - AUTH_SECRET=${AUTH_SECRET}
+      - BETTER_AUTH_SECRET=${AUTH_SECRET}
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD}
+
+    volumes:
+      # Persist local SQLite database
+      - deployer_data:/data
+      # Docker socket for container management
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+networks:
+  deployer_network:
+    driver: bridge
+
+volumes:
+  deployer_data:

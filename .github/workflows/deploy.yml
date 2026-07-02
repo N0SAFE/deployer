@@ -1,0 +1,193 @@
+# Deploy Pipeline - Build & Push Unified Docker Image
+#
+# Builds the unified production Docker image (API + Web in one container)
+# and pushes it to GitHub Container Registry. Designed to work alongside
+# the CI pipeline: CI validates code quality, this builds and publishes
+# the deployable artifact.
+#
+# Triggers:
+#   - Push to main with version tag (v*)
+#   - Manual trigger via workflow_dispatch
+#
+# Image tagging scheme:
+#   ghcr.io/<owner>/<repo>/deployer:latest      — latest main build
+#   ghcr.io/<owner>/<repo>/deployer:<version>   — semantic version (e.g., 1.2.3)
+#   ghcr.io/<owner>/<repo>/deployer:<sha>       — git commit SHA
+
+name: Deploy
+
+on:
+  push:
+    tags:
+      - "v*"  # Trigger on version tags (v1.0.0, v2.3.4-alpha, etc.)
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Docker image tag (defaults to git SHA)"
+        required: false
+        default: ""
+
+env:
+  # GitHub Container Registry settings
+  REGISTRY: ghcr.io
+  IMAGE_NAME: deployer
+
+  # Bun version must match the Dockerfile base image
+  BUN_VERSION: "1.3.14"
+
+jobs:
+  # ── Job 1: Extract version from package.json ──────────────────────────────
+  version:
+    name: 📦 Extract Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract-version.outputs.version }}
+      is_release: ${{ steps.extract-version.outputs.is_release }}
+      git_sha: ${{ github.sha }}
+    steps:
+      - name: 📚 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🏷️ Extract version from API package.json
+        id: extract-version
+        run: |
+          # Read version from API app
+          VERSION=$(jq -r '.version' apps/api/package.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # Determine if this is a release (tag matches version)
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG_VERSION="${{ github.ref_name }}"
+            TAG_VERSION="${TAG_VERSION#v}"  # Remove v prefix
+            if [ "$TAG_VERSION" = "$VERSION" ]; then
+              echo "is_release=true" >> $GITHUB_OUTPUT
+            else
+              echo "is_release=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          fi
+
+          echo "📦 App version: $VERSION"
+
+      - name: 📋 Print version info
+        run: |
+          echo "Version: ${{ steps.extract-version.outputs.version }}"
+          echo "Is Release: ${{ steps.extract-version.outputs.is_release }}"
+          echo "Git SHA: ${{ github.sha }}"
+
+  # ── Job 2: Build and push Docker image ────────────────────────────────────
+  build-and-push:
+    name: 🐳 Build & Push Image
+    runs-on: ubuntu-latest
+    needs: [version]
+    permissions:
+      contents: read
+      packages: write  # Needed to push to GHCR
+
+    steps:
+      - name: 📚 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🐰 Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔑 Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ Build image tags
+        id: meta
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+          BASE="${{ env.REGISTRY }}/$OWNER/$REPO/${{ env.IMAGE_NAME }}"
+          VERSION="${{ needs.version.outputs.version }}"
+          SHA="${{ needs.version.outputs.git_sha }}"
+
+          TAGS="$BASE:latest,$BASE:$VERSION,$BASE:${SHA:0:8}"
+
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "base=$BASE" >> $GITHUB_OUTPUT
+          echo "🐳 Image tags: $TAGS"
+
+      - name: 🐳 Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/builder/deployer/Dockerfile.prod
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+
+      - name: 📋 Generate deployment summary
+        run: |
+          echo "## 🐳 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image** | ${{ steps.meta.outputs.base }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tags** | ${{ steps.meta.outputs.tags }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **App Version** | ${{ needs.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Git SHA** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Trigger** | ${{ github.event_name }} (${{ github.ref_name }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 How to deploy" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "# On your VPS, pull the new image:" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ steps.meta.outputs.base }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Recreate the container with the new image:" >> $GITHUB_STEP_SUMMARY
+          echo "docker compose -f docker/compose/docker-compose.deployer.yml up -d" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # ── Job 3: Create GitHub Release (only for version tags) ──────────────────
+  release:
+    name: 📝 Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [version, build-and-push]
+    if: needs.version.outputs.is_release == 'true'
+    permissions:
+      contents: write  # Needed to create releases
+
+    steps:
+      - name: 📚 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔖 Generate release notes
+        id: release-notes
+        run: |
+          VERSION="${{ needs.version.outputs.version }}"
+          echo "## 🚀 Deployer v$VERSION" > /tmp/release-notes.md
+          echo "" >> /tmp/release-notes.md
+          echo "### 📦 Docker Image" >> /tmp/release-notes.md
+          echo "" >> /tmp/release-notes.md
+          echo '```bash' >> /tmp/release-notes.md
+          echo "docker pull ${{ steps.meta.outputs.base }}:$VERSION" >> /tmp/release-notes.md
+          echo '```' >> /tmp/release-notes.md
+          echo "" >> /tmp/release-notes.md
+          echo "### 📋 Changes" >> /tmp/release-notes.md
+          echo "" >> /tmp/release-notes.md
+          git log --oneline "$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || git rev-list --max-parents=0 HEAD)..HEAD" --format="* %s" >> /tmp/release-notes.md
+
+      - name: 📝 Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
+          name: v${{ needs.version.outputs.version }}
+          body_path: /tmp/release-notes.md
+          draft: true
+          prerelease: false
