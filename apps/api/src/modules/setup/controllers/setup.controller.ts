@@ -1,4 +1,4 @@
-import { Controller, Get } from "@nestjs/common";
+import { Controller } from "@nestjs/common";
 import { Implement, implement } from "@orpc/nest";
 import { ORPCError } from "@orpc/server";
 import { setupContract } from "@repo/api-contracts";
@@ -21,13 +21,6 @@ export class SetupController {
         return implement(setupContract.getState)
             .use(publicAccess())
             .handler(() => this.initializationService.getSetupState());
-    }
-
-    // ─── REST fallback (for test compatibility) ────────────────────────────────
-
-    @Get("/setup/status")
-    getStatus() {
-        return this.initializationService.getSetupState();
     }
 
     @Implement(setupContract.getNodeStatus)
@@ -261,9 +254,9 @@ export class SetupController {
     triggerInitialize() {
         return implement(setupContract.triggerInitialize)
             .use(publicAccess())
-            .handler(async ({ input }) => {
-                const result = await this.initializationService.triggerInitialize(input);
-                return { status: 201 as const, headers: {} as Record<string, string>, body: result };
+            .handler(({ input }) => {
+                const result = this.initializationService.triggerInitialize(input);
+                return { status: 201 as const, headers: {}, body: result };
             });
     }
 

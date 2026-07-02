@@ -75,7 +75,7 @@ describe("SetupController", () => {
             completedAt: null,
         };
         mockInitializationService.getSetupState.mockReturnValue(mockState);
-        expect(controller.getStatus()).toEqual(mockState);
+        expect(controller.getState()).toEqual(mockState);
     });
 
     // ─── remoteAuth ───────────────────────────────────────────────────────────

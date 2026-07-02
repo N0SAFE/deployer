@@ -3010,8 +3010,8 @@
     "semantic_hash": ""
   },
   "apps/api/src/modules/docker/repositories/facade/docker.repository.ts": {
-    "mtime": 1783011580.7521598,
-    "ast_hash": "8d64170fe0484f1daefc3260c7869c94",
+    "mtime": 1783011021.6984382,
+    "ast_hash": "0869e451c98e623c8b9e601f023b1ed6",
     "semantic_hash": ""
   },
   "apps/api/src/modules/docker/repositories/images/catalog/docker-image-catalog.repository.ts": {
@@ -4195,7 +4195,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/admin/organizations/[organizationId]/invites/route.info.ts": {
-    "mtime": 1783011702.5351691,
+    "mtime": 1782394815.7307441,
     "ast_hash": "3b611a61942d821fc9b4a73a5debc4f3",
     "semantic_hash": ""
   },
@@ -4210,7 +4210,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/admin/organizations/[organizationId]/members/route.info.ts": {
-    "mtime": 1783011702.5351691,
+    "mtime": 1782394815.7307441,
     "ast_hash": "7e53f0cd52dbde1a84bf044841aff1c8",
     "semantic_hash": ""
   },
@@ -4220,7 +4220,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/admin/organizations/[organizationId]/route.info.ts": {
-    "mtime": 1783011702.5341687,
+    "mtime": 1782394815.726744,
     "ast_hash": "aca8c71078bf6af7227506cfdf21dc17",
     "semantic_hash": ""
   },
@@ -4230,7 +4230,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/admin/organizations/[organizationId]/settings/route.info.ts": {
-    "mtime": 1783011702.5351691,
+    "mtime": 1782394815.729744,
     "ast_hash": "55ed4587e1b4010587087eae65318a4f",
     "semantic_hash": ""
   },
@@ -4305,7 +4305,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/deployments/route.info.ts": {
-    "mtime": 1783011702.5301666,
+    "mtime": 1782394815.7117438,
     "ast_hash": "f66415068481420a26d8aae2b13b63be",
     "semantic_hash": ""
   },
@@ -4505,7 +4505,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/docker/activity/route.info.ts": {
-    "mtime": 1783011702.5321677,
+    "mtime": 1782394815.721744,
     "ast_hash": "713fe5fc503f6201e1bb15a63bddab64",
     "semantic_hash": ""
   },
@@ -4540,7 +4540,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/docker/containers/route.info.ts": {
-    "mtime": 1783011702.5321677,
+    "mtime": 1782394815.720744,
     "ast_hash": "8c56c8f7166aca7a6ca85ec78fa5ba39",
     "semantic_hash": ""
   },
@@ -4550,7 +4550,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/docker/events/route.info.ts": {
-    "mtime": 1783011702.533168,
+    "mtime": 1782394815.722744,
     "ast_hash": "4a8c21c331b6d493d1b905f198649c68",
     "semantic_hash": ""
   },
@@ -4575,7 +4575,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/docker/images/route.info.ts": {
-    "mtime": 1783011702.533168,
+    "mtime": 1782395007.9083843,
     "ast_hash": "5aac6a36c723f17606a58652f520ad55",
     "semantic_hash": ""
   },
@@ -4630,7 +4630,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/docker/logs/route.info.ts": {
-    "mtime": 1783011702.5321677,
+    "mtime": 1782394815.720744,
     "ast_hash": "f15afce25ac81f41a6e7de476e649b95",
     "semantic_hash": ""
   },
@@ -4640,7 +4640,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/docker/networks/route.info.ts": {
-    "mtime": 1783011702.533168,
+    "mtime": 1782394815.7252524,
     "ast_hash": "a58c9d2b48f3a6c5ae3a3bc3a9f6643c",
     "semantic_hash": ""
   },
@@ -4655,7 +4655,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/docker/queu/route.info.ts": {
-    "mtime": 1783011702.5321677,
+    "mtime": 1782394815.722744,
     "ast_hash": "d6061fefba825fe88163ade6ada2f136",
     "semantic_hash": ""
   },
@@ -4665,12 +4665,12 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/docker/registry/route.info.ts": {
-    "mtime": 1783011702.5321677,
+    "mtime": 1782394815.719744,
     "ast_hash": "9c60940bf48a0416b60cc27f26cf9045",
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/docker/route.info.ts": {
-    "mtime": 1783011702.5301666,
+    "mtime": 1782394815.7087438,
     "ast_hash": "593f5919965ae920385b67350705949c",
     "semantic_hash": ""
   },
@@ -4680,7 +4680,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/docker/shell/route.info.ts": {
-    "mtime": 1783011702.5321677,
+    "mtime": 1782394815.720744,
     "ast_hash": "d6c35175c53eed4f5c6e1554f303e74c",
     "semantic_hash": ""
   },
@@ -4690,7 +4690,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/docker/stacks/route.info.ts": {
-    "mtime": 1783011702.5321677,
+    "mtime": 1782394815.7187438,
     "ast_hash": "e5019cf26649bff81d51f4431e355df0",
     "semantic_hash": ""
   },
@@ -4700,7 +4700,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/docker/terminal/route.info.ts": {
-    "mtime": 1783011702.533168,
+    "mtime": 1782394815.7252524,
     "ast_hash": "e9957eea56aace162136fdaacbc66641",
     "semantic_hash": ""
   },
@@ -4710,7 +4710,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/docker/volumes/route.info.ts": {
-    "mtime": 1783011702.533168,
+    "mtime": 1782394815.723744,
     "ast_hash": "693ce6ff5c35390a61512e0351f091b9",
     "semantic_hash": ""
   },
@@ -4745,7 +4745,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/[projectId]/configuration/environments/[environmentId]/route.info.ts": {
-    "mtime": 1783011702.5361695,
+    "mtime": 1782394815.734744,
     "ast_hash": "3f3fc13f84d25712fcc09b92f33e6bc1",
     "semantic_hash": ""
   },
@@ -4755,7 +4755,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/[projectId]/configuration/route.info.ts": {
-    "mtime": 1783011702.5341687,
+    "mtime": 1782394815.727744,
     "ast_hash": "ab397e8a806ea9abf260966ef99c8963",
     "semantic_hash": ""
   },
@@ -4765,7 +4765,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/[projectId]/route.info.ts": {
-    "mtime": 1783011702.533168,
+    "mtime": 1782394815.7252524,
     "ast_hash": "d4f7bc42a456c5d1930923dd84142245",
     "semantic_hash": ""
   },
@@ -4790,7 +4790,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/[projectId]/services/[serviceId]/configuration/environment/route.info.ts": {
-    "mtime": 1783011702.5361695,
+    "mtime": 1782394815.7367442,
     "ast_hash": "d7a515f626a73974b43eb1fdaa14bde8",
     "semantic_hash": ""
   },
@@ -4800,7 +4800,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/[projectId]/services/[serviceId]/configuration/general/route.info.ts": {
-    "mtime": 1783011702.5361695,
+    "mtime": 1782394815.735744,
     "ast_hash": "586f9360a3d556f371770228c3d24457",
     "semantic_hash": ""
   },
@@ -4810,7 +4810,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/[projectId]/services/[serviceId]/configuration/network/route.info.ts": {
-    "mtime": 1783011702.5361695,
+    "mtime": 1782394815.7367442,
     "ast_hash": "69c9a7c5867a3b784eee9c78fd4b0dbd",
     "semantic_hash": ""
   },
@@ -4825,12 +4825,12 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/[projectId]/services/[serviceId]/configuration/provider/route.info.ts": {
-    "mtime": 1783011702.5361695,
+    "mtime": 1782394815.735744,
     "ast_hash": "db9291830d0e3f59901ec5ea9f6e3070",
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/[projectId]/services/[serviceId]/configuration/route.info.ts": {
-    "mtime": 1783011702.5351691,
+    "mtime": 1782394815.7337441,
     "ast_hash": "b97e3440276075f2c4d8c09b9b16a55b",
     "semantic_hash": ""
   },
@@ -4840,7 +4840,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/[projectId]/services/[serviceId]/deployments/route.info.ts": {
-    "mtime": 1783011702.5351691,
+    "mtime": 1782394815.732744,
     "ast_hash": "235802ed1a8c209ff6a88a7ad174ad69",
     "semantic_hash": ""
   },
@@ -4850,7 +4850,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/[projectId]/services/[serviceId]/logs/route.info.ts": {
-    "mtime": 1783011702.5351691,
+    "mtime": 1782394815.732744,
     "ast_hash": "1996ea913d5060c2b9395b66a43b678b",
     "semantic_hash": ""
   },
@@ -4860,7 +4860,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/[projectId]/services/[serviceId]/monitoring/route.info.ts": {
-    "mtime": 1783011702.5361695,
+    "mtime": 1782394815.7337441,
     "ast_hash": "9b97c1338f860add8e830b8743305c5a",
     "semantic_hash": ""
   },
@@ -4875,12 +4875,12 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/[projectId]/services/[serviceId]/previews/route.info.ts": {
-    "mtime": 1783011702.5351691,
+    "mtime": 1782394815.731744,
     "ast_hash": "a05359b9458025ff0fd6e6a0975a50cd",
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/[projectId]/services/[serviceId]/route.info.ts": {
-    "mtime": 1783011702.5351691,
+    "mtime": 1782394815.731744,
     "ast_hash": "d5c606b2e782860959f17cb522efae67",
     "semantic_hash": ""
   },
@@ -4895,7 +4895,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/route.info.ts": {
-    "mtime": 1783011702.5301666,
+    "mtime": 1782394815.710744,
     "ast_hash": "0050bbf21c4b494cc839bb49e13a1602",
     "semantic_hash": ""
   },
@@ -4910,7 +4910,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/services/route.info.ts": {
-    "mtime": 1783011702.5291662,
+    "mtime": 1782394815.710744,
     "ast_hash": "9bc141690b5aefa3759ee7a9f777a16e",
     "semantic_hash": ""
   },
@@ -5935,7 +5935,7 @@
     "semantic_hash": ""
   },
   "apps/web/src/routes/openapi.ts": {
-    "mtime": 1783011702.736267,
+    "mtime": 1782394818.3707664,
     "ast_hash": "6d88282df554af74d52abb733c8d751f",
     "semantic_hash": ""
   },
@@ -12000,7 +12000,7 @@
     "semantic_hash": ""
   },
   "apps/web/openapi-docs.yml": {
-    "mtime": 1783011702.8423188,
+    "mtime": 1782394818.8157701,
     "ast_hash": "042dd71e6acb66f776d3b2b92c4cd208",
     "semantic_hash": ""
   },
@@ -12010,8 +12010,8 @@
     "semantic_hash": ""
   },
   "apps/web/redoc-static.html": {
-    "mtime": 1783011703.4716253,
-    "ast_hash": "048ccf12c7dfbadc0106de837fa6da8a",
+    "mtime": 1782394820.4117837,
+    "ast_hash": "621a261793e3347a3869219a0da14d84",
     "semantic_hash": ""
   },
   "apps/web/src/README.md": {

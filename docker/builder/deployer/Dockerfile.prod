@@ -139,6 +139,9 @@ RUN apk add --no-cache curl wget bash && \
     addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs
 
+# Create data directories for SQLite persistence and set ownership
+RUN mkdir -p /app/data /data && chown -R nestjs:nestjs /app/data /data
+
 # Copy both API and web built artifacts from builder
 RUN --mount=type=bind,from=builder,source=/app,target=/mnt/builder \
     # Root workspace files
