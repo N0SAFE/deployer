@@ -452,7 +452,7 @@ export class ProjectRepository {
                 updatedAt: new Date(),
             })
             .returning();
-        if (!row) throw new Error("Failed to create collaborator");
+        if (!row) throw new ConflictError("Failed to create collaborator");
         return transformCollaborator(row);
     }
 
@@ -534,7 +534,7 @@ export class ProjectRepository {
                 updatedAt: new Date(),
             })
             .returning();
-        if (!row) throw new Error("Failed to create environment");
+        if (!row) throw new ConflictError("Failed to create environment");
         return transformEnvironment(row);
     }
 
@@ -605,7 +605,7 @@ export class ProjectRepository {
                 updatedAt: new Date(),
             })
             .returning();
-        if (!row) throw new Error("Failed to create variable template");
+        if (!row) throw new ConflictError("Failed to create variable template");
         return transformTemplate(row);
     }
 

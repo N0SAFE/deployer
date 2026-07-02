@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { ConflictError } from "@/core/errors/app-error";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { webhooks } from "@/config/drizzle/global/schema/deployment";
 import { eq, and } from "drizzle-orm";
@@ -50,7 +51,7 @@ export class WebhookRepository {
             .insert(webhooks)
             .values(input)
             .returning();
-        if (!results[0]) throw new Error("Failed to create webhook");
+        if (!results[0]) throw new ConflictError("Failed to create webhook");
         return results[0];
     }
 

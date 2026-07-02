@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { ServiceUnavailableError } from "@/core/errors/app-error";
 import { EnvService } from "@/config/env/env.service";
 
 interface LoadBalancerReportedResource {
@@ -76,7 +77,7 @@ export class DeploymentLoadBalancerSyncAdapter {
         });
 
         if (!response.ok) {
-            throw new Error(
+            throw new ServiceUnavailableError(
                 `Load balancer sync failed (${String(response.status)}) for deployment '${input.deploymentId}'`,
             );
         }

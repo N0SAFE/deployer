@@ -4,6 +4,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
 import { ConfigNotFoundError } from "@/core/modules/traefik/errors";
+import { BadRequestError } from "@/core/errors/app-error";
 import { TraefikService } from "@/core/modules/traefik/services/traefik.service";
 import { DeploymentLoadBalancerSyncAdapter } from "../../adapters/deployment-load-balancer-sync.adapter";
 import type {
@@ -226,11 +227,11 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
         }
 
         if (normalized.length > 1024) {
-            throw new Error("Executor startup command exceeds 1024 characters");
+            throw new BadRequestError("Executor startup command exceeds 1024 characters");
         }
 
         if (/[\u0000\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(normalized)) {
-            throw new Error("Executor startup command contains unsupported control characters");
+            throw new BadRequestError("Executor startup command contains unsupported control characters");
         }
 
         return normalized;
@@ -384,7 +385,7 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
             try {
                 const syncResult = await this.traefikService.syncServiceConfiguration(serviceId);
                 if (!syncResult.success) {
-                    throw new Error(syncResult.message);
+                    throw new BadRequestError(syncResult.message);
                 }
 
                 const healthSummary = await this.traefikService.getHealthStatus();
@@ -414,7 +415,7 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
             }
         }
 
-        throw new Error(
+        throw new BadRequestError(
             `Traefik route apply/verification failed after ${String(maxAttempts)} attempts: ${lastErrorMessage ?? "unknown error"}`,
         );
     }
@@ -495,7 +496,7 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
         );
 
         if (!isHealthy) {
-            throw new Error(
+            throw new BadRequestError(
                 `Readiness health gate failed for container '${containerId}' after ${String(config.maxRetries)} retries`,
             );
         }
