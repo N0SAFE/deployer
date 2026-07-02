@@ -42,6 +42,7 @@
 
 import { os, type DecoratedMiddleware } from '@orpc/server';
 import type { MiddlewareCheck, ValueOrResolver } from './middleware-check';
+import { isRecord } from '@repo/type-guards';
 import {
   createOrpcMiddleware,
   createCompositeOrpcMiddleware,
@@ -145,7 +146,7 @@ export type OrpcMiddlewareProxy<T> = {
 function buildMiddlewareContext(
   input: unknown
 ): { headers: Headers; params: Record<string, string>; query: Record<string, string>; body: unknown } {
-  const inputObj = input as Record<string, unknown> | undefined;
+  const inputObj = isRecord(input) ? input : undefined;
 
   const params: Record<string, string> = {};
   if (inputObj) {

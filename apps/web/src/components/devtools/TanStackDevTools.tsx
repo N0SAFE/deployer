@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-devtools";
 import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
 import { orpc } from "@/lib/orpc";
+import { isRecord } from "@repo/type-guards";
 import { useQuery } from "@tanstack/react-query";
 import { authClient, signOut, useSession } from "@/lib/auth";
 import { logger } from "@repo/logger";
@@ -202,7 +203,7 @@ const RoutesPluginComponent = () => {
                 if (typeof awaited === "string") {
                   path = awaited;
                 } else if (typeof awaited === "object" && awaited !== null) {
-                  const obj = awaited as Record<string, unknown>;
+                  const obj = isRecord(awaited) ? awaited : {};
                   // Common shapes: { path }, { url }, { href }, { to }, or a function getPath()
                   if ("path" in obj && typeof obj.path === "string") {
                     path = obj.path;

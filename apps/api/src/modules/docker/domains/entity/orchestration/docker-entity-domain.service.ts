@@ -351,13 +351,13 @@ export class DockerEntityDomainService {
     if (!entity) {
       return null
     }
-    return {
+    return dockerEntityStreamChunkSchema.parse({
       ...(isRecord(entity) ? entity : {}),
       kind,
       action: event.action,
       occurredAt: event.timestamp,
       eventId: event.eventId,
-    } as unknown as DockerEntityStreamChunk
+    })
   }
 
   private removedEvent(
@@ -427,6 +427,7 @@ export class DockerEntityDomainService {
     flat: TFlat,
   ): TEntity {
     if (!KINDS_WITH_FLAT_LIST.has(kind)) {
+      // Generic types are erased at runtime; caller guarantees TFlat = TEntity for non-relation kinds
       return flat as unknown as TEntity
     }
     return {
@@ -446,6 +447,9 @@ export class DockerEntityDomainService {
   private toContainerEntity(
     detail: Awaited<ReturnType<DockerContainerResolutionService["inspectContainer"]>>,
   ): DockerContainerEntity {
+    // detail has inspect shape, entity has list shape — different schemas.
+    // The downstream code uses the normalized entity; this conversion bridge is
+    // needed because both are valid representations of the same container.
     return {
       ...(detail as unknown as DockerContainer),
       relations: undefined,

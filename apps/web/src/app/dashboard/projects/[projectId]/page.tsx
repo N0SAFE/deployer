@@ -32,6 +32,7 @@ import {
 } from '@repo/ui/components/shadcn/dialog'
 import { Input } from '@repo/ui/components/shadcn/input'
 import { Label } from '@repo/ui/components/shadcn/label'
+import { isRecord } from '@repo/type-guards'
 import {
   Card,
   CardContent,
@@ -422,7 +423,7 @@ export default function DashboardProjectDetailPage() {
     for (const service of localServices) {
       const config = serviceConfigs[service.id]
       const executionOverrides = (config?.executionOverrides ?? {}) as Record<string, { disabled?: boolean } | undefined>
-      const statusByEnvironment = (config?.statusByEnvironment ?? {}) as Record<string, unknown>
+      const statusByEnvironment = isRecord(config?.statusByEnvironment) ? config.statusByEnvironment : {}
 
       const enabledEnvironments = environmentScopes.filter((env) => {
         const isCoreEnvironment = ENV_NAMES.includes(env as EnvName)

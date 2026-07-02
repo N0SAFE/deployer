@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { useMeshSseState } from '@/domains/mesh/hooks'
 import { FleetLatencyMap, type FleetMapLink, type FleetMapNode } from './_components/fleet-latency-map'
 import { Badge } from '@repo/ui/components/shadcn/badge'
+import { isRecord } from '@repo/type-guards'
 import {
 	Card,
 	CardContent,
@@ -134,8 +135,8 @@ export default function AdminServersPage() {
 			state: peer.state,
 			inferred:
 				Boolean(peer.metadata) &&
-				typeof peer.metadata === 'object' &&
-				(peer.metadata as Record<string, unknown>).inferredFromClusterSync === true,
+						isRecord(peer.metadata) &&
+						peer.metadata.inferredFromClusterSync === true,
 			measuredAt: peer.metrics.measuredAt,
 		}))
 

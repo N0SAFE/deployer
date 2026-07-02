@@ -21,6 +21,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { os } from '@orpc/server';
+import { isRecord } from '@repo/type-guards';
 import type { MiddlewareCheck, MiddlewareContext, MiddlewareErrorCode } from './middleware-check';
 import type { ORPCContextWithAuthOnly } from '@/core/modules/auth/orpc';
 
@@ -618,7 +619,7 @@ function defaultOrpcContextBuilder(
   orpcContext: ORPCContextWithAuthOnly<true>
 ): MiddlewareContext {
   // Try to extract input from various locations
-  const input = (orpcContext as Record<string, unknown>).input as Record<string, unknown> | undefined;
+  const input = isRecord(orpcContext) ? (orpcContext.input as Record<string, unknown> | undefined) : undefined;
 
   // Convert input to string params (for route-like access)
   const params: Record<string, string> = {};
