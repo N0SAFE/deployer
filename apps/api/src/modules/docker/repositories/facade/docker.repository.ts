@@ -1252,13 +1252,9 @@ export class DockerRepository {
     const repository = parsedPrimary.repository === "library/unknown"
       ? fallbackRepository
       : parsedPrimary.repository;
-    const labels =
-      typeof inspect.Config === "object"
-      && inspect.Config !== null
-      && typeof Reflect.get(inspect.Config, "Labels") === "object"
-      && Reflect.get(inspect.Config, "Labels") !== null
-        ? (Reflect.get(inspect.Config, "Labels") as Record<string, string>)
-        : {};
+    const labels = isRecord(inspect.Config) && isRecord(inspect.Config.Labels)
+      ? inspect.Config.Labels
+      : {};
 
     const rootFs =
       typeof inspect.RootFS === "object" && inspect.RootFS !== null
@@ -3332,7 +3328,7 @@ export class DockerRepository {
       return false;
     }
 
-    const record = error as Record<string, unknown>;
+    const record = isRecord(error) ? error : {};
 
     if (record.statusCode === 404) {
       return true;
@@ -3903,7 +3899,7 @@ export class DockerRepository {
             ? new Date(image.Created * 1000).toISOString()
             : new Date().toISOString(),
         lastSeenAt: new Date().toISOString(),
-        labels: ((image.Labels as Record<string, string> | undefined) ?? {}),
+        labels: image.Labels,
       });
 
       if (!parsedImage.success) {
@@ -3960,7 +3956,7 @@ export class DockerRepository {
         subnet: typeof ipamConfig.Subnet === "string" ? ipamConfig.Subnet : null,
         gateway: typeof ipamConfig.Gateway === "string" ? ipamConfig.Gateway : null,
         containerIds: containers,
-        labels: ((network.Labels as Record<string, string> | undefined) ?? {}),
+        labels: network.Labels ?? {},
         createdAt:
           typeof network.Created === "string"
             ? new Date(network.Created).toISOString()
@@ -4027,7 +4023,7 @@ export class DockerRepository {
             ? ((volume.UsageData as { Size: number }).Size)
             : null,
         usedByContainerIds: usedByVolume.get(String(volume.Name ?? "")) ?? [],
-        labels: ((volume.Labels as Record<string, string> | undefined) ?? {}),
+        labels: volume.Labels ?? {},
         createdAt:
           typeof volume.CreatedAt === "string"
             ? new Date(volume.CreatedAt).toISOString()
