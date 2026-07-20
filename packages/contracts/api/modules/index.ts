@@ -15,3 +15,4 @@ export * from './fleet';
 export * from './setup';
 export * from './docker';
 export * from './core';
+export * from './mesh';

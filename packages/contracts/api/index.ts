@@ -16,6 +16,7 @@ import {
     organizationContract,
     coreContract,
 } from "./modules/index";
+import { meshBaseResourceContract } from "./modules/mesh/resource/mesh-base-resource.contract";
 
 // Main app contract that combines all feature contracts
 export const appContract = oc.router({
@@ -34,6 +35,7 @@ export const appContract = oc.router({
     setup: setupContract,
     core: coreContract,
     organization: organizationContract,
+    mesh: meshBaseResourceContract,
 });
 
 export type AppContract = typeof appContract;

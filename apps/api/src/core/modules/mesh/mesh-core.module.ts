@@ -8,6 +8,7 @@ import { SystemMeshOverlayScopeService } from './services/system-mesh-overlay-sc
 import { MeshQueueTransitionService } from './services/mesh-queue-transition.service'
 import { SystemMeshResourceDiscoveryService } from './services/system-mesh-resource-discovery/system-mesh-resource-discovery.service'
 import { SystemMeshResourceService } from './services/system-mesh-resource.service';
+import { NodeInfoService } from './services/node-info.service';
 import { MESH_SERVICE_TOKEN } from './tokens';
 import { MeshQueryExecutor } from './query/mesh-query-executor';
 import { SystemMeshTopicService } from './services/system-mesh-topic/orchestrator/system-mesh-topic.service'
@@ -149,6 +150,7 @@ const MESH_TOPIC_SERVICES = [
         StreamManagerService,
         MeshConnectionRegistry,
         ServerConnectionConsumerRegistry,
+        NodeInfoService,
         MeshResourceDispatcher,
     ],
     exports: [

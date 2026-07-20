@@ -1,3 +1,5 @@
+export * from "./resource";
+
 import z from "zod/v4";
 import { oc } from "@orpc/contract";
 import {

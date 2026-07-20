@@ -53,12 +53,11 @@ const meshBaseResourceOps = standard.zod(meshResourceOutputSchema, "meshBaseReso
 /**
  * The single catch-all ORPC contract for all mesh resources.
  *
- * - Uses `.read()` which maps to GET by default
- * - Actually we want POST since the body contains operation input
- * - `.path()` with Express-style params for entity key and method name
+ * Uses `.create()` (POST) because requests carry a body with operation input.
+ * Path params :entityKey and :methodName route to the correct handler.
  */
 export const meshBaseResourceContract = meshBaseResourceOps
-  .read()
+  .create()
   .path("/mesh/:entityKey/:methodName")
   .input((b) =>
     b

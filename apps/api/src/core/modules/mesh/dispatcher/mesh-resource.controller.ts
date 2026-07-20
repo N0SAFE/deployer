@@ -16,29 +16,31 @@ import { meshBaseResourceContract } from "@repo/api-contracts/modules/mesh/resou
 import { MeshResourceDispatcher } from "./mesh-resource-dispatcher.service";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 
+/**
+ * SINGLE controller for ALL mesh resource operations.
+ *
+ * ONE @Implement, ONE route: POST /api/mesh/:entityKey/:methodName.
+ * The dispatcher resolves the correct handler at runtime.
+ *
+ * Auth note: requireAuth() is applied here to protect all mesh endpoints.
+ * The type cast is needed because ORPC's middleware type composition with
+ * a generic catch-all contract produces deeply nested generics.
+ */
 @Controller()
 export class MeshResourceController {
   constructor(
     private readonly dispatcher: MeshResourceDispatcher,
   ) {}
 
-  /**
-   * Single handler for ALL mesh resource operations.
-   *
-   * POST /api/mesh/:entityKey/:methodName
-   *
-   * The path params entityKey and methodName are extracted by ORPC from the
-   * contract's path pattern and validated by Zod at the contract boundary.
-   * The dispatcher resolves the correct handler at runtime from the registry
-   * populated by MeshResourceService subclasses during onModuleInit().
-   */
   @Implement(meshBaseResourceContract)
   handle() {
-    return implement(meshBaseResourceContract)
+    const procedure = implement(meshBaseResourceContract)
       .use(requireAuth())
-      .handler(async ({ input }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .handler(async ({ input }: any) => {
         const { entityKey, methodName } = input.params;
         return this.dispatcher.dispatch(entityKey, methodName, input.body);
       });
+    return procedure;
   }
 }
