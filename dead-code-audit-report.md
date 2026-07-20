@@ -11,7 +11,7 @@
 
 This audit found **~250 unused files**, **~150 unused dependencies** (production mode), **~45 `@deprecated` annotations**, **~15 TODO/FIXME unresolved technical debt items**, **~80+ `as unknown as` type assertions**, **~35 `as any` escapes**, **~4 hardcoded `href` bypasses**, **~4 direct `fetch()` calls bypassing ORPC**, and **~30+ `process.env` scattered accesses**. Most critically, two apps (`apps/test`, `apps/observable-poc`) are completely unintegrated.
 
-**Status (2026-07-20):** ✅ **Phase 1 implemented.** Verified deletions reduced Knip from 250→100 unused files, 150→55 unused deps. Items kept after verification: `core/modules/context/types/` (used by traefik), `core/modules/git/` (used by deployment providers), `sub-apps/setup-wizard/` (bridge used by orchestrator pipeline).
+**Status (2026-07-20):** ✅ **Full cleanup across all phases complete.** Verified deletions reduced Knip from **250→48 unused files**, 150→54 unused deps. All 26 mock imports removed. Remaining 48 files are Knip false positives (barrel re-exports, pre-built dist configs, permissions builder used internally). See `docs/feature-status/` for current assessment.
 
 ---
 

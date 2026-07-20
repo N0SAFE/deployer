@@ -5,67 +5,47 @@
  * Path parameters (entityKey, methodName) route to the correct entity handler
  * at runtime via MeshResourceDispatcher.
  *
- * This is the ORPC-native replacement for an Express @All() catch-all.
- * Everything stays in the ORPC contract system:
- *   - Path params validated by Zod at contract boundary
- *   - OpenAPI generation works automatically
- *   - ORPC middleware chain (auth, error handling) applies naturally
- *
- * Usage in router:
- * ```typescript
- * oc.tag("Mesh").prefix("/api").router({
- *   mesh: meshBaseResourceContract,
- * });
- * ```
- *
  * HTTP: POST /api/mesh/:entityKey/:methodName
  * Auth: requireAuth() applied in the controller (not baked into contract)
  */
 
 import { z } from "zod/v4";
-import { standard, meshDomainErrorContracts } from "@repo/orpc-utils";
+import { standard, meshDomainErrorContracts, RouteBuilder } from "@repo/orpc-utils";
+import { ContractProcedureBuilderWithInputOutput } from "@orpc/contract";
 
 // ─── Input schema ─────────────────────────────────────────────────────────────
 
-/** Path parameters identify which entity + operation to invoke */
-const meshResourceParamsSchema = z.object({
-  entityKey: z.string().min(1, "entityKey is required"),
-  methodName: z.string().min(1, "methodName is required"),
-});
-
-/** Body is forwarded to the registered entity handler (schema resolved dynamically) */
 const meshResourceBodySchema = z.unknown();
-
-const meshResourceInputSchema = z.object({
-  params: meshResourceParamsSchema,
-  body: meshResourceBodySchema,
-});
 
 // ─── Output schema ────────────────────────────────────────────────────────────
 
-/** Output is whatever the registered handler returns (schema resolved dynamically) */
 const meshResourceOutputSchema = z.unknown();
 
 // ─── Contract ─────────────────────────────────────────────────────────────────
 
-const meshBaseResourceOps = standard.zod(meshResourceOutputSchema, "meshBaseResource");
+const ops = standard.zod(meshResourceOutputSchema, "meshBaseResource");
 
 /**
- * The single catch-all ORPC contract for all mesh resources.
+ * Single catch-all contract for all mesh resource operations.
  *
- * Uses `.create()` (POST) because requests carry a body with operation input.
- * Path params :entityKey and :methodName route to the correct handler.
+ * Path params (entityKey, methodName) are extracted from the URL via
+ * ORPC's template-literal syntax. The body is forwarded to the handler.
+ *
+ * HTTP: POST /api/mesh/:entityKey/:methodName
+ *   Path params: entityKey (string), methodName (string)
+ *   Body: forwarded to registered handler (z.unknown)
  */
-export const meshBaseResourceContract = meshBaseResourceOps
+export const meshBaseResourceContract = ops
   .create()
   .path("/mesh/:entityKey/:methodName")
   .input((b) =>
     b
-      .params(meshResourceParamsSchema)
+      .params((p) =>
+        p`/mesh/${p("entityKey", z.string().min(1))}/${p("methodName", z.string().min(1))}`,
+      )
       .body(meshResourceBodySchema),
   )
-  .output(meshResourceOutputSchema)
+  .output((b) => b.body(meshResourceOutputSchema))
   .errors((e) => meshDomainErrorContracts(e))
-  .build();
 
-export type MeshBaseResourceContract = typeof meshBaseResourceContract;
+  type e =  typeof meshBaseResourceContract extends RouteBuilder<infer T, infer U, infer V, infer W, infer E> ? E : never;

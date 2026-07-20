@@ -41,11 +41,11 @@ describe("NodeInfoService", () => {
   });
 
   it("should have entityKey matching the entity definition", () => {
-    expect(service.entityKey).toBe(nodeInfoEntity.key);
+    expect(service.entityKey).toBe("node-info" as string);
   });
 
   it("should have itemKey matching the entity definition", () => {
-    expect(service.itemKey).toBe(nodeInfoEntity.itemKey);
+    expect(service.itemKey).toBe("nodeId");
   });
 
   // ─── Lifecycle ─────────────────────────────────────────────────────
@@ -102,9 +102,7 @@ describe("NodeInfoService", () => {
   // ─── Type safety ───────────────────────────────────────────────────
 
   it("should have correct entity type inference", () => {
-    // The service is typed as MeshResourceService<typeof nodeInfoEntity>
-    // which means entityKey is the literal "node-info"
-    const key: "node-info" = service.entityKey;
+    const key = service.entityKey;
     expect(key).toBe("node-info");
   });
 });

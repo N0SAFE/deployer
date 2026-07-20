@@ -1001,5 +1001,22 @@
   "999": "network-tab.tsx",
   "1000": "terminal-tab.tsx",
   "1001": "useTableColumnResize",
-  "1002": "meshControlEnvelopePublishResultSchema"
+  "1002": "meshControlEnvelopePublishResultSchema",
+  "1003": "InternalErrorInsightModule",
+  "1004": "node-info.service.spec.ts",
+  "1005": "bcrypt",
+  "1006": "drizzle-orm",
+  "1007": "drizzle-zod",
+  "1008": "express-list-routes",
+  "1009": "@nestjs/core",
+  "1010": "@nestjs/swagger",
+  "1011": "@octokit/webhooks",
+  "1012": "@orpc/openapi-client",
+  "1013": "@orpc/server",
+  "1014": "reflect-metadata",
+  "1015": "@repo/env",
+  "1016": "tar-stream",
+  "1017": "@vitest/coverage-istanbul",
+  "1018": "mesh-resource-dispatcher.service.spec.ts",
+  "1019": "mesh-resource-dispatcher.e2e-spec.ts"
 }

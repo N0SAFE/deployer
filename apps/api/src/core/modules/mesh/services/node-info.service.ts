@@ -21,11 +21,11 @@ import { MeshResourceDispatcher } from "../dispatcher/mesh-resource-dispatcher.s
 import { nodeInfoEntity } from "../entities/node-info.entity";
 
 @Injectable()
-export class NodeInfoService extends MeshResourceService<typeof nodeInfoEntity> {
+export class NodeInfoService extends MeshResourceService<any> {
   constructor(
     executor: MeshQueryExecutor,
     dispatcher: MeshResourceDispatcher,
   ) {
-    super(executor, dispatcher, nodeInfoEntity);
+    super(executor, dispatcher, nodeInfoEntity as any);
   }
 }

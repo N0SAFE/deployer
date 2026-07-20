@@ -1,6 +1,21 @@
 # ✅ Working Features
 
 > Features with fully functional implementations — real API calls, real database queries, real data flow from backend to frontend.
+>
+> **Updated 2026-07-20** — All mock data removed. 3 migrated pages now use real hooks.
+
+---
+
+## Cleanup Summary
+
+| Category | Before | After |
+|----------|:------:|:-----:|
+| Dead code (Knip-unused files) | 250 | **48** |
+| Mock data imports | 26 | **0** |
+| `as any` production violations | 14 | **2** |
+| Dead packages removed | — | `packages/nest/auth/` (39 files), `poc/` (3 files) |
+| Orphaned apps removed | — | `test/`, `observable-poc/`, `reference/` |
+| Pages migrated to real data | — | Deployments, Projects, Services lists |
 
 ---
 

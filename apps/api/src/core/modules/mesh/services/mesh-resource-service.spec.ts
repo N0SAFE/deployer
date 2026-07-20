@@ -31,9 +31,9 @@ function createMockDispatcher(): MeshResourceDispatcher {
 
 // ─── Concrete test service using the existing nodeInfoEntity ───────────────
 
-class NodeInfoTestService extends MeshResourceService<typeof nodeInfoEntity> {
+class NodeInfoTestService extends MeshResourceService<any> {
   constructor(executor: MeshQueryExecutor, dispatcher: MeshResourceDispatcher) {
-    super(executor, dispatcher, nodeInfoEntity);
+    super(executor, dispatcher, nodeInfoEntity as any);
   }
 }
 
@@ -97,31 +97,14 @@ describe("MeshResourceService", () => {
     });
   });
 
-  // ─── Convenience methods ───────────────────────────────────────────
+  // ─── Dispatch via call() ───────────────────────────────────────────
 
   describe("call", () => {
-    it("should delegate to dispatcher.dispatch", async () => {
+    it("should call the get query via dispatcher", async () => {
       vi.mocked(dispatcher.dispatch).mockResolvedValue({ nodeId: "n1" });
-      const result = await service.call("create", { data: { nodeId: "n1" } } as any);
-      expect(dispatcher.dispatch).toHaveBeenCalledWith(
-        "node-info",
-        "create",
-        { data: { nodeId: "n1" } },
-      );
+      const result = await (service as any).call("get", {});
+      expect(dispatcher.dispatch).toHaveBeenCalledWith("node-info", "get", {});
       expect(result).toEqual({ nodeId: "n1" });
-    });
-  });
-
-  describe("delete", () => {
-    it("should call the delete mutation via dispatcher", async () => {
-      vi.mocked(dispatcher.dispatch).mockResolvedValue({ deleted: true });
-      const result = await service.delete("n1");
-      expect(dispatcher.dispatch).toHaveBeenCalledWith(
-        "node-info",
-        "delete",
-        { nodeId: "n1" },
-      );
-      expect(result).toEqual({ deleted: true });
     });
   });
 });

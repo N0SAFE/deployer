@@ -70,8 +70,8 @@ export type MeshErrorResponse = z.infer<typeof meshErrorResponseSchema>;
  * error codes.
  */
 export function meshDomainErrorContracts(
-    e: (code?: string) => ErrorDefinitionBuilder<string, string | undefined, unknown, number | undefined>,
-): ErrorDefinitionBuilder<string, string | undefined, unknown, number | undefined>[] {
+    e: (code?: string) => ErrorDefinitionBuilder,
+) {
     return [
         e()
             .code(MESH_ERROR_ORPC_CODE["mesh.not_found"])
@@ -103,5 +103,5 @@ export function meshDomainErrorContracts(
             .message("Mesh dependency missing")
             .status(MESH_ERROR_HTTP_STATUS["mesh.dependency_missing"])
             .data(meshDomainErrorPayloadSchema),
-    ];
+    ] as const;
 }

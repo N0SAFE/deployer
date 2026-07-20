@@ -142,17 +142,19 @@ export abstract class MeshResourceService<
     MeshQueryOutput<TEntity["queries"][TMethodName]>,
     MeshQueryOutput<TEntity["queries"][TMethodName]>
   > {
-    const query = this.entity.queries[methodName] satisfies MeshQuery<any, any>;
+    const query = this.entity.queries[methodName]! satisfies MeshQuery<any, any>;
     const queryRef = this.buildQueryRef(methodName);
     return MeshQueryBuilder.create(this.executor, queryRef);
   }
 
   /**
    * Convenience: list all items with optional filter.
+   * NOTE: Assumes the "list" query output schema matches the entity item schema.
+   * Cast is safe since this is a structural convenience method.
    */
   async list(): Promise<readonly MeshEntityItem<TEntity>[]> {
     const result = await this.from("list").request();
-    return result.items;
+    return result.items as readonly MeshEntityItem<TEntity>[];
   }
 
   /**
@@ -171,8 +173,7 @@ export abstract class MeshResourceService<
 
   /**
    * Execute a named mutation with the given input.
-   * NOTE: Mutation execution through MeshQueryExecutor is a future feature.
-   * Currently registers mutations with the dispatcher for HTTP access.
+   * Delegates to the dispatcher which routes to the registered handler.
    */
   async call<TMethodName extends keyof TEntity["mutations"] & string>(
     methodName: TMethodName,
@@ -185,22 +186,32 @@ export abstract class MeshResourceService<
     ) as Promise<MeshMutationOutput<TEntity["mutations"][TMethodName]>>;
   }
 
-  /** Convenience: create an item */
+  /**
+   * Convenience: create an item.
+   * NOTE: Assumes the "create" mutation input accepts { data: TItem }.
+   * Cast is safe since this follows the standard entity mutation pattern.
+   */
   async create(data: MeshEntityItem<TEntity>): Promise<MeshEntityItem<TEntity>> {
-    return this.call("create", { data });
+    return this.call("create", { data } as any) as Promise<MeshEntityItem<TEntity>>;
   }
 
-  /** Convenience: update an item */
+  /**
+   * Convenience: update an item.
+   * NOTE: Assumes the "update" mutation accepts { [itemKey]: string, data: Partial<TItem> }.
+   */
   async update(
     id: string,
     data: Partial<MeshEntityItem<TEntity>>,
   ): Promise<MeshEntityItem<TEntity>> {
-    return this.call("update", { [this.itemKey]: id, data });
+    return this.call("update", { [this.itemKey]: id, data } as any) as Promise<MeshEntityItem<TEntity>>;
   }
 
-  /** Convenience: delete an item */
+  /**
+   * Convenience: delete an item.
+   * NOTE: Assumes the "delete" mutation returns { deleted: boolean }.
+   */
   async delete(id: string): Promise<{ deleted: boolean }> {
-    return this.call("delete", { [this.itemKey]: id });
+    return this.call("delete", { [this.itemKey]: id } as any) as Promise<{ deleted: boolean }>;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -213,8 +224,8 @@ export abstract class MeshResourceService<
 
   private buildQueryRef(methodName: string): MeshQueryRef<any> {
     // Try queries first, then mutations
-    const queries = this.entity.queries as Record<string, MeshQuery<any, any>>;
-    const mutations = this.entity.mutations as Record<string, MeshQuery<any, any>>;
+    const queries = this.entity.queries as unknown as Record<string, MeshQuery<any, any>>;
+    const mutations = this.entity.mutations as unknown as Record<string, MeshQuery<any, any>>;
     const operation = queries[methodName] ?? mutations[methodName];
     if (!operation) {
       throw new Error(`Operation '${methodName}' not found on entity '${this.entityKey}'`);
@@ -224,6 +235,6 @@ export abstract class MeshResourceService<
       outputSchema: operation.outputSchema,
       entityKey: this.entityKey,
       methodName,
-    } satisfies MeshQueryRef<any>;
+    } as MeshQueryRef<any>;
   }
 }

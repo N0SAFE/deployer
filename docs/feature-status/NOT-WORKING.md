@@ -1,33 +1,83 @@
-# ❌ Not Working / Stub / Dead Features
+# ❌ Not Working / Stub / Dead Features (Updated 2026-07-20)
 
-> Features that exist in code but are not functional — either intentionally dead, superseded, or never completed.
+> ✅ **All referenced dead items below have been verified and removed.**
+> This file is kept for historical reference — the sections below describe
+> items that were deleted during the cleanup. See `README.md` for current status.
 
 ---
 
-## 1. 💀 Dead Core Modules (Superseded)
+## 1. ✅ RESOLVED — Deletions Completed
 
-### 1.1 State Machine (💀 DEAD — 4 files)
+The following DEAD modules were verified zero importers and deleted. No further action needed.
 
-**Location:** `apps/api/src/core/modules/state-machine/`
-**Files:** `base-state-machine.service.ts`, `index.ts`, `state-machine.builder.ts`, `state-machine.module.ts`
-**Knip Status:** Unused
-**Why Dead:** Superseded by the deployment-specific state machine in `modules/deployment/`
-**Action:** Safe to archive/delete
+### 1.1 Deleted Core Modules (7 modules)
+- `state-machine/` (4 files) — Superseded by deployment state machine
+- `sub-app-orchestrator/` (2 files) — Superseded by orchestrator pipeline
+- `loader/` (4 files) — Superseded by bootstrap/lifecycle modules
+- `mesh/examples/` (3 files) — Test code, not production
+- `context/docs/` (2 files) — Described a never-built module
+- `ephemeral-http/` (1 file) — Never used error helper
+- `gateway/index.ts` (1 file) — Dead barrel export
 
-### 1.2 Sub-App Orchestrator (💀 DEAD — 2 files)
+### 1.2 Deleted System Modules
+- `system/fleet/` (4 files) — Superseded by product `modules/fleet/`
+- `system/mesh/` (dead controllers — 3 files) — Superseded by `core/modules/mesh/`
+- `system/system.module.ts` (1 file) — Only imported by dead loader
 
-**Location:** `apps/api/src/core/modules/sub-app-orchestrator/`
-**Files:** `sub-app-orchestrator.module.ts`, `sub-app-orchestrator.service.ts`
-**Knip Status:** Unused
-**Why Dead:** Superseded by the newer orchestrator pipeline in `core/orchestrator/`
-**Action:** Safe to archive/delete
+### 1.3 Deleted Sub-Apps
+- `sub-apps/setup-wizard/` (6 files) — Superseded by `modules/setup/` (bridge kept — used by orchestrator)
+- `sub-apps/auth/` (empty directory)
 
-### 1.3 Sub-App Runner (💀 DEAD — 3 files)
+### 1.4 Deleted Packages
+- `packages/nest/auth/` (39 files) — 0 importers, superseded by internal auth
+- `packages/poc/core-sync-system/` — 0 consumers
+- Permissions `system/builder/` (16 files) — Superseded by permissions engine
 
-**Location:** `apps/api/src/core/modules/sub-app-runner/`
-**Files:** `sub-app-result.store.ts`, `sub-app-runner.module.ts`, `sub-app.constants.ts`
-**Knip Status:** Unused
-**Why Dead:** Superseded by newer architecture
+### 1.5 Deleted Orphaned Apps
+- `apps/test/` — Jest-based, not in pipeline or docker-compose
+- `apps/observable-poc/` — Standalone Next.js, not in pipeline
+- `reference/` directory — 29k+ static reference files
+
+### 1.6 Deleted Web Dead Code (~35 files)
+- 12 `mock-hooks.ts` files (all domains)
+- 6 orphaned domain hooks (health, test, docker, setup)
+- 3 dead auth lib files + entire `lib/errors/` + `lib/debug/` directories
+- 4 dead middleware utils
+- 3 duplicate permission components
+- 5 dead barrel/index.ts files
+- `apps/web/src/mocks/` (15 mock data source files)
+
+---
+
+## 2. ✅ Mock→Real Migration Completed
+
+All 26 mock imports across 15 files removed. Key pages migrated:
+- Deployments list → `useDeploymentList()`
+- Projects list → `useProjectList()` + real mutations
+- Services list → `useServiceList()`
+- Docker modals — removed mock-only tabs
+
+---
+
+## 3. 🔒 Type Safety — Fixed
+
+- `as any` production files: 14 → **2** (pragmatic, justified)
+- Fixed: gateway.module.ts, express-route-extractor.ts, base-bridge.service.ts,
+  data-table.tsx (8 violations), export-utils.ts, DashboardSidebar.tsx (3),
+  setup-wizard.controller.ts (3)
+- 4 files flagged `as any` were false positives (JSDoc comments)
+
+---
+
+## 4. 📋 Remaining Gaps
+
+| Area | Status |
+|------|--------|
+| **GitHub ORPC contract** | ⚠️ Not created (module uses raw @Controller) |
+| **Project config/service sub-pages** | ⚠️ UI shells (mocks removed, no data loaded) |
+| **Web frontend tests** | ❌ Only 10 test files exist |
+| **CI pipeline** | ❌ Knip runs manually only |
+| **TODOs** | ⚠️ ~14 items in codebase |
 **Action:** Safe to archive/delete
 
 ### 1.4 Loader (💀 DEAD — 3 files)
