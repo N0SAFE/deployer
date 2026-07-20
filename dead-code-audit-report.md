@@ -9,10 +9,9 @@
 
 ## Executive Summary
 
-This audit found **~250 unused files**, **~150 unused dependencies** (production mode), **~45 `@deprecated` annotations**, **~15 TODO/FIXME unresolved technical debt items**, **~80+ `as unknown as` type assertions**, **~35 `as any` escapes**, **~4 hardcoded `href` bypasses**, **~4 direct `fetch()` calls bypassing ORPC**, and **~30+ `process.env` scattered accesses**. Most critically, two apps (`apps/test`, `apps/observable-poc`) are completely unintegrated with the rest of the monorepo — they exist as standalone code with no pipeline, no compose file, and no consumer.
+This audit found **~250 unused files**, **~150 unused dependencies** (production mode), **~45 `@deprecated` annotations**, **~15 TODO/FIXME unresolved technical debt items**, **~80+ `as unknown as` type assertions**, **~35 `as any` escapes**, **~4 hardcoded `href` bypasses**, **~4 direct `fetch()` calls bypassing ORPC**, and **~30+ `process.env` scattered accesses**. Most critically, two apps (`apps/test`, `apps/observable-poc`) are completely unintegrated.
 
-**Confidence:** HIGH (Knip output is definitive; grep results are direct matches)  
-**Potential cleanup reduction:** 15–20% of total file count if all dead code were removed.
+**Status (2026-07-20):** ✅ **Phase 1 implemented.** Verified deletions reduced Knip from 250→100 unused files, 150→55 unused deps. Items kept after verification: `core/modules/context/types/` (used by traefik), `core/modules/git/` (used by deployment providers), `sub-apps/setup-wizard/` (bridge used by orchestrator pipeline).
 
 ---
 

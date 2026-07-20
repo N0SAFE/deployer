@@ -23,16 +23,6 @@ export const OptionalAuth = (): CustomDecorator =>
 	SetMetadata("OPTIONAL", true);
 
 /**
- * @deprecated Use AllowAnonymous() instead.
- */
-export const Public = AllowAnonymous;
-
-/**
- * @deprecated Use OptionalAuth() instead.
- */
-export const Optional = OptionalAuth;
-
-/**
  * Parameter decorator that extracts the user session from the request.
  * Provides easy access to the authenticated user's session data in controller methods.
  * Works with both HTTP and GraphQL execution contexts.

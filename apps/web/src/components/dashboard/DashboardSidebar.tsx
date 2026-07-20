@@ -21,7 +21,7 @@ import {
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { Home as HomeRoute, AuthDashboardProfile } from '@/routes'
+import { Home as HomeRoute, AuthDashboardProfile, AuthDashboardProjects } from '@/routes'
 import { useSession, signOut } from '@/lib/auth'
 import { revalidateAllAction } from '@/components/signout/revalidateAll.action'
 import { useProjectList } from '@/domains/project/hooks'
@@ -212,10 +212,10 @@ function ProjectsSidebarSection() {
           isActive={pathname.startsWith('/dashboard/projects')}
           tooltip="Projects"
         >
-          <Link href="/dashboard/projects">
+          <AuthDashboardProjects.Link>
             <FolderKanban />
             <span>Projects</span>
-          </Link>
+          </AuthDashboardProjects.Link>
         </SidebarMenuButton>
         <CollapsibleTrigger asChild>
           <SidebarMenuAction

@@ -145,6 +145,12 @@ export const apiEnvSchema = zod
         DEV_AUTH_KEY: zod.string().optional(),
         DEFAULT_ADMIN_EMAIL: zod.email().optional(),
         DEFAULT_ADMIN_PASSWORD: zod.string().optional(),
+        DEFAULT_ADMIN_NAME: zod.string().optional().default("Admin"),
+        DEFAULT_ADMIN_ORGANIZATION: zod.string().optional().default("My Organization"),
+        GITHUB_WEBHOOK_SECRET: zod.string().optional(),
+        DEPLOYMENT_UPLOAD_DIR: zod.string().optional().default("/tmp/deployer-uploads"),
+        APP_DOCKER_IMAGE_SCAN_PARALLELISM: zod.coerce.number().int().min(1).optional().default(5),
+        APP_DOCKER_IMAGE_SCAN_IMAGE_PARALLELISM: zod.coerce.number().int().min(1).optional().default(3),
         TRUSTED_ORIGINS: zod.string().optional(),
         ENABLE_MASTER_TOKEN: zod.coerce.boolean().optional(),
 
