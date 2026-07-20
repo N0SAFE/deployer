@@ -1,6 +1,8 @@
 // Re-export all builder functionality
 export * from "./builder";
-export * from "./query";
+
+// Re-export filter operators used by entity schemas
+export { ALL_FILTER_OPERATORS, type FilterOperator } from "./operations/base/utils";
 
 // Re-export standard operations (unified entry point)
 export {
@@ -29,7 +31,6 @@ export type {
 
 // Convenience re-exports for most common use cases
 export { RouteBuilder, route } from "./builder/core/route-builder";
-export { QueryBuilder, createQueryBuilder, createListQuery, createSearchQuery, createAdvancedQuery } from "./query";
 export type { InferInputSchema, InferOutputSchema, AnyContractBuilder, AnyContractProcedureOrBuilder } from "./types/type-helpers";
 export {
     observable,

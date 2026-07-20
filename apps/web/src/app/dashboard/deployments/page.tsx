@@ -10,7 +10,7 @@ import { Input } from '@repo/ui/components/shadcn/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
 import { ArrowRight, Bell, Clock3, GitCommitHorizontal, RefreshCw, Rocket, Search, Siren, Workflow, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import { MOCK_DEPLOYMENTS, MOCK_INCIDENTS, MOCK_NOTIFICATIONS } from '@/mocks/platform/entities/operations.mock'
+import { useDeploymentList } from '@/domains/deployment/hooks'
 
 type DeploymentSortKey = 'startedAt' | 'projectId' | 'status' | 'environment'
 type SortDirection = 'asc' | 'desc'
@@ -44,8 +44,8 @@ function computeDurationLabel(startedAt: string, finishedAt?: string): string {
   return `${String(minutes)}m ${String(seconds)}s`
 }
 
-function projectLabel(projectId: string): string {
-  return projectId.replace('proj-', '').replace(/-/g, ' ')
+function projectLabel(serviceId: string): string {
+  return serviceId.replace(/-/g, ' ').slice(0, 20)
 }
 
 export default function DashboardDeploymentsPage() {
@@ -56,7 +56,28 @@ export default function DashboardDeploymentsPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
 
-  const deployments = useMemo(() => MOCK_DEPLOYMENTS, [])
+  const { data: deploymentsData, isLoading, error } = useDeploymentList({ query: { limit: 100, offset: 0 } })
+  const deployments = useMemo(() => deploymentsData ?? [], [deploymentsData])
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <Siren className="mb-4 size-12 text-destructive" />
+        <h2 className="text-xl font-semibold">Failed to load deployments</h2>
+        <p className="mt-2 text-muted-foreground">{(error as Error).message ?? 'An unexpected error occurred'}</p>
+        <Button className="mt-4" variant="outline" onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <RefreshCw className="mb-4 size-8 animate-spin text-muted-foreground" />
+        <p className="text-muted-foreground">Loading deployments...</p>
+      </div>
+    )
+  }
   const incidents = useMemo(() => MOCK_INCIDENTS, [])
   const notifications = useMemo(() => MOCK_NOTIFICATIONS, [])
 
@@ -66,20 +87,22 @@ export default function DashboardDeploymentsPage() {
       if (statusFilter !== 'all' && deployment.status !== statusFilter) return false
       if (environmentFilter !== 'all' && deployment.environment !== environmentFilter) return false
       if (!query) return true
+      const startedAt = deployment.deployStartedAt ?? deployment.buildStartedAt ?? deployment.createdAt
       return (
         deployment.id.toLowerCase().includes(query)
-        || deployment.projectId.toLowerCase().includes(query)
-        || deployment.organizationId.toLowerCase().includes(query)
-        || deployment.initiatedBy.toLowerCase().includes(query)
+        || deployment.serviceId.toLowerCase().includes(query)
+        || (deployment.triggeredBy ?? '').toLowerCase().includes(query)
       )
     })
 
     return filtered.sort((a, b) => {
       const multiplier = sortDirection === 'asc' ? 1 : -1
-      if (sortBy === 'projectId') return a.projectId.localeCompare(b.projectId) * multiplier
+      const aTime = a.deployStartedAt ?? a.buildStartedAt ?? a.createdAt
+      const bTime = b.deployStartedAt ?? b.buildStartedAt ?? b.createdAt
+      if (sortBy === 'projectId') return a.serviceId.localeCompare(b.serviceId) * multiplier
       if (sortBy === 'status') return a.status.localeCompare(b.status) * multiplier
       if (sortBy === 'environment') return a.environment.localeCompare(b.environment) * multiplier
-      return (new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()) * multiplier
+      return (new Date(aTime).getTime() - new Date(bTime).getTime()) * multiplier
     })
   }, [deployments, environmentFilter, searchTerm, sortBy, sortDirection, statusFilter])
 
@@ -88,12 +111,12 @@ export default function DashboardDeploymentsPage() {
     const successful = deployments.filter((deployment) => deployment.status === 'success').length
     const failed = deployments.filter((deployment) => deployment.status === 'failed').length
     const inProgress = deployments.filter((deployment) => deployment.status === 'in-progress').length
-    const completed = deployments.filter((deployment) => deployment.finishedAt)
+    const completed = deployments.filter((deployment) => deployment.deployCompletedAt ?? deployment.buildCompletedAt)
     const avgDurationSeconds = completed.length > 0
       ? Math.round(
           completed.reduce((sum, deployment) => {
-            const start = new Date(deployment.startedAt).getTime()
-            const end = new Date(deployment.finishedAt ?? deployment.startedAt).getTime()
+            const start = new Date(deployment.deployStartedAt ?? deployment.buildStartedAt ?? deployment.createdAt).getTime()
+            const end = new Date(deployment.deployCompletedAt ?? deployment.buildCompletedAt ?? deployment.createdAt).getTime()
             if (Number.isNaN(start) || Number.isNaN(end) || end < start) return sum
             return sum + (end - start) / 1000
           }, 0) / completed.length,
@@ -236,12 +259,12 @@ export default function DashboardDeploymentsPage() {
                 {filteredDeployments.map((deployment) => (
                   <TableRow key={deployment.id}>
                     <TableCell className="font-mono text-xs">{deployment.id}</TableCell>
-                    <TableCell className="font-medium capitalize">{projectLabel(deployment.projectId)}</TableCell>
+                    <TableCell className="font-medium capitalize">{projectLabel(deployment.serviceId)}</TableCell>
                     <TableCell><Badge variant="outline">{deployment.environment}</Badge></TableCell>
                     <TableCell><Badge variant={statusBadgeVariant(deployment.status)}>{deployment.status}</Badge></TableCell>
-                    <TableCell>{deployment.initiatedBy}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{formatDate(deployment.startedAt)}</TableCell>
-                    <TableCell className="text-xs">{computeDurationLabel(deployment.startedAt, deployment.finishedAt)}</TableCell>
+                    <TableCell>{deployment.triggeredBy ?? '—'}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatDate(deployment.deployStartedAt ?? deployment.buildStartedAt ?? deployment.createdAt)}</TableCell>
+                    <TableCell className="text-xs">{computeDurationLabel(deployment.deployStartedAt ?? deployment.buildStartedAt ?? deployment.createdAt, deployment.deployCompletedAt ?? deployment.buildCompletedAt)}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1.5">
                         <Button
@@ -297,47 +320,6 @@ export default function DashboardDeploymentsPage() {
           </div>
         </CardContent>
       </Card>
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base"><Siren className="size-4" /> Active incidents</CardTitle>
-            <CardDescription>Operational incidents linked to deployment risk and release decisioning.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {incidents.map((incident) => (
-              <div key={incident.id} className="rounded-lg border p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-medium">{incident.title}</p>
-                  <Badge variant={severityVariant(incident.severity)}>{incident.severity}</Badge>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">{incident.id} · {incident.environment} · {incident.status}</p>
-                <p className="mt-2 text-xs text-muted-foreground">Affected: {incident.affectedServiceIds.join(', ')}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base"><Bell className="size-4" /> Notification stream</CardTitle>
-            <CardDescription>Channel output for deployment events and incident alerts.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {notifications.map((notification) => (
-              <div key={notification.id} className="rounded-lg border p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium">{notification.message}</p>
-                  <Badge variant={notification.level === 'critical' ? 'destructive' : notification.level === 'warning' ? 'secondary' : 'outline'}>
-                    {notification.level}
-                  </Badge>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">{notification.channel} · {formatDate(notification.createdAt)}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
 
       <Card>
         <CardHeader>

@@ -704,11 +704,6 @@
     "ast_hash": "135a5dea9e772ac8b830fbbc1550dc5f",
     "semantic_hash": "135a5dea9e772ac8b830fbbc1550dc5f"
   },
-  "apps/api/src/core/modules/auth/utils/index.ts": {
-    "mtime": 1783522885.4165173,
-    "ast_hash": "8e82c4121d514f9533a2d089f2562715",
-    "semantic_hash": "8e82c4121d514f9533a2d089f2562715"
-  },
   "apps/api/src/core/modules/configuration/configuration-core.module.ts": {
     "mtime": 1783522885.3760974,
     "ast_hash": "3c6008316c7c04fee61c592cffb082c3",
@@ -1794,11 +1789,6 @@
     "ast_hash": "74376a131caf5b4e5905276ad24594cb",
     "semantic_hash": "74376a131caf5b4e5905276ad24594cb"
   },
-  "apps/api/src/core/modules/traefik/config-builder/index.ts": {
-    "mtime": 1783522885.3973334,
-    "ast_hash": "386b2a145c064911418f96fc3a201be2",
-    "semantic_hash": "386b2a145c064911418f96fc3a201be2"
-  },
   "apps/api/src/core/modules/traefik/config-builder/variables/__tests__/variable-system.test.ts": {
     "mtime": 1783522885.3929095,
     "ast_hash": "6a2047860c772d1f5646e366bff121ea",
@@ -2194,11 +2184,6 @@
     "ast_hash": "acef2bfd5d0bec47baacc77cc5560f0a",
     "semantic_hash": "acef2bfd5d0bec47baacc77cc5560f0a"
   },
-  "apps/api/src/e2e/utils/patch-shared-api-runtime.ts": {
-    "mtime": 1783522885.2638967,
-    "ast_hash": "1ff9bdf7df0821d0f0b6bbc2e35ad6be",
-    "semantic_hash": "1ff9bdf7df0821d0f0b6bbc2e35ad6be"
-  },
   "apps/api/src/e2e/utils/shared-api-runtime.ts": {
     "mtime": 1783522885.2617962,
     "ast_hash": "02b07b650067bdb25b13d42026fcc3be",
@@ -2223,11 +2208,6 @@
     "mtime": 1783522885.2630749,
     "ast_hash": "4a6391c263a084c278488d22ac27b4bc",
     "semantic_hash": "4a6391c263a084c278488d22ac27b4bc"
-  },
-  "apps/api/src/e2e/utils/test-interceptor.ts": {
-    "mtime": 1783522885.264294,
-    "ast_hash": "164680a2ef3510e2c216db08a1ba829d",
-    "semantic_hash": "164680a2ef3510e2c216db08a1ba829d"
   },
   "apps/api/src/main.spec.ts": {
     "mtime": 1783522885.3616133,
@@ -3433,16 +3413,6 @@
     "mtime": 1783522885.2825615,
     "ast_hash": "808b8d17f90a3a88a40f7629e2d6cbee",
     "semantic_hash": "808b8d17f90a3a88a40f7629e2d6cbee"
-  },
-  "apps/api/src/test/mesh/main.ts": {
-    "mtime": 1783522885.4795234,
-    "ast_hash": "0ec4e9547d8f295a72195079ef64c58d",
-    "semantic_hash": "0ec4e9547d8f295a72195079ef64c58d"
-  },
-  "apps/api/src/test/mesh/mesh-test.module.ts": {
-    "mtime": 1783522885.4797926,
-    "ast_hash": "2c7ee126df39ea7a79c848fd12f38ccf",
-    "semantic_hash": "2c7ee126df39ea7a79c848fd12f38ccf"
   },
   "apps/api/test-containers/mock-node-server.js": {
     "mtime": 1781962245.093639,
@@ -4724,11 +4694,6 @@
     "ast_hash": "1deebc90417664f31972f018830f7fab",
     "semantic_hash": "1deebc90417664f31972f018830f7fab"
   },
-  "apps/web/src/components/auth/index.ts": {
-    "mtime": 1779878623.8478885,
-    "ast_hash": "56bf2a138196fd066d55fd7534ae8375",
-    "semantic_hash": "56bf2a138196fd066d55fd7534ae8375"
-  },
   "apps/web/src/components/dashboard/DashboardBreadcrumbs.tsx": {
     "mtime": 1779878623.8482802,
     "ast_hash": "05422a98c3a6d3e2c2f4cdb5aefd7b58",
@@ -4949,11 +4914,6 @@
     "ast_hash": "4b28dd7382c6c0358ecefcf7ab128cf0",
     "semantic_hash": "4b28dd7382c6c0358ecefcf7ab128cf0"
   },
-  "apps/web/src/domains/admin/mock-hooks.ts": {
-    "mtime": 1779878623.8563766,
-    "ast_hash": "0b4c3e45bd1ee08c614884b0cc2815ae",
-    "semantic_hash": "0b4c3e45bd1ee08c614884b0cc2815ae"
-  },
   "apps/web/src/domains/admin/schemas.ts": {
     "mtime": 1784206249.7538457,
     "ast_hash": "bf9269a188a7abbab3498512eb0ce4cc",
@@ -5104,11 +5064,6 @@
     "ast_hash": "3714f51c8669ff499a2ce5717d0d8c44",
     "semantic_hash": "3714f51c8669ff499a2ce5717d0d8c44"
   },
-  "apps/web/src/domains/push/mock-hooks.ts": {
-    "mtime": 1779878623.8641117,
-    "ast_hash": "0f34c5e5e26cada3188eb65bead9ade0",
-    "semantic_hash": "0f34c5e5e26cada3188eb65bead9ade0"
-  },
   "apps/web/src/domains/push/utils.ts": {
     "mtime": 1779878623.8641117,
     "ast_hash": "f68278c52ad2ecd399c47c85df32d1a8",
@@ -5128,11 +5083,6 @@
     "mtime": 1779878623.8647768,
     "ast_hash": "7ada8166c5c6484bc5c16c161cc23006",
     "semantic_hash": "7ada8166c5c6484bc5c16c161cc23006"
-  },
-  "apps/web/src/domains/service/mock-hooks.ts": {
-    "mtime": 1779878623.8647768,
-    "ast_hash": "5091866d2bba6bf45979ea4271ea941c",
-    "semantic_hash": "5091866d2bba6bf45979ea4271ea941c"
   },
   "apps/web/src/domains/setup/endpoints.ts": {
     "mtime": 1784254226.7812805,
@@ -11414,11 +11364,6 @@
     "ast_hash": "72f38e89a316a350414b3e4f61dc441b",
     "semantic_hash": "72f38e89a316a350414b3e4f61dc441b"
   },
-  "apps/api/src/core/gateway/index.ts": {
-    "mtime": 1783947564.0275846,
-    "ast_hash": "3abbe9eebd98fd57d8be1261fe0e2dae",
-    "semantic_hash": "3abbe9eebd98fd57d8be1261fe0e2dae"
-  },
   "apps/api/src/core/gateway/route-registry.service.ts": {
     "mtime": 1783947564.0275846,
     "ast_hash": "1fcef352248530dee9532725f699caff",
@@ -11514,11 +11459,6 @@
     "ast_hash": "102a9884965d4e14707750673fc6f6ba",
     "semantic_hash": ""
   },
-  "apps/api/src/core/router/index.ts": {
-    "mtime": 1783947564.0285845,
-    "ast_hash": "163d0e31675ab435d8b2f14531a2e667",
-    "semantic_hash": "163d0e31675ab435d8b2f14531a2e667"
-  },
   "apps/api/src/core/router/router.controller.ts": {
     "mtime": 1783947564.0275846,
     "ast_hash": "4069d6113a046331281589a7db39da28",
@@ -11600,9 +11540,9 @@
     "semantic_hash": "18ec2c35328bd578e5e04342f6217641"
   },
   "apps/api/src/sub-apps/setup-wizard/setup-wizard.controller.ts": {
-    "mtime": 1783947563.858587,
-    "ast_hash": "220e86ad2190054bcfa25464e68d47b0",
-    "semantic_hash": "220e86ad2190054bcfa25464e68d47b0"
+    "mtime": 1784541232.503642,
+    "ast_hash": "e3f04247348eeb7af5cadde6c6cbfedc",
+    "semantic_hash": ""
   },
   "apps/api/src/sub-apps/setup-wizard/setup-wizard.orpc.module.ts": {
     "mtime": 1783947563.8615868,
@@ -11844,11 +11784,6 @@
     "ast_hash": "86cf611556183376d83ded8895c63fef",
     "semantic_hash": ""
   },
-  "apps/api/src/modules/docker/domains/images/scan-config/docker-project-scan-config.repository.ts": {
-    "mtime": 1784537782.507248,
-    "ast_hash": "2f5cfd810b9f1cc80343b0008a65a4a0",
-    "semantic_hash": ""
-  },
   "apps/web/src/components/setup/post-setup-hints.tsx": {
     "mtime": 1784537782.5057364,
     "ast_hash": "e93c6922df5c5b11af4c6e3a2a667567",
@@ -12070,8 +12005,8 @@
     "semantic_hash": ""
   },
   "tmp/mesh-architecture-proposal-v4.md": {
-    "mtime": 1784540652.9142604,
-    "ast_hash": "d17463454bad534e1a79712d84a5cd64",
+    "mtime": 1784540816.4310806,
+    "ast_hash": "66b90d7d351d787dc5ee06bf11b7aee4",
     "semantic_hash": ""
   },
   "tmp/mesh-architecture-proposal.md": {
