@@ -4740,8 +4740,8 @@
     "semantic_hash": "8850209cfe8cfd8ec33b9ceac0744e7e"
   },
   "apps/web/src/components/dashboard/DashboardSidebar.tsx": {
-    "mtime": 1784539198.405546,
-    "ast_hash": "8a708d7d182d663dfc08ca9aac8f8fa5",
+    "mtime": 1784539537.250777,
+    "ast_hash": "e4fc9dca8625e8607add1ceca667d1de",
     "semantic_hash": ""
   },
   "apps/web/src/components/dashboard/DashboardSidebarSkeleton.tsx": {

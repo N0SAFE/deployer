@@ -63,13 +63,24 @@ export function extractRoutesFromExpress(
   return routes;
 }
 
+interface NestAppWithHttpAdapter {
+  getHttpAdapter?(): {
+    getInstance?(): { router?: { stack?: unknown[] }; _router?: { stack?: unknown[] } };
+    instance?: { router?: { stack?: unknown[] }; _router?: { stack?: unknown[] } };
+  };
+  httpAdapter?: {
+    getInstance?(): { router?: { stack?: unknown[] }; _router?: { stack?: unknown[] } };
+    instance?: { router?: { stack?: unknown[] }; _router?: { stack?: unknown[] } };
+  };
+}
+
 /**
  * Get the Express router stack from a NestJS application.
  * Supports Express 5 (app.router) and Express 4 (app._router).
  */
 function getExpressStack(app: INestApplication): unknown[] | null {
   try {
-    const adapter = (app as any).getHttpAdapter?.() ?? (app as any).httpAdapter;
+    const adapter = (app as NestAppWithHttpAdapter).getHttpAdapter?.() ?? (app as NestAppWithHttpAdapter).httpAdapter;
     if (!adapter) return null;
 
     const instance = adapter.getInstance?.() ?? adapter.instance;

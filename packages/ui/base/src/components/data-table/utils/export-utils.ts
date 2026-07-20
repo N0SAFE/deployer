@@ -18,7 +18,7 @@ export function flattenHierarchicalData<T extends ExportableData>(
 
   const flatten = (items: T[], depth: number = 0) => {
     items.forEach((item) => {
-      const { [subRowsField]: subRows, ...itemData } = item as any;
+      const { [subRowsField]: subRows, ...itemData } = item as Record<string, unknown>;
       flattened.push(
         includeDepth
           ? ({ ...itemData, _depth: depth } as T)
@@ -43,7 +43,7 @@ export function exportParentRowsOnly<T extends ExportableData>(
   subRowsField: string = 'subRows'
 ): T[] {
   return data.map((item) => {
-    const { [subRowsField]: _, ...parentData } = item as any;
+    const { [subRowsField]: _, ...parentData } = item as Record<string, unknown>;
     return parentData as T;
   });
 }

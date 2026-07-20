@@ -109,7 +109,7 @@ export class GatewayService implements OnApplicationBootstrap, OnApplicationShut
       res.end(JSON.stringify({
         statusCode: 503,
         message: 'Service not yet available — no sub-app registered for this route',
-        requestId: (req as any).requestId,
+        requestId: (req as Request & { requestId: string }).requestId,
         path,
         method,
       }));

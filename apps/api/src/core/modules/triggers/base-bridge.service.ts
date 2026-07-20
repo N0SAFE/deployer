@@ -67,7 +67,7 @@ export class BaseTriggerService<TSchema extends z.ZodType> extends BaseEventServ
 
   /** Unique bridge identifier. Set via static bridgeId on subclasses. */
   private get bridgeKey(): string {
-    return (this.constructor as any).bridgeId ?? this.constructor.name;
+    return (this.constructor as typeof BaseTriggerService).bridgeId ?? this.constructor.name;
   }
 
   /** Shared state keyed by bridgeKey. */

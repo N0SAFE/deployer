@@ -6,6 +6,12 @@ import type { TableConfig } from "./utils/table-config";
 import type { CaseFormatConfig } from "./utils/case-utils";
 import type { DataTransformFunction, ExportableData } from "./utils/export-utils";
 
+/** Column definition extended with meta and accessorKey for header rendering. */
+interface ColumnDefWithMeta<TData = unknown> extends ColumnDef<TData> {
+  meta?: { title?: string };
+  accessorKey?: string;
+}
+
 // ** import core packages
 import {
   type ColumnSizingState,
@@ -308,7 +314,7 @@ export function DataTable<TData extends ExportableData, TValue>({
     // Apply sorting to subrows for each parent
     return items.map(item => {
       const itemId = String(item[idField]);
-      const subRows = (item as any)[subRowsConfig.subRowsField || 'subRows'];
+      const subRows = (item as Record<string, unknown>)[subRowsConfig.subRowsField || 'subRows'];
       
       // If no subrows or no sorting for this parent, return as-is
       if (!Array.isArray(subRows) || !subrowSorting[itemId]) {
@@ -396,7 +402,7 @@ export function DataTable<TData extends ExportableData, TValue>({
           const itemId = String(item[idField]);
           parentIdsMap.set(itemId, true);
 
-          const subRowsData = (item as any)[subRowsConfig.subRowsField || 'subRows'];
+          const subRowsData = (item as Record<string, unknown>)[subRowsConfig.subRowsField || 'subRows'];
           if (Array.isArray(subRowsData)) {
             subRowsData.forEach((subRow: any) => {
               const subRowId = String(subRow[idField]);
@@ -535,7 +541,7 @@ export function DataTable<TData extends ExportableData, TValue>({
       }
 
       // Check subrows
-      const subRowsData = (item as any)[subRowsConfig.subRowsField || 'subRows'];
+      const subRowsData = (item as Record<string, unknown>)[subRowsConfig.subRowsField || 'subRows'];
       if (Array.isArray(subRowsData)) {
         subRowsData.forEach((subRow: any) => {
           const subRowId = String(subRow[idField]);
@@ -634,7 +640,7 @@ export function DataTable<TData extends ExportableData, TValue>({
     // Find subrow items from current page
     const subrowsInCurrentPage: TData[] = [];
     dataItems.forEach((item) => {
-      const subRowsData = (item as any)[subRowsConfig.subRowsField || 'subRows'];
+      const subRowsData = (item as Record<string, unknown>)[subRowsConfig.subRowsField || 'subRows'];
       if (Array.isArray(subRowsData)) {
         subRowsData.forEach((subRow: any) => {
           if (selectedSubrowIds.has(String(subRow[idField]))) {
@@ -682,7 +688,7 @@ export function DataTable<TData extends ExportableData, TValue>({
       // Extract only the selected subrows from fetched parent orders
       const fetchedSubrows: TData[] = [];
       fetchedParentOrders.forEach((item: any) => {
-        const subRowsData = (item as any)[subRowsConfig.subRowsField || 'subRows'];
+        const subRowsData = (item as Record<string, unknown>)[subRowsConfig.subRowsField || 'subRows'];
         if (Array.isArray(subRowsData)) {
           subRowsData.forEach((subRow: any) => {
             if (selectedSubrowIds.has(String(subRow[idField]))) {
@@ -952,7 +958,7 @@ export function DataTable<TData extends ExportableData, TValue>({
     // SUBROW ID FIX: Generate unique composite IDs to avoid collisions
     // Without this, parent ID=1 and subrow ID=1 would both be "1"
     getRowId: (row: TData, index: number, parent?: Row<TData>) => {
-      const rowId = String((row as any)[idField]);
+      const rowId = String((row as Record<string, unknown>)[idField as string]);
       if (subRowsConfig?.enabled && parent) {
         // Subrow: create composite ID like "438-sub-3706"
         return `${parent.id}-sub-${rowId}`;
@@ -972,7 +978,7 @@ export function DataTable<TData extends ExportableData, TValue>({
       onExpandedChange: setExpanded,
       getExpandedRowModel: getExpandedRowModel(),
       getSubRows: (row: TData) => {
-        const subRows = (row as any)[subRowsConfig.subRowsField || 'subRows'];
+        const subRows = (row as Record<string, unknown>)[subRowsConfig.subRowsField || 'subRows'];
         // Only return if it's a valid array with items
         return Array.isArray(subRows) && subRows.length > 0 ? subRows : undefined;
       },
@@ -1316,12 +1322,12 @@ export function DataTable<TData extends ExportableData, TValue>({
                               headerText = ''; // Empty for select column
                             } else if (column.id === 'actions') {
                               headerText = 'Actions';
-                            } else if ((column as any).meta?.title) {
-                              headerText = (column as any).meta.title;
+                            } else if ((column as ColumnDefWithMeta).meta?.title) {
+                              headerText = (column as ColumnDefWithMeta).meta!.title!;
                             }
                             
                             // Check if this column is sortable (has accessorKey)
-                            const accessorKey = (column as any).accessorKey;
+                            const accessorKey = (column as ColumnDefWithMeta).accessorKey;
                             const isSortable = !!accessorKey && column.id !== 'select' && column.id !== 'actions' && column.id !== 'expand';
                             const columnId = accessorKey || column.id || '';
                             const isSorted = currentSort?.columnId === columnId;
