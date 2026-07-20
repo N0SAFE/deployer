@@ -2,8 +2,6 @@
 
 import { type ReactNode, useMemo, useState } from 'react'
 import { useDockerRuntimeEntityDetail } from '@/domains/docker/hooks'
-import { getMockVolumeFiles } from '@/mocks/platform/entities/docker.large.mock'
-import type { DockerFileEntry } from '@/mocks/platform/types'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
@@ -30,7 +28,6 @@ export function DockerVolumeDetailModalTrigger({ id, children, className, initia
   const [maintenanceNotice, setMaintenanceNotice] = useState<string | null>(null)
   const detailQuery = useDockerRuntimeEntityDetail('volumes', id, { enabled: open })
   const detail = detailQuery.data
-  const files = useMemo(() => getMockVolumeFiles(id), [id])
   const isDetailLoading = detailQuery.isLoading && !detail
 
   const selectedFile = useMemo(() => {
@@ -157,7 +154,6 @@ export function DockerVolumeDetailModalTrigger({ id, children, className, initia
                   notice={`Volume root: ${detail.mountpoint ?? '/'}`}
                   onCurrentPathChange={setCurrentPath}
                   onSelectedFilePathChange={setSelectedFilePath}
-                  getFilePreviewContent={(file: DockerFileEntry) => {
                     if (selectedFile?.path === file.path) return selectedFilePreview
                     const name = file.path.split('/').pop() ?? file.path
                     return [

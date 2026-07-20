@@ -64,7 +64,7 @@ export const meshBaseResourceContract = meshBaseResourceOps
       .params(meshResourceParamsSchema)
       .body(meshResourceBodySchema),
   )
-  .output((b) => b.body(meshResourceOutputSchema))
+  .output(meshResourceOutputSchema)
   .errors((e) => meshDomainErrorContracts(e))
   .build();
 

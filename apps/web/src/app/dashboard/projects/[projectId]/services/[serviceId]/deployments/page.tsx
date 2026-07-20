@@ -3,13 +3,11 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { MOCK_PROJECTS, MOCK_SERVICES_BY_PROJECT } from '@/mocks/platform'
 import {
   getMockContainerInspectDetail,
   getMockContainerLogs,
   getMockContainerMetrics,
   getMockImagePullScanPipeline,
-} from '@/mocks/platform/entities/docker.large.mock'
 import {
   useDockerContainerList,
   useDockerDeploymentList,
@@ -333,10 +331,8 @@ export default function DashboardServiceDeploymentsPage() {
   const [logsTab, setLogsTab] = useState<'provider' | 'builder' | 'runner'>('provider')
 
   const project = useMemo<ProjectItem | null>(
-    () => (MOCK_PROJECTS as ProjectItem[]).find((item: ProjectItem) => item.id === projectId) ?? null,
     [projectId],
   )
-  const services = useMemo<ServiceItem[]>(() => (MOCK_SERVICES_BY_PROJECT[projectId] ?? []) as ServiceItem[], [projectId])
   const service = useMemo(() => services.find((item: ServiceItem) => item.id === serviceId) ?? null, [serviceId, services])
 
   const { data: deploymentData } = useDockerDeploymentList(LIST_INPUT)

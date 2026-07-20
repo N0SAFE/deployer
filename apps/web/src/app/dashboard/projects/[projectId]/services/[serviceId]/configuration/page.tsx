@@ -4,12 +4,6 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import {
-  MOCK_PROJECTS,
-  MOCK_SERVICE_CONFIGS_BY_PROJECT,
-  MOCK_SERVICE_PROVIDERS_BY_PROJECT,
-  MOCK_SERVICE_RUNNERS_BY_PROJECT,
-  MOCK_SERVICES_BY_PROJECT,
-} from '@/mocks/platform'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
@@ -65,8 +59,6 @@ export default function DashboardServiceConfigurationPage() {
   const projectId = params.projectId
   const serviceId = params.serviceId
 
-  const project = useMemo(() => MOCK_PROJECTS.find((item) => item.id === projectId) ?? null, [projectId])
-  const [services, setServices] = useState(() => MOCK_SERVICES_BY_PROJECT[projectId] ?? [])
   const service = useMemo(() => services.find((item) => item.id === serviceId) ?? null, [serviceId, services])
 
   const [editName, setEditName] = useState('')
@@ -84,19 +76,13 @@ export default function DashboardServiceConfigurationPage() {
   }, [service])
 
   const [serviceConfigsById, setServiceConfigsById] = useState<Record<string, ServiceConfigEntry>>(() =>
-    cloneValue(MOCK_SERVICE_CONFIGS_BY_PROJECT[projectId] ?? {}),
   )
   const [serviceProvidersById, setServiceProvidersById] = useState<Record<string, MockServiceProvider>>(() =>
-    cloneValue(MOCK_SERVICE_PROVIDERS_BY_PROJECT[projectId] ?? {}),
   )
   const [serviceRunnersById, setServiceRunnersById] = useState<Record<string, MockServiceRunner>>(() =>
-    cloneValue(MOCK_SERVICE_RUNNERS_BY_PROJECT[projectId] ?? {}),
   )
 
   useEffect(() => {
-    setServiceConfigsById(cloneValue(MOCK_SERVICE_CONFIGS_BY_PROJECT[projectId] ?? {}))
-    setServiceProvidersById(cloneValue(MOCK_SERVICE_PROVIDERS_BY_PROJECT[projectId] ?? {}))
-    setServiceRunnersById(cloneValue(MOCK_SERVICE_RUNNERS_BY_PROJECT[projectId] ?? {}))
   }, [projectId])
 
   const serviceConfig = useMemo(() => serviceConfigsById[serviceId] ?? null, [serviceConfigsById, serviceId])

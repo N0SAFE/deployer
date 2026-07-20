@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
-import { MOCK_PROJECTS, MOCK_SERVICES_BY_PROJECT } from '@/mocks/platform'
 import { DockerSelectionToggle } from '@/app/dashboard/docker/_components/docker-page-utilities'
 import {
   useDockerContainerList,
@@ -91,10 +90,8 @@ export default function DashboardServiceLogsPage() {
   const [clearedAt, setClearedAt] = useState<number | null>(null)
 
   const project = useMemo<ProjectItem | null>(
-    () => (MOCK_PROJECTS as ProjectItem[]).find((item: ProjectItem) => item.id === projectId) ?? null,
     [projectId],
   )
-  const services = useMemo<ServiceItem[]>(() => (MOCK_SERVICES_BY_PROJECT[projectId] ?? []) as ServiceItem[], [projectId])
   const service = useMemo(() => services.find((item: ServiceItem) => item.id === serviceId) ?? null, [serviceId, services])
 
   const { data: deploymentData } = useDockerDeploymentList(LIST_INPUT)

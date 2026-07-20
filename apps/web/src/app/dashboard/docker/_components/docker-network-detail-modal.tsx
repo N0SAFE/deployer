@@ -2,7 +2,6 @@
 
 import { type ReactNode, useMemo, useState } from 'react'
 import { useDockerRuntimeEntityDetail } from '@/domains/docker/hooks'
-import { getMockNetworkDiagnostics } from '@/mocks/platform/entities/docker.large.mock'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
@@ -24,7 +23,6 @@ export function DockerNetworkDetailModalTrigger({ id, children, className, initi
   const [activeTab, setActiveTab] = useState<'overview' | 'ipam' | 'containers' | 'labels' | 'diag'>(initialTab)
   const detailQuery = useDockerRuntimeEntityDetail('networks', id, { enabled: open })
   const detail = detailQuery.data
-  const diagnostics = useMemo(() => (detail ? getMockNetworkDiagnostics(detail) : null), [detail])
   const isDetailLoading = detailQuery.isLoading && !detail
 
   return (

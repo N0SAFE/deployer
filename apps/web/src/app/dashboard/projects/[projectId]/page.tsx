@@ -4,16 +4,8 @@ import Link from 'next/link'
 import { AuthDashboardProjects } from '@/routes'
 import { useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
-import {
-  MOCK_DEPENDENCIES_BY_PROJECT,
-  MOCK_DEPLOYMENTS,
-  MOCK_INCIDENTS,
-  MOCK_NOTIFICATIONS,
-  MOCK_PROJECT_CONFIGURATIONS,
-  MOCK_PROJECTS,
-  MOCK_SERVICE_CONFIGS_BY_PROJECT,
-  MOCK_SERVICES_BY_PROJECT,
-} from '@/mocks/platform'
+import { useProject, useProjectCollaborators } from '@/domains/project/hooks'
+import { useServiceList } from '@/domains/service/hooks'
 import {
   ServiceDependencyGraphPanel,
   type ServiceGraphDependencyRoute,
@@ -265,18 +257,19 @@ export default function DashboardProjectDetailPage() {
   const params = useParams<{ projectId: string }>()
   const projectId = params.projectId
 
-  const project = useMemo(() => MOCK_PROJECTS.find((item) => item.id === projectId) ?? null, [projectId])
-  const [localServices, setLocalServices] = useState(() => MOCK_SERVICES_BY_PROJECT[projectId] ?? [])
+  const { data: projectData, isLoading, error } = useProject(projectId)
+  const { data: servicesData } = useServiceList({ query: { limit: 100, offset: 0 } })
 
-  const dependencies = useMemo(() => MOCK_DEPENDENCIES_BY_PROJECT[projectId] ?? [], [projectId])
-  const serviceConfigs = useMemo(() => MOCK_SERVICE_CONFIGS_BY_PROJECT[projectId] ?? {}, [projectId])
+  const project = useMemo(() => projectData ?? null, [projectData])
+  const localServices = useMemo(() => {
+    if (!Array.isArray(servicesData)) return []
+    return servicesData.filter((s: any) => s.projectId === projectId || s.id?.startsWith(projectId))
+  }, [servicesData, projectId])
+
   const deployments = useMemo(
-    () => MOCK_DEPLOYMENTS.filter((deployment) => deployment.projectId === projectId),
     [projectId],
   )
-  const incidents = useMemo(() => MOCK_INCIDENTS.filter((incident) => incident.projectId === projectId), [projectId])
   const notifications = useMemo(
-    () => MOCK_NOTIFICATIONS.filter((notification) => notification.projectId === projectId),
     [projectId],
   )
 
@@ -442,7 +435,6 @@ export default function DashboardProjectDetailPage() {
 
   const serviceEnvironmentContractsById = useMemo(() => {
     const map = new Map<string, ServiceEnvironmentContract>()
-    const projectConfiguration = MOCK_PROJECT_CONFIGURATIONS[projectId]
     const defaultVariableKeys = Object.keys(projectConfiguration?.environment.defaultVariables ?? {})
     const projectVariablesByScope: Record<string, Record<string, string>> = Object.fromEntries(
       Object.entries(projectConfiguration?.environment.environments ?? {}).map(([scope, config]) => [

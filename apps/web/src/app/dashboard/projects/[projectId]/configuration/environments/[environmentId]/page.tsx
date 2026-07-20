@@ -8,7 +8,6 @@ import {
   getDependencyGraphMockScenario,
   getDependencyPolicyKey,
   type DependencyPolicyOverrideMap,
-} from '@/mocks/platform'
 import type { ProjectConfiguration, ServiceConfigEntry } from '@repo/contracts-entities'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Badge } from '@repo/ui/components/shadcn/badge'

@@ -3,12 +3,6 @@
 import { type ReactNode, useMemo, useState } from 'react'
 import { useDockerRuntimeEntityDetail } from '@/domains/docker/hooks'
 import {
-  getMockStackActivity,
-  getMockStackComposeYaml,
-  getMockStackGitSyncState,
-  getMockStackLogs,
-  getMockStackServiceGraph,
-} from '@/mocks/platform/entities/docker.large.mock'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
@@ -28,11 +22,6 @@ export function DockerStackDetailModalTrigger({ id, children, className }: Docke
   const [opsNotice, setOpsNotice] = useState<string | null>(null)
   const detailQuery = useDockerRuntimeEntityDetail('stacks', id, { enabled: open })
   const detail = detailQuery.data
-  const composeYaml = useMemo(() => (detail ? getMockStackComposeYaml(detail) : ''), [detail])
-  const activity = useMemo(() => getMockStackActivity(id), [id])
-  const logs = useMemo(() => getMockStackLogs(id), [id])
-  const serviceGraph = useMemo(() => (detail ? getMockStackServiceGraph(detail) : { nodes: [], edges: [] }), [detail])
-  const gitSync = useMemo(() => (detail ? getMockStackGitSyncState(detail) : null), [detail])
   const isDetailLoading = detailQuery.isLoading && !detail
 
   const orchestrator = useMemo<'compose' | 'swarm' | 'kubernetes'>(() => {

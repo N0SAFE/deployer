@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
-import { MOCK_PROJECTS, MOCK_SERVICE_CONFIGS_BY_PROJECT, MOCK_SERVICES_BY_PROJECT } from '@/mocks/platform'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
@@ -11,17 +10,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
 import { ArrowLeft } from 'lucide-react'
 import { ServiceSectionNav } from '../_components/service-section-nav'
-import { MOCK_DEPENDENCIES_BY_PROJECT } from '@/mocks/platform'
 
 export default function DashboardServiceMonitoringPage() {
   const params = useParams<{ projectId: string; serviceId: string }>()
   const projectId = params.projectId
   const serviceId = params.serviceId
 
-  const project = useMemo(() => MOCK_PROJECTS.find((item) => item.id === projectId) ?? null, [projectId])
-  const services = useMemo(() => MOCK_SERVICES_BY_PROJECT[projectId] ?? [], [projectId])
   const service = useMemo(() => services.find((item) => item.id === serviceId) ?? null, [serviceId, services])
-  const serviceConfig = useMemo(() => MOCK_SERVICE_CONFIGS_BY_PROJECT[projectId]?.[serviceId] ?? null, [projectId, serviceId])
 
   const envStatus = useMemo(() => {
     if (!serviceConfig) return []
@@ -29,7 +24,6 @@ export default function DashboardServiceMonitoringPage() {
   }, [serviceConfig])
 
   const dependencyRows = useMemo(() => {
-    return (MOCK_DEPENDENCIES_BY_PROJECT[projectId] ?? []).filter(
       (dependency) => dependency.serviceId === serviceId || dependency.dependsOnServiceId === serviceId,
     )
   }, [projectId, serviceId])

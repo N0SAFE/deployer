@@ -4,14 +4,6 @@ import Link from 'next/link'
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import {
-  MOCK_DEPENDENCIES_BY_PROJECT,
-  MOCK_DEPLOYMENTS,
-  MOCK_INCIDENTS,
-  MOCK_NOTIFICATIONS,
-  MOCK_PROJECTS,
-  MOCK_SERVICE_CONFIGS_BY_PROJECT,
-  MOCK_SERVICES_BY_PROJECT,
-} from '@/mocks/platform'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
@@ -36,25 +28,18 @@ export default function DashboardServiceOverviewPage() {
   const projectId = params.projectId
   const serviceId = params.serviceId
 
-  const project = useMemo(() => MOCK_PROJECTS.find((item) => item.id === projectId) ?? null, [projectId])
-  const services = useMemo(() => MOCK_SERVICES_BY_PROJECT[projectId] ?? [], [projectId])
   const service = useMemo(() => services.find((item) => item.id === serviceId) ?? null, [serviceId, services])
-  const serviceConfig = useMemo(() => MOCK_SERVICE_CONFIGS_BY_PROJECT[projectId]?.[serviceId] ?? null, [projectId, serviceId])
 
   const dependencies = useMemo(
-    () => (MOCK_DEPENDENCIES_BY_PROJECT[projectId] ?? []).filter((dependency) => dependency.serviceId === serviceId),
     [projectId, serviceId],
   )
   const deployments = useMemo(
-    () => MOCK_DEPLOYMENTS.filter((deployment) => deployment.projectId === projectId).slice(0, 8),
     [projectId],
   )
   const incidents = useMemo(
-    () => MOCK_INCIDENTS.filter((incident) => incident.projectId === projectId && incident.affectedServiceIds.includes(serviceId)),
     [projectId, serviceId],
   )
   const notifications = useMemo(
-    () => MOCK_NOTIFICATIONS.filter((notification) => notification.projectId === projectId),
     [projectId],
   )
 

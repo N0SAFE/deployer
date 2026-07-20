@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { ENV_NAMES, type EnvName } from '@repo/contracts-common'
-import { MOCK_DEPENDENCIES_BY_PROJECT, MOCK_SERVICE_CONFIGS_BY_PROJECT } from '@/mocks/platform'
+import { useServiceDependencies } from '@/domains/service/hooks'
 import { useDockerContainerList } from '@/domains/docker/hooks'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
@@ -41,8 +41,6 @@ function toBadgeVariant(status: string): 'default' | 'secondary' | 'destructive'
 }
 
 export function ServiceOpsOverviewCards({ projectId, serviceId, density = 'default' }: ServiceOpsOverviewCardsProps) {
-  const serviceConfig = useMemo(() => (MOCK_SERVICE_CONFIGS_BY_PROJECT[projectId] ?? {})[serviceId] ?? null, [projectId, serviceId])
-  const dependencies = useMemo(() => MOCK_DEPENDENCIES_BY_PROJECT[projectId] ?? [], [projectId])
   const outgoingDependencies = useMemo(
     () => dependencies.filter((dependency) => dependency.serviceId === serviceId),
     [dependencies, serviceId],

@@ -43,7 +43,6 @@ import { Button } from '@repo/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/shadcn/tabs'
 import { Pause, Play, PlayCircle, RotateCcw, Skull, Square, Trash2 } from 'lucide-react'
-import { getMockImageLayers } from '@/mocks/platform/entities/docker.large.mock'
 import { getEntryName, getParentPath, toSafePathName } from '../docker-filesystem-utils'
 import { DockerDetailLoadingState } from '../docker-loading-states'
 import { DockerModalQuickActions } from '../docker-modal-quick-actions'
@@ -1393,7 +1392,6 @@ function DockerContainerDetailModalContent({
       return securityImageInspectDetail.layers
     }
 
-    return getMockImageLayers(detail?.imageId ?? id)
   }, [detail?.imageId, id, inspectDetail?.layers, securityImageInspectDetail?.layers])
 
   function layerStatus(layerId: string): 'verified' | 'cached' | 'warning' | 'pending' {

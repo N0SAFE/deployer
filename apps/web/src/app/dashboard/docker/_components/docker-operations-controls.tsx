@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { getMockOperationProgress } from '@/mocks/platform/entities/docker.large.mock'
-import type { DockerOperationProgressItem } from '@/mocks/platform/types'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { toast } from 'sonner'
@@ -73,43 +71,5 @@ export function DockerBatchOperationsBar({ selectedCount, resourceLabel, onClear
         <Button size="sm" variant="ghost" onClick={onClearSelection}>Clear</Button>
       </div>
     </div>
-  )
-}
-
-interface DockerOperationProgressPanelProps {
-  resourceType: DockerOperationProgressItem['resourceType']
-}
-
-function statusVariant(status: DockerOperationProgressItem['status']): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'success') return 'default'
-  if (status === 'failed') return 'destructive'
-  if (status === 'running') return 'secondary'
-  return 'outline'
-}
-
-export function DockerOperationProgressPanel({ resourceType }: DockerOperationProgressPanelProps) {
-  const operations = getMockOperationProgress(resourceType)
-
-  return (
-    <section className="rounded-xl border border-border/60 bg-card/30 p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">Operation queue</h3>
-        <Badge variant="outline">mock stream</Badge>
-      </div>
-      <div className="space-y-2">
-        {operations.map((operation) => (
-          <div key={operation.id} className="rounded border p-2 space-y-1">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-medium">{operation.action} · {operation.resourceName}</p>
-              <Badge variant={statusVariant(operation.status)}>{operation.status}</Badge>
-            </div>
-            <div className="h-1.5 rounded bg-muted overflow-hidden">
-              <div className="h-full bg-primary" style={{ width: `${String(operation.progress)}%` }} />
-            </div>
-            <p className="text-[11px] text-muted-foreground">{operation.progress}% · {operation.updatedAt}</p>
-          </div>
-        ))}
-      </div>
-    </section>
   )
 }

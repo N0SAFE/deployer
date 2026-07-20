@@ -14,7 +14,6 @@ import { Controller } from "@nestjs/common";
 import { Implement, implement } from "@orpc/nest";
 import { meshBaseResourceContract } from "@repo/api-contracts/modules/mesh/resource/mesh-base-resource.contract";
 import { MeshResourceDispatcher } from "./mesh-resource-dispatcher.service";
-import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 
 /**
  * SINGLE controller for ALL mesh resource operations.
@@ -22,9 +21,8 @@ import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
  * ONE @Implement, ONE route: POST /api/mesh/:entityKey/:methodName.
  * The dispatcher resolves the correct handler at runtime.
  *
- * Auth note: requireAuth() is applied here to protect all mesh endpoints.
- * The type cast is needed because ORPC's middleware type composition with
- * a generic catch-all contract produces deeply nested generics.
+ * Auth is applied via the global ORPC AuthPlugin (populates context.auth)
+ * and via NestJS guards at the module/channel level, not per-handler.
  */
 @Controller()
 export class MeshResourceController {
@@ -34,13 +32,10 @@ export class MeshResourceController {
 
   @Implement(meshBaseResourceContract)
   handle() {
-    const procedure = implement(meshBaseResourceContract)
-      .use(requireAuth())
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .handler(async ({ input }: any) => {
+    return implement(meshBaseResourceContract)
+      .handler(async ({ input }) => {
         const { entityKey, methodName } = input.params;
         return this.dispatcher.dispatch(entityKey, methodName, input.body);
       });
-    return procedure;
   }
 }

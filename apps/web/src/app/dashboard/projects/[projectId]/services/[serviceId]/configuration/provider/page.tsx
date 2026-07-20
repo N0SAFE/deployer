@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
-import { MOCK_PROJECTS, MOCK_SERVICE_CONFIGS_BY_PROJECT, MOCK_SERVICE_PROVIDERS_BY_PROJECT, MOCK_SERVICES_BY_PROJECT } from '@/mocks/platform'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
@@ -17,11 +16,7 @@ export default function DashboardServiceConfigurationProviderPage() {
   const projectId = params.projectId
   const serviceId = params.serviceId
 
-  const project = useMemo(() => MOCK_PROJECTS.find((item) => item.id === projectId) ?? null, [projectId])
-  const services = useMemo(() => MOCK_SERVICES_BY_PROJECT[projectId] ?? [], [projectId])
   const service = useMemo(() => services.find((item) => item.id === serviceId) ?? null, [serviceId, services])
-  const providerEntity = useMemo(() => MOCK_SERVICE_PROVIDERS_BY_PROJECT[projectId]?.[serviceId] ?? null, [projectId, serviceId])
-  const serviceConfig = useMemo(() => MOCK_SERVICE_CONFIGS_BY_PROJECT[projectId]?.[serviceId] ?? null, [projectId, serviceId])
 
   if (!project || !service) {
     return (
