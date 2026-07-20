@@ -71,20 +71,20 @@ export class SetupWizardController {
   @Implement(setupContract.triggerInitialize)
   triggerInit() {
     return implement(setupContract.triggerInitialize)
-      .handler((async ({ input }: any) => {
+      .handler(async ({ input }) => {
         const result = this.initializationService.triggerInitialize(input);
         if (!result.accepted) {
           throw new ORPCError('CONFLICT', { message: 'Initialization already in progress' });
         }
         return { accepted: true };
-      }) as any);
+      });
   }
 
   @Implement(setupContract.getInitializeStream)
   stream() {
     return implement(setupContract.getInitializeStream)
-      .handler((() => {
+      .handler(() => {
         return this.initializationService.getInitializeStream();
-      }) as any);
+      });
   }
 }

@@ -39,7 +39,8 @@ function buildQueryContract<TInput extends z.ZodType, TOutput extends z.ZodType>
   return ops
     .read()
     .path(`${prefix}/${methodName}`)
-    .input((b: Parameters<typeof ops.read>[0]) => b.body(query.inputSchema))
+    // Type inferred by ORPC chain automatically — no annotation needed
+    .input((b) => b.body(query.inputSchema))
     .output((b: { body: (s: z.ZodType) => any }) => b.body(
       // Wrap single-item queries in paginated response only for "list" operations
       methodName === "list"
@@ -95,10 +96,12 @@ export function generateEntityContracts<TEntity extends AnyMeshEntity>(
 
   for (const [name, q] of queryEntries) {
     // The entity factory guarantees queries have inputSchema/outputSchema
+    // Using `satisfies` for type narrowing without assertion
+    const query = q satisfies MeshQuery<z.ZodType, z.ZodType>;
     queries[name as string] = buildQueryContract(
       entity.key,
       name as string,
-      q as MeshQuery<z.ZodType, z.ZodType>,
+      query,
       prefix,
     );
   }
@@ -109,10 +112,11 @@ export function generateEntityContracts<TEntity extends AnyMeshEntity>(
   ][];
 
   for (const [name, m] of mutationEntries) {
+    const mutation = m satisfies MeshMutation<z.ZodType, z.ZodType>;
     mutations[name as string] = buildMutationContract(
       entity.key,
       name as string,
-      m as MeshMutation<z.ZodType, z.ZodType>,
+      mutation,
       prefix,
     );
   }
@@ -126,9 +130,12 @@ export function generateEntityContracts<TEntity extends AnyMeshEntity>(
  * Mount entity contracts on an ORPC router with authentication.
  * Every endpoint is automatically protected by requireMeshAuth().
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- ORPC contract shape is dynamic
+type OrpcContractRouter = Record<string, any>;
+
 export function mountEntityContracts<TEntity extends AnyMeshEntity>(
   entity: TEntity,
-  appContract: any,
+  appContract: OrpcContractRouter,
   prefix?: string,
 ) {
   const contracts = generateEntityContracts(entity, prefix);
