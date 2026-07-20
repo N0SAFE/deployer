@@ -170,26 +170,26 @@ function ProjectsSidebarSection() {
   const [serviceFilter, setServiceFilter] = useState('')
   const filterInputRef = useRef<HTMLInputElement>(null)
 
-  const { data: projectsData } = useProjectList({} as any)
+  const { data: projectsData } = useProjectList(undefined)
 
   const projects: Array<{ id: string; name: string }> = useMemo(() => {
-    const list: any = projectsData ?? []
+    const list = projectsData ?? []
     if (!projectFilter) return list
-    return list.filter((p: any) => fuzzyMatch(p.name, projectFilter))
+    return list.filter((p: { name: string }) => fuzzyMatch(p.name, projectFilter))
   }, [projectsData, projectFilter])
 
   // Fetch services when a project is expanded
   const { data: servicesData } = useServiceList(
     useMemo(() => {
-      if (!expandedProject) return undefined as any
+      if (!expandedProject) return undefined
       return { projectId: { eq: expandedProject }, sort: { field: "name", dir: "asc" as const }, limit: 50 }
     }, [expandedProject]),
   )
 
   const filteredServices: Array<{ id: string; name: string }> = useMemo(() => {
-    const list: any = servicesData ?? []
+    const list = servicesData ?? []
     if (!serviceFilter || !expandedProject) return list
-    return list.filter((s: any) => fuzzyMatch(s.name, serviceFilter))
+    return list.filter((s: { name: string }) => fuzzyMatch(s.name, serviceFilter))
   }, [servicesData, serviceFilter, expandedProject])
 
   const toggleProject = useCallback((projectId: string) => {

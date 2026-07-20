@@ -530,9 +530,9 @@
     "semantic_hash": "252de1d7a8146460dffdd97004d8b2cf"
   },
   "apps/api/src/core/modules/auth/decorators/decorators.ts": {
-    "mtime": 1783522885.4263883,
-    "ast_hash": "e53ad02a9bc063cd931a5e009f22d237",
-    "semantic_hash": "e53ad02a9bc063cd931a5e009f22d237"
+    "mtime": 1784539267.4734235,
+    "ast_hash": "8725c38a845f86f524c6034423f24574",
+    "semantic_hash": ""
   },
   "apps/api/src/core/modules/auth/definitions/auth-module-definition.ts": {
     "mtime": 1783522885.4175358,
@@ -4740,8 +4740,8 @@
     "semantic_hash": "8850209cfe8cfd8ec33b9ceac0744e7e"
   },
   "apps/web/src/components/dashboard/DashboardSidebar.tsx": {
-    "mtime": 1784254226.7812805,
-    "ast_hash": "86477d3c7f52476e93496f94617b643d",
+    "mtime": 1784539198.405546,
+    "ast_hash": "8a708d7d182d663dfc08ca9aac8f8fa5",
     "semantic_hash": ""
   },
   "apps/web/src/components/dashboard/DashboardSidebarSkeleton.tsx": {
@@ -7733,216 +7733,6 @@
     "mtime": 1779878623.987217,
     "ast_hash": "0e2d23a33d582a130019330b40747dfd",
     "semantic_hash": "0e2d23a33d582a130019330b40747dfd"
-  },
-  "packages/nest/auth/package.json": {
-    "mtime": 1782907015.8826716,
-    "ast_hash": "f25446d168cac9fe5a1eede850e7a2f8",
-    "semantic_hash": "f25446d168cac9fe5a1eede850e7a2f8"
-  },
-  "packages/nest/auth/src/auth.module.ts": {
-    "mtime": 1779878623.9872801,
-    "ast_hash": "a1e64435c47b29a8a337d6234638472c",
-    "semantic_hash": "a1e64435c47b29a8a337d6234638472c"
-  },
-  "packages/nest/auth/src/decorators/decorators.spec.ts": {
-    "mtime": 1779878623.9890678,
-    "ast_hash": "252de1d7a8146460dffdd97004d8b2cf",
-    "semantic_hash": "252de1d7a8146460dffdd97004d8b2cf"
-  },
-  "packages/nest/auth/src/decorators/decorators.ts": {
-    "mtime": 1779878623.989189,
-    "ast_hash": "e53ad02a9bc063cd931a5e009f22d237",
-    "semantic_hash": "e53ad02a9bc063cd931a5e009f22d237"
-  },
-  "packages/nest/auth/src/definitions/auth-module-definition.ts": {
-    "mtime": 1779878623.989189,
-    "ast_hash": "f20bf7369331ec7ad6f07e530121aa46",
-    "semantic_hash": "f20bf7369331ec7ad6f07e530121aa46"
-  },
-  "packages/nest/auth/src/filters/api-error-exception-filter.ts": {
-    "mtime": 1779878623.989189,
-    "ast_hash": "3a889e5692f5af082d5efa725af3b057",
-    "semantic_hash": "3a889e5692f5af082d5efa725af3b057"
-  },
-  "packages/nest/auth/src/guards/auth.guard.spec.ts": {
-    "mtime": 1779878623.989189,
-    "ast_hash": "c732868b733b319d86b48e3f9e53e8a0",
-    "semantic_hash": "c732868b733b319d86b48e3f9e53e8a0"
-  },
-  "packages/nest/auth/src/guards/auth.guard.ts": {
-    "mtime": 1779878623.9896255,
-    "ast_hash": "f1466d63b7ea973e41de2447c0727ddb",
-    "semantic_hash": "f1466d63b7ea973e41de2447c0727ddb"
-  },
-  "packages/nest/auth/src/guards/role.guard.spec.ts": {
-    "mtime": 1779878623.9896255,
-    "ast_hash": "78393636efaa5cdbfadbb07f690b10e7",
-    "semantic_hash": "78393636efaa5cdbfadbb07f690b10e7"
-  },
-  "packages/nest/auth/src/guards/role.guard.ts": {
-    "mtime": 1779878623.9896255,
-    "ast_hash": "0ec59b23e42d26a05bcf6405b7d302b6",
-    "semantic_hash": "0ec59b23e42d26a05bcf6405b7d302b6"
-  },
-  "packages/nest/auth/src/middlewares/middlewares.ts": {
-    "mtime": 1779878623.9896255,
-    "ast_hash": "04ebf5b413d558eec424a1ec4902d786",
-    "semantic_hash": "04ebf5b413d558eec424a1ec4902d786"
-  },
-  "packages/nest/auth/src/orpc/auth-utils.spec.ts": {
-    "mtime": 1779878623.9901798,
-    "ast_hash": "bce74404703771a754d7df9880f7f5a6",
-    "semantic_hash": "bce74404703771a754d7df9880f7f5a6"
-  },
-  "packages/nest/auth/src/orpc/auth-utils.ts": {
-    "mtime": 1779878623.9901798,
-    "ast_hash": "8290cbcf3d98904aa23ec7a531e7b069",
-    "semantic_hash": "8290cbcf3d98904aa23ec7a531e7b069"
-  },
-  "packages/nest/auth/src/orpc/index.ts": {
-    "mtime": 1779878623.9901798,
-    "ast_hash": "ccb104fd46e188bd1ef9828779c138d2",
-    "semantic_hash": "ccb104fd46e188bd1ef9828779c138d2"
-  },
-  "packages/nest/auth/src/orpc/interceptors.ts": {
-    "mtime": 1779878623.9901798,
-    "ast_hash": "6215b16f68d1b06209b6b0f81363e070",
-    "semantic_hash": "6215b16f68d1b06209b6b0f81363e070"
-  },
-  "packages/nest/auth/src/orpc/middlewares.spec.ts": {
-    "mtime": 1779878623.9901798,
-    "ast_hash": "4b9d9592d9cbfd9c146b8c1a63ee43b1",
-    "semantic_hash": "4b9d9592d9cbfd9c146b8c1a63ee43b1"
-  },
-  "packages/nest/auth/src/orpc/middlewares.ts": {
-    "mtime": 1779878623.9901798,
-    "ast_hash": "e3e370bcd8b79aebc0cde9b0cb8d7df4",
-    "semantic_hash": "e3e370bcd8b79aebc0cde9b0cb8d7df4"
-  },
-  "packages/nest/auth/src/orpc/plugins/auth.plugin.ts": {
-    "mtime": 1779878623.9901798,
-    "ast_hash": "f16e7dc085e3af402a6f6c1be57dd83c",
-    "semantic_hash": "f16e7dc085e3af402a6f6c1be57dd83c"
-  },
-  "packages/nest/auth/src/orpc/plugins/index.ts": {
-    "mtime": 1779878623.9910326,
-    "ast_hash": "2c9b69ccc6f564c90907f3e8420a6e4f",
-    "semantic_hash": "2c9b69ccc6f564c90907f3e8420a6e4f"
-  },
-  "packages/nest/auth/src/orpc/types.spec.ts": {
-    "mtime": 1779878623.9910326,
-    "ast_hash": "6e736f60f05c662d787093021b9c7704",
-    "semantic_hash": "6e736f60f05c662d787093021b9c7704"
-  },
-  "packages/nest/auth/src/orpc/types.ts": {
-    "mtime": 1779878623.9910326,
-    "ast_hash": "344cc8fbf004a5480962ebedd733ea21",
-    "semantic_hash": "344cc8fbf004a5480962ebedd733ea21"
-  },
-  "packages/nest/auth/src/plugin-utils/index.ts": {
-    "mtime": 1779878623.9910326,
-    "ast_hash": "205bd21edc511c2e7074968ba20125ce",
-    "semantic_hash": "205bd21edc511c2e7074968ba20125ce"
-  },
-  "packages/nest/auth/src/plugin-utils/middleware/__tests__/middleware.integration.test.ts": {
-    "mtime": 1779878623.9916039,
-    "ast_hash": "a7346284a7891b8dde20ddae284e4202",
-    "semantic_hash": "a7346284a7891b8dde20ddae284e4202"
-  },
-  "packages/nest/auth/src/plugin-utils/middleware/admin.middleware-definition.ts": {
-    "mtime": 1779878623.9916039,
-    "ast_hash": "b240ec1da101ae872ad113a572e9c5f2",
-    "semantic_hash": "b240ec1da101ae872ad113a572e9c5f2"
-  },
-  "packages/nest/auth/src/plugin-utils/middleware/base.middleware-definition.ts": {
-    "mtime": 1779878623.9916039,
-    "ast_hash": "effe1f0e7bd10293fafd26579a31a54a",
-    "semantic_hash": "effe1f0e7bd10293fafd26579a31a54a"
-  },
-  "packages/nest/auth/src/plugin-utils/middleware/index.ts": {
-    "mtime": 1779878623.9916039,
-    "ast_hash": "14a2164cf0edf1fc4d533c60e285134e",
-    "semantic_hash": "14a2164cf0edf1fc4d533c60e285134e"
-  },
-  "packages/nest/auth/src/plugin-utils/middleware/middleware-check.ts": {
-    "mtime": 1779878623.9916039,
-    "ast_hash": "4cfcc494c4a571f53e99622f891b81ff",
-    "semantic_hash": "4cfcc494c4a571f53e99622f891b81ff"
-  },
-  "packages/nest/auth/src/plugin-utils/middleware/middleware-converter.ts": {
-    "mtime": 1782910522.3346522,
-    "ast_hash": "b2ae59413171ff1d68f012d2e3709b7e",
-    "semantic_hash": "b2ae59413171ff1d68f012d2e3709b7e"
-  },
-  "packages/nest/auth/src/plugin-utils/middleware/organization.middleware-definition.ts": {
-    "mtime": 1779878623.9916039,
-    "ast_hash": "eacf2afb1528427545ec0818c0b9a241",
-    "semantic_hash": "eacf2afb1528427545ec0818c0b9a241"
-  },
-  "packages/nest/auth/src/plugin-utils/middleware/orpc-middleware-proxy.ts": {
-    "mtime": 1782910522.3346522,
-    "ast_hash": "52c057386d330311db5fdc475a5d63e1",
-    "semantic_hash": "52c057386d330311db5fdc475a5d63e1"
-  },
-  "packages/nest/auth/src/plugin-utils/plugin-wrapper-factory.ts": {
-    "mtime": 1779878623.9916039,
-    "ast_hash": "a6e1ad21127bec2bc756c426e25e5576",
-    "semantic_hash": "a6e1ad21127bec2bc756c426e25e5576"
-  },
-  "packages/nest/auth/src/services/auth-core.service.ts": {
-    "mtime": 1779878623.9916039,
-    "ast_hash": "feae63d1b72924b41615b89ca6fa3afa",
-    "semantic_hash": "feae63d1b72924b41615b89ca6fa3afa"
-  },
-  "packages/nest/auth/src/services/auth.service.spec.ts": {
-    "mtime": 1779878623.992964,
-    "ast_hash": "e5bd3589797a1fbcbd2120f276205c19",
-    "semantic_hash": "e5bd3589797a1fbcbd2120f276205c19"
-  },
-  "packages/nest/auth/src/services/auth.service.ts": {
-    "mtime": 1779878623.992964,
-    "ast_hash": "72da822a1c21e1cbbc8d39297931f1cd",
-    "semantic_hash": "72da822a1c21e1cbbc8d39297931f1cd"
-  },
-  "packages/nest/auth/src/types/auth.ts": {
-    "mtime": 1779878623.992964,
-    "ast_hash": "11f58466b71b3991ed05d4754894eeaa",
-    "semantic_hash": "11f58466b71b3991ed05d4754894eeaa"
-  },
-  "packages/nest/auth/src/types/symbols.ts": {
-    "mtime": 1779878623.9933848,
-    "ast_hash": "98e619efe80f172bb4c063fe59e42a62",
-    "semantic_hash": "98e619efe80f172bb4c063fe59e42a62"
-  },
-  "packages/nest/auth/src/utils/auth-utils.spec.ts": {
-    "mtime": 1779878623.9933848,
-    "ast_hash": "b5131bee069f2f85806a4370a9598134",
-    "semantic_hash": "b5131bee069f2f85806a4370a9598134"
-  },
-  "packages/nest/auth/src/utils/auth-utils.ts": {
-    "mtime": 1779878623.9935157,
-    "ast_hash": "81b5191be68874ec42afdc5f5263ffc0",
-    "semantic_hash": "81b5191be68874ec42afdc5f5263ffc0"
-  },
-  "packages/nest/auth/src/utils/context.ts": {
-    "mtime": 1779878623.9935157,
-    "ast_hash": "135a5dea9e772ac8b830fbbc1550dc5f",
-    "semantic_hash": "135a5dea9e772ac8b830fbbc1550dc5f"
-  },
-  "packages/nest/auth/src/utils/index.ts": {
-    "mtime": 1779878623.9935157,
-    "ast_hash": "8e82c4121d514f9533a2d089f2562715",
-    "semantic_hash": "8e82c4121d514f9533a2d089f2562715"
-  },
-  "packages/nest/auth/tsconfig.build.json": {
-    "mtime": 1779878623.9935157,
-    "ast_hash": "5d1cd59057480f511da6b394869cb079",
-    "semantic_hash": "5d1cd59057480f511da6b394869cb079"
-  },
-  "packages/nest/auth/tsconfig.json": {
-    "mtime": 1779878623.9935157,
-    "ast_hash": "44e5b78c99a99fe0eaf6826a7fc052db",
-    "semantic_hash": "44e5b78c99a99fe0eaf6826a7fc052db"
   },
   "packages/types/.prettierrc.ts": {
     "mtime": 1779878623.9952803,
@@ -11509,26 +11299,6 @@
     "ast_hash": "ae77cebf43dc350b983e503ed3900c7b",
     "semantic_hash": "ae77cebf43dc350b983e503ed3900c7b"
   },
-  "packages/nest/auth/README.md": {
-    "mtime": 1782119163.5470245,
-    "ast_hash": "49ac9d37ea25c341920420313e3afd82",
-    "semantic_hash": "49ac9d37ea25c341920420313e3afd82"
-  },
-  "packages/nest/auth/src/orpc/EXAMPLES.md": {
-    "mtime": 1779878623.9896255,
-    "ast_hash": "dd0715ed5b46ea30a4207a265a11765e",
-    "semantic_hash": "dd0715ed5b46ea30a4207a265a11765e"
-  },
-  "packages/nest/auth/src/orpc/README.md": {
-    "mtime": 1779878623.9901798,
-    "ast_hash": "2cd118e0e394c5a61b93fdba26e0c3da",
-    "semantic_hash": "2cd118e0e394c5a61b93fdba26e0c3da"
-  },
-  "packages/nest/auth/src/plugin-utils/middleware/MIDDLEWARE-ARCHITECTURE.md": {
-    "mtime": 1779878623.991428,
-    "ast_hash": "5050b7dec06ab3dfda1b8eec6460a9bc",
-    "semantic_hash": "5050b7dec06ab3dfda1b8eec6460a9bc"
-  },
   "packages/types/AGENTS.md": {
     "mtime": 1779878623.9952803,
     "ast_hash": "449e6eaac9a3d0530430c4557f6258bd",
@@ -12235,8 +12005,8 @@
     "semantic_hash": ""
   },
   "dead-code-audit-report.md": {
-    "mtime": 1784323437.967108,
-    "ast_hash": "2c647e614f30f2ca05e25a83a20318f9",
+    "mtime": 1784538466.8307035,
+    "ast_hash": "4d473763ff6a6e4b27eb24b4656244e6",
     "semantic_hash": ""
   },
   "docs/architecture/docker-scoped/01-data-model.md": {
