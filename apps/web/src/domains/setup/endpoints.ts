@@ -20,6 +20,8 @@ export const setupEndpoints = {
   remoteAuth: orpc.setup.remoteAuth,
   triggerInitialize: orpc.setup.triggerInitialize,
   getInitializeStream: orpc.setup.getInitializeStream,
+  listPostSetupHints: orpc.setup.listPostSetupHints,
+  dismissPostSetupHint: orpc.setup.dismissPostSetupHint,
 } as const;
 
 export type SetupEndpoints = typeof setupEndpoints;

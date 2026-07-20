@@ -1,0 +1,938 @@
+{
+  "nodes": [
+    {
+      "id": ".github_README",
+      "label": "CI/CD Setup Documentation",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_ISSUE_TEMPLATE_bug_report",
+      "label": "Bug Report Issue Template",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_ISSUE_TEMPLATE_documentation",
+      "label": "Documentation Issue Template",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/ISSUE_TEMPLATE/documentation.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_ISSUE_TEMPLATE_feature_request",
+      "label": "Feature Request Issue Template",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/ISSUE_TEMPLATE/feature_request.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_agents_merge-conflict-resolver-agent",
+      "label": "Merge Conflict Resolver Agent",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/agents/merge-conflict-resolver.agent.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_chatmodes_speckit-analyze-chatmode",
+      "label": "Speckit Analyze Chat Mode",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.analyze.chatmode.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_chatmodes_speckit-checklist-chatmode",
+      "label": "Speckit Checklist Chat Mode",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.checklist.chatmode.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_chatmodes_speckit-clarify-chatmode",
+      "label": "Speckit Clarify Chat Mode",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.clarify.chatmode.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_chatmodes_speckit-constitution-chatmode",
+      "label": "Speckit Constitution Chat Mode",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.constitution.chatmode.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_chatmodes_speckit-implement-chatmode",
+      "label": "Speckit Implement Chat Mode",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.implement.chatmode.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_chatmodes_speckit-plan-chatmode",
+      "label": "Speckit Plan Chat Mode",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.plan.chatmode.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_chatmodes_speckit-specify-chatmode",
+      "label": "Speckit Specify Chat Mode",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.specify.chatmode.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_chatmodes_speckit-tasks-chatmode",
+      "label": "Speckit Tasks Chat Mode",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.tasks.chatmode.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_chatmodes_speckit-taskstoissues-chatmode",
+      "label": "Speckit Tasks to Issues Chat Mode",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.taskstoissues.chatmode.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_copilot-instructions",
+      "label": "AI Coding Agent Instructions",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_dependabot",
+      "label": "Dependabot Configuration",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/dependabot.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit-analyze-prompt",
+      "label": "Speckit Analyze Prompt",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.analyze.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit-checklist-prompt",
+      "label": "Speckit Checklist Prompt",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.checklist.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit-clarify-prompt",
+      "label": "Speckit Clarify Prompt",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.clarify.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit-constitution-prompt",
+      "label": "Speckit Constitution Prompt",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.constitution.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit-implement-prompt",
+      "label": "Speckit Implement Prompt",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.implement.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit-plan-prompt",
+      "label": "Speckit Plan Prompt",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.plan.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit-specify-prompt",
+      "label": "Speckit Specify Prompt",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.specify.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit-tasks-prompt",
+      "label": "Speckit Tasks Prompt",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.tasks.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "SpeckitWorkflowSystem",
+      "label": "Speckit Workflow System",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.analyze.chatmode.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "MergeConflictResolverAgent",
+      "label": "Merge Conflict Resolver Agent",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/agents/merge-conflict-resolver.agent.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "CICDWorkflows",
+      "label": "CI/CD Workflows",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "DependabotManagement",
+      "label": "Dependabot Dependency Management",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/dependabot.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "ORPCContractFirst",
+      "label": "ORPC Contract-First Pattern",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "ServiceAdapterPattern",
+      "label": "Service-Adapter Pattern",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "BetterAuthIntegration",
+      "label": "Better Auth Integration",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "RepositoryOwnership",
+      "label": "Repository Ownership Rule",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "DocumentationMaintenanceProtocol",
+      "label": "Documentation Maintenance Protocol",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "TypeSafetyZeroAssertions",
+      "label": "Type Safety Zero Tolerance for Assertions",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "ZodSourceOfTruth",
+      "label": "Zod-as-Source-of-Truth for External Data",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "IssueTemplates",
+      "label": "GitHub Issue Templates",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": ".github_chatmodes_speckit-specify-chatmode",
+      "target": "SpeckitWorkflowSystem",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.specify.chatmode.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_chatmodes_speckit-clarify-chatmode",
+      "target": "SpeckitWorkflowSystem",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.clarify.chatmode.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_chatmodes_speckit-plan-chatmode",
+      "target": "SpeckitWorkflowSystem",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.plan.chatmode.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_chatmodes_speckit-tasks-chatmode",
+      "target": "SpeckitWorkflowSystem",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.tasks.chatmode.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_chatmodes_speckit-analyze-chatmode",
+      "target": "SpeckitWorkflowSystem",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.analyze.chatmode.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_chatmodes_speckit-checklist-chatmode",
+      "target": "SpeckitWorkflowSystem",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.checklist.chatmode.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_chatmodes_speckit-constitution-chatmode",
+      "target": "SpeckitWorkflowSystem",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.constitution.chatmode.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_chatmodes_speckit-implement-chatmode",
+      "target": "SpeckitWorkflowSystem",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.implement.chatmode.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_chatmodes_speckit-taskstoissues-chatmode",
+      "target": "SpeckitWorkflowSystem",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.taskstoissues.chatmode.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_chatmodes_speckit-specify-chatmode",
+      "target": ".github_chatmodes_speckit-clarify-chatmode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.specify.chatmode.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_chatmodes_speckit-specify-chatmode",
+      "target": ".github_chatmodes_speckit-plan-chatmode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.specify.chatmode.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_chatmodes_speckit-clarify-chatmode",
+      "target": ".github_chatmodes_speckit-plan-chatmode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.clarify.chatmode.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_chatmodes_speckit-plan-chatmode",
+      "target": ".github_chatmodes_speckit-tasks-chatmode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.plan.chatmode.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_chatmodes_speckit-plan-chatmode",
+      "target": ".github_chatmodes_speckit-checklist-chatmode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.plan.chatmode.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_chatmodes_speckit-tasks-chatmode",
+      "target": ".github_chatmodes_speckit-analyze-chatmode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.tasks.chatmode.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_chatmodes_speckit-tasks-chatmode",
+      "target": ".github_chatmodes_speckit-implement-chatmode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.tasks.chatmode.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit-analyze-prompt",
+      "target": ".github_chatmodes_speckit-analyze-chatmode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.analyze.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit-checklist-prompt",
+      "target": ".github_chatmodes_speckit-checklist-chatmode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.checklist.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit-clarify-prompt",
+      "target": ".github_chatmodes_speckit-clarify-chatmode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.clarify.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit-constitution-prompt",
+      "target": ".github_chatmodes_speckit-constitution-chatmode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.constitution.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit-implement-prompt",
+      "target": ".github_chatmodes_speckit-implement-chatmode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.implement.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit-plan-prompt",
+      "target": ".github_chatmodes_speckit-plan-chatmode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.plan.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit-specify-prompt",
+      "target": ".github_chatmodes_speckit-specify-chatmode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.specify.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit-tasks-prompt",
+      "target": ".github_chatmodes_speckit-tasks-chatmode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.tasks.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_README",
+      "target": "CICDWorkflows",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_dependabot",
+      "target": "DependabotManagement",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/dependabot.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_copilot-instructions",
+      "target": "ORPCContractFirst",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_copilot-instructions",
+      "target": "ServiceAdapterPattern",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_copilot-instructions",
+      "target": "BetterAuthIntegration",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_copilot-instructions",
+      "target": "RepositoryOwnership",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_copilot-instructions",
+      "target": "DocumentationMaintenanceProtocol",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_copilot-instructions",
+      "target": "TypeSafetyZeroAssertions",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_copilot-instructions",
+      "target": "ZodSourceOfTruth",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_copilot-instructions",
+      "target": ".github_chatmodes_speckit-tasks-chatmode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_agents_merge-conflict-resolver-agent",
+      "target": "MergeConflictResolverAgent",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/agents/merge-conflict-resolver.agent.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_ISSUE_TEMPLATE_bug_report",
+      "target": "IssueTemplates",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/ISSUE_TEMPLATE/bug_report.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_ISSUE_TEMPLATE_documentation",
+      "target": "IssueTemplates",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/ISSUE_TEMPLATE/documentation.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_ISSUE_TEMPLATE_feature_request",
+      "target": "IssueTemplates",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/ISSUE_TEMPLATE/feature_request.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "ORPCContractFirst",
+      "target": "ServiceAdapterPattern",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "ServiceAdapterPattern",
+      "target": "RepositoryOwnership",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "TypeSafetyZeroAssertions",
+      "target": "ZodSourceOfTruth",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "CICDWorkflows",
+      "target": "DependabotManagement",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "DocumentationMaintenanceProtocol",
+      "target": "SpeckitWorkflowSystem",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "BetterAuthIntegration",
+      "target": "ServiceAdapterPattern",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_copilot-instructions",
+      "target": ".github_README",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "speckit_workflow_pipeline",
+      "label": "Speckit Workflow Pipeline",
+      "nodes": [
+        ".github_chatmodes_speckit-specify-chatmode",
+        ".github_chatmodes_speckit-clarify-chatmode",
+        ".github_chatmodes_speckit-plan-chatmode",
+        ".github_chatmodes_speckit-tasks-chatmode",
+        ".github_chatmodes_speckit-analyze-chatmode",
+        ".github_chatmodes_speckit-implement-chatmode",
+        ".github_chatmodes_speckit-checklist-chatmode",
+        ".github_chatmodes_speckit-constitution-chatmode",
+        ".github_chatmodes_speckit-taskstoissues-chatmode"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/chatmodes/speckit.specify.chatmode.md"
+    },
+    {
+      "id": "speckit_prompt_partnership",
+      "label": "Speckit Prompt-Chatmode Pairing",
+      "nodes": [
+        ".github_prompts_speckit-analyze-prompt",
+        ".github_prompts_speckit-checklist-prompt",
+        ".github_prompts_speckit-clarify-prompt",
+        ".github_prompts_speckit-constitution-prompt",
+        ".github_prompts_speckit-implement-prompt",
+        ".github_prompts_speckit-plan-prompt",
+        ".github_prompts_speckit-specify-prompt",
+        ".github_prompts_speckit-tasks-prompt"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.analyze.prompt.md"
+    },
+    {
+      "id": "architectural_core_principles",
+      "label": "Architectural Core Principles",
+      "nodes": [
+        "ORPCContractFirst",
+        "ServiceAdapterPattern",
+        "BetterAuthIntegration",
+        "RepositoryOwnership",
+        "TypeSafetyZeroAssertions",
+        "ZodSourceOfTruth",
+        "DocumentationMaintenanceProtocol"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/copilot-instructions.md"
+    },
+    {
+      "id": "issue_tracking_templates",
+      "label": "Issue Tracking Templates",
+      "nodes": [
+        ".github_ISSUE_TEMPLATE_bug_report",
+        ".github_ISSUE_TEMPLATE_documentation",
+        ".github_ISSUE_TEMPLATE_feature_request",
+        "IssueTemplates"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/ISSUE_TEMPLATE/bug_report.md"
+    },
+    {
+      "id": "ci_cd_ecosystem",
+      "label": "CI/CD Ecosystem",
+      "nodes": [
+        ".github_README",
+        ".github_dependabot",
+        "CICDWorkflows",
+        "DependabotManagement"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/README.md"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

@@ -21,7 +21,6 @@ interface EntrypointConfig {
   diagnosePath: string
   cliEntrypoint: string
   startupCheckCommand: string
-  registerMeshNodeCommand: string
 }
 
 // ─── Startup Protocol ──────────────────────────────────────────────────────────
@@ -160,49 +159,6 @@ function phaseDiagnostics(config: EntrypointConfig): void {
 }
 
 /**
- * Phase 5: Register mesh node in global DB (idempotent)
- *
- * Note: Global DB migrations are NOT run here — they are managed by the
- * mesh layer itself (see docs/global-db-migration.md). The migration
- * coordinator lives in the API/mesh services and checks schema versions
- * across all peer nodes before applying any migration.
- *
- * Exit code handling from the CLI command:
- *   0  Success (registered, already registered, or gracefully skipped)
- *   2  DB not ready (transient — caller may retry)
- *   3  Schema not ready (migrations needed — caller should escalate)
- *   4  Registration error (real failure — caller should escalate)
- *   5  Registration DENIED — node code too old for cluster schema
- */
-function phaseRegisterMeshNode(config: EntrypointConfig): void {
-  if (!existsSync(config.cliEntrypoint)) {
-    console.log('⚠️  CLI entrypoint not found at', config.cliEntrypoint, ', skipping')
-    return
-  }
-
-  console.log('🌐 Registering mesh node in global DB...')
-  const result = spawnSync('bun', ['--bun', config.cliEntrypoint, 'register-mesh-node'], {
-    stdio: 'inherit',
-    shell: true,
-  })
-
-  if (result.status === null) {
-    console.log('⚠️  Mesh node registration process was killed or failed to spawn')
-  } else if (result.status === 0) {
-    console.log('✔️  Mesh node registration finished')
-  } else if (result.status === 2) {
-    console.log('⏳  Mesh node registration deferred — global DB not ready yet (will retry on next startup)')
-  } else if (result.status === 3) {
-    console.log('⚠️  Mesh node registration deferred — global DB tables missing (migrations not yet applied)')
-  } else if (result.status === 5) {
-    console.log('❌  Mesh node registration DENIED — this node\'s code is too old for the cluster schema')
-    console.log('    Action: Deploy a newer app version that includes all migrations already applied to the global DB.')
-  } else {
-    console.log(`⚠️  Mesh node registration failed with exit code ${result.status} — check container logs for details`)
-  }
-}
-
-/**
  * Phase 6: Interpret the startup check result and decide next action
  */
 function interpretStartupResult(checkResult: {
@@ -275,17 +231,33 @@ function interpretStartupResult(checkResult: {
  * Start API and Drizzle Studio processes concurrently
  */
 function startProcesses(): void {
-  console.log('🚀 Starting API and Drizzle Studio...')
+  console.log(`[entrypoint] SETUP_AUTO="${process.env.SETUP_AUTO}" SETUP_DATABASE_URL="${String(!!process.env.SETUP_DATABASE_URL)}"`)
+  // SETUP_AUTO is NOT forced here. If you want auto-provisioning, set
+  // SETUP_AUTO=true in your .env or docker environment. Otherwise the
+  // app starts without a database and you run the setup wizard manually.
+  console.log('🚀 Starting API...')
 
   const apiProcess = spawn('bun', ['run', 'start:dev'], {
     stdio: 'inherit',
     shell: true,
+    env: {
+      ...process.env,
+    },
   })
 
-  const studioProcess = spawn('bun', ['run', 'db:studio', '--host', '0.0.0.0'], {
-    stdio: 'inherit',
-    shell: true,
-  })
+  // Start Drizzle Studio only if setup database URL is available
+  // In dev mode with auto-provisioned Postgres, the DB doesn't exist at startup
+  // so drizzle-kit studio would fail. Start it when SETUP_DATABASE_URL is set.
+  let studioProcess: ReturnType<typeof spawn> | null = null
+  if (process.env.SETUP_DATABASE_URL) {
+    console.log('   Starting Drizzle Studio...')
+    studioProcess = spawn('bun', ['run', 'db:studio', '--host', '0.0.0.0'], {
+      stdio: 'inherit',
+      shell: true,
+    })
+  } else {
+    console.log('   (Drizzle Studio skipped — no SETUP_DATABASE_URL, Phase 0 will handle setup)')
+  }
 
   let exitRequested = false
 
@@ -294,20 +266,20 @@ function startProcesses(): void {
       exitRequested = true
       console.log('Process exited, cleaning up...')
       apiProcess.kill()
-      studioProcess.kill()
+      if (studioProcess) studioProcess.kill()
       process.exit(code ?? 1)
     }
   }
 
   apiProcess.on('exit', handleExit)
-  studioProcess.on('exit', handleExit)
+  if (studioProcess) studioProcess.on('exit', handleExit)
 
   process.on('SIGINT', () => {
     if (!exitRequested) {
       exitRequested = true
       console.log('Received SIGINT, shutting down...')
-      apiProcess.kill('SIGINT')
-      studioProcess.kill('SIGINT')
+      apiProcess?.kill('SIGINT')
+      studioProcess?.kill('SIGINT')
     }
   })
 
@@ -315,8 +287,8 @@ function startProcesses(): void {
     if (!exitRequested) {
       exitRequested = true
       console.log('Received SIGTERM, shutting down...')
-      apiProcess.kill('SIGTERM')
-      studioProcess.kill('SIGTERM')
+      apiProcess?.kill('SIGTERM')
+      studioProcess?.kill('SIGTERM')
     }
   })
 }
@@ -328,16 +300,14 @@ function startProcesses(): void {
  *   2. Check node setup state via CLI
  *   3. Validate environment variables
  *   4. Run diagnostics (dev only)
- *   5. Register mesh node in global DB
- *   6. Interpret startup check result
- *   7. Start API processes
+ *   5. Interpret startup check result
+ *   6. Start API processes
  */
 function main(): void {
   const config: EntrypointConfig = {
     diagnosePath: 'scripts/diagnose-build.ts',
     cliEntrypoint: 'src/cli.ts',
     startupCheckCommand: 'node-startup-check',
-    registerMeshNodeCommand: 'register-mesh-node',
   }
 
   console.log('🎯 API Development Entrypoint Started\n')
@@ -362,16 +332,7 @@ function main(): void {
   // ── Phase 4: Diagnostics ─────────────────────────────────────────────
   phaseDiagnostics(config)
 
-  // ── Phase 5: Mesh Node Registration ──────────────────────────────────
-  // (Only register if setup is done — on fresh nodes this will be
-  //  handled by the setup wizard itself)
-  if (checkResult.exitCode === 0 || checkResult.exitCode === 1) {
-    phaseRegisterMeshNode(config)
-  } else {
-    console.log('⏭️  Skipping mesh node registration — setup not yet complete')
-  }
-
-  // ── Phase 6: Interpret Result ────────────────────────────────────────
+  // ── Phase 5: Interpret Result ────────────────────────────────────────
   const shouldProceed = interpretStartupResult(checkResult)
 
   if (!shouldProceed) {
@@ -379,10 +340,13 @@ function main(): void {
     process.exit(1)
   }
 
-  // ── Phase 7: Start API ───────────────────────────────────────────────
-  // Database setup and mesh connection are handled by the API itself
-  // via InitializationService.onModuleInit() and StartupCoordinatorService.
-  console.log('⏭️  DB setup and mesh connection handled by API services')
+  // ── Phase 6: Start API ───────────────────────────────────────────────
+  // Database setup, auth init, mesh connection, events, and docker validation
+  // are handled by the API's v2 Sub-App Trigger Chain:
+  //   BootstrapGate → SubAppOrchestrator → [Config, Database, Auth, Mesh, ...]
+  // Each sub-app runs in its own ephemeral NestJS context, fires its trigger,
+  // and is destroyed. All services are provided via the TriggerRegistry.
+  console.log('⏭️  All startup handled by v2 Sub-App Trigger Chain')
 
   startProcesses()
 }

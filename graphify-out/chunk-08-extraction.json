@@ -1,0 +1,2149 @@
+{
+  "nodes": [
+    {
+      "id": "apps_api_type_check_output_txt",
+      "label": "API TypeScript Type-Check Output",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "error_category_missing_export",
+      "label": "Missing Export Error (TS2305/TS2724)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "error_category_property_access",
+      "label": "Property Does Not Exist Error (TS2339)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "error_category_argument_mismatch",
+      "label": "Argument Type Mismatch Error (TS2345)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "error_category_module_not_found",
+      "label": "Module Not Found Error (TS2307)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "error_category_assignability",
+      "label": "Type Assignability Error (TS2322)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "error_category_unintentional_comparison",
+      "label": "Unintentional Comparison Error (TS2367)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "error_category_override",
+      "label": "Override Modifier Error (TS4113)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "error_category_undefined_object",
+      "label": "Possibly Undefined Error (TS2532/TS18048)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "error_category_overload_mismatch",
+      "label": "Overload Match Error (TS2769)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "error_category_redeclared_variable",
+      "label": "Redeclared Variable Error (TS2451)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "error_category_wrong_argument_count",
+      "label": "Wrong Argument Count Error (TS2554)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "error_category_not_callable",
+      "label": "Not Callable Error (TS2349)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "error_category_no_common_properties",
+      "label": "No Common Properties Error (TS2559)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "domain_docker",
+      "label": "Docker Domain",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "domain_analytics",
+      "label": "Analytics Domain",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "domain_project",
+      "label": "Project Domain",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "domain_service",
+      "label": "Service Domain",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "domain_domain_management",
+      "label": "Domain Management Module (Organization/Project/Service Domain)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "domain_mesh",
+      "label": "Mesh System Domain",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "domain_health",
+      "label": "Health Domain",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "domain_auth",
+      "label": "Auth Domain",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "domain_e2e",
+      "label": "E2E Test Workflows",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "domain_traefik",
+      "label": "Traefik Domain",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "module_repo_api_contracts",
+      "label": "@repo/api-contracts Package",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "pattern_date_vs_string",
+      "label": "Date vs string Incompatibility Pattern",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "pattern_contract_nesting",
+      "label": "ORPC Contract Input Nesting Pattern (params/query/body wrapper vs flat)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "pattern_role_enum_mismatch",
+      "label": "Enum Literal Union Mismatch Pattern (role values)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "pattern_providerId_enum_mismatch",
+      "label": "Enum Literal Union Mismatch Pattern (providerId/buildPack values)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_cli_reset_command",
+      "label": "reset.command/index.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/cli/commands/reset.command/index.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_custom_types_index",
+      "label": "custom-types/index.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/config/drizzle/shared/custom-types/index.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_auth_service",
+      "label": "auth.service.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/core/modules/auth/services/auth.service.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_docker_core_service",
+      "label": "docker.service.ts (core)",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/core/modules/docker/services/docker.service.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_traefik_template_service",
+      "label": "traefik-template.service.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/core/modules/traefik/services/traefik-template.service.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_analytics_controller",
+      "label": "analytics.controller.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/analytics/controllers/analytics.controller.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_docker_mesh_service",
+      "label": "docker-container-mesh.service.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/docker/mesh/services/docker-container-mesh.service.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_docker_resolution_spec",
+      "label": "docker-container-resolution.service.spec.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/docker/mesh/services/docker-container-resolution.service.spec.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_docker_runtime_mesh_service",
+      "label": "docker-container-runtime-mesh.service.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/docker/mesh/services/docker-container-runtime-mesh.service.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_docker_orchestrator_spec",
+      "label": "docker-runtime-stream-orchestrator.service.spec.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/docker/mesh/services/docker-runtime-stream-orchestrator.service.spec.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_docker_orchestrator_service",
+      "label": "docker-runtime-stream-orchestrator.service.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/docker/mesh/services/docker-runtime-stream-orchestrator.service.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_docker_metrics_stream_service",
+      "label": "docker-container-metrics-stream.service.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/docker/services/docker-container-metrics-stream.service.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_docker_runtime_service",
+      "label": "docker-container-runtime.service.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/docker/services/docker-container-runtime.service.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_docker_sse_service",
+      "label": "docker-sse.service.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/docker/services/docker-sse.service.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_docker_service",
+      "label": "docker.service.ts (modules)",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/docker/services/docker.service.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_org_domain_controller",
+      "label": "organization-domain.controller.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/domain/controllers/organization-domain.controller.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_project_domain_controller",
+      "label": "project-domain.controller.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/domain/controllers/project-domain.controller.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_service_domain_controller",
+      "label": "service-domain.controller.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/domain/controllers/service-domain.controller.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_domain_project_service",
+      "label": "domain-project.service.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/domain/services/domain-project.service.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_domain_service_service",
+      "label": "domain-service.service.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/domain/services/domain-service.service.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_health_controller_spec",
+      "label": "health.controller.spec.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/health/controllers/health.controller.spec.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_project_controller",
+      "label": "project.controller.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/project/controllers/project.controller.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_project_service",
+      "label": "project.service.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/project/services/project.service.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_service_controller",
+      "label": "service.controller.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/service/controllers/service.controller.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_service_service",
+      "label": "service.service.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/modules/service/services/service.service.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_system_mesh_controller",
+      "label": "system-mesh.controller.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/system/modules/mesh/controllers/system-mesh.controller.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_e2e_auth_workflows",
+      "label": "test-auth-patterns.e2e-spec.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/e2e/auth-workflows/test-auth-patterns.e2e-spec.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_e2e_deployment_workflows",
+      "label": "deployment-complete-strategy.e2e-spec.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/e2e/deployment-workflows/deployment-complete-strategy.e2e-spec.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_e2e_module_contract_surfaces",
+      "label": "module-contract-surfaces.e2e-spec.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/e2e/module-workflows/module-contract-surfaces.e2e-spec.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_e2e_module_happy_path",
+      "label": "module-happy-path-workflows.e2e-spec.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/e2e/module-workflows/module-happy-path-workflows.e2e-spec.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_e2e_setup_database",
+      "label": "setup-configure-database.orpc.e2e-spec.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/e2e/setup-configure-database.orpc.e2e-spec.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_e2e_setup_advanced",
+      "label": "setup-advanced-workflow.e2e-spec.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/e2e/setup-workflows/setup-advanced-workflow.e2e-spec.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_e2e_setup_context",
+      "label": "setup-workflow-context.ts",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/e2e/setup-workflows/support/setup-workflow-context.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_e2e_shared_runtime_manager",
+      "label": "manager.ts (shared-api-runtime)",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/e2e/utils/shared-api-runtime/manager.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "file_e2e_shared_runtime_orpc",
+      "label": "orpc.ts (shared-api-runtime)",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/e2e/utils/shared-api-runtime/orpc.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_cli_reset_command",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_custom_types_index",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_auth_service",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_docker_core_service",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_traefik_template_service",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_analytics_controller",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_docker_mesh_service",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_docker_resolution_spec",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_docker_runtime_mesh_service",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_docker_orchestrator_spec",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_docker_orchestrator_service",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_docker_metrics_stream_service",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_docker_runtime_service",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_docker_sse_service",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_docker_service",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_org_domain_controller",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_project_domain_controller",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_service_domain_controller",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_domain_project_service",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_domain_service_service",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_health_controller_spec",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_project_controller",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_project_service",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_service_controller",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_service_service",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_system_mesh_controller",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_e2e_auth_workflows",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_e2e_deployment_workflows",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_e2e_module_contract_surfaces",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_e2e_module_happy_path",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_e2e_setup_database",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_e2e_setup_advanced",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_e2e_setup_context",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_e2e_shared_runtime_manager",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_api_type_check_output_txt",
+      "target": "file_e2e_shared_runtime_orpc",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_cli_reset_command",
+      "target": "error_category_override",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_custom_types_index",
+      "target": "error_category_module_not_found",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_traefik_template_service",
+      "target": "error_category_module_not_found",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_auth_service",
+      "target": "error_category_undefined_object",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_core_service",
+      "target": "error_category_overload_mismatch",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_analytics_controller",
+      "target": "error_category_property_access",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_mesh_service",
+      "target": "error_category_missing_export",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_runtime_mesh_service",
+      "target": "error_category_missing_export",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_orchestrator_spec",
+      "target": "error_category_property_access",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_orchestrator_service",
+      "target": "error_category_missing_export",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_metrics_stream_service",
+      "target": "error_category_missing_export",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_runtime_service",
+      "target": "error_category_missing_export",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_sse_service",
+      "target": "error_category_missing_export",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_service",
+      "target": "error_category_missing_export",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_service",
+      "target": "error_category_not_callable",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_org_domain_controller",
+      "target": "error_category_argument_mismatch",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_project_domain_controller",
+      "target": "error_category_argument_mismatch",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_service_domain_controller",
+      "target": "error_category_argument_mismatch",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_health_controller_spec",
+      "target": "error_category_argument_mismatch",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_project_controller",
+      "target": "error_category_property_access",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_project_controller",
+      "target": "error_category_argument_mismatch",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_project_controller",
+      "target": "error_category_no_common_properties",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_service_controller",
+      "target": "error_category_argument_mismatch",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_service_controller",
+      "target": "error_category_property_access",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_system_mesh_controller",
+      "target": "error_category_argument_mismatch",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_auth_workflows",
+      "target": "error_category_wrong_argument_count",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_deployment_workflows",
+      "target": "error_category_assignability",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_deployment_workflows",
+      "target": "error_category_undefined_object",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_module_contract_surfaces",
+      "target": "error_category_assignability",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_module_contract_surfaces",
+      "target": "error_category_property_access",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_shared_runtime_manager",
+      "target": "error_category_assignability",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_shared_runtime_manager",
+      "target": "error_category_not_callable",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_shared_runtime_orpc",
+      "target": "error_category_assignability",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_resolution_spec",
+      "target": "error_category_redeclared_variable",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_service_service",
+      "target": "error_category_unintentional_comparison",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_project_service",
+      "target": "error_category_assignability",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_domain_project_service",
+      "target": "error_category_assignability",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_domain_service_service",
+      "target": "error_category_assignability",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_mesh_service",
+      "target": "module_repo_api_contracts",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_runtime_mesh_service",
+      "target": "module_repo_api_contracts",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_orchestrator_service",
+      "target": "module_repo_api_contracts",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_metrics_stream_service",
+      "target": "module_repo_api_contracts",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_runtime_service",
+      "target": "module_repo_api_contracts",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_sse_service",
+      "target": "module_repo_api_contracts",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_service",
+      "target": "module_repo_api_contracts",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_analytics_controller",
+      "target": "domain_analytics",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_project_controller",
+      "target": "domain_project",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_project_service",
+      "target": "domain_project",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_mesh_service",
+      "target": "domain_docker",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_runtime_mesh_service",
+      "target": "domain_docker",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_orchestrator_service",
+      "target": "domain_docker",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_metrics_stream_service",
+      "target": "domain_docker",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_runtime_service",
+      "target": "domain_docker",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_sse_service",
+      "target": "domain_docker",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_service",
+      "target": "domain_docker",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_core_service",
+      "target": "domain_docker",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_resolution_spec",
+      "target": "domain_docker",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_docker_orchestrator_spec",
+      "target": "domain_docker",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_org_domain_controller",
+      "target": "domain_domain_management",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_project_domain_controller",
+      "target": "domain_domain_management",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_service_domain_controller",
+      "target": "domain_domain_management",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_domain_project_service",
+      "target": "domain_domain_management",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_domain_service_service",
+      "target": "domain_domain_management",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_system_mesh_controller",
+      "target": "domain_mesh",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_health_controller_spec",
+      "target": "domain_health",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_auth_service",
+      "target": "domain_auth",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_traefik_template_service",
+      "target": "domain_traefik",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_service_controller",
+      "target": "domain_service",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_service_service",
+      "target": "domain_service",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_auth_workflows",
+      "target": "domain_e2e",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_deployment_workflows",
+      "target": "domain_e2e",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_module_contract_surfaces",
+      "target": "domain_e2e",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_module_happy_path",
+      "target": "domain_e2e",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_setup_database",
+      "target": "domain_e2e",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_setup_advanced",
+      "target": "domain_e2e",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_setup_context",
+      "target": "domain_e2e",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_shared_runtime_manager",
+      "target": "domain_e2e",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_shared_runtime_orpc",
+      "target": "domain_e2e",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_setup_advanced",
+      "target": "error_category_wrong_argument_count",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_setup_database",
+      "target": "error_category_wrong_argument_count",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_setup_context",
+      "target": "error_category_assignability",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_module_happy_path",
+      "target": "error_category_assignability",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_health_controller_spec",
+      "target": "pattern_date_vs_string",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_project_controller",
+      "target": "pattern_date_vs_string",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_project_service",
+      "target": "pattern_date_vs_string",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_service_controller",
+      "target": "pattern_date_vs_string",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_system_mesh_controller",
+      "target": "pattern_date_vs_string",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_org_domain_controller",
+      "target": "pattern_contract_nesting",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_project_domain_controller",
+      "target": "pattern_contract_nesting",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_service_domain_controller",
+      "target": "pattern_contract_nesting",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_project_controller",
+      "target": "pattern_contract_nesting",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_service_controller",
+      "target": "pattern_contract_nesting",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_project_controller",
+      "target": "pattern_role_enum_mismatch",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_domain_project_service",
+      "target": "pattern_role_enum_mismatch",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_domain_service_service",
+      "target": "pattern_role_enum_mismatch",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_deployment_workflows",
+      "target": "pattern_providerId_enum_mismatch",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_e2e_module_happy_path",
+      "target": "pattern_providerId_enum_mismatch",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_service_service",
+      "target": "pattern_providerId_enum_mismatch",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "file_service_controller",
+      "target": "pattern_providerId_enum_mismatch",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "docker_domain_files",
+      "label": "Docker Domain Files with Type Errors",
+      "nodes": [
+        "file_docker_core_service",
+        "file_docker_mesh_service",
+        "file_docker_runtime_mesh_service",
+        "file_docker_orchestrator_service",
+        "file_docker_orchestrator_spec",
+        "file_docker_metrics_stream_service",
+        "file_docker_runtime_service",
+        "file_docker_sse_service",
+        "file_docker_service",
+        "file_docker_resolution_spec"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt"
+    },
+    {
+      "id": "e2e_test_files_group",
+      "label": "E2E Test Files with Type Errors",
+      "nodes": [
+        "file_e2e_auth_workflows",
+        "file_e2e_deployment_workflows",
+        "file_e2e_module_contract_surfaces",
+        "file_e2e_module_happy_path",
+        "file_e2e_setup_database",
+        "file_e2e_setup_advanced",
+        "file_e2e_setup_context",
+        "file_e2e_shared_runtime_manager",
+        "file_e2e_shared_runtime_orpc"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt"
+    },
+    {
+      "id": "domain_management_domain_files",
+      "label": "Domain Management Files with Type Errors",
+      "nodes": [
+        "file_org_domain_controller",
+        "file_project_domain_controller",
+        "file_service_domain_controller",
+        "file_domain_project_service",
+        "file_domain_service_service"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt"
+    },
+    {
+      "id": "missing_export_error_group",
+      "label": "Files with Missing Export Errors (TS2305/TS2724)",
+      "nodes": [
+        "file_docker_mesh_service",
+        "file_docker_runtime_mesh_service",
+        "file_docker_orchestrator_service",
+        "file_docker_metrics_stream_service",
+        "file_docker_runtime_service",
+        "file_docker_sse_service",
+        "file_docker_service"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt"
+    },
+    {
+      "id": "contract_nesting_error_group",
+      "label": "Files with Contract Input Nesting Pattern Errors",
+      "nodes": [
+        "file_org_domain_controller",
+        "file_project_domain_controller",
+        "file_service_domain_controller",
+        "file_project_controller",
+        "file_service_controller"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt"
+    },
+    {
+      "id": "date_vs_string_error_group",
+      "label": "Files with Date vs string Incompatibility",
+      "nodes": [
+        "file_health_controller_spec",
+        "file_project_controller",
+        "file_project_service",
+        "file_service_controller",
+        "file_system_mesh_controller"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/type_check_output.txt"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

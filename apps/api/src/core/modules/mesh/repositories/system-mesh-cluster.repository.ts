@@ -4,10 +4,24 @@ import { and, eq, gt, inArray, isNull } from "drizzle-orm";
 import { clusterJoinGrants, clusterNodeMetrics, clusterNodes, clusterSigningKeys, resourceOwnershipIndex } from "@/config/drizzle/global/schema";
 import type { MeshResourceIndexUpsertInput, MeshResourceLocation } from "@repo/contracts-entities";
 import { GlobalDatabaseService } from "../../database/global/global-database.service";
+import { NodeConfigRepository } from "../../setup/repositories/node-config.repository";
 
 @Injectable()
 export class SystemMeshClusterRepository {
-    constructor(private readonly databaseService: GlobalDatabaseService) {}
+    constructor(
+        private readonly databaseService: GlobalDatabaseService,
+        private readonly nodeConfigRepository: NodeConfigRepository,
+    ) {}
+
+    /**
+     * Read the database URL from the local SQLite node_config table.
+     * This is populated by the Phase 0 setup sub-app and is the ONLY
+     * source of truth for the database URL at runtime.
+     */
+    private getDatabaseUrlFromConfig(): string | null {
+        const config = this.nodeConfigRepository.find();
+        return config?.databaseUrl?.trim() ?? null;
+    }
 
     async loadActiveClusterNodes(): Promise<{
         nodeId: string;
@@ -360,15 +374,15 @@ export class SystemMeshClusterRepository {
         // The `databaseUrl` is the shared global Postgres URL the
         // joining node should connect to. In a mesh setup every node
         // points at the same cluster DB, so we return the same URL
-        // from the receiving side. The contract requires
-        // `z.url()`, so we throw loudly if the env var is missing
-        // rather than handing back an empty string that would fail
-        // output validation on the caller.
-        const databaseUrl = process.env.DATABASE_URL;
+        // from the receiving side. The URL is read from the local SQLite
+        // node_config table (populated by Phase 0 setup sub-app).
+        // The contract requires `z.url()`, so we throw loudly if the
+        // URL is missing.
+        const databaseUrl = this.getDatabaseUrlFromConfig();
         if (!databaseUrl) {
             throw new Error(
-                "DATABASE_URL is not configured on the receiving mesh node — " +
-                    "cannot return it to the joining peer",
+                "No database URL in node_config — the receiving mesh node " +
+                    "cannot return it to the joining peer. Run the setup wizard first.",
             );
         }
 

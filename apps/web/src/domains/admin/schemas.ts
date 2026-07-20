@@ -60,7 +60,7 @@ export const createUserSchema = z.object({
   role: z
     .union([platformSchemas.roleNames, z.array(platformSchemas.roleNames)])
     .optional(),
-  data: z.record(z.string(), z.any()).optional(),
+  data: z.record(z.string(), z.unknown()).optional(),
 });
 
 /**
@@ -68,7 +68,7 @@ export const createUserSchema = z.object({
  */
 export const updateUserSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
-  data: z.record(z.string(), z.any()),
+  data: z.record(z.string(), z.unknown()),
 });
 
 /**

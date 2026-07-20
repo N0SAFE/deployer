@@ -204,4 +204,25 @@ export function assertAuthenticated(auth: ORPCAuthContext): ORPCAuthenticatedCon
   return auth as ORPCAuthenticatedContext;
 }
 
+/**
+ * Brand symbol for the auth middleware chain.
+ * `requireAuth()` checks for this symbol to verify that `authMiddleware`
+ * was called before it in the middleware chain.
+ */
+export declare const AUTH_MIDDLEWARE_BRAND: unique symbol;
+
+/**
+ * Runtime value of the auth middleware brand.
+ * Set by authMiddleware, checked by requireAuth.
+ */
+export const AUTH_MIDDLEWARE_BRAND_VALUE = Symbol('orpc.auth-middleware');
+
+/**
+ * Context with the auth middleware brand applied.
+ * Used as the output type of authMiddleware and the input type of requireAuth().
+ */
+export interface ORPCContextWithAuthBrand extends ORPCContextWithAuthOnly {
+  readonly [AUTH_MIDDLEWARE_BRAND]: typeof AUTH_MIDDLEWARE_BRAND;
+}
+
 

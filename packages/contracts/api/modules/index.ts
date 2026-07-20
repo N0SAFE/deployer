@@ -11,7 +11,6 @@ export * from './events';
 export * from './analytics';
 export * from './provider-schema';
 export * from './template';
-export * from './mesh';
 export * from './fleet';
 export * from './setup';
 export * from './docker';

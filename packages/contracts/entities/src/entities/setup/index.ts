@@ -296,6 +296,21 @@ export const setupRemoteAuthResultSchema = z.object({
 });
 export type SetupRemoteAuthResult = z.infer<typeof setupRemoteAuthResultSchema>;
 
+// ─── Post-setup hints ─────────────────────────────────────────────────────────
+
+export const setupHintIdSchema = z.enum(["scanning", "notifications", "domain", "fleet"]);
+export type SetupHintId = z.infer<typeof setupHintIdSchema>;
+
+export const dismissHintInputSchema = z.object({
+    hintId: setupHintIdSchema,
+});
+export type DismissHintInput = z.infer<typeof dismissHintInputSchema>;
+
+export const listHintsResultSchema = z.object({
+    hintIds: z.array(setupHintIdSchema),
+});
+export type ListHintsResult = z.infer<typeof listHintsResultSchema>;
+
 // ─── Node config status ───────────────────────────────────────────────────────
 
 export const nodeConfigStatusSchema = z.object({

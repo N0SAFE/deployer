@@ -30,7 +30,7 @@ import { Injectable, Logger } from "@nestjs/common";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const JOURNAL_PATH = join(
-  __dirname, "..", "..", "..", "..",
+  __dirname, "..", "..", "..",
   "src", "config", "drizzle", "global", "migrations", "meta", "_journal.json",
 );
 

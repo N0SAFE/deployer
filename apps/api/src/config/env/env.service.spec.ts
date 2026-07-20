@@ -19,7 +19,6 @@ describe('EnvService', () => {
       NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
       TRUSTED_ORIGINS: 'http://example.com, http://test.com',
       AUTH_BASE_DOMAIN: 'localhost',
-      DATABASE_URL: 'postgresql://test:test@localhost:5432/testdb',
       AUTH_SECRET: 'test-auth-secret',
       API_PORT: '3001',
     };
@@ -41,7 +40,6 @@ describe('EnvService', () => {
     it('should retrieve environment variables via get()', () => {
       expect(envService.get('NODE_ENV')).toBe('test');
       expect(envService.get('BETTER_AUTH_SECRET')).toBe('test-auth-secret');
-      expect(envService.get('DATABASE_URL')).toBe('postgresql://test:test@localhost:5432/testdb');
     });
 
     it('should return undefined for missing variables', () => {
@@ -82,7 +80,6 @@ describe('EnvService', () => {
       }).not.toThrow();
       
       expect(envService.get('NODE_ENV')).toBe('test');
-      expect(envService.get('DATABASE_URL')).toBe('postgresql://test:test@localhost:5432/testdb');
     });
   });
 

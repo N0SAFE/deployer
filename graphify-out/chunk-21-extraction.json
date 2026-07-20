@@ -1,0 +1,1204 @@
+{
+  "nodes": [
+    {
+      "id": "packages_types_AGENTS_md__repo_types",
+      "label": "@repo/types Package",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/types/AGENTS.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_ui_base_AGENTS_md__repo_ui",
+      "label": "@repo/ui Package",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/ui/base/AGENTS.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_auth_AGENTS_md__repo_auth",
+      "label": "@repo/auth Package",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/AGENTS.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_auth_INVITE_md_invite_plugin",
+      "label": "Better Auth Invite Plugin Documentation",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/INVITE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_auth_docs_BETTER_AUTH_PERMISSION_API_md_permission_api_ref",
+      "label": "Better Auth Permission API Reference",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/docs/BETTER-AUTH-PERMISSION-API.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_auth_src_permissions_docs_BUILDER_EXAMPLES_md_permission_builder_examples",
+      "label": "Permission Builder Examples",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/BUILDER-EXAMPLES.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_auth_src_permissions_docs_COLLECTION_API_EXAMPLES_md_collection_api_examples",
+      "label": "Collection API Examples",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/COLLECTION-API-EXAMPLES.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_auth_src_permissions_docs_GETTING_STARTED_md_getting_started_permissions",
+      "label": "Getting Started with Better Auth Permissions",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/GETTING-STARTED.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_auth_src_permissions_docs_README_md_permission_system_docs",
+      "label": "Better Auth Admin Access Control System Documentation",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_auth_src_permissions_docs_REFACTORING_REPORT_md_refactoring_report",
+      "label": "Permission System Refactoring Report",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/REFACTORING-REPORT.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_auth_src_permissions_plugins_PLUGIN_GENERICS_GUIDE_md_plugin_generics_guide",
+      "label": "Plugin Generic Typing Guide",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/plugins/PLUGIN_GENERICS_GUIDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_auth_src_permissions_system_TYPE_SAFETY_md_type_safety_docs",
+      "label": "Type Safety Documentation for Permission System",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/system/TYPE_SAFETY.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_logger_README_md__repo_logger",
+      "label": "@repo/logger Package",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/logger/README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_orpc_ORPC_HOOKS_GENERATOR_REVIEW_md_hooks_generator_review",
+      "label": "ORPC Hooks Generator Review",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/ORPC-HOOKS-GENERATOR-REVIEW.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_orpc_README_md__repo_orpc_utils",
+      "label": "@repo/orpc-utils Package",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_orpc_agent_md_orpc_builder_guide",
+      "label": "ORPC Builder Agent Guide",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/agent.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_orpc_docs_TYPE_SAFETY_FLOW_md_type_safety_flow",
+      "label": "Type Safety Flow in ORPC Hooks Generator",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/docs/TYPE-SAFETY-FLOW.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_orpc_src_hooks_CUSTOM_INVALIDATIONS_md_custom_invalidations",
+      "label": "Custom Hook Invalidations Guide",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/src/hooks/CUSTOM-INVALIDATIONS.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_utils_use_safe_query_param_states_from_zod_README_md__repo_use_safe_query_param_states_from_zod",
+      "label": "@repo/use-safe-query-param-states-from-zod Package",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/use-safe-query-param-states-from-zod/README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "reference_in_progress_setup_form_README_md_setup_wizard",
+      "label": "Setup Wizard Reference Implementation",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "repository_enhancements_CURRENT_STATE_md_current_state",
+      "label": "Repository Current State Analysis",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/CURRENT-STATE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "repository_enhancements_FINAL_DECISIONS_md_final_decisions",
+      "label": "Final Enhancement Decisions",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/FINAL-DECISIONS.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "repository_enhancements_INVENTORY_md_inventory",
+      "label": "Complete Repository Inventory",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/INVENTORY.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "repository_enhancements_KNIP_ANALYSIS_COMPLETE_md_knip_analysis",
+      "label": "Complete Knip Analysis Report",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/KNIP-ANALYSIS-COMPLETE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_better_auth",
+      "label": "Better Auth",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_permission_builder",
+      "label": "PermissionBuilder API",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_standard_operations",
+      "label": "StandardOperations",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_route_builder",
+      "label": "RouteBuilder",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_hook_generation",
+      "label": "ORPC Hook Generation",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_pino_logger",
+      "label": "Pino Logger",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_declarative_routing",
+      "label": "Declarative Routing",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_nuqs_url_state",
+      "label": "nuqs URL State Management",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_shadcn_ui",
+      "label": "shadcn/ui Component Library",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_statement_config_collection",
+      "label": "StatementConfigCollection",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_role_config_collection",
+      "label": "RoleConfigCollection",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_plugin_generics",
+      "label": "Plugin Generic Typing",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_custom_invalidations",
+      "label": "Custom Hook Invalidations",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_platform_permissions",
+      "label": "Platform Permissions (Admin Plugin)",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_organization_permissions",
+      "label": "Organization Permissions (Organization Plugin)",
+      "file_type": "concept",
+      "source_file": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_invite_plugin",
+      "label": "Invite Plugin",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_setup_wizard",
+      "label": "Setup Wizard",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_type_safety_flow",
+      "label": "ORPC Type Safety Flow",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "packages_utils_auth_docs_BETTER_AUTH_PERMISSION_API_md_permission_api_ref",
+      "target": "concept_better_auth",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/docs/BETTER-AUTH-PERMISSION-API.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_INVITE_md_invite_plugin",
+      "target": "concept_better_auth",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/INVITE.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_docs_BETTER_AUTH_PERMISSION_API_md_permission_api_ref",
+      "target": "concept_platform_permissions",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/docs/BETTER-AUTH-PERMISSION-API.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_docs_BETTER_AUTH_PERMISSION_API_md_permission_api_ref",
+      "target": "concept_organization_permissions",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/docs/BETTER-AUTH-PERMISSION-API.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_src_permissions_docs_BUILDER_EXAMPLES_md_permission_builder_examples",
+      "target": "concept_permission_builder",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/BUILDER-EXAMPLES.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_src_permissions_docs_GETTING_STARTED_md_getting_started_permissions",
+      "target": "concept_permission_builder",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/GETTING-STARTED.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_src_permissions_docs_REFACTORING_REPORT_md_refactoring_report",
+      "target": "concept_permission_builder",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/REFACTORING-REPORT.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_src_permissions_docs_REFACTORING_REPORT_md_refactoring_report",
+      "target": "packages_utils_auth_AGENTS_md__repo_auth",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/REFACTORING-REPORT.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_src_permissions_docs_COLLECTION_API_EXAMPLES_md_collection_api_examples",
+      "target": "concept_statement_config_collection",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/COLLECTION-API-EXAMPLES.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_src_permissions_docs_COLLECTION_API_EXAMPLES_md_collection_api_examples",
+      "target": "concept_role_config_collection",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/COLLECTION-API-EXAMPLES.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_src_permissions_system_TYPE_SAFETY_md_type_safety_docs",
+      "target": "concept_statement_config_collection",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/system/TYPE_SAFETY.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_src_permissions_system_TYPE_SAFETY_md_type_safety_docs",
+      "target": "concept_role_config_collection",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/system/TYPE_SAFETY.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_src_permissions_plugins_PLUGIN_GENERICS_GUIDE_md_plugin_generics_guide",
+      "target": "concept_plugin_generics",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/plugins/PLUGIN_GENERICS_GUIDE.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_src_permissions_docs_README_md_permission_system_docs",
+      "target": "packages_utils_auth_src_permissions_docs_GETTING_STARTED_md_getting_started_permissions",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_src_permissions_docs_README_md_permission_system_docs",
+      "target": "packages_utils_auth_src_permissions_docs_BUILDER_EXAMPLES_md_permission_builder_examples",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_src_permissions_docs_README_md_permission_system_docs",
+      "target": "packages_utils_auth_src_permissions_docs_COLLECTION_API_EXAMPLES_md_collection_api_examples",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_src_permissions_docs_README_md_permission_system_docs",
+      "target": "packages_utils_auth_src_permissions_system_TYPE_SAFETY_md_type_safety_docs",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_src_permissions_docs_README_md_permission_system_docs",
+      "target": "packages_utils_auth_src_permissions_docs_REFACTORING_REPORT_md_refactoring_report",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_INVITE_md_invite_plugin",
+      "target": "concept_invite_plugin",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/INVITE.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_orpc_README_md__repo_orpc_utils",
+      "target": "concept_standard_operations",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_orpc_README_md__repo_orpc_utils",
+      "target": "concept_route_builder",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_orpc_ORPC_HOOKS_GENERATOR_REVIEW_md_hooks_generator_review",
+      "target": "concept_standard_operations",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/ORPC-HOOKS-GENERATOR-REVIEW.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_orpc_ORPC_HOOKS_GENERATOR_REVIEW_md_hooks_generator_review",
+      "target": "concept_hook_generation",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/ORPC-HOOKS-GENERATOR-REVIEW.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_orpc_agent_md_orpc_builder_guide",
+      "target": "concept_standard_operations",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/agent.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_orpc_agent_md_orpc_builder_guide",
+      "target": "concept_route_builder",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/agent.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_orpc_docs_TYPE_SAFETY_FLOW_md_type_safety_flow",
+      "target": "concept_type_safety_flow",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/docs/TYPE-SAFETY-FLOW.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_orpc_docs_TYPE_SAFETY_FLOW_md_type_safety_flow",
+      "target": "concept_hook_generation",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/docs/TYPE-SAFETY-FLOW.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_orpc_docs_TYPE_SAFETY_FLOW_md_type_safety_flow",
+      "target": "concept_standard_operations",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/docs/TYPE-SAFETY-FLOW.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_orpc_src_hooks_CUSTOM_INVALIDATIONS_md_custom_invalidations",
+      "target": "concept_custom_invalidations",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/src/hooks/CUSTOM-INVALIDATIONS.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_orpc_src_hooks_CUSTOM_INVALIDATIONS_md_custom_invalidations",
+      "target": "concept_hook_generation",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/src/hooks/CUSTOM-INVALIDATIONS.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_logger_README_md__repo_logger",
+      "target": "concept_pino_logger",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/logger/README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_ui_base_AGENTS_md__repo_ui",
+      "target": "concept_shadcn_ui",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/ui/base/AGENTS.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_use_safe_query_param_states_from_zod_README_md__repo_use_safe_query_param_states_from_zod",
+      "target": "concept_nuqs_url_state",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/use-safe-query-param-states-from-zod/README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_CURRENT_STATE_md_current_state",
+      "target": "repository_enhancements_INVENTORY_md_inventory",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/CURRENT-STATE.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_CURRENT_STATE_md_current_state",
+      "target": "repository_enhancements_FINAL_DECISIONS_md_final_decisions",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/CURRENT-STATE.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_CURRENT_STATE_md_current_state",
+      "target": "concept_better_auth",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/CURRENT-STATE.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_FINAL_DECISIONS_md_final_decisions",
+      "target": "repository_enhancements_INVENTORY_md_inventory",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/FINAL-DECISIONS.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_FINAL_DECISIONS_md_final_decisions",
+      "target": "repository_enhancements_KNIP_ANALYSIS_COMPLETE_md_knip_analysis",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/FINAL-DECISIONS.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_INVENTORY_md_inventory",
+      "target": "packages_utils_orpc_README_md__repo_orpc_utils",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/INVENTORY.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_INVENTORY_md_inventory",
+      "target": "packages_utils_auth_AGENTS_md__repo_auth",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/INVENTORY.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_INVENTORY_md_inventory",
+      "target": "packages_ui_base_AGENTS_md__repo_ui",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/INVENTORY.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_INVENTORY_md_inventory",
+      "target": "packages_types_AGENTS_md__repo_types",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/INVENTORY.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_INVENTORY_md_inventory",
+      "target": "concept_declarative_routing",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/INVENTORY.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_FINAL_DECISIONS_md_final_decisions",
+      "target": "concept_pino_logger",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/FINAL-DECISIONS.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_FINAL_DECISIONS_md_final_decisions",
+      "target": "concept_nuqs_url_state",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/FINAL-DECISIONS.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_FINAL_DECISIONS_md_final_decisions",
+      "target": "concept_hook_generation",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/FINAL-DECISIONS.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "reference_in_progress_setup_form_README_md_setup_wizard",
+      "target": "concept_setup_wizard",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "reference_in_progress_setup_form_README_md_setup_wizard",
+      "target": "concept_shadcn_ui",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_standard_operations",
+      "target": "concept_route_builder",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_hook_generation",
+      "target": "concept_standard_operations",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_hook_generation",
+      "target": "concept_custom_invalidations",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_statement_config_collection",
+      "target": "concept_permission_builder",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_role_config_collection",
+      "target": "concept_permission_builder",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_plugin_generics",
+      "target": "concept_permission_builder",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_platform_permissions",
+      "target": "concept_better_auth",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_organization_permissions",
+      "target": "concept_better_auth",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_invite_plugin",
+      "target": "concept_better_auth",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_type_safety_flow",
+      "target": "concept_hook_generation",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_type_safety_flow",
+      "target": "concept_standard_operations",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_use_safe_query_param_states_from_zod_README_md__repo_use_safe_query_param_states_from_zod",
+      "target": "concept_declarative_routing",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/use-safe-query-param-states-from-zod/README.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_CURRENT_STATE_md_current_state",
+      "target": "concept_hook_generation",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/CURRENT-STATE.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_FINAL_DECISIONS_md_final_decisions",
+      "target": "concept_invite_plugin",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/FINAL-DECISIONS.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_FINAL_DECISIONS_md_final_decisions",
+      "target": "concept_permission_builder",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/FINAL-DECISIONS.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "repository_enhancements_KNIP_ANALYSIS_COMPLETE_md_knip_analysis",
+      "target": "repository_enhancements_INVENTORY_md_inventory",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/KNIP-ANALYSIS-COMPLETE.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_src_permissions_docs_GETTING_STARTED_md_getting_started_permissions",
+      "target": "concept_statement_config_collection",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/GETTING-STARTED.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_utils_auth_src_permissions_docs_GETTING_STARTED_md_getting_started_permissions",
+      "target": "concept_role_config_collection",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/GETTING-STARTED.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_type_safety_flow",
+      "target": "concept_route_builder",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "orpc_system_stack",
+      "label": "ORPC System Stack",
+      "nodes": [
+        "concept_standard_operations",
+        "concept_route_builder",
+        "concept_hook_generation",
+        "concept_custom_invalidations",
+        "concept_type_safety_flow"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/orpc/README.md"
+    },
+    {
+      "id": "auth_permission_system",
+      "label": "Auth Permission System",
+      "nodes": [
+        "concept_better_auth",
+        "concept_permission_builder",
+        "concept_statement_config_collection",
+        "concept_role_config_collection",
+        "concept_plugin_generics",
+        "concept_platform_permissions",
+        "concept_organization_permissions",
+        "concept_invite_plugin"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/AGENTS.md"
+    },
+    {
+      "id": "repository_enhancements_documents",
+      "label": "Repository Enhancement Documents",
+      "nodes": [
+        "repository_enhancements_CURRENT_STATE_md_current_state",
+        "repository_enhancements_FINAL_DECISIONS_md_final_decisions",
+        "repository_enhancements_INVENTORY_md_inventory",
+        "repository_enhancements_KNIP_ANALYSIS_COMPLETE_md_knip_analysis"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/README.md"
+    },
+    {
+      "id": "permission_documentation_set",
+      "label": "Permission System Documentation Set",
+      "nodes": [
+        "packages_utils_auth_src_permissions_docs_README_md_permission_system_docs",
+        "packages_utils_auth_src_permissions_docs_GETTING_STARTED_md_getting_started_permissions",
+        "packages_utils_auth_src_permissions_docs_BUILDER_EXAMPLES_md_permission_builder_examples",
+        "packages_utils_auth_src_permissions_docs_COLLECTION_API_EXAMPLES_md_collection_api_examples",
+        "packages_utils_auth_src_permissions_system_TYPE_SAFETY_md_type_safety_docs",
+        "packages_utils_auth_src_permissions_docs_REFACTORING_REPORT_md_refactoring_report"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/utils/auth/src/permissions/docs/README.md"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

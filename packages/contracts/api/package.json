@@ -18,7 +18,7 @@
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "dev": "bun run build -- --watch",
+        "dev": "bun --bun run build -- --watch",
         "lint": "bunx eslint .",
         "type-check": "tsgo --noEmit"
     },

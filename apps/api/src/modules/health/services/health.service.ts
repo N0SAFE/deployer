@@ -1,18 +1,29 @@
 import { Injectable } from "@nestjs/common";
 import { HealthRepository } from "../repositories/health.repository";
+import { AppLifecycleService } from "@/core/modules/lifecycle";
 
 @Injectable()
 export class HealthService {
-    constructor(private readonly healthRepository: HealthRepository) {}
+    constructor(
+        private readonly healthRepository: HealthRepository,
+        private readonly lifecycle: AppLifecycleService,
+    ) {}
 
     /**
-     * Basic health check
+     * Basic health check — always responds (no DB dependency).
+     * Returns the current lifecycle phase so callers can see bootstrap progress.
      */
    getHealth() {
+        const snapshot = this.lifecycle.getSnapshot();
         return {
             status: "ok",
             timestamp: new Date(),
             service: "nestjs-api",
+            lifecycle: {
+                phase: snapshot.phase,
+                step: snapshot.step ?? null,
+                message: snapshot.message,
+            },
         };
     }
 

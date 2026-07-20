@@ -38,6 +38,8 @@ type SessionUserWithRole = Auth["$Infer"]["Session"]["user"] & { role?: Platform
  */
 @Injectable()
 export class RoleGuard implements CanActivate {
+  private readonly logger = new Logger(RoleGuard.name);
+
   constructor(
     private readonly reflector: Reflector,
 		@Inject(MODULE_OPTIONS_TOKEN)

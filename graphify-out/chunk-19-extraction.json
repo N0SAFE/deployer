@@ -1,0 +1,715 @@
+{
+  "nodes": [
+    {
+      "id": "apps_web_public_icons_apple-touch-icon_apple_touch_icon",
+      "label": "Apple Touch Icon",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/icons/apple-touch-icon.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_web_public_icons_icon-192x192_pwa_icon_192",
+      "label": "PWA Icon 192x192",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/icons/icon-192x192.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_web_public_icons_icon-512x512_pwa_icon_512",
+      "label": "PWA Icon 512x512",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/icons/icon-512x512.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_web_public_icons_icon-maskable-192x192_maskable_pwa_icon_192",
+      "label": "Maskable PWA Icon 192x192",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/icons/icon-maskable-192x192.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_web_public_icons_icon-maskable-512x512_maskable_pwa_icon_512",
+      "label": "Maskable PWA Icon 512x512",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/icons/icon-maskable-512x512.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_web_public_public_circles_loading_animation",
+      "label": "Loading Circles Animation SVG",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/public/circles.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_web_public_public_next_nextjs_logo",
+      "label": "Next.js Logo SVG",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/public/next.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_web_public_public_placeholder_placeholder_image",
+      "label": "Placeholder Image SVG",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/public/placeholder.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_web_public_public_turborepo_turborepo_logo",
+      "label": "Turborepo Logo SVG",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/public/turborepo.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_web_public_public_vercel_vercel_logo",
+      "label": "Vercel Logo SVG",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/public/vercel.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_api_graph_nestjs_dependency_graph",
+      "label": "NestJS Module Dependency Graph",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/graph.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_ui_base_src_assets_images_placeholder_ui_placeholder_image",
+      "label": "UI Placeholder Image SVG",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/ui/base/src/assets/images/placeholder.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "nestjs-doctor-report_nestjs_doctor_health_report",
+      "label": "NestJS Doctor Health Report",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/nestjs-doctor-report.html",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_bin_AGENTS_bin_package_dev_guide",
+      "label": "Bin Package Development Guide",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/bin/AGENTS.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "packages_bin_declarative-routing_LICENSE_declarative_routing_license",
+      "label": "Declarative Routing MIT License",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/bin/declarative-routing/LICENSE.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": "Jack Herrington",
+      "contributor": null
+    },
+    {
+      "id": "reference_in-progress-setup-form_public_apple-icon_reference_apple_touch_icon",
+      "label": "Reference Apple Touch Icon",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/apple-icon.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "reference_in-progress-setup-form_public_icon-dark-32x32_reference_dark_favicon",
+      "label": "Reference Dark Favicon 32x32",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/icon-dark-32x32.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "reference_in-progress-setup-form_public_icon-light-32x32_reference_light_favicon",
+      "label": "Reference Light Favicon 32x32",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/icon-light-32x32.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "reference_in-progress-setup-form_public_placeholder-logo_reference_placeholder_logo",
+      "label": "Reference Placeholder Logo PNG",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/placeholder-logo.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "reference_in-progress-setup-form_public_placeholder-user_reference_placeholder_user_avatar",
+      "label": "Reference Placeholder User Avatar",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/placeholder-user.jpg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "reference_in-progress-setup-form_public_placeholder_jpg_reference_placeholder_image",
+      "label": "Reference Placeholder Image JPG",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/placeholder.jpg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "reference_in-progress-setup-form_public_icon_svg_reference_app_icon_svg",
+      "label": "Reference App Icon SVG",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/icon.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "reference_in-progress-setup-form_public_placeholder-logo_svg_reference_placeholder_logo_svg",
+      "label": "Reference Placeholder Logo SVG",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/placeholder-logo.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "reference_in-progress-setup-form_public_placeholder_svg_reference_placeholder_svg",
+      "label": "Reference Placeholder SVG",
+      "file_type": "image",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/placeholder.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "camera_icon_placeholder_pattern_shared_asset_pattern",
+      "label": "Camera Icon Placeholder Pattern",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/public/placeholder.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "web_app_static_assets_concept",
+      "label": "Web App Static Asset Collection",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "reference_setup_form_assets_concept",
+      "label": "Reference Setup Form Asset Collection",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "apps_web_public_icons_apple-touch-icon_apple_touch_icon",
+      "target": "apps_web_public_icons_icon-192x192_pwa_icon_192",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/icons/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_web_public_icons_icon-192x192_pwa_icon_192",
+      "target": "apps_web_public_icons_icon-512x512_pwa_icon_512",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/icons/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_web_public_icons_icon-512x512_pwa_icon_512",
+      "target": "apps_web_public_icons_icon-maskable-192x192_maskable_pwa_icon_192",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/icons/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_web_public_icons_icon-maskable-192x192_maskable_pwa_icon_192",
+      "target": "apps_web_public_icons_icon-maskable-512x512_maskable_pwa_icon_512",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/icons/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_web_public_icons_apple-touch-icon_apple_touch_icon",
+      "target": "web_app_static_assets_concept",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_web_public_icons_icon-192x192_pwa_icon_192",
+      "target": "web_app_static_assets_concept",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_web_public_public_next_nextjs_logo",
+      "target": "web_app_static_assets_concept",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_web_public_public_turborepo_turborepo_logo",
+      "target": "web_app_static_assets_concept",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_web_public_public_vercel_vercel_logo",
+      "target": "web_app_static_assets_concept",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_web_public_public_circles_loading_animation",
+      "target": "web_app_static_assets_concept",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_web_public_public_placeholder_placeholder_image",
+      "target": "web_app_static_assets_concept",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_web_public_public_next_nextjs_logo",
+      "target": "apps_web_public_public_turborepo_turborepo_logo",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_web_public_public_next_nextjs_logo",
+      "target": "apps_web_public_public_vercel_vercel_logo",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "reference_in-progress-setup-form_public_apple-icon_reference_apple_touch_icon",
+      "target": "reference_in-progress-setup-form_public_icon-dark-32x32_reference_dark_favicon",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "reference_in-progress-setup-form_public_icon-dark-32x32_reference_dark_favicon",
+      "target": "reference_in-progress-setup-form_public_icon-light-32x32_reference_light_favicon",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "reference_in-progress-setup-form_public_icon_svg_reference_app_icon_svg",
+      "target": "reference_in-progress-setup-form_public_icon-dark-32x32_reference_dark_favicon",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "reference_in-progress-setup-form_public_placeholder-logo_reference_placeholder_logo",
+      "target": "reference_in-progress-setup-form_public_placeholder-logo_svg_reference_placeholder_logo_svg",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "reference_in-progress-setup-form_public_placeholder_jpg_reference_placeholder_image",
+      "target": "reference_in-progress-setup-form_public_placeholder_svg_reference_placeholder_svg",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "reference_in-progress-setup-form_public_placeholder-user_reference_placeholder_user_avatar",
+      "target": "reference_in-progress-setup-form_public_placeholder_jpg_reference_placeholder_image",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "reference_in-progress-setup-form_public_apple-icon_reference_apple_touch_icon",
+      "target": "reference_setup_form_assets_concept",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "reference_in-progress-setup-form_public_icon_svg_reference_app_icon_svg",
+      "target": "reference_setup_form_assets_concept",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "reference_in-progress-setup-form_public_placeholder_svg_reference_placeholder_svg",
+      "target": "reference_setup_form_assets_concept",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_web_public_public_placeholder_placeholder_image",
+      "target": "packages_ui_base_src_assets_images_placeholder_ui_placeholder_image",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/public/placeholder.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_web_public_public_placeholder_placeholder_image",
+      "target": "camera_icon_placeholder_pattern_shared_asset_pattern",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/public/placeholder.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_ui_base_src_assets_images_placeholder_ui_placeholder_image",
+      "target": "camera_icon_placeholder_pattern_shared_asset_pattern",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/ui/base/src/assets/images/placeholder.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "reference_in-progress-setup-form_public_placeholder_svg_reference_placeholder_svg",
+      "target": "camera_icon_placeholder_pattern_shared_asset_pattern",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/placeholder.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "nestjs-doctor-report_nestjs_doctor_health_report",
+      "target": "apps_api_graph_nestjs_dependency_graph",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/nestjs-doctor-report.html",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "packages_bin_AGENTS_bin_package_dev_guide",
+      "target": "packages_bin_declarative-routing_LICENSE_declarative_routing_license",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/packages/bin/AGENTS.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "reference_in-progress-setup-form_public_apple-icon_reference_apple_touch_icon",
+      "target": "apps_web_public_icons_apple-touch-icon_apple_touch_icon",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/apple-icon.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "nestjs-doctor-report_nestjs_doctor_health_report",
+      "target": "packages_bin_AGENTS_bin_package_dev_guide",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "web_app_pwa_icon_set",
+      "label": "Web App PWA Icon Set",
+      "nodes": [
+        "apps_web_public_icons_apple-touch-icon_apple_touch_icon",
+        "apps_web_public_icons_icon-192x192_pwa_icon_192",
+        "apps_web_public_icons_icon-512x512_pwa_icon_512",
+        "apps_web_public_icons_icon-maskable-192x192_maskable_pwa_icon_192",
+        "apps_web_public_icons_icon-maskable-512x512_maskable_pwa_icon_512"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/icons/"
+    },
+    {
+      "id": "web_app_brand_logo_set",
+      "label": "Web App Brand Logo Set",
+      "nodes": [
+        "apps_web_public_public_next_nextjs_logo",
+        "apps_web_public_public_turborepo_turborepo_logo",
+        "apps_web_public_public_vercel_vercel_logo"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/public/"
+    },
+    {
+      "id": "web_app_placeholder_asset_set",
+      "label": "Web App Placeholder Asset Set",
+      "nodes": [
+        "apps_web_public_public_circles_loading_animation",
+        "apps_web_public_public_placeholder_placeholder_image",
+        "packages_ui_base_src_assets_images_placeholder_ui_placeholder_image"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/public/"
+    },
+    {
+      "id": "reference_setup_form_public_asset_set",
+      "label": "Reference Setup Form Public Asset Set",
+      "nodes": [
+        "reference_in-progress-setup-form_public_apple-icon_reference_apple_touch_icon",
+        "reference_in-progress-setup-form_public_icon-dark-32x32_reference_dark_favicon",
+        "reference_in-progress-setup-form_public_icon-light-32x32_reference_light_favicon",
+        "reference_in-progress-setup-form_public_icon_svg_reference_app_icon_svg",
+        "reference_in-progress-setup-form_public_placeholder-logo_reference_placeholder_logo",
+        "reference_in-progress-setup-form_public_placeholder-logo_svg_reference_placeholder_logo_svg",
+        "reference_in-progress-setup-form_public_placeholder-user_reference_placeholder_user_avatar",
+        "reference_in-progress-setup-form_public_placeholder_jpg_reference_placeholder_image",
+        "reference_in-progress-setup-form_public_placeholder_svg_reference_placeholder_svg"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/reference/in-progress-setup-form/public/"
+    },
+    {
+      "id": "shared_camera_icon_placeholder_pattern_across_packages",
+      "label": "Shared Camera Icon Placeholder Pattern Across Packages",
+      "nodes": [
+        "camera_icon_placeholder_pattern_shared_asset_pattern",
+        "apps_web_public_public_placeholder_placeholder_image",
+        "packages_ui_base_src_assets_images_placeholder_ui_placeholder_image",
+        "reference_in-progress-setup-form_public_placeholder_svg_reference_placeholder_svg"
+      ],
+      "relation": "implement",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/"
+    },
+    {
+      "id": "nestjs_ecosystem_documentation_set",
+      "label": "NestJS Ecosystem Documentation Set",
+      "nodes": [
+        "nestjs-doctor-report_nestjs_doctor_health_report",
+        "apps_api_graph_nestjs_dependency_graph",
+        "packages_bin_AGENTS_bin_package_dev_guide"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/"
+    },
+    {
+      "id": "web_app_full_static_asset_collection",
+      "label": "Web App Full Static Asset Collection",
+      "nodes": [
+        "web_app_static_assets_concept",
+        "apps_web_public_icons_apple-touch-icon_apple_touch_icon",
+        "apps_web_public_icons_icon-192x192_pwa_icon_192",
+        "apps_web_public_icons_icon-512x512_pwa_icon_512",
+        "apps_web_public_icons_icon-maskable-192x192_maskable_pwa_icon_192",
+        "apps_web_public_icons_icon-maskable-512x512_maskable_pwa_icon_512",
+        "apps_web_public_public_next_nextjs_logo",
+        "apps_web_public_public_turborepo_turborepo_logo",
+        "apps_web_public_public_vercel_vercel_logo",
+        "apps_web_public_public_circles_loading_animation",
+        "apps_web_public_public_placeholder_placeholder_image"
+      ],
+      "relation": "implement",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

@@ -695,7 +695,7 @@ function DockerContainerDetailModalContent({
         high: 0,
         medium: 0,
         low: 0,
-      } as Record<DockerVulnerabilityEntry['severity'], number>,
+      },
     )
   }, [securityVulnerabilities])
 
@@ -758,7 +758,7 @@ function DockerContainerDetailModalContent({
     const normalizedPayloadId = payloadContainerId?.trim() ?? null
     const normalizedTargetId = id.trim()
     const normalizedPayloadName = payloadContainerName?.trim().replace(/^\/+/, '') ?? null
-    const normalizedTargetName = detail?.name?.trim().replace(/^\/+/, '') ?? null
+    const normalizedTargetName = detail?.name.trim().replace(/^\/+/, '') ?? null
 
     const idMatches =
       normalizedPayloadId !== null

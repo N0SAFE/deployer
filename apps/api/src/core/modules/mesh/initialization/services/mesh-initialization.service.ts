@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createORPCClient } from "@orpc/client";
 import type { ContractRouterClient } from "@orpc/contract";
 import { OpenAPILink } from "@orpc/openapi-client/fetch";
-import { meshContract, type MeshContract } from "@repo/api-contracts";
+import { meshContract, type MeshContract } from "@/contracts/mesh/mesh-contracts";
 import { signMeshToken } from "@repo/auth/mesh";
 import { MeshValidationError } from "../../services/system-mesh-topology/domain/mesh-errors";
 import { toMeshWebSocketUrl } from "../../shared/utils/mesh-server-url.utils";

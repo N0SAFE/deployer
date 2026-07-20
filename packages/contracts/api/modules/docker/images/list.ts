@@ -1,7 +1,12 @@
+import { z } from "zod/v4";
 import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
 import { dockerImageEntitySchema } from "@repo/contracts-entities";
 
-const dockerImageListItemSchema = dockerImageEntitySchema.omit({ relations: true });
+const dockerImageListItemSchema = dockerImageEntitySchema
+  .omit({ relations: true })
+  .extend({
+    projectId: z.string().optional(),
+  });
 const dockerImageOps = standard.zod(dockerImageListItemSchema, "dockerImage");
 
 export const dockerImageListConfigSchemas = createFilterConfig(dockerImageOps)
@@ -14,6 +19,7 @@ export const dockerImageListConfigSchemas = createFilterConfig(dockerImageOps)
     registry: { schema: dockerImageListItemSchema.shape.registry, operators: ["eq", "like", "ilike"] as const },
     repository: { schema: dockerImageListItemSchema.shape.repository, operators: ["eq", "like", "ilike"] as const },
     tag: { schema: dockerImageListItemSchema.shape.tag, operators: ["eq", "like", "ilike"] as const },
+    projectId: { schema: z.string(), operators: ["eq"] as const },
   })
   .buildConfig();
 

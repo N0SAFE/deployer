@@ -11,7 +11,6 @@ import { RemoteAuthStep } from "@/components/setup/steps/remote-auth-step"
 import { ProgressStep, type ProgressStepContext } from "@/components/setup/steps/progress-step"
 import { LocalAccountStep } from "@/components/setup/steps/local-account-step"
 import { LocalDatabaseStep } from "@/components/setup/steps/local-database-step"
-import { CompleteStep } from "@/components/setup/steps/complete-step"
 import { Alert, AlertDescription } from "@repo/ui/components/shadcn/alert"
 import { toast } from "sonner"
 
@@ -40,8 +39,6 @@ type WizardState = {
     dbMode: "managed" | "existing"
     dbUrl: string
   }
-  finalNodeId: string | null
-  strategy: "local" | "remote" | null
   recovery: boolean // true when we auto-navigated from existing stream events
 }
 
@@ -50,8 +47,6 @@ const initialState: WizardState = {
   mode: null,
   remote: { meshUrl: "", authToken: null },
   local: { username: "", email: "", password: "", organizationName: "", dbMode: "managed", dbUrl: "" },
-  finalNodeId: null,
-  strategy: null,
   recovery: false,
 }
 
@@ -106,19 +101,14 @@ export function SetupWizard() {
     // Any other state (not_started, awaiting_strategy, etc.) → normal flow
   }, [setupState])
 
-  // Capture completed event data when setup finishes (stay on progress step).
+  // Capture completed event — show success toast and set localStorage hint flag.
   useEffect(() => {
     if (state.step !== "local-progress" && state.step !== "remote-progress") return
-    if (state.finalNodeId) return // already captured
     const completed = events.find((e) => e.type === "completed")
     if (!completed) return
     toast.success("Initial setup completed successfully")
-    setState((prev) => ({
-      ...prev,
-      finalNodeId: completed.result.nodeId,
-      strategy: completed.result.strategy,
-    }))
-  }, [events, state.step, state.finalNodeId])
+    try { localStorage.setItem("post-setup-complete", "1") } catch { /* noop */ }
+  }, [events, state.step])
 
   const labels = state.mode === "remote" ? remoteLabels : state.mode === "local" ? localLabels : defaultLabels
   const { current, total } = useMemo(() => getStepIndex(state), [state])
@@ -166,7 +156,6 @@ export function SetupWizard() {
         step: "local-progress",
         local: merged,
       }))
-      // Auto-trigger initialization
       setStreamEnabled(true)
       triggerInit.mutate({
         strategy: "local",
@@ -266,7 +255,6 @@ export function SetupWizard() {
             onContinue={handleLocalAccountContinue}
           />
         ) : null}
-
         {state.step === "local-database" ? (
           <LocalDatabaseStep
             initial={{ dbMode: state.local.dbMode, dbUrl: state.local.dbUrl }}
@@ -283,6 +271,7 @@ export function SetupWizard() {
                 mode: "local",
                 username: state.local.username,
                 email: state.local.email,
+                password: state.local.password,
                 dbMode: state.local.dbMode,
                 dbUrl: state.local.dbUrl,
                 recovery: state.recovery,
@@ -294,27 +283,6 @@ export function SetupWizard() {
               </Alert>
             ) : null}
           </>
-        ) : null}
-
-        {state.step === "complete" && state.finalNodeId ? (
-          <CompleteStep
-            nodeId={state.finalNodeId}
-            strategy={state.strategy ?? "local"}
-            localInfo={
-              state.strategy === "local" && state.local.username
-                ? {
-                    username: state.local.username,
-                    email: state.local.email,
-                    dbMode: state.local.dbMode,
-                  }
-                : undefined
-            }
-            remoteInfo={
-              state.strategy === "remote" && state.remote.meshUrl
-                ? { meshUrl: state.remote.meshUrl }
-                : undefined
-            }
-          />
         ) : null}
       </div>
 

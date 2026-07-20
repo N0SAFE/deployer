@@ -839,7 +839,7 @@ export class SharedApiRuntimeManager {
             const apiMockEnv = getMockEnv('api')
             const runtimeEnv = {
                 ...apiMockEnv,
-                DATABASE_URL: databaseUrl,
+                SETUP_DATABASE_URL: databaseUrl,
                 AUTH_SECRET:
                     process.env.AUTH_SECRET ??
                     apiMockEnv.AUTH_SECRET,

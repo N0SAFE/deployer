@@ -52,6 +52,7 @@ const DISABLE_GLOBAL_POSTGRES = isTruthyEnv(
 export default defineConfig(
   createNodeConfig({
     esbuild: false,
+    oxc: false, // Use SWC transformer instead to avoid zod/v4 export resolution issues
     plugins: [
       swc.vite({
         jsc: {
@@ -141,6 +142,9 @@ export default defineConfig(
         "@": path.resolve(__dirname, "./src"),
         "~": path.resolve(__dirname, "./"),
       },
+      // Force zod to be resolved from the API's node_modules rather than
+      // from workspace packages (which may lack the zod/v4 subpath export).
+      dedupe: ["zod"],
     },
   }),
 );

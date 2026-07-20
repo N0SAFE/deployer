@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, OnModuleDestroy } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type { Container } from "dockerode";
 import { DockerService } from "../../services/docker.service";
@@ -15,9 +15,44 @@ export interface PostgresContainerStartOptions {
 }
 
 @Injectable()
-export class PostgresContainerService extends AbstractDockerContainerService {
+export class PostgresContainerService extends AbstractDockerContainerService implements OnModuleDestroy {
+    /** Tracks auto-provisioned Postgres container IDs for cleanup on shutdown. */
+    private readonly managedContainerIds = new Set<string>();
+
     constructor(protected readonly dockerService: DockerService) {
         super(dockerService);
+    }
+
+    async onModuleDestroy(): Promise<void> {
+        if (this.managedContainerIds.size === 0) return;
+
+        this.logger.log(`Cleaning up ${String(this.managedContainerIds.size)} managed Postgres container(s) …`);
+
+        const docker = this.dockerService.getDockerClient();
+        const errors: string[] = [];
+
+        for (const containerId of this.managedContainerIds) {
+            try {
+                const container = docker.getContainer(containerId);
+                // Stop with a short timeout — autoRemove will clean up the container.
+                await container.stop({ t: 5 }).catch(() => undefined);
+                this.logger.log(`Stopped managed Postgres container ${containerId}`);
+            } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : String(err);
+                errors.push(`${containerId}: ${msg}`);
+                this.logger.warn(`Failed to stop managed Postgres container ${containerId}: ${msg}`);
+            }
+        }
+
+        this.managedContainerIds.clear();
+
+        if (errors.length > 0) {
+            this.logger.warn(
+                `Finished cleanup with ${String(errors.length)} error(s): ${errors.join("; ")}`
+            );
+        } else {
+            this.logger.log("All managed Postgres containers cleaned up successfully");
+        }
     }
 
     async startPostgresContainer(options: PostgresContainerStartOptions = {}): Promise<Container> {
@@ -45,7 +80,7 @@ export class PostgresContainerService extends AbstractDockerContainerService {
         // autoRemove will clean it up when the container exits (via explicit
         // stop or if postgres crashes).
 
-        return this.startContainer({
+        const container = await this.startContainer({
             image: options.image ?? "postgres:16-alpine",
             name: options.name ?? `deployer-bootstrap-postgres-${randomUUID().slice(0, 8)}`,
             env: [`POSTGRES_DB=${databaseName}`, `POSTGRES_USER=${username}`, `POSTGRES_PASSWORD=${password}`],
@@ -63,6 +98,11 @@ export class PostgresContainerService extends AbstractDockerContainerService {
                 startPeriod: 5_000_000_000, // 5s grace period
             },
         });
+
+        // Track the container for cleanup on module destroy.
+        this.managedContainerIds.add(container.id);
+
+        return container;
     }
 
     async getMappedPort(containerId: string, containerPort: number): Promise<number> {

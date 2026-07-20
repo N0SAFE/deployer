@@ -5,7 +5,7 @@ import { MeshInitializationService } from '../../mesh/initialization/services/me
 import { EnvService } from '@/config/env/env.service'
 import { runStep, type EmitEvent, SetupStepTracker } from '../utils/setup-runner.utils'
 import { DEPLOYER_VERSION, semverCompare } from '@/core/utils/deployer-version'
-import { MeshVersionService } from '../../startup/mesh-version.service'
+import { MeshVersionService } from '../../mesh/version/mesh-version.service'
 
 @Injectable()
 export class RemoteInitializationService {

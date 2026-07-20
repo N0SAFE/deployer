@@ -1749,11 +1749,13 @@ Run this checklist mentally (or write it down for non-trivial changes):
 - [ ] **Do the tests pass?** `bun --bun run test` for unit, `bun --bun run test:e2e` for e2e (when applicable).
 - [ ] **Did I introduce type assertions?** `grep -rn "as unknown as\|as Record<string" apps/ packages/`. Should be **zero** in new code.
 - [ ] **Did I introduce `@ts-ignore` or `@ts-expect-error`?** `grep -rn "@ts-ignore\|@ts-expect-error" apps/ packages/`. Should be **zero**.
+- [ ] **Did I introduce `as any`?** `grep -rn "as any" apps/ packages/`. Should be **zero** in production code.
 - [ ] **Did I add a defensive guard that shouldn't be needed?** If yes, **fix the contract, remove the guard**. Don't ship defensive code that papers over a contract bug.
 - [ ] **Did I leave dead code?** `knip`. Should be **zero** new dead code introduced.
 - [ ] **Did I leave commented-out code?** Delete it.
 - [ ] **Did I leave a `TODO`?** Either address it now, or delete it. No `// TODO` without a tracking issue.
 - [ ] **Did I duplicate code?** If a pattern appears 3 times, extract it.
+- [ ] **Did I create a stub/empty implementation?** Empty `@Module({})`, empty `@Injectable()` classes, or methods returning `[]`/`null` that are wired into production DI are architectural debt. Implement or remove.
 - [ ] **Did I add a "just in case" feature or parameter?** Delete it. YAGNI.
 - [ ] **Did I add a bridge / compat layer?** Remove it. Replace don't bridge.
 - [ ] **Did I update the docs?** Both `apps/doc/content/docs/` and this file (if rules changed).
@@ -1763,10 +1765,17 @@ Run this checklist mentally (or write it down for non-trivial changes):
 - [ ] **Did I follow the commit policy?** Conventional commit. Scoped. One logical change.
 - [ ] **Is the change set focused?** One logical change, not 5 unrelated tweaks.
 - [ ] **Did I add a logger call for the lifecycle event?** For new services/repositories, add a startup log.
-- [ ] **Did I handle errors with the right error type?** `AppError` subclasses in services, `ORPCError` in handlers, never `Error`.
+- [ ] **Did I handle errors with the right error type?** `AppError` subclasses in services, `ORPCError` in handlers, never `Error`. Check I didn't create a new Error subclass that extends `Error` directly instead of `AppError`.
+- [ ] **Did I check for empty catch blocks?** `grep -rn "catch\s*{" apps/ packages/`. Every non-empty catch block must log and/or rethrow.
 - [ ] **Did I use Bun runtime?** `bun --bun run <script>`, never bare `bun run`.
 - [ ] **Did I use the right paths?** `import { X } from "@/..."` aliases, not `../../..` deep paths.
+- [ ] **Did I check for package boundary violations?** If I created or modified a package, verify it has consumers. If I added a wildcard export (`"./*"`), replace with explicit subpaths.
+- [ ] **Did I check for cross-feature imports?** `modules/<a>/` must not import from `modules/<b>/`. Extract shared logic to `core/`.
+- [ ] **Did I use a catalog version instead of hardcoded?** No `"zod": "^X.Y.Z"` — use `"catalog:utils"` instead. Check that new dependencies reference the catalog.
 - [ ] **Did I use the typed routes?** `<Route>.Link`, not raw `href`. `<Route>.fetch`, not raw `fetch`.
+- [ ] **Did I verify contract is not duplicated?** A contract must live in ONE place. If I touched a contract file, verify there's no duplicate copy elsewhere that needs updating or deletion.
+- [ ] **Did I add error definitions to new ORPC contracts?** Every contract that can throw domain errors must declare `.errors(...)`.
+- [ ] **Did I check for web page metadata?** New routes in `apps/web/src/app/` must export `metadata` or `generateMetadata`.
 
 ### Pre-Commit Grep Audit (Mandatory)
 
@@ -1776,6 +1785,9 @@ grep -rn "as unknown as\|as Record<string" apps/ packages/
 
 # Type escapes — should be zero
 grep -rn "@ts-ignore\|@ts-expect-error" apps/ packages/
+
+# Any type escape in production — should be zero
+grep -rn "as any" apps/ packages/ | grep -v "\.spec\.\|__tests__\|node_modules"
 
 # Console logs — should be zero (use the logger)
 grep -rn "console\.\(log\|debug\|info\|warn\|error\)" apps/api/ apps/web/
@@ -1797,6 +1809,15 @@ grep -rn 'fetch("/api\|fetch("/v1\|fetch("/v2' apps/web/src/
 
 # Process env scattered in business code
 grep -rn "process\.env\." apps/ packages/ | grep -v "config/"
+
+# Empty catch blocks — silent failure risk
+grep -rn "catch\s*{" apps/api/src/ packages/
+
+# Empty Injectable classes or modules — architectural debt
+grep -rn "}\n\s*export class.*Module {}\|}\n\s*export class.*Service {}" apps/api/src/
+
+# Duplicate contract check — if touching contracts dir
+ls apps/api/src/contracts/ 2>/dev/null && echo "CHECK: Could this live in packages/contracts/api/modules/ instead?"
 ```
 
 Any result is a candidate for cleanup. New code MUST have zero results.
@@ -1873,6 +1894,75 @@ Any result is a candidate for cleanup. New code MUST have zero results.
 - ❌ **Mocking the system under test** — defeats the purpose of the test.
 - ❌ **Snapshot tests for behavior that should be explicit** — use `expect(x).toBe(y)`.
 - ❌ **Tests that depend on test order or global state** — flaky.
+
+### Architecture & Boundary Anti-Patterns
+
+- ❌ **`src/system/*` importing from `src/modules/*`** — system is the internal control plane and must NOT depend on product modules. If a system endpoint needs a module, extract shared logic to `core/`.
+- ❌ **`core/` depending on `modules/`** — core modules must NOT import product modules. Extract shared repositories to `core/modules/common/`.
+- ❌ **Duplicate contract definitions** — a contract lives in ONE place: `packages/contracts/api/modules/<domain>/`. Never copy it to `apps/api/src/contracts/`. If you need local modifications, re-export from the shared package.
+- ❌ **Cross-feature coupling** — `modules/docker/` must NOT import from `modules/deployment/`. If two features share logic, extract to `core/` or a shared package.
+- ❌ **Circular dependency hub** — a single repository imported by 3+ modules creates a cycle risk. Extract hub repositories to a shared location (`core/modules/common/`) when they have 3+ consumers from different modules.
+- ❌ **`common/` importing from `domains/`** within a module — the `common/` layer must NOT reach into `domains/`. Shared logic must be at the `common/` level or above.
+- ❌ **`@Module({})` empty modules** — a NestJS module with no imports, providers, controllers, or exports is dead weight. Either implement it or remove it.
+- ❌ **`@Injectable()` empty class** — a service class with no methods, no constructor deps, and no logic registered in DI is an architectural shell. Implement it or delete it.
+- ❌ **Stub implementation registered in production** — a class whose methods always return `[]`, `null`, or throw "not implemented" must NOT be wired into the main module. Use conditional providers or feature flags for work-in-progress code.
+
+### Error Handling Anti-Patterns (Expanded)
+
+- ❌ **`throw new Error("message")` instead of `AppError` subclass** — bare `Error` has no code, no context, no recovery path. Use `NotFoundError`, `ValidationError`, `ConflictError`, etc.
+- ❌ **Custom error classes that extend `Error` directly instead of `AppError`** — `MeshBaseDomainError extends Error` bypasses the `AppError` hierarchy and the global exception filter. Extend `AppError` so your error goes through the 3-tier pipeline.
+- ❌ **Re-implementing library error types locally** — defining a local `OrpcError` class when `ORPCError` from `@orpc/server` already exists creates a parallel error hierarchy that the global filter doesn't catch.
+- ❌ **Empty catch block** — `catch {}` or `catch { // ignore }` silently swallows errors. At minimum, log the error with context. If the error is truly ignorable, add a comment explaining WHY.
+- ❌ **Catch block with `return null` / `return []` fallback** — returning a falsy fallback from a catch hides the failure. Log the error, then either rethrow or return a discriminated union / Result type.
+- ❌ **Catch block with `console.log` only** — use the structured logger (`this.logger.warn(...)`) instead of `console.log`. Include the operation name and failing input.
+- ❌ **Contract error definitions inconsistent between duplicates** — when contracts are duplicated, error definitions drift. Always use `meshDomainErrorContracts(e)` instead of inlining error definitions manually.
+- ❌ **Error definitions missing on contracts** — every ORPC contract that can throw domain errors MUST declare them via `.errors(...)`. Without this, typed client error handling is impossible.
+
+### Package & Dependency Anti-Patterns
+
+- ❌ **Package with zero consumers** — every package in `packages/` must have at least one consumer (imported by another package or app). Zero-consumer packages are dead weight. Either wire them in or delete them.
+- ❌ **Wildcard exports exposing internals** — `"./*": "./*.ts"` exposes every `.ts` file in the package root as a public import path, including build scripts, configs, and internal helpers. Use explicit subpath exports instead.
+- ❌ **Hardcoded version instead of catalog reference** — root `package.json` catalogs define canonical versions. Every app/package must use `"catalog:<name>"` instead of hardcoded versions. Hardcoded versions drift silently.
+- ❌ **Same dependency in both `dependencies` AND `peerDependencies`** — this creates version ambiguity. If a package is a peer dependency, remove it from `dependencies`. If it's a direct dependency, remove it from `peerDependencies`.
+- ❌ **Tooling in `peerDependencies`** — `concurrently`, `rimraf`, and similar build tools belong in `devDependencies`, not `peerDependencies`. Peer deps are for runtime libraries consumers must provide.
+- ❌ **Nested package directory without `package.json`** — a directory like `packages/nest/` with no `package.json` that only contains `packages/nest/auth/` is an artifact. Flatten it to `packages/nest-auth/`.
+
+### Configuration & Environment Anti-Patterns
+
+- ❌ **`bun run` without `--bun`** — the `--bun` flag is mandatory for all scripts. Bare `bun run` uses Node.js runtime and breaks `bun:sqlite`, `zod/v4`, and other Bun-native features. Never write `bun run X` — always `bun --bun run X`.
+- ❌ **`process.env.X` scattered in business code** — every `process.env` read must go through a config service or the centralized `EnvService`. Direct reads in services, repositories, or middleware create scattered configuration sources that can't be validated or tracked.
+- ❌ **Mesh/feature env vars not in `turbo.json` `globalEnv`** — any env var consumed at build time must be declared in `turbo.json`'s `globalEnv` or per-task `env` list. Undeclared env vars cause incorrect cache hits and hard-to-debug build differences.
+- ❌ **Phantom port in `.env` file** — a port value in `.env` that doesn't match any Docker Compose or default configuration creates silent connection failures. Every port in `.env` must have a corresponding service in at least one docker-compose file.
+- ❌ **No `.dockerignore`** — without `.dockerignore`, the entire monorepo is sent to the Docker daemon as build context, slowing builds. Add a `.dockerignore` that excludes `node_modules`, `.git`, `dist`, and `.turbo` at minimum.
+- ❌ **Missing Docker healthcheck on web/doc services** — every service in docker-compose must have a `healthcheck` block. Without it, Docker can't detect when the service is broken for automated restart or `depends_on` gating.
+- ❌ **Dev/prod port drift** — if dev defaults to port `3005` but prod defaults to `3001`, and `.env.example` says `3001`, developers running the API locally will connect to the wrong port. All environments must agree on default ports, or the drift must be explicitly documented.
+
+### Documentation Anti-Patterns
+
+- ❌ **README points to a nonexistent directory** — if the root `README.md` references `.docs/` or `docs/README.md` as a documentation hub, that directory must exist. Broken doc links are worse than no links.
+- ❌ **AGENTS.md file that doesn't reflect `.github/copilot-instructions.md` rules** — every AGENTS.md must at minimum reference the relevant CI sections. Key rules (type assertions ban, Zod-as-truth, error handling, Bun runtime, self-review checklist) must be repeated or linked.
+- ❌ **Embedded documentation islands in source code** — a `docs/` folder inside `apps/api/src/core/modules/domain/` is invisible to readers. If documentation belongs inside the module, link it from the main docs index. Otherwise, keep it in `docs/` or `apps/doc/`.
+- ❌ **AGENTS.md with inconsistent structure** — all app-level AGENTS.md files should follow the same template (Scope Rules, Quick Context, Workflows, Boundaries, Rules). Config package stubs can be compact, but must at least state their purpose and key constraints.
+- ❌ **Design docs tagged as "finalized" with no implementation** — a design doc marked "Design finalized, implementation pending" that has been pending for months is stale. Either implement it, re-scope it, or mark it as deprecated.
+- ❌ **Documentation hub duality** — two places claiming to be "the canonical documentation source" (`apps/doc/content/docs/` and `docs/`) creates confusion. Either merge them or establish a clear priority rule with cross-references.
+
+### Web (Next.js / React) Anti-Patterns
+
+- ❌ **Component > 1000 lines** — a component with 30+ `useState`, 20+ `useEffect`, 10+ `useQuery`, and 2000+ lines of JSX is untestable and unmaintainable. Split into smaller components. If the trigger/content pattern is used but content is still >1000 lines, split content further.
+- ❌ **`export const metadata` or `generateMetadata` missing on page** — every route in `app/` must export metadata (title, description) for SEO and accessibility. Root layout metadata is not a substitute for per-page metadata.
+- ❌ **`any` in shared type definitions** — a shared type utility that uses `any` as a boundary leaks type unsafety to every consumer. Constrain generics properly or use `unknown` with type guards.
+- ❌ **Zero page.info.ts files for declarative routing** — every route that needs typed navigation links should have a co-located `page.info.ts` file. Zero such files means the declarative routing system is not being used for any page.
+- ❌ **Hardcoded `fetch("/api/...")` instead of ORPC client in production code** — raw `fetch()` bypasses the typed ORPC contract, losing input/output validation and auto-completion. Use the ORPC client everywhere, even for auth endpoints.
+- ❌ **Inline `key={index}` for dynamic lists** — using the array index as a React key for dynamic, sortable, or filterable lists causes incorrect re-renders and lost state. Use stable unique IDs from the data.
+- ❌ **Missing `<select>` `aria-label`** — select elements in forms must have an `aria-label` or associated `<label>` for screen reader accessibility.
+
+### Infrastructure Anti-Patterns
+
+- ❌ **No pre-commit hook** — a pre-push hook alone is not enough. Developers should catch lint/type errors before committing, not after. Add a pre-commit hook that runs `bun --bun run lint-staged` or at minimum `bun --bun run type-check` on changed files.
+- ❌ **Route regeneration (`dr:build`) is a manual step** — forgetting to run `dr:build` after route changes silently breaks navigation. Automate it via a pre-commit hook that checks if any `route.info.ts` changed and auto-regenerates.
+- ❌ **Missing `.vscode/extensions.json`** — without a recommended extensions list, new developers miss critical extensions (ESLint, Prettier, Tailwind IntelliSense, Error Lens, Pretty TS Errors). Add one to reduce onboarding friction.
+- ❌ **Missing `.vscode/launch.json`** — debug profiles for the API and web apps should be pre-configured so developers can attach a debugger without manual setup.
+- ❌ **`it.todo()` tests without a linked tracking issue** — pending tests that have no issue number or planned sprint are TODO dead ends. Either implement the test, delete the todo, or link it to a tracking issue.
 
 ---
 

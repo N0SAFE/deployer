@@ -1,4 +1,5 @@
 import { DashboardSidebar, DashboardLoadingSkeleton } from '@/components/dashboard'
+import { PostSetupHints } from '@/components/setup/post-setup-hints'
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@repo/ui/components/shadcn/sidebar'
 import { Separator } from '@repo/ui/components/shadcn/separator'
 import { Badge } from '@repo/ui/components/shadcn/badge'
@@ -57,6 +58,7 @@ export default createSessionLayout(({ children }) => {
             </QueryErrorBoundary>
           </main>
         </SidebarInset>
+        <PostSetupHints />
       </SidebarProvider>
     </SessionHydrationProvider>
   )

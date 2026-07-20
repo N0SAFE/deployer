@@ -20,7 +20,6 @@ describe('API Environment Validation', () => {
   const validApiEnv = {
     NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
     NODE_ENV: 'development' as const,
-    DATABASE_URL: 'postgresql://user:pass@localhost:5432/db',
     API_PORT: 3001,
     AUTH_SECRET: 'test-secret-key-at-least-32-chars-long',
     BETTER_AUTH_SECRET: 'test-secret-key-at-least-32-chars-long',
@@ -33,20 +32,9 @@ describe('API Environment Validation', () => {
       expect(result).toMatchObject({
         NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
         NODE_ENV: 'development',
-        DATABASE_URL: 'postgresql://user:pass@localhost:5432/db',
         API_PORT: 3001,
         AUTH_SECRET: 'test-secret-key-at-least-32-chars-long',
       })
-    })
-
-    it('should throw on missing required fields', () => {
-      const { DATABASE_URL, ...incomplete } = validApiEnv
-      expect(() => validateApiEnv(incomplete)).toThrow()
-    })
-
-    it('should throw on invalid DATABASE_URL', () => {
-      const invalid = { ...validApiEnv, DATABASE_URL: '' }
-      expect(() => validateApiEnv(invalid)).toThrow()
     })
 
     it('should throw on invalid API_PORT', () => {
@@ -83,18 +71,6 @@ describe('API Environment Validation', () => {
     it('should return success for valid environment', () => {
       const result = validateApiEnvSafe(validApiEnv)
       expect(result.success).toBe(true)
-      if (result.success) {
-        expect(result.data.DATABASE_URL).toBe('postgresql://user:pass@localhost:5432/db')
-      }
-    })
-
-    it('should return error for invalid environment', () => {
-      const { DATABASE_URL, ...incomplete } = validApiEnv
-      const result = validateApiEnvSafe(incomplete)
-      expect(result.success).toBe(false)
-      if (!result.success) {
-        expect(result.error).toBeDefined()
-      }
     })
 
     it('should not throw on invalid input', () => {
@@ -111,15 +87,14 @@ describe('API Environment Validation', () => {
       expect(apiEnvIsValid({})).toBe(false)
     })
 
-    it('should return false for missing required fields', () => {
-      const { AUTH_SECRET, ...incomplete } = validApiEnv
-      expect(apiEnvIsValid(incomplete)).toBe(false)
+    it('should return false for invalid environment', () => {
+      expect(apiEnvIsValid({ NEXT_PUBLIC_APP_URL: 'not-a-url' })).toBe(false)
     })
   })
 
   describe('validateApiEnvPath', () => {
-    it('should validate specific field - DATABASE_URL', () => {
-      const result = validateApiEnvPath('postgresql://localhost:5432/db', 'DATABASE_URL')
+    it('should validate specific field - SETUP_DATABASE_URL', () => {
+      const result = validateApiEnvPath('postgresql://localhost:5432/db', 'SETUP_DATABASE_URL')
       expect(result).toBe('postgresql://localhost:5432/db')
     })
 
@@ -129,7 +104,7 @@ describe('API Environment Validation', () => {
     })
 
     it('should throw on invalid field value', () => {
-      expect(() => validateApiEnvPath('', 'DATABASE_URL')).toThrow()
+      expect(() => validateApiEnvPath('', 'SETUP_DATABASE_URL')).toThrow()
     })
 
     it('should coerce string to number for API_PORT', () => {
@@ -353,7 +328,7 @@ describe('All Apps Environment Validation', () => {
     api: {
       NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
       NODE_ENV: 'development' as const,
-      DATABASE_URL: 'postgresql://user:pass@localhost:5432/db',
+      SETUP_DATABASE_URL: 'postgresql://user:pass@localhost:5432/db',
       API_PORT: 3001,
       AUTH_SECRET: 'test-secret-key-at-least-32-chars-long',
       BETTER_AUTH_SECRET: 'test-secret-key-at-least-32-chars-long',
@@ -379,7 +354,7 @@ describe('All Apps Environment Validation', () => {
   describe('validateAllEnv', () => {
     it('should validate all apps environments', () => {
       const result = validateAllEnv(validAllEnv)
-      expect(result.api.DATABASE_URL).toBe('postgresql://user:pass@localhost:5432/db')
+      expect(result.api.SETUP_DATABASE_URL).toBe('postgresql://user:pass@localhost:5432/db')
       expect(result.web.API_URL).toBe('http://localhost:3001')
       expect(result.doc.NODE_ENV).toBe('development')
     })
@@ -433,7 +408,6 @@ describe('Edge Cases and Error Handling', () => {
         NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
         NEXT_PUBLIC_API_URL: 'http://localhost:3001',
         NODE_ENV: 'development' as const,
-        DATABASE_URL: 'postgresql://localhost:5432/db',
         API_PORT: 0,
         AUTH_SECRET: 'test-secret-key-at-least-32-chars-long',
         BETTER_AUTH_SECRET: 'test-secret-key-at-least-32-chars-long',
@@ -446,7 +420,6 @@ describe('Edge Cases and Error Handling', () => {
         NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
         NEXT_PUBLIC_API_URL: 'http://localhost:3001',
         NODE_ENV: 'development' as const,
-        DATABASE_URL: 'postgresql://localhost:5432/db',
         API_PORT: 70000,
         AUTH_SECRET: 'test-secret-key-at-least-32-chars-long',
         BETTER_AUTH_SECRET: 'test-secret-key-at-least-32-chars-long',
@@ -459,7 +432,6 @@ describe('Edge Cases and Error Handling', () => {
         NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
         NEXT_PUBLIC_API_URL: 'http://localhost:3001',
         NODE_ENV: 'development' as const,
-        DATABASE_URL: 'postgresql://localhost:5432/db',
         API_PORT: 1,
         AUTH_SECRET: 'test-secret-key-at-least-32-chars-long',
         BETTER_AUTH_SECRET: 'test-secret-key-at-least-32-chars-long',
@@ -473,7 +445,6 @@ describe('Edge Cases and Error Handling', () => {
         NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
         NEXT_PUBLIC_API_URL: 'http://localhost:3001',
         NODE_ENV: 'development' as const,
-        DATABASE_URL: 'postgresql://localhost:5432/db',
         API_PORT: 65535,
         AUTH_SECRET: 'test-secret-key-at-least-32-chars-long',
         BETTER_AUTH_SECRET: 'test-secret-key-at-least-32-chars-long',

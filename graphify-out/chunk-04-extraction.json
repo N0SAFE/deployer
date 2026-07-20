@@ -1,0 +1,943 @@
+{
+  "nodes": [
+    {
+      "id": ".github_prompts_speckit_taskstoissues_prompt_SpeckitTasksToIssuesAgent",
+      "label": "Speckit Tasks To Issues Agent",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.taskstoissues.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit_validate-core-concepts_prompt_CoreConceptsValidator",
+      "label": "Speckit Core Concepts Validator",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit_validate-core-concepts_prompt_ServiceAdapterPattern",
+      "label": "Service-Adapter Pattern",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit_validate-core-concepts_prompt_RepositoryOwnershipRule",
+      "label": "Repository Ownership Rule",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit_validate-core-concepts_prompt_CoreVsFeatureArchitecture",
+      "label": "Core vs Feature Architecture",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit_validate-core-concepts_prompt_BetterAuthIntegration",
+      "label": "Better Auth Integration",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit_validate-core-concepts_prompt_ORPCImplementationPattern",
+      "label": "ORPC Implementation Pattern",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit_validate-core-concepts_prompt_DocumentationMaintenanceProtocol",
+      "label": "Documentation Maintenance Protocol",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit_validate-core-concepts_prompt_ComplianceReport",
+      "label": "Compliance Report",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit_validate-core-concepts_prompt_CoreConceptsIndex",
+      "label": "Core Concepts Index (README.md)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_pull_request_template_PR_Template",
+      "label": "Pull Request Template",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/pull_request_template.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_pull_request_template_ArchitecturePatternsSection",
+      "label": "Architecture Patterns Checklist",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/pull_request_template.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_pull_request_template_TestingSection",
+      "label": "Testing and Quality Section",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/pull_request_template.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_pull_request_template_MonorepoComponents",
+      "label": "Monorepo Affected Areas",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/pull_request_template.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_ci_CICDPipeline",
+      "label": "CI/CD Pipeline",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_ci_SetupJob",
+      "label": "Setup & Install Dependencies Job",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_ci_GenerateDeclarativeRoutesJob",
+      "label": "Generate Declarative Routes Job",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_ci_LintAndTypeCheckJob",
+      "label": "Lint & Type Check Job",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_ci_BuildJob",
+      "label": "Build Job",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_ci_TestJob",
+      "label": "Test Job",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_ci_DeploymentReadyCheckJob",
+      "label": "Deployment Ready Check Job",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_ci_TurborepoAffectedFlag",
+      "label": "Turborepo --affected Flag",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_copilot-setup-steps_CopilotSetupWorkflow",
+      "label": "Copilot Setup Steps Workflow",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/copilot-setup-steps.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_copilot-setup-steps_MySQLService",
+      "label": "MySQL Database Service",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/copilot-setup-steps.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_copilot-setup-steps_RedisService",
+      "label": "Redis Cache Service",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/copilot-setup-steps.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_copilot-setup-steps_MCPRepoManagerBuild",
+      "label": "MCP Repo Manager Build Step",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/copilot-setup-steps.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_copilot-setup-steps_EnvironmentConfig",
+      "label": "Environment Configuration Setup",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/copilot-setup-steps.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_deploy_DeployPipeline",
+      "label": "Deploy Pipeline",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/deploy.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_deploy_VersionExtractionJob",
+      "label": "Version Extraction Job",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/deploy.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_deploy_BuildAndPushImageJob",
+      "label": "Docker Build & Push Image Job",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/deploy.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_deploy_CreateGitHubReleaseJob",
+      "label": "Create GitHub Release Job",
+      "file_type": "code",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/deploy.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_deploy_GitHubContainerRegistry",
+      "label": "GitHub Container Registry (GHCR)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/deploy.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_deploy_DockerBuildPushAction",
+      "label": "Docker Build and Push Action",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/deploy.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit_validate-core-concepts_prompt_ORPCClientHooksPattern",
+      "label": "ORPC Client Hooks Pattern",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_prompts_speckit_validate-core-concepts_prompt_FileManagementPolicy",
+      "label": "File Management Policy",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": ".github_workflows_copilot_setup_steps_MCP_Repo_Manager",
+      "label": "MCP Repo Manager",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/copilot-setup-steps.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": ".github_prompts_speckit_validate-core-concepts_prompt_CoreConceptsValidator",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_ServiceAdapterPattern",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit_validate-core-concepts_prompt_CoreConceptsValidator",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_RepositoryOwnershipRule",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit_validate-core-concepts_prompt_CoreConceptsValidator",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_CoreVsFeatureArchitecture",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit_validate-core-concepts_prompt_CoreConceptsValidator",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_BetterAuthIntegration",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit_validate-core-concepts_prompt_CoreConceptsValidator",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_ORPCImplementationPattern",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit_validate-core-concepts_prompt_CoreConceptsValidator",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_DocumentationMaintenanceProtocol",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit_validate-core-concepts_prompt_CoreConceptsValidator",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_ComplianceReport",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit_validate-core-concepts_prompt_CoreConceptsValidator",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_CoreConceptsIndex",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit_validate-core-concepts_prompt_CoreConceptsValidator",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_ORPCClientHooksPattern",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit_validate-core-concepts_prompt_CoreConceptsValidator",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_FileManagementPolicy",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_prompts_speckit_taskstoissues_prompt_SpeckitTasksToIssuesAgent",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_CoreConceptsValidator",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.taskstoissues.prompt.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_pull_request_template_PR_Template",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_CoreConceptsValidator",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/pull_request_template.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_pull_request_template_PR_Template",
+      "target": ".github_pull_request_template_ArchitecturePatternsSection",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/pull_request_template.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_pull_request_template_PR_Template",
+      "target": ".github_pull_request_template_TestingSection",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/pull_request_template.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_pull_request_template_PR_Template",
+      "target": ".github_pull_request_template_MonorepoComponents",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/pull_request_template.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_pull_request_template_ArchitecturePatternsSection",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_ServiceAdapterPattern",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/pull_request_template.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_pull_request_template_ArchitecturePatternsSection",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_RepositoryOwnershipRule",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/pull_request_template.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_pull_request_template_ArchitecturePatternsSection",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_ORPCImplementationPattern",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/pull_request_template.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_pull_request_template_ArchitecturePatternsSection",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_BetterAuthIntegration",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/pull_request_template.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_pull_request_template_ArchitecturePatternsSection",
+      "target": ".github_prompts_speckit_validate-core-concepts_prompt_CoreVsFeatureArchitecture",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/pull_request_template.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_pull_request_template_TestingSection",
+      "target": ".github_workflows_ci_TestJob",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/pull_request_template.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_ci_CICDPipeline",
+      "target": ".github_workflows_ci_SetupJob",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_ci_CICDPipeline",
+      "target": ".github_workflows_ci_GenerateDeclarativeRoutesJob",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_ci_CICDPipeline",
+      "target": ".github_workflows_ci_LintAndTypeCheckJob",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_ci_CICDPipeline",
+      "target": ".github_workflows_ci_BuildJob",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_ci_CICDPipeline",
+      "target": ".github_workflows_ci_TestJob",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_ci_CICDPipeline",
+      "target": ".github_workflows_ci_DeploymentReadyCheckJob",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_ci_LintAndTypeCheckJob",
+      "target": ".github_workflows_ci_TurborepoAffectedFlag",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_ci_BuildJob",
+      "target": ".github_workflows_ci_TurborepoAffectedFlag",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_ci_TestJob",
+      "target": ".github_workflows_ci_TurborepoAffectedFlag",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_copilot-setup-steps_CopilotSetupWorkflow",
+      "target": ".github_workflows_copilot-setup-steps_MySQLService",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/copilot-setup-steps.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_copilot-setup-steps_CopilotSetupWorkflow",
+      "target": ".github_workflows_copilot-setup-steps_RedisService",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/copilot-setup-steps.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_copilot-setup-steps_CopilotSetupWorkflow",
+      "target": ".github_workflows_copilot-setup-steps_MCPRepoManagerBuild",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/copilot-setup-steps.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_copilot-setup-steps_CopilotSetupWorkflow",
+      "target": ".github_workflows_copilot-setup-steps_EnvironmentConfig",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/copilot-setup-steps.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_copilot-setup-steps_MCPRepoManagerBuild",
+      "target": ".github_workflows_copilot_setup_steps_MCP_Repo_Manager",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/copilot-setup-steps.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_deploy_DeployPipeline",
+      "target": ".github_workflows_deploy_VersionExtractionJob",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/deploy.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_deploy_DeployPipeline",
+      "target": ".github_workflows_deploy_BuildAndPushImageJob",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/deploy.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_deploy_DeployPipeline",
+      "target": ".github_workflows_deploy_CreateGitHubReleaseJob",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/deploy.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_deploy_BuildAndPushImageJob",
+      "target": ".github_workflows_deploy_GitHubContainerRegistry",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/deploy.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_deploy_BuildAndPushImageJob",
+      "target": ".github_workflows_deploy_DockerBuildPushAction",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/deploy.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_deploy_VersionExtractionJob",
+      "target": ".github_workflows_deploy_BuildAndPushImageJob",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/deploy.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_deploy_BuildAndPushImageJob",
+      "target": ".github_workflows_deploy_CreateGitHubReleaseJob",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/deploy.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_ci_CICDPipeline",
+      "target": ".github_workflows_copilot-setup-steps_CopilotSetupWorkflow",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_ci_CICDPipeline",
+      "target": ".github_workflows_deploy_DeployPipeline",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": ".github_workflows_ci_DeploymentReadyCheckJob",
+      "target": ".github_workflows_deploy_DeployPipeline",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "ci_pipeline_jobs_chain",
+      "label": "CI Pipeline Job Dependency Chain",
+      "nodes": [
+        ".github_workflows_ci_SetupJob",
+        ".github_workflows_ci_GenerateDeclarativeRoutesJob",
+        ".github_workflows_ci_LintAndTypeCheckJob",
+        ".github_workflows_ci_BuildJob",
+        ".github_workflows_ci_TestJob",
+        ".github_workflows_ci_DeploymentReadyCheckJob"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/ci.yml"
+    },
+    {
+      "id": "deploy_pipeline_jobs_chain",
+      "label": "Deploy Pipeline Job Dependency Chain",
+      "nodes": [
+        ".github_workflows_deploy_VersionExtractionJob",
+        ".github_workflows_deploy_BuildAndPushImageJob",
+        ".github_workflows_deploy_CreateGitHubReleaseJob"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/deploy.yml"
+    },
+    {
+      "id": "validation_core_concepts_audit",
+      "label": "Core Concepts Compliance Audit",
+      "nodes": [
+        ".github_prompts_speckit_validate-core-concepts_prompt_ServiceAdapterPattern",
+        ".github_prompts_speckit_validate-core-concepts_prompt_RepositoryOwnershipRule",
+        ".github_prompts_speckit_validate-core-concepts_prompt_CoreVsFeatureArchitecture",
+        ".github_prompts_speckit_validate-core-concepts_prompt_BetterAuthIntegration",
+        ".github_prompts_speckit_validate-core-concepts_prompt_ORPCImplementationPattern",
+        ".github_prompts_speckit_validate-core-concepts_prompt_DocumentationMaintenanceProtocol",
+        ".github_prompts_speckit_validate-core-concepts_prompt_ORPCClientHooksPattern",
+        ".github_prompts_speckit_validate-core-concepts_prompt_FileManagementPolicy"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.validate-core-concepts.prompt.md"
+    },
+    {
+      "id": "speckit_agents_family",
+      "label": "Speckit Agent Family",
+      "nodes": [
+        ".github_prompts_speckit_taskstoissues_prompt_SpeckitTasksToIssuesAgent",
+        ".github_prompts_speckit_validate-core-concepts_prompt_CoreConceptsValidator"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/prompts/speckit.taskstoissues.prompt.md"
+    },
+    {
+      "id": "pr_template_references",
+      "label": "PR Template References Architecture Patterns",
+      "nodes": [
+        ".github_pull_request_template_PR_Template",
+        ".github_pull_request_template_ArchitecturePatternsSection",
+        ".github_pull_request_template_TestingSection",
+        ".github_pull_request_template_MonorepoComponents"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/pull_request_template.md"
+    },
+    {
+      "id": "copilot_setup_infrastructure",
+      "label": "Copilot Setup Infrastructure Services",
+      "nodes": [
+        ".github_workflows_copilot-setup-steps_MySQLService",
+        ".github_workflows_copilot-setup-steps_RedisService",
+        ".github_workflows_copilot-setup-steps_MCPRepoManagerBuild",
+        ".github_workflows_copilot-setup-steps_EnvironmentConfig"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/.github/workflows/copilot-setup-steps.yml"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

@@ -7,7 +7,6 @@ import {
   Settings, 
   Server,
   Container,
-  FolderKanban,
   Rocket,
   Home, 
   Shield, 
@@ -15,12 +14,18 @@ import {
   LayoutDashboard,
   ChevronUp,
   LogOut,
+  FolderKanban,
+  Search,
+  Loader2,
 } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Home as HomeRoute, AuthDashboardProfile } from '@/routes'
 import { useSession, signOut } from '@/lib/auth'
 import { revalidateAllAction } from '@/components/signout/revalidateAll.action'
+import { useProjectList } from '@/domains/project/hooks'
+import { useServiceList } from '@/domains/service/hooks'
 import {
   Sidebar,
   SidebarContent,
@@ -68,11 +73,6 @@ const mainNavItems: NavItem[] = [
     url: '/dashboard',
     icon: LayoutDashboard,
     exact: true,
-  },
-  { 
-    title: 'Projects',
-    url: '/dashboard/projects',
-    icon: FolderKanban,
   },
   {
     title: 'Deployments',
@@ -149,6 +149,159 @@ function getInitials(name: string | undefined): string {
     .slice(0, 2)
 }
 
+/** Fuzzy match: returns true if query chars appear in order in text */
+function fuzzyMatch(text: string, query: string): boolean {
+  const lower = text.toLowerCase()
+  const q = query.toLowerCase()
+  let qi = 0
+  for (let ti = 0; ti < lower.length && qi < q.length; ti++) {
+    if (lower[ti] === q[qi]) qi++
+  }
+  return qi === q.length
+}
+
+// ─── Inline Projects Section ──────────────────────────────────────────────
+
+function ProjectsSidebarSection() {
+  const pathname = usePathname()
+  const [open, setOpen] = useState(() => pathname.startsWith('/dashboard/projects'))
+  const [projectFilter, setProjectFilter] = useState('')
+  const [expandedProject, setExpandedProject] = useState<string | null>(null)
+  const [serviceFilter, setServiceFilter] = useState('')
+  const filterInputRef = useRef<HTMLInputElement>(null)
+
+  const { data: projectsData } = useProjectList({} as any)
+
+  const projects: Array<{ id: string; name: string }> = useMemo(() => {
+    const list: any = projectsData ?? []
+    if (!projectFilter) return list
+    return list.filter((p: any) => fuzzyMatch(p.name, projectFilter))
+  }, [projectsData, projectFilter])
+
+  // Fetch services when a project is expanded
+  const { data: servicesData } = useServiceList(
+    useMemo(() => {
+      if (!expandedProject) return undefined as any
+      return { projectId: { eq: expandedProject }, sort: { field: "name", dir: "asc" as const }, limit: 50 }
+    }, [expandedProject]),
+  )
+
+  const filteredServices: Array<{ id: string; name: string }> = useMemo(() => {
+    const list: any = servicesData ?? []
+    if (!serviceFilter || !expandedProject) return list
+    return list.filter((s: any) => fuzzyMatch(s.name, serviceFilter))
+  }, [servicesData, serviceFilter, expandedProject])
+
+  const toggleProject = useCallback((projectId: string) => {
+    setExpandedProject((prev) => {
+      const next = prev === projectId ? null : projectId
+      setServiceFilter('')
+      return next
+    })
+  }, [])
+
+  return (
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="group/collapsible"
+    >
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          asChild
+          isActive={pathname.startsWith('/dashboard/projects')}
+          tooltip="Projects"
+        >
+          <Link href="/dashboard/projects">
+            <FolderKanban />
+            <span>Projects</span>
+          </Link>
+        </SidebarMenuButton>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuAction
+            className="group-data-[state=open]/collapsible:rotate-90"
+            onClick={() => {
+              setOpen(!open)
+              if (!open) setTimeout(() => filterInputRef.current?.focus(), 100)
+            }}
+          >
+            <ChevronRight />
+            <span className="sr-only">Toggle projects</span>
+          </SidebarMenuAction>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="px-3 pb-1 pt-2">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                ref={filterInputRef}
+                placeholder="Filter projects…"
+                value={projectFilter}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProjectFilter(e.target.value)}
+                className="flex h-7 w-full rounded-md border border-input bg-background px-3 pl-7 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+          </div>
+          <SidebarMenuSub>
+            {projects.map((project: { id: string; name: string }) => (
+              <Collapsible
+                key={project.id}
+                open={expandedProject === project.id}
+                onOpenChange={() => toggleProject(project.id)}
+                className="group/sub"
+              >
+                <SidebarMenuSubItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuSubButton
+                      asChild
+                      isActive={pathname === `/dashboard/projects/${project.id}`}
+                      className="cursor-pointer"
+                    >
+                      <div className="flex w-full items-center justify-between">
+                        <span className="flex-1 truncate">{project.name}</span>
+                        <ChevronRight className="size-3 shrink-0 transition-transform group-data-[state=open]/sub:rotate-90" />
+                      </div>
+                    </SidebarMenuSubButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="px-2 pb-1 pt-2">
+                      <div className="relative">
+                        <Search className="absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+                        <input
+                          placeholder="Filter services…"
+                          value={serviceFilter}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setServiceFilter(e.target.value)}
+                          className="flex h-6 w-full rounded-md border border-input bg-background px-3 pl-6 text-[11px] ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                      </div>
+                    </div>
+                    <SidebarMenuSub>
+                      {filteredServices.map((svc: { id: string; name: string }) => (
+                        <SidebarMenuSubItem key={svc.id}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={pathname === `/dashboard/projects/${project.id}/services/${svc.id}`}
+                          >
+                            <Link href={`/dashboard/projects/${project.id}/services/${svc.id}`}>
+                              {svc.name}
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuSubItem>
+              </Collapsible>
+            ))}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
+  )
+}
+
+// ─── Main Sidebar ────────────────────────────────────────────────────────
+
 export function DashboardSidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
@@ -170,7 +323,6 @@ export function DashboardSidebar() {
   const handleSignOut = async () => {
     await signOut()
     void revalidateAllAction()
-    // Force redirect to home page after signout
     window.location.href = '/'
   }
 
@@ -241,6 +393,9 @@ export function DashboardSidebar() {
                   </SidebarMenuItem>
                 </Collapsible>
               ))}
+
+              {/* Inline Projects Section */}
+              <ProjectsSidebarSection />
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

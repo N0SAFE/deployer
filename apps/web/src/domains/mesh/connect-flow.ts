@@ -1,5 +1,6 @@
-import { isRecord, isObjectLike } from "@repo/type-guards"
 "use client";
+
+import { isRecord, isObjectLike } from "@repo/type-guards"
 
 export interface MeshRemoteSessionPayload {
   serverUrl: string;
@@ -33,7 +34,7 @@ export async function detectRemoteServer(serverUrl: string): Promise<void> {
   });
 
   if (!pingResponse.ok) {
-    throw new Error(`Server ping failed (${pingResponse.status})`);
+    throw new Error(`Server ping failed (${String(pingResponse.status)})`);
   }
 
   const payload = (await pingResponse.json()) as unknown;
@@ -124,7 +125,7 @@ export async function fetchRemoteAuthSession(serverUrl: string): Promise<MeshRem
   });
 
   if (!response.ok) {
-    throw new Error(`Remote session fetch failed (${response.status})`);
+    throw new Error(`Remote session fetch failed (${String(response.status)})`);
   }
 
   const payload = (await response.json()) as unknown;

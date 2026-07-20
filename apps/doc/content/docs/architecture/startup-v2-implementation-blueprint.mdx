@@ -1,0 +1,664 @@
+---
+title: Startup v2 Implementation Blueprint — Sub-App Trigger Chain
+description: Concrete, file-by-file implementation plan for the v2 startup architecture using multiple ephemeral sub-apps and typed triggers. Covers Trigger<T>, SubAppOrchestrator, sub-app definitions, module resolution, and test criteria.
+order: 13
+---
+
+<DocMeta source="docs/architecture/startup-v2-implementation-blueprint.mdx" scope="canonical" />
+
+# Startup v2 Implementation Blueprint — Sub-App Trigger Chain
+
+> **Read the [Startup Architecture v2](./startup-architecture-v2) document first.** This blueprint assumes you understand the Sub-App Trigger Chain model and provides the concrete implementation steps.
+
+---
+
+## Table of Contents
+
+1. [Phase 0: Trigger System](#phase-0-trigger-system)
+2. [Phase 1: Sub-App Runner Infrastructure](#phase-1-sub-app-runner-infrastructure)
+3. [Phase 2: Sub-App Orchestrator](#phase-2-sub-app-orchestrator)
+4. [Phase 3: Create Each Sub-App](#phase-3-create-each-sub-app)
+5. [Phase 4: Rewrite AppModule](#phase-4-rewrite-appmodule)
+6. [Phase 5: Delete v1 Files](#phase-5-delete-v1-files)
+7. [Phase 6: Testing](#phase-6-testing)
+
+---
+
+## Phase 0: Trigger System
+
+### Step 0.1 — Trigger<T> class
+
+**File**: `apps/api/src/core/modules/triggers/trigger.ts`
+
+```typescript
+import { Subject, firstValueFrom, type Observable } from 'rxjs';
+
+export class Trigger<T extends object = object> {
+  private readonly subject = new Subject<T>();
+  private _resolved = false;
+  private _value: T | null = null;
+
+  get resolved(): boolean {
+    return this._resolved;
+  }
+
+  get value(): T {
+    if (!this._resolved || !this._value) {
+      throw new Error('Trigger not yet resolved');
+    }
+    return this._value;
+  }
+
+  get asObservable(): Observable<T> {
+    return this.subject.asObservable();
+  }
+
+  async waitFor(): Promise<T> {
+    if (this._resolved && this._value) return this._value;
+    return firstValueFrom(this.subject);
+  }
+
+  fire(value: T): void {
+    if (this._resolved) return;
+    this._value = value;
+    this._resolved = true;
+    this.subject.next(value);
+    this.subject.complete();
+  }
+}
+```
+
+**Validation criteria**:
+- [ ] `trigger.waitFor()` resolves when `trigger.fire(value)` is called
+- [ ] `trigger.fire(value)` is idempotent (second call is no-op)
+- [ ] `trigger.resolved` is `true` after `fire()`
+- [ ] `trigger.value` returns the payload after `fire()`
+- [ ] `trigger.asObservable` emits once then completes
+
+### Step 0.2 — TriggerRegistry + payload types
+
+**File**: `apps/api/src/core/modules/triggers/trigger-registry.ts`
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { Trigger } from './trigger';
+
+export interface ConfigTriggerPayload {
+  config: any; // EnvService
+}
+
+export interface DatabaseTriggerPayload {
+  pool: any;   // Pool
+  drizzle: any; // DrizzleClient
+  isMigrated: boolean;
+}
+
+export interface AuthTriggerPayload {
+  authInstance: any;
+  authCoreService: any;
+  adminCreated: boolean;
+}
+
+export interface MeshTriggerPayload {
+  meshClient: any;
+  nodeId: string;
+}
+
+export interface EventsTriggerPayload {
+  eventBus: any;
+}
+
+export interface DockerTriggerPayload {
+  dockerode: any;
+  socketAvailable: boolean;
+}
+
+@Injectable()
+export class TriggerRegistry {
+  readonly config = new Trigger<ConfigTriggerPayload>();
+  readonly database = new Trigger<DatabaseTriggerPayload>();
+  readonly auth = new Trigger<AuthTriggerPayload>();
+  readonly mesh = new Trigger<MeshTriggerPayload>();
+  readonly events = new Trigger<EventsTriggerPayload>();
+  readonly docker = new Trigger<DockerTriggerPayload>();
+}
+```
+
+**Validation criteria**:
+- [ ] All trigger instances are accessible as properties
+- [ ] `TriggerRegistry` is injectable
+
+### Step 0.3 — TriggersModule
+
+**File**: `apps/api/src/core/modules/triggers/triggers.module.ts`
+
+```typescript
+import { Global, Module } from '@nestjs/common';
+import { TriggerRegistry } from './trigger-registry';
+
+@Global()
+@Module({
+  providers: [TriggerRegistry],
+  exports: [TriggerRegistry],
+})
+export class TriggersModule {}
+```
+
+---
+
+## Phase 1: Sub-App Runner Infrastructure
+
+### Step 1.1 — Interfaces
+
+**File**: `apps/api/src/core/modules/sub-app-runner/sub-app.interface.ts`
+
+```typescript
+import type { Type } from '@nestjs/common';
+import type { Trigger } from '@/core/modules/triggers/trigger';
+
+export interface SubApp<TTriggerPayload extends object = object> {
+  readonly name: string;
+  readonly module: Type<any>;
+  readonly dependsOn?: string[];
+  readonly trigger: Trigger<TTriggerPayload>;
+  readonly timeoutMs?: number;
+}
+
+export interface SubAppContext<TTriggerPayload extends object = object> {
+  readonly trigger: Trigger<TTriggerPayload>;
+}
+```
+
+### Step 1.2 — Token
+
+**File**: `apps/api/src/core/modules/sub-app-runner/tokens.ts`
+
+```typescript
+export const SUB_APP_CONTEXT = Symbol('SUB_APP_CONTEXT');
+```
+
+### Step 1.3 — SubAppContextModule
+
+**File**: `apps/api/src/core/modules/sub-app-runner/sub-app-context.module.ts`
+
+```typescript
+import { DynamicModule, Module } from '@nestjs/common';
+import { SUB_APP_CONTEXT } from './tokens';
+
+@Module({})
+export class SubAppContextModule {
+  static forRoot<T extends object>(context: { trigger: Trigger<T> }): DynamicModule {
+    return {
+      module: SubAppContextModule,
+      providers: [
+        { provide: SUB_APP_CONTEXT, useValue: context },
+      ],
+      exports: [SUB_APP_CONTEXT],
+      global: true,
+    };
+  }
+}
+```
+
+---
+
+## Phase 2: Sub-App Orchestrator
+
+### Step 2.1 — SubAppOrchestrator
+
+**File**: `apps/api/src/core/modules/sub-app-orchestrator/sub-app-orchestrator.service.ts`
+
+```typescript
+import { Injectable, Logger } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import type { INestApplicationContext } from '@nestjs/common';
+import { TriggerRegistry } from '@/core/modules/triggers/trigger-registry';
+import type { SubApp } from '@/core/modules/sub-app-runner/sub-app.interface';
+import { SubAppContextModule } from '@/core/modules/sub-app-runner/sub-app-context.module';
+
+@Injectable()
+export class SubAppOrchestrator {
+  private readonly logger = new Logger(SubAppOrchestrator.name);
+  private readonly activeSubApps = new Map<string, INestApplicationContext>();
+
+  constructor(private readonly triggers: TriggerRegistry) {}
+
+  async runAll(subApps: SubApp[]): Promise<void> {
+    const ordered = this.topologicalSort(subApps);
+    for (const subApp of ordered) {
+      await this.runOne(subApp);
+    }
+    this.logger.log('✅ All sub-apps completed');
+  }
+
+  async runOne(subApp: SubApp): Promise<void> {
+    this.logger.log(`▶ Starting sub-app: ${subApp.name}`);
+
+    const app = await NestFactory.createApplicationContext(subApp.module, {
+      abortOnError: false,
+      snapshot: process.env.NODE_ENV !== 'production',
+    });
+
+    this.activeSubApps.set(subApp.name, app);
+
+    const timeout = subApp.timeoutMs ?? 30_000;
+    await this.waitForTrigger(subApp.trigger, timeout);
+
+    this.logger.log(`✅ ${subApp.name} trigger fired`);
+
+    await app.close();
+    this.activeSubApps.delete(subApp.name);
+    this.logger.log(`🧹 ${subApp.name} destroyed`);
+  }
+
+  private async waitForTrigger<T extends object>(
+    trigger: Trigger<T>,
+    timeoutMs: number,
+  ): Promise<T> {
+    return Promise.race([
+      trigger.waitFor(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Trigger timed out after ${timeoutMs}ms`)), timeoutMs),
+      ),
+    ]);
+  }
+
+  private topologicalSort(subApps: SubApp[]): SubApp[] {
+    const nameMap = new Map(subApps.map((s) => [s.name, s]));
+    const inDegree = new Map<string, number>();
+    const adjacency = new Map<string, string[]>();
+
+    for (const app of subApps) {
+      inDegree.set(app.name, 0);
+      adjacency.set(app.name, []);
+    }
+    for (const app of subApps) {
+      for (const dep of app.dependsOn ?? []) {
+        adjacency.get(dep)?.push(app.name);
+        inDegree.set(app.name, (inDegree.get(app.name) ?? 0) + 1);
+      }
+    }
+    const queue: string[] = [];
+    for (const [name, degree] of inDegree) {
+      if (degree === 0) queue.push(name);
+    }
+    const sorted: SubApp[] = [];
+    while (queue.length > 0) {
+      const name = queue.shift()!;
+      const app = nameMap.get(name);
+      if (app) sorted.push(app);
+      for (const neighbor of adjacency.get(name) ?? []) {
+        const newDegree = (inDegree.get(neighbor) ?? 1) - 1;
+        inDegree.set(neighbor, newDegree);
+        if (newDegree === 0) queue.push(neighbor);
+      }
+    }
+    return sorted;
+  }
+}
+```
+
+**Validation criteria**:
+- [ ] `runOne()` creates NestJS app context, waits for trigger, destroys app
+- [ ] `runAll()` runs sub-apps in topological order
+- [ ] Timeout throws if trigger never fires
+- [ ] `app.close()` is called even on timeout
+
+---
+
+## Phase 3: Create Each Sub-App
+
+### Step 3.1 — Sub-App Registry
+
+**File**: `apps/api/src/sub-apps/registry.ts`
+
+```typescript
+import { configSubApp } from './config/config.sub-app';
+import { databaseSubApp } from './database/database.sub-app';
+import { authSubApp } from './auth/auth.sub-app';
+import { meshSubApp } from './mesh/mesh.sub-app';
+import { eventsSubApp } from './events/events.sub-app';
+import { dockerSubApp } from './docker/docker.sub-app';
+
+export const ALL_SUB_APPS = [
+  configSubApp,
+  databaseSubApp,
+  authSubApp,
+  meshSubApp,
+  eventsSubApp,
+  dockerSubApp,
+];
+```
+
+### Step 3.2 — Config SubApp (simplest, no deps)
+
+**Files**: `apps/api/src/sub-apps/config/`
+
+```
+sub-apps/config/
+  config.sub-app.ts         # definition
+  config.sub-app.module.ts  # module
+  config.sub-app.service.ts # service
+```
+
+### Step 3.3 — Database SubApp
+
+**Files**: `apps/api/src/sub-apps/database/`
+
+```
+sub-apps/database/
+  database.sub-app.ts
+  database.sub-app.module.ts
+  database.sub-app.service.ts
+```
+
+### Step 3.4 — Auth SubApp
+
+**Files**: `apps/api/src/sub-apps/auth/`
+
+### Step 3.5 — Mesh SubApp
+
+**Files**: `apps/api/src/sub-apps/mesh/`
+
+### Step 3.6 — Events SubApp
+
+**Files**: `apps/api/src/sub-apps/events/`
+
+### Step 3.7 — Docker SubApp
+
+**Files**: `apps/api/src/sub-apps/docker/`
+
+**Validation criteria for each sub-app**:
+- [ ] Definition file exports a `SubApp<T>` object
+- [ ] Module imports `SubAppContextModule.forRoot(context)`
+- [ ] Service injects `@Inject(SUB_APP_CONTEXT) SubAppContext<T>`
+- [ ] Service fires `ctx.trigger.fire(payload)` when initialization is complete
+- [ ] Service implements `OnModuleDestroy` for cleanup
+
+---
+
+## Phase 4: Rewrite AppModule
+
+### Step 4.1 — AppModule with Trigger-based forRootAsync
+
+```typescript
+@Module({
+  imports: [
+    TriggersModule.forRoot(),
+
+    ConfigModule.forRootAsync({
+      inject: [TriggerRegistry],
+      useFactory: async (t: TriggerRegistry) => {
+        const p = await t.config.waitFor();
+        return p.config;
+      },
+    }),
+
+    DatabaseModule.forRootAsync({
+      inject: [TriggerRegistry],
+      useFactory: async (t: TriggerRegistry) => {
+        const p = await t.database.waitFor();
+        return { pool: p.pool, drizzle: p.drizzle };
+      },
+    }),
+
+    AuthModule.forRootAsync({
+      inject: [TriggerRegistry],
+      useFactory: async (t: TriggerRegistry) => {
+        const p = await t.auth.waitFor();
+        return { instance: p.authInstance, coreService: p.authCoreService };
+      },
+    }),
+
+    // Feature modules
+    DockerModule.forRootAsync({
+      inject: [TriggerRegistry],
+      useFactory: async (t: TriggerRegistry) => {
+        const [db, docker] = await Promise.all([
+          t.database.waitFor(), t.docker.waitFor(),
+        ]);
+        return { pool: db.pool, drizzle: db.drizzle, dockerode: docker.dockerode };
+      },
+    }),
+
+    // ORPC
+    ORPCModule.forRootAsync({
+      inject: [TriggerRegistry],
+      useFactory: async (t: TriggerRegistry) => {
+        const [db, auth] = await Promise.all([
+          t.database.waitFor(), t.auth.waitFor(),
+        ]);
+        return {
+          context: { auth: auth.coreService.createEmptyAuthUtils() },
+        };
+      },
+    }),
+  ],
+  providers: [
+    SubAppOrchestrator,
+    {
+      provide: 'APP_BOOTSTRAP',
+      useFactory: async (orchestrator: SubAppOrchestrator) => {
+        await orchestrator.runAll(ALL_SUB_APPS);
+        return true;
+      },
+      inject: [SubAppOrchestrator],
+    },
+  ],
+})
+export class AppModule {}
+```
+
+---
+
+## Phase 5: Delete v1 Files
+
+### Deletion Checklist
+
+```bash
+# Main orchestrator
+rm -f apps/api/src/core/modules/startup/startup.module.ts
+rm -f apps/api/src/core/modules/startup/startup-orchestrator.service.ts
+rm -f apps/api/src/core/modules/startup/feature-module-loader.ts
+rm -f apps/api/src/core/modules/startup/feature-module.factory.ts
+rm -f apps/api/src/core/modules/startup/interfaces/core-startup.interface.ts
+rm -f apps/api/src/core/modules/startup/mesh-version.service.ts
+rm -rf apps/api/src/core/modules/startup/interfaces/
+
+# Old setup module (HTTP surface)
+rm -f apps/api/src/modules/setup/setup.module.ts
+rm -f apps/api/src/modules/setup/controllers/setup.controller.ts
+rm -rf apps/api/src/modules/setup/
+
+# Old per-module startup services
+rm -f apps/api/src/core/modules/database/startup/database-startup.service.ts
+rm -f apps/api/src/core/modules/database/startup/database-startup.module.ts
+rm -f apps/api/src/core/modules/setup/startup/setup-startup.service.ts
+rm -f apps/api/src/core/modules/auth/startup/auth-startup.service.ts
+rm -f apps/api/src/core/modules/mesh/startup/mesh-startup.service.ts
+rm -f apps/api/src/core/modules/events/startup/events-startup.service.ts
+rm -f apps/api/src/core/modules/docker/startup/docker-startup.service.ts
+rm -f apps/api/src/core/modules/system-metrics/startup/system-metrics-startup.service.ts
+```
+
+---
+
+## Phase 6: Testing
+
+### Unit Tests
+
+| Test | What It Verifies | File |
+|------|-----------------|------|
+| `Trigger.fire()` resolves `waitFor()` | Basic trigger contract | `trigger.spec.ts` |
+| `Trigger.fire()` is idempotent | Second fire is no-op | `trigger.spec.ts` |
+| `Trigger.waitFor()` returns immediately if already resolved | Late subscriber gets value | `trigger.spec.ts` |
+| `SubAppOrchestrator.runOne()` creates + waits + destroys | Full sub-app lifecycle | `sub-app-orchestrator.spec.ts` |
+| `SubAppOrchestrator.runAll()` topological order | Dependencies respected | `sub-app-orchestrator.spec.ts` |
+| `SubAppOrchestrator.runAll()` timeout | Timeout throws | `sub-app-orchestrator.spec.ts` |
+| Config sub-app fires trigger | End-to-end sub-app | `config.sub-app.spec.ts` |
+| Database sub-app creates pool and fires trigger | End-to-end sub-app | `database.sub-app.spec.ts` |
+
+### Integration Tests
+
+| Test | What It Verifies |
+|------|-----------------|
+| `NestFactory.create(AppModule)` completes | All triggers resolve, all modules resolved |
+| No leftover providers | `app.get(anyV1Service)` throws |
+| `CORE_SERVICES` pattern works | Feature modules receive valid services |
+
+### Test Fixture: Trigger
+
+```typescript
+// trigger.spec.ts
+import { Trigger } from './trigger';
+
+describe('Trigger', () => {
+  it('resolves waitFor() when fire() is called', async () => {
+    const trigger = new Trigger<{ value: string }>();
+    const promise = trigger.waitFor();
+    trigger.fire({ value: 'hello' });
+    await expect(promise).resolves.toEqual({ value: 'hello' });
+  });
+
+  it('is idempotent', () => {
+    const trigger = new Trigger<{ value: string }>();
+    trigger.fire({ value: 'first' });
+    trigger.fire({ value: 'second' }); // no-op
+    expect(trigger.value).toEqual({ value: 'first' });
+  });
+
+  it('returns immediately if already resolved', async () => {
+    const trigger = new Trigger<{ value: string }>();
+    trigger.fire({ value: 'hello' });
+    await expect(trigger.waitFor()).resolves.toEqual({ value: 'hello' });
+  });
+
+  it('throws when accessing value before fire', () => {
+    const trigger = new Trigger<{ value: string }>();
+    expect(() => trigger.value).toThrow('Trigger not yet resolved');
+  });
+});
+```
+
+### Test Fixture: SubAppOrchestrator
+
+```typescript
+// sub-app-orchestrator.spec.ts
+import { Test } from '@nestjs/testing';
+import { Module, Injectable, OnModuleInit, Inject } from '@nestjs/common';
+import { SubAppOrchestrator } from './sub-app-orchestrator.service';
+import { TriggerRegistry } from '@/core/modules/triggers/trigger-registry';
+import { SUB_APP_CONTEXT, SubAppContextModule } from '@/core/modules/sub-app-runner';
+import type { SubApp, SubAppContext } from '@/core/modules/sub-app-runner/sub-app.interface';
+
+describe('SubAppOrchestrator', () => {
+  let orchestrator: SubAppOrchestrator;
+  let triggers: TriggerRegistry;
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [SubAppOrchestrator, TriggerRegistry],
+    }).compile();
+
+    orchestrator = module.get(SubAppOrchestrator);
+    triggers = module.get(TriggerRegistry);
+  });
+
+  it('runs a single sub-app and waits for trigger', async () => {
+    let destroyed = false;
+
+    @Injectable()
+    class TestService implements OnModuleInit {
+      constructor(@Inject(SUB_APP_CONTEXT) private ctx: SubAppContext<{ ok: boolean }>) {}
+      async onModuleInit() { this.ctx.trigger.fire({ ok: true }); }
+    }
+
+    @Module({
+      imports: [SubAppContextModule.forRoot({ trigger: triggers.config })],
+      providers: [TestService],
+    })
+    class TestModule {}
+
+    const subApp: SubApp<{ ok: boolean }> = {
+      name: 'test',
+      module: TestModule,
+      trigger: triggers.config,
+    };
+
+    await orchestrator.runOne(subApp);
+    expect(triggers.config.resolved).toBe(true);
+    expect(triggers.config.value).toEqual({ ok: true });
+  });
+
+  it('runs sub-apps in dependency order', async () => {
+    const order: string[] = [];
+
+    // Sub-app A: no deps
+    @Injectable()
+    class ServiceA implements OnModuleInit {
+      constructor(@Inject(SUB_APP_CONTEXT) private ctx: SubAppContext<{}>) {}
+      async onModuleInit() { order.push('a'); this.ctx.trigger.fire({}); }
+    }
+    @Module({ imports: [SubAppContextModule.forRoot({ trigger: triggers.config })], providers: [ServiceA] })
+    class ModuleA {}
+
+    // Sub-app B: depends on A
+    @Injectable()
+    class ServiceB implements OnModuleInit {
+      constructor(@Inject(SUB_APP_CONTEXT) private ctx: SubAppContext<{}>) {}
+      async onModuleInit() { order.push('b'); this.ctx.trigger.fire({}); }
+    }
+    @Module({ imports: [SubAppContextModule.forRoot({ trigger: triggers.database })], providers: [ServiceB] })
+    class ModuleB {}
+
+    const subApps: SubApp[] = [
+      { name: 'b', module: ModuleB, dependsOn: ['a'], trigger: triggers.database },
+      { name: 'a', module: ModuleA, trigger: triggers.config },
+    ];
+
+    await orchestrator.runAll(subApps);
+    expect(order).toEqual(['a', 'b']);
+  });
+});
+```
+
+---
+
+## Complete File Manifest
+
+### New Files
+
+| # | File | Purpose |
+|---|------|---------|
+| 1 | `src/core/modules/triggers/trigger.ts` | `Trigger<T>` class |
+| 2 | `src/core/modules/triggers/trigger-registry.ts` | TriggerRegistry + payload types |
+| 3 | `src/core/modules/triggers/triggers.module.ts` | TriggersModule |
+| 4 | `src/core/modules/sub-app-runner/sub-app.interface.ts` | SubApp<T>, SubAppContext<T> |
+| 5 | `src/core/modules/sub-app-runner/tokens.ts` | SUB_APP_CONTEXT |
+| 6 | `src/core/modules/sub-app-runner/sub-app-context.module.ts` | SubAppContextModule |
+| 7 | `src/core/modules/sub-app-orchestrator/sub-app-orchestrator.service.ts` | Orchestrator |
+| 8 | `src/sub-apps/registry.ts` | ALL_SUB_APPS |
+| 9 | `src/sub-apps/config/config.sub-app.ts` | Definition |
+| 10 | `src/sub-apps/config/config.sub-app.module.ts` | Module |
+| 11 | `src/sub-apps/config/config.sub-app.service.ts` | Service |
+| 12 | `src/sub-apps/database/database.sub-app.ts` | Definition |
+| 13 | `src/sub-apps/database/database.sub-app.module.ts` | Module |
+| 14 | `src/sub-apps/database/database.sub-app.service.ts` | Service |
+| 15-20 | `auth/`, `mesh/`, `events/`, `docker/` sub-apps | 3 files each |
+
+### Deleted Files
+
+| File | Replaced By |
+|------|-------------|
+| `src/core/modules/startup/startup.module.ts` | — (pattern eliminated) |
+| `src/core/modules/startup/startup-orchestrator.service.ts` | `SubAppOrchestrator` |
+| `src/core/modules/startup/feature-module-loader.ts` | — (pattern eliminated) |
+| `src/core/modules/startup/feature-module.factory.ts` | — (pattern eliminated) |
+| `src/core/modules/startup/interfaces/core-startup.interface.ts` | `SubApp` interface |
+| `src/modules/setup/setup.module.ts` | Setup Wizard SubApp |
+| `src/modules/setup/controllers/setup.controller.ts` | Setup Wizard SubApp |
+| Per-module `*StartupService` files | Respective SubApps |
+
+---
+
+*This blueprint is the implementation companion to the [Startup Architecture v2](./startup-architecture-v2) document.*

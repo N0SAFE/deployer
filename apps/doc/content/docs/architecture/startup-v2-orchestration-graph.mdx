@@ -1,0 +1,1048 @@
+---
+title: Startup v2 — Complete NestJS DI Orchestration Graph
+description: The NestJS DI graph IS the orchestrator. Every module, every forRootAsync, every provider barrier, every trigger, every sub-app — visualized in extreme detail across 10+ Mermaid diagrams showing the full startup architecture.
+order: 14
+---
+
+<DocMeta source="docs/architecture/startup-v2-orchestration-graph.mdx" scope="canonical" />
+
+# Startup v2 — Complete NestJS DI Orchestration Graph
+
+> **The NestJS dependency injection graph IS the startup orchestrator.** There is no separate orchestrator service. The `imports` chain, the `forRootAsync` factories, the `@Global()` distance system, and the provider barrier mechanism form a single unified execution engine that resolves modules one-by-one in dependency order.
+
+---
+
+## Table of Contents
+
+1. [How NestJS's DI Graph Becomes the Orchestrator](#1-how-nestjss-di-graph-becomes-the-orchestrator)
+2. [Diagram 1 — Full Module Import Tree (All 30+ Modules)](#2-diagram-1--full-module-import-tree-all-30-modules)
+3. [Diagram 2 — NestJS Bootstrap Sequence (3 Phases)](#3-diagram-2--nestjs-bootstrap-sequence-3-phases)
+4. [Diagram 3 — Provider Barrier Mechanism (DI as DAG)](#4-diagram-3--provider-barrier-mechanism-di-as-dag)
+5. [Diagram 4 — Sub-App Trigger Chain (Per-Module Isolation)](#5-diagram-4--sub-app-trigger-chain-per-module-isolation)
+6. [Diagram 5 — Complete Module Resolution Timeline](#6-diagram-5--complete-module-resolution-timeline)
+7. [Diagram 6 — Lifecycle Hooks Execution Order](#7-diagram-6--lifecycle-hooks-execution-order)
+8. [Diagram 7 — Error Propagation & Degraded Mode](#8-diagram-7--error-propagation--degraded-mode)
+9. [Diagram 8 — Setup Wizard Branch (Conditional Sub-App)](#9-diagram-8--setup-wizard-branch-conditional-sub-app)
+10. [Diagram 9 — The Full Orchestration Graph (Unified)](#10-diagram-9--the-full-orchestration-graph-unified)
+11. [Diagram 10 — Clean Teardown Sequence](#11-diagram-10--clean-teardown-sequence)
+12. [Reference: Module Catalog](#12-reference-module-catalog)
+
+---
+
+## 1. How NestJS's DI Graph Becomes the Orchestrator
+
+### The Core Insight
+
+NestJS already has a complete dependency resolution engine. It:
+
+1. **Scans** all `imports` to build a module tree with distances (Phase 1)
+2. **Creates instances** of all providers with a **barrier mechanism**: if Provider B depends on Provider A (via `inject`), NestJS **waits** for A to resolve before calling B's factory (Phase 2)
+3. **Calls lifecycle hooks** in reverse-distance order (`@Global()` first, root last) (Phase 3)
+
+These three mechanisms form a **complete startup orchestrator** — no custom orchestrator service needed.
+
+### The Barrier Mechanism (Key Enabler)
+
+```mermaid
+flowchart LR
+    subgraph "NestJS Provider Resolution Engine"
+        direction TB
+        START["Promise.all(providers)"] --> PROMISE_ALL["Run all factories\nin parallel"]
+        
+        PROMISE_ALL --> FACTORY_A["Factory A\nuseFactory: async () => {...}"]
+        PROMISE_ALL --> FACTORY_B["Factory B\nuseFactory: async (a) => {...}\ninject: [TOKEN_A]"]
+        
+        FACTORY_A -->|"creates"| INSTANCE_A["Instance A"]
+        FACTORY_B -.->|"inject:[TOKEN_A]\n⏳ WAITS for A"| BARRIER_B{Barrier:\nIs A resolved?}
+        INSTANCE_A -->|"✓ resolved"| BARRIER_B
+        BARRIER_B -->|"yes"| CONTINUE_B["Continue B's factory"]
+        
+        PROMISE_ALL --> FACTORY_C["Factory C\nuseFactory: async (a,b) => {...}\ninject: [TOKEN_A, TOKEN_B]"]
+        FACTORY_C -.->|"⏳ WAITS for A"| BARRIER_C1{Barrier:\nIs A resolved?}
+        INSTANCE_A -->|"✓"| BARRIER_C1
+        BARRIER_C1 -->|"⏳ WAITS for B"| BARRIER_C2{Barrier:\nIs B resolved?}
+        CONTINUE_B -->|"✓"| BARRIER_C2
+        BARRIER_C2 -->|"yes"| CONTINUE_C["Continue C's factory"]
+    end
+```
+
+**How NestJS source code implements this** (`injector.js` — simplified):
+
+```javascript
+// For each provider, NestJS resolves its dependencies first
+const instances = await Promise.all(dependencies.map(async (dep) => {
+    const wrapper = await this.resolveSingleParam(wrapper, dep, ...);
+    const instanceHost = wrapper.getInstanceByContextId(...);
+    // IF THE DEPENDENCY ISN'T RESOLVED YET, WAIT
+    if (!instanceHost.isResolved && !wrapper.forwardRef) {
+        isResolved = false;
+    }
+    return instanceHost?.instance;
+}));
+
+// Only when all dependencies are resolved, call the factory
+if (isResolved) {
+    await callback(instances);
+}
+```
+
+### The Import Chain as a Dependency Tree
+
+Each `imports` entry in a module creates a **parent-child edge** in the module graph. NestJS scans these edges recursively to build the full tree, then assigns **distances**:
+
+- `@Global()` modules → `distance = Number.MAX_VALUE` (resolved first)
+- Leaf modules → `distance = n` (deepest paths)
+- Root module (AppModule) → `distance = 0` (resolved last)
+
+```mermaid
+flowchart TD
+    subgraph "NestJS Module Scanner Algorithm"
+        A["AppModule\nimports: [EnvModule, DatabaseModule, ...]"]
+        A -->|"scan imports recursively"| B["Module tree built\nwith distances"]
+        B --> C["@Global() → distance = MAX_VALUE"]
+        B --> D["Leaf modules → distance = depth"]
+        B --> E["AppModule → distance = 0"]
+        C --> F["Phase 2: createInstancesOfDependencies()"]
+        D --> F
+        E --> F
+        F --> G["Promise.all over ALL modules\n(barriers handle ordering)"]
+    end
+```
+
+### The Key Design
+
+In the v2 architecture, each core module uses `forRootAsync` with a factory that:
+
+1. Optionally **creates a sub-app** (`NestFactory.createApplicationContext`)
+2. **Await** a trigger or async operation
+3. **Returns** the initialized service
+
+The `imports` chain declares **what must be ready before this module**:
+
+```typescript
+// Pattern: forRootAsync as the dependency declaration
+DatabaseModule.forRootAsync({
+    imports: [
+        ConfigModule.forRootAsync({
+            // Config must be ready before Database
+            // ConfigModule.forRootAsync triggers ConfigSubApp
+        }),
+    ],
+    useFactory: async (config) => {
+        // This factory runs AFTER ConfigModule's trigger resolves
+        // because NestJS's barrier mechanism ensures it
+    },
+    inject: [CONFIG_SERVICE],
+})
+```
+
+---
+
+## 2. Diagram 1 — Full Module Import Tree (All 30+ Modules)
+
+This is the **complete import hierarchy** of the API application. Each arrow is an `imports` declaration. Distance is NestJS's calculated module distance (lower = closer to root, resolved later).
+
+```mermaid
+graph TB
+    subgraph LEVEL0["Distance 0 — AppModule (Root)"]
+        APP["AppModule\n(resolved LAST)"]
+    end
+
+    subgraph LEVEL1["Distance 1 — Direct Feature Imports"]
+        HEALTH["HealthModule"]
+        USER["UserModule"]
+        PUSH["PushModule"]
+        TEST["TestModule"]
+        SETUP["SetupModule\n(phase-out)"]
+        ORG["OrganizationModule"]
+        PROJ["ProjectModule"]
+        SVC["ServiceModule"]
+        DEPLOY["DeploymentModule"]
+        GH["GithubModule"]
+        FLEET["FleetModule"]
+        DOMAIN["DomainModule"]
+        ANALYTICS["AnalyticsModule"]
+        PROV_SCHEMA["ProviderSchemaModule"]
+        DOCKER_FEAT["DockerModule\n(feature)"]
+        EVENTS_FEAT["EventsModule\n(feature)"]
+        SYSTEM["SystemModule"]
+        PERMISSION["PermissionModule"]
+    end
+
+    subgraph LEVEL1B["Distance 1 (cont.) — Core Imports"]
+        ENV["EnvModule\n@Global()\nRESOLVED FIRST"]
+        DB["DatabaseModule\n@Global()"]
+        AUTH_ROOT["AuthModule.forRootAsync()"]
+        ORPC_ROOT["ORPCModule.forRootAsync()"]
+        STARTUP_V1["StartupModule\n(v1 — to be deleted)"]
+    end
+
+    subgraph LEVEL2["Distance 2 — Core Sub-Modules"]
+        LOCAL_DB["LocalModule\n(SQLite)"]
+        GLOBAL_DB["GlobalModule"]
+        CORE_INIT["CoreInitializationModule"]
+        DB_STARTUP["DatabaseStartupModule"]
+        SETUP_STARTUP["SetupStartupModule"]
+        AUTH_STARTUP["AuthStartupModule"]
+        MESH_STARTUP["MeshStartupModule"]
+        EVENTS_STARTUP["EventsStartupModule"]
+        DOCKER_STARTUP["DockerStartupModule"]
+        SYS_METRICS_STARTUP["SystemMetricsStartupModule"]
+    end
+
+    subgraph LEVEL3["Distance 3 — Deep Infrastructure"]
+        MESH_INIT["MeshInitializationModule"]
+        CORE_DOCKER["CoreDockerModule"]
+        CORE_REACH["CoreReachabilityModule"]
+        ENV_CONFIG["ConfigModule.forRoot()\n(@nestjs/config)"]
+        AUTH_SERVICE["AuthCoreService\n+ BetterAuth"]
+    end
+
+    subgraph LEVEL4["Distance 4 — Providers (Resolved by Barriers)"]
+        POOL_TOKEN["GLOBAL_DATABASE_POOL\n(useFactory async)"]
+        DRIZZLE_TOKEN["GLOBAL_DATABASE_CONNECTION\n(useFactory sync)"]
+        GLOBAL_DB_SVC["GlobalDatabaseService\n(injects drizzle)"]
+    end
+
+    %% AppModule imports - Distance 1
+    APP --> ENV
+    APP --> DB
+    APP --> AUTH_ROOT
+    APP --> ORPC_ROOT
+    APP --> HEALTH
+    APP --> USER
+    APP --> PUSH
+    APP --> TEST
+    APP --> SETUP
+    APP --> ORG
+    APP --> PROJ
+    APP --> SVC
+    APP --> DEPLOY
+    APP --> GH
+    APP --> FLEET
+    APP --> DOMAIN
+    APP --> ANALYTICS
+    APP --> PROV_SCHEMA
+    APP --> DOCKER_FEAT
+    APP --> EVENTS_FEAT
+    APP --> SYSTEM
+    APP --> PERMISSION
+    APP --> STARTUP_V1
+
+    %% Distance 1 → Distance 2
+    STARTUP_V1 --> DB_STARTUP
+    STARTUP_V1 --> SETUP_STARTUP
+    STARTUP_V1 --> AUTH_STARTUP
+    STARTUP_V1 --> MESH_STARTUP
+    STARTUP_V1 --> EVENTS_STARTUP
+    STARTUP_V1 --> DOCKER_STARTUP
+    STARTUP_V1 --> SYS_METRICS_STARTUP
+    STARTUP_V1 --> ENV
+
+    DB --> LOCAL_DB
+    DB --> GLOBAL_DB
+
+    AUTH_ROOT --> ENV
+    AUTH_ROOT --> DB
+
+    %% Distance 2 → Distance 3
+    GLOBAL_DB --> CORE_INIT
+    
+    CORE_INIT --> MESH_INIT
+    CORE_INIT --> LOCAL_DB
+    CORE_INIT --> CORE_DOCKER
+    CORE_INIT --> CORE_REACH
+
+    ENV --> ENV_CONFIG
+
+    AUTH_STARTUP --> AUTH_SERVICE
+
+    %% Distance 3 → Distance 4 (Provider-Level)
+    subgraph BARRIERS["Provider Barrier Chain"]
+        POOL_TOKEN -->|"inject: [InitializationService]"| DRIZZLE_TOKEN
+        DRIZZLE_TOKEN -->|"inject: [GLOBAL_DATABASE_POOL]"| GLOBAL_DB_SVC
+    end
+
+    GLOBAL_DB --> POOL_TOKEN
+
+    %% Annotations
+    classDef global fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    classDef root fill:#fff3e0,stroke:#ff6f00,stroke-width:3px
+    classDef feature fill:#e8f5e9,stroke:#388e3c
+    classDef core fill:#fce4ec,stroke:#c62828
+    classDef provider fill:#f3e5f5,stroke:#7b1fa2,stroke-dasharray: 5 5
+    classDef barrier fill:#fff8e1,stroke:#f57f17,stroke-dasharray: 3 3
+
+    class ENV,DB global
+    class APP root
+    class HEALTH,USER,PUSH,TEST,ORG,PROJ,SVC,DEPLOY,GH,FLEET,DOMAIN,ANALYTICS,PROV_SCHEMA,DOCKER_FEAT,EVENTS_FEAT,SYSTEM,PERMISSION feature
+    class AUTH_ROOT,ORPC_ROOT,STARTUP_V1 core
+    class CORE_INIT,DB_STARTUP,SETUP_STARTUP,AUTH_STARTUP,MESH_STARTUP,EVENTS_STARTUP,DOCKER_STARTUP,SYS_METRICS_STARTUP core
+    class POOL_TOKEN,DRIZZLE_TOKEN,GLOBAL_DB_SVC provider
+    class BARRIERS barrier
+```
+
+---
+
+## 3. Diagram 2 — NestJS Bootstrap Sequence (3 Phases)
+
+The NestJS bootstrap process has 3 distinct phases. Each is annotated with what happens to which modules.
+
+```mermaid
+flowchart TB
+    subgraph PHASE0["Phase 0: NestFactory.create(AppModule)"]
+        CREATE["NestFactory.create(AppModule)\n{ bodyParser: false, snapshot: true }"]
+    end
+
+    subgraph PHASE1["Phase 1: SCAN — Build Module Graph"]
+        SCAN1["dependenciesScanner.scan(AppModule)"]
+        SCAN1 --> REGISTER["Register AppModule\n(distance = 0)"]
+        REGISTER --> RECURSE["Recurse into imports\nrecursively"]
+        RECURSE --> REGISTER_ENV["Register EnvModule\n@Global() → distance = MAX_VALUE"]
+        RECURSE --> REGISTER_DB["Register DatabaseModule\n@Global() → distance = MAX_VALUE"]
+        RECURSE --> REGISTER_GLOBAL["Register GlobalModule\n(distance = 2)"]
+        RECURSE --> REGISTER_MODULES["Register all 25+ modules\nwith calculated distances"]
+        REGISTER_MODULES --> BIND_GLOBALS["bindGlobalScope()\nGlobal modules visible to ALL"]
+        BIND_GLOBALS --> CALC_DIST["calculateModulesDistance()\nTopological tree walk"]
+        CALC_DIST --> READY1["✅ Phase 1 complete\n→ Module graph ready"]
+    end
+
+    subgraph PHASE2["Phase 2: INSTANTIATE — Resolve All Providers"]
+        INST["instanceLoader.createInstancesOfDependencies()"]
+        
+        INST --> PARALLEL["Promise.all over ALL modules"]
+        
+        subgraph MODULE_A["Module A (e.g. EnvModule)"]
+            RESOLVE_PROV_A["resolve providers[A]"]
+            RESOLVE_INJ_A["resolve injectables[A]"]
+            RESOLVE_CTRL_A["resolve controllers[A]"]
+            RESOLVE_PROV_A --> RESOLVE_INJ_A --> RESOLVE_CTRL_A
+        end
+
+        subgraph MODULE_B["Module B (e.g. GlobalModule)"]
+            RESOLVE_PROV_B["resolve providers[B]\n⏳ POOL factory blocks on\nInitializationService.waitForSetup()"]
+            RESOLVE_PROV_B -->|"barrier: wait for dep"| BARRIER_B{"InitService\nresolved?"}
+            BARRIER_B -->|"yes"| CONTINUE_B["Pool created,\nDrizzle created,\nGlobalDbService created"]
+            CONTINUE_B --> RESOLVE_INJ_B
+            RESOLVE_INJ_B --> RESOLVE_CTRL_B
+        end
+
+        PARALLEL --> MODULE_A
+        PARALLEL --> MODULE_B
+        
+        MODULE_A --> READY2A["EnvService ready"]
+        MODULE_B --> READY2B["GlobalDatabaseService ready"]
+        
+        READY2A --> ALL_DONE["All modules' providers resolved"]
+        READY2B --> ALL_DONE
+        ALL_DONE --> READY2["✅ Phase 2 complete\n→ All providers have instances"]
+    end
+
+    subgraph PHASE3["Phase 3: LIFECYCLE — Hooks & Listen"]
+        CALL_INIT["callInitHook()"]
+        CALL_INIT --> SORT_HOOKS["Sort modules by distance DESC\nGlobal modules FIRST"]
+        SORT_HOOKS --> INIT_GLOBALS["onModuleInit() for @Global() modules\n(EnvModule, DatabaseModule)"]
+        INIT_GLOBALS --> INIT_LEAVES["onModuleInit() for leaf modules\ndistance = n"]
+        INIT_LEAVES --> INIT_ROOT["onModuleInit() for AppModule\ndistance = 0 (LAST)"]
+        INIT_ROOT --> REGISTER_ROUTES["registerRouter()\nRoute handlers bound"]
+        REGISTER_ROUTES --> CALL_BOOT["callBootstrapHook()"]
+        CALL_BOOT --> BOOT_GLOBALS["onApplicationBootstrap() for @Global()"]
+        BOOT_GLOBALS --> BOOT_ROOT["onApplicationBootstrap() for AppModule"]
+        BOOT_ROOT --> LISTEN["app.listen(port)\n🚀 Server accepting traffic"]
+    end
+
+    PHASE0 --> PHASE1
+    PHASE1 --> PHASE2
+    PHASE2 --> PHASE3
+
+    classDef phase fill:#e3f2fd,stroke:#1565c0
+    classDef ready fill:#e8f5e9,stroke:#2e7d32
+    classDef block fill:#ffebee,stroke:#c62828
+
+    class PHASE0,PHASE1,PHASE2,PHASE3 phase
+    class READY1,READY2,READY2A,READY2B ready
+    class RESOLVE_PROV_B,BARRIER_B block
+```
+
+---
+
+## 4. Diagram 3 — Provider Barrier Mechanism (DI as DAG)
+
+This diagram shows how NestJS's provider barrier mechanism creates a **strict execution order** without any custom orchestrator. Each arrow is `inject: [TOKEN_X]` — the arrow direction is "depends on".
+
+```mermaid
+flowchart LR
+    subgraph RESOLUTION["Provider Resolution Order (Top to Bottom)"]
+        direction TB
+        
+        ENV_SVC["EnvService\n(no deps)\n✅ resolves immediately"]
+        
+        INIT_SVC["InitializationService\n(no deps)\n✅ resolves immediately\n→ checkConfigAndEmit()\n→ waitForSetup() blocks"]
+        
+        POOL_FACTORY["GLOBAL_DATABASE_POOL\nuseFactory async\ninject: [InitializationService]\n⏳ BLOCKS on waitForSetup()"]
+        
+        DRIZZLE_FACTORY["GLOBAL_DATABASE_CONNECTION\nuseFactory sync\ninject: [GLOBAL_DATABASE_POOL]\n⏳ BLOCKS on pool"]
+        
+        GLOBAL_DB_SVC_FACTORY["GlobalDatabaseService\nuseFactory sync\ninject: [GLOBAL_DATABASE_CONNECTION]\n⏳ BLOCKS on drizzle"]
+        
+        AUTH_CORE["AuthCoreService\nuseFactory\ninject: [GLOBAL_DATABASE_CONNECTION]\n⏳ BLOCKS on drizzle"]
+        
+        ORPC_SETUP["ORPCModule.forRootAsync()\nuseFactory\ninject: [REQUEST, AuthCoreService]\n⏳ BLOCKS on auth"]
+        
+        FEATURE_PROVIDERS["Feature Providers\ninject: [GlobalDatabaseService, AuthCoreService, ...]\n⏳ BLOCKS on their deps"]
+    end
+
+    %% Dependency arrows (all barriers)
+    POOL_FACTORY -.->|"⏳ barrier:\ninject"| INIT_SVC
+    DRIZZLE_FACTORY -.->|"⏳ barrier:\ninject"| POOL_FACTORY
+    GLOBAL_DB_SVC_FACTORY -.->|"⏳ barrier:\ninject"| DRIZZLE_FACTORY
+    AUTH_CORE -.->|"⏳ barrier:\ninject"| DRIZZLE_FACTORY
+    ORPC_SETUP -.->|"⏳ barrier:\ninject"| AUTH_CORE
+    FEATURE_PROVIDERS -.->|"⏳ barrier:\ninject"| GLOBAL_DB_SVC_FACTORY
+    FEATURE_PROVIDERS -.->|"⏳ barrier:\ninject"| AUTH_CORE
+    
+    %% Side-by-side with the v2 sub-app pattern
+    subgraph V2_PATTERN["v2: Sub-App Trigger Chain"]
+        direction TB
+        CONFIG_TRIG["Trigger<Config>\nwaitFor()"]
+        DB_TRIG["Trigger<Database>\nwaitFor()"]
+        AUTH_TRIG["Trigger<Auth>\nwaitFor()"]
+        MESH_TRIG["Trigger<Mesh>\nwaitFor()"]
+        
+        CONFIG_TRIG --> DB_TRIG
+        DB_TRIG --> AUTH_TRIG
+        AUTH_TRIG --> MESH_TRIG
+    end
+
+    ENV_SVC -.->|"same lifetime"| CONFIG_TRIG
+    POOL_FACTORY -.->|"same lifetime"| DB_TRIG
+
+    classDef barrier fill:#ffebee,stroke:#c62828
+    classDef ready fill:#e8f5e9,stroke:#2e7d32
+    classDef blocking fill:#fff3e0,stroke:#e65100
+
+    class POOL_FACTORY,DRIZZLE_FACTORY,GLOBAL_DB_SVC_FACTORY,AUTH_CORE,ORPC_SETUP,FEATURE_PROVIDERS blocking
+    class ENV_SVC,INIT_SVC ready
+    class CONFIG_TRIG,DB_TRIG,AUTH_TRIG,MESH_TRIG barrier
+```
+
+---
+
+## 5. Diagram 4 — Sub-App Trigger Chain (Per-Module Isolation)
+
+This diagram shows how the v2 sub-app pattern integrates with NestJS's DI. Each sub-app is created by a `forRootAsync` factory, does its work in isolation, fires its trigger, and is destroyed.
+
+```mermaid
+flowchart TB
+    subgraph MAIN_APP["Main App DI Container (Permanent)"]
+        TRIGGER_REG["TriggerRegistry"]
+        
+        subgraph MODULES["Modules (resolved one-by-one)"]
+            CONFIG_MOD["ConfigModule.forRootAsync()\nwaitFor(triggers.config)"]
+            DB_MOD["DatabaseModule.forRootAsync()\nwaitFor(triggers.database)"]
+            AUTH_MOD["AuthModule.forRootAsync()\nwaitFor(triggers.auth)"]
+            MESH_MOD["MeshModule.forRootAsync()\nwaitFor(triggers.mesh)"]
+            EVENTS_MOD["EventsModule.forRootAsync()\nwaitFor(triggers.events)"]
+            DOCKER_MOD["DockerModule.forRootAsync()\nwaitFor(triggers.docker)"]
+            FEATURE_MODS["Feature Modules\nwaitFor(multiple triggers)"]
+            ORPC_MOD["ORPCModule.forRootAsync()\nwaitFor(triggers.auth)\nwaitFor(triggers.database)"]
+        end
+        
+        subgraph IMPORT_CHAIN["NestJS Import Chain (is the orchestrator)"]
+            CONFIG_MOD -->|"imports"| DB_MOD
+            DB_MOD -->|"imports"| AUTH_MOD
+            AUTH_MOD -->|"imports"| MESH_MOD
+            MESH_MOD -->|"imports"| EVENTS_MOD
+            MESH_MOD -->|"imports"| DOCKER_MOD
+            DB_MOD -->|"imports"| FEATURE_MODS
+            AUTH_MOD -->|"imports"| ORPC_MOD
+        end
+    end
+
+    subgraph SUB_APPS["Sub-Apps (Ephemeral DI Containers, one at a time)"]
+        direction TB
+        
+        CONFIG_SA["ConfigSubApp\n⏳ createApplicationContext()\n→ load env vars\n→ fire(configTrigger)\n→ app.close() 🧹"]
+        
+        DB_SA["DatabaseSubApp\n⏳ createApplicationContext()\n→ resolve DB URL\n→ create Pool + Drizzle\n→ fire(databaseTrigger)\n→ app.close() 🧹"]
+        
+        AUTH_SA["AuthSubApp\n⏳ createApplicationContext()\n→ init BetterAuth\n→ create admin\n→ fire(authTrigger)\n→ app.close() 🧹"]
+        
+        MESH_SA["MeshSubApp\n⏳ createApplicationContext()\n→ register with mesh\n→ fire(meshTrigger)\n→ app.close() 🧹"]
+        
+        EVENTS_SA["EventsSubApp\n⏳ createApplicationContext()\n→ connect event bus\n→ fire(eventsTrigger)\n→ app.close() 🧹"]
+        
+        DOCKER_SA["DockerSubApp\n⏳ createApplicationContext()\n→ validate socket\n→ fire(dockerTrigger)\n→ app.close() 🧹"]
+    end
+
+    subgraph TRIGGERS["Trigger<T> Signals"]
+        T1["Trigger<Config>\nfire({ config })\n──► resolved"]
+        T2["Trigger<Database>\nfire({ pool, drizzle })\n──► resolved"]
+        T3["Trigger<Auth>\nfire({ authInstance })\n──► resolved"]
+        T4["Trigger<Mesh>\nfire({ meshClient })\n──► resolved"]
+        T5["Trigger<Events>\nfire({ eventBus })\n──► resolved"]
+        T6["Trigger<Docker>\nfire({ dockerode })\n──► resolved"]
+    end
+
+    %% How it flows: forRootAsync factory → creates sub-app → fires trigger → module resolves
+    CONFIG_MOD -.->|"useFactory creates"| CONFIG_SA
+    CONFIG_SA -->|"fires"| T1
+    T1 -->|"waitFor() resolves\n→ ConfigModule resolved"| CONFIG_MOD
+
+    DB_MOD -.->|"useFactory creates"| DB_SA
+    DB_SA -->|"fires"| T2
+    T2 -->|"waitFor() resolves\n→ DatabaseModule resolved"| DB_MOD
+
+    AUTH_MOD -.->|"useFactory creates"| AUTH_SA
+    AUTH_SA -->|"fires"| T3
+    T3 -->|"waitFor() resolves\n→ AuthModule resolved"| AUTH_MOD
+
+    MESH_MOD -.->|"useFactory creates"| MESH_SA
+    MESH_SA -->|"fires"| T4
+    T4 -->|"waitFor() resolves\n→ MeshModule resolved"| MESH_MOD
+
+    EVENTS_MOD -.->|"useFactory creates"| EVENTS_SA
+    EVENTS_SA -->|"fires"| T5
+    T5 -->|"waitFor() resolves\n→ EventsModule resolved"| EVENTS_MOD
+
+    DOCKER_MOD -.->|"useFactory creates"| DOCKER_SA
+    DOCKER_SA -->|"fires"| T6
+    T6 -->|"waitFor() resolves\n→ DockerModule resolved"| DOCKER_MOD
+
+    %% Time flows left to right
+    T1 ~~~ T2 ~~~ T3 ~~~ T4 ~~~ T5 ~~~ T6
+
+    classDef main fill:#e3f2fd,stroke:#1565c0
+    classDef sub fill:#fff3e0,stroke:#e65100
+    classDef trigger fill:#e8f5e9,stroke:#2e7d32
+    classDef resolved fill:#c8e6c9,stroke:#1b5e20
+
+    class CONFIG_MOD,DB_MOD,AUTH_MOD,MESH_MOD,EVENTS_MOD,DOCKER_MOD,FEATURE_MODS,ORPC_MOD main
+    class CONFIG_SA,DB_SA,AUTH_SA,MESH_SA,EVENTS_SA,DOCKER_SA sub
+    class TRIGGER_REG,TRIGGERS trigger
+    class T1,T2,T3,T4,T5,T6 resolved
+```
+
+---
+
+## 6. Diagram 5 — Complete Module Resolution Timeline
+
+This is the **chronological execution order** from `main.ts` bootstrap to `app.listen()`. Each module resolves in sequence as the NestJS barrier mechanism or trigger chain enables it.
+
+```mermaid
+timeline
+    title NestJS Bootstrap — Full Module Resolution Timeline
+
+    section Phase 1: Scan
+        0ms : NestFactory.create(AppModule)
+            : dependenciesScanner.scan() builds module tree
+            : @Global() → distance = MAX_VALUE
+            : All 25+ modules registered with distances
+            : Module graph complete
+
+    section Phase 2: Instantiate (All Modules in Parallel with Barriers)
+        2ms   : EnvModule resolves immediately
+             :   → EnvService, ConfigService available
+             : InitializationService resolves immediately
+             :   → checkConfigAndEmit(), waitForSetup() blocks
+        5ms   : LocalModule (SQLite) resolves
+             : CoreReachabilityModule resolves
+             : CoreDockerModule resolves
+        10ms  : MeshInitializationModule resolves
+        15ms  : CoreInitializationModule resolves
+             :   (imports mesh + local + docker + reachability)
+        20ms  : ⏳ GLOBAL_DATABASE_POOL factory starts
+             :   → injects InitializationService
+             :   → calls checkConfigAndEmit()
+             :   → ⏳ BLOCKS on waitForSetup()
+        20ms  : All other independent providers resolve
+             :   Middlewares, filters, guards
+        50ms  : (If configured) Pool created
+             : ⏳ waitForSetup() resolves with databaseUrl
+             : new Pool(connectionString) created
+        55ms  : GLOBAL_DATABASE_CONNECTION factory
+             :   → injects Pool
+             :   → drizzle(pool, schema) created
+        60ms  : GlobalDatabaseService factory
+             :   → injects DrizzleClient
+        65ms  : AuthCoreService resolves
+             :   → injects DrizzleClient
+             : AuthModule.forRootAsync() → BetterAuth instance
+        70ms  : Feature module providers resolve
+             :   → all have GlobalDatabaseService available
+        80ms  : ORPCModule.forRootAsync() resolves
+             :   → injects REQUEST + AuthCoreService
+             :   → Router, interceptors, plugins configured
+
+    section Phase 3: Lifecycle Hooks
+        85ms  : callInitHook() — reverse distance order
+             : EnvModule.onModuleInit()
+             : DatabaseModule.onModuleInit()
+             : GlobalModule.onModuleInit()
+        90ms  : StartupOrchestratorService.onModuleInit()
+             :   → Phase 0: Core startup services (DB, setup, auth, mesh, ...)
+             :   → Step 1: Run migrations
+             :   → Step 2: Create admin user
+             :   → Step 3: Register mesh node
+             :   → Step 4: Report schema version
+             :   → isStartupComplete() = true
+        100ms : AppModule.onModuleInit()
+        105ms : registerRouter() → bind routes
+        110ms : callBootstrapHook()
+             : EnvModule.onApplicationBootstrap()
+             : AppModule.onApplicationBootstrap()
+        115ms : app.listen(port)
+             : 🚀 Server accepting traffic on port 3005
+```
+
+---
+
+## 7. Diagram 6 — Lifecycle Hooks Execution Order
+
+NestJS calls lifecycle hooks in **reverse distance order** (deepest/global modules first, root last). This is critical for the v2 sub-app pattern because it determines when each sub-app's `onModuleInit` fires.
+
+```mermaid
+flowchart TB
+    subgraph INIT_ORDER["callInitHook() — onModuleInit execution order"]
+        direction TB
+        
+        STEP0["0. NestJS sorts modules by distance DESC"]
+        STEP0 --> GLOBALS
+        
+        subgraph GLOBALS["1. @Global() modules (distance = MAX_VALUE) — EXECUTED FIRST"]
+            ENV_INIT["EnvModule.onModuleInit()\n✅ Config validated"]
+            DB_INIT["DatabaseModule.onModuleInit()\n(LocalModule + GlobalModule)"]
+            GLOBAL_INIT["GlobalModule.onModuleInit()\n⏳ Triggers DB startup if needed"]
+        end
+        
+        GLOBALS --> DEPTH_N
+        
+        subgraph DEPTH_N["2. Leaf modules (distance = n)"]
+            LOCAL_INIT["LocalModule.onModuleInit()\n✅ SQLite ready"]
+            REACH_INIT["CoreReachabilityModule.onModuleInit()\n✅ Reachability service ready"]
+            MESH_INIT_MOD["MeshInitializationModule.onModuleInit()\n⏳ Connects to mesh peers"]
+            CORE_INIT_INIT["CoreInitializationModule.onModuleInit()\n⏳ Reconnects remote mesh"]
+        end
+        
+        DEPTH_N --> DEPTH_1
+        
+        subgraph DEPTH_1["3. Distance-1 modules"]
+            AUTH_MOD_INIT["AuthModule.onModuleInit()\n✅ Auth plugin registry ready"]
+            STARTUP_INIT["StartupModule.onModuleInit()\n→ StartupOrchestratorService\n⏳ Runs all startup phases"]
+            FEATURE_INITS["Feature modules onModuleInit()\n⏳ await loader.waitForReady()"]
+        end
+        
+        DEPTH_1 --> ROOT
+        
+        subgraph ROOT["4. AppModule (distance = 0) — EXECUTED LAST"]
+            APP_INIT["AppModule.onModuleInit()\n✅ All deps ready"]
+        end
+    end
+
+    subgraph BOOT_ORDER["callBootstrapHook() — onApplicationBootstrap execution order"]
+        BOOT_STEP0["0. Same sort: reverse distance"]
+        BOOT_STEP0 --> BOOT_GLOBALS2
+        BOOT_GLOBALS2["1. @Global() modules\nonApplicationBootstrap()"]
+        BOOT_GLOBALS2 --> BOOT_ROOT2
+        BOOT_ROOT2["2. AppModule\nonApplicationBootstrap()\n🚀 Start accepting traffic"]
+    end
+
+    classDef global fill:#e1f5fe,stroke:#0288d1
+    classDef leaf fill:#f3e5f5,stroke:#7b1fa2
+    classDef mid fill:#fff3e0,stroke:#e65100
+    classDef root fill:#ffebee,stroke:#c62828
+
+    class ENV_INIT,DB_INIT,GLOBAL_INIT global
+    class LOCAL_INIT,REACH_INIT,MESH_INIT_MOD,CORE_INIT_INIT leaf
+    class AUTH_MOD_INIT,STARTUP_INIT,FEATURE_INITS mid
+    class APP_INIT root
+```
+
+---
+
+## 8. Diagram 7 — Error Propagation & Degraded Mode
+
+When a sub-app fails or a trigger times out, the error propagates through the NestJS barrier mechanism. This diagram shows the failure modes and how the system degrades gracefully.
+
+```mermaid
+flowchart TB
+    subgraph FAILURE_SCENARIOS["Sub-App Failure Scenarios"]
+        direction TB
+        
+        CONFIG_FAIL["ConfigSubApp\n❌ Missing env var\n→ onModuleInit throws\n→ Fatal"]
+        DB_FAIL["DatabaseSubApp\n❌ DB unreachable\n→ waitForSetup times out\n→ Fatal"]
+        AUTH_FAIL["AuthSubApp\n❌ BetterAuth init fails\n→ Fatal"]
+        MESH_FAIL["MeshSubApp\n❌ Mesh peer unreachable\n→ Non-Fatal (skip)"]
+        EVENTS_FAIL["EventsSubApp\n❌ Event bus unavailable\n→ Non-Fatal (skip)"]
+        DOCKER_FAIL["DockerSubApp\n❌ Docker socket missing\n→ Non-Fatal (skip)"]
+    end
+    
+    subgraph PROPAGATION["Error Propagation Path"]
+        direction TB
+        
+        THROWN["SubApp.onModuleInit() throws"]
+        THROWN --> CAUGHT["NestFactory.createApplicationContext\n{ abortOnError: false }\n→ catches error"]
+        CAUGHT --> TRIGGER_NEVER["Trigger.fire() is NEVER called"]
+        TRIGGER_NEVER --> ORCH_AWAIT["SubAppOrchestrator.runOne()\nawaits trigger.waitFor()"]
+        ORCH_AWAIT --> TIMEOUT["⏳ Timeout after N ms"]
+        TIMEOUT --> AGGRESSIVE_CLOSE["app.close() forced\n→ OnModuleDestroy called\non all sub-app providers"]
+        AGGRESSIVE_CLOSE --> ERROR_DECISION{"Error Strategy?"}
+        
+        ERROR_DECISION -->|"fatal\n(config, database, auth)"| FATAL["FATAL\n→ Process exits\n→ app.close() on main app"]
+        ERROR_DECISION -->|"skip\n(mesh, events, docker)"| SKIP["SKIP\n→ Trigger remains unresolved\n→ Dependent modules stay unresolved\n→ Feature degrades gracefully"]
+    end
+    
+    subgraph DEGRADED["Degraded Mode Behavior"]
+        direction TB
+        
+        MESH_SKIP["Mesh trigger unresolved"]
+        EVENTS_SKIP["Events trigger unresolved"]
+        DOCKER_SKIP["Docker trigger unresolved"]
+        
+        MESH_SKIP --> MESH_DEG["MeshModule stays unresolved\n→ Mesh features disabled\n→ App still serves traffic"]
+        EVENTS_SKIP --> EVENTS_DEG["EventsModule stays unresolved\n→ Event bus disabled\n→ No real-time updates"]
+        DOCKER_SKIP --> DOCKER_DEG["DockerModule stays unresolved\n→ Docker features disabled\n→ Rest of app works"]
+        
+        MESH_DEG --> PARTIAL_READY["🚀 App starts in degraded mode\nwith reduced feature set"]
+        EVENTS_DEG --> PARTIAL_READY
+        DOCKER_DEG --> PARTIAL_READY
+    end
+
+    classDef fatal fill:#ffebee,stroke:#c62828
+    classDef skip fill:#fff3e0,stroke:#e65100
+    classDef degraded fill:#e8f5e9,stroke:#2e7d32
+
+    class CONFIG_FAIL,DB_FAIL,AUTH_FAIL fatal
+    class MESH_FAIL,EVENTS_FAIL,DOCKER_FAIL skip
+    class DEGRADED,PARTIAL_READY degraded
+```
+
+---
+
+## 9. Diagram 8 — Setup Wizard Branch (Conditional Sub-App)
+
+The setup wizard is a conditional branch in the startup chain. It only runs if the node isn't configured yet. This is determined by the `InitService` config check.
+
+```mermaid
+flowchart TB
+    subgraph BOOT["Startup Bootstrap"]
+        APP_CREATE["NestFactory.create(AppModule)"]
+        APP_CREATE --> ENV_MODULE["EnvModule @Global()\n→ EnvService ready"]
+        ENV_MODULE --> CONFIG_CHECK{"NodeConfigRepository.find()\n→ is configured?"}
+    end
+    
+    subgraph BRANCH_YES["✅ Already Configured — Fast Path"]
+        direction TB
+        FAST_DB["DatabaseSubApp\n→ read databaseUrl from config\n→ create Pool immediately"]
+        FAST_DB --> FAST_AUTH["AuthSubApp\n→ init BetterAuth\n→ create admin"]
+        FAST_AUTH --> FAST_MESH["MeshSubApp\n→ connect to known mesh peers"]
+        FAST_MESH --> FAST_CONTINUE["Continue with remaining sub-apps"]
+    end
+    
+    subgraph BRANCH_NO["❌ Not Configured — Setup Wizard Path"]
+        direction TB
+        WIZARD_SA["SetupWizardSubApp\n→ createApplicationContext()"]
+        WIZARD_SA --> WIZARD_HTTP["→ EphemeralHttpServer.start()\non random port"]
+        WIZARD_HTTP --> WIZARD_PROXY["→ Register proxy on main app:\n/setup/* → localhost:PORT"]
+        WIZARD_PROXY --> WIZARD_WAIT["→ Wait for user to complete wizard\n(SSE stream, polling, etc.)"]
+        WIZARD_WAIT --> WIZARD_COMPLETE{"User completes\nsetup?"}
+        
+        WIZARD_COMPLETE -->|"Yes\n→ databaseUrl resolved"| WIZARD_FIRE["→ fire(setupWizardTrigger)\n→ stop HTTP server\n→ remove proxy\n→ app.close() 🧹"]
+        WIZARD_COMPLETE -->|"No / Timeout"| WIZARD_TIMEOUT["→ Timeout after 5min\n→ Return error to user"]
+        
+        WIZARD_FIRE --> WIZARD_CONTINUE["DatabaseSubApp\n→ uses resolved databaseUrl\n→ creates Pool"]
+    end
+
+    subgraph SUB_APP_CHAIN["Continuing Sub-App Chain"]
+        direction TB
+        DB_SUB["DatabaseSubApp\n⏳ creates Pool + Drizzle"]
+        DB_SUB --> DB_TRIGGER["🔥 triggers.database.fire()"]
+        DB_TRIGGER --> AUTH_SUB["AuthSubApp"]
+        AUTH_SUB --> AUTH_TRIGGER["🔥 triggers.auth.fire()"]
+        AUTH_TRIGGER --> MESH_SUB["MeshSubApp"]
+        MESH_SUB --> MESH_TRIGGER["🔥 triggers.mesh.fire()"]
+        MESH_TRIGGER --> EVENTS_SUB["EventsSubApp\n(runs in parallel with Docker)"]
+        MESH_TRIGGER --> DOCKER_SUB["DockerSubApp\n(runs in parallel with Events)"]
+    end
+
+    CONFIG_CHECK -->|"Yes ✅"| FAST_DB
+    CONFIG_CHECK -->|"No / DATABASE_URL empty ❌"| WIZARD_SA
+    
+    WIZARD_CONTINUE --> DB_SUB
+    FAST_CONTINUE --> DB_SUB
+
+    classDef branch fill:#e3f2fd,stroke:#1565c0
+    classDef wizard fill:#fff3e0,stroke:#e65100
+    classDef fast fill:#e8f5e9,stroke:#2e7d32
+    classDef sub fill:#fce4ec,stroke:#c62828
+    classDef trigger fill:#f3e5f5,stroke:#7b1fa2
+
+    class CONFIG_CHECK branch
+    class WIZARD_SA,WIZARD_HTTP,WIZARD_PROXY,WIZARD_WAIT,WIZARD_FIRE,WIZARD_TIMEOUT wizard
+    class FAST_DB,FAST_AUTH,FAST_MESH,FAST_CONTINUE fast
+    class DB_SUB,AUTH_SUB,MESH_SUB,EVENTS_SUB,DOCKER_SUB sub
+    class DB_TRIGGER,AUTH_TRIGGER,MESH_TRIGGER,EVENTS_TRIGGER,DOCKER_TRIGGER trigger
+```
+
+---
+
+## 10. Diagram 9 — The Full Orchestration Graph (Unified)
+
+This is the **complete unified view** — combining the NestJS DI graph, the import tree, the barrier mechanism, the sub-app lifecycle, and the trigger chain into one giant graph.
+
+```mermaid
+graph TB
+    %% ── Main App Container ──
+    subgraph MAIN_APP["Main App DI Container — Permanent"]
+        APP["AppModule\n(distance = 0)"]
+        
+        %% @Global modules - resolved FIRST by NestJS
+        subgraph GLOBAL["@Global() Modules — Resolved First"]
+            ENV["EnvModule\n→ EnvService"]
+            DB_PARENT["DatabaseModule\n→ LocalModule\n→ GlobalModule"]
+            TRIG["TriggerRegistry\n→ config, database, auth,\n  mesh, events, docker"]
+        end
+        
+        %% Core modules with forRootAsync
+        subgraph CORE["Core Modules — forRootAsync Chain"]
+            CONFIG["ConfigModule.forRootAsync()\nuseFactory: await triggers.config.waitFor()\n→ returns EnvService"]
+            DB["DatabaseModule.forRootAsync()\nuseFactory: await triggers.database.waitFor()\n→ returns Pool + Drizzle"]
+            AUTH["AuthModule.forRootAsync()\nuseFactory: await triggers.auth.waitFor()\n→ returns AuthInstance"]
+            MESH["MeshModule.forRootAsync()\nuseFactory: await triggers.mesh.waitFor()\n→ returns MeshClient"]
+            EVENTS["EventsModule.forRootAsync()\nuseFactory: await triggers.events.waitFor()\n→ returns EventBus"]
+            DOCKER["DockerModule.forRootAsync()\nuseFactory: await triggers.docker.waitFor()\n→ returns Dockerode"]
+        end
+        
+        %% Feature modules
+        subgraph FEATURES["Feature Modules — Depend on Core"]
+            HEALTH["HealthModule"]
+            USER["UserModule"]
+            DEPLOY["DeploymentModule"]
+            FLEET["FleetModule"]
+            ORG["OrganizationModule"]
+            PROJ["ProjectModule"]
+            GH["GithubModule"]
+            DOCKER_FEAT["DockerModule\n(feature)"]
+            ORPC["ORPCModule.forRootAsync()\nuseFactory: await triggers.auth\n  + triggers.database.waitFor()"]
+        end
+    end
+
+    %% ── Sub-App Container ──
+    subgraph SUB_APPS["Sub-Apps — Ephemeral DI Containers"]
+        direction TB
+        
+        CONFIG_SA["Config SubApp\nINestApplicationContext\n→ EnvService\n→ fire(config)"]
+        
+        DB_SA["Database SubApp\nINestApplicationContext\n→ Pool + Drizzle\n→ fire(database)"]
+        
+        AUTH_SA["Auth SubApp\nINestApplicationContext\n→ BetterAuth\n→ fire(auth)"]
+        
+        MESH_SA["Mesh SubApp\nINestApplicationContext\n→ MeshClient\n→ fire(mesh)"]
+        
+        EVENTS_SA["Events SubApp\nINestApplicationContext\n→ EventBus\n→ fire(events)"]
+        
+        DOCKER_SA["Docker SubApp\nINestApplicationContext\n→ Dockerode\n→ fire(docker)"]
+        
+        WIZARD_SA["Setup Wizard SubApp\nINestApplicationContext\n→ EphemeralHttpServer\n→ fire(setupWizard)"]
+    end
+
+    %% ── Import Chain (NestJS DI Graph as Orchestrator) ──
+    APP --> GLOBAL
+    APP --> CORE
+    APP --> FEATURES
+    APP --> TRIG
+    
+    %% forRootAsync import chain creates dependency ordering in NestJS
+    CONFIG -->|"imports"| ENV
+    DB -->|"imports"| CONFIG
+    AUTH -->|"imports"| DB
+    AUTH -->|"imports"| ENV
+    MESH -->|"imports"| AUTH
+    EVENTS -->|"imports"| MESH
+    DOCKER -->|"imports"| MESH
+    
+    %% Feature modules import their deps
+    DOCKER_FEAT -->|"imports"| DOCKER
+    DOCKER_FEAT -->|"imports"| DB
+    ORPC -->|"imports"| AUTH
+    ORPC -->|"imports"| DB
+    
+    %% Other features depend on DB + Auth
+    USER -->|"imports"| DB
+    USER -->|"imports"| AUTH
+    DEPLOY -->|"imports"| DB
+    DEPLOY -->|"imports"| AUTH
+    DEPLOY -->|"imports"| MESH
+    FLEET -->|"imports"| DB
+    FLEET -->|"imports"| AUTH
+    FLEET -->|"imports"| MESH
+
+    %% ── Sub-App creation ──
+    CONFIG -.->|"useFactory creates"| CONFIG_SA
+    DB -.->|"useFactory creates"| DB_SA
+    AUTH -.->|"useFactory creates"| AUTH_SA
+    MESH -.->|"useFactory creates"| MESH_SA
+    EVENTS -.->|"useFactory creates"| EVENTS_SA
+    DOCKER -.->|"useFactory creates"| DOCKER_SA
+    
+    %% ── Trigger connections ──
+    CONFIG_SA -->|"🔥 fire"| TRIG
+    DB_SA -->|"🔥 fire"| TRIG
+    AUTH_SA -->|"🔥 fire"| TRIG
+    MESH_SA -->|"🔥 fire"| TRIG
+    EVENTS_SA -->|"🔥 fire"| TRIG
+    DOCKER_SA -->|"🔥 fire"| TRIG
+    WIZARD_SA -->|"🔥 fire"| TRIG
+
+    %% ── Trigger → Module resolution ──
+    TRIG -->|"config.waitFor() resolves"| CONFIG
+    TRIG -->|"database.waitFor() resolves"| DB
+    TRIG -->|"auth.waitFor() resolves"| AUTH
+    TRIG -->|"mesh.waitFor() resolves"| MESH
+    TRIG -->|"events.waitFor() resolves"| EVENTS
+    TRIG -->|"docker.waitFor() resolves"| DOCKER
+
+    %% ── Setup wizard conditional branch ──
+    CONFIG_SA -->|"not configured"| WIZARD_SA
+    WIZARD_SA -->|"databaseUrl resolved"| DB_SA
+    
+    %% ── Parallel execution groups ──
+    subgraph PARALLEL["Parallel Execution Groups"]
+        PG1["Group 1:\nConfig alone"]
+        PG2["Group 2:\nDatabase alone"]
+        PG3["Group 3:\nAuth alone"]
+        PG4["Group 4:\nMesh alone"]
+        PG5["Group 5:\nEvents + Docker\n(parallel)"]
+    end
+
+    %% Style
+    classDef global fill:#e1f5fe,stroke:#0288d1
+    classDef core fill:#fff3e0,stroke:#e65100
+    classDef feature fill:#e8f5e9,stroke:#388e3c
+    classDef sub fill:#fce4ec,stroke:#c62828
+    classDef trigger fill:#f3e5f5,stroke:#7b1fa2
+
+    class ENV,DB_PARENT,TRIG global
+    class CONFIG,DB,AUTH,MESH,EVENTS,DOCKER core
+    class HEALTH,USER,DEPLOY,FLEET,ORG,PROJ,GH,DOCKER_FEAT,ORPC feature
+    class CONFIG_SA,DB_SA,AUTH_SA,MESH_SA,EVENTS_SA,DOCKER_SA,WIZARD_SA sub
+    class TRIG trigger
+```
+
+---
+
+## 11. Diagram 10 — Clean Teardown Sequence
+
+When each sub-app fires its trigger, the orchestrator destroys it. This diagram shows the teardown sequence for one sub-app (applies identically to all).
+
+```mermaid
+sequenceDiagram
+    participant ORCH as SubAppOrchestrator
+    participant MAIN_DI as Main App DI
+    participant SUB_APP as Sub-App Context
+    participant SVC as Sub-App Service
+    participant HTTP as EphemeralHttpServer (if setup wizard)
+    participant CONN as External Connection (Pool/Mesh/etc.)
+    participant GC as Garbage Collector
+
+    Note over ORCH,GC: Sub-app fires trigger → teardown begins
+    
+    ORCH->>MAIN_DI: trigger.waitFor() resolves
+    Note over MAIN_DI: forRootAsync factory receives payload
+    Note over MAIN_DI: Module is now resolved in DI
+    
+    ORCH->>SUB_APP: app.close()
+    
+    SUB_APP->>SVC: onModuleDestroy()
+    
+    alt Database SubApp
+        SVC->>CONN: pool.end()
+        CONN-->>SVC: connections closed
+    else Mesh SubApp
+        SVC->>CONN: client.disconnect()
+        CONN-->>SVC: disconnected
+    else Setup Wizard SubApp
+        SVC->>HTTP: server.close()
+        HTTP-->>SVC: port released
+    end
+    
+    SVC-->>SUB_APP: cleanup complete
+    
+    SUB_APP->>SUB_APP: Release all providers
+    SUB_APP->>SUB_APP: Remove from module registry
+    
+    ORCH->>ORCH: activeSubApps.delete(name)
+    ORCH->>ORCH: subApp reference = null
+    
+    Note over GC: Next GC cycle
+    GC->>GC: Collect sub-app's heap
+    
+    Note over ORCH,GC: ✅ Sub-app fully destroyed. Zero leftovers.
+```
+
+---
+
+## 12. Reference: Module Catalog
+
+### @Global() Modules (Resolved First)
+
+| Module | Token | Dependencies | Resolves |
+|--------|-------|-------------|----------|
+| `EnvModule` | `EnvService` | None | Env vars, ConfigService |
+| `DatabaseModule` | — | None (facade) | LocalModule + GlobalModule |
+| `TriggersModule` | `TriggerRegistry` | None | All Trigger<T> instances |
+| `SubAppContextModule.forRoot()` | `SUB_APP_CONTEXT` | Varies | Trigger for this sub-app |
+
+### Core forRootAsync Chain (Sequential via Imports)
+
+| Module | Imports | Factory Awaits | Provides |
+|--------|---------|---------------|----------|
+| `ConfigModule.forRootAsync()` | `TriggersModule` | `triggers.config.waitFor()` | EnvService, ConfigService |
+| `DatabaseModule.forRootAsync()` | `ConfigModule` | `triggers.database.waitFor()` | Pool, Drizzle, GlobalDbService |
+| `AuthModule.forRootAsync()` | `DatabaseModule` | `triggers.auth.waitFor()` | BetterAuth, AuthCoreService |
+| `MeshModule.forRootAsync()` | `AuthModule` | `triggers.mesh.waitFor()` | MeshClient, NodeId |
+| `EventsModule.forRootAsync()` | `MeshModule` | `triggers.events.waitFor()` | EventBus |
+| `DockerModule.forRootAsync()` | `MeshModule` | `triggers.docker.waitFor()` | Dockerode |
+
+### Feature Modules (Resolve After Core)
+
+| Module | Imports | Depends On |
+|--------|---------|------------|
+| `ORPCModule.forRootAsync()` | `AuthModule`, `DatabaseModule` | Auth + Database |
+| `DockerModule` (feature) | `DockerModule.forRootAsync()`, `DatabaseModule` | Docker + Database |
+| `DeploymentModule` | `DatabaseModule`, `AuthModule`, `MeshModule` | DB + Auth + Mesh |
+| `FleetModule` | `DatabaseModule`, `AuthModule`, `MeshModule` | DB + Auth + Mesh |
+| `UserModule` | `DatabaseModule`, `AuthModule` | DB + Auth |
+| Others... | Various | Various |
+
+### Sub-App Definitions
+
+| Sub-App | Module | Depends On | Timeout | Creates | Fires Trigger |
+|---------|--------|------------|---------|---------|---------------|
+| Config | `ConfigSubAppModule` | — | 5s | EnvService | `config` |
+| Database | `DatabaseSubAppModule` | config | 60s | Pool, Drizzle | `database` |
+| Auth | `AuthSubAppModule` | config, database | 30s | BetterAuth | `auth` |
+| Mesh | `MeshSubAppModule` | config, database, auth | 30s | MeshClient | `mesh` |
+| Events | `EventsSubAppModule` | mesh | 10s | EventBus | `events` |
+| Docker | `DockerSubAppModule` | mesh | 10s | Dockerode | `docker` |
+| Setup Wizard | `SetupWizardSubAppModule` | config | 300s | EphemeralHttpServer | `setupWizard` |
+
+---
+
+## Summary: The DI Graph IS the Orchestrator
+
+The entire startup architecture can be summarized in one statement:
+
+> **NestJS's `imports` chain IS the dependency graph. NestJS's provider barrier mechanism IS the execution engine. `forRootAsync` factories ARE the startup phases. Triggers ARE the communication bridge between sub-app contexts. There is no separate orchestrator.**
+
+```text
+imports chain        →  declares "what must be ready first"
+forRootAsync         →  wraps each startup phase as a NestJS module
+useFactory inject    →  declares provider-level dependencies (barrier)
+@Global()            →  ensures certain modules resolve first
+Trigger<T>           →  bridges sub-app output to main app module input
+SubApp               →  isolates each startup phase in its own DI container
+OnModuleDestroy      →  ensures zero leftover providers
+```
+
+**The NestJS DI engine was already a perfect orchestrator. We just needed to use it correctly.**

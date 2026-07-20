@@ -48,9 +48,9 @@ const env = validateDocEnv(process.env)
 ## Available Schemas
 
 ### `apiEnvSchema` (NestJS API)
-- `DATABASE_URL` (required): PostgreSQL connection string
+- `SETUP_DATABASE_URL` (optional): PostgreSQL connection string for initial setup. Only read by Phase 0 setup sub-app.
 - `API_PORT` (default: 3001): API server port
-- `AUTH_SECRET` (required): Authentication secret key
+- `AUTH_SECRET` (optional in production — resolved via mesh secret sharing): Authentication secret key
 - `DEV_AUTH_KEY` (optional): Development auth token
 - `NODE_ENV` (default: 'development'): Environment mode
 - `NEXT_PUBLIC_APP_URL` (required): Web app URL for CORS

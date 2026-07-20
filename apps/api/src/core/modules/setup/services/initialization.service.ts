@@ -100,16 +100,15 @@ export class InitializationService implements OnModuleInit {
                 )
                 // Persisted config may be missing databaseUrl if the env var
                 // wasn't set during the original auto-setup, or it may have
-                // been written as an empty string. Fall back to the current
-                // process env so a later operator change to .env doesn't
-                // permanently brick the node. We also persist the resolved
-                // URL back to the row so subsequent restarts pick it up
-                // consistently.
+                // been written as an empty string. The Phase 0 setup sub-app
+                // should have populated this — if not, proceed without a DB
+                // and let auth/modules handle null gracefully.
                 const storedUrl = config.databaseUrl?.trim() ?? ''
+                const fallbackUrl = process.env.SETUP_DATABASE_URL?.trim() ?? ''
                 const resolvedDatabaseUrl =
                     storedUrl.length > 0
                         ? storedUrl
-                        : (process.env.DATABASE_URL?.trim() ?? '') || null
+                        : (fallbackUrl.length > 0 ? fallbackUrl : null)
                 if (
                     storedUrl.length === 0 &&
                     resolvedDatabaseUrl &&
@@ -129,7 +128,7 @@ export class InitializationService implements OnModuleInit {
                         updatedAt: new Date().toISOString(),
                     })
                     this.logger.log(
-                        '🩹 Repaired node_config row with current DATABASE_URL'
+                        '🩹 Repaired node_config row from SETUP_DATABASE_URL'
                     )
                 }
                 this.emitCompleted({
@@ -138,13 +137,10 @@ export class InitializationService implements OnModuleInit {
                     databaseUrl: resolvedDatabaseUrl,
                     strategy: config.strategy,
                 })
-            } else if (this.envService.get("DEV_AUTO_SETUP")) {
-                // ── Dev-mode auto-setup ──────────────────────────────────────
+            } else if ((process.env.SETUP_AUTO === "true" || this.envService.get("SETUP_AUTO") === true) && process.env.SETUP_DATABASE_URL) {
+                // ── Dev-mode auto-setup with SETUP_DATABASE_URL ──────────────
                 this.logger.log(
-                    '🧪 DEV_AUTO_SETUP=true — auto-seeding development config'
-                )
-                this.logger.log(
-                    '⚠️  This bypasses the setup wizard. Set DEV_AUTO_SETUP=false to re-enable it.'
+                    '🧪 SETUP_AUTO=true and SETUP_DATABASE_URL set — auto-seeding development config'
                 )
                 const nodeId = randomUUID()
                 this.nodeConfigRepository.upsert({
@@ -152,7 +148,7 @@ export class InitializationService implements OnModuleInit {
                     strategy: 'local',
                     setupState: 'setup_done',
                     deployerVersion: DEPLOYER_VERSION,
-                    databaseUrl: process.env.DATABASE_URL ?? null,
+                    databaseUrl: process.env.SETUP_DATABASE_URL,
                     configuredAt: new Date().toISOString(),
                     meshUrlsSnapshot: [],
                     updatedAt: new Date().toISOString(),
@@ -160,23 +156,21 @@ export class InitializationService implements OnModuleInit {
                 this.emitCompleted({
                     nodeId,
                     connectedAt: new Date(),
-                    databaseUrl: process.env.DATABASE_URL ?? null,
+                    databaseUrl: process.env.SETUP_DATABASE_URL,
                     strategy: 'local',
                 })
-            } else if (process.env.DATABASE_URL) {
-                // ── Fallback: DATABASE_URL set but setup not done ────────────
-                // This happens in CLI commands (migrate, seed) that need the
-                // database pool but don't run the setup wizard.  It also lets
-                // the main API start with an env-provided DATABASE_URL before
-                // the wizard runs — the wizard will overwrite config later.
+            } else if (process.env.SETUP_AUTO === "true" || this.envService.get("SETUP_AUTO") === true) {
+                // ── Dev-mode auto-setup WITHOUT SETUP_DATABASE_URL ───────────
+                // Phase 0 should have already written a local-only node_config.
+                // We emit completion so modules unblock (they'll get null pool).
                 this.logger.log(
-                    '🔧 No config found but DATABASE_URL is set — ' +
-                    'emitting transient completion (setup NOT persisted)'
+                    '🧪 SETUP_AUTO=true (no SETUP_DATABASE_URL) — ' +
+                    'local-only config emitted from Phase 0, unblocking modules'
                 )
                 this.emitCompleted({
-                    nodeId: randomUUID(),
+                    nodeId: config?.nodeId ?? randomUUID(),
                     connectedAt: null,
-                    databaseUrl: process.env.DATABASE_URL,
+                    databaseUrl: null,
                     strategy: 'local',
                 })
             } else {

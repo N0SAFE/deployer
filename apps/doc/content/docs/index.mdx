@@ -103,6 +103,48 @@ This docs app is curated to prioritize practical workflows, architecture clarity
 		description="Step-by-step migration roadmap from v1/v2 capabilities to fully operational v3."
 		badge="Execution"
 	/>
+	<DocCard
+		title="Startup Architecture (Current)"
+		href="/docs/dev/startup-architecture"
+		description="Current phase-based bootstrap: Express-level CORS, OnApplicationBootstrap orchestrator, sub-apps as isolated contexts, lazy Auth loading."
+		badge="Core"
+	/>
+	<DocCard
+		title="Startup Architecture v2 (Legacy)"
+		href="/docs/architecture/startup-architecture-v2"
+		description="Complete rethinking of the startup model: two-phase lifecycle, DAG-driven initialization, bridge pattern, and ephemeral app teardown."
+		badge="Legacy"
+	/>
+	<DocCard
+		title="Startup v2 Blueprint"
+		href="/docs/architecture/startup-v2-implementation-blueprint"
+		description="Concrete, file-by-file implementation plan for the v2 startup architecture with test criteria for each phase."
+		badge="Execution"
+	/>
+	<DocCard
+		title="Startup v2 Orchestration Graph"
+		href="/docs/architecture/startup-v2-orchestration-graph"
+		description="The NestJS DI graph IS the orchestrator. 10+ Mermaid diagrams showing the full module dependency tree, resolver barriers, sub-app triggers, lifecycle hooks, and execution timeline."
+		badge="Reference"
+	/>
+	<DocCard
+		title="Startup v2 Flow Per Case"
+		href="/docs/architecture/startup-v2-flow-per-case"
+		description="Complete startup flow for every scenario — first-time setup, normal restart, CLI mode, degraded mode, fatal error, and the detailed setup wizard interaction."
+		badge="Reference"
+	/>
+	<DocCard
+		title="Startup v2 Complete Bootstrap Flow"
+		href="/docs/architecture/startup-v2-complete-flow"
+		description="Perfectly detailed Mermaid diagram of the entire startup flow — from main.ts through NestJS bootstrap, all 7 sub-apps, trigger emissions, module resolution, to app.listen()."
+		badge="Reference"
+	/>
+	<DocCard
+		title="ORPC Auth Patterns"
+		href="/docs/dev/orpc-auth-patterns"
+		description="Auth is opt-in via middleware. Public routes use no middleware. Protected routes use createAuthMiddleware() + requireAuth(). 5 complete patterns."
+		badge="Dev"
+	/>
 </DocCardGrid>
 
 ## Recommended learning flow
@@ -149,6 +191,11 @@ This docs app is curated to prioritize practical workflows, architecture clarity
 	- [Internal Packages & Monorepo Model](/docs/architecture/internal-packages-monorepo)
 	- [Mesh-Consumer Boundary Pattern](/docs/architecture/mesh-consumer-boundary-pattern)
 	- [Mesh Peer Selection Algorithm](/docs/architecture/mesh-peer-selection-algorithm)
+	- [Startup Architecture v2 — Ephemeral App, DAG, Bridge](/docs/architecture/startup-architecture-v2)
+	- [Startup v2 Implementation Blueprint](/docs/architecture/startup-v2-implementation-blueprint)
+	- [Startup v2 Orchestration Graph](/docs/architecture/startup-v2-orchestration-graph)
+	- [Startup v2 Flow Per Case](/docs/architecture/startup-v2-flow-per-case)
+	- [Startup v2 Complete Bootstrap Flow](/docs/architecture/startup-v2-complete-flow)
 - **Development**
 	- [Development Workflow](/docs/dev/development-workflow)
 	- [ORPC Type-Safe API Workflow](/docs/dev/orpc)
@@ -156,6 +203,7 @@ This docs app is curated to prioritize practical workflows, architecture clarity
 	- [Database Lifecycle](/docs/dev/database-lifecycle)
 	- [Global DB Migration Management](/docs/dev/global-db-migration-management)
 	- [Client Data Layer (Hooks + Cache)](/docs/dev/client-data-layer)
+	- [ORPC Auth Patterns](/docs/dev/orpc-auth-patterns)
 	- [Service-Adapter Pattern in API](/docs/dev/api-service-adapter)
 	- [Auth Access Control with Better Auth](/docs/dev/auth-access-control)
 - **Docker**

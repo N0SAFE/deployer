@@ -6,7 +6,7 @@ import {
   type EventOutput,
 } from "@/core/modules/events/event-contract.builder";
 import type { CoreEventStreamPoolService } from "./core-event-stream-pool.service";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { isRecord } from "@repo/type-guards"
 
 export interface PooledEventObserveOptions {
   replayLimit?: number;

@@ -6,12 +6,12 @@ services:
   # This container connects to PostgreSQL running on the host machine.
   # 
   # Option 1 (Recommended): Use host.docker.internal
-  #   - DATABASE_URL=postgresql://user:pass@host.docker.internal:5432/db
+  #   - SETUP_DATABASE_URL=postgresql://user:pass@host.docker.internal:5432/db
   #   - Requires: extra_hosts configuration (already set below)
   #   - Pros: Clean, portable hostname that works across different Docker networks
   # 
   # Option 2 (Alternative): Use Docker gateway IP
-  #   - DATABASE_URL=postgresql://user:pass@172.18.0.1:5432/db
+  #   - SETUP_DATABASE_URL=postgresql://user:pass@172.18.0.1:5432/db
   #   - The gateway IP is stable for each Docker network
   #   - Pros: No extra configuration needed, always works
   #   - Cons: IP might differ if network is recreated (172.17-21.0.1 are common)
@@ -49,7 +49,7 @@ services:
       - LOG_LEVEL=warn
       
       # Database
-      - DATABASE_URL=${DATABASE_URL}
+      - SETUP_DATABASE_URL=${SETUP_DATABASE_URL}
       - MIGRATIONS_FOLDER=./dist/migrations
       
       # API Configuration

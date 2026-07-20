@@ -2,6 +2,7 @@ import { Global, Module } from "@nestjs/common";
 import { EnvService } from "./env.service";
 import { ConfigModule } from "@nestjs/config";
 import { envSchema } from "./env";
+import { configTrigger, ConfigTriggerService } from "./config.trigger.service";
 import * as path from "path";
 import * as fs from "fs";
 
@@ -16,7 +17,6 @@ import * as fs from "fs";
           path.resolve(process.cwd(), ".env"),
           path.resolve(process.cwd(), "..", "..", ".env"),
         ];
-        // Only return paths that actually exist
         return paths.filter(p => fs.existsSync(p));
       })(),
       ignoreEnvFile: false,
@@ -24,7 +24,10 @@ import * as fs from "fs";
       cache: true,
     }),
   ],
-  providers: [EnvService],
-  exports: [EnvService, ConfigModule],
+  providers: [
+    EnvService,
+    { provide: ConfigTriggerService, useValue: configTrigger },
+  ],
+  exports: [EnvService, ConfigModule, ConfigTriggerService],
 })
 export class EnvModule {}

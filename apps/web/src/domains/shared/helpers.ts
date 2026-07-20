@@ -610,7 +610,7 @@ export function custom<
           throw new Error(`Input validation failed: ${result.error.message}`);
         }
         // Use validated data - wrap in Promise.resolve to handle sync handlers
-        const handlerResult = config.handler(result.data as TInput);
+        const handlerResult = config.handler(result.data);
         return Promise.resolve(handlerResult).then(async (output) => {
           // If map function provided, use it to transform output
           if (config.map) {
@@ -642,7 +642,7 @@ export function custom<
         return output as unknown as TMappedOutput;
       });
     }
-  ) as Client<Record<never, never>, TInput, TMappedOutput, TError>;
+  );
 
   // Use ORPC's native createProcedureUtils - this ensures perfect alignment!
   const hasAnyOptions =
@@ -701,7 +701,7 @@ export function custom<
           config.keys as (input: TInput) => QueryKey
         )(input as TInput);
         return dynamicKeys as unknown as ReturnType<typeof utils.queryKey>;
-      }) as typeof utils.queryKey;
+      });
     }
 
     return utils;
@@ -720,7 +720,7 @@ export function custom<
         input as TInput,
       );
       return dynamicKeys as unknown as ReturnType<typeof utils.queryKey>;
-    }) as typeof utils.queryKey;
+    });
   }
 
   return enhanceSingleEndpoint(utils);
@@ -843,6 +843,27 @@ export type ExtractMutationInput<TEndpoint> = TEndpoint extends {
   : never;
 
 /**
+ * Extract invalidation ref functions from an ORPC-compatible record
+ *
+ * Mirrors `ExtractKeys` but returns `InvalidationRef` instead of `DataTag<QueryKey, ...>`.
+ * This gives `invalidations.X()` the same per-endpoint input signature as `keys.X()`.
+ *
+ * @example
+ * ```typescript
+ * // invalidations.trustKeyringStatus()  → same input signature as keys.trustKeyringStatus()
+ * // invalidations.trustKeyringStatus({ input: { ... } })  → strongly typed
+ * ```
+ */
+export type ExtractInvalidations<TRecord extends Record<string, unknown>> = {
+  [K in keyof TRecord]: TRecord[K] extends {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    call: Client<any, infer TInput, any, any>;
+  }
+    ? (...args: MaybeOptionalOptions<{ input?: TInput; queryKey?: QueryKey }>) => InvalidationRef
+    : never;
+};
+
+/**
  * Configuration for cache invalidation - definition format
  *
  * Maps each mutation endpoint to a function that returns the query keys to invalidate.
@@ -852,7 +873,8 @@ export type InvalidationConfig<TRecord extends Record<string, unknown>> = {
   [K in keyof TRecord]?: (context: {
     input: ExtractMutationInput<TRecord[K]>;
     keys: ExtractKeys<TRecord>;
-  }) => QueryKey[];
+    invalidations: ExtractInvalidations<TRecord>;
+  }) => (QueryKey | InvalidationRef)[];
 };
 
 /**
@@ -860,16 +882,18 @@ export type InvalidationConfig<TRecord extends Record<string, unknown>> = {
  *
  * After wrapping with defineInvalidations, each function only needs the input parameter.
  * The keys are automatically bound. Only includes the keys that were actually defined.
+ *
+ * When the config function uses `invalidations.X()` (graph mode), the system
+ * automatically resolves transitive dependencies with cycle detection.
  */
 export type CallableInvalidationConfig<
   TRecord extends Record<string, unknown>,
   TConfig extends InvalidationConfig<TRecord>,
 > = {
-  [K in keyof TConfig as TConfig[K] extends undefined ? never : K]: TConfig[K] extends (context: {
-    input: infer I;
-    keys: infer Keys;
-  }) => QueryKey[]
-    ? (input: I) => QueryKey[]
+  [K in keyof TConfig as TConfig[K] extends undefined ? never : K]: TConfig[K] extends (...args: unknown[]) => unknown
+    ? TConfig[K] extends (context: { input: infer I }) => unknown
+      ? (input: I) => QueryKey[]
+      : (input: never) => QueryKey[]
     : never;
 };
 
@@ -894,35 +918,43 @@ export type CallableInvalidationConfig<
  * })
  * ```
  *
- * 2. **Cross-domain invalidation** - Import and call other domain's invalidation configs:
+ * 2. **Graph-based invalidation (cascading)** - Use `invalidations.X()` to create
+ *    automatic transitive dependencies with cycle detection:
  * ```typescript
- * import { authInvalidations } from '@/domains/auth/invalidations'
- * import { userInvalidations } from '@/domains/user/invalidations'
-import MaybeOptionalOptions from '@tanstack/react-query';
-import type { MaybeOptionalOptions from '@orpc/tanstack-query';
- *
- * const organizationInvalidations = defineInvalidations(organizationEndpoints, {
- *   // When creating an org, invalidate user's organization list from auth domain
- *   create: ({ input, keys }) => [
- *     keys.list(),  // Same domain - use keys
- *     authInvalidations.session({}), // Cross-domain - call directly with input (no spread)
+ * const meshInvalidations = defineInvalidations(meshEndpoints, {
+ *   trustKeyringRotate: ({ invalidations, keys }) => [
+ *     invalidations.trustKeyringStatus(),    // ← cascading ref
+ *     invalidations.trustKeyringSecrets(),   // ← cascading ref
+ *     keys.trustKeyringConvergenceStatus(),  // ← direct key (no cascade)
  *   ],
- *
- *   // When removing a member, invalidate both org and user domains
- *   removeMember: ({ input, keys }) => [
- *     keys.listMembers({ input: { organizationId: input.organizationId } }),
- *     userInvalidations.findById({ id: input.memberId }), // Cross-domain - direct call
+ *   // Mutations using keys referencing the same node are automatically followed
+ *   regenerateNodeConfigSecret: ({ keys }) => [
+ *     keys.getNodeConfig(),
+ *     keys.trustKeyringStatus(),  // ← this creates an edge: trustKeyringStatus → regenerateNodeConfigSecret
  *   ],
  * })
  * ```
  *
- * 3. **Manual query key invalidation** - Use raw query keys when needed:
+ * 3. **Cross-domain invalidation** - Import and call other domain's invalidation configs:
+ * ```typescript
+ * import { authInvalidations } from '@/domains/auth/invalidations'
+ * import { userInvalidations } from '@/domains/user/invalidations'
+ *
+ * const organizationInvalidations = defineInvalidations(organizationEndpoints, {
+ *   create: ({ input, keys }) => [
+ *     keys.list(),
+ *     authInvalidations.session({}),
+ *   ],
+ * })
+ * ```
+ *
+ * 4. **Manual query key invalidation** - Use raw query keys when needed:
  * ```typescript
  * const invitationInvalidations = defineInvalidations(invitationEndpoints, {
  *   accept: ({ input, keys }) => [
  *     keys.accept(),
- *     ['organization'], // Invalidate all organization queries
- *     ['user', input.userId], // Invalidate specific user
+ *     ['organization'],
+ *     ['user', input.userId],
  *   ],
  * })
  * ```
@@ -934,20 +966,10 @@ import type { MaybeOptionalOptions from '@orpc/tanstack-query';
  * export function useSignIn() {
  *   return useMutation(
  *     authEndpoints.signIn.mutationOptions({
- *       onSuccess: enhancedAuth.signIn.withInvalidationOnSuccess((data) => {
- *         toast.success('Signed in!')
- *       })
+ *       onSuccess: enhancedAuth.signIn.withInvalidationOnSuccess()
  *     })
  *   )
  * }
- * ```
- *
- * **Direct usage (for cross-domain invalidations):**
- * ```typescript
- * // Get keys to invalidate
- * const keysToInvalidate = authInvalidations.signIn(inputData)
- *
- * const allKeys = [keys.local(), authInvalidations.session({})]
  * ```
  */
 export function defineInvalidations<
@@ -958,14 +980,93 @@ export function defineInvalidations<
   config: TConfig,
 ): CallableInvalidationConfig<TRecord, TConfig> {
   const keys = getKeysRetrieval(record);
+
+  // ─── Detect graph mode: check if any config function uses `invalidations` ──
+  const hasGraphRefs = Object.values(config).some(
+    (fn): fn is NonNullable<typeof fn> =>
+      typeof fn === "function" && fn.toString().includes("invalidations"),
+  );
+
+  // ─── Build reference graph (graph mode only) ─────────────────────────
+  let refGraph: Record<string, Set<string>> | undefined;
+  if (hasGraphRefs) {
+    refGraph = {};
+
+    for (const mutationName in config) {
+      const fn = config[mutationName];
+      if (typeof fn !== "function") continue;
+
+      const refDetector = buildInvalidationProxy<TRecord>((name: string) => {
+        (refGraph![name] ??= new Set()).add(mutationName);
+      });
+
+      try {
+        fn({
+          invalidations: refDetector,
+          keys: buildKeysProxy() as unknown as ExtractKeys<TRecord>,
+          input: buildTruthyInputProxy() as never,
+        });
+      } catch {
+        // Dry-run failures → partial graph is still correct, just less aggressive
+      }
+    }
+  }
+
+  // ─── Create callable functions ────────────────────────────────────────
   const callableConfig: Record<string, unknown> = {};
 
   for (const key in config) {
     const invalidationFn = config[key];
-    if (invalidationFn) {
-      // Bind keys to the invalidation function so it only needs input
-      callableConfig[key] = (input: unknown) =>
-        invalidationFn({ input: input as never, keys });
+    if (!invalidationFn) continue;
+
+    if (hasGraphRefs && refGraph) {
+      // ── Graph mode: capture refs with per-call input and resolve with BFS ──
+      callableConfig[key] = (runtimeInput: unknown) => {
+        const capturedRefs = new Map<string, InvalidationRef>();
+        const invalidations = buildInvalidationProxy<TRecord>((name: string, refInput?: unknown) => {
+          const ref = invalidationRef(name, refInput);
+          capturedRefs.set(refVisitKey(name, refInput), ref);
+        });
+
+        const items = invalidationFn({
+          invalidations,
+          keys,
+          input: runtimeInput as never,
+        });
+
+        const directKeys: QueryKey[] = [];
+        for (const item of items) {
+          if (isInvalidationRef(item)) {
+            capturedRefs.set(refVisitKey(item.name, item.input), item);
+          } else {
+            directKeys.push(item as QueryKey);
+          }
+        }
+
+        const resolvedKeys = resolveLinkedInvalidations(
+          [...capturedRefs.values()],
+          refGraph,
+          keys,
+          config as unknown as Record<keyof TRecord, (ctx: {
+            input: unknown;
+            keys: ExtractKeys<TRecord>;
+            invalidations: ExtractInvalidations<TRecord>;
+          }) => (QueryKey | InvalidationRef)[]>,
+          runtimeInput,
+        );
+
+        return [...directKeys, ...resolvedKeys];
+      };
+    } else {
+      // ── Standard mode (backward compatible) ──
+      callableConfig[key] = (input: unknown) => {
+        const dummyInvalidations = buildInvalidationProxy<TRecord>(() => {});
+        return invalidationFn({
+          input: input as never,
+          keys,
+          invalidations: dummyInvalidations,
+        }) as unknown as QueryKey[];
+      };
     }
   }
 
@@ -1078,10 +1179,10 @@ export function wrapWithInvalidations<
     const rawInvalidationFn = (invalidations as Record<string, unknown>)[endpointName];
 
     if (rawInvalidationFn && typeof rawInvalidationFn === 'function') {
-      // Check if this is already a callable (1 param) or raw config (expects { input, keys })
-      // We check the function's toString to see if it destructures the first parameter
+      // Check if this is already a callable (1 param) or raw config (expects an object context)
+      // A raw config destructures the first parameter (e.g., `({ input, keys })` or `({ invalidations, keys })`)
       const fnString = rawInvalidationFn.toString();
-      const isRawConfig = fnString.includes('input') && fnString.includes('keys') && (/\{\s*(input|keys)/.exec(fnString));
+      const isRawConfig = /^\s*\(\s*\{/.test(fnString.split('=>')[0]!);
       
       // Create unified invalidation function that takes just input
       const invalidationFn = isRawConfig
@@ -1149,4 +1250,220 @@ export function wrapWithInvalidations<
   }
 
   return enhanced as EnhancedEndpoints<TRecord, CallableInvalidationConfig<TRecord, TConfig>>;
+}
+
+// ============================================================================
+// INTERNAL: Graph-based invalidation helpers
+// ============================================================================
+
+/**
+ * Build a unique key for a ref visit, combining the endpoint name with its input.
+ *
+ * Two calls to the same endpoint with different inputs produce different keys,
+ * so they are treated as separate graph nodes during BFS resolution.
+ */
+function refVisitKey(name: string, input?: unknown): string {
+  return input !== undefined ? `${name}::${JSON.stringify(input)}` : `${name}::`;
+}
+
+/**
+ * Tagged object that represents an invalidation reference to another node.
+ *
+ * When `invalidations.X()` is called inside a `defineInvalidations` config,
+ * it returns an `InvalidationRef` that the system tracks to build a dependency graph.
+ * The graph is resolved at runtime with cycle detection.
+ *
+ * The optional `input` carries the per-call input payload so that the same endpoint
+ * invoked with different inputs is treated as a distinct graph node.
+ */
+export type InvalidationRef = {
+  readonly __tag: "invalidation-ref";
+  readonly name: string;
+  readonly input?: unknown;
+};
+
+/**
+ * Type guard to check if a value is an InvalidationRef
+ */
+export function isInvalidationRef(value: unknown): value is InvalidationRef {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "__tag" in value &&
+    (value as { __tag: string }).__tag === "invalidation-ref"
+  );
+}
+
+/**
+ * Create an invalidation reference to a named node with an optional input.
+ */
+function invalidationRef(name: string, input?: unknown): InvalidationRef {
+  return { __tag: "invalidation-ref", name, input };
+}
+
+/**
+ * Build an invalidation ref proxy from the record keys.
+ *
+ * Returns `ExtractInvalidations<TRecord>` so that `invalidations.X()` has
+ * the same strongly-typed input signature as `keys.X()`.
+ * Captures the call arguments as the ref's `input` for per-input dedup.
+ */
+function buildInvalidationProxy<TRecord extends Record<string, unknown>>(
+  onRef: (name: string, input?: unknown) => void,
+): ExtractInvalidations<TRecord> {
+  return new Proxy<ExtractInvalidations<TRecord>>(
+    {} as ExtractInvalidations<TRecord>,
+    {
+      get: (_target, name: string) => (...args: unknown[]) => {
+        const options = args[0] as { input?: unknown } | undefined;
+        const refInput = options?.input;
+        onRef(name, refInput);
+        return invalidationRef(name, refInput);
+      },
+    },
+  );
+}
+
+/**
+ * Build a keys proxy that returns sentinel values (for dry-run).
+ */
+function buildKeysProxy(): Record<string, (...args: unknown[]) => QueryKey> {
+  return new Proxy<Record<string, (...args: unknown[]) => QueryKey>>(
+    {} as Record<string, (...args: unknown[]) => QueryKey>,
+    {
+      get: () => () => ["__dry_run__"],
+    },
+  );
+}
+
+/**
+ * Build an input proxy that returns truthy for any property access.
+ */
+function buildTruthyInputProxy(): Record<string, unknown> {
+  return new Proxy<Record<string, unknown>>(
+    {} as Record<string, unknown>,
+    {
+      get: () => true,
+      has: () => true,
+    },
+  );
+}
+
+/**
+ * Resolve linked invalidations via BFS graph walk with input-aware cycle detection.
+ *
+ * For each ref (endpoint name + per-call input):
+ * 1. Resolve to its query key using the ref's input
+ * 2. Find all mutations that reference this endpoint via `invalidations.X()`
+ * 3. Call those mutations and collect new refs (with their own inputs)
+ * 4. Recurse with deduplication via a visited Set keyed on `{name}::{serializedInput}`
+ *
+ * This ensures:
+ * - Same endpoint + same input → skipped (precise dedup)
+ * - Same endpoint + different input → processed separately (distinct query key)
+ * - A → B → A (same input) → cycle halted because A+input is already visited
+ * - A → B → A (different input) → processed because it's a fresh (A, input) pair
+ */
+function resolveLinkedInvalidations<
+  TRecord extends Record<string, unknown>,
+>(
+  refs: InvalidationRef[],
+  refGraph: Record<string, Set<string>>,
+  keys: ExtractKeys<TRecord>,
+  config: Record<keyof TRecord, (ctx: {
+    input: unknown;
+    keys: ExtractKeys<TRecord>;
+    invalidations: ExtractInvalidations<TRecord>;
+  }) => (QueryKey | InvalidationRef)[]>,
+  originalInput: unknown,
+): QueryKey[] {
+  const visitedRefs = new Set<string>();
+  const resolvedKeys: QueryKey[] = [];
+  const seenKeys = new Set<string>(); // Serialized key dedup
+  const queue: { name: string; input?: unknown }[] = refs.map((r) => ({
+    name: r.name,
+    input: r.input,
+  }));
+
+  while (queue.length > 0) {
+    const entry = queue.shift();
+    if (!entry) break;
+    const { name: nodeName, input: refInput } = entry;
+    const visitKey = refVisitKey(nodeName, refInput);
+    if (visitedRefs.has(visitKey)) continue;
+    visitedRefs.add(visitKey);
+
+    // ── Resolve node with its per-call input ──
+    const keyFn = (keys as Record<string, unknown>)[nodeName];
+    if (typeof keyFn === "function") {
+      const resolvedKey = refInput !== undefined
+        ? (keyFn as (...args: unknown[]) => QueryKey)({ input: refInput })
+        : (keyFn as () => QueryKey)();
+      const keyStr = JSON.stringify(resolvedKey);
+      if (!seenKeys.has(keyStr)) {
+        seenKeys.add(keyStr);
+        resolvedKeys.push(resolvedKey);
+      }
+    }
+
+    // ── Find all mutations that reference this endpoint via invalidations.X() ──
+    const dependantMutations = refGraph[nodeName];
+    if (!dependantMutations || dependantMutations.size === 0) continue;
+
+    for (const mutName of dependantMutations) {
+      const mutVisitKey = refVisitKey(mutName, originalInput);
+      if (visitedRefs.has(mutVisitKey)) continue;
+
+      const mutFn = config[mutName];
+      if (typeof mutFn !== "function") continue;
+
+      // Call the mutation's invalidation function with a proxy that captures
+      // per-call inputs
+      const capturedRefs = new Array<InvalidationRef>();
+
+      const mutInvalidations = buildInvalidationProxy<TRecord>((name: string, callInput?: unknown) => {
+        const ref = invalidationRef(name, callInput);
+        capturedRefs.push(ref);
+      });
+
+      let mutItems: (QueryKey | InvalidationRef)[];
+      try {
+        mutItems = mutFn({
+          invalidations: mutInvalidations,
+          keys,
+          input: originalInput,
+        });
+      } catch {
+        continue; // Skip this mutation if it fails
+      }
+
+      // Process mutation's items: add direct keys, enqueue new refs
+      for (const item of mutItems) {
+        if (isInvalidationRef(item)) {
+          const itemVisitKey = refVisitKey(item.name, item.input);
+          // Only push if this (name, input) pair hasn't been visited or queued
+          if (!visitedRefs.has(itemVisitKey)) {
+            queue.push({ name: item.name, input: item.input });
+          }
+        } else {
+          const key = item;
+          const keyStr = JSON.stringify(key);
+          if (!seenKeys.has(keyStr)) {
+            seenKeys.add(keyStr);
+            resolvedKeys.push(key);
+          }
+        }
+      }
+
+      // Enqueue newly discovered refs from proxy captures
+      for (const ref of capturedRefs) {
+        const refVisitKey_ = refVisitKey(ref.name, ref.input);
+        if (!visitedRefs.has(refVisitKey_)) {
+          queue.push({ name: ref.name, input: ref.input });
+        }
+      }
+    }
+  }
+
+  return resolvedKeys;
 }

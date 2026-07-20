@@ -2,7 +2,12 @@
 # API nodes that form a 6-node cluster.
 #
 # This file uses `include` to pull in the regular dev compose (api-dev,
-# web-dev, doc, load-balancer, dev DB, …) unchanged. We then:
+# web-dev, doc, load-balancer, …) unchanged. Unlike single-node dev mode
+# (where Postgres is auto-provisioned on demand via dockerode), the mesh-6
+# setup defines a shared Postgres service here because all 6 nodes must
+# connect to the **same** database.
+#
+# We then:
 #
 #   1. Override the `api-dev` env to make it the **first** node of the
 #      cluster (MESH_NODE_ID_NODE_1) and point the bootstrap peers at
@@ -89,7 +94,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://postgres:postgres@api-db-dev:5432/${DB_DATABASE:-nestjs_api}
+      - SETUP_DATABASE_URL=postgresql://postgres:postgres@api-db-dev:5432/${DB_DATABASE:-nestjs_api}
       - API_PORT=3301
       - LOG_LEVEL=debug
       - DOCKER_HOST=unix:///var/run/docker.sock
@@ -148,7 +153,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://postgres:postgres@api-db-dev:5432/${DB_DATABASE:-nestjs_api}
+      - SETUP_DATABASE_URL=postgresql://postgres:postgres@api-db-dev:5432/${DB_DATABASE:-nestjs_api}
       - API_PORT=3302
       - LOG_LEVEL=debug
       - DOCKER_HOST=unix:///var/run/docker.sock
@@ -203,7 +208,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://postgres:postgres@api-db-dev:5432/${DB_DATABASE:-nestjs_api}
+      - SETUP_DATABASE_URL=postgresql://postgres:postgres@api-db-dev:5432/${DB_DATABASE:-nestjs_api}
       - API_PORT=3303
       - LOG_LEVEL=debug
       - DOCKER_HOST=unix:///var/run/docker.sock
@@ -258,7 +263,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://postgres:postgres@api-db-dev:5432/${DB_DATABASE:-nestjs_api}
+      - SETUP_DATABASE_URL=postgresql://postgres:postgres@api-db-dev:5432/${DB_DATABASE:-nestjs_api}
       - API_PORT=3304
       - LOG_LEVEL=debug
       - DOCKER_HOST=unix:///var/run/docker.sock
@@ -313,7 +318,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://postgres:postgres@api-db-dev:5432/${DB_DATABASE:-nestjs_api}
+      - SETUP_DATABASE_URL=postgresql://postgres:postgres@api-db-dev:5432/${DB_DATABASE:-nestjs_api}
       - API_PORT=3305
       - LOG_LEVEL=debug
       - DOCKER_HOST=unix:///var/run/docker.sock
@@ -352,9 +357,37 @@ services:
           - mesh-node-6
 
 # ─────────────────────────────────────────────────────────────────────
+# Shared Postgres — all 6 mesh nodes connect to the same database.
+# The single-node dev compose no longer includes this; each node
+# auto-provisions its own Postgres via dockerode when SETUP_AUTO=true
+# without SETUP_DATABASE_URL. Mesh nodes MUST share a DB though, so we define
+# it here with the explicit SETUP_DATABASE_URL for all nodes.
+# ─────────────────────────────────────────────────────────────────────
+  api-db-dev:
+    image: postgres:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-db-dev
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_DATABASE:-nestjs_api}
+    ports:
+      - "127.0.0.1:5437:5432"
+    volumes:
+      - api_db_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks:
+      app_network_dev: {}
+
+# ─────────────────────────────────────────────────────────────────────
 # Per-node uploads volumes (one per node, named so they don't collide)
 # ─────────────────────────────────────────────────────────────────────
 volumes:
+  api_db_data_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_db_data_dev
   api_uploads_mesh_dev_1:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_mesh_dev_1
   api_uploads_mesh_dev_2:

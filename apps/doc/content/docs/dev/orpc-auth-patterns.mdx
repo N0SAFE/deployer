@@ -1,0 +1,181 @@
+---
+title: ORPC Auth Patterns — Public vs Protected Routes
+description: Auth is opt-in via middleware. Public routes use no middleware. Protected routes use createAuthMiddleware() + requireAuth().
+order: 5
+---
+
+# ORPC Auth Patterns — Public vs Protected Routes
+
+Auth is no longer global. The `ORPCGlobalContext` only has `request`. Routes that need auth explicitly opt in via `.use()`.
+
+---
+
+## Pattern 1: Public Route (No Auth)
+
+Used for setup wizard, health checks, and any endpoint that should be accessible without authentication.
+
+```typescript
+import { Controller } from '@nestjs/common';
+import { Implement, implement } from '@orpc/nest';
+import { setupContract } from '@repo/api-contracts';
+import { InitializationService } from '@/core/modules/setup/services/initialization.service';
+
+@Controller()
+export class SetupController {
+  constructor(
+    private readonly initializationService: InitializationService,
+  ) {}
+
+  @Implement(setupContract.getState)
+  getState() {
+    return implement(setupContract.getState)
+      // No .use() needed — auth is not required
+      .handler(() => this.initializationService.getSetupState());
+  }
+}
+```
+
+**Context available**: `{ request }` only. No `auth` in the handler.
+
+---
+
+## Pattern 2: Protected Route (Auth Required)
+
+Used for any endpoint that needs a logged-in user.
+
+```typescript
+import { Controller } from '@nestjs/common';
+import { Implement, implement } from '@orpc/nest';
+import { userContract } from '@repo/api-contracts';
+import { createAuthMiddleware } from '@/core/modules/auth/orpc/middlewares';
+import { requireAuth } from '@/core/modules/auth/orpc/middlewares';
+import { AuthCoreService } from '@/core/modules/auth/services/auth-core.service';
+import { UserService } from './user.service';
+
+@Controller()
+export class UserController {
+  private readonly authMiddleware;
+
+  constructor(
+    authCoreService: AuthCoreService,
+    private readonly userService: UserService,
+  ) {
+    // Create auth middleware from the BetterAuth instance
+    // This populates context.auth from the current request's session
+    this.authMiddleware = createAuthMiddleware(authCoreService.instance);
+  }
+
+  @Implement(userContract.getProfile)
+  getProfile() {
+    return implement(userContract.getProfile)
+      .use(this.authMiddleware)      // Step 1: populate context.auth from session
+      .use(requireAuth())            // Step 2: throw UNAUTHORIZED if no session
+      .handler(({ context }) => {
+        // context.auth is now guaranteed (narrowed to ORPCAuthContext<true>)
+        // context.auth.session and context.auth.user are non-null
+        const userId = context.auth.user.id;
+        return this.userService.getProfile(userId);
+      });
+  }
+}
+```
+
+**Context available**: `{ request, auth }` — `auth.session` and `auth.user` are guaranteed non-null after `requireAuth()`.
+
+---
+
+## Pattern 3: Protected + Role Check
+
+Used for admin-only endpoints.
+
+```typescript
+import { requireAuth, requirePlatformRole } from '@/core/modules/auth/orpc/middlewares';
+
+@Implement(adminContract.listUsers)
+listUsers() {
+  return implement(adminContract.listUsers)
+    .use(this.authMiddleware)              // populate auth
+    .use(requireAuth())                    // must be logged in
+    .use(requirePlatformRole(['admin']))   // must be admin
+    .handler(async ({ context }) => {
+      return this.adminService.listUsers();
+    });
+}
+```
+
+---
+
+## Pattern 4: Protected + Organization Check
+
+Used for organization-scoped endpoints.
+
+```typescript
+// From authCoreService.middleware.org.*
+const orgMiddleware = authCoreService.middleware.org;
+
+@Implement(orgContract.updateMember)
+updateMember() {
+  return implement(orgContract.updateMember)
+    .use(this.authMiddleware)
+    .use(requireAuth())
+    .use(orgMiddleware.isMemberOf())        // must be org member
+    .use(orgMiddleware.hasOrganizationRole(['owner', 'admin']))  // must be owner/admin
+    .handler(({ context, input }) => {
+      const orgId = context.auth.user.organizationId;
+      return this.orgService.updateMember(orgId, input);
+    });
+}
+```
+
+---
+
+## Pattern 5: Sub-App Setup Wizard (No Auth)
+
+The setup wizard sub-app uses NO auth middleware — endpoints are public.
+
+```typescript
+// In sub-apps/setup-wizard/orpc-sub-app-controller.ts
+import { Controller } from '@nestjs/common';
+import { Implement, implement } from '@orpc/nest';
+import { setupContract } from '@repo/api-contracts';
+
+@Controller()
+export class OrpcSubAppController {
+  @Implement(setupContract.getState)
+  getState() {
+    return implement(setupContract.getState)
+      // No auth at all — setup endpoints are publicly accessible
+      .handler(() => this.initializationService.getSetupState());
+  }
+}
+```
+
+---
+
+## Middleware Chain Order
+
+```
+implement(contract)
+  .use(createAuthMiddleware(auth))      // 1. Populate auth from session
+  .use(requireAuth())                   // 2. Verify authenticated
+  .use(requirePlatformRole(['admin']))  // 3. Verify role
+  .handler(fn)                          // 4. Execute handler
+```
+
+Each middleware can:
+- **Pass through**: `return next({ context })`
+- **Augment context**: `return next({ context: { ...context, auth } })`
+- **Throw**: `throw new ORPCError('UNAUTHORIZED', ...)`
+
+---
+
+## Available Middleware Functions
+
+| Function | Source | Context Input | Effect |
+|----------|--------|--------------|--------|
+| `createAuthMiddleware(auth)` | `orpc/middlewares.ts` | `{ request }` | Populates `context.auth` from session |
+| `requireAuth()` | `orpc/middlewares.ts` | `ORPCContextWithAuthOnly` | Throws `UNAUTHORIZED` if no session |
+| `requireMesh()` | `orpc/middlewares.ts` | `ORPCContextWithAuth` | Injects `context.mesh` |
+| `requirePlatformRole(roles)` | `orpc/middlewares.ts` | `ORPCContextWithAuthOnly<true>` | Throws `FORBIDDEN` if wrong role |
+| `authCoreService.middleware.admin.*` | `services/auth-core.service.ts` | `ORPCContextWithAuthOnly<true>` | Admin permission checks |
+| `authCoreService.middleware.org.*` | `services/auth-core.service.ts` | `ORPCContextWithAuthOnly<true>` | Org membership/role checks |

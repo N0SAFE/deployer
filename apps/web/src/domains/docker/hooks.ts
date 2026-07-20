@@ -69,7 +69,7 @@ type DockerContainerGroupedListContractInput = {
   query?: Partial<DockerContainerGroupedListQueryInput>
 }
 
-export function useDockerContainerList(input?: DockerContainerListContractInput, options?: { enabled?: boolean }) {
+export function useDockerContainerList(input?: DockerContainerListContractInput & { projectId?: string }, options?: { enabled?: boolean }) {
   const query = input?.query
 
   return useQuery(
@@ -80,7 +80,7 @@ export function useDockerContainerList(input?: DockerContainerListContractInput,
           offset: query?.offset ?? 0,
           ...(query?.sortBy ? { sortBy: query.sortBy } : {}),
           ...(query?.sortDirection ? { sortDirection: query.sortDirection } : {}),
-          ...(query?.filter ? { filter: query.filter } : {}),
+          ...(query?.filter ? { filter: { ...query.filter, ...(input?.projectId ? { projectId: { eq: input.projectId } } : {}) } } : {}),
         },
       },
       enabled: options?.enabled ?? true,
@@ -90,7 +90,7 @@ export function useDockerContainerList(input?: DockerContainerListContractInput,
 }
 
 export function useDockerContainerGroupedList(
-  input?: DockerContainerGroupedListContractInput,
+  input?: DockerContainerGroupedListContractInput & { projectId?: string },
   options?: { enabled?: boolean },
 ) {
   const query = input?.query
@@ -128,13 +128,14 @@ export function useDockerContainerLinkedList(input?: LinkedContainerQueryInput) 
   )
 }
 
-export function useDockerImageList(input?: QueryInput) {
+export function useDockerImageList(input?: QueryInput & { projectId?: string }) {
   return useQuery(
     dockerEndpoints.images.list.queryOptions({
       input: {
         query: {
           limit: input?.query?.limit ?? 100,
           offset: input?.query?.offset ?? 0,
+          ...(input?.projectId ? { filter: { projectId: { eq: input.projectId } } } : {}),
         },
       },
       staleTime: 0,

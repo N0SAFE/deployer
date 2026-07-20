@@ -1,4 +1,4 @@
-import { Controller } from "@nestjs/common";
+import { Controller, Logger } from "@nestjs/common";
 import { Implement, implement } from "@orpc/nest";
 import { ORPCError } from "@orpc/server";
 import { setupContract } from "@repo/api-contracts";
@@ -6,12 +6,15 @@ import { publicAccess } from "@/core/modules/auth/orpc/middlewares";
 import { Pool } from "pg";
 import { InitializationService } from "@/core/modules/setup/services/initialization.service";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
+import { NodeConfigRepository } from "@/core/modules/setup/repositories/node-config.repository";
 
 @Controller()
 export class SetupController {
+    private readonly logger = new Logger(SetupController.name);
     constructor(
         private readonly initializationService: InitializationService,
         private readonly reachabilityService: ReachabilityService,
+        private readonly nodeConfigRepository: NodeConfigRepository,
     ) {}
 
     // ─── State ────────────────────────────────────────────────────────────────
@@ -255,6 +258,7 @@ export class SetupController {
         return implement(setupContract.triggerInitialize)
             .use(publicAccess())
             .handler(({ input }) => {
+                // Credentials are stored inside initializationService.triggerInitialize()
                 const result = this.initializationService.triggerInitialize(input);
                 return { status: 201 as const, headers: {}, body: result };
             });
@@ -273,17 +277,62 @@ export class SetupController {
             .use(publicAccess())
             .handler(() => this.initializationService.getInitializeStream());
     }
+
+    // ─── Post-setup hints (ORPC) ────────────────────────────────────────────
+
+    /**
+     * List pending post-setup hint IDs.
+     * Called by PostSetupHints component on mount.
+     */
+    @Implement(setupContract.listPostSetupHints)
+    listPostSetupHints() {
+        return implement(setupContract.listPostSetupHints)
+            .use(publicAccess())
+            .handler(() => ({
+                hintIds: ["scanning" as const, "notifications" as const],
+            }));
+    }
+
+    /**
+     * Dismiss a post-setup hint. Persisted so the hint never appears again.
+     */
+    @Implement(setupContract.dismissPostSetupHint)
+    setupDismissPostSetupHint() {
+        return implement(setupContract.dismissPostSetupHint)
+            .use(publicAccess())
+            .handler(({ input }) => {
+                this.logger.log(`Hint dismissed: ${input.hintId}`);
+                const config = this.nodeConfigRepository.find();
+                if (!config) {
+                    throw new ORPCError("INTERNAL_SERVER_ERROR" as never, {
+                        message: "Cannot dismiss hint — node config not found",
+                    });
+                }
+                const flags = config.postSetupFlags ?? {};
+                this.nodeConfigRepository.upsert({
+                    nodeId: config.nodeId,
+                    strategy: config.strategy,
+                    setupState: config.setupState,
+                    deployerVersion: config.deployerVersion,
+                    databaseUrl: config.databaseUrl,
+                    configuredAt: config.configuredAt,
+                    meshUrlsSnapshot: config.meshUrlsSnapshot ?? [],
+                    meshSharedSecret: config.meshSharedSecret,
+                    meshSharedSecretUpdatedAt: config.meshSharedSecretUpdatedAt,
+                    peerServiceToken: config.peerServiceToken,
+                    peerServiceTokenExpiresAt: config.peerServiceTokenExpiresAt,
+                    upgradedAtVersion: config.upgradedAtVersion,
+                    postSetupFlags: { ...flags, [input.hintId]: "dismissed" },
+                    updatedAt: new Date().toISOString(),
+                });
+                return { status: 201 as const, headers: {}, body: { ok: true } };
+            });
+    }
 }
 
 /**
  * Best-effort extraction of a session token from a `Set-Cookie` header
- * returned by Better Auth. Better Auth typically sets one of:
- *   - `better-auth.session_token=<token>; ...`
- *   - `__Secure-better-auth.session_token=<token>; ...`
- *
- * Returns the raw `name=value` pair so the caller can forward it as
- * `Cookie` on subsequent requests if needed. Returns `null` if no
- * session cookie is present.
+ * returned by Better Auth.
  */
 function extractSessionCookie(setCookieHeader: string): string | null {
     if (!setCookieHeader) return null;

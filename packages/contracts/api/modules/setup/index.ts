@@ -12,13 +12,10 @@ import {
     setupRemoteAuthInputSchema,
     setupRemoteAuthResultSchema,
     nodeConfigStatusSchema,
+    listHintsResultSchema,
+    dismissHintInputSchema,
 } from "@repo/contracts-entities";
 import { standard } from "@repo/orpc-utils";
-
-// ─── Standard ops builders ────────────────────────────────────────────────────
-// Each endpoint uses the result schema as the "entity" for the standard builder.
-// The .create() / .list() method sets the correct HTTP verb, then we override
-// input/output with the procedure-specific schemas.
 
 const setupStateOps    = standard.zod(setupStateSnapshotSchema, "setupState");
 const setupNodeStatusOps = standard.zod(nodeConfigStatusSchema, "setupNodeStatus");
@@ -26,6 +23,7 @@ const setupProbeDbOps  = standard.zod(setupProbeDbResultSchema, "setupProbeDb");
 const setupProbeMeshOps = standard.zod(setupProbeMeshResultSchema, "setupProbeMesh");
 const setupRemoteAuthOps = standard.zod(setupRemoteAuthResultSchema, "setupRemoteAuth");
 const setupInitializeOps = standard.zod(setupInitializeLocalResultSchema, "setupInitialize");
+const setupListHintsOps = standard.zod(listHintsResultSchema, "setupListHints");
 
 export const setupContract = oc.tag("Setup").prefix("/setup").router({
     // ─── State ──────────────────────────────────────────────────────────────
@@ -104,5 +102,23 @@ export const setupContract = oc.tag("Setup").prefix("/setup").router({
         .list()
         .path("/stream")
         .output((b) => b.observable(setupStreamEventSchema))
+        .build(),
+
+    // ─── Post-setup hints ─────────────────────────────────────────────────
+
+    /** List pending post-setup hint IDs — shown to user after setup completes */
+    listPostSetupHints: setupListHintsOps
+        .list()
+        .path("/post-setup/hints")
+        .input((b) => b.body(z.object({}).optional()))
+        .output((b) => b.body(listHintsResultSchema))
+        .build(),
+
+    /** Dismiss a post-setup hint — marks it as completed in node_config */
+    dismissPostSetupHint: setupListHintsOps
+        .create()
+        .path("/post-setup/hints/dismiss")
+        .input((b) => b.body(dismissHintInputSchema))
+        .output((b) => b.body(z.object({ ok: z.boolean() })))
         .build(),
 });

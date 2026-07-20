@@ -1,19 +1,19 @@
-import type { TestingModule } from '@nestjs/testing';
-import { Test } from '@nestjs/testing';
-import { DatabaseService } from './database.service';
+import { BaseDatabaseService } from './database.service';
 
-describe('DatabaseService', () => {
-  let service: DatabaseService;
-
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [DatabaseService],
-    }).compile();
-
-    service = module.get<DatabaseService>(DatabaseService);
+describe('BaseDatabaseService', () => {
+  it('should be defined', () => {
+    const service = new BaseDatabaseService({
+      run: () => {},
+      execute: () => Promise.resolve(),
+    } as any);
+    expect(service).toBeDefined();
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  it('should report healthy when db methods work', () => {
+    const service = new BaseDatabaseService({
+      run: () => {},
+      execute: () => Promise.resolve(),
+    } as any);
+    expect(service.isHealthy()).toBe(true);
   });
 });

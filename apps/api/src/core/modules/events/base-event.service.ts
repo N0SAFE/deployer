@@ -279,7 +279,9 @@ export abstract class BaseEventService<
             const window =
               afterSequence != null
                 ? buffered.filter((r) => r.sequence > afterSequence)
-                : buffered.slice(-replayLimit);
+                : replayLimit > 0
+                  ? buffered.slice(-replayLimit)
+                  : [];
             for (const item of window) {
               subscriber.next(item.output as EventOutput<TContracts[K]>);
             }

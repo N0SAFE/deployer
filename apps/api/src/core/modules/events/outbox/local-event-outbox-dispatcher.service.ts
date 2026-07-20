@@ -19,7 +19,13 @@ export class LocalEventOutboxDispatcherService implements OnModuleInit, OnModule
 
     onModuleInit(): void {
         this.ticker = setInterval(() => {
-            void this.dispatchPending();
+            // Only dispatch if the database is initialized — the dispatcher
+            // may fire before BootstrapOrchestrator sets up the connection.
+            if (!this.databaseService.isInitialized) return;
+            this.dispatchPending().catch((err: unknown) => {
+                const message = err instanceof Error ? err.message : String(err);
+                this.logger.warn(`dispatchPending error (will retry): ${message}`);
+            });
         }, this.pollIntervalMs);
 
         if (this.ticker && typeof this.ticker.unref === "function") {

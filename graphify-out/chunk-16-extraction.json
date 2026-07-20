@@ -1,0 +1,1269 @@
+{
+  "nodes": [
+    {
+      "id": "docker-compose_yml_root_dev_entry",
+      "label": "Root Dev Environment Entrypoint",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker-compose.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_compose_docker-compose.dev_yml",
+      "label": "Dev Compose Stack Definition",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_compose_docker-compose.dev_override_yml",
+      "label": "Dev Compose Environment Override",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.dev.override.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_compose_docker-compose.prod_yml",
+      "label": "Prod Compose Stack Definition",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_compose_docker-compose.prod.override_yml",
+      "label": "Prod Compose Resource Override",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod.override.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_compose_docker-compose.prod-like_yml",
+      "label": "Prod-Like Compose Stack Definition",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod-like.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_compose_docker-compose.prod-like.override_yml",
+      "label": "Prod-Like Compose Depends-On Override",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod-like.override.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_compose_docker-compose.mesh-6.dev_yml",
+      "label": "Mesh 6-Node Dev Cluster Extension",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_compose_docker-compose.mesh-6.prod-like_yml",
+      "label": "Mesh 6-Node Prod Cluster Definition",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_compose_web_docker-compose.web.dev_yml",
+      "label": "Web Dev Service Definition",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/web/docker-compose.web.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_compose_web_docker-compose.web.prod-like_yml",
+      "label": "Web Prod-Like Service Definition",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/web/docker-compose.web.prod-like.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_compose_web_docker-compose.web.prod_yml",
+      "label": "Web Prod Service Definition",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/web/docker-compose.web.prod.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_compose_load-balancer_docker-compose.load-balancer.dev_yml",
+      "label": "Load Balancer Dev Service Definition",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_compose_load-balancer_docker-compose.load-balancer.prod-like_yml",
+      "label": "Load Balancer Prod-Like Service Definition",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.prod-like.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_compose_load-balancer_docker-compose.load-balancer.prod_yml",
+      "label": "Load Balancer Prod Service Definition",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.prod.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_compose_doc_docker-compose.doc.prod_yml",
+      "label": "Documentation Prod Service Definition",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/doc/docker-compose.doc.prod.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "web_dev_service",
+      "label": "Web Dev Service (Next.js HMR)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/web/docker-compose.web.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "web_prod_service",
+      "label": "Web Prod Service (Next.js)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/web/docker-compose.web.prod.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "lb_dev_service",
+      "label": "Load Balancer Dev Service (NestJS)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "lb_prod_service",
+      "label": "Load Balancer Prod Service (NestJS)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.prod.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "doc_prod_service",
+      "label": "Documentation Prod Service (Fumadocs)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/doc/docker-compose.doc.prod.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "mesh_dev_node_template",
+      "label": "Mesh Dev Node Template (api-mesh-dev-1..5)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "mesh_prod_node_template",
+      "label": "Mesh Prod Node Template (api-mesh-prod-1..6)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "api_db_mesh_prod",
+      "label": "Shared Postgres Database for Mesh Prod",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "web_mesh_prod_service",
+      "label": "Web Mesh Prod Service",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "compose_include_pattern",
+      "label": "Docker Compose Include Hierarchy Pattern",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker-compose.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "buildkit_cache_strategy",
+      "label": "BuildKit Inline Cache Strategy",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "mesh_ring_bootstrap_pattern",
+      "label": "Mesh Node Ring with Bootstrap Peers",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "service_healthcheck_pattern",
+      "label": "Service Health Check via wget Pattern",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dependency_chain_pattern",
+      "label": "Service Dependency Chain (lb → api → web)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.dev.override.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "app_network_dev",
+      "label": "App Network Dev (Bridge)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/web/docker-compose.web.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "app_network_prod",
+      "label": "App Network Prod (Bridge)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/web/docker-compose.web.prod.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "mesh_network_prod",
+      "label": "Mesh Network Prod (Bridge)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "shared_build_cache_volumes",
+      "label": "Shared Bun and Turbo Cache Volumes",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/web/docker-compose.web.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "per_node_uploads_volumes",
+      "label": "Per-Node Uploads Volumes Pattern",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "lb_routing_affinity",
+      "label": "Load Balancer Routing and Affinity Pattern",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.prod.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "dev_environment",
+      "label": "Development Environment",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "prod_environment",
+      "label": "Production Environment",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "prod_like_environment",
+      "label": "Production-Like Environment",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod-like.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "mesh_6_dev_environment",
+      "label": "Mesh 6-Node Dev Environment",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "mesh_6_prod_environment",
+      "label": "Mesh 6-Node Prod Environment",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "shared_postgres_mesh_pattern",
+      "label": "Shared Postgres Across Mesh Nodes Pattern",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "per_node_sqlite_pattern",
+      "label": "Per-Node SQLite Local State Pattern",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docker_socket_mount_pattern",
+      "label": "Docker Socket Mount Pattern (/var/run/docker.sock)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "env_var_override_pattern",
+      "label": "Environment Variable Override Pattern (${VAR:-fallback})",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.prod.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "resource_limit_pattern",
+      "label": "Docker Resource Limits Pattern (CPU/Memory)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod.override.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "mesh_shared_secret_pattern",
+      "label": "Mesh Stream Shared Secret Pattern",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "docker-compose_yml_root_dev_entry",
+      "target": "docker_compose_docker-compose.dev_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker-compose.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_docker-compose.dev_yml",
+      "target": "docker_compose_web_docker-compose.web.dev_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_docker-compose.dev_yml",
+      "target": "docker_compose_load-balancer_docker-compose.load-balancer.dev_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_docker-compose.dev_yml",
+      "target": "docker_compose_docker-compose.dev_override_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_docker-compose.prod_yml",
+      "target": "docker_compose_web_docker-compose.web.prod_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_docker-compose.prod_yml",
+      "target": "docker_compose_load-balancer_docker-compose.load-balancer.prod_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_docker-compose.prod_yml",
+      "target": "docker_compose_doc_docker-compose.doc.prod_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_docker-compose.prod-like_yml",
+      "target": "docker_compose_web_docker-compose.web.prod-like_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod-like.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_docker-compose.prod-like_yml",
+      "target": "docker_compose_load-balancer_docker-compose.load-balancer.prod-like_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod-like.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_docker-compose.prod-like_yml",
+      "target": "docker_compose_docker-compose.prod-like.override_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod-like.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_docker-compose.mesh-6.dev_yml",
+      "target": "docker_compose_docker-compose.dev_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_docker-compose.mesh-6.dev_yml",
+      "target": "mesh_dev_node_template",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_docker-compose.mesh-6.prod-like_yml",
+      "target": "api_db_mesh_prod",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_docker-compose.mesh-6.prod-like_yml",
+      "target": "mesh_prod_node_template",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_compose_docker-compose.mesh-6.prod-like_yml",
+      "target": "web_mesh_prod_service",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "web_dev_service",
+      "target": "docker_compose_web_docker-compose.web.dev_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/web/docker-compose.web.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "web_prod_service",
+      "target": "docker_compose_web_docker-compose.web.prod_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/web/docker-compose.web.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "lb_dev_service",
+      "target": "docker_compose_load-balancer_docker-compose.load-balancer.dev_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "lb_prod_service",
+      "target": "docker_compose_load-balancer_docker-compose.load-balancer.prod_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "doc_prod_service",
+      "target": "docker_compose_doc_docker-compose.doc.prod_yml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/doc/docker-compose.doc.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "compose_include_pattern",
+      "target": "docker-compose_yml_root_dev_entry",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker-compose.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dev_environment",
+      "target": "web_dev_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dev_environment",
+      "target": "lb_dev_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "prod_environment",
+      "target": "web_prod_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "prod_environment",
+      "target": "lb_prod_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "prod_environment",
+      "target": "doc_prod_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "prod_like_environment",
+      "target": "docker_compose_web_docker-compose.web.prod-like_yml",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod-like.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "prod_like_environment",
+      "target": "docker_compose_load-balancer_docker-compose.load-balancer.prod-like_yml",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod-like.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "web_dev_service",
+      "target": "web_prod_service",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/web/docker-compose.web.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "lb_dev_service",
+      "target": "lb_prod_service",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "mesh_dev_node_template",
+      "target": "mesh_prod_node_template",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "mesh_6_dev_environment",
+      "target": "mesh_6_prod_environment",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "mesh_ring_bootstrap_pattern",
+      "target": "mesh_dev_node_template",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "mesh_ring_bootstrap_pattern",
+      "target": "mesh_prod_node_template",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "shared_postgres_mesh_pattern",
+      "target": "api_db_mesh_prod",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "shared_postgres_mesh_pattern",
+      "target": "mesh_prod_node_template",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "per_node_sqlite_pattern",
+      "target": "mesh_dev_node_template",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "per_node_sqlite_pattern",
+      "target": "mesh_prod_node_template",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docker_socket_mount_pattern",
+      "target": "mesh_dev_node_template",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "service_healthcheck_pattern",
+      "target": "web_dev_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "service_healthcheck_pattern",
+      "target": "lb_dev_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dependency_chain_pattern",
+      "target": "dev_environment",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.dev.override.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "dependency_chain_pattern",
+      "target": "prod_like_environment",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod-like.override.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "app_network_dev",
+      "target": "web_dev_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/web/docker-compose.web.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "app_network_dev",
+      "target": "lb_dev_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "app_network_prod",
+      "target": "web_prod_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/web/docker-compose.web.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "app_network_prod",
+      "target": "lb_prod_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "mesh_network_prod",
+      "target": "mesh_prod_node_template",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "mesh_network_prod",
+      "target": "api_db_mesh_prod",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "mesh_network_prod",
+      "target": "web_mesh_prod_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "shared_build_cache_volumes",
+      "target": "web_dev_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/web/docker-compose.web.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "shared_build_cache_volumes",
+      "target": "web_prod_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/web/docker-compose.web.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "shared_build_cache_volumes",
+      "target": "doc_prod_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/doc/docker-compose.doc.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "shared_build_cache_volumes",
+      "target": "lb_dev_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "per_node_uploads_volumes",
+      "target": "mesh_dev_node_template",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "per_node_uploads_volumes",
+      "target": "mesh_prod_node_template",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "lb_routing_affinity",
+      "target": "lb_dev_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "lb_routing_affinity",
+      "target": "lb_prod_service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "env_var_override_pattern",
+      "target": "dev_environment",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "env_var_override_pattern",
+      "target": "prod_environment",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/load-balancer/docker-compose.load-balancer.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "resource_limit_pattern",
+      "target": "prod_environment",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod.override.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "buildkit_cache_strategy",
+      "target": "compose_include_pattern",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "mesh_shared_secret_pattern",
+      "target": "mesh_ring_bootstrap_pattern",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "mesh_dev_node_template",
+      "target": "docker_compose_docker-compose.dev_yml",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "compose_include_pattern",
+      "target": "docker_compose_docker-compose.dev_yml",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker-compose.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "compose_include_pattern",
+      "target": "docker_compose_docker-compose.prod_yml",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker-compose.yml",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "compose_include_pattern",
+      "target": "docker_compose_docker-compose.prod-like_yml",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker-compose.yml",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "dev_compose_stack_services",
+      "label": "Dev Compose Stack Services",
+      "nodes": ["web_dev_service", "lb_dev_service"],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.dev.yml"
+    },
+    {
+      "id": "prod_compose_stack_services",
+      "label": "Prod Compose Stack Services",
+      "nodes": ["web_prod_service", "lb_prod_service", "doc_prod_service"],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod.yml"
+    },
+    {
+      "id": "mesh_6_dev_cluster_services",
+      "label": "Mesh 6-Node Dev Cluster Services",
+      "nodes": ["mesh_dev_node_template", "mesh_6_dev_environment"],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml"
+    },
+    {
+      "id": "mesh_6_prod_cluster_services",
+      "label": "Mesh 6-Node Prod Cluster Services",
+      "nodes": ["mesh_prod_node_template", "api_db_mesh_prod", "web_mesh_prod_service", "mesh_6_prod_environment"],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.prod-like.yml"
+    },
+    {
+      "id": "mesh_shared_security_pattern",
+      "label": "Mesh Shared Security Configuration",
+      "nodes": ["mesh_shared_secret_pattern", "mesh_ring_bootstrap_pattern", "env_var_override_pattern"],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.mesh-6.dev.yml"
+    },
+    {
+      "id": "compose_file_hierarchy",
+      "label": "Docker Compose File Hierarchy (root → environment → service)",
+      "nodes": ["compose_include_pattern", "docker-compose_yml_root_dev_entry", "dev_environment", "prod_environment", "prod_like_environment"],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker-compose.yml"
+    },
+    {
+      "id": "prod_override_config",
+      "label": "Production Override Configuration",
+      "nodes": ["resource_limit_pattern", "docker_compose_docker-compose.prod.override_yml", "prod_environment"],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/docker-compose.prod.override.yml"
+    },
+    {
+      "id": "environment_variant_services",
+      "label": "Service Environment Variants (Dev ↔ Prod)",
+      "nodes": ["web_dev_service", "web_prod_service", "lb_dev_service", "lb_prod_service"],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docker/compose/web/docker-compose.web.dev.yml"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

@@ -109,15 +109,23 @@ const booleanEnv = (options: BooleanEnvOptions = {}) => {
 // Environment Variable Schemas by App
 // ============================================================================
 
-/**
- * API App (NestJS) Environment Variables
- * Used by apps/api
- */
 export const apiEnvSchema = zod
     .object({
-        // Database — optional: if omitted, the node config file (SQLite) is the source of truth.
-        // The API will start in "setup mode" until a DATABASE_URL is available from either source.
-        DATABASE_URL: zod.string().min(1).optional(),
+        // Database — NOT read from env at runtime. The database URL is resolved
+        // by the Phase 0 setup sub-app which reads SETUP_DATABASE_URL (if set) or
+        // auto-provisions Postgres via Docker. The resolved URL is persisted to
+        // the local SQLite node_config table and read from there at runtime.
+        // See SetupDevService for details.
+        //
+        // Structured DB env vars — used by Phase 0 setup when SETUP_AUTO=true.
+        // In production these are not needed (URL resolved via setup sub-app).
+        SETUP_DATABASE_URL: zod.string().optional(),
+        SETUP_AUTO: booleanEnv().default(false),
+        DB_HOST: zod.string().optional(),
+        DB_PORT: zod.string().optional(),
+        DB_USER: zod.string().optional(),
+        DB_PASSWORD: zod.string().optional(),
+        DB_DATABASE: zod.string().optional(),
 
         // API
         API_PORT: zod.coerce.number().int().min(1).max(65535).default(DEFAULT_API_PORT),
@@ -129,17 +137,15 @@ export const apiEnvSchema = zod
         APP_URL: zod.url().optional(), // Private Docker network URL
         LOAD_BALANCER_URL: zod.url().optional(),
 
-        // Authentication
-        AUTH_SECRET: zod.string().min(1, "AUTH_SECRET is required"),
-        BETTER_AUTH_SECRET: zod.string().min(1, "BETTER_AUTH_SECRET is required"),
+        // Authentication — resolved through mesh secret sharing at runtime.
+        // Optional in env so the container can start without them.
+        AUTH_SECRET: zod.string().optional(),
+        BETTER_AUTH_SECRET: zod.string().optional(),
         AUTH_BASE_DOMAIN: zod.string().optional(),
         DEV_AUTH_KEY: zod.string().optional(),
-        DEFAULT_ADMIN_EMAIL: zod.email().optional(), // Email of the default admin user (also used for master token impersonation)
-        DEFAULT_ADMIN_PASSWORD: zod.string().optional(), // Password for the default admin user (used for credential-based auth fallback)
+        DEFAULT_ADMIN_EMAIL: zod.email().optional(),
+        DEFAULT_ADMIN_PASSWORD: zod.string().optional(),
         TRUSTED_ORIGINS: zod.string().optional(),
-        // Optional: when undefined, auth factory auto-enables master token if
-        // DEV_AUTH_KEY and DEFAULT_ADMIN_EMAIL are both configured.
-        // Set explicitly to true/false to force behavior.
         ENABLE_MASTER_TOKEN: zod.coerce.boolean().optional(),
 
         BACKUP_PATH: zod.string().optional().default("/tmp/backups"),
@@ -147,14 +153,14 @@ export const apiEnvSchema = zod
 
         TRAEFIK_CONFIG_BASE_PATH: zod.string().optional().default("/app/traefik-configs"),
         TRAEFIK_BACKUP_PATH: zod.string().optional().default("/app/traefik-configs/backups"),
-        TRAEFIK_STARTUP_SYNC_ENABLED: zod.boolean().optional().default(true),
-        TRAEFIK_FAIL_ON_STARTUP_ERROR: zod.boolean().optional().default(false),
-        TRAEFIK_CLEANUP_ON_STARTUP: zod.boolean().optional().default(false),
+        TRAEFIK_STARTUP_SYNC_ENABLED: booleanEnv().optional().default(true),
+        TRAEFIK_FAIL_ON_STARTUP_ERROR: booleanEnv().optional().default(false),
+        TRAEFIK_CLEANUP_ON_STARTUP: booleanEnv().optional().default(false),
 
         // Database seeding & bootstrap
-        DISABLE_AUTO_SCAN: booleanEnv().optional().default(false),
-        DEV_AUTO_SETUP: booleanEnv().optional().default(false),
-        ENABLE_SEEDING: booleanEnv().optional().default(false),
+        // Using .default() which reads from process.env via expandVariables
+        DISABLE_AUTO_SCAN: booleanEnv().default(false),
+        ENABLE_SEEDING: booleanEnv().default(false),
         SKIP_MIGRATIONS: booleanEnv().optional().default(false),
 
         // Scanner runner shared container
@@ -187,18 +193,22 @@ export const apiEnvSchema = zod
         // Shared
         ...sharedEnvVars,
     })
-    .refine(
-        (data) => {
-            if (data.BETTER_AUTH_SECRET && data.BETTER_AUTH_SECRET !== data.AUTH_SECRET) {
-                return false;
-            }
-            return true;
-        },
-        {
-            message: "BETTER_AUTH_SECRET must match AUTH_SECRET when provided",
-            path: ["BETTER_AUTH_SECRET"],
-        },
-    );
+    .superRefine((data, ctx) => {
+        // Ensure BETTER_AUTH_SECRET matches AUTH_SECRET when both provided
+        if (data.BETTER_AUTH_SECRET && data.AUTH_SECRET && data.BETTER_AUTH_SECRET !== data.AUTH_SECRET) {
+            ctx.addIssue({
+                code: zod.ZodIssueCode.custom,
+                message: "BETTER_AUTH_SECRET must match AUTH_SECRET when provided",
+                path: ["BETTER_AUTH_SECRET"],
+            });
+        }
+
+        // SETUP_AUTO=true without SETUP_DATABASE_URL: Postgres is auto-provisioned
+        // on demand via PostgresContainerService (dockerode). No DB_HOST needed.
+        // SETUP_AUTO=true with SETUP_DATABASE_URL: use the URL directly, persist to SQLite.
+        // SETUP_AUTO=false (production): database URL is resolved by the setup sub-app
+        // from the local SQLite node_config — never from env at runtime.
+    });
 
 /**
  * Web App (Next.js) Environment Variables

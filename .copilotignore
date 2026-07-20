@@ -1,0 +1,22 @@
+# Projet .copilotignore - spécifique au monorepo deployer/v3
+node_modules/
+.turbo/
+dist/
+.next/
+*.tar.zst
+*.sst
+bun.lock
+graphify-out/
+tmp/
+.tmp/
+coverage/
+.build/
+.cache/
+*.tsbuildinfo
+*.map
+.git/
+apps/doc/.next/
+apps/web/.next/
+reference/
+out/
+c:\workspace\

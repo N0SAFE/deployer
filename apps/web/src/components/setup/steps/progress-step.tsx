@@ -1,11 +1,10 @@
 "use client"
 
-import { useMemo } from "react"
-import { Activity, CheckCircle2, XCircle } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Activity, CheckCircle2, Loader2, XCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 import type { SetupStreamEvent } from "@repo/contracts-entities"
 import { Button } from "@repo/ui/components/shadcn/button"
-import { AuthSignin } from "@/routes"
 import { ProgressTasks, buildTasksFromEvents } from "@/components/setup/progress-tasks"
 
 /**
@@ -21,6 +20,8 @@ export type ProgressStepContext = {
   /** Local admin user info (shown when provided). */
   username?: string
   email?: string
+  /** Local admin password for auto-login after setup completes */
+  password?: string
   /** Local database info (shown when provided). */
   dbMode?: "managed" | "existing"
   dbUrl?: string
@@ -112,12 +113,7 @@ export function ProgressStep({ events, context, onComplete, onError }: Props) {
           <ProgressTasks tasks={tasks} />
 
           {completedEvent ? (
-            <Button
-              className="w-full gap-2"
-              onClick={() => { router.push(AuthSignin({})) }}
-            >
-              Go to sign in
-            </Button>
+            <ContinueButton context={context} />
           ) : null}
           {errorEvent ? (
             <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4">
@@ -146,6 +142,73 @@ export function ProgressStep({ events, context, onComplete, onError }: Props) {
 function getHeading(context: ProgressStepContext): string {
   if (context.recovery) return "Setup in progress"
   return context.mode === "remote" ? "Joining the mesh cluster" : "Setting up your workspace"
+}
+
+/**
+ * Continue button shown after setup completes.
+ * For local mode: calls BetterAuth sign-in with the credentials from the form,
+ * then redirects to /. For remote mode: just redirects to /.
+ * Sets localStorage flags so PostSetupHints shows after redirect.
+ */
+function ContinueButton({ context }: { context: ProgressStepContext }) {
+  const router = useRouter()
+  const [loggingIn, setLoggingIn] = useState(false)
+  const [loginError, setLoginError] = useState<string | null>(null)
+
+  const handleContinue = useCallback(async () => {
+    // Set localStorage flag so PostSetupHints shows on the dashboard
+    try { localStorage.setItem("post-setup-complete", "1") } catch { /* noop */ }
+
+    if (context.mode === "remote") {
+      router.push("/")
+      return
+    }
+
+    if (!context.email || !context.password) {
+      router.push("/login")
+      return
+    }
+
+    setLoggingIn(true)
+    setLoginError(null)
+
+    try {
+      const res = await fetch("/api/auth/sign-in/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: context.email, password: context.password }),
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as Record<string, unknown>).message as string ?? "Sign in failed")
+      }
+
+      router.push("/")
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setLoginError(msg)
+      setLoggingIn(false)
+    }
+  }, [router, context.email, context.password, context.mode])
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Button className="w-full gap-2" onClick={handleContinue} disabled={loggingIn}>
+        {loggingIn ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Signing in…
+          </>
+        ) : (
+          "Continue to dashboard"
+        )}
+      </Button>
+      {loginError && (
+        <p className="text-xs text-destructive text-center">{loginError}</p>
+      )}
+    </div>
+  )
 }
 
 function getDescription(

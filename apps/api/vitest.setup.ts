@@ -4,7 +4,7 @@ import 'reflect-metadata';
 // Set up test environment variables BEFORE any other imports to ensure they're available
 // when modules are loaded and the env schema is validated
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/testdb';
+process.env.SETUP_DATABASE_URL = 'postgresql://test:test@localhost:5432/testdb';
 process.env.AUTH_SECRET = 'test-auth-secret-key-for-testing-only';
 process.env.BETTER_AUTH_SECRET = 'test-auth-secret-key-for-testing-only';
 process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3001';

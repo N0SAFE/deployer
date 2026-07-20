@@ -1,0 +1,230 @@
+---
+title: Startup v2 — Implementation Plan
+description: Complete, ordered implementation plan for replacing the v1 startup system with the v2 Sub-App Trigger Chain. 6 phases, 30+ new files, 29 deleted files, zero leftover code.
+order: 16
+---
+
+# Startup v2 — Implementation Plan
+
+## Overview
+
+Replace the entire v1 startup system (`CoreStartupService`, `StartupOrchestratorService`, all per-module `*StartupService`, `FeatureModuleLoader`, `FeatureModuleFactory`) with the v2 **Sub-App Trigger Chain** pattern.
+
+**Delete**: 29 old files
+**Modify**: 3 existing files  
+**Create**: ~30 new files
+**Keep**: 28 existing files (v2 foundation)
+
+---
+
+## Implementation Order (Topological)
+
+### Pre-phase: Move MeshVersionService
+Must happen first — it's imported by v2 code but lives in the v1 directory.
+
+| Step | Action | Files |
+|------|--------|-------|
+| P.1 | Move `MeshVersionService` to `core/modules/mesh/version/` | MOVE from `core/modules/startup/mesh-version.service.ts` to `core/modules/mesh/version/mesh-version.service.ts` |
+| P.2 | Update imports in `initialization.module.ts` | Change `../startup/mesh-version.service` → `../mesh/version/mesh-version.service` |
+| P.3 | Update imports in `remote-initialization.service.ts` | Same import path change |
+
+### Phase 0: Foundation Layer
+No dependencies on any other new code.
+
+| Step | File | Purpose |
+|------|------|---------|
+| 0.1 | `core/modules/triggers/trigger.ts` | `Trigger<T>` class with `fire()`, `waitFor()`, `resolved`, `value` |
+| 0.2 | `core/modules/triggers/trigger-registry.ts` | `TriggerRegistry` + all payload type interfaces |
+| 0.3 | `core/modules/triggers/triggers.module.ts` | `@Global()` module exporting `TriggerRegistry` |
+| 0.4 | `core/modules/sub-app-runner/sub-app.interface.ts` | `SubApp<T>`, `SubAppContext<T>` interfaces |
+| 0.5 | `core/modules/sub-app-runner/tokens.ts` | `SUB_APP_CONTEXT` symbol |
+| 0.6 | `core/modules/sub-app-runner/sub-app-context.module.ts` | `SubAppContextModule.forRoot()` dynamic module |
+
+### Phase 1: SubAppOrchestrator
+Depends on Phase 0.
+
+| Step | File | Purpose |
+|------|------|---------|
+| 1.1 | `core/modules/sub-app-orchestrator/sub-app-orchestrator.service.ts` | Creates sub-apps, waits for triggers, destroys sub-apps |
+| 1.2 | `core/modules/sub-app-orchestrator/sub-app-orchestrator.module.ts` | Module exporting orchestrator |
+
+### Phase 2: Ephemeral HTTP Infrastructure
+Depends on Phase 0 (for SubAppContext).
+
+| Step | File | Purpose |
+|------|------|---------|
+| 2.1 | `core/modules/ephemeral-http/ephemeral-http.server.ts` | Express server on random port |
+| 2.2 | `core/modules/ephemeral-http/setup.controller.ts` | Setup wizard endpoints (state, probe, initialize, stream) |
+| 2.3 | `core/modules/ephemeral-http/ephemeral-http.module.ts` | Module wiring both together |
+
+### Phase 3: Sub-Apps (7 sub-apps, ~21 files)
+Each sub-app depends on Phase 0 + Phase 1.
+
+| Step | Sub-App | Files (definition, module, service) | Depends On |
+|------|---------|-------------------------------------|------------|
+| 3.1 | Config | `sub-apps/config/config.sub-app.ts`, `.module.ts`, `.service.ts` | — |
+| 3.2 | Database | `sub-apps/database/database.sub-app.ts`, `.module.ts`, `.service.ts` | Config |
+| 3.3 | Auth | `sub-apps/auth/auth.sub-app.ts`, `.module.ts`, `.service.ts` | Config, Database |
+| 3.4 | Mesh | `sub-apps/mesh/mesh.sub-app.ts`, `.module.ts`, `.service.ts` | Config, Database, Auth |
+| 3.5 | Events | `sub-apps/events/events.sub-app.ts`, `.module.ts`, `.service.ts` | Mesh |
+| 3.6 | Docker | `sub-apps/docker/docker.sub-app.ts`, `.module.ts`, `.service.ts` | Mesh |
+| 3.7 | Setup Wizard | `sub-apps/setup-wizard/setup-wizard.sub-app.ts`, `.module.ts`, `.service.ts` | Config |
+| 3.8 | Registry | `sub-apps/registry.ts` | All 7 sub-apps |
+
+### Phase 4: Rewrite AppModule & main.ts
+
+| Step | File | Change |
+|------|------|--------|
+| 4.1 | `app.module.ts` | Add `TriggersModule`, replace all module imports with `forRootAsync` using triggers, remove `StartupModule`, add `SubAppOrchestrator` bootstrap provider |
+| 4.2 | `main.ts` | Simplify — remove any v1 references |
+
+### Phase 5: Delete v1 Files (29 files)
+
+| Group | Files to Delete |
+|-------|----------------|
+| Core orchestrator | `core/modules/startup/` (11 files) |
+| Database startup | `core/modules/database/startup/` (3 files) |
+| Setup startup | `core/modules/setup/startup/` (3 files) |
+| Auth startup | `core/modules/auth/startup/` (3 files) |
+| Mesh startup | `core/modules/mesh/startup/` (3 files) |
+| Events startup | `core/modules/events/startup/` (2 files) |
+| Docker startup | `core/modules/docker/startup/` (2 files) |
+| System metrics startup | `core/modules/system-metrics/startup/` (2 files) |
+
+### Phase 6: Tests
+
+| Step | File | Tests |
+|------|------|-------|
+| 6.1 | `trigger.spec.ts` | Unit tests for Trigger<T> |
+| 6.2 | `sub-app-orchestrator.spec.ts` | Unit tests for orchestrator |
+| 6.3 | `config.sub-app.spec.ts` | Config sub-app test |
+| 6.4 | `database.sub-app.spec.ts` | Database sub-app test |
+
+---
+
+## File Manifest
+
+### New Files (est. 25 files)
+
+```
+core/modules/triggers/
+  trigger.ts
+  trigger-registry.ts
+  triggers.module.ts
+
+core/modules/sub-app-runner/
+  sub-app.interface.ts
+  tokens.ts
+  sub-app-context.module.ts
+
+core/modules/sub-app-orchestrator/
+  sub-app-orchestrator.service.ts
+  sub-app-orchestrator.module.ts
+
+core/modules/ephemeral-http/
+  ephemeral-http.server.ts
+  setup.controller.ts
+  ephemeral-http.module.ts
+
+core/modules/mesh/version/
+  mesh-version.service.ts          (MOVED from startup/)
+
+sub-apps/
+  registry.ts
+  config/config.sub-app.ts
+  config/config.sub-app.module.ts
+  config/config.sub-app.service.ts
+  database/database.sub-app.ts
+  database/database.sub-app.module.ts
+  database/database.sub-app.service.ts
+  auth/auth.sub-app.ts
+  auth/auth.sub-app.module.ts
+  auth/auth.sub-app.service.ts
+  mesh/mesh.sub-app.ts
+  mesh/mesh.sub-app.module.ts
+  mesh/mesh.sub-app.service.ts
+  events/events.sub-app.ts
+  events/events.sub-app.module.ts
+  events/events.sub-app.service.ts
+  docker/docker.sub-app.ts
+  docker/docker.sub-app.module.ts
+  docker/docker.sub-app.service.ts
+  setup-wizard/setup-wizard.sub-app.ts
+  setup-wizard/setup-wizard.sub-app.module.ts
+  setup-wizard/setup-wizard.sub-app.service.ts
+```
+
+### Deleted Files (29 files)
+
+```
+core/modules/startup/                               (11 files - entire directory)
+  startup.module.ts
+  startup-orchestrator.service.ts
+  startup-orchestrator.service.spec.ts
+  feature-module-loader.ts
+  feature-module-loader.spec.ts
+  feature-module.factory.ts
+  feature-module.factory.spec.ts
+  mesh-version.service.ts                          (MOVED, not deleted)
+  mesh-version.service.spec.ts
+  interfaces/core-startup.interface.ts
+  __tests__/core-startup-service.spec.ts
+
+core/modules/database/startup/                      (3 files)
+  database-startup.module.ts
+  database-startup.service.ts
+  database-startup.service.spec.ts
+
+core/modules/setup/startup/                         (3 files)
+  setup-startup.module.ts
+  setup-startup.service.ts
+  index.ts
+
+core/modules/auth/startup/                          (3 files)
+  auth-startup.module.ts
+  auth-startup.service.ts
+  index.ts
+
+core/modules/mesh/startup/                          (3 files)
+  mesh-startup.module.ts
+  mesh-startup.service.ts
+  index.ts
+
+core/modules/events/startup/                        (2 files)
+  events-startup.module.ts
+  events-startup.service.ts
+
+core/modules/docker/startup/                        (2 files)
+  docker-startup.module.ts
+  docker-startup.service.ts
+
+core/modules/system-metrics/startup/                (2 files)
+  system-metrics-startup.module.ts
+  system-metrics-startup.service.ts
+```
+
+### Modified Files (3 files)
+
+```
+app.module.ts                               — remove StartupModule, add TriggersModule + forRootAsync
+core/modules/setup/initialization.module.ts  — update MeshVersionService import path
+core/modules/setup/services/remote-initialization.service.ts — update MeshVersionService import path
+```
+
+---
+
+## Validation Checklist
+
+After implementation:
+
+- [ ] `bun run type-check` passes on both `apps/api`
+- [ ] `bun run test` passes (unit tests for triggers + orchestrator + sub-apps)
+- [ ] No imports remain to deleted `core/modules/startup/` directory
+- [ ] No imports to `*StartupService` from v1
+- [ ] `MeshVersionService` is in its new location
+- [ ] `GLOBAL_DATABASE_POOL` in `GlobalModule` still works (it's independent of v1)
+- [ ] `InitializationService` still works (it's independent of v1)
+- [ ] ALL_SUB_APPS registry contains all 7 sub-apps
+- [ ] AppModule uses `forRootAsync` with `TriggerRegistry.waitFor()` for every module
+- [ ] No `FeatureModuleLoader`, `FeatureModuleFactory`, `StartupOrchestratorService` exist
+- [ ] All old `startup/` directories are gone

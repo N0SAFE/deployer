@@ -1,0 +1,752 @@
+---
+title: Startup v2 — Complete Flow Per Case
+description: One Mermaid graph per startup scenario — first-time setup, normal restart, CLI mode, degraded mode, fatal error, and setup wizard flow. Every path from main.ts to app.listen().
+order: 15
+---
+
+<DocMeta source="docs/architecture/startup-v2-flow-per-case.mdx" scope="canonical" />
+
+# Startup v2 — Complete Flow Per Case
+
+Six distinct startup scenarios. Each graph shows the exact path from `main.ts` through every sub-app, trigger, and module resolution to the final state.
+
+---
+
+## Table of Contents
+
+1. [Case 1: First-Time Setup (Fresh Install)](#case-1-first-time-setup-fresh-install)
+2. [Case 2: Normal Restart (Already Configured)](#case-2-normal-restart-already-configured)
+3. [Case 3: CLI / Script Mode](#case-3-cli--script-mode)
+4. [Case 4: Degraded Mode (Non-Critical Failure)](#case-4-degraded-mode-non-critical-failure)
+5. [Case 5: Fatal Error (Critical Failure)](#case-5-fatal-error-critical-failure)
+6. [Case 6: Setup Wizard Deep Flow (User Interaction)](#case-6-setup-wizard-deep-flow-user-interaction)
+
+---
+
+## Case 1: First-Time Setup (Fresh Install)
+
+**Condition**: `NodeConfigRepository.find()` returns `null`. No config, no `databaseUrl`. Setup wizard must run.
+
+**Path**: Config SubApp → Setup Wizard SubApp (HTTP server on random port) → user completes wizard → Database SubApp → Auth SubApp → Mesh SubApp → Events + Docker SubApps (parallel) → Ready.
+
+```mermaid
+flowchart TB
+    subgraph LEGEND["Legend"]
+        L1["🥇 Main App / NestJS DI"]
+        L2["📦 Sub-App (ephemeral DI container)"]
+        L3["🔥 Trigger Fire"]
+        L4["✅ Module Resolved"]
+        L5["⏳ Blocking / Waiting"]
+        L6["❌ Destroyed / Cleaned Up"]
+    end
+
+    subgraph PHASE0["Phase 0: Bootstrap"]
+        A["main.ts\nNestFactory.create(AppModule)"] --> B["AppModule\nimports scan"]
+        B --> C["NestJS Phase 1: Build module tree"]
+        C --> D["NestJS Phase 2: Resolve providers\n(barrier mechanism)"]
+    end
+
+    subgraph CONFIG["Step 1: Config SubApp"]
+        direction TB
+        C1["🥇 ConfigModule.forRootAsync()\nuseFactory: await triggers.config.waitFor()\n⏳ BLOCKS here"]
+        C2["📦 ConfigSubApp\nNestFactory.createApplicationContext()"]
+        C3["📦 ConfigSubAppService.onModuleInit()\n→ load env vars\n→ validate required vars"]
+        C4{"All env vars\nvalid?"}
+        C5["🔥 triggers.config.fire({ config })\n✅ Sub-app done"]
+        C6["📦 app.close()\n→ OnModuleDestroy\n❌ Destroyed"]
+        
+        C1 -.->|"useFactory creates"| C2
+        C2 --> C3 --> C4
+        C4 -->|"Yes ✅"| C5
+        C4 -->|"No ❌"| C4_FAIL["❌ FatalStartupError\n→ process exit"]
+        C5 --> C6
+        C6 --> C7["🔥 ConfigTrigger fires\n→ ConfigModule.waitFor() resolves"]
+    end
+
+    subgraph CHECK["Step 2: Config Check (Branch)"]
+        direction TB
+        CH1["📦 InitializationService\ncheckConfigAndEmit()"]
+        CH2{"NodeConfigRepository.find()\nreturns config?"}
+        
+        CH1 --> CH2
+        CH2 -->|"null (first time)"| WIZARD_PATH
+    end
+
+    subgraph WIZARD_PATH["Step 3: Setup Wizard SubApp (First Time)"]
+        direction TB
+        W1["🥇 DatabaseModule.forRootAsync()\nuseFactory: await triggers.database.waitFor()\n⏳ BLOCKS here"]
+        W2["📦 SetupWizardSubApp\nNestFactory.createApplicationContext()"]
+        W3["📦 SetupWizardSubAppService.onModuleInit()\n→ checkConfigAndEmit() = not configured"]
+        W4["📦 EphemeralHttpServer.start()\n→ listen(0, '127.0.0.1')\n→ random port: 45678"]
+        W5["🌐 Proxy: /setup/* → 127.0.0.1:45678\n(main app Express forwards)"]
+        W6["📦 await setupEventService.events$\n→ SSE stream open"]
+        W7["⏳ Waiting for user...\nGET /setup/state → shows 'not configured'\nPOST /setup/initialize → triggers local/remote flow\nSSE /setup/stream → progress events"]
+        
+        W1 -.->|"useFactory creates"| W2
+        W2 --> W3 --> W4 --> W5 --> W6 --> W7
+    end
+
+    subgraph USER_COMPLETE["Step 4: User Completes Setup"]
+        direction TB
+        U1["POST /setup/initialize\n{ strategy: 'local', ... }"]
+        U2["📦 InitializationService.triggerInitialize()"]
+        U3{"Strategy?"}
+        U4["📦 LocalInitializationService\n→ provision Postgres\n→ run migrations\n→ create admin"]
+        U5["📦 RemoteInitializationService\n→ connect to mesh\n→ join grant\n→ receive databaseUrl"]
+        U6["📦 InitializationService.emitCompleted()\n→ ReplaySubject emits\n→ { databaseUrl, strategy, nodeId }"]
+        U7["🔥 triggers.setupWizard.fire({ databaseUrl })\n→ wizard completes"]
+        
+        U1 --> U2 --> U3
+        U3 -->|"local"| U4 --> U6
+        U3 -->|"remote"| U5 --> U6
+        U6 --> U7
+        
+        U8["📦 EphemeralHttpServer.stop()\n→ server.close(), port released"]
+        U9["🌐 Proxy removed from main app Express"]
+        U10["📦 SetupWizardSubApp.app.close()\n→ OnModuleDestroy\n❌ Destroyed"]
+        
+        U7 --> U8 --> U9 --> U10
+        U10 --> U11["🔥 DatabaseTrigger fires\n→ DatabaseModule.waitFor() resolves"]
+    end
+
+    subgraph DB["Step 5: Database SubApp"]
+        direction TB
+        D1["📦 DatabaseSubApp\nNestFactory.createApplicationContext()"]
+        D2["📦 DatabaseSubAppService.onModuleInit()\n→ new Pool(databaseUrl)\n→ drizzle(pool, schema)"]
+        D3["🔥 triggers.database.fire({ pool, drizzle })\n✅ Pool + Drizzle ready"]
+        D4["📦 app.close()\n❌ Destroyed"]
+        
+        D1 --> D2 --> D3 --> D4
+        D4 --> D5["🔥 DatabaseTrigger fires\n→ All DB deps resolve"]
+    end
+
+    subgraph AUTH["Step 6: Auth SubApp"]
+        direction TB
+        A1["📦 AuthSubApp\nNestFactory.createApplicationContext()"]
+        A2["📦 AuthSubAppService.onModuleInit()\n→ init BetterAuth\n→ verify plugin registry"]
+        A3["🔥 triggers.auth.fire({ authInstance })\n✅ Auth ready"]
+        A4["📦 app.close()\n❌ Destroyed"]
+        
+        A1 --> A2 --> A3 --> A4
+        A4 --> A5["🔥 AuthTrigger fires\n→ AuthModule.waitFor() resolves"]
+    end
+
+    subgraph MESH["Step 7: Mesh SubApp"]
+        direction TB
+        M1["📦 MeshSubApp\nNestFactory.createApplicationContext()"]
+        M2["📦 MeshSubAppService.onModuleInit()\n→ connect to mesh peers\n→ register node"]
+        M3["🔥 triggers.mesh.fire({ meshClient })\n✅ Mesh ready"]
+        M4["📦 app.close()\n❌ Destroyed"]
+        
+        M1 --> M2 --> M3 --> M4
+        M4 --> M5["🔥 MeshTrigger fires\n→ MeshModule.waitFor() resolves"]
+    end
+
+    subgraph PARALLEL["Step 8: Events + Docker (Parallel)"]
+        direction TB
+        P_GROUP["Both depend on MeshTrigger\n→ NestJS barrier allows parallel"]
+        
+        subgraph EVENTS["Events SubApp"]
+            E1["📦 EventsSubApp\nNestFactory.createApplicationContext()"]
+            E2["📦 EventsSubAppService.onModuleInit()\n→ connect EventBus\n→ subscribe to channels"]
+            E3["🔥 triggers.events.fire({ eventBus })\n→ EventsModule resolves"]
+            E4["📦 app.close()\n❌ Destroyed"]
+            E1 --> E2 --> E3 --> E4
+        end
+        
+        subgraph DOCKER["Docker SubApp"]
+            DK1["📦 DockerSubApp\nNestFactory.createApplicationContext()"]
+            DK2["📦 DockerSubAppService.onModuleInit()\n→ validate socket\n→ init Dockerode"]
+            DK3["🔥 triggers.docker.fire({ dockerode })\n→ DockerModule resolves"]
+            DK4["📦 app.close()\n❌ Destroyed"]
+            DK1 --> DK2 --> DK3 --> DK4
+        end
+        
+        P_GROUP --> EVENTS
+        P_GROUP --> DOCKER
+    end
+
+    subgraph COMPLETE["Step 9: All Done"]
+        CP1["🥇 All triggers resolved"]
+        CP2["🥇 Feature modules have all deps:\n→ Pool, Drizzle, Auth, Mesh,\n  EventBus, Dockerode"]
+        CP3["🥇 ORPCModule.forRootAsync() resolves\n→ Router bound with auth context"]
+        CP4["🥇 app.listen(3005)\n🚀 Server accepting traffic"]
+        CP5["🧹 Zero sub-apps alive\nZero startup providers in DI\nZero setup endpoints"]
+        
+        CP1 --> CP2 --> CP3 --> CP4 --> CP5
+    end
+
+    %% Connect the chain
+    CONFIG --> CHECK
+    WIZARD_PATH --> USER_COMPLETE --> DB --> AUTH --> MESH --> PARALLEL --> COMPLETE
+
+    classDef main fill:#e3f2fd,stroke:#1565c0
+    classDef sub fill:#fff3e0,stroke:#e65100
+    classDef trigger fill:#e8f5e9,stroke:#2e7d32
+    classDef block fill:#ffebee,stroke:#c62828
+    classDef destroy fill:#f3e5f5,stroke:#7b1fa2
+    classDef proxy fill:#e0f7fa,stroke:#00838f
+
+    class A,B,C,D,CP1,CP2,CP3,CP4,CP5 main
+    class C2,C3,C6,W2,W3,W4,W6,W10,D1,D2,D4,A1,A2,A4,M1,M2,M4,E1,E2,E4,DK1,DK2,DK4 sub
+    class C5,C7,W7,U6,U7,U11,D3,D5,A3,A5,M3,M5,E3,DK3 trigger
+    class C1,W1 block
+    class W5,U9 proxy
+    class C6,W10,D4,A4,M4,E4,DK4 destroy
+```
+
+---
+
+## Case 2: Normal Restart (Already Configured)
+
+**Condition**: `NodeConfigRepository.find()` returns a valid config. `databaseUrl` is known. Setup wizard is skipped entirely.
+
+**Path**: Config SubApp → Database SubApp (reads persisted URL, no wizard) → Auth SubApp → Mesh SubApp → Events + Docker → Ready. No user interaction. No HTTP server.
+
+```mermaid
+flowchart TB
+    subgraph LEGEND2["Legend"]
+        L1["🥇 Main App / NestJS DI"]
+        L2["📦 Sub-App (ephemeral DI container)"]
+        L3["🔥 Trigger Fire"]
+        L4["✅ Module Resolved"]
+        L5["⏳ Blocking / Waiting"]
+        L6["Fast Path (no wizard)"]
+    end
+
+    subgraph P0["Phase 0: Bootstrap"]
+        P0A["main.ts\nNestFactory.create(AppModule)"] --> P0B["NestJS Phase 1-2\nbuild graph + resolve providers"]
+    end
+
+    subgraph P1["Step 1: Config SubApp"]
+        direction TB
+        P1A["🥇 ConfigModule.forRootAsync()\n⏳ waitFor(config)"]
+        P1B["📦 ConfigSubApp\n→ validate env vars"]
+        P1C["🔥 triggers.config.fire()"]
+        P1D["📦 app.close() ❌"]
+        
+        P1A -.->|"creates"| P1B --> P1C --> P1D
+        P1D --> P1E["✅ ConfigModule resolved"]
+    end
+
+    subgraph P2["Step 2: Database SubApp (Fast Path)"]
+        direction TB
+        P2A["🥇 DatabaseModule.forRootAsync()\n⏳ waitFor(database)"]
+        P2B["📦 DatabaseSubApp"]
+        P2C["📦 InitializationService.checkConfigAndEmit()"]
+        P2D{"config.configuredAt\npresent?"}
+        P2E["📦 Read persisted databaseUrl\nfrom NodeConfigRepository"]
+        P2F["📦 new Pool(databaseUrl)\ndrizzle(pool, schema)"]
+        P2G["🔥 triggers.database.fire({ pool, drizzle })\n✅ No wizard needed"]
+        P2H["📦 app.close() ❌"]
+        
+        P2A -.->|"creates"| P2B --> P2C --> P2D
+        P2D -->|"Yes ✅"| P2E --> P2F --> P2G --> P2H
+        P2D -->|"No (unexpected)"| P2_FAIL["❌ Fatal: should have config"]
+        P2H --> P2I["✅ DatabaseModule resolved"]
+        
+        P2E -->|"Also reads:\nmeshUrlsSnapshot,\npeerServiceToken"| P2_STORE["📦 Stored for later sub-apps"]
+    end
+
+    subgraph P3["Step 3: Auth SubApp"]
+        direction TB
+        P3A["📦 AuthSubApp\n→ init BetterAuth"]
+        P3B["🔥 triggers.auth.fire()"]
+        P3C["📦 app.close() ❌"]
+        
+        P3A --> P3B --> P3C
+        P3C --> P3D["✅ AuthModule resolved"]
+    end
+
+    subgraph P4["Step 4: Mesh SubApp"]
+        direction TB
+        P4A["📦 MeshSubApp"]
+        P4B["📦 Read meshUrlsSnapshot from DB config"]
+        P4C["📦 Connect to persisted mesh URLs"]
+        P4D{"Mesh reachable?"}
+        P4E["📦 Register node, establish session"]
+        P4F["🔥 triggers.mesh.fire({ meshClient })"]
+        P4G["📦 app.close() ❌"]
+        
+        P4A --> P4B --> P4C --> P4D
+        P4D -->|"Yes ✅"| P4E --> P4F --> P4G
+        P4D -->|"No ❌"| P4_SKIP["⚠️ Non-fatal: skip mesh\nMeshModule stays unresolved"]
+        P4G --> P4H["✅ MeshModule resolved"]
+    end
+
+    subgraph P5["Step 5: Events + Docker (Parallel)"]
+        direction TB
+        
+        subgraph P5E["Events SubApp"]
+            P5E1["📦 EventsSubApp\n→ connect EventBus\n→ fire(events)"]
+            P5E2["📦 app.close() ❌"]
+            P5E --> P5E1 --> P5E2
+        end
+        
+        subgraph P5D["Docker SubApp"]
+            P5D1["📦 DockerSubApp\n→ validate socket\n→ fire(docker)"]
+            P5D2["📦 app.close() ❌"]
+            P5D --> P5D1 --> P5D2
+        end
+        
+        P5E2 --> P5_RES["✅ EventsModule resolved"]
+        P5D2 --> P5_RES
+        P5_RES --> P5_DONE["All core modules resolved"]
+    end
+
+    subgraph P6["Step 6: Production Ready"]
+        P6A["🥇 Feature modules receive CORE_SERVICES"]
+        P6B["🥇 ORPCModule.forRootAsync() resolves"]
+        P6C["🥇 app.listen(3005)\n🚀 Ready"]
+        P6D["🧹 No sub-apps alive"]
+        
+        P6A --> P6B --> P6C --> P6D
+    end
+
+    P0 --> P1 --> P2 --> P3 --> P4 --> P5 --> P6
+
+    classDef main fill:#e3f2fd,stroke:#1565c0
+    classDef sub fill:#fff3e0,stroke:#e65100
+    classDef trigger fill:#e8f5e9,stroke:#2e7d32
+    classDef block fill:#ffebee,stroke:#c62828
+    classDef fast fill:#c8e6c9,stroke:#1b5e20
+
+    class P0A,P0B,P1A,P2A,P6A,P6B,P6C,P6D main
+    class P1B,P1D,P2B,P2E,P2F,P2H,P3A,P3C,P4A,P4B,P4C,P4E,P4G,P5E1,P5E2,P5D1,P5D2 sub
+    class P1C,P2G,P3B,P4F trigger
+    class P1A,P2A,P2_FAIL block
+    class P2E,P2F,P2_STORE fast
+```
+
+---
+
+## Case 3: CLI / Script Mode
+
+**Condition**: The process runs a CLI command (e.g., `bun run db:migrate`, `bun run db:seed`, `bun run auth:generate`). No HTTP server is started. No setup wizard. Only the minimum sub-apps needed for the CLI task run.
+
+**Path**: Config SubApp → Database SubApp (minimum: pool only, no migrations orchestrated by the CLI) → CLI command executes → process exits.
+
+```mermaid
+flowchart TB
+    subgraph LEGEND3["Legend"]
+        L1["🥇 Main App / NestJS DI"]
+        L2["📦 Sub-App (ephemeral)"]
+        L3["🔥 Trigger Fire"]
+        L4["✅ Module Resolved"]
+        L5["⏳ Blocking"]
+        L6["CLI-specific command"]
+    end
+
+    subgraph C0["CLI Entry Point"]
+        C0A["CLI script launched\nbun run db:migrate\nor bun run db:seed\nor bun run auth:generate"]
+        C0B["CLI bootstraps minimal AppModule\nor calls specific sub-app directly"]
+        C0A --> C0B
+    end
+
+    subgraph C1["Step 1: Config SubApp (Minimal)"]
+        direction TB
+        C1A["📦 ConfigSubApp\n→ load env vars\n→ validate"]
+        C1B["🔥 triggers.config.fire()"]
+        C1C["📦 app.close() ❌"]
+        C1A --> C1B --> C1C
+        C1C --> C1D["✅ Config available"]
+    end
+
+    subgraph C2["Step 2: Database SubApp (CLI Mode)"]
+        direction TB
+        C2A["📦 DatabaseSubApp\n→ read databaseUrl from config"]
+        C2B{"databaseUrl\npresent?"}
+        C2C["📦 new Pool(databaseUrl)\n→ drizzle(pool, schema)"]
+        C2D["🔥 triggers.database.fire({ pool, drizzle })\n(no migrations run)"]
+        C2E["📦 app.close() ❌"]
+        
+        C2A --> C2B
+        C2B -->|"Yes ✅"| C2C --> C2D --> C2E
+        C2B -->|"No ❌"| C2_FAIL["❌ Error: no databaseUrl\n→ Setup wizard can't run in CLI mode\n→ Exit with error"]
+        C2E --> C2F["✅ Database connected"]
+    end
+
+    subgraph C3["Step 3a: Run CLI Command (Migration)"]
+        direction TB
+        C3A["⚙️ drizzle-orm migrator\nmigrate(db, { migrationsFolder })\n→ apply pending migrations"]
+        C3B["✅ Migrations applied"]
+        C3C["📦 Pool disconnected"]
+        C3D["🏁 Process exit 0"]
+        
+        C3A --> C3B --> C3C --> C3D
+    end
+
+    subgraph C3_SEED["Step 3b: Run CLI Command (Seed)"]
+        direction TB
+        C3S1["⚙️ Seed script\n→ insert default data\n→ create test users"]
+        C3S2["✅ Seed complete"]
+        C3S3["📦 Pool disconnected"]
+        C3S4["🏁 Process exit 0"]
+        
+        C3S1 --> C3S2 --> C3S3 --> C3S4
+    end
+
+    subgraph C3_GEN["Step 3c: Run CLI Command (Auth Generate)"]
+        direction TB
+        C3G1["⚙️ Auth generator\n→ regenerates auth types from config"]
+        C3G2["✅ Auth types regenerated"]
+        C3G3["📦 Pool not needed\n(skip DB sub-app entirely)"]
+        C3G4["🏁 Process exit 0"]
+        
+        C3G1 --> C3G2 --> C3G3 --> C3G4
+    end
+
+    C0 --> C1 --> C2
+    C2F --> C3
+    C2F --> C3_SEED
+    C2F --> C3_GEN
+
+    classDef main fill:#e3f2fd,stroke:#1565c0
+    classDef sub fill:#fff3e0,stroke:#e65100
+    classDef trigger fill:#e8f5e9,stroke:#2e7d32
+    classDef cli fill:#f3e5f5,stroke:#7b1fa2
+    classDef exit fill:#ffebee,stroke:#c62828
+
+    class C0A,C0B main
+    class C1A,C1C,C2A,C2C,C2E sub
+    class C1B,C2D trigger
+    class C3A,C3S1,C3G1 cli
+    class C3D,C3S4,C3G4 exit
+```
+
+---
+
+## Case 4: Degraded Mode (Non-Critical Failure)
+
+**Condition**: A non-critical sub-app (Mesh, Events, or Docker) fails. The app continues with reduced functionality. The failed sub-app's trigger never fires, and modules depending on it stay unresolved.
+
+**Path**: Config → Database → Auth → **Mesh FAILS** → Docker **skipped** (because it depends on Mesh) → Feature modules that don't need Mesh/Docker work normally. The rest gracefully degrade.
+
+```mermaid
+flowchart TB
+    subgraph LEGEND4["Legend"]
+        L1["✅ Normal"]
+        L2["⚠️ Degraded / Non-Fatal"]
+        L3["❌ Failed / Skipped"]
+        L4["🔌 Feature Unavailable"]
+    end
+
+    subgraph D0["Bootstrap"]
+        D0A["main.ts → NestFactory.create(AppModule)"]
+    end
+
+    subgraph D1["Steps 1-3: Normal (Config + DB + Auth)"]
+        D1A["✅ Config SubApp → fires config trigger"]
+        D1B["✅ Database SubApp → fires database trigger"]
+        D1C["✅ Auth SubApp → fires auth trigger"]
+        D1A --> D1B --> D1C
+    end
+
+    subgraph D2["Step 4: Mesh Fails"]
+        direction TB
+        D2A["📦 MeshSubApp"]
+        D2B["📦 Attempting to connect to mesh peers..."]
+        D2C{"❌ All mesh URLs\nunreachable?\n⏳ Timeout after 30s"}
+        D2D["⚠️ MeshSubApp: non-fatal failure\n→ onModuleInit throws\n→ trigger.fire() NEVER called"]
+        D2E["📦 app.close() forced\n❌ Destroyed with unresolved trigger"]
+        
+        D2A --> D2B --> D2C
+        D2C -->|"Yes ❌"| D2D --> D2E
+        D2C -->|"Some reachable ✅"| D2_OK["📦 Mesh connects normally\n→ fires trigger ✅"]
+    end
+
+    subgraph D3["Step 5: Events + Docker Skipped"]
+        D3A["🛑 EventsSubApp: depends on MeshTrigger\n→ MeshTrigger never fired\n→ waitFor() never resolves"]
+        D3B["🛑 DockerSubApp: depends on MeshTrigger\n→ same fate"]
+        D3C["📦 These sub-apps are NEVER created\n→ No DI context, no providers\n→ Zero memory used"]
+        
+        D3A --> D3C
+        D3B --> D3C
+    end
+
+    subgraph D4["Module Resolution (Degraded)"]
+        direction TB
+        
+        D4A["🥇 ConfigModule ✅\n→ Resolved normally"]
+        D4B["🥇 DatabaseModule ✅\n→ Pool + Drizzle available"]
+        D4C["🥇 AuthModule ✅\n→ BetterAuth available"]
+        D4D["🥇 MeshModule ❌ UNRESOLVED\n→ triggers.mesh.waitFor() hangs forever\n→ Module never completes"]
+        D4E["🥇 EventsModule ❌ UNRESOLVED\n→ depends on mesh"]
+        D4F["🥇 DockerModule ❌ UNRESOLVED\n→ depends on mesh"]
+        
+        D4A --> D4B --> D4C --> D4D
+        D4D --> D4E
+        D4D --> D4F
+    end
+
+    subgraph D5["Feature Impact"]
+        direction TB
+        
+        D5A["🔌 HealthModule\n✅ Works (needs only DB)"]
+        D5B["🔌 UserModule\n✅ Works (needs DB + Auth)"]
+        D5C["🔌 DeploymentModule\n⚠️ PARTIAL: needs DB + Auth\n❌ Mesh features disabled"]
+        D5D["🔌 DockerModule (feature)\n❌ UNAVAILABLE\n→ dockerTrigger never fired\n→ Dockerode never created"]
+        D5E["🔌 FleetModule\n⚠️ PARTIAL: needs DB + Auth\n❌ Mesh coordination disabled"]
+        D5F["🔌 EventsModule (feature)\n❌ No real-time events\n→ EventBus never connected"]
+        
+        D5A[D5A] --> D5_DONE["🚀 App starts in degraded mode\n→ Logs warning at startup\n→ Health endpoint reports degraded\n→ Mesh/Docker/Events features return 503"]
+    end
+
+    D0 --> D1 --> D2
+    D2 --> D3
+    D2 --> D4
+    D4 --> D5
+
+    classDef normal fill:#e8f5e9,stroke:#2e7d32
+    classDef degraded fill:#fff3e0,stroke:#e65100
+    classDef failed fill:#ffebee,stroke:#c62828
+    classDef unavailable fill:#fce4ec,stroke:#880e4f
+
+    class D1A,D1B,D1C,D4A,D4B,D4C,D5A,D5B normal
+    class D2D,D5C,D5E,D5_DONE degraded
+    class D2C,D2E,D3A,D3B,D4D,D4E,D4F failed
+    class D5D,D5F unavailable
+```
+
+---
+
+## Case 5: Fatal Error (Critical Failure)
+
+**Condition**: A critical sub-app (Config, Database, or Auth) fails. The process cannot continue. Clean shutdown with proper teardown.
+
+**Path**: Fails at the failing sub-app → all dependent modules are skipped → `app.close()` on main app → process exits with error code.
+
+```mermaid
+flowchart TB
+    subgraph LEGEND5["Legend"]
+        L1["✅ Normal"]
+        L2["❌ Fatal Error"]
+        L3["🛑 Aborted"]
+        L4["🧹 Cleanup"]
+    end
+
+    subgraph F0["Bootstrap"]
+        F0A["main.ts → NestFactory.create(AppModule)"]
+    end
+
+    subgraph F1["Scenario A: Config SubApp Fails"]
+        direction TB
+        F1A["📦 ConfigSubApp"]
+        F1B["📦 onModuleInit() tries to load env vars"]
+        F1C{"DATABASE_URL\nnot set?"}
+        F1D["❌ throw new FatalStartupError(\n'Required env var DATABASE_URL is not set')"]
+        F1E["⚠️ NestJS abortOnError: false catches error"]
+        F1F["🔥 triggers.config.fire() NEVER called\n→ ConfigModule.waitFor() hangs forever"]
+        F1G["📦 app.close() forced\n→ OnModuleDestroy called"]
+        F1H["🏁 Process exit 1"]
+        
+        F1A --> F1B --> F1C
+        F1C -->|"❌ Missing"| F1D --> F1E --> F1F --> F1G --> F1H
+    end
+
+    subgraph F2["Scenario B: Database SubApp Fails"]
+        direction TB
+        F2A["📦 DatabaseSubApp"]
+        F2B["📦 InitializationService.waitForSetup()"]
+        F2C{"Postgres\nunreachable?"}
+        F2D["📦 Retry logic exhausted (or timeout 60s)"]
+        F2E["❌ throw new Error('Database unreachable after 60s')"]
+        F2F["🔥 triggers.database.fire() NEVER called\n→ All downstream modules blocked"]
+        F2G["📦 Config + Auth SubApps already destroyed"]
+        F2H["📦 app.close() forced"]
+        F2I["🏁 Process exit 1"]
+        
+        F2A --> F2B --> F2C
+        F2C -->|"❌ Unreachable"| F2D --> F2E --> F2F --> F2G --> F2H --> F2I
+    end
+
+    subgraph F3["Scenario C: Auth SubApp Fails"]
+        direction TB
+        F3A["📦 AuthSubApp"]
+        F3B["📦 BetterAuth initialization fails"]
+        F3C["❌ throw new Error('Auth plugin registry unavailable')"]
+        F3D["🔥 triggers.auth.fire() NEVER called"]
+        F3E["📦 Config + Database SubApps already destroyed\n→ Pool is closed, connections released"]
+        F3F["📦 app.close() forced"]
+        F3G["🏁 Process exit 1"]
+        
+        F3A --> F3B --> F3C --> F3D --> F3E --> F3F --> F3G
+    end
+
+    subgraph CLEANUP["Cleanup Guarantees (All Scenarios)"]
+        direction TB
+        CL1["🧹 All sub-apps that DID complete: app.close() called"]
+        CL2["🧹 OnModuleDestroy on every provider:\n→ Pool.end() closes DB connections\n→ MeshClient.disconnect() closes sockets\n→ EphemeralHttpServer.stop() releases port"]
+        CL3["🧹 Main app: app.close() called\n→ Shutdown hooks fire\n→ 30s timeout safety net"]
+        CL4["🧹 Process exits with code 1"]
+        
+        CL1 --> CL2 --> CL3 --> CL4
+    end
+
+    F0 --> F1
+    F0 --> F2
+    F0 --> F3
+    F1 --> CLEANUP
+    F2 --> CLEANUP
+    F3 --> CLEANUP
+
+    classDef normal fill:#e8f5e9,stroke:#2e7d32
+    classDef fatal fill:#ffebee,stroke:#c62828
+    classDef abort fill:#fce4ec,stroke:#880e4f
+    classDef cleanup fill:#f3e5f5,stroke:#7b1fa2
+
+    class F0A normal
+    class F1C,F1D,F1E,F1F,F2C,F2D,F2E,F2F,F3C,F3D fatal
+    class F1H,F2I,F3G abort
+    class CL1,CL2,CL3,CL4 cleanup
+```
+
+---
+
+## Case 6: Setup Wizard Deep Flow (User Interaction)
+
+**Condition**: The most detailed view — the setup wizard sub-app lifecycle from creation to teardown, showing every HTTP endpoint, every SSE event, and every state transition.
+
+**Path**: Config SubApp → Setup Wizard SubApp creates Express server → proxy registered on main app → user's browser hits `/setup/state` → user POSTs `/setup/initialize` → SSE stream pushes progress → wizard completes → server stops → proxy removed → sub-app destroyed → Database SubApp continues.
+
+```mermaid
+sequenceDiagram
+    participant MAIN as Main App DI
+    participant WSA as SetupWizard SubApp
+    participant HTTP as EphemeralHttpServer
+    participant PROXY as Express Proxy (main)
+    participant BROWSER as User's Browser
+    participant INIT as InitializationService
+    participant LOCAL as LocalInitService
+    participant REMOTE as RemoteInitService
+
+    Note over MAIN,WSA: ─── Step 1: Config confirms no setup ───
+    MAIN->>MAIN: ConfigSubApp → triggers.config.fire()
+    MAIN->>MAIN: DatabaseModule.forRootAsync() starts
+    MAIN->>MAIN: ⏳ await triggers.database.waitFor()
+
+    Note over MAIN,WSA: ─── Step 2: Create setup wizard sub-app ───
+    MAIN->>WSA: NestFactory.createApplicationContext(SetupWizardSubAppModule)
+    WSA->>WSA: SetupWizardSubAppService.onModuleInit()
+    WSA->>WSA: checkConfigAndEmit() → no config
+
+    Note over WSA,HTTP: ─── Step 3: Start ephemeral HTTP server ───
+    WSA->>HTTP: start()
+    HTTP->>HTTP: express.listen(0, '127.0.0.1')
+    HTTP-->>WSA: port = 45678
+
+    Note over WSA,PROXY: ─── Step 4: Register proxy on main app ───
+    WSA->>PROXY: Register /setup/* → 127.0.0.1:45678
+    PROXY-->>WSA: Proxy active
+
+    Note over MAIN,PROXY: ─── Step 5: User's browser requests state ───
+    BROWSER->>PROXY: GET /setup/state
+    PROXY->>HTTP: Forward to :45678
+    HTTP->>WSA: SetupController.getState()
+    WSA-->>HTTP: { configured: false, strategy: null }
+    HTTP-->>PROXY: Response
+    PROXY-->>BROWSER: 200 { configured: false }
+
+    Note over BROWSER,HTTP: ─── Step 6: User triggers initialization ───
+    BROWSER->>PROXY: POST /setup/initialize { strategy: "local" }
+    PROXY->>HTTP: Forward to :45678
+    HTTP->>WSA: SetupController.initialize()
+    WSA->>INIT: triggerInitialize(input)
+    INIT-->>WSA: { accepted: true }
+
+    Note over BROWSER,HTTP: ─── Step 7: User opens SSE stream ───
+    BROWSER->>PROXY: GET /setup/stream
+    PROXY->>HTTP: Forward to :45678
+    HTTP->>WSA: SetupController.streamProgress()
+    WSA->>WSA: res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+
+    Note over INIT,BROWSER: ─── Step 8: Initialization progress ───
+    INIT->>INIT: Strategy = "local"
+    INIT->>LOCAL: run()
+    
+    LOCAL-->>INIT: event: { type: 'step', name: 'provisioning-database' }
+    INIT-->>WSA: setupEventService.emit()
+    WSA->>BROWSER: SSE: data: {"type":"step","name":"provisioning-database"}
+    
+    LOCAL-->>INIT: event: { type: 'step', name: 'running-migrations' }
+    INIT-->>WSA: setupEventService.emit()
+    WSA->>BROWSER: SSE: data: {"type":"step","name":"running-migrations"}
+    
+    LOCAL-->>INIT: event: { type: 'progress', percent: 60 }
+    INIT-->>WSA: setupEventService.emit()
+    WSA->>BROWSER: SSE: data: {"type":"progress","percent":60}
+    
+    LOCAL-->>INIT: event: { type: 'step', name: 'creating-admin' }
+    INIT-->>WSA: setupEventService.emit()
+    WSA->>BROWSER: SSE: data: {"type":"step","name":"creating-admin"}
+    
+    LOCAL-->>INIT: event: { type: 'complete', databaseUrl: 'postgres://...', strategy: 'local' }
+    INIT-->>WSA: setupEventService.emit()
+    WSA->>BROWSER: SSE: data: {"type":"complete","databaseUrl":"postgres://..."}
+
+    Note over BROWSER,WSA: ─── Step 9: User closes browser ───
+    BROWSER->>BROWSER: User closes tab / sees "Setup Complete"
+
+    Note over WSA,MAIN: ─── Step 10: Teardown ───
+    WSA->>WSA: fire(setupWizardTrigger)
+    WSA->>HTTP: stop()
+    HTTP->>HTTP: server.close()
+    HTTP-->>WSA: Port 45678 released
+    WSA->>PROXY: remove /setup/* proxy
+    PROXY-->>WSA: Proxy removed
+    WSA->>WSA: app.close()
+    WSA->>WSA: OnModuleDestroy → all providers cleaned
+    Note over WSA: ❌ Sub-app destroyed
+
+    Note over MAIN: triggers.database.waitFor() resolves
+    MAIN->>MAIN: DatabaseModule.forRootAsync() continues
+    MAIN->>MAIN: new Pool(databaseUrl), drizzle(pool, schema)
+    MAIN->>MAIN: ✅ DatabaseModule resolved
+```
+
+---
+
+## Summary: Case Decision Matrix
+
+| Case | Config Exists? | Wizard Runs? | Pool Created? | Auth Inited? | Mesh Connected? | HTTP Listens? | Degraded? |
+|------|---------------|-------------|---------------|--------------|-----------------|---------------|-----------|
+| **1. First-Time Setup** | No | ✅ Yes | ✅ After wizard | ✅ Yes | ✅ Yes | ✅ Yes | No |
+| **2. Normal Restart** | ✅ Yes | No | ✅ Immediate | ✅ Yes | ✅ Yes | ✅ Yes | No |
+| **3. CLI Mode** | ✅ Yes | No | ✅ Yes | No | No | No | N/A (exits) |
+| **4. Degraded Mode** | ✅ Yes | No | ✅ Yes | ✅ Yes | ❌ Failed | ✅ Yes | ✅ Yes |
+| **5. Fatal Error** | N/A | N/A | ❌ Failed | N/A | N/A | No | ❌ Process exits |
+| **6. Setup Wizard Flow** | No | ✅ Deep flow | ✅ After wizard | ✅ After DB | ✅ After auth | ✅ (wizard only) | No |
+
+### Key Decision Points
+
+```mermaid
+flowchart LR
+    START["App Starts"] --> CONFIG_CHECK{"Config exists?\n(NodeConfigRepository)"}
+    CONFIG_CHECK -->|"Yes ✅"| FAST["Fast Path\n→ DatabaseSubApp reads URL\n→ No wizard"]
+    CONFIG_CHECK -->|"No / null"| WIZARD["Wizard Path\n→ SetupWizardSubApp\n→ HTTP server on random port\n→ User interaction"]
+    
+    FAST --> DB_OK{"DB reachable?"}
+    DB_OK -->|"Yes"| AUTH_OK{"Auth inits?"}
+    DB_OK -->|"No ❌"| FATAL["❌ Fatal Error\n→ Process exit"]
+    
+    AUTH_OK -->|"Yes"| MESH_OK{"Mesh reachable?"}
+    AUTH_OK -->|"No ❌"| FATAL
+    
+    MESH_OK -->|"Yes"| NORMAL["✅ Normal Mode\n→ All features"]
+    MESH_OK -->|"No ❌"| DEGRADED["⚠️ Degraded Mode\n→ Mesh/Docker disabled"]
+    
+    WIZARD --> WIZARD_OK{"Wizard\ncompletes?"}
+    WIZARD_OK -->|"Yes ✅"| DB_OK
+    WIZARD_OK -->|"No / Timeout"| FATAL
+
+    classDef normal fill:#e8f5e9,stroke:#2e7d32
+    classDef degraded fill:#fff3e0,stroke:#e65100
+    classDef fatal fill:#ffebee,stroke:#c62828
+    classDef wizard fill:#e3f2fd,stroke:#1565c0
+
+    class START,CONFIG_CHECK,DB_OK,AUTH_OK,MESH_OK normal
+    class NORMAL normal
+    class DEGRADED degraded
+    class FATAL fatal
+    class WIZARD,WIZARD_OK wizard
+```

@@ -1,15 +1,1 @@
-{
-  "0": "docker.repository.ts",
-  "1": ".inspectImage",
-  "2": "DockerRepository",
-  "3": "StartupOrchestratorService",
-  "4": ".isMissingDockerSecurityScanTableError",
-  "5": ".formatError",
-  "6": ".listImages",
-  "7": ".normalizeScannerVulnerability",
-  "8": ".persistRuntimeActivityEvent",
-  "9": ".attachContainerLinks",
-  "10": ".inspectContainer",
-  "11": ".serviceLinkFromRecord",
-  "12": "cluster-migration-state.ts"
-}
+{"0": "TypeScript Type Utilities", "1": "Mesh Networking Contracts", "2": "Deployment Domain Schemas", "3": "Admin Auth Plugin", "4": "HTTP/Traefik Router Builder", "5": "Declarative Routes", "6": "Traefik Configuration Repository", "7": "Permission & Role Checks", "8": "Docker Container Inspection", "9": "Mesh Core & Orchestration", "10": "Docker Container Actions", "11": "Docker Module Wiring", "12": "Mesh Topology Services", "13": "Docker Runtime Activity Projection", "14": "Mesh Cluster Repository", "15": "Deployment Pipeline Service"}

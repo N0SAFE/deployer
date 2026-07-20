@@ -1,0 +1,1697 @@
+{
+  "nodes": [
+    {
+      "id": "apps_doc_content_docs_reference_glossary_document",
+      "label": "Glossary",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_ORPC",
+      "label": "ORPC",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_Contract",
+      "label": "Contract",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_DeclarativeRouting",
+      "label": "Declarative Routing",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_DomainHooks",
+      "label": "Domain hooks",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_DockerFirstDevelopment",
+      "label": "Docker-first development",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_CatalogDependencies",
+      "label": "Catalog dependencies",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_Cluster",
+      "label": "Cluster",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_Node",
+      "label": "Node",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_ManagerNode",
+      "label": "Manager node",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_WorkerNode",
+      "label": "Worker node",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_Organization",
+      "label": "Organization",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_Project",
+      "label": "Project",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_Service",
+      "label": "Service",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_Mesh",
+      "label": "Mesh",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_LoadBalancer",
+      "label": "Load Balancer (LB)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_PreviewEnvironment",
+      "label": "Preview environment",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_ConfigAsCode",
+      "label": "Config-as-code",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_CascadeDeploy",
+      "label": "Cascade deploy",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_OneShotTask",
+      "label": "One-shot task",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_ScaleToZero",
+      "label": "Scale-to-zero",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_ServiceAdapterPattern",
+      "label": "Service-Adapter pattern",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_InternalPackage",
+      "label": "Internal package",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_WorkspaceGraph",
+      "label": "Workspace graph",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_BoundaryRule",
+      "label": "Boundary rule",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_AuthGuardChain",
+      "label": "Auth guard chain",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_ProdLike",
+      "label": "Prod-like",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_QualityGate",
+      "label": "Quality gate",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_CanonicalDocs",
+      "label": "Canonical docs",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_ProjectIsolation",
+      "label": "Project isolation",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_glossary_MigrationLifecycle",
+      "label": "Migration lifecycle",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_styleguide_document",
+      "label": "Styleguide",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/styleguide.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_styleguide_ExplicitTyping",
+      "label": "Explicit typing at public boundaries",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/styleguide.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_styleguide_DomainServiceSeparation",
+      "label": "Domain/service layer separation",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/styleguide.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_styleguide_ConventionalCommits",
+      "label": "Conventional commits",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/styleguide.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_reference_styleguide_ConsistencyRule",
+      "label": "Consistency rule",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/styleguide.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_testing_testing_document",
+      "label": "Testing",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/testing/testing.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_testing_testing_Vitest",
+      "label": "Vitest",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/testing/testing.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_testing_testing_TurboTestDelegation",
+      "label": "Turbo test delegation",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/testing/testing.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_testing_testing_PRReadinessChecklist",
+      "label": "PR readiness checklist",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/testing/testing.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_testing_testing_CoverageWorkflow",
+      "label": "Coverage workflow",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/testing/testing.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_testing_testing_HighSignalTestingRule",
+      "label": "High-signal testing rule",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/testing/testing.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_copilot_setup_document",
+      "label": "Copilot Setup",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/copilot-setup.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_copilot_setup_AGENTSInstructions",
+      "label": "AGENTS instructions",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/copilot-setup.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_copilot_setup_Guardrail",
+      "label": "Copilot guardrail",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/copilot-setup.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_docs_authoring_document",
+      "label": "Docs Authoring & Components",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/docs-authoring.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_docs_authoring_DocCallout",
+      "label": "DocCallout",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/docs-authoring.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_docs_authoring_DocChecklist",
+      "label": "DocChecklist",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/docs-authoring.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_docs_authoring_DocStepFlow",
+      "label": "DocStepFlow",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/docs-authoring.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_docs_authoring_MermaidDiagrams",
+      "label": "Mermaid diagrams",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/docs-authoring.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_docs_authoring_DocCardGrid",
+      "label": "DocCardGrid",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/docs-authoring.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_docs_authoring_AuthoringRule",
+      "label": "Authoring rule",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/docs-authoring.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_environment_template_system_document",
+      "label": "Environment Template System",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/environment-template-system.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_environment_template_system_TemplateEngine",
+      "label": "Template engine (scripts/init.ts)",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/environment-template-system.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_environment_template_system_DotEnvTemplate",
+      "label": ".env.template",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/environment-template-system.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_environment_template_system_CheckEnv",
+      "label": "check-env command",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/environment-template-system.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_environment_template_system_ENABLEDEVBOOTSTRAP",
+      "label": "ENABLE_DEV_BOOTSTRAP",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/environment-template-system.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_environment_template_system_TemplateSyntax",
+      "label": "Template syntax",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/environment-template-system.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_environment_template_system_SecretGeneration",
+      "label": "Secret generation",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/environment-template-system.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_project_isolation_document",
+      "label": "Project Isolation",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/project-isolation.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_project_isolation_COMPOSEPROJECTNAME",
+      "label": "COMPOSE_PROJECT_NAME",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/project-isolation.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "apps_doc_content_docs_tooling_project_isolation_DockerResourcePrefixing",
+      "label": "Docker resource prefixing",
+      "file_type": "concept",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/project-isolation.mdx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_ORPC",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_Contract",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_DeclarativeRouting",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_DomainHooks",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_DockerFirstDevelopment",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_CatalogDependencies",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_Cluster",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_Node",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_ManagerNode",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_WorkerNode",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_Organization",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_Project",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_Service",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_Mesh",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_LoadBalancer",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_PreviewEnvironment",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_ConfigAsCode",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_CascadeDeploy",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_OneShotTask",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_ScaleToZero",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_ServiceAdapterPattern",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_InternalPackage",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_WorkspaceGraph",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_BoundaryRule",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_AuthGuardChain",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_ProdLike",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_QualityGate",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_CanonicalDocs",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_ProjectIsolation",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_document",
+      "target": "apps_doc_content_docs_reference_glossary_MigrationLifecycle",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_styleguide_document",
+      "target": "apps_doc_content_docs_reference_styleguide_ExplicitTyping",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/styleguide.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_styleguide_document",
+      "target": "apps_doc_content_docs_reference_styleguide_DomainServiceSeparation",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/styleguide.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_styleguide_document",
+      "target": "apps_doc_content_docs_reference_styleguide_ConventionalCommits",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/styleguide.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_styleguide_document",
+      "target": "apps_doc_content_docs_reference_styleguide_ConsistencyRule",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/styleguide.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_testing_testing_document",
+      "target": "apps_doc_content_docs_testing_testing_Vitest",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/testing/testing.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_testing_testing_document",
+      "target": "apps_doc_content_docs_testing_testing_TurboTestDelegation",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/testing/testing.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_testing_testing_document",
+      "target": "apps_doc_content_docs_testing_testing_PRReadinessChecklist",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/testing/testing.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_testing_testing_document",
+      "target": "apps_doc_content_docs_testing_testing_CoverageWorkflow",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/testing/testing.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_testing_testing_document",
+      "target": "apps_doc_content_docs_testing_testing_HighSignalTestingRule",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/testing/testing.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_copilot_setup_document",
+      "target": "apps_doc_content_docs_tooling_copilot_setup_AGENTSInstructions",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/copilot-setup.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_copilot_setup_document",
+      "target": "apps_doc_content_docs_tooling_copilot_setup_Guardrail",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/copilot-setup.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_docs_authoring_document",
+      "target": "apps_doc_content_docs_tooling_docs_authoring_DocCallout",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/docs-authoring.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_docs_authoring_document",
+      "target": "apps_doc_content_docs_tooling_docs_authoring_DocChecklist",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/docs-authoring.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_docs_authoring_document",
+      "target": "apps_doc_content_docs_tooling_docs_authoring_DocStepFlow",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/docs-authoring.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_docs_authoring_document",
+      "target": "apps_doc_content_docs_tooling_docs_authoring_MermaidDiagrams",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/docs-authoring.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_docs_authoring_document",
+      "target": "apps_doc_content_docs_tooling_docs_authoring_DocCardGrid",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/docs-authoring.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_docs_authoring_document",
+      "target": "apps_doc_content_docs_tooling_docs_authoring_AuthoringRule",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/docs-authoring.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_environment_template_system_document",
+      "target": "apps_doc_content_docs_tooling_environment_template_system_TemplateEngine",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/environment-template-system.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_environment_template_system_document",
+      "target": "apps_doc_content_docs_tooling_environment_template_system_DotEnvTemplate",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/environment-template-system.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_environment_template_system_document",
+      "target": "apps_doc_content_docs_tooling_environment_template_system_CheckEnv",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/environment-template-system.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_environment_template_system_document",
+      "target": "apps_doc_content_docs_tooling_environment_template_system_ENABLEDEVBOOTSTRAP",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/environment-template-system.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_environment_template_system_document",
+      "target": "apps_doc_content_docs_tooling_environment_template_system_TemplateSyntax",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/environment-template-system.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_environment_template_system_document",
+      "target": "apps_doc_content_docs_tooling_environment_template_system_SecretGeneration",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/environment-template-system.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_project_isolation_document",
+      "target": "apps_doc_content_docs_tooling_project_isolation_COMPOSEPROJECTNAME",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/project-isolation.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_project_isolation_document",
+      "target": "apps_doc_content_docs_tooling_project_isolation_DockerResourcePrefixing",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/project-isolation.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_Node",
+      "target": "apps_doc_content_docs_reference_glossary_ManagerNode",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_Node",
+      "target": "apps_doc_content_docs_reference_glossary_WorkerNode",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_Cluster",
+      "target": "apps_doc_content_docs_reference_glossary_Node",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_Cluster",
+      "target": "apps_doc_content_docs_reference_glossary_Organization",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_Organization",
+      "target": "apps_doc_content_docs_reference_glossary_Project",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_Project",
+      "target": "apps_doc_content_docs_reference_glossary_Service",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_Service",
+      "target": "apps_doc_content_docs_reference_glossary_OneShotTask",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_Service",
+      "target": "apps_doc_content_docs_reference_glossary_CascadeDeploy",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_Service",
+      "target": "apps_doc_content_docs_reference_glossary_ScaleToZero",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_ServiceAdapterPattern",
+      "target": "apps_doc_content_docs_reference_glossary_ORPC",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_ServiceAdapterPattern",
+      "target": "apps_doc_content_docs_reference_glossary_Contract",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_DeclarativeRouting",
+      "target": "apps_doc_content_docs_reference_glossary_ORPC",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_BoundaryRule",
+      "target": "apps_doc_content_docs_reference_glossary_Contract",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_BoundaryRule",
+      "target": "apps_doc_content_docs_reference_glossary_InternalPackage",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_BoundaryRule",
+      "target": "apps_doc_content_docs_reference_glossary_ServiceAdapterPattern",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_QualityGate",
+      "target": "apps_doc_content_docs_reference_glossary_ProdLike",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_PreviewEnvironment",
+      "target": "apps_doc_content_docs_reference_glossary_ProjectIsolation",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_ConfigAsCode",
+      "target": "apps_doc_content_docs_reference_glossary_CascadeDeploy",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_Mesh",
+      "target": "apps_doc_content_docs_reference_glossary_ORPC",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_LoadBalancer",
+      "target": "apps_doc_content_docs_reference_glossary_Cluster",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_AuthGuardChain",
+      "target": "apps_doc_content_docs_reference_glossary_ServiceAdapterPattern",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_testing_testing_document",
+      "target": "apps_doc_content_docs_reference_glossary_QualityGate",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/testing/testing.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_testing_testing_document",
+      "target": "apps_doc_content_docs_reference_glossary_ORPC",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/testing/testing.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_copilot_setup_document",
+      "target": "apps_doc_content_docs_reference_glossary_CanonicalDocs",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/copilot-setup.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_copilot_setup_document",
+      "target": "apps_doc_content_docs_tooling_copilot_setup_AGENTSInstructions",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/copilot-setup.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_environment_template_system_document",
+      "target": "apps_doc_content_docs_tooling_environment_template_system_TemplateEngine",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/environment-template-system.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_environment_template_system_document",
+      "target": "apps_doc_content_docs_reference_glossary_DockerFirstDevelopment",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/environment-template-system.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_project_isolation_document",
+      "target": "apps_doc_content_docs_reference_glossary_DockerFirstDevelopment",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/project-isolation.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_project_isolation_document",
+      "target": "apps_doc_content_docs_reference_glossary_ProjectIsolation",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/project-isolation.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_project_isolation_COMPOSEPROJECTNAME",
+      "target": "apps_doc_content_docs_tooling_project_isolation_DockerResourcePrefixing",
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/project-isolation.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_styleguide_document",
+      "target": "apps_doc_content_docs_reference_glossary_ServiceAdapterPattern",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/styleguide.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_styleguide_ConsistencyRule",
+      "target": "apps_doc_content_docs_reference_glossary_CanonicalDocs",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/styleguide.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_docs_authoring_DocCallout",
+      "target": "apps_doc_content_docs_tooling_copilot_setup_Guardrail",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/docs-authoring.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_reference_glossary_MigrationLifecycle",
+      "target": "apps_doc_content_docs_tooling_environment_template_system_DotEnvTemplate",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.55,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_testing_testing_PRReadinessChecklist",
+      "target": "apps_doc_content_docs_reference_styleguide_ConventionalCommits",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/testing/testing.mdx",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "apps_doc_content_docs_tooling_docs_authoring_MermaidDiagrams",
+      "target": "apps_doc_content_docs_tooling_docs_authoring_DocCardGrid",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/docs-authoring.mdx",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "platform_terms",
+      "label": "Platform Terms",
+      "nodes": [
+        "apps_doc_content_docs_reference_glossary_Cluster",
+        "apps_doc_content_docs_reference_glossary_Node",
+        "apps_doc_content_docs_reference_glossary_ManagerNode",
+        "apps_doc_content_docs_reference_glossary_WorkerNode",
+        "apps_doc_content_docs_reference_glossary_Organization",
+        "apps_doc_content_docs_reference_glossary_Project",
+        "apps_doc_content_docs_reference_glossary_Service"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx"
+    },
+    {
+      "id": "deployment_concepts",
+      "label": "Deployment Concepts",
+      "nodes": [
+        "apps_doc_content_docs_reference_glossary_PreviewEnvironment",
+        "apps_doc_content_docs_reference_glossary_ConfigAsCode",
+        "apps_doc_content_docs_reference_glossary_CascadeDeploy",
+        "apps_doc_content_docs_reference_glossary_OneShotTask",
+        "apps_doc_content_docs_reference_glossary_ScaleToZero"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx"
+    },
+    {
+      "id": "architecture_patterns",
+      "label": "Architecture Patterns",
+      "nodes": [
+        "apps_doc_content_docs_reference_glossary_ServiceAdapterPattern",
+        "apps_doc_content_docs_reference_glossary_ORPC",
+        "apps_doc_content_docs_reference_glossary_Contract",
+        "apps_doc_content_docs_reference_glossary_BoundaryRule",
+        "apps_doc_content_docs_reference_glossary_InternalPackage",
+        "apps_doc_content_docs_reference_glossary_WorkspaceGraph"
+      ],
+      "relation": "implement",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/reference/glossary.mdx"
+    },
+    {
+      "id": "docs_authoring_components",
+      "label": "Docs Authoring Components",
+      "nodes": [
+        "apps_doc_content_docs_tooling_docs_authoring_DocCallout",
+        "apps_doc_content_docs_tooling_docs_authoring_DocChecklist",
+        "apps_doc_content_docs_tooling_docs_authoring_DocStepFlow",
+        "apps_doc_content_docs_tooling_docs_authoring_MermaidDiagrams",
+        "apps_doc_content_docs_tooling_docs_authoring_DocCardGrid"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/docs-authoring.mdx"
+    },
+    {
+      "id": "environment_management",
+      "label": "Environment Management",
+      "nodes": [
+        "apps_doc_content_docs_tooling_environment_template_system_TemplateEngine",
+        "apps_doc_content_docs_tooling_environment_template_system_DotEnvTemplate",
+        "apps_doc_content_docs_tooling_environment_template_system_CheckEnv",
+        "apps_doc_content_docs_tooling_environment_template_system_TemplateSyntax",
+        "apps_doc_content_docs_tooling_environment_template_system_SecretGeneration",
+        "apps_doc_content_docs_tooling_environment_template_system_ENABLEDEVBOOTSTRAP"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/tooling/environment-template-system.mdx"
+    },
+    {
+      "id": "quality_assurance",
+      "label": "Quality Assurance",
+      "nodes": [
+        "apps_doc_content_docs_reference_glossary_QualityGate",
+        "apps_doc_content_docs_testing_testing_Vitest",
+        "apps_doc_content_docs_testing_testing_CoverageWorkflow",
+        "apps_doc_content_docs_testing_testing_PRReadinessChecklist",
+        "apps_doc_content_docs_testing_testing_HighSignalTestingRule",
+        "apps_doc_content_docs_reference_styleguide_ConsistencyRule"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/testing/testing.mdx"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

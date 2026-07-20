@@ -64,6 +64,7 @@ export class AuthModule
 	}
 
 	onModuleInit(): void {
+		// ── Hook discovery ──────────────────────────────────────────────────
 		const providers = this.discoveryService
 			.getProviders()
 			.filter(
@@ -98,6 +99,26 @@ export class AuthModule
 	}
 
 	configure(consumer: MiddlewareConsumer): void {
+		// Get basePath from options or use default
+		let basePath = "basePath" in this.options.auth.options && typeof this.options.auth.options.basePath === "string" ? this.options.auth.options.basePath : "/api/auth";
+
+		// Ensure basePath starts with /
+		if (!basePath.startsWith("/")) {
+			basePath = `/${basePath}`;
+		}
+
+		// Ensure basePath doesn't end with /
+		if (basePath.endsWith("/")) {
+			basePath = basePath.slice(0, -1);
+		}
+
+		// ── Register BetterAuth handler as NestJS middleware ────────────────
+		// This runs BEFORE the NestJS router (middleware resolution happens before
+		// router registration in NestJS init), so BetterAuth intercepts auth
+		// requests before the 404 handler.
+		consumer.apply(toNodeHandler(this.options.auth)).forRoutes(basePath);
+		this.logger.log(`BetterAuth handler registered at "${basePath}"`);
+
 		const trustedOrigins = "trustedOrigins" in this.options.auth.options ? this.options.auth.options.trustedOrigins : null;
         // function-based trustedOrigins requires a Request (from web-apis) object to evaluate, which is not available in NestJS (we only have a express Request object)
         // if we ever need this, take a look at better-call which show an implementation for this
@@ -114,35 +135,11 @@ export class AuthModule
 		} else if (trustedOrigins && !this.options.disableTrustedOriginsCors && !isNotFunctionBased)
             throw new Error("Function-based trustedOrigins not supported in NestJS. Use string array or disable CORS with disableTrustedOriginsCors: true.");
 
-		// Get basePath from options or use default
-        let basePath = "basePath" in this.options.auth.options && typeof this.options.auth.options.basePath === "string" ? this.options.auth.options.basePath : "/api/auth";
-
-		// Ensure basePath starts with /
-		if (!basePath.startsWith("/")) {
-			basePath = `/${basePath}`;
-		}
-
-		// Ensure basePath doesn't end with /
-		if (basePath.endsWith("/")) {
-			basePath = basePath.slice(0, -1);
-		}
-
 		// Only apply body parsing middleware if NestJS global body parser is disabled
 		// If bodyParser: true in main.ts, NestJS handles body parsing automatically
 		if (!this.options.disableBodyParser) {
 			consumer.apply(SkipBodyParsingMiddleware(basePath)).forRoutes("*path");
 		}
-
-		const handler = toNodeHandler(this.options.auth);
-		const http = this.adapter.httpAdapter.getInstance<{
-			use: (path: string, handler: (req: Request, res: Response) => void | Promise<void>) => void;
-		}>();
-
-		http.use(basePath, async (req: Request, res: Response) => {
-			await handler(req, res);
-		});
-
-		this.logger.log(`AuthModule initialized BetterAuth on '${basePath}'`);
 	}
 
 	private setupHooks(providerMethod: (...args: unknown[]) => unknown, providerClass: new (...args: unknown[]) => unknown) {

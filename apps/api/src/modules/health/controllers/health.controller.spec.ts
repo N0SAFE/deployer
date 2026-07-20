@@ -2,6 +2,7 @@ import { Test, type TestingModule } from "@nestjs/testing";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { HealthController } from "./health.controller";
 import { HealthService } from "../services/health.service";
+import { AppLifecyclePhase } from "@/core/modules/lifecycle";
 
 // Mock auth user for requireAuth middleware
 const mockAuthUser = {
@@ -93,9 +94,14 @@ describe("HealthController", () => {
 
         it("should be able to call getHealth service method directly", () => {
             const mockHealth = {
-                status: "ok",
-                timestamp: new Date().toISOString(),
+                status: "ok" as const,
+                timestamp: new Date(),
                 service: "nestjs-api",
+                lifecycle: {
+                    phase: AppLifecyclePhase.INITIALIZED,
+                    step: null,
+                    message: expect.any(String),
+                },
             };
             vi.mocked(service.getHealth).mockReturnValue(mockHealth);
 

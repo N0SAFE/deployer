@@ -198,8 +198,8 @@ flowchart TD
 ### High-signal variables to know
 
 - Core/runtime: `DATABASE_URL`, `NODE_ENV`, `NEXT_PUBLIC_API_URL`, `API_PORT`
-- Auth/bootstrap: `AUTH_SECRET`, `DEFAULT_ADMIN_EMAIL`, `DEFAULT_ADMIN_PASSWORD`, `DEV_AUTH_KEY`
-- Mesh/cluster: `MESH_CLUSTER_ID`, `MESH_NODE_ID`, `MESH_STREAM_SHARED_SECRET`
+- Auth/bootstrap: `DEV_AUTH_KEY` (secrets resolved via mesh at runtime)
+- Mesh/cluster: `MESH_CLUSTER_ID`, `MESH_STREAM_SHARED_SECRET`
 - Source/webhook: `GITHUB_WEBHOOK_SECRET`
 - API ops: `API_ADMIN_TOKEN`, `UPLOADS_DIR`
 - LB/edge (prod-like): `LB_ROUTE_SECRET`, `LB_FORWARD_TOKEN_SECRET`, `LB_DIAGNOSTIC_SECRET`

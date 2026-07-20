@@ -27,7 +27,6 @@ type EnvMockForSchema<TSchema extends zod.ZodTypeAny> = {
 } & Partial<Record<Extract<keyof SchemaInputRecord<TSchema>, string>, string>>;
 
 const apiMockEnv: EnvMockForSchema<typeof apiEnvSchema> = {
-    DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/dev",
     API_PORT: "3001",
     AUTH_SECRET: "mock-auth-secret-key-for-development-only-change-in-production",
     BETTER_AUTH_SECRET:
@@ -38,7 +37,7 @@ const apiMockEnv: EnvMockForSchema<typeof apiEnvSchema> = {
     DEFAULT_ADMIN_EMAIL: "admin@admin.com",
     DEFAULT_ADMIN_PASSWORD: "adminadmin",
     DISABLE_AUTO_SCAN: "false",
-    DEV_AUTO_SETUP: "false",
+    SETUP_AUTO: "false",
     ENABLE_SEEDING: "false",
     SKIP_MIGRATIONS: "false",
 };

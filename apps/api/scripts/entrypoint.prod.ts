@@ -3,25 +3,16 @@
 /**
  * Unified Production Entrypoint (Single Container)
  *
- * In production, a single container runs both the NestJS API and the Next.js
- * web server. The API handles all startup tasks internally via
- * `StartupOrchestratorService.onModuleInit()`:
- *   - Runs pending Drizzle migrations
- *   - Creates default admin user (if configured)
- *   - Registers this node in the mesh
- *   - Reports schema version
+ * Starts the NestJS API (which handles all startup internally via
+ * the v2 Sub-App Trigger Chain: BootstrapGate → SubAppOrchestrator →
+ * ephemeral sub-apps for Config, Database, Auth, Mesh, Events, Docker),
+ * then builds and starts the Next.js web
+ * server at runtime so prerender can use the live API.
  *
- * This entrypoint:
- *   1. Validates environment variables
- *   2. Starts the NestJS API (which auto-runs startup tasks in lifecycle hooks)
- *   3. Starts the Next.js web server alongside the API
- *   4. Handles graceful shutdown for both processes
+ * Env validation is handled by the API's own EnvService + ConfigModule.
  */
 
-import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
-import { validateApiEnvSafe, apiEnvIsValid } from "@repo/env";
-import zod from "zod/v4";
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -30,24 +21,7 @@ interface ProcessHandle {
   name: string;
 }
 
-// ─── Phase 1: Validate environment ──────────────────────────────────────────
-
-function validateEnvironment(): void {
-  console.log("🔍 Validating environment variables...");
-
-  if (!apiEnvIsValid(process.env)) {
-    const result = validateApiEnvSafe(process.env);
-    console.error("❌ Environment validation failed:");
-    if (!result.success) {
-      console.error(zod.prettifyError(result.error));
-    }
-    process.exit(1);
-  }
-
-  console.log("✅ Environment validation passed\n");
-}
-
-// ─── Phase 2: Start NestJS API ─────────────────────────────────────────────
+// ─── Phase 1: Start NestJS API ─────────────────────────────────────────────
 
 function startApi(): Promise<ProcessHandle> {
   return new Promise((resolve, reject) => {
@@ -77,29 +51,44 @@ function startApi(): Promise<ProcessHandle> {
   });
 }
 
-// ─── Phase 3: Start Next.js web server ──────────────────────────────────────
+// ─── Phase 3: Build and start Next.js web server at runtime ──────────────
+
+function buildWeb(): Promise<boolean> {
+  return new Promise((resolve) => {
+    console.log("🏗️  Building Next.js web app (runtime — API available)...");
+
+    const buildProcess = spawn("bun", ["--bun", "run", "build"], {
+      stdio: "inherit",
+      shell: true,
+      cwd: "../web",
+      env: {
+        ...process.env,
+        NODE_ENV: "production",
+      },
+    });
+
+    buildProcess.on("error", (err) => {
+      console.error("❌ Web build error:", err);
+      resolve(false);
+    });
+
+    buildProcess.on("exit", (code) => {
+      if (code === 0) {
+        console.log("✅ Web app built successfully\n");
+        resolve(true);
+      } else {
+        console.error(`❌ Web build failed with exit code ${code}`);
+        resolve(false);
+      }
+    });
+  });
+}
 
 function startWeb(): Promise<ProcessHandle | null> {
   return new Promise((resolve) => {
-    // Check if the built web app exists
-    const webDist = "../web/.next";
-    if (!existsSync(webDist)) {
-      console.log("⏭️  Web build not found at ../web/.next — skipping web server");
-      resolve(null);
-      return;
-    }
-
-    // Check if web entrypoint exists
-    const webEntrypoint = "../web/scripts/entrypoint.prod.ts";
-    if (!existsSync(webEntrypoint)) {
-      console.log("⏭️  Web entrypoint not found — skipping web server");
-      resolve(null);
-      return;
-    }
-
     console.log("🌐 Starting Next.js web server...");
 
-    const webProcess = spawn("bun", ["--bun", webEntrypoint], {
+    const webProcess = spawn("bun", ["--bun", "run", "start"], {
       stdio: "inherit",
       shell: true,
       cwd: "../web",
@@ -117,7 +106,6 @@ function startWeb(): Promise<ProcessHandle | null> {
     webProcess.on("exit", (code) => {
       if (code !== 0 && code !== null) {
         console.warn(`⚠️  Web process exited with code ${code}`);
-        // Don't exit — API continues running
       }
     });
 
@@ -132,8 +120,6 @@ async function main(): Promise<void> {
   console.log("🎯 Unified Production Container Entrypoint");
   console.log("════════════════════════════════════════════════════════\n");
 
-  validateEnvironment();
-
   const processes: ProcessHandle[] = [];
 
   try {
@@ -141,9 +127,12 @@ async function main(): Promise<void> {
     const api = await startApi();
     processes.push(api);
 
-    // Start the web server (if built output exists)
-    const web = await startWeb();
-    if (web) processes.push(web);
+    // Build the web app at runtime (API is running, so prerender works)
+    const webBuilt = await buildWeb();
+    if (webBuilt) {
+      const web = await startWeb();
+      if (web) processes.push(web);
+    }
 
     console.log(`\n✅ ${processes.length} process(es) running:`);
     for (const p of processes) {

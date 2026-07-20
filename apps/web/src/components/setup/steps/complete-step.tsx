@@ -1,23 +1,54 @@
-"use client"
-
-import { CheckCircle2, Copy } from "lucide-react"
+import { CheckCircle2, Copy, Loader2 } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@repo/ui/components/shadcn/button"
-import { AuthSignin } from "@/routes"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { AuthDashboard } from "@/routes"
 
 type Props = {
   nodeId: string
   strategy: "local" | "remote"
   /** For local: { username, email, dbMode } */
-  localInfo?: { username: string; email: string; dbMode: "managed" | "existing" }
+  localInfo?: { username: string; email: string; password: string; dbMode: "managed" | "existing" }
   /** For remote: { meshUrl } */
   remoteInfo?: { meshUrl: string }
 }
 
 export function CompleteStep({ nodeId, strategy, localInfo, remoteInfo }: Props) {
   const [copied, setCopied] = useState(false)
+  const [loggingIn, setLoggingIn] = useState(false)
+  const [loginError, setLoginError] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectTo = searchParams.get("redirectTo") ?? "/dashboard"
+
+  /** Auto-login using BetterAuth credentials from setup */
+  async function handleContinue() {
+    setLoggingIn(true)
+    setLoginError(null)
+
+    try {
+      // For local: auto-login with credentials the user just entered
+      if (localInfo?.email && localInfo?.password) {
+        const res = await fetch("/api/auth/sign-in/email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: localInfo.email, password: localInfo.password }),
+        })
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error((body as Record<string, unknown>).message as string ?? "Sign in failed")
+        }
+      }
+
+      // Success — redirect to the target URL
+      router.push(redirectTo)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setLoginError(msg)
+      setLoggingIn(false)
+    }
+  }
 
   const summary =
     strategy === "remote" && remoteInfo
@@ -93,11 +124,23 @@ export function CompleteStep({ nodeId, strategy, localInfo, remoteInfo }: Props)
         </ul>
       </div>
 
+      {loginError && (
+        <p className="text-xs text-destructive text-center">{loginError}</p>
+      )}
+
       <Button
         className="w-full gap-2"
-        onClick={() => router.push(AuthSignin({}))}
+        onClick={handleContinue}
+        disabled={loggingIn}
       >
-        Go to sign in
+        {loggingIn ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Signing in…
+          </>
+        ) : (
+          "Continue to dashboard"
+        )}
       </Button>
     </div>
   )

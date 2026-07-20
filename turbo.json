@@ -12,7 +12,6 @@
         "NEXT_AUTH",
         "TURBO_TOKEN",
         "TURBO_TEAM",
-        "DATABASE_URL",
         "BETTER_AUTH_SECRET",
         "AUTH_SECRET",
         "NODE_ENV",

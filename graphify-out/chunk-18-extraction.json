@@ -1,0 +1,1405 @@
+{
+  "nodes": [
+    {
+      "id": "docs_qa_platform-direction_build-cicd",
+      "label": "Build & CI/CD Pipeline",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/build-cicd.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_qa_platform-direction_deploy-strategy",
+      "label": "Deploy Strategy & Pipeline Details",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deploy-strategy.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_qa_platform-direction_deployment-lifecycle",
+      "label": "Deployment Lifecycle",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deployment-lifecycle.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_qa_platform-direction_deployment-sources",
+      "label": "Deployment Sources",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deployment-sources.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_qa_platform-direction_infrastructure-networking",
+      "label": "Infrastructure & Networking",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/infrastructure-networking.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_qa_platform-direction_mesh-data-layer",
+      "label": "Mesh & Data Layer",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/mesh-data-layer.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_qa_platform-direction_multi-tenancy",
+      "label": "Multi-Tenancy & Org Model",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/multi-tenancy.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_qa_platform-direction_observability",
+      "label": "Observability",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/observability.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_qa_platform-direction_project-service-model",
+      "label": "Project & Service Architecture",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/project-service-model.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_qa_platform-direction_security-business",
+      "label": "Security, Compliance & Business Model",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/security-business.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_qa_platform-direction_ux-dashboard-cli",
+      "label": "UX, Dashboard & CLI",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/ux-dashboard-cli.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_qa_system-metrics_api-design",
+      "label": "System Metrics API Design",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/system-metrics/api-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_qa_system-metrics_business-logic",
+      "label": "System Metrics Business Logic",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/system-metrics/business-logic.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_qa_system-metrics_performance",
+      "label": "System Metrics Performance",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/system-metrics/performance.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_qa_system-metrics_security",
+      "label": "System Metrics Security",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/system-metrics/security.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "docs_qa_web-rebuild_feature-mapping-v1-v2-to-v3",
+      "label": "V1/V2 to V3 Web Rebuild Feature Mapping",
+      "file_type": "document",
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/web-rebuild/feature-mapping-v1-v2-to-v3.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_orpc",
+      "label": "ORPC (OpenRPC)",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_mesh",
+      "label": "Deployer Mesh",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_traefik",
+      "label": "Traefik Reverse Proxy",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_docker",
+      "label": "Docker Container Runtime",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_docker-compose",
+      "label": "Docker Compose",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_orpc-event-iterator",
+      "label": "ORPC EventIterator (SSE Stream)",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_gossip-ring",
+      "label": "Gossip Ring Mesh Topology",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_coredns",
+      "label": "CoreDNS Service Discovery",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_lets-encrypt",
+      "label": "Let's Encrypt SSL",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_nixpacks",
+      "label": "Nixpacks Build System",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_provider-system",
+      "label": "Provider Abstraction System",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_plugin-system",
+      "label": "Plugin Extension System",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_secrets-management",
+      "label": "Secrets Management (Encrypted DB + Vault)",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_zero-downtime-deploy",
+      "label": "Zero-Downtime Deployment",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_multi-tenancy-hierarchy",
+      "label": "Multi-Tenancy Access Hierarchy",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_service-types",
+      "label": "Platform Service Types (Web/Worker/Cron/OneShot)",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_scale-to-zero",
+      "label": "Scale-to-Zero Sleep Mode",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_persistent-storage",
+      "label": "Persistent Storage Options",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_preview-environments",
+      "label": "Preview Environments",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_database-replication",
+      "label": "Database Replication (Primary + Read Replicas)",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_log-storage",
+      "label": "Log Storage (Hot + Cold S3 Archive)",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_system-metrics",
+      "label": "System Metrics Collection",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_v3-web-rebuild",
+      "label": "V3 Web App Rebuild",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_project-service-model",
+      "label": "Project-Service-Environment Model",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_role-permission-system",
+      "label": "Role & Permission System",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_open-core-license",
+      "label": "Open Core License Model",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_ci-cd-pipeline-stages",
+      "label": "CI/CD Pipeline Stages (Build/Test/Release/Deploy/Smoke/Approval)",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_github-integration",
+      "label": "GitHub Integration (Webhook + CI/CD)",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_deployer-yaml",
+      "label": "Deployer YAML Config-as-Code",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_observability-stack",
+      "label": "Observability Stack (PostgreSQL + Prometheus/Grafana)",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_platform-cli",
+      "label": "Platform CLI Tool",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_node-management",
+      "label": "Node Join/Removal/Migration",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "concept_dns-management",
+      "label": "DNS Management (Platform-managed + Manual)",
+      "file_type": "concept",
+      "source_file": null,
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "docs_qa_platform-direction_build-cicd",
+      "target": "concept_ci-cd-pipeline-stages",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/build-cicd.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_build-cicd",
+      "target": "concept_github-integration",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/build-cicd.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_build-cicd",
+      "target": "concept_nixpacks",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/build-cicd.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_build-cicd",
+      "target": "concept_docker-compose",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/build-cicd.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_build-cicd",
+      "target": "concept_provider-system",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/build-cicd.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_deploy-strategy",
+      "target": "concept_zero-downtime-deploy",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deploy-strategy.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_deploy-strategy",
+      "target": "concept_service-types",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deploy-strategy.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_deploy-strategy",
+      "target": "concept_scale-to-zero",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deploy-strategy.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_deploy-strategy",
+      "target": "concept_lets-encrypt",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deploy-strategy.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_deploy-strategy",
+      "target": "concept_orpc",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deploy-strategy.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_deploy-strategy",
+      "target": "concept_deployer-yaml",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deploy-strategy.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_deploy-strategy",
+      "target": "concept_secrets-management",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deploy-strategy.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_deploy-strategy",
+      "target": "concept_plugin-system",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deploy-strategy.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_deployment-lifecycle",
+      "target": "concept_orpc-event-iterator",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deployment-lifecycle.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_deployment-sources",
+      "target": "concept_docker",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deployment-sources.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_deployment-sources",
+      "target": "concept_github-integration",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deployment-sources.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_deployment-sources",
+      "target": "concept_docker-compose",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deployment-sources.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_infrastructure-networking",
+      "target": "concept_traefik",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/infrastructure-networking.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_infrastructure-networking",
+      "target": "concept_docker",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/infrastructure-networking.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_infrastructure-networking",
+      "target": "concept_preview-environments",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/infrastructure-networking.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_infrastructure-networking",
+      "target": "concept_persistent-storage",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/infrastructure-networking.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_infrastructure-networking",
+      "target": "concept_node-management",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/infrastructure-networking.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_mesh-data-layer",
+      "target": "concept_mesh",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/mesh-data-layer.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_mesh-data-layer",
+      "target": "concept_orpc-event-iterator",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/mesh-data-layer.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_mesh-data-layer",
+      "target": "concept_gossip-ring",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/mesh-data-layer.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_mesh-data-layer",
+      "target": "concept_coredns",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/mesh-data-layer.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_mesh-data-layer",
+      "target": "concept_database-replication",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/mesh-data-layer.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_mesh-data-layer",
+      "target": "concept_log-storage",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/mesh-data-layer.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_multi-tenancy",
+      "target": "concept_multi-tenancy-hierarchy",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/multi-tenancy.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_observability",
+      "target": "concept_observability-stack",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/observability.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_project-service-model",
+      "target": "concept_project-service-model",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/project-service-model.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_project-service-model",
+      "target": "concept_deployer-yaml",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/project-service-model.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_security-business",
+      "target": "concept_secrets-management",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/security-business.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_security-business",
+      "target": "concept_role-permission-system",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/security-business.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_security-business",
+      "target": "concept_open-core-license",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/security-business.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_security-business",
+      "target": "concept_plugin-system",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/security-business.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_ux-dashboard-cli",
+      "target": "concept_platform-cli",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/ux-dashboard-cli.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_ux-dashboard-cli",
+      "target": "concept_orpc-event-iterator",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/ux-dashboard-cli.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_system-metrics_business-logic",
+      "target": "concept_system-metrics",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/system-metrics/business-logic.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_system-metrics_performance",
+      "target": "concept_system-metrics",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/system-metrics/performance.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_web-rebuild_feature-mapping-v1-v2-to-v3",
+      "target": "concept_v3-web-rebuild",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/web-rebuild/feature-mapping-v1-v2-to-v3.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_web-rebuild_feature-mapping-v1-v2-to-v3",
+      "target": "concept_project-service-model",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/web-rebuild/feature-mapping-v1-v2-to-v3.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_provider-system",
+      "target": "concept_plugin-system",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_mesh",
+      "target": "concept_gossip-ring",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/mesh-data-layer.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_mesh",
+      "target": "concept_orpc-event-iterator",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/mesh-data-layer.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_mesh",
+      "target": "concept_coredns",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/mesh-data-layer.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_mesh",
+      "target": "concept_database-replication",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/mesh-data-layer.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_multi-tenancy-hierarchy",
+      "target": "concept_role-permission-system",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_traefik",
+      "target": "concept_lets-encrypt",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_traefik",
+      "target": "concept_zero-downtime-deploy",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_docker",
+      "target": "concept_docker-compose",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_docker",
+      "target": "concept_persistent-storage",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_docker",
+      "target": "concept_node-management",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_preview-environments",
+      "target": "concept_scale-to-zero",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_orpc-event-iterator",
+      "target": "concept_orpc",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_ci-cd-pipeline-stages",
+      "target": "concept_github-integration",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_v3-web-rebuild",
+      "target": "concept_project-service-model",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/web-rebuild/feature-mapping-v1-v2-to-v3.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_system-metrics",
+      "target": "concept_observability-stack",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_observability-stack",
+      "target": "concept_log-storage",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_secrets-management",
+      "target": "concept_role-permission-system",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_open-core-license",
+      "target": "concept_plugin-system",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_service-types",
+      "target": "concept_docker",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_zero-downtime-deploy",
+      "target": "concept_preview-environments",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_project-service-model",
+      "target": "concept_deployer-yaml",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/project-service-model.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_mesh",
+      "target": "concept_node-management",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_github-integration",
+      "target": "concept_deployer-yaml",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_orpc",
+      "target": "concept_orpc-event-iterator",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_provider-system",
+      "target": "concept_lets-encrypt",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_multi-tenancy-hierarchy",
+      "target": "concept_project-service-model",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_database-replication",
+      "target": "concept_mesh",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/mesh-data-layer.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_deploy-strategy",
+      "target": "concept_orpc-event-iterator",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deploy-strategy.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_deploy-strategy",
+      "target": "concept_traefik",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deploy-strategy.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_deploy-strategy",
+      "target": "concept_preview-environments",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deploy-strategy.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_system-metrics_api-design",
+      "target": "concept_system-metrics",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/system-metrics/api-design.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_system-metrics_security",
+      "target": "concept_system-metrics",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/system-metrics/security.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_deployment-lifecycle",
+      "target": "concept_orpc",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deployment-lifecycle.md",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_provider-system",
+      "target": "concept_deployer-yaml",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "concept_log-storage",
+      "target": "concept_observability-stack",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": null,
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "docs_qa_platform-direction_multi-tenancy",
+      "target": "concept_dns-management",
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/multi-tenancy.md",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "deployment_pipeline_hyperedge",
+      "label": "Deployment Pipeline Stack",
+      "nodes": [
+        "concept_ci-cd-pipeline-stages",
+        "concept_github-integration",
+        "concept_zero-downtime-deploy",
+        "concept_service-types",
+        "concept_deployer-yaml",
+        "concept_preview-environments"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/deploy-strategy.md"
+    },
+    {
+      "id": "mesh_infrastructure_hyperedge",
+      "label": "Mesh Infrastructure Stack",
+      "nodes": [
+        "concept_mesh",
+        "concept_gossip-ring",
+        "concept_orpc-event-iterator",
+        "concept_coredns",
+        "concept_database-replication",
+        "concept_log-storage"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/mesh-data-layer.md"
+    },
+    {
+      "id": "security_governance_hyperedge",
+      "label": "Security & Governance Stack",
+      "nodes": [
+        "concept_secrets-management",
+        "concept_role-permission-system",
+        "concept_multi-tenancy-hierarchy",
+        "concept_open-core-license",
+        "concept_plugin-system"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction/security-business.md"
+    },
+    {
+      "id": "platform_architecture_hyperedge",
+      "label": "Platform Architecture Domains",
+      "nodes": [
+        "docs_qa_platform-direction_build-cicd",
+        "docs_qa_platform-direction_deploy-strategy",
+        "docs_qa_platform-direction_infrastructure-networking",
+        "docs_qa_platform-direction_mesh-data-layer",
+        "docs_qa_platform-direction_multi-tenancy",
+        "docs_qa_platform-direction_observability",
+        "docs_qa_platform-direction_project-service-model",
+        "docs_qa_platform-direction_security-business",
+        "docs_qa_platform-direction_ux-dashboard-cli"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/home/sebille/Bureau/projects/tests/deployer/v3/docs/qa/platform-direction"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

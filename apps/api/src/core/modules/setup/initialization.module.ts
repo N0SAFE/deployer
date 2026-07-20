@@ -5,10 +5,10 @@ import { RemoteInitializationService } from "./services/remote-initialization.se
 import { LocalInitializationService } from "./services/local-initialization.service";
 import { SetupEventService } from "./services/setup-event.service";
 import { MeshInitializationModule } from "@/core/modules/mesh/initialization/mesh-initialization.module";
-import { LocalModule } from "../database/local/local.module";
+import { LocalDatabaseModule } from "../database/local/local-database.module";
 import { CoreDockerModule } from "../docker/docker.module";
 import { CoreReachabilityModule } from "../reachability/core-reachability.module";
-import { MeshVersionService } from "../startup/mesh-version.service";
+import { MeshVersionService } from "../mesh/version/mesh-version.service";
 
 /**
  * Global Setup Module
@@ -23,7 +23,7 @@ import { MeshVersionService } from "../startup/mesh-version.service";
  * when the database is not yet configured.
  */
 @Module({
-    imports: [MeshInitializationModule, LocalModule, CoreDockerModule, CoreReachabilityModule],
+    imports: [MeshInitializationModule, LocalDatabaseModule, CoreDockerModule, CoreReachabilityModule],
     providers: [
         LocalInitializationService,
         RemoteInitializationService,

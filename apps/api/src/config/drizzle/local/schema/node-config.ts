@@ -105,10 +105,27 @@ export const nodeConfig = sqliteTable("node_config", {
      * Null if the secret has never been set.
      */
     meshSharedSecretUpdatedAt: text("mesh_shared_secret_updated_at"),
-});
 
-export type NodeConfigRow = typeof nodeConfig.$inferSelect;
-export type NewNodeConfigRow = typeof nodeConfig.$inferInsert;
+    /**
+     * Scanner configuration as JSON.
+     * Stores per-node scanning preferences (auto-scan, scanner types, etc.).
+     * Used instead of env var DISABLE_AUTO_SCAN so the config survives restarts.
+     * Null = use defaults (auto-scan enabled for trivy).
+     *
+     * Shape: { autoScan: boolean; scanners: string[] }
+     */
+    scanConfig: text("scan_config", { mode: "json" }).$type<{
+        autoScan: boolean;
+        scanners: ("trivy" | "grype" | "dive")[];
+    } | null>(),
+
+    /**
+     * Post-setup hint flags as JSON.
+     * Stores which post-setup hints have been dismissed (e.g. "scanning": "dismissed").
+     * Null = no hints have been acted upon yet.
+     */
+    postSetupFlags: text("post_setup_flags", { mode: "json" }).$type<Record<string, string> | null>(),
+});
 
 export type NodeConfigRow = typeof nodeConfig.$inferSelect;
 export type NewNodeConfigRow = typeof nodeConfig.$inferInsert;

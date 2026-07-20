@@ -19,6 +19,7 @@ import NextTopLoader from 'nextjs-toploader'
 import Script from 'next/script'
 import { validateEnvSafe } from '#/env'
 import { Toaster } from '@repo/ui/components/shadcn/sonner'
+import { PostSetupHints } from '@/components/setup/post-setup-hints'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'})
@@ -94,7 +95,8 @@ export default function RootLayout({
                             <ReactQueryProviders>
                                 {children}
                                 <Toaster richColors closeButton position="top-right" />
-                                                                                            </ReactQueryProviders>
+                                <PostSetupHints />
+                            </ReactQueryProviders>
                         </NuqsAdapter>
                     </ThemeProvider>
                 </AuthProviders>

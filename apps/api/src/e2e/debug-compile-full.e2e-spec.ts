@@ -8,7 +8,7 @@ describe('debug appmodule compile', () => {
     const patch = {
       ...getMockEnv('api'),
       NODE_ENV: 'test',
-      DATABASE_URL: 'postgres://deployer:deployer@127.0.0.1:1/deployer_e2e',
+      SETUP_DATABASE_URL: 'postgres://deployer:deployer@127.0.0.1:1/deployer_e2e',
       AUTH_SECRET: 'test-auth-secret-key-for-testing-only',
       BETTER_AUTH_SECRET: 'test-auth-secret-key-for-testing-only',
       NEXT_PUBLIC_API_URL: 'http://localhost:3001',
@@ -35,7 +35,7 @@ describe('debug appmodule compile', () => {
       waitForSetup: () => Promise.resolve({
         nodeId: 'mock-node',
         connectedAt: new Date(),
-        databaseUrl: patch.DATABASE_URL,
+        databaseUrl: patch.SETUP_DATABASE_URL,
         strategy: 'local' as const,
       }),
       getSetupState: () => ({ state: 'completed', needsSetup: false, strategy: 'local', currentStep: null, progressPercent: 100, steps: [], completedAt: new Date(), hasUsers: false, hasOrganizations: false, availableStrategies: ['local'] }),

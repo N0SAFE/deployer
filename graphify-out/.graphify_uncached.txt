@@ -79,6 +79,7 @@
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/api/ARCHITECTURE.md
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/api/README.openapi.md
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/api/docs/DEV-TOKEN-AUTH.md
+/home/sebille/Bureau/projects/tests/deployer/v3/apps/api/docs/sub-app-architecture.md
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/api/full-type-check-output.txt
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/core/modules/auth/orpc/EXAMPLES.md
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/api/src/core/modules/auth/orpc/README.md
@@ -198,6 +199,12 @@
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/architecture/platform-capabilities-graphs.mdx
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/architecture/platform-product-spec.mdx
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/architecture/platform-source-of-truth.mdx
+/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/architecture/startup-architecture-v2.mdx
+/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/architecture/startup-v2-complete-flow.mdx
+/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/architecture/startup-v2-flow-per-case.mdx
+/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/architecture/startup-v2-implementation-blueprint.mdx
+/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/architecture/startup-v2-implementation-plan.mdx
+/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/architecture/startup-v2-orchestration-graph.mdx
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/architecture/tech-stack.mdx
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/deployment/active-active-operator-playbook.mdx
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/deployment/benchmark-feature-adaptation-matrix.mdx
@@ -237,8 +244,12 @@
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/dev/event-system-stream-examples.mdx
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/dev/event-system-streams.mdx
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/dev/global-db-migration-management.mdx
+/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/dev/orpc-auth-patterns.mdx
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/dev/orpc.mdx
+/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/dev/progressive-module-initialization.mdx
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/dev/routing.mdx
+/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/dev/startup-architecture-analysis.mdx
+/home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/dev/startup-architecture.mdx
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/docker/cors-configuration.mdx
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/docker/docker-build-strategies.mdx
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/doc/content/docs/docker/docker-compose.mdx
@@ -391,7 +402,9 @@
 /home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/enhancements/03-UX-IMPROVEMENTS.md
 /home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/enhancements/04-CONSOLIDATION.md
 /home/sebille/Bureau/projects/tests/deployer/v3/repository-enhancements/enhancements/05-ARCHITECTURE.md
+/home/sebille/Bureau/projects/tests/deployer/v3/test.txt
 /home/sebille/Bureau/projects/tests/deployer/v3/ts-output.txt
+graphify-out/transcripts/placeholder.txt
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/api/graph.svg
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/icons/apple-touch-icon.png
 /home/sebille/Bureau/projects/tests/deployer/v3/apps/web/public/icons/icon-192x192.png

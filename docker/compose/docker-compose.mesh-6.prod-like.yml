@@ -36,7 +36,7 @@ services:
       - NODE_ENV=production
       - LOG_LEVEL=warn
       - APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER:-}
-      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
+      - SETUP_DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
       - MIGRATIONS_FOLDER=./dist/migrations
       - API_PORT=3401
       - API_URL=http://api-mesh-prod-1:3401
@@ -87,7 +87,7 @@ services:
       - NODE_ENV=production
       - LOG_LEVEL=warn
       - APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER:-}
-      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
+      - SETUP_DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
       - MIGRATIONS_FOLDER=./dist/migrations
       - API_PORT=3402
       - API_URL=http://api-mesh-prod-2:3402
@@ -138,7 +138,7 @@ services:
       - NODE_ENV=production
       - LOG_LEVEL=warn
       - APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER:-}
-      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
+      - SETUP_DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
       - MIGRATIONS_FOLDER=./dist/migrations
       - API_PORT=3403
       - API_URL=http://api-mesh-prod-3:3403
@@ -189,7 +189,7 @@ services:
       - NODE_ENV=production
       - LOG_LEVEL=warn
       - APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER:-}
-      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
+      - SETUP_DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
       - MIGRATIONS_FOLDER=./dist/migrations
       - API_PORT=3404
       - API_URL=http://api-mesh-prod-4:3404
@@ -240,7 +240,7 @@ services:
       - NODE_ENV=production
       - LOG_LEVEL=warn
       - APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER:-}
-      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
+      - SETUP_DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
       - MIGRATIONS_FOLDER=./dist/migrations
       - API_PORT=3405
       - API_URL=http://api-mesh-prod-5:3405
@@ -291,7 +291,7 @@ services:
       - NODE_ENV=production
       - LOG_LEVEL=warn
       - APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER:-}
-      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
+      - SETUP_DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@api-db-mesh-prod:5432/${DB_DATABASE:-nestjs_api}
       - MIGRATIONS_FOLDER=./dist/migrations
       - API_PORT=3406
       - API_URL=http://api-mesh-prod-6:3406

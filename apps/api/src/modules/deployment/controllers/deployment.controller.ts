@@ -3,7 +3,7 @@ import { Implement, implement } from "@orpc/nest";
 import { appContract } from "@repo/api-contracts";
 import type { PlatformRole } from "@repo/auth";
 import { DeploymentService } from "../services/deployment.service";
-import { requireAuth, requireMesh, requirePlatformRole } from "@/core/modules/auth/orpc/middlewares";
+import { authMiddleware, requireAuth, requireMesh, requirePlatformRole } from "@/core/modules/auth/orpc/middlewares";
 import { DeploymentStreamOrchestratorService } from "../mesh/services/deployment-stream-orchestrator.service";
 
 @Controller()
@@ -289,6 +289,7 @@ export class DeploymentController {
     @Implement(appContract.deployment.createCompiledPlanSnapshot)
     createCompiledPlanSnapshot() {
         return implement(appContract.deployment.createCompiledPlanSnapshot)
+            .use(authMiddleware())
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.createCompiledPlanSnapshot(input.params.id, input.body);

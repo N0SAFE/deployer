@@ -20,6 +20,10 @@ services:
       # shared across builds, no race). CI pipelines use prod-like compose
       # files where `cache_to: type=inline` is safe (single-service build).
     restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     ports:
       - "${NEXT_PUBLIC_DOC_PORT:-3020}:${NEXT_PUBLIC_DOC_PORT:-3020}"
     develop:

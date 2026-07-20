@@ -8,14 +8,33 @@ export abstract class BaseDatabaseService<
         | NodePgDatabase<typeof globalSchema>
         | BunSQLiteDatabase<typeof localSchema>,
 > {
-    constructor(private readonly _db: DB) {}
+    private _db: DB | undefined
 
+    constructor(db?: DB) {
+        this._db = db
+    }
+
+    /** Initialize (or re-initialize) the database connection. */
+    init(db: DB): void {
+        this._db = db
+    }
+
+    /** Whether this service has been initialized with a database connection. */
+    get isInitialized(): boolean {
+        return this._db !== undefined
+    }
+
+    /** The underlying Drizzle database handle. Throws if not yet initialized. */
     get db(): DB {
+        if (!this._db) {
+            throw new Error(`${this.constructor.name} has not been initialized yet`)
+        }
         return this._db
     }
 
     isHealthy(): boolean {
         try {
+            if (!this._db) return false
             // Duck-typed health checks to avoid importing runtime-specific DB libs
             const anyDb = this._db
             if ('run' in anyDb) {

@@ -13,7 +13,7 @@ import {
 
  
 export const betterAuthFactory = <TSchema extends Record<string, unknown> = Record<string, never>>(
-    database: unknown,
+    database: NodePgDatabase<TSchema> | null,
     env: {
         DEV_AUTH_KEY: string | undefined;
         DEFAULT_ADMIN_EMAIL: string | undefined;
@@ -27,8 +27,6 @@ export const betterAuthFactory = <TSchema extends Record<string, unknown> = Reco
         AUTH_BASE_DOMAIN?: string;
     }
 ) => {
-    const dbInstance = database as NodePgDatabase<TSchema>;
-
     const { DEV_AUTH_KEY, DEFAULT_ADMIN_EMAIL, ENABLE_MASTER_TOKEN, BETTER_AUTH_SECRET, BASE_URL, APP_URL, NEXT_PUBLIC_APP_URL, TRUSTED_ORIGINS, AUTH_BASE_DOMAIN } = env;
 
     // Build trusted origins: both public and private web app URLs + additional origins
@@ -73,9 +71,7 @@ export const betterAuthFactory = <TSchema extends Record<string, unknown> = Reco
                 ...(cookieDomain ? { domain: cookieDomain } : {}),
             },
         },
-        database: drizzleAdapter(dbInstance, {
-            provider: "pg",
-        }),
+        ...(database ? { database: drizzleAdapter(database, { provider: "pg" }) } : {}),
         emailAndPassword: {
             enabled: true,
         },

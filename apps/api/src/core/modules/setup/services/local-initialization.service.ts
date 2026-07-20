@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import type { Logger } from "drizzle-orm/logger";
+import type { Logger as DrizzleLogger } from "drizzle-orm/logger";
 import { fileURLToPath } from "node:url";
 import { hashPassword } from "better-auth/crypto";
 import { Roles } from "@repo/auth/permissions";
@@ -385,7 +385,7 @@ export class LocalInitializationService {
         // Each statement is emitted on its own line (multi-line SQL preserved
         // with leading indentation), with bound parameters attached when
         // present. No truncation — the stream buffers everything.
-        const migrationLogger: Logger = {
+        const migrationLogger: DrizzleLogger = {
             logQuery: (query: string, params: unknown[]) => {
                 // Collapse only leading/trailing whitespace per line; keep
                 // statement structure intact (e.g. multi-line DO $$ ... $$).
@@ -451,7 +451,7 @@ export class LocalInitializationService {
             log("INSERT account …");
             await db.insert(globalSchema.account).values({
                 id: accountId, accountId: input.email,
-                providerId: "credentials", userId,
+                providerId: "credential", userId,
                 password: passwordHash, createdAt: now, updatedAt: now,
             });
             log("  account row written");
