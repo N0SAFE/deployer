@@ -21,6 +21,7 @@ import { MeshInternalRequestService } from './services/mesh-internal-request.ser
 import { MeshRuntimeModule } from './runtime/mesh-runtime.module'
 import { MeshOrchestrationService } from './orchestration/mesh-orchestration.service'
 import { MeshInitializationModule } from './initialization/mesh-initialization.module'
+import { MeshResourceDispatcher, MeshResourceController } from './dispatcher'
 import { MeshIdentityService } from './services/system-mesh-topology/services/mesh-identity.service'
 import { MeshTrustService } from './services/system-mesh-topology/services/mesh-trust.service'
 import { MeshTrustStrictModeService } from './services/system-mesh-topology/services/mesh-trust-strict-mode.service'
@@ -93,6 +94,9 @@ const MESH_TOPIC_SERVICES = [
         SetupModule,
         CoreDockerModule,
     ],
+    controllers: [
+        MeshResourceController,
+    ],
     providers: [
         {
             provide: CLOCK_TOKEN,
@@ -145,8 +149,11 @@ const MESH_TOPIC_SERVICES = [
         StreamManagerService,
         MeshConnectionRegistry,
         ServerConnectionConsumerRegistry,
+        MeshResourceDispatcher,
     ],
     exports: [
+        MeshResourceDispatcher,
+        MeshQueryExecutor,
         NodeMeshConfigRepository,
         SystemMeshConfigService,
         SystemMeshEventService,

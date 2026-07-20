@@ -3,8 +3,7 @@
 import Link from 'next/link'
 import { AuthDashboardDeployments } from '@/routes'
 import { useMemo, useState } from 'react'
-import { MOCK_PROJECTS, MOCK_SERVICES_BY_PROJECT } from '@/mocks/platform'
-import { MOCK_DEPLOYMENTS, MOCK_INCIDENTS, MOCK_NOTIFICATIONS } from '@/mocks/platform/entities/operations.mock'
+import { useProjectList, useCreateProject, useUpdateProject } from '@/domains/project/hooks'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
@@ -56,19 +55,10 @@ function computeDurationLabel(startedAt: string, finishedAt?: string): string {
 }
 
 export default function DashboardProjectsPage() {
-  // Mock state: projects and services from mock data, extended with additional fields
-  const [projects, setProjects] = useState<ProjectForDisplay[]>(
-    MOCK_PROJECTS.map((p) => ({
-      ...p,
-      baseDomain: undefined,
-      ownerId: 'user-mock',
-      updatedAt: new Date().toISOString(),
-    })),
-  )
-  const [services] = useState(Object.values(MOCK_SERVICES_BY_PROJECT).flat())
-  const [deployments] = useState(MOCK_DEPLOYMENTS)
-  const [incidents] = useState(MOCK_INCIDENTS)
-  const [notifications] = useState(MOCK_NOTIFICATIONS)
+  const { data: projectsData, isLoading, error } = useProjectList({ query: { limit: 100, offset: 0 } })
+  const createProject = useCreateProject()
+  const updateProject = useUpdateProject()
+
   const [searchQuery, setSearchQuery] = useState('')
   const [riskFilter, setRiskFilter] = useState<'all' | 'at-risk' | 'healthy'>('all')
 
@@ -76,178 +66,89 @@ export default function DashboardProjectsPage() {
   const [editProjectId, setEditProjectId] = useState<string | null>(null)
   const [createName, setCreateName] = useState('')
   const [createDescription, setCreateDescription] = useState('')
-  const [createBaseDomain, setCreateBaseDomain] = useState('')
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
-  const [editBaseDomain, setEditBaseDomain] = useState('')
 
-  const projectMetrics = useMemo(() => {
-    const serviceCountByProjectId = new Map<string, number>()
-    const deploymentCountByProjectId = new Map<string, number>()
-    const latestDeploymentByProjectId = new Map<string, { status: string; createdAt: string; duration: string }>()
-    const openIncidentCountByProjectId = new Map<string, number>()
-    const latestNotificationByProjectId = new Map<string, { level: string; message: string; createdAt: string }>()
+  const projects = useMemo(() => projectsData ?? [], [projectsData])
 
-    for (const service of services) {
-      serviceCountByProjectId.set(service.projectId, (serviceCountByProjectId.get(service.projectId) ?? 0) + 1)
-    }
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <Siren className="mb-4 size-12 text-destructive" />
+        <h2 className="text-xl font-semibold">Failed to load projects</h2>
+        <p className="mt-2 text-muted-foreground">{(error as Error).message ?? 'An unexpected error occurred'}</p>
+        <Button className="mt-4" variant="outline" onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    )
+  }
 
-    for (const deployment of deployments) {
-      const projectId = deployment.projectId
-
-      deploymentCountByProjectId.set(projectId, (deploymentCountByProjectId.get(projectId) ?? 0) + 1)
-
-      const current = latestDeploymentByProjectId.get(projectId)
-      if (!current || new Date(deployment.startedAt).getTime() > new Date(current.createdAt).getTime()) {
-        latestDeploymentByProjectId.set(projectId, {
-          status: deployment.status,
-          createdAt: deployment.startedAt,
-          duration: computeDurationLabel(deployment.startedAt, deployment.finishedAt),
-        })
-      }
-    }
-
-    for (const incident of incidents) {
-      if (incident.status !== 'open') continue
-      openIncidentCountByProjectId.set(incident.projectId, (openIncidentCountByProjectId.get(incident.projectId) ?? 0) + 1)
-    }
-
-    for (const notification of notifications) {
-      const current = latestNotificationByProjectId.get(notification.projectId)
-      if (!current || new Date(notification.createdAt).getTime() > new Date(current.createdAt).getTime()) {
-        latestNotificationByProjectId.set(notification.projectId, {
-          level: notification.level,
-          message: notification.message,
-          createdAt: notification.createdAt,
-        })
-      }
-    }
-
-    return {
-      serviceCountByProjectId,
-      deploymentCountByProjectId,
-      latestDeploymentByProjectId,
-      openIncidentCountByProjectId,
-      latestNotificationByProjectId,
-    }
-  }, [deployments, incidents, notifications, services])
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="mb-4 size-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+        <p className="text-muted-foreground">Loading projects...</p>
+      </div>
+    )
+  }
 
   const filteredProjects = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
-    return projects.filter((project) => {
-      const openIncidents = projectMetrics.openIncidentCountByProjectId.get(project.id) ?? 0
-      const latestDeployment = projectMetrics.latestDeploymentByProjectId.get(project.id)
-      const isAtRisk = openIncidents > 0 || latestDeployment?.status === 'failed'
-
-      if (riskFilter === 'at-risk' && !isAtRisk) return false
-      if (riskFilter === 'healthy' && isAtRisk) return false
-
+    if (!Array.isArray(projects)) return []
+    return projects.filter((project: { name?: string; id?: string }) => {
       if (!query) return true
-      return (
-        project.name.toLowerCase().includes(query)
-        || project.slug.toLowerCase().includes(query)
-        || project.id.toLowerCase().includes(query)
-        || project.organizationId.toLowerCase().includes(query)
-      )
+      const name = (project.name ?? '').toLowerCase()
+      const id = (project.id ?? '').toLowerCase()
+      return name.includes(query) || id.includes(query)
     })
-  }, [projectMetrics.latestDeploymentByProjectId, projectMetrics.openIncidentCountByProjectId, projects, riskFilter, searchQuery])
+  }, [projects, riskFilter, searchQuery])
 
-  const serviceCount = services.length
-  const openIncidents = incidents.filter((incident) => incident.status === 'open').length
-  const criticalNotifications = notifications.filter((notification) => notification.level === 'critical').length
+  const failedProjects = Array.isArray(projects)
+    ? projects.filter((p: Record<string, unknown>) => {
+        const dep = p.latestDeployment as Record<string, unknown> | undefined
+        return dep?.status === 'failed'
+      }).length
+    : 0
 
-  const failedProjects = projects.filter((project) => {
-    const latest = projectMetrics.latestDeploymentByProjectId.get(project.id)
-    return latest?.status === 'failed'
-  }).length
-
-  const editingProject = projects.find((project) => project.id === editProjectId) ?? null
+  const editingProject = Array.isArray(projects)
+    ? projects.find((p: Record<string, unknown>) => p.id === editProjectId) ?? null
+    : null
 
   const handleOpenEdit = (projectId: string) => {
-    const project = projects.find((candidate) => candidate.id === projectId)
-    if (!project) {
-      return
-    }
-
-    setEditProjectId(project.id)
-    setEditName(project.name)
-    setEditDescription(project.description ?? '')
-    setEditBaseDomain(project.baseDomain ?? '')
+    const project = Array.isArray(projects) ? projects.find((p: Record<string, unknown>) => p.id === projectId) : null
+    if (!project) return
+    setEditProjectId(projectId)
+    setEditName((project as Record<string, string>).name ?? '')
+    setEditDescription((project as Record<string, string>).description ?? '')
   }
 
-  const handleCreateProject = () => {
+  const handleCreateProject = async () => {
     const name = createName.trim()
-
-    if (!name) {
-      toast.error('Project name is required')
-      return
+    if (!name) { toast.error('Project name is required'); return }
+    try {
+      await createProject.mutateAsync({ name, description: createDescription.trim() || null })
+      toast.success('Project created')
+      setCreateDialogOpen(false)
+      setCreateName('')
+      setCreateDescription('')
+    } catch (err) {
+      toast.error('Failed to create project', { description: (err as Error).message })
     }
-
-    // Mock: create a new project with auto-generated ID
-    const newProject = {
-      id: `proj-${String(Date.now())}`,
-      organizationId: 'org-mock',
-      teamId: 'team-mock',
-      slug: name.toLowerCase().replace(/\s+/g, '-'),
-      name,
-      description: createDescription.trim() || undefined,
-      baseDomain: createBaseDomain.trim() || undefined,
-      ownerId: 'user-mock',
-      updatedAt: new Date().toISOString(),
-    }
-
-    setProjects([...projects, newProject])
-    toast.success('Project created')
-    setCreateDialogOpen(false)
-    setCreateName('')
-    setCreateDescription('')
-    setCreateBaseDomain('')
   }
 
-  const handleUpdateProject = () => {
-    if (!editingProject) {
-      return
+  const handleUpdateProject = async () => {
+    if (!editProjectId) return
+    try {
+      await updateProject.mutateAsync({ id: editProjectId, name: editName.trim(), description: editDescription.trim() || null })
+      toast.success('Project updated')
+      setEditProjectId(null)
+    } catch (err) {
+      toast.error('Failed to update project', { description: (err as Error).message })
     }
-
-    const name = editName.trim()
-    if (!name) {
-      toast.error('Project name is required')
-      return
-    }
-
-    // Mock: update project
-    setProjects(
-      projects.map((p) =>
-        p.id === editingProject.id
-          ? {
-              ...p,
-              name,
-              description: editDescription.trim() || undefined,
-              baseDomain: editBaseDomain.trim() || undefined,
-              updatedAt: new Date().toISOString(),
-            }
-          : p,
-      ),
-    )
-
-    toast.success('Project updated')
-    setEditProjectId(null)
   }
-
-  const handleDeleteProject = (projectId: string) => {
-    if (!confirm('Delete this project? This action cannot be undone.')) {
-      return
-    }
-
-    // Mock: delete project
-    setProjects(projects.filter((p) => p.id !== projectId))
-    toast.success('Project deleted')
-  }
-
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-start justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
           <p className="mt-2 text-muted-foreground">
@@ -268,109 +169,55 @@ export default function DashboardProjectsPage() {
         </div>
       </div>
 
-      <div className="grid gap-2 md:grid-cols-[minmax(260px,1fr)_190px_1fr]">
+      <div className="grid gap-2 md:grid-cols-[minmax(260px,1fr)_1fr]">
         <Input
           value={searchQuery}
-          onChange={(event) => {
+          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
             setSearchQuery(event.target.value)
           }}
-          placeholder="Search projects, slugs, org IDs..."
+          placeholder="Search projects..."
         />
-        <select
-          className="h-9 rounded-md border border-border/70 bg-background px-3 text-sm"
-          value={riskFilter}
-          onChange={(event) => {
-            setRiskFilter(event.target.value as typeof riskFilter)
-          }}
-        >
-          <option value="all">All risk levels</option>
-          <option value="at-risk">At risk</option>
-          <option value="healthy">Healthy</option>
-        </select>
         <div className="flex flex-wrap gap-2">
-          <Badge variant="outline">{projects.length} projects</Badge>
-          <Badge variant="outline">{serviceCount} services</Badge>
+          <Badge variant="outline">{Array.isArray(projects) ? projects.length : 0} projects</Badge>
           <Badge variant={failedProjects > 0 ? 'destructive' : 'secondary'}>
             {failedProjects} projects with failed latest deploy
-          </Badge>
-          <Badge variant={openIncidents > 0 ? 'destructive' : 'secondary'}>
-            <Siren className="mr-1 size-3" /> {openIncidents} open incidents
-          </Badge>
-          <Badge variant={criticalNotifications > 0 ? 'destructive' : 'outline'}>
-            <Bell className="mr-1 size-3" /> {criticalNotifications} critical notifications
           </Badge>
         </div>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
-        {filteredProjects.map((project) => {
-          const serviceCount = projectMetrics.serviceCountByProjectId.get(project.id) ?? 0
-          const deploymentCount = projectMetrics.deploymentCountByProjectId.get(project.id) ?? 0
-          const latestDeployment = projectMetrics.latestDeploymentByProjectId.get(project.id)
-          const openIncidentCount = projectMetrics.openIncidentCountByProjectId.get(project.id) ?? 0
-          const latestNotification = projectMetrics.latestNotificationByProjectId.get(project.id)
-          const atRisk = openIncidentCount > 0 || latestDeployment?.status === 'failed'
+        {filteredProjects.map((project: Record<string, unknown>) => {
+          const id = project.id as string
+          const name = (project.name as string) ?? id
+          const description = (project.description as string | null) ?? 'No description'
+          const updatedAt = (project.updatedAt as string) ?? new Date().toISOString()
 
           return (
-            <Card key={project.id} className="border-border/60 bg-card/40 backdrop-blur-xl">
+            <Card key={id} className="border-border/60 bg-card/40 backdrop-blur-xl">
               <CardHeader>
                 <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="truncate text-base">{project.name}</CardTitle>
-                  <Badge variant={atRisk ? 'destructive' : 'secondary'}>
-                    {atRisk ? 'at risk' : 'healthy'}
-                  </Badge>
+                  <CardTitle className="truncate text-base">{name}</CardTitle>
                 </div>
                 <CardDescription>
-                  {project.description ?? 'No description'}
+                  {description}
                 </CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="rounded-md border border-border/60 bg-muted/20 p-2">
-                    <p className="text-xs text-muted-foreground">Services</p>
-                    <p className="font-semibold">{serviceCount}</p>
-                  </div>
-                  <div className="rounded-md border border-border/60 bg-muted/20 p-2">
-                    <p className="text-xs text-muted-foreground">Deployments</p>
-                    <p className="font-semibold">{deploymentCount}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="rounded-md border border-border/60 bg-muted/20 p-2">
-                    <p className="text-xs text-muted-foreground">Open incidents</p>
-                    <p className="font-semibold">{openIncidentCount}</p>
-                  </div>
-                  <div className="rounded-md border border-border/60 bg-muted/20 p-2">
-                    <p className="text-xs text-muted-foreground">Last deploy duration</p>
-                    <p className="font-semibold">{latestDeployment?.duration ?? '—'}</p>
-                  </div>
-                </div>
-
                 <div className="space-y-1 text-xs text-muted-foreground">
-                  <p className="font-mono">id: {shortId(project.id)}</p>
-                  <p>owner: {project.ownerId}</p>
-                  <p>updated: {formatDate(project.updatedAt)}</p>
-                  <p>latest deployment: {latestDeployment ? formatDate(latestDeployment.createdAt) : '—'}</p>
+                  <p className="font-mono">id: {shortId(id)}</p>
+                  <p>updated: {formatDate(updatedAt)}</p>
                 </div>
-
-                <Alert>
-                  <AlertTitle className="text-xs">Latest signal</AlertTitle>
-                  <AlertDescription className="text-xs">
-                    {latestNotification ? `${latestNotification.level.toUpperCase()}: ${latestNotification.message}` : 'No notifications yet.'}
-                  </AlertDescription>
-                </Alert>
 
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Button asChild variant="outline" className="justify-between">
-                    <Link href={`/dashboard/projects/${project.id}`}>
+                    <Link href={`/dashboard/projects/${id}`}>
                       Open project
                       <FolderKanban className="size-4" />
                     </Link>
                   </Button>
                   <Button asChild variant="outline" className="justify-between">
-                    <Link href={`/dashboard/projects/${project.id}/configuration`}>
+                    <Link href={`/dashboard/projects/${id}/configuration`}>
                       Configuration
                       <Settings className="size-4" />
                     </Link>
@@ -381,38 +228,19 @@ export default function DashboardProjectsPage() {
                   <Button
                     variant="outline"
                     className="justify-between"
-                    onClick={() => {
-                      handleOpenEdit(project.id)
-                    }}
+                    onClick={() => { handleOpenEdit(id) }}
                   >
                     Edit
                     <Pencil className="size-4" />
                   </Button>
-
                   <Button
                     variant="destructive"
                     className="justify-between"
-                    onClick={() => {
-                      handleDeleteProject(project.id)
-                    }}
+                    onClick={() => { toast.info('Delete via API not yet implemented') }}
                   >
                     Delete
                     <Trash2 className="size-4" />
                   </Button>
-                </div>
-
-                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1 rounded border border-border/60 px-2 py-1">
-                    <GitBranch className="size-3.5" /> Service graph ready
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded border border-border/60 px-2 py-1">
-                    <Rocket className="size-3.5" /> Release visibility
-                  </span>
-                  {latestDeployment ? (
-                    <span className="inline-flex items-center gap-1 rounded border border-border/60 px-2 py-1">
-                      <Rocket className="size-3.5" /> Last status: {latestDeployment.status}
-                    </span>
-                  ) : null}
                 </div>
               </CardContent>
             </Card>
@@ -515,16 +343,6 @@ export default function DashboardProjectsPage() {
                 value={editDescription}
                 onChange={(event) => {
                   setEditDescription(event.target.value)
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="project-edit-domain">Base domain</Label>
-              <Input
-                id="project-edit-domain"
-                value={editBaseDomain}
-                onChange={(event) => {
-                  setEditBaseDomain(event.target.value)
                 }}
               />
             </div>

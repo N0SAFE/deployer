@@ -78,16 +78,13 @@ export default function DashboardDeploymentsPage() {
       </div>
     )
   }
-  const incidents = useMemo(() => MOCK_INCIDENTS, [])
-  const notifications = useMemo(() => MOCK_NOTIFICATIONS, [])
 
   const filteredDeployments = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
-    const filtered = deployments.filter((deployment) => {
+    const filtered = (deployments as any[]).filter((deployment) => {
       if (statusFilter !== 'all' && deployment.status !== statusFilter) return false
       if (environmentFilter !== 'all' && deployment.environment !== environmentFilter) return false
       if (!query) return true
-      const startedAt = deployment.deployStartedAt ?? deployment.buildStartedAt ?? deployment.createdAt
       return (
         deployment.id.toLowerCase().includes(query)
         || deployment.serviceId.toLowerCase().includes(query)
@@ -95,7 +92,7 @@ export default function DashboardDeploymentsPage() {
       )
     })
 
-    return filtered.sort((a, b) => {
+    return filtered.sort((a: any, b: any) => {
       const multiplier = sortDirection === 'asc' ? 1 : -1
       const aTime = a.deployStartedAt ?? a.buildStartedAt ?? a.createdAt
       const bTime = b.deployStartedAt ?? b.buildStartedAt ?? b.createdAt
@@ -107,16 +104,17 @@ export default function DashboardDeploymentsPage() {
   }, [deployments, environmentFilter, searchTerm, sortBy, sortDirection, statusFilter])
 
   const deploymentSummary = useMemo(() => {
-    const total = deployments.length
-    const successful = deployments.filter((deployment) => deployment.status === 'success').length
-    const failed = deployments.filter((deployment) => deployment.status === 'failed').length
-    const inProgress = deployments.filter((deployment) => deployment.status === 'in-progress').length
-    const completed = deployments.filter((deployment) => deployment.deployCompletedAt ?? deployment.buildCompletedAt)
+    const list = deployments as any[]
+    const total = list.length
+    const successful = list.filter((d) => d.status === 'success').length
+    const failed = list.filter((d) => d.status === 'failed').length
+    const inProgress = list.filter((d) => d.status === 'in-progress').length
+    const completed = list.filter((d) => d.deployCompletedAt ?? d.buildCompletedAt)
     const avgDurationSeconds = completed.length > 0
       ? Math.round(
-          completed.reduce((sum, deployment) => {
-            const start = new Date(deployment.deployStartedAt ?? deployment.buildStartedAt ?? deployment.createdAt).getTime()
-            const end = new Date(deployment.deployCompletedAt ?? deployment.buildCompletedAt ?? deployment.createdAt).getTime()
+          completed.reduce((sum: number, d: any) => {
+            const start = new Date(d.deployStartedAt ?? d.buildStartedAt ?? d.createdAt).getTime()
+            const end = new Date(d.deployCompletedAt ?? d.buildCompletedAt ?? d.createdAt).getTime()
             if (Number.isNaN(start) || Number.isNaN(end) || end < start) return sum
             return sum + (end - start) / 1000
           }, 0) / completed.length,
@@ -256,7 +254,7 @@ export default function DashboardDeploymentsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredDeployments.map((deployment) => (
+                {filteredDeployments.map((deployment: any) => (
                   <TableRow key={deployment.id}>
                     <TableCell className="font-mono text-xs">{deployment.id}</TableCell>
                     <TableCell className="font-medium capitalize">{projectLabel(deployment.serviceId)}</TableCell>
