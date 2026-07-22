@@ -11,8 +11,8 @@ export const projectSchema = z.object({
   baseDomain: z.string().nullable(),
   ownerId: z.string(),
   settings: projectSettingsSchema.nullable(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
 })
 
 /** Extended project with aggregated stats — used by findById */
@@ -26,7 +26,7 @@ export const projectWithStatsSchema = projectSchema.extend({
     .object({
       id: z.string(),
       status: commonDeploymentStatusSchema,
-      createdAt: z.date(),
+      createdAt: z.string(),
     })
     .nullable(),
 })
