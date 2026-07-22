@@ -268,12 +268,8 @@ export default function DashboardProjectDetailPage() {
     return list.filter((s: any) => s.projectId === projectId || s.id?.startsWith(projectId))
   }, [servicesData, projectId])
 
-  const deployments = useMemo(
-    [projectId],
-  )
-  const notifications = useMemo(
-    [projectId],
-  )
+  const deployments = useMemo(() => [] as any[], [projectId])
+  const notifications = useMemo(() => [] as any[], [projectId])
 
   const runtimeOptions = useMemo(() => {
     return Array.from(new Set(localServices.map((service) => service.runtime))).sort()

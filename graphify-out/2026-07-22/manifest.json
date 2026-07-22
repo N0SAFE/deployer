@@ -6520,9 +6520,9 @@
     "semantic_hash": "482d1733c08a301fd16730639da8246f"
   },
   "packages/contracts/api/modules/project/create.ts": {
-    "mtime": 1779878623.9524796,
-    "ast_hash": "ac89e4890347e54477d0be42faf54f22",
-    "semantic_hash": "ac89e4890347e54477d0be42faf54f22"
+    "mtime": 1784728580.818866,
+    "ast_hash": "82961dd930258aac3a10adfda5c996ab",
+    "semantic_hash": ""
   },
   "packages/contracts/api/modules/project/delete.ts": {
     "mtime": 1779878623.9524796,
