@@ -151,7 +151,7 @@ function toStreamDto(row: DeploymentStreamRow) {
 export class DeploymentRepository {
     constructor(private readonly databaseService: GlobalDatabaseService) {}
 
-    async findMany(input: DeploymentListInput) {
+    async findMany(input: DeploymentListInput = {} as DeploymentListInput) {
         const db = this.databaseService.db;
         const filter = input.filter ?? {};
         const sort = input.sortBy ?? "createdAt";
