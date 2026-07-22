@@ -59,26 +59,6 @@ export default function DashboardDeploymentsPage() {
   const { data: deploymentsData, isLoading, error } = useDeploymentList(undefined)
   const deployments = useMemo(() => deploymentsData ?? [], [deploymentsData])
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <Siren className="mb-4 size-12 text-destructive" />
-        <h2 className="text-xl font-semibold">Failed to load deployments</h2>
-        <p className="mt-2 text-muted-foreground">{(error as Error).message ?? 'An unexpected error occurred'}</p>
-        <Button className="mt-4" variant="outline" onClick={() => window.location.reload()}>Retry</Button>
-      </div>
-    )
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <RefreshCw className="mb-4 size-8 animate-spin text-muted-foreground" />
-        <p className="text-muted-foreground">Loading deployments...</p>
-      </div>
-    )
-  }
-
   const filteredDeployments = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
     const filtered = (deployments as any[]).filter((deployment) => {
@@ -130,6 +110,26 @@ export default function DashboardDeploymentsPage() {
       avgDurationSeconds,
     }
   }, [deployments])
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <Siren className="mb-4 size-12 text-destructive" />
+        <h2 className="text-xl font-semibold">Failed to load deployments</h2>
+        <p className="mt-2 text-muted-foreground">{(error as Error).message ?? 'An unexpected error occurred'}</p>
+        <Button className="mt-4" variant="outline" onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <RefreshCw className="mb-4 size-8 animate-spin text-muted-foreground" />
+        <p className="text-muted-foreground">Loading deployments...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

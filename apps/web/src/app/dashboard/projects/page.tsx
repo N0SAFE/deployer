@@ -71,6 +71,17 @@ export default function DashboardProjectsPage() {
 
   const projects = useMemo(() => projectsData ?? [], [projectsData])
 
+  const filteredProjects = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase()
+    if (!Array.isArray(projects)) return []
+    return projects.filter((project: { name?: string; id?: string }) => {
+      if (!query) return true
+      const name = (project.name ?? '').toLowerCase()
+      const id = (project.id ?? '').toLowerCase()
+      return name.includes(query) || id.includes(query)
+    })
+  }, [projects, riskFilter, searchQuery])
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -90,17 +101,6 @@ export default function DashboardProjectsPage() {
       </div>
     )
   }
-
-  const filteredProjects = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    if (!Array.isArray(projects)) return []
-    return projects.filter((project: { name?: string; id?: string }) => {
-      if (!query) return true
-      const name = (project.name ?? '').toLowerCase()
-      const id = (project.id ?? '').toLowerCase()
-      return name.includes(query) || id.includes(query)
-    })
-  }, [projects, riskFilter, searchQuery])
 
   const failedProjects = Array.isArray(projects)
     ? projects.filter((p: Record<string, unknown>) => {
