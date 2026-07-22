@@ -288,17 +288,6 @@ export default function DashboardProjectsPage() {
                 placeholder="Short description"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="project-create-domain">Base domain</Label>
-              <Input
-                id="project-create-domain"
-                value={createBaseDomain}
-                onChange={(event) => {
-                  setCreateBaseDomain(event.target.value)
-                }}
-                placeholder="apps.example.com"
-              />
-            </div>
           </div>
 
           <DialogFooter>

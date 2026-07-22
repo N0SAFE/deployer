@@ -4590,8 +4590,8 @@
     "semantic_hash": "704e9106986b3f55608a2c52f6667a6d"
   },
   "apps/web/src/app/dashboard/projects/page.tsx": {
-    "mtime": 1784728180.203948,
-    "ast_hash": "80170f591ac1391e72f0c8baa0c07da8",
+    "mtime": 1784728318.3834257,
+    "ast_hash": "f9230d9a9eb7b24dde5777624489ca75",
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/route.info.ts": {
