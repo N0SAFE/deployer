@@ -1740,7 +1740,7 @@ export default function DashboardProjectDetailPage() {
           <DialogHeader>
             <DialogTitle>Create service</DialogTitle>
             <DialogDescription>
-              Adds a new mock service instance to this project dashboard with default active state.
+              Adds a new service instance to this project dashboard.
             </DialogDescription>
           </DialogHeader>
 

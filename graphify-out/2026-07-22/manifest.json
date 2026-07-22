@@ -4460,8 +4460,8 @@
     "semantic_hash": "ab397e8a806ea9abf260966ef99c8963"
   },
   "apps/web/src/app/dashboard/projects/[projectId]/page.tsx": {
-    "mtime": 1784728180.2470846,
-    "ast_hash": "a6c9766147e573ca665c7de7040a6608",
+    "mtime": 1784730268.8232365,
+    "ast_hash": "ba450b3b31149327e7b36365221ff639",
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/[projectId]/route.info.ts": {
@@ -6570,7 +6570,7 @@
     "semantic_hash": "655a13ea20984d609e58f488592c1214"
   },
   "packages/contracts/api/modules/project/findById.ts": {
-    "mtime": 1779878623.9534118,
+    "mtime": 1784729229.1057055,
     "ast_hash": "39cf2998382886e2fbfd3928688c0663",
     "semantic_hash": "39cf2998382886e2fbfd3928688c0663"
   },
@@ -6960,7 +6960,7 @@
     "semantic_hash": "fea6e80c5ffe1d1f310bff0456a5114b"
   },
   "packages/contracts/api/package.json": {
-    "mtime": 1784537782.0684152,
+    "mtime": 1784729218.073188,
     "ast_hash": "a624f2c51fc764a019fa725fa2451f63",
     "semantic_hash": ""
   },
@@ -12032,6 +12032,16 @@
   "c:\\workspace\\obsidian-vault/.obsidian-brain/index.json": {
     "mtime": 1784719472.0420222,
     "ast_hash": "6db0f4eb9f2bc06bab1312ce9896ec74",
+    "semantic_hash": ""
+  },
+  "tmp/db-connection-flows-complete.md": {
+    "mtime": 1784729436.7375247,
+    "ast_hash": "73097a9df72c9fd8c155ceb685bee86c",
+    "semantic_hash": ""
+  },
+  "tmp/db-connection-flows-enhanced.md": {
+    "mtime": 1784730487.1598659,
+    "ast_hash": "1184a76cb3ca5216ae41e609746b4676",
     "semantic_hash": ""
   }
 }

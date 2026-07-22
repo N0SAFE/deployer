@@ -40,12 +40,16 @@ Locally managed Postgres containers are **named** and **reused** across restarts
             │      └────┬─────┘                                    │
             │           │                                          │
             │           ▼                                          │
-            │      ┌──────────┐     ┌──────────────────┐          │
-            │      │ DISCOVER │────►│  Network Error   │          │
-            │      └────┬─────┘     │ → retry or fail  │          │
-            │           │           └──────────────────┘          │
-            │           ▼                                          │
-            │      ┌──────────────────────┐                       │
+            │      ┌───────────────────────┐                      │
+            │      │ DEV BOOTSTRAP (dev-only)│                     │
+            │      │ Injects SETUP_DATABASE_URL│                    │
+            │      │ into SQLite if in dev mode│                    │
+            │      └──────────┬────────────┘                      │
+            │                 ▼                                    │
+            │      ┌──────────┐                                    │
+            │      │ DISCOVER │                                    │
+            │      │ SQLite → Mesh │                               │
+            │      └────┬─────┘                                    │
             │      │  URL FOUND?          │                       │
             │      └──┬───────┬───────────┘                       │
             │         │       │                                   │
@@ -194,6 +198,181 @@ async function resolveDatabaseUrl(): Promise<string | null> {
   // ── Step 3: Nothing found ─────────────────────────────────────
   logger.warn('⏳ No database URL found by any method — setup wizard needed')
   return null
+}
+```
+
+---
+
+## Part 3.5: Dev-Mode Bootstrap Injector
+
+### Principle
+
+**The main app never reads `SETUP_DATABASE_URL`.** Environment variables are a development-only concern. In production, the URL comes from mesh discovery or is manually persisted via the CLI (`setup-db` command). The dev-mode bootstrap injector is a lightweight, headless step that runs **before the main pipeline** and seeds the local SQLite `node_config` with values from the environment.
+
+### Architecture Diagram
+
+```mermaid
+flowchart LR
+    subgraph "Dev Environment Only"
+        ENV[SETUP_AUTO=true<br/>SETUP_DATABASE_URL=postgres://...]
+    end
+
+    subgraph "Phase 0: Dev Bootstrap (headless)"
+        INJECTOR[DevBootstrapInjector<br/>reads SETUP_AUTO + SETUP_DATABASE_URL]
+        INJECTOR -->|writes to| SQLITE[(SQLite node_config)]
+    end
+
+    subgraph "Main Pipeline (all environments)"
+        PIPELINE[OrchestratorService pipeline<br/>→ setup-wizard → main-app]
+        PIPELINE -->|reads from| SQLITE
+    end
+
+    ENV -.->|Only in dev| INJECTOR
+    INJECTOR -.->|Before pipeline starts| PIPELINE
+```
+
+### Design Rules
+
+| Rule | Why |
+|------|-----|
+| **Dev bootstrap runs BEFORE the orchestrator pipeline** | The main app must never see `SETUP_DATABASE_URL`. By the time the orchestrator starts, the URL is already in SQLite — or it isn't. |
+| **Dev bootstrap is a headless ApplicationContext** | Same pattern as `SetupDevService` today — create a minimal NestJS context with only `LocalDatabaseModule`, write to SQLite, destroy the context. No HTTP, no mesh, no Postgres. |
+| **Dev bootstrap ONLY activates when NODE_ENV is not production** | Production deployments should never accidentally read dev env vars. Guard: `if (process.env.NODE_ENV === 'production') return`. |
+| **Dev bootstrap does NOT fail if env vars are missing** | If `SETUP_AUTO` is not set or `SETUP_DATABASE_URL` is empty, it silently skips. The orchestrator will see no URL in SQLite and enter the setup wizard path. |
+
+### Implementation
+
+```typescript
+// core/setup-dev/dev-bootstrap-injector.service.ts
+// Runs as Phase 0 — headless NestJS ApplicationContext, no HTTP, no Postgres needed
+
+@Injectable()
+export class DevBootstrapInjector implements OnApplicationBootstrap {
+  private readonly logger = new Logger(DevBootstrapInjector.name)
+
+  constructor(
+    private readonly nodeConfigRepository: NodeConfigRepository,
+  ) {}
+
+  async onApplicationBootstrap(): Promise<void> {
+    // ── Guard: only run in dev mode ──────────────────────────────
+    if (process.env.NODE_ENV === 'production') {
+      this.logger.log('⏭ Production mode — skipping dev bootstrap injector')
+      return
+    }
+
+    // ── Guard: only run when SETUP_AUTO is true ──────────────────
+    if (process.env.SETUP_AUTO !== 'true') {
+      this.logger.log('⏭ SETUP_AUTO not set — skipping dev bootstrap injector')
+      return
+    }
+
+    const existing = this.nodeConfigRepository.find()
+
+    // ── CASE 1: URL already in SQLite from a previous run ─────────
+    if (existing?.databaseUrl?.trim()) {
+      this.logger.log('♻️ Database URL already in node_config — dev bootstrap skipped')
+      return
+    }
+
+    // ── CASE 2: SETUP_DATABASE_URL is set → inject into SQLite ───
+    const envUrl = process.env.SETUP_DATABASE_URL?.trim()
+    if (envUrl) {
+      this.logger.log('📝 Injecting SETUP_DATABASE_URL into node_config (dev mode)')
+      this.nodeConfigRepository.upsert({
+        nodeId: existing?.nodeId ?? randomUUID(),
+        strategy: 'local',
+        setupState: 'setup_done',
+        deployerVersion: DEPLOYER_VERSION,
+        databaseUrl: envUrl,
+        configuredAt: existing?.configuredAt ?? new Date().toISOString(),
+        meshUrlsSnapshot: existing?.meshUrlsSnapshot ?? [],
+        updatedAt: new Date().toISOString(),
+      })
+      this.logger.log('✅ Dev bootstrap complete — URL persisted to SQLite')
+      return
+    }
+
+    // ── CASE 3: SETUP_AUTO=true but no SETUP_DATABASE_URL ────────
+    // This is a local-only dev mode without Postgres (auto-provisioning
+    // or SQLite-only testing). The setup wizard will handle this.
+    this.logger.log(
+      'ℹ️  SETUP_AUTO=true but no SETUP_DATABASE_URL. ' +
+      'The setup wizard will handle auto-provisioning.'
+    )
+  }
+}
+```
+
+### How the Pipeline Changes
+
+```mermaid
+flowchart TB
+    BOOT[Container starts] --> DEV_CHECK{NODE_ENV<br/>= production?}
+    
+    DEV_CHECK -->|Yes, production| PIPELINE[Enter orchestrator pipeline<br/>Phase 0 → Phase 1 → ...]
+    DEV_CHECK -->|No, dev mode| DEV_INJECTOR
+    
+    subgraph "Dev-Only Phase"
+        DEV_INJECTOR[DevBootstrapInjector<br/>headless context]
+        DEV_INJECTOR --> READS_SQLITE{node_config<br/>has databaseUrl?}
+        READS_SQLITE -->|Already has it| SKIP[⏭ Skip, nothing to do]
+        READS_SQLITE -->|Empty| READS_ENV{SETUP_AUTO<br/>= true?}
+        READS_ENV -->|Yes + SETUP_DATABASE_URL set| WRITE_SQLITE[Write URL to node_config]
+        READS_ENV -->|Yes, no URL| SKIP_AUTO[⏭ Will use setup wizard]
+        READS_ENV -->|No| SKIP_AUTO
+        WRITE_SQLITE --> CLOSE[ctx.close() → destroy context]
+        SKIP --> CLOSE
+        SKIP_AUTO --> CLOSE
+    end
+    
+    CLOSE --> PIPELINE
+    
+    subgraph "Orchestrator Pipeline (env-blind)"
+        PIPELINE --> RESOLVE[resolveDatabaseUrl<br/>reads SQLite only]
+        RESOLVE --> HAS_URL{Has URL?}
+        HAS_URL -->|Yes, from dev injector| PROBE[Probe DB → ready]
+        HAS_URL -->|No| WIZARD[Setup wizard / fail]
+    end
+```
+
+### What This Replaces
+
+This dev-mode injector **replaces** the current `SetupDevService` behavior of reading `SETUP_DATABASE_URL` during Phase 0. The difference:
+
+| Aspect | Current SetupDevService | New DevBootstrapInjector |
+|--------|------------------------|--------------------------|
+| Scope | Always runs (even in prod) | **Only runs in dev** (NODE_ENV !== 'production') |
+| URL source | `SETUP_DATABASE_URL` env | Same — but main app never sees env |
+| Failure mode | Logs warning, continues | Same — silent skip if env not set |
+| Main app awareness | Main app's `InitializationService` also checks env vars | **Main app never reads env** — only reads SQLite |
+| Flow position | In orchestrator Phase 0 | **Before** orchestrator pipeline entirely |
+| Test isolation | Main app can accidentally depend on env | Main app is purely SQLite-driven → easily testable |
+
+### Impact on Existing Code
+
+The `InitializationService.checkConfigAndEmit()` method currently has a code path that reads `SETUP_DATABASE_URL` and `SETUP_AUTO` directly:
+
+```typescript
+// Current — REMOVE this code path
+} else if ((process.env.SETUP_AUTO === "true" || ...) && process.env.SETUP_DATABASE_URL) {
+    // Dev-mode auto-setup — this is now handled by DevBootstrapInjector
+}
+```
+
+With the new architecture, `InitializationService` is simplified: it only reads `node_config` from SQLite and never touches `process.env`:
+
+```typescript
+// New InitializationService.checkConfigAndEmit() — env-blind
+checkConfigAndEmit(): void {
+  const config = this.nodeConfigRepository.find()
+  if (config?.configuredAt) {
+    // Node is configured — emit completion
+    this.emitCompleted({ ... })
+    return
+  }
+  // No config found — setup wizard required (or dev bootstrap didn't run)
+  this.logger.log('⏳ No config found — setup wizard required')
 }
 ```
 
