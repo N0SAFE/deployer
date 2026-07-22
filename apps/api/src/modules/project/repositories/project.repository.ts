@@ -147,8 +147,8 @@ export class ProjectRepository {
         const filter = input.filter ?? {};
         const sort = input.sortBy ?? "createdAt";
         const direction = input.sortDirection ?? "desc";
-        const limit = input.limit;
-        const offset = input.offset;
+        const limit = input.limit ?? 20;
+        const offset = input.offset ?? 0;
 
         const result = await listBuilder(filter)
             .filter({

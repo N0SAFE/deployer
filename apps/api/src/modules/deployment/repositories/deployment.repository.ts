@@ -207,8 +207,8 @@ export class DeploymentRepository {
         const [rows, totalResult] = await Promise.all([
             (whereClause ? dataQuery.where(whereClause) : dataQuery)
                 .orderBy(orderClause)
-                .limit(input.limit)
-                .offset(input.offset),
+                .limit(input.limit ?? 20)
+                .offset(input.offset ?? 0),
             whereClause ? countQuery.where(whereClause) : countQuery,
         ]);
 
@@ -218,9 +218,9 @@ export class DeploymentRepository {
             data: rows.map((row) => toDto(row.deployment)),
             meta: {
                 total,
-                limit: input.limit,
-                offset: input.offset,
-                hasMore: input.offset + input.limit < total,
+                limit: input.limit ?? 20,
+                offset: input.offset ?? 0,
+                hasMore: (input.offset ?? 0) + (input.limit ?? 20) < total,
             },
         };
     }
