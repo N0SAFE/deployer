@@ -19,6 +19,7 @@ import { CoreEventSyncService } from "@/core/modules/events";
 import { DeploymentProvidersModule } from "./providers/providers.module";
 import { DeploymentRunnersModule } from "./runners/runners.module";
 import { DeploymentMeshService } from "./mesh/services/deployment-mesh.service";
+import { DeploymentsMeshService } from "./mesh/services/deployments.mesh.service";
 import { DeploymentStreamBridgeService } from "./mesh/services/deployment-stream-bridge.service";
 import { DeploymentStreamOrchestratorService } from "./mesh/services/deployment-stream-orchestrator.service";
 import { DeploymentMeshHandlerRegistrar } from "./mesh/registrars/deployment-mesh-handler-registrar.service";
@@ -63,6 +64,7 @@ import { EventsModule } from "@/core/modules/events/events.module";
         DeploymentArtifactBuilderService,
         PreviewEnvOverlayService,
         DeploymentContainerLinkService,
+        DeploymentsMeshService,
         {
             provide: CONTAINER_LINK_RESOLVER,
             useExisting: DeploymentContainerLinkService,

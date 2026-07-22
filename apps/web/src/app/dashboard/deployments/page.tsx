@@ -56,7 +56,7 @@ export default function DashboardDeploymentsPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
 
-  const { data: deploymentsData, isLoading, error } = useDeploymentList({ query: { limit: 100, offset: 0 } })
+  const { data: deploymentsData, isLoading, error } = useDeploymentList(undefined)
   const deployments = useMemo(() => deploymentsData ?? [], [deploymentsData])
 
   if (error) {

@@ -18,26 +18,26 @@ export type MeshErrorCode = (typeof MESH_ERROR_CODES)[number];
 /**
  * Mapping from mesh error code to HTTP status code.
  */
-export const MESH_ERROR_HTTP_STATUS: Readonly<Record<MeshErrorCode, number>> = Object.freeze({
+export const MESH_ERROR_HTTP_STATUS = {
     "mesh.not_found": 404,
     "mesh.validation": 400,
     "mesh.unauthorized": 403,
     "mesh.trust": 403,
     "mesh.conflict": 409,
     "mesh.dependency_missing": 424,
-});
+} as const satisfies Readonly<Record<MeshErrorCode, number>>;
 
 /**
  * Mapping from mesh error code to ORPC error code.
  */
-export const MESH_ERROR_ORPC_CODE: Readonly<Record<MeshErrorCode, string>> = Object.freeze({
+export const MESH_ERROR_ORPC_CODE = {
     "mesh.not_found": "NOT_FOUND",
     "mesh.validation": "BAD_REQUEST",
     "mesh.unauthorized": "FORBIDDEN",
     "mesh.trust": "FORBIDDEN",
     "mesh.conflict": "CONFLICT",
     "mesh.dependency_missing": "FAILED_DEPENDENCY",
-});
+} as const satisfies Readonly<Record<MeshErrorCode, string>>;
 
 /**
  * Zod schema for the wire payload of a mesh domain error (without the

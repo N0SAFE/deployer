@@ -18,6 +18,10 @@ import { createBetterAuth } from "./config/auth/auth";
 import { GLOBAL_DATABASE_CONNECTION } from "./core/modules/database/database-connection";
 import { EnvService } from "./config/env/env.service";
 
+// ─── ORPC Auth Plugin ───────────────────────────────────────────────────────
+import { ORPCModule } from '@orpc/nest';
+import { AuthPlugin } from '@/core/modules/auth/orpc/plugins/auth.plugin';
+
 // ─── Feature Modules ─────────────────────────────────────────────────────────
 import { AnalyticsModule } from "./modules/analytics/analytics.module";
 import { DeploymentModule } from "./modules/deployment/deployment.module";
@@ -40,7 +44,12 @@ import { ConfigurationCoreModule } from "./core/modules/configuration/configurat
 import { ProjectCoreModule } from "./core/modules/project/project-core.module";
 import { DeploymentCoreModule } from "./core/modules/deployment/deployment-core.module";
 
+import { AuthCoreService } from "./core/modules/auth/services/auth-core.service";
 import type { ORPCAuthContext } from "./core/modules/auth/orpc/types";
+import { logOrpcErrors, transformNestJSErrorToOrpcError } from "./core/modules/auth/orpc/index";
+import { SmartCoercionPlugin } from "@orpc/json-schema";
+import { ZodToJsonSchemaConverter } from "@orpc/zod";
+import { REQUEST } from "@nestjs/core";
 
 declare module "@orpc/nest" {
     /**
@@ -64,6 +73,35 @@ declare module "@orpc/nest" {
         AppLifecycleModule,
         BootstrapModule,
         EventsModule,
+
+        // ── ORPC — Must be before feature modules ────────────────────────────
+        ORPCModule.forRootAsync({
+            useFactory: (
+                request: Request,
+                authCoreService: AuthCoreService,
+            ) => {
+                const emptyAuthUtils = authCoreService.createEmptyAuthUtils();
+                const internalErrorInsightService = new InternalErrorInsightService();
+
+                return {
+                    interceptors: [
+                        transformNestJSErrorToOrpcError(),
+                        logOrpcErrors(new Logger("ORPC Errors"), internalErrorInsightService),
+                    ],
+                    plugins: [
+                        new SmartCoercionPlugin({
+                            schemaConverters: [new ZodToJsonSchemaConverter()],
+                        }),
+                        // Auth plugin that populates context.auth with session data
+                        new AuthPlugin({ auth: authCoreService.instance }),
+                    ],
+                    // Initial context - auth will be populated by AuthPlugin
+                    context: { request, auth: emptyAuthUtils },
+                    eventIteratorKeepAliveInterval: 5000, // 5 seconds
+                };
+            },
+            inject: [REQUEST, AuthCoreService],
+        }),
 
         // ── Core (shared services) ────────────────────────────────────────────
         ConfigurationCoreModule,

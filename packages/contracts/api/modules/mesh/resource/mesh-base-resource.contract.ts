@@ -7,37 +7,29 @@
  *
  * HTTP: POST /api/mesh/:entityKey/:methodName
  * Auth: requireAuth() applied in the controller (not baked into contract)
+ *
+ * @see mesh-resource.controller.ts — single @Implement
+ * @see mesh-resource-dispatcher.service.ts — runtime dispatch
  */
 
 import { z } from "zod/v4";
-import { standard, meshDomainErrorContracts, RouteBuilder } from "@repo/orpc-utils";
-import { ContractProcedureBuilderWithInputOutput } from "@orpc/contract";
+import { standard, meshDomainErrorContracts } from "@repo/orpc-utils";
 
-// ─── Input schema ─────────────────────────────────────────────────────────────
+// ─── Schemas ──────────────────────────────────────────────────────────────────
+
+/** Placeholder entity schema — must be an object for standard.zod() internals.
+ *  The actual input/output are overridden by .input().body() / .output().body(). */
+const meshEntitySchema = z.object({});
 
 const meshResourceBodySchema = z.unknown();
-
-// ─── Output schema ────────────────────────────────────────────────────────────
-
 const meshResourceOutputSchema = z.unknown();
 
 // ─── Contract ─────────────────────────────────────────────────────────────────
 
-const ops = standard.zod(meshResourceOutputSchema, "meshBaseResource");
+const ops = standard.zod(meshEntitySchema, "meshBaseResource");
 
-/**
- * Single catch-all contract for all mesh resource operations.
- *
- * Path params (entityKey, methodName) are extracted from the URL via
- * ORPC's template-literal syntax. The body is forwarded to the handler.
- *
- * HTTP: POST /api/mesh/:entityKey/:methodName
- *   Path params: entityKey (string), methodName (string)
- *   Body: forwarded to registered handler (z.unknown)
- */
 export const meshBaseResourceContract = ops
   .create()
-  .path("/mesh/:entityKey/:methodName")
   .input((b) =>
     b
       .params((p) =>
@@ -47,5 +39,4 @@ export const meshBaseResourceContract = ops
   )
   .output((b) => b.body(meshResourceOutputSchema))
   .errors((e) => meshDomainErrorContracts(e))
-
-  type e =  typeof meshBaseResourceContract extends RouteBuilder<infer T, infer U, infer V, infer W, infer E> ? E : never;
+  .build();

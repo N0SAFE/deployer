@@ -142,7 +142,7 @@ export class ProjectRepository {
     // PROJECT CRUD
     // ========================================
 
-    async findMany(input: ProjectListInput) {
+    async findMany(input: ProjectListInput = {} as ProjectListInput) {
         const db = this.databaseService.db;
         const filter = input.filter ?? {};
         const sort = input.sortBy ?? "createdAt";

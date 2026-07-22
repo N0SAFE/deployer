@@ -329,7 +329,7 @@ export class RouteBuilder<
     TOutput extends AnySchema | DetailedOutput = VoidSchema,
     TMethod extends HTTPMethod = "GET",
     TEntitySchema extends AnySchema = VoidSchema,
-    TErrors extends ErrorMap = Record<string, never>,
+    TErrors extends ErrorMap = Record<never, never>,
 > {
     private _metadata: RouteMetadata;
     private _input: TInput;

@@ -55,7 +55,7 @@ function computeDurationLabel(startedAt: string, finishedAt?: string): string {
 }
 
 export default function DashboardProjectsPage() {
-  const { data: projectsData, isLoading, error } = useProjectList({ query: { limit: 100, offset: 0 } })
+  const { data: projectsData, isLoading, error } = useProjectList(undefined)
   const createProject = useCreateProject()
   const updateProject = useUpdateProject()
 

@@ -32,7 +32,7 @@ function toDto(row: ServiceRow) {
 export class ServiceRepository {
     constructor(private readonly databaseService: GlobalDatabaseService) {}
 
-    async list(input: ServiceListInput) {
+    async list(input: ServiceListInput = {} as ServiceListInput) {
         const db = this.databaseService.db;
         const filter = input.filter ?? {};
         const sort = input.sortBy ?? "createdAt";

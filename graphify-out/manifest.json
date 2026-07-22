@@ -8885,9 +8885,9 @@
     "semantic_hash": ""
   },
   "packages/utils/orpc/src/mesh-errors.ts": {
-    "mtime": 1781962245.2476366,
-    "ast_hash": "0016d90f9871ec4dd6527c1d2f02a923",
-    "semantic_hash": "0016d90f9871ec4dd6527c1d2f02a923"
+    "mtime": 1784546161.9845624,
+    "ast_hash": "f9b43b14e46499fb7bf6d4cb1172d0da",
+    "semantic_hash": ""
   },
   "packages/utils/orpc/src/observable/contract.ts": {
     "mtime": 1781962245.2486365,
@@ -11715,8 +11715,8 @@
     "semantic_hash": ""
   },
   "dead-code-audit-report.md": {
-    "mtime": 1784538466.8307035,
-    "ast_hash": "4d473763ff6a6e4b27eb24b4656244e6",
+    "mtime": 1784546660.0607116,
+    "ast_hash": "ad430c9d3b9ce062e8c4531fec40c756",
     "semantic_hash": ""
   },
   "docs/architecture/docker-scoped/01-data-model.md": {
@@ -11790,23 +11790,23 @@
     "semantic_hash": ""
   },
   "docs/feature-status/MOCKED.md": {
-    "mtime": 1784534163.3472958,
-    "ast_hash": "6e853abdb4cd731f3e1b01f8a40456eb",
+    "mtime": 1784546746.5869293,
+    "ast_hash": "8fecba5bd999831326f7a66be23ab18e",
     "semantic_hash": ""
   },
   "docs/feature-status/NOT-WORKING.md": {
-    "mtime": 1784534163.3472958,
-    "ast_hash": "6b98a873a14475991ad09256b140ef7f",
+    "mtime": 1784546801.6878855,
+    "ast_hash": "bca9e8289c1964cdc0b63af751ebeca0",
     "semantic_hash": ""
   },
   "docs/feature-status/README.md": {
-    "mtime": 1784534163.3462963,
-    "ast_hash": "ba1879fa27a8eeb1be2c0cd5ce2d487d",
+    "mtime": 1784546726.5212936,
+    "ast_hash": "c10ff7edfc3361c96517f6db2c75a965",
     "semantic_hash": ""
   },
   "docs/feature-status/WORKING.md": {
-    "mtime": 1784534163.3462963,
-    "ast_hash": "0a978da3bef624a3cd923ccf3787c0f0",
+    "mtime": 1784546818.116364,
+    "ast_hash": "772d6c6809c8fd38b510bc22c7515d34",
     "semantic_hash": ""
   },
   "docs/feature-status/subagent-reports/00-INDEX.md": {
@@ -11955,23 +11955,23 @@
     "semantic_hash": ""
   },
   "apps/api/src/core/modules/mesh/dispatcher/mesh-resource.controller.ts": {
-    "mtime": 1784544092.3307345,
-    "ast_hash": "d30e69f92e1891a42ae429a882ffedf5",
+    "mtime": 1784545635.5838912,
+    "ast_hash": "74e25bb6a6ac99be7f9846900472df99",
     "semantic_hash": ""
   },
   "apps/api/src/core/modules/mesh/services/mesh-resource-service.ts": {
-    "mtime": 1784543333.1320617,
-    "ast_hash": "5ab1f0a4fe9615def2dc6ca0b956a93b",
+    "mtime": 1784545294.2465477,
+    "ast_hash": "6c964f663189f959ce87f46993b382e4",
     "semantic_hash": ""
   },
   "packages/contracts/api/modules/mesh/resource/index.ts": {
-    "mtime": 1784542922.7497256,
-    "ast_hash": "44bae499efef178fb8e862b5c6d59cae",
+    "mtime": 1784545645.4407861,
+    "ast_hash": "ce4748a4a30afa811a83ddc1c158dbbd",
     "semantic_hash": ""
   },
   "packages/contracts/api/modules/mesh/resource/mesh-base-resource.contract.ts": {
-    "mtime": 1784544141.2366173,
-    "ast_hash": "a6db794480faf952de36ce2139a1a824",
+    "mtime": 1784546730.2367651,
+    "ast_hash": "1a46c1d7381f04b0353e318a08a9e44e",
     "semantic_hash": ""
   },
   "tmp/mesh-architecture-v5.md": {
@@ -11985,8 +11985,8 @@
     "semantic_hash": ""
   },
   "apps/api/src/core/modules/mesh/services/node-info.service.ts": {
-    "mtime": 1784543836.1840048,
-    "ast_hash": "7984b9040c474f22377ee8305651c257",
+    "mtime": 1784545329.3418708,
+    "ast_hash": "ef9f96fff88d890ba839acb7ff0cab93",
     "semantic_hash": ""
   },
   "apps/api/src/core/modules/mesh/dispatcher/mesh-base-resource.contract.spec.ts": {
@@ -12000,18 +12000,13 @@
     "semantic_hash": ""
   },
   "apps/api/src/core/modules/mesh/services/mesh-resource-service.spec.ts": {
-    "mtime": 1784545077.0480738,
-    "ast_hash": "e5fca1a4ee6af838161be0592183db73",
+    "mtime": 1784545259.479633,
+    "ast_hash": "2d129adb9a617888147084c79f6ba265",
     "semantic_hash": ""
   },
   "apps/api/src/core/modules/mesh/services/node-info.service.spec.ts": {
-    "mtime": 1784544877.656349,
-    "ast_hash": "a0bc9c52cd696c159c9ee5e35c7a1d65",
-    "semantic_hash": ""
-  },
-  "apps/api/src/e2e/mesh-workflows/mesh-resource-dispatcher.e2e-spec.ts": {
-    "mtime": 1784545093.0713212,
-    "ast_hash": "f2666ea4fdfd7f8bc7dd2ef542950606",
+    "mtime": 1784545478.8766425,
+    "ast_hash": "11fd49f3b9526e9a91be363715cd1b81",
     "semantic_hash": ""
   }
 }
