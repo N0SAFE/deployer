@@ -46,7 +46,7 @@ export const signOut = hasMasterTokenPlugin(authClient)
 
 // Auth pages configuration for Better Auth
 export const pages = {
-    signIn: '/auth/login',
+    signIn: '/auth/signin',
     signOut: '/auth/logout',
     error: '/auth/error',
 } as const

@@ -19,7 +19,7 @@ export default function DashboardServicesPage() {
   const [healthFilter, setHealthFilter] = useState<HealthFilter>('all')
 
   const { data: servicesData, isLoading, error } = useServiceList(undefined)
-  const services: any[] = useMemo(() => Array.isArray(servicesData) ? servicesData : [], [servicesData])
+  const services: any[] = useMemo(() => { const d = servicesData as { data?: any[] } | undefined; return d?.data ?? [] }, [servicesData])
 
   const filteredRows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()

@@ -262,8 +262,10 @@ export default function DashboardProjectDetailPage() {
 
   const project = useMemo(() => projectData ?? null, [projectData])
   const localServices = useMemo(() => {
-    if (!Array.isArray(servicesData)) return []
-    return servicesData.filter((s: any) => s.projectId === projectId || s.id?.startsWith(projectId))
+    const d = servicesData as { data?: { projectId: string; id?: string }[] } | undefined;
+    const list = d?.data ?? [];
+    if (!Array.isArray(list)) return [];
+    return list.filter((s: any) => s.projectId === projectId || s.id?.startsWith(projectId))
   }, [servicesData, projectId])
 
   const deployments = useMemo(

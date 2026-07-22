@@ -69,7 +69,7 @@ export default function DashboardProjectsPage() {
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
 
-  const projects = useMemo(() => projectsData ?? [], [projectsData])
+  const projects = useMemo(() => { const d = projectsData as { data?: unknown[] } | undefined; return d?.data ?? [] }, [projectsData])
 
   const filteredProjects = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()

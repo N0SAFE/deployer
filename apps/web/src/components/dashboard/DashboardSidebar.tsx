@@ -173,7 +173,8 @@ function ProjectsSidebarSection() {
   const { data: projectsData } = useProjectList(undefined)
 
   const projects: Array<{ id: string; name: string }> = useMemo(() => {
-    const list = projectsData ?? []
+    const raw = projectsData as { data?: Array<{ id: string; name: string }> } | undefined
+    const list = raw?.data ?? []
     if (!projectFilter) return list
     return list.filter((p: { name: string }) => fuzzyMatch(p.name, projectFilter))
   }, [projectsData, projectFilter])
@@ -187,7 +188,8 @@ function ProjectsSidebarSection() {
   )
 
   const filteredServices: Array<{ id: string; name: string }> = useMemo(() => {
-    const list = servicesData ?? []
+    const raw = servicesData as { data?: Array<{ id: string; name: string }> } | undefined
+    const list = raw?.data ?? []
     if (!serviceFilter || !expandedProject) return list
     return list.filter((s: { name: string }) => fuzzyMatch(s.name, serviceFilter))
   }, [servicesData, serviceFilter, expandedProject])

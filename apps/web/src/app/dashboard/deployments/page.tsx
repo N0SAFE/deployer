@@ -57,7 +57,7 @@ export default function DashboardDeploymentsPage() {
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
 
   const { data: deploymentsData, isLoading, error } = useDeploymentList(undefined)
-  const deployments = useMemo(() => deploymentsData ?? [], [deploymentsData])
+  const deployments = useMemo(() => { const d = deploymentsData as { data?: unknown[] } | undefined; return d?.data ?? [] }, [deploymentsData])
 
   const filteredDeployments = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
