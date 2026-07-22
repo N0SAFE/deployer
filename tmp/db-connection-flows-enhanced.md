@@ -9,79 +9,206 @@
 ### Principle P1: Fail Fast, Fail Loud
 If the database is unreachable at startup, the app **must stop** with a clear diagnostic message. Never silently degrade at startup.
 
-### Principle P2: Single Source of Truth for DB URL
-The main app resolves the database URL through exactly two mechanisms. **Environment variables are NEVER read by the main app** — they are only consumed by a dev-mode bootstrap injector that pre-seeds the SQLite node_config before the pipeline starts. The resolution chain is:
-```
-Mesh peer → Local SQLite cache → Hard error
-```
+### Principle P2: Local Config Is the Starting Point — Then Act
+Loading the local SQLite config is the very first thing the app does, but it does NOTHING with it yet. Only after reading whether setup is complete does it decide what to do.
 
-### Principle P3: Single Shared Pool
+### Principle P3: Mesh Peers From Local SQLite Are the Primary Reconnection Target
+When reconnecting, the `meshUrlsSnapshot` from the local config is the first thing to try. If there are peers listed there, try them. Only fall back to the local `databaseUrl` cache if ALL local peers are unreachable.
+
+### Principle P4: Global DB Peers Are a Secondary Discovery Source
+Once you have a working Postgres connection (whether from mesh or local cache), query the `cluster_nodes` table for additional peers you might not know about. This keeps the local peer list up to date.
+
+### Principle P5: You Can Run Alone — That's Valid
+Being the only node in the mesh is a valid state. "You are alone" means you prepare for other nodes to join. It's not an error — it's the expected first-boot state for the first node.
+
+### Principle P6: Single Shared Pool
 One `pg.Pool` instance. Not three. The pool is created once, probed, then shared across all drizzle instances and services.
 
-### Principle P4: State Machine at Every Level
-The node lifecycle is a well-defined state machine. Every state transition is explicit. Every state is observable via the health endpoint.
-
-### Principle P5: Last Known Good
-The SQLite `node_config.databaseUrl` is always the **last known good** URL. Even if the DB is currently unreachable, the URL is preserved for diagnostics and recovery.
-
-### Principle P6: No Database Duplication
+### Principle P7: No Database Duplication
 Locally managed Postgres containers are **named** and **reused** across restarts. Never create a second Postgres if one already exists.
+
+### Principle P8: Dev Bootstrap Injects Into Local Config Before Main Pipeline
+Environment variables (`SETUP_DATABASE_URL`) are NEVER read by the main app. A dev-mode injector seeds the local SQLite before the main pipeline starts.
 
 ---
 
 ## Part 2: The Node Lifecycle State Machine
 
+### Resolution Flow — Exact Pseudocode
+
 ```
-                         ┌─────────────────────────────────────────┐
-                         │                                         │
-                         ▼                                         │
-                   ┌──────────┐                                    │
-            ┌──────│  BOOT    │◄──── (process restart)             │
-            │      └────┬─────┘                                    │
-            │           │                                          │
-            │           ▼                                          │
-            │      ┌───────────────────────┐                      │
-            │      │ DEV BOOTSTRAP (dev-only)│                     │
-            │      │ Injects SETUP_DATABASE_URL│                    │
-            │      │ into SQLite if in dev mode│                    │
-            │      └──────────┬────────────┘                      │
-            │                 ▼                                    │
-            │      ┌──────────┐                                    │
-            │      │ DISCOVER │                                    │
-            │      │ SQLite → Mesh │                               │
-            │      └────┬─────┘                                    │
-            │      │  URL FOUND?          │                       │
-            │      └──┬───────┬───────────┘                       │
-            │         │       │                                   │
-            │         ▼       ▼                                   │
-            │    ┌────────┐  ┌──────────────┐                    │
-            │    │  YES   │  │  NO          │                    │
-            │    └───┬────┘  └──────┬───────┘                   │
-            │        │              │                            │
-            │        ▼              ▼                            │
-            │   ┌────────┐   ┌──────────────┐                   │
-            │   │  PROBE │   │  SETUP       │                   │
-            │   │  DB    │   │  WIZARD      │                   │
-            │   └───┬────┘   └──────┬───────┘                   │
-            │        │              │                            │
-            │        ▼              │                            │
-            │   ┌────────┐         │                            │
-            │   │  ALIVE? │         │                            │
-            │   └──┬──┬──┘         │                            │
-            │      │  │            │                            │
-            │      ▼  ▼            │                            │
-            │  ┌────┐ ┌──────────┐ │                            │
-            │  │YES │ │  NO      │ │                            │
-            │  └─┬──┘ │ FAIL     │ │                            │
-            │    │    │ STOP     │ │                            │
-            │    │    └──────────┘ │                            │
-            │    ▼                 ▼                            │
-            │  ┌────────┐   ┌──────────────┐                   │
-            │  │  READY │   │  SETUP       │                   │
-            │  │        │   │  COMPLETE    │                   │
-            │  └───┬────┘   │  → probe DB  │                   │
-            │      │        └──────┬───────┘                   │
-            │      ▼               │                            │
+START → load node_config from SQLite (no action yet)
+
+  ┌── IF node_config.setupState == "setup_done" ──────────────────┐
+  │                                                                │
+  │  STEP 1: Get mesh peer URLs from local SQLite                  │
+  │          (node_config.meshUrlsSnapshot)                        │
+  │                                                                │
+  │  ┌── IF there ARE peers in local SQLite ───────────────────┐   │
+  │  │                                                         │   │
+  │  │  Try connecting to ALL peers one by one                 │   │
+  │  │                                                         │   │
+  │  │  ┌── IF NONE worked (all unreachable) ──────────────┐   │   │
+  │  │  │                                                    │   │   │
+  │  │  │  Check local config for databaseUrl                │   │   │
+  │  │  │                                                    │   │   │
+  │  │  │  ┌── IF databaseUrl EXISTS ──────────────────┐    │   │   │
+  │  │  │  │                                             │    │   │   │
+  │  │  │  │  Try to connect to it (SELECT 1)            │    │   │   │
+  │  │  │  │                                             │    │     │   │
+  │  │  │  │  ┌── IF you CAN connect ────────────────┐  │    │   │   │
+  │  │  │  │  │                                        │  │    │   │   │
+  │  │  │  │  │  ✅ That's good — standalone mode      │  │    │   │   │
+  │  │  │  │  │  Now check global DB for mesh peers    │  │    │   │   │
+  │  │  │  │  │                                        │  │    │   │   │
+  │  │  │  │  │  ┌── IF global DB has peers ──────┐   │  │    │   │   │
+  │  │  │  │  │  │                                  │   │  │    │   │   │
+  │  │  │  │  │  │  Try connecting to them          │   │  │    │   │   │
+  │  │  │  │  │  │  ┌── IF none respond ────────┐   │   │  │    │   │   │
+  │  │  │  │  │  │  │                             │   │   │  │    │   │   │
+  │  │  │  │  │  │  │  ℹ️ They may be asleep or   │   │   │  │    │   │   │
+  │  │  │  │  │  │  │  updating. Log warning but   │   │   │  │    │   │   │
+  │  │  │  │  │  │  │  keep alive — you're stable  │   │   │  │    │   │   │
+  │  │  │  │  │  │  └─────────────────────────────┘   │   │  │    │   │   │
+  │  │  │  │  │  └────────────────────────────────────┘   │  │    │   │   │
+  │  │  │  │  │                                            │  │    │   │   │
+  │  │  │  │  └── IF you CAN'T connect ─────────────┐     │  │    │   │   │
+  │  │  │  │  │                                        │    │  │    │   │   │
+  │  │  │  │  │  ❌ PROBLEM: have DB URL from local    │    │  │    │   │   │
+  │  │  │  │  │  config but can't connect to it         │    │  │    │   │   │
+  │  │  │  │  │  → HARD STOP with diagnostic            │    │  │    │   │   │
+  │  │  │  │  └────────────────────────────────────────┘    │  │    │   │   │
+  │  │  │  └──────────────────────────────────────────────────┘  │    │   │   │
+  │  │  │                                                         │    │   │   │
+  │  │  └── ELSE (no databaseUrl in local config) ─────────┐     │    │   │   │
+  │  │  │                                                    │     │    │   │   │
+  │  │  │  ❌ ERROR STATE: setup_done but no DB URL and      │     │    │   │   │
+  │  │  │  no reachable peers. This is an inconsistent state │     │    │   │   │
+  │  │  │  → HARD STOP with diagnostic                       │     │    │   │   │
+  │  │  └────────────────────────────────────────────────────┘     │    │   │   │
+  │  │                                                               │    │   │   │
+  │  └── ELSE (at least one peer worked) ───────────────────┐       │    │   │   │
+  │                                                          │       │    │   │   │
+  │     ✅ Mesh peer is reachable                            │       │    │   │   │
+  │     → Request the database URL from the working peer     │       │    │   │   │
+  │                                                          │       │    │   │   │
+  │     ┌── IF peer can't respond with DB URL ──────────┐   │       │    │   │   │
+  │     │                                                  │   │       │    │   │   │
+  │     │  ❌ PROBLEM: mesh is reachable but can't          │   │       │    │   │   │
+  │     │  provide a database URL. Cluster state is broken  │   │       │    │   │   │
+  │     │  → HARD STOP                                      │   │       │    │   │   │
+  │     └──────────────────────────────────────────────────┘   │       │    │   │   │
+  │                                                          │       │    │   │   │
+  │     └── ELSE (peer responds with URL) ───────────────┐   │       │    │   │   │
+  │                                                        │   │       │    │   │   │
+  │        Try to connect to the database                  │   │       │    │   │   │
+  │                                                        │   │       │    │   │   │
+  │        ┌── IF you CAN'T connect ──────────────────┐    │   │       │    │   │   │
+  │        │                                            │    │   │       │    │   │   │
+  │        │  ❌ PROBLEM: mesh gave a DB URL but        │    │   │       │    │   │   │
+  │        │  that database is unreachable.              │    │   │       │    │   │   │
+  │        │  → HARD STOP                                │    │   │       │    │   │   │
+  │        └────────────────────────────────────────────┘    │   │       │    │   │   │
+  │                                                        │   │       │    │   │   │
+  │        └── IF you CAN connect ────────────────────┐    │   │       │    │   │   │
+  │                                                      │    │   │       │    │   │   │
+  │           ✅ Best case — everything works            │    │   │       │    │   │   │
+  │           → Persist URL, update peer list,           │    │   │       │    │   │   │
+  │             join mesh cluster                        │    │   │       │    │   │   │
+  │        └──────────────────────────────────────────────┘    │   │       │    │   │   │
+  │  └──────────────────────────────────────────────────────────┘   │       │    │   │   │
+  │                                                                  │       │    │   │   │
+  └── ELSE (no peers in local SQLite) ──────────────────────────┐    │       │    │   │   │
+                                                                  │    │       │    │   │   │
+    ┌── IF databaseUrl EXISTS in local config ────────────────┐   │    │       │    │   │   │
+    │                                                          │   │    │       │    │   │   │
+    │  Try to connect to it                                     │   │    │       │    │   │   │
+    │                                                          │   │    │       │    │   │   │
+    │  ┌── IF you CAN connect ──────────────────────────┐     │   │    │       │    │   │   │
+    │  │                                                  │     │   │    │       │    │   │   │
+    │  │  ✅ Connected to DB as standalone                 │     │   │    │       │    │   │   │
+    │  │  Now query global DB for mesh peers               │     │   │    │       │    │   │   │
+    │  │  (cluster_nodes table)                           │     │   │    │       │    │   │   │
+    │  │                                                  │     │   │    │       │    │   │   │
+    │  │  ┌── IF no peers in global DB ──────────────┐   │     │   │    │       │    │   │   │
+    │  │  │                                            │   │     │   │    │       │    │   │   │
+    │  │  │  ℹ️ You're alone. This is the first node  │   │     │   │    │       │    │   │   │
+    │  │  │  in this mesh.                            │   │     │   │    │       │    │   │   │
+    │  │  │  Prepare for other nodes to join YOUR     │   │     │   │    │       │    │   │   │
+    │  │  │  mesh.                                    │   │     │   │    │       │    │   │   │
+    │  │  └──────────────────────────────────────────┘   │     │   │    │       │    │   │   │
+    │  │                                                  │     │   │    │       │    │   │   │
+    │  │  ┌── ELSE peers exist in global DB ─────────┐   │     │   │    │       │    │   │   │
+    │  │  │                                            │   │     │   │    │       │    │   │   │
+    │  │  │  Try connecting to them one by one         │   │     │   │    │       │    │   │   │
+    │  │  │                                            │   │     │   │    │       │    │   │   │
+    │  │  │  ┌── IF none worked ──────────────────┐   │   │     │   │    │       │    │   │   │
+    │  │  │  │                                      │   │   │     │   │    │       │    │   │   │
+    │  │  │  │  ℹ️ They may be asleep or updating. │   │   │     │   │    │       │    │   │   │
+    │  │  │  │  Log and wait for them to reappear. │   │   │     │   │    │       │    │   │   │
+    │  │  │  │  When they do, add them to the      │   │   │     │   │    │       │    │   │   │
+    │  │  │  │  local config meshUrlsSnapshot too.  │   │   │     │   │    │       │    │   │   │
+    │  │  │  └────────────────────────────────────┘   │   │     │   │    │       │    │   │   │
+    │  │  └──────────────────────────────────────────┘   │     │   │    │       │    │   │   │
+    │  └──────────────────────────────────────────────────┘     │   │    │       │    │   │   │
+    │                                                          │   │    │       │    │   │   │
+    │  └── IF you CAN'T connect ────────────────────────┐     │   │    │       │    │   │   │
+    │                                                      │     │   │    │       │    │   │   │
+    │     ❌ PROBLEM: have DB URL from local config        │     │   │    │       │    │   │   │
+    │     but can't connect to it                          │     │   │    │       │    │   │   │
+    │     → HARD STOP with diagnostic                      │     │   │    │       │    │   │   │
+    │  └────────────────────────────────────────────────────┘     │   │    │       │    │   │   │
+    │                                                              │   │    │       │    │   │   │
+    └── ELSE (no databaseUrl in local config) ──────────────┐     │   │    │       │    │   │   │
+                                                              │     │   │    │       │    │   │   │
+       ❌ ERROR: setup_done but no DB URL in local config     │     │   │    │       │    │   │   │
+       AND no mesh peers. This is an IMPOSSIBLE state —       │     │   │    │       │    │   │   │
+       you can't have setup complete without either a         │     │   │    │       │    │   │   │
+       database URL or mesh peers.                            │     │   │    │       │    │   │   │
+       → HARD STOP with diagnostic                            │     │   │    │       │    │   │   │
+    └──────────────────────────────────────────────────────────┘     │   │    │       │    │   │   │
+                                                                      │   │    │       │    │   │   │
+  └── ELSE (setupState != "setup_done") ─────────────────────────┐     │   │    │       │    │   │   │
+                                                                  │     │   │    │       │    │   │   │
+     ⏩ Start setup wizard                                         │     │   │    │       │    │   │   │
+     No configuration exists — guided onboarding                   │     │   │    │       │    │   │   │
+  └────────────────────────────────────────────────────────────────┘     │   │    │       │    │   │   │
+                                                                          │   │    │       │    │   │   │
+└──────────────────────────────────────────────────────────────────────────────────────┘    │   │   │
+                                                                                           │   │   │
+                                                                                           ▼   ▼   ▼
+
+DECISION: if at this point you have a working Postgres connection → proceed to HEALTHY
+          If you don't → you already threw an error above
+```
+            │ │GOT │  │ HARD │ │USE │  │ SETUP    │            │
+            │ │URL │  │ STOP │ │CACHE   │ WIZARD   │            │
+            │ └┬───┘  │     │ │URL  │  └──────────┘            │
+            │  │      └──────┘ └──┬───┘                        │
+            │  ▼                  ▼                              │
+            │ ┌──────────┐  ┌──────────────┐                    │
+            │ │  PROBE   │  │   PROBE      │                    │
+            │ │  URL     │  │   CACHE      │                    │
+            │ │  FROM    │  │   URL        │                    │
+            │ │  MESH    │  └──────┬───────┘                    │
+            │ └────┬─────┘         │                            │
+            │      │               │                            │
+            │      ▼               ▼                            │
+            │ ┌──────────┐   ┌──────────┐                       │
+            │ │  ALIVE?  │   │  ALIVE?  │                       │
+            │ └──┬──┬────┘   └──┬──┬────┘                       │
+            │    │  │          │  │                             │
+            │    ▼  ▼          ▼  ▼                             │
+            │ ┌───┐ ┌──────┐ ┌───┐ ┌──────┐                    │
+            │ │YES│ │NO    │ │YES│ │NO    │                    │
+            │ └┬──┘ │HARD  │ └┬──┘ │FAIL  │                    │
+            │  │   │STOP  │  │   │STOP  │                    │
+            │  │   └──────┘  │   └──────┘                    │
+            │  ▼             ▼                                │
+            │ ┌───────┐  ┌───────┐                             │
+            │ │ READY │  │ READY │                             │
+            │ └───┬───┘  └───┬───┘                             │
+            │     │          │                                 │
             │  ┌────────┐         │                            │
             │  │  MESH  │◄────────┘                            │
             │  │  PEER  │                                      │
@@ -98,36 +225,36 @@ Locally managed Postgres containers are **named** and **reused** across restarts
             └──────────────────────────────────────────────────┘
 ```
 
-### State Definitions
+### States That the App Can Be In After Resolution
 
-| State | Meaning | Actions |
-|-------|---------|---------|
-| `BOOT` | Process starts | Initialize SQLite, load node_config from disk |
-| `DISCOVER` | Resolve DB URL | Ask mesh → read SQLite cache |
-| `URL_FOUND` | URL resolved | Validate format, proceed to PROBE |
-| `URL_NOT_FOUND` | No URL anywhere | Launch setup wizard, block further startup |
-| `PROBE` | Test DB connectivity | `SELECT 1` with timeout, categorize errors |
-| `ALIVE` | DB reachable | Create shared pool, proceed to READY |
-| `DEAD` | DB unreachable | Log diagnostic, **exit(1)** — fail fast |
-| `READY` | Pool created + probed | Start accepting traffic |
-| `MESH_PEER` | Mesh connected | Join cluster, register schema_version |
-| `HEALTHY` | Fully operational | All systems go |
-| `DEGRADED` | DB lost mid-run | Circuit breaker open, recovery loop active |
-| `SETUP_WIZARD` | First-run setup | UI wizard running on port 3010 |
+| State | Meaning | How You Get Here |
+|-------|---------|------------------|
+| `SETUP_NEEDED` | No config exists at all | `setupState` != `setup_done` → launch setup wizard |
+| `SETUP_INCONSISTENT` | Setup claims done but no DB URL and no peers | `setup_done` + no `databaseUrl` + no local peers → **HARD STOP**, impossible state |
+| `STANDALONE_ALONE` | Connected to DB, first node in mesh | No peers anywhere → "You're alone. Prepare for other nodes to join YOUR mesh." |
+| `STANDALONE_PEERS_ABSENT` | Connected to DB, but other nodes known in global DB aren't responding | Global DB has peers but none reachable → log "asleep/updating", keep alive, wait |
+| `MESH_CONNECTED_HEALTHY` | Mesh peer found, DB works | Best case: peer reachable → gave DB URL → connected → join cluster |
+| `MESH_GOT_URL_DB_DOWN` | Mesh peer reachable but DB URL it gave is unreachable | **HARD STOP** — mesh broke |
+| `MESH_PEERS_DOWN_CACHE_OK` | Local peers all unreachable, cache DB reachable | Log "peers unreachable", check global DB for more peers, keep alive |
+| `MESH_PEERS_DOWN_CACHE_GONE` | Local peers all unreachable, no cache DB | **HARD STOP** — inconsistent state |
+| `CACHE_CONNECT_FAILED` | Have local DB URL but can't connect | **HARD STOP** with diagnostic |
+| `CONNECTED_AND_STABLE` | Successfully connected to Postgres via any path | Proceed to create pool, register schema_version, start serving |
 
 ### Startup Decision Matrix
 
-| Scenario | node_config.state | SQLite has URL? | DB Reachable? | Mesh Peer Known? | Action |
-|----------|------------------|-----------------|---------------|------------------|--------|
-| **Fresh install** | `not_started` | No | N/A | No | → SETUP_WIZARD |
-| **Restart, local** | `setup_done` | Yes | Yes | No | → PROBE → READY → HEALTHY |
-| **Restart, local, DB gone** | `setup_done` | Yes | **No** | No | → FAIL → **STOP with error** |
-| **Restart, remote** | `setup_done` | Yes | Yes | Yes | → PROBE → READY → MESH_PEER → HEALTHY |
-| **Restart, remote, mesh down** | `setup_done` | Yes (cached) | Yes | **No** | → PROBE → READY → **warn but continue** |
-| **Restart, both down** | `setup_done` | Yes (stale) | **No** | **No** | → FAIL → **STOP with error** |
-| **Upgrade** | `upgrade_pending` | Yes | Yes | Yes | → PROBE → READY → MESH_PEER → run migrations |
-| **Dev auto-provision** | `not_started` | **Injected by dev bootstrap** | N/A | No | Dev bootstrap injects URL into SQLite → then → PROBE → READY → HEALTHY |
-| **SQLite lost** | N/A (file missing) | N/A | N/A | N/A | → fresh SQLite → `not_started` → SETUP_WIZARD |
+| Scenario | setupState | Local Peers? | Local DB URL? | Result State |
+|----------|-----------|-------------|---------------|-------------|
+| **Fresh install** | `not_started` | N/A | N/A | → SETUP_NEEDED → wizard |
+| **Fresh + dev auto** | `setup_done` (injected) | No | Yes (injected) | → no peers → use cache → connect → check global DB → first node alone |
+| **Restart, no peers, healthy** | `setup_done` | No | Yes, reachable | → no local peers → use cache → connect → check global DB → alone or peers absent |
+| **Restart, no peers, DB gone** | `setup_done` | No | Yes, but **unreachable** | → HARD STOP: cache connect failed |
+| **Restart, no peers, no DB URL** | `setup_done` | No | **No** | → **IMPOSSIBLE STATE**: HARD STOP |
+| **Restart, with peers, healthy** | `setup_done` | Yes | Yes (cached) | → connect to peers → one works → request DB URL → connect → HEALTHY |
+| **Restart, peers down, cache works** | `setup_done` | Yes | Yes, reachable | → all peers unreachable → use cache → connect OK → standalone, check global DB for more peers |
+| **Restart, peers down, cache works, global DB has peers** | `setup_done` | Yes | Yes, reachable | → all peers unreachable → use cache → connect → global DB shows peers but none respond → log "asleep/updating", keep alive |
+| **Restart, peers down, no cache** | `setup_done` | Yes | **No** | → all peers unreachable → no cache DB → HARD STOP |
+| **Restart, peer gives bad DB URL** | `setup_done` | Yes | — | → peer reachable → peer returns URL → probe fails → HARD STOP |
+| **Upgrade** | `upgrade_pending` | Yes | Yes | → connect to peers → get DB URL → connect → run migrations → HEALTHY |
 
 ---
 
@@ -135,69 +262,174 @@ Locally managed Postgres containers are **named** and **reused** across restarts
 
 ```mermaid
 flowchart TB
-    START[App starts] --> LOAD_SQLITE[Load SQLite node_config]
-    LOAD_SQLITE --> HAS_URL{databaseUrl<br/>exists and non-empty?}
+    START[START] --> LOAD[Load node_config from SQLite<br/>Do nothing yet]
+    LOAD --> DONE{setupState =<br/>"setup_done"?}
     
-    HAS_URL -->|Yes| PROBE[Run SELECT 1 probe<br/>with 5s timeout]
-    PROBE --> REACHABLE{Reachable?}
-    REACHABLE -->|Yes| STORE_HEALTHY["Mark: lastKnownGood = now()"]
-    STORE_HEALTHY --> USE_URL[✅ Use this URL<br/>→ create shared pool]
+    DONE -->|No| WIZARD["⏩ SETUP WIZARD<br/>No config exists"]
+    DONE -->|Yes| GET_PEERS[Get meshUrlsSnapshot<br/>from local SQLite]
     
-    REACHABLE -->|No| DIAGNOSE{Categorize error}
-    DIAGNOSE -->|ECONNREFUSED| STOP_CONN["FAIL: STOP<br/>DB host refused connection<br/>port wrong? DB down?"]
-    DIAGNOSE -->|ETIMEDOUT| STOP_TIMEOUT["FAIL: STOP<br/>Connection timed out<br/>network issue? firewall?"]
-    DIAGNOSE -->|ENOTFOUND| STOP_DNS["FAIL: STOP<br/>DB hostname not resolved<br/>check DNS / docker network"]
-    DIAGNOSE -->|auth/password| STOP_AUTH["FAIL: STOP<br/>Authentication failed<br/>check credentials"]
-    DIAGNOSE -->|"does not exist"| STOP_DBNAME["FAIL: STOP<br/>Database does not exist<br/>check database name"]
-    DIAGNOSE -->|other| STOP_OTHER["FAIL: STOP<br/>Unknown error: {msg}"]
+    GET_PEERS --> HAS_PEERS{Any peers in<br/>local SQLite?}
     
-    HAS_URL -->|No| ASK_MESH{Can we reach<br/>a mesh peer?}
-    ASK_MESH -->|Yes, known URL| FETCH_FROM_MESH[Request database URL<br/>from mesh peer]
-    FETCH_FROM_MESH --> MESH_URL_RETURNED{URL returned?}
-    MESH_URL_RETURNED -->|Yes| VALIDATE_MESH_URL[Validate URL format]
-    VALIDATE_MESH_URL --> PERSIST_MESH[Persist to SQLite node_config]
-    PERSIST_MESH --> PROBE
+    HAS_PEERS -->|No| USE_CACHE["No local peers →<br/>use databaseUrl from config"]
+    HAS_PEERS -->|Yes| TRY_PEERS[Try connecting to<br/>ALL local peers one by one]
     
-    MESH_URL_RETURNED -->|No| SETUP_NEEDED["⏩ Enter SETUP_WIZARD<br/>No database URL found<br/>by any method"]
+    TRY_PEERS --> ANY_WORKED{At least one<br/>peer responded?}
     
-    ASK_MESH -->|No mesh URL known| SETUP_NEEDED
+    ANY_WORKED -->|No, all unreachable| CHECK_CACHE{Has local<br/>databaseUrl?}
     
-    style SETUP_NEEDED fill:#f96,stroke:#333,stroke-width:2px
+    CHECK_CACHE -->|Yes| CONNECT_CACHE[Try connecting to<br/>cached databaseUrl]
+    CONNECT_CACHE --> CACHE_OK{Connected?}
+    CACHE_OK -->|Yes| CHECK_GLOBAL_DB["✅ Standalone with DB<br/>Now query global DB<br/>for more mesh peers"]
+    CACHE_OK -->|No| CACHE_FAIL["❌ HARD STOP<br/>Have DB URL but<br/>can't connect"]
+    
+    CHECK_CACHE -->|No| INCONSISTENT["❌ IMPOSSIBLE STATE<br/>setup_done + no peers<br/>+ no DB URL"]
+    
+    ANY_WORKED -->|Yes| REQUEST_DB_URL[Request database URL<br/>from working peer]
+    REQUEST_DB_URL --> PEER_GAVE_URL{Got a valid<br/>DB URL from peer?}
+    PEER_GAVE_URL -->|No| PEER_BROKEN["❌ HARD STOP<br/>Mesh reachable but<br/>gave no DB URL"]
+    PEER_GAVE_URL -->|Yes| CONNECT_PEER_DB[Connect to the<br/>database URL from mesh]
+    CONNECT_PEER_DB --> PEER_DB_OK{Connected?}
+    PEER_DB_OK -->|Yes| BEST_CASE["✅ BEST CASE<br/>Everything works<br/>→ join mesh cluster"]
+    PEER_DB_OK -->|No| PEER_DB_FAIL["❌ HARD STOP<br/>Mesh gave a DB URL<br/>but DB is unreachable"]
+    
+    CHECK_GLOBAL_DB --> GLOBAL_HAS_PEERS{Any peers in<br/>cluster_nodes?}
+    GLOBAL_HAS_PEERS -->|No| FIRST_NODE["ℹ️ You're the first node<br/>Prepare for others<br/>to join YOUR mesh"]
+    GLOBAL_HAS_PEERS -->|Yes| TRY_GLOBAL_PEERS[Try connecting to<br/>global DB peers]
+    TRY_GLOBAL_PEERS --> GLOBAL_WORKED{Any responded?}
+    GLOBAL_WORKED -->|No| ASLEEP["ℹ️ Peers may be asleep<br/>or updating. Log warning,<br/>keep alive. Wait for them."]
+    GLOBAL_WORKED -->|Yes| ADD_LOCAL[Add to local config<br/>meshUrlsSnapshot]
+    ADD_LOCAL --> STABLE[✅ Stable with mesh peers]
+    
+    USE_CACHE --> CONNECT_CACHE
+    
+    style WIZARD fill:#f96,stroke:#333
+    style INCONSISTENT fill:#d32,stroke:#333,color:#fff
+    style CACHE_FAIL fill:#d32,stroke:#333,color:#fff
+    style PEER_BROKEN fill:#d32,stroke:#333,color:#fff
+    style PEER_DB_FAIL fill:#d32,stroke:#333,color:#fff
+    style FIRST_NODE fill:#4caf,stroke:#333,color:#fff
+    style ASLEEP fill:#ff98,stroke:#333
+    style BEST_CASE fill:#4caf,stroke:#333,color:#fff
 ```
 
-### Resolution Order (Chain of Responsibility) — Main App Only
-
-**The main app NEVER reads env vars.** Environment variables (`SETUP_DATABASE_URL`) are only consumed by a dev-mode bootstrap injector that runs BEFORE the main pipeline, seeding the SQLite node_config. The main app's resolution is purely:
+### Resolution Order Code
 
 ```typescript
-async function resolveDatabaseUrl(): Promise<string | null> {
-  // ── Step 1: Try local SQLite cache (fast path) ────────────────
-  const cached = nodeConfig.find()?.databaseUrl?.trim()
-  if (cached) {
-    logger.log('📦 Found cached database URL in node_config')
-    return cached  // ← Most common path: restart with existing config
+async function resolveDatabaseUrl(): Promise<{
+  url: string
+  source: 'mesh' | 'cache'
+  peers: string[]
+} | 'setup_needed'> {
+
+  const config = nodeConfigRepository.find()
+
+  // ── NOT SETUP YET → setup wizard ──────────────────────────
+  if (config?.setupState !== 'setup_done') {
+    return 'setup_needed'
   }
 
-  // ── Step 2: Ask mesh peers (remote strategy) ──────────────────
-  if (meshUrls.length > 0) {
-    for (const url of meshUrls) {
-      try {
-        const meshUrl = await meshClient.discoverDatabaseUrl(url)
-        if (meshUrl) {
-          logger.log(`🌐 Discovered database URL from mesh peer: ${url}`)
-          // Persist so next restart is fast-path
-          nodeConfig.upsert({ databaseUrl: meshUrl, ... })
-          return meshUrl
-        }
-      } catch (err) {
-        logger.warn(`Failed to query mesh peer ${url}: ${err.message}`)
+  const localPeers: string[] = config?.meshUrlsSnapshot ?? []
+  let databaseUrl: string | null = config?.databaseUrl?.trim() ?? null
+
+  // ── PATH A: THERE ARE LOCAL PEERS → try mesh first ─────────
+  if (localPeers.length > 0) {
+    const workingPeer = await tryPeers(localPeers)
+
+    if (workingPeer) {
+      // At least one peer responded
+      const meshDbUrl = await requestDatabaseUrlFromPeer(workingPeer)
+
+      if (!meshDbUrl) {
+        throw new Error(
+          'Mesh peer is reachable but could not provide a database URL. ' +
+          'Cluster state is broken — this peer should know the DB URL. ' +
+          'Manual intervention required.'
+        )
       }
+
+      // Peer gave us a URL — verify it
+      await probeDatabaseUrl(meshDbUrl, 'mesh')
+
+      // Persist the URL and update peer list
+      nodeConfigRepository.upsert({
+        databaseUrl: meshDbUrl,
+        meshUrlsSnapshot: await refreshPeerList(localPeers),
+        ...
+      })
+
+      return { url: meshDbUrl, source: 'mesh', peers: localPeers }
     }
+
+    // ── ALL PEERS UNREACHABLE → fall back to local cache ─────
+    if (!databaseUrl) {
+      throw new Error(
+        'All known mesh peers are unreachable AND no database URL is stored locally.\n' +
+        'This is an inconsistent state: setup is complete, peers are known but unreachable,\n' +
+        'and there is no cached database URL to fall back to.\n' +
+        `Attempted peers: ${localPeers.join(', ')}`
+      )
+    }
+
+    await probeDatabaseUrl(databaseUrl, 'cache')
+
+    // Connected using cache — now check global DB for more peers
+    const globalPeers = await discoverGlobalMeshPeers()
+    if (globalPeers.length > 0) {
+      const anyGlobalResponded = await tryPeers(globalPeers)
+      if (!anyGlobalResponded) {
+        logger.warn(
+          'Mesh peers from global DB are unreachable — they may be asleep or updating.\n' +
+          'Keeping alive with cached database URL. Will retry periodically.\n' +
+          `Known global peers: ${globalPeers.join(', ')}`
+        )
+      } else {
+        // Update local snapshot with discovered peers
+        nodeConfigRepository.upsert({
+          meshUrlsSnapshot: [...new Set([...localPeers, ...globalPeers])],
+          ...
+        })
+      }
+    } else {
+      logger.log('No other mesh peers found in global DB — you are the first/only node.')
+    }
+
+    return { url: databaseUrl, source: 'cache', peers: localPeers }
   }
 
-  // ── Step 3: Nothing found ─────────────────────────────────────
-  logger.warn('⏳ No database URL found by any method — setup wizard needed')
-  return null
+  // ── PATH B: NO LOCAL PEERS → use cached databaseUrl ────────
+  if (!databaseUrl) {
+    throw new Error(
+      'Setup is marked as complete but there is no database URL and no mesh peers.\n' +
+      'This is an impossible state — you cannot have setup_done without either.\n' +
+      'Check the local SQLite node_config table for corruption.'
+    )
+  }
+
+  await probeDatabaseUrl(databaseUrl, 'cache')
+
+  // Connected — discover peers from global DB
+  const globalPeersFromDb = await discoverGlobalMeshPeers()
+  if (globalPeersFromDb.length === 0) {
+    logger.log(
+      'ℹ️ Connected to database. No other mesh peers found.\n' +
+      'You are the first node in this mesh. Prepare for other nodes to join.'
+    )
+  } else {
+    const anyResponded = await tryPeers(globalPeersFromDb)
+    if (!anyResponded) {
+      logger.warn(
+        'Found peers in global DB but none are responding.\n' +
+        'They may be asleep or updating. Will retry periodically.'
+      )
+    }
+    // Save peers to local config for next restart
+    nodeConfigRepository.upsert({
+      meshUrlsSnapshot: globalPeersFromDb,
+      ...
+    })
+  }
+
+  return { url: databaseUrl, source: 'cache', peers: globalPeersFromDb }
 }
 ```
 
@@ -329,10 +561,10 @@ flowchart TB
     CLOSE --> PIPELINE
     
     subgraph "Orchestrator Pipeline (env-blind)"
-        PIPELINE --> RESOLVE[resolveDatabaseUrl<br/>reads SQLite only]
-        RESOLVE --> HAS_URL{Has URL?}
-        HAS_URL -->|Yes, from dev injector| PROBE[Probe DB → ready]
-        HAS_URL -->|No| WIZARD[Setup wizard / fail]
+        PIPELINE --> RESOLVE[resolveDatabaseUrl<br/>reads setupState + peers + databaseUrl]
+        RESOLVE --> IS_DONE{setupState =<br/>setup_done?}
+        IS_DONE -->|No| WIZARD[Setup wizard]
+        IS_DONE -->|Yes| PATH[Follow peer/cache logic<br/>→ probe DB → ready]
     end
 ```
 
@@ -993,16 +1225,18 @@ export class DatabaseStartupGuard {
 
 | File | Action | Change |
 |------|--------|--------|
-| `apps/api/src/core/modules/database/global/global-database.module.ts` | **Rewrite** | Single shared pool, probe before creating, fail fast |
+| `apps/api/src/core/modules/database/global/global-database.module.ts` | **Rewrite** | Single shared pool, probe after init (not in forRoot), fail fast |
 | `apps/api/src/core/modules/database/shared/database.service.ts` | **Update** | Fix empty `catch {}`, add proper error logging |
 | `apps/api/src/core/modules/database/database-connection.ts` | **Keep** | Tokens stay, but consolidate to single pool |
-| `apps/api/src/core/orchestrator/orchestrator.service.ts` | **Update** | Add fail-fast probe before main-app starts |
+| `apps/api/src/core/orchestrator/orchestrator.service.ts` | **Update** | Add dev bootstrap phase + fail-fast probe before main-app starts |
 | `apps/api/src/core/modules/docker/containers/postgres/postgres-container.service.ts` | **Rewrite** | Fixed container name, named volume, reuse existing |
 | `apps/api/src/main.ts` | **Update** | Add pool drain + SQLite close on shutdown |
+| `apps/api/src/core/modules/setup/services/initialization.service.ts` | **Update** | Remove all `process.env.SETUP_DATABASE_URL` / `SETUP_AUTO` refs — env-blind |
 | `apps/api/src/core/modules/setup/services/local-initialization.service.ts` | **Update** | Use new PostgresContainerService pattern |
+| `apps/api/src/core/setup-dev/setup-dev.service.ts` | **Rewrite → DevBootstrapInjector** | Only runs in dev mode (NODE_ENV guard), moves env-reading BEFORE main pipeline |
 | `apps/api/src/core/modules/database/services/database-probe.service.ts` | **New** | Reusable DB probe with categorized errors |
-| `apps/api/src/core/modules/lifecycle/app-lifecycle-state.service.ts` | **New** | Centralized state machine |
-| `apps/api/src/core/modules/database/services/database-circuit-breaker.service.ts` | **New** | Circuit breaker for DB resilience |
+| `apps/api/src/core/modules/lifecycle/app-lifecycle-state.service.ts` | **New** | Centralized state machine (event-based, no process.exit) |
+| `apps/api/src/core/modules/database/services/database-failure-tracker.service.ts` | **New** | Failure tracker (observer pattern, no state co-ownership) |
 | `apps/api/src/core/modules/database/services/database-startup-guard.service.ts` | **New** | Fail-fast guard with Docker recovery |
 | `apps/api/src/core/modules/setup/repositories/node-config.repository.ts` | **Update** | Add `lastKnownGoodAt` field support |
 
@@ -1215,6 +1449,14 @@ pool: {
 ## Part 11: Revised Migration Path
 
 Based on the advisor's review, here is the corrected implementation order:
+
+### Phase 0 — Dev Bootstrap Isolation
+- Create `DevBootstrapInjector` service in `core/setup-dev/`
+- Add `NODE_ENV === 'production'` guard — only runs in dev
+- Move env-reading logic OUT of `InitializationService.checkConfigAndEmit()`
+- Remove all `process.env.SETUP_DATABASE_URL` and `process.env.SETUP_AUTO` references from the main pipeline
+- Wire dev bootstrap as a headless pre-orchestrator step
+- **Test**: Verify that in production mode, env vars are never checked by the main app
 
 ### Phase 1 — State Machine (no side effects)
 - Create `AppLifecycleStateService` with event-based transitions (NO `process.exit`)

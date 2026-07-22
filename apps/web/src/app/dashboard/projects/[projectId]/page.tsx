@@ -5,7 +5,7 @@ import { AuthDashboardProjects } from '@/routes'
 import { useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useProject, useProjectCollaborators } from '@/domains/project/hooks'
-import { useServiceList } from '@/domains/service/hooks'
+import { useServiceList, useCreateService } from '@/domains/service/hooks'
 import {
   ServiceDependencyGraphPanel,
   type ServiceGraphDependencyRoute,
@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from '@repo/ui/components/shadcn/dialog'
 import { Input } from '@repo/ui/components/shadcn/input'
+import { Textarea } from '@repo/ui/components/shadcn/textarea'
 import { Label } from '@repo/ui/components/shadcn/label'
 import { isRecord } from '@repo/type-guards'
 import {
@@ -50,7 +51,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@repo/ui/components/shadcn/popover'
 import { ArrowLeft, ArrowRight, ChevronDown, Filter, Plus, Search, Settings, Siren, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { ENV_NAMES, type EnvName } from '@repo/contracts-common'
+import { ENV_NAMES, SERVICE_PROVIDER_TYPES, SERVICE_RUNNER_TYPES, type EnvName } from '@repo/contracts-common'
 import { matchFilter, type DFilter, type DFilterOperator } from '@repo/auth'
 import type { FixtureDependency, ServiceConfigEntry } from '@repo/contracts-entities'
 
@@ -236,8 +237,14 @@ export default function DashboardProjectDetailPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createName, setCreateName] = useState('')
   const [createType, setCreateType] = useState('web')
-  const [createRuntime, setCreateRuntime] = useState('nodejs')
   const [createDescription, setCreateDescription] = useState('')
+  const [createProvider, setCreateProvider] = useState('github')
+  const [createRunner, setCreateRunner] = useState('docker-compose')
+  const [createPort, setCreatePort] = useState('')
+  const [createHealthPath, setCreateHealthPath] = useState('')
+  const [creating, setCreating] = useState(false)
+
+  const createService = useCreateService()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
@@ -904,20 +911,39 @@ export default function DashboardProjectDetailPage() {
     setAdvancedFilterRules([])
   }
 
-  const handleCreateService = () => {
+  const handleCreateService = async () => {
     const name = createName.trim()
     const type = createType.trim()
-    const runtime = createRuntime.trim()
-    if (!name || !type || !runtime) {
-      toast.error('Name, type and runtime are required')
+    if (!name || !type) {
+      toast.error('Name and type are required')
       return
     }
-    toast.success('Service creation via API not yet implemented')
-    setCreateDialogOpen(false)
-    setCreateName('')
-    setCreateDescription('')
-    setCreateRuntime('nodejs')
-    setCreateType('web')
+    setCreating(true)
+    try {
+      await createService.mutateAsync({
+        name,
+        type,
+        projectId,
+        providerId: createProvider as any,
+        builderId: createRunner as any,
+        description: createDescription.trim() || null,
+        port: createPort ? parseInt(createPort, 10) : null,
+        healthCheckPath: createHealthPath.trim() || null,
+      })
+      toast.success('Service created')
+      setCreateDialogOpen(false)
+      setCreateName('')
+      setCreateType('web')
+      setCreateDescription('')
+      setCreateProvider('github')
+      setCreateRunner('docker-compose')
+      setCreatePort('')
+      setCreateHealthPath('')
+    } catch (err) {
+      toast.error('Failed to create service', { description: (err as Error).message })
+    } finally {
+      setCreating(false)
+    }
   }
 
   const handleToggleService = (serviceId: string, isActive: boolean) => {
@@ -1736,73 +1762,115 @@ export default function DashboardProjectDetailPage() {
       </Dialog>
 
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Create service</DialogTitle>
             <DialogDescription>
-              Adds a new service instance to this project dashboard.
+              Define a new service within this project. The service will be provisioned when deployed.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="service-create-name">Name</Label>
-              <Input
-                id="service-create-name"
-                value={createName}
-                onChange={(event) => {
-                  setCreateName(event.target.value)
-                }}
-                placeholder="api-gateway"
-              />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-5 py-2">
+            {/* Basic info */}
+            <div className="space-y-3 rounded-lg border p-4">
+              <h3 className="text-sm font-semibold">Basic information</h3>
               <div className="space-y-2">
-                <Label htmlFor="service-create-type">Type</Label>
+                <Label htmlFor="service-create-name">Service name <span className="text-destructive">*</span></Label>
+                <Input
+                  id="service-create-name"
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                  placeholder="api-gateway"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="service-create-type">Type <span className="text-destructive">*</span></Label>
                 <Input
                   id="service-create-type"
                   value={createType}
-                  onChange={(event) => {
-                    setCreateType(event.target.value)
-                  }}
-                  placeholder="web"
+                  onChange={(e) => setCreateType(e.target.value)}
+                  placeholder="web, api, worker, cron, etc."
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="service-create-runtime">Runtime</Label>
-                <Input
-                  id="service-create-runtime"
-                  value={createRuntime}
-                  onChange={(event) => {
-                    setCreateRuntime(event.target.value)
-                  }}
-                  placeholder="nodejs"
+                <Label htmlFor="service-create-description">Description</Label>
+                <Textarea
+                  id="service-create-description"
+                  value={createDescription}
+                  onChange={(e) => setCreateDescription(e.target.value)}
+                  placeholder="Optional description of this service&#x2019;s purpose"
+                  className="min-h-15 resize-y"
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="service-create-description">Description</Label>
-              <Input
-                id="service-create-description"
-                value={createDescription}
-                onChange={(event) => {
-                  setCreateDescription(event.target.value)
-                }}
-                placeholder="Optional service description"
-              />
+
+            {/* Provider & Runner */}
+            <div className="space-y-3 rounded-lg border p-4">
+              <h3 className="text-sm font-semibold">Provider &amp; deployment</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="service-create-provider">Source provider</Label>
+                  <Select value={createProvider} onValueChange={setCreateProvider}>
+                    <SelectTrigger id="service-create-provider">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SERVICE_PROVIDER_TYPES.map((p) => (
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="service-create-runner">Runner type</Label>
+                  <Select value={createRunner} onValueChange={setCreateRunner}>
+                    <SelectTrigger id="service-create-runner">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SERVICE_RUNNER_TYPES.map((r) => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {/* Network */}
+            <div className="space-y-3 rounded-lg border p-4">
+              <h3 className="text-sm font-semibold">Network &amp; health</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="service-create-port">Port</Label>
+                  <Input
+                    id="service-create-port"
+                    type="number"
+                    value={createPort}
+                    onChange={(e) => setCreatePort(e.target.value)}
+                    placeholder="3000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="service-create-health">Health check path</Label>
+                  <Input
+                    id="service-create-health"
+                    value={createHealthPath}
+                    onChange={(e) => setCreateHealthPath(e.target.value)}
+                    placeholder="/health"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setCreateDialogOpen(false)
-              }}
-            >
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)} disabled={creating}>
               Cancel
             </Button>
-            <Button onClick={handleCreateService}>Create service</Button>
+            <Button onClick={handleCreateService} disabled={creating}>
+              {creating ? 'Creating...' : 'Create service'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
