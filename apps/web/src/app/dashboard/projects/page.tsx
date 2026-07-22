@@ -72,7 +72,7 @@ export default function DashboardProjectsPage() {
   const projects = useMemo(() => { const d = projectsData as { data?: unknown[] } | undefined; return d?.data ?? [] }, [projectsData])
 
   const filteredProjects = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase()
+    const query = searchQuery.trim().toLowerCase()
     if (!Array.isArray(projects)) return []
     return projects.filter((project: { name?: string; id?: string }) => {
       if (!query) return true

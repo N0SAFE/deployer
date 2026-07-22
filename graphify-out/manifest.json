@@ -4000,8 +4000,8 @@
     "semantic_hash": "eee6494bbec920a0736ad77c42143118"
   },
   "apps/web/src/app/dashboard/deployments/page.tsx": {
-    "mtime": 1784720123.7090042,
-    "ast_hash": "bf9454f0ef6cf34ad17b1cc665b852a5",
+    "mtime": 1784728180.2399302,
+    "ast_hash": "b1f4c25f2f5a91a090a6ca7997522844",
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/deployments/route.info.ts": {
@@ -4460,8 +4460,8 @@
     "semantic_hash": "ab397e8a806ea9abf260966ef99c8963"
   },
   "apps/web/src/app/dashboard/projects/[projectId]/page.tsx": {
-    "mtime": 1784705438.4164,
-    "ast_hash": "e36a873f8512a29e0fe57f68769e0dd7",
+    "mtime": 1784728180.2470846,
+    "ast_hash": "a6c9766147e573ca665c7de7040a6608",
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/[projectId]/route.info.ts": {
@@ -4590,8 +4590,8 @@
     "semantic_hash": "704e9106986b3f55608a2c52f6667a6d"
   },
   "apps/web/src/app/dashboard/projects/page.tsx": {
-    "mtime": 1784720187.2735374,
-    "ast_hash": "1a409535090c06943bf5529890bb0cd2",
+    "mtime": 1784728180.203948,
+    "ast_hash": "80170f591ac1391e72f0c8baa0c07da8",
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/projects/route.info.ts": {
@@ -4605,8 +4605,8 @@
     "semantic_hash": "89ee735926f13b5d1cdf30922083b466"
   },
   "apps/web/src/app/dashboard/services/page.tsx": {
-    "mtime": 1784719969.9983945,
-    "ast_hash": "d68235d92b1d617898dd50a958ba25ec",
+    "mtime": 1784728180.2409296,
+    "ast_hash": "9921abb2cf8bd292e79d661d7ce39966",
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/services/route.info.ts": {
@@ -4705,8 +4705,8 @@
     "semantic_hash": "8850209cfe8cfd8ec33b9ceac0744e7e"
   },
   "apps/web/src/components/dashboard/DashboardSidebar.tsx": {
-    "mtime": 1784705438.372286,
-    "ast_hash": "e4fc9dca8625e8607add1ceca667d1de",
+    "mtime": 1784728141.3892367,
+    "ast_hash": "62c278e6e2a7861c781b8e00f945a109",
     "semantic_hash": ""
   },
   "apps/web/src/components/dashboard/DashboardSidebarSkeleton.tsx": {
@@ -5140,9 +5140,9 @@
     "semantic_hash": "6ef0962e9a86bbab72a609f98aac81a7"
   },
   "apps/web/src/lib/auth/index.ts": {
-    "mtime": 1782926825.1144156,
-    "ast_hash": "690d3bcf22c793598be87974668fb224",
-    "semantic_hash": "690d3bcf22c793598be87974668fb224"
+    "mtime": 1784727779.8558974,
+    "ast_hash": "e3a840ac2a35e04f6225c4db3da7563f",
+    "semantic_hash": ""
   },
   "apps/web/src/lib/auth/options.ts": {
     "mtime": 1782926815.5046136,
