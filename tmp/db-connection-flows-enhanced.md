@@ -10,9 +10,9 @@
 If the database is unreachable at startup, the app **must stop** with a clear diagnostic message. Never silently degrade at startup.
 
 ### Principle P2: Single Source of Truth for DB URL
-Only one mechanism resolves the database URL at any given time. The resolution chain is:
+The main app resolves the database URL through exactly two mechanisms. **Environment variables are NEVER read by the main app** — they are only consumed by a dev-mode bootstrap injector that pre-seeds the SQLite node_config before the pipeline starts. The resolution chain is:
 ```
-Mesh peer → Local SQLite cache → Environment → Hard error
+Mesh peer → Local SQLite cache → Hard error
 ```
 
 ### Principle P3: Single Shared Pool
@@ -99,7 +99,7 @@ Locally managed Postgres containers are **named** and **reused** across restarts
 | State | Meaning | Actions |
 |-------|---------|---------|
 | `BOOT` | Process starts | Initialize SQLite, load node_config from disk |
-| `DISCOVER` | Resolve DB URL | Ask mesh → read SQLite cache → read env |
+| `DISCOVER` | Resolve DB URL | Ask mesh → read SQLite cache |
 | `URL_FOUND` | URL resolved | Validate format, proceed to PROBE |
 | `URL_NOT_FOUND` | No URL anywhere | Launch setup wizard, block further startup |
 | `PROBE` | Test DB connectivity | `SELECT 1` with timeout, categorize errors |
@@ -122,7 +122,7 @@ Locally managed Postgres containers are **named** and **reused** across restarts
 | **Restart, remote, mesh down** | `setup_done` | Yes (cached) | Yes | **No** | → PROBE → READY → **warn but continue** |
 | **Restart, both down** | `setup_done` | Yes (stale) | **No** | **No** | → FAIL → **STOP with error** |
 | **Upgrade** | `upgrade_pending` | Yes | Yes | Yes | → PROBE → READY → MESH_PEER → run migrations |
-| **Auto-provision dev** | `not_started` | No (will write) | N/A | No | → SETUP_WIZARD → auto-provision Docker → PROBE → READY |
+| **Dev auto-provision** | `not_started` | **Injected by dev bootstrap** | N/A | No | Dev bootstrap injects URL into SQLite → then → PROBE → READY → HEALTHY |
 | **SQLite lost** | N/A (file missing) | N/A | N/A | N/A | → fresh SQLite → `not_started` → SETUP_WIZARD |
 
 ---
@@ -154,17 +154,16 @@ flowchart TB
     VALIDATE_MESH_URL --> PERSIST_MESH[Persist to SQLite node_config]
     PERSIST_MESH --> PROBE
     
-    MESH_URL_RETURNED -->|No, mesh has no URL for us| FALLBACK_ENV
+    MESH_URL_RETURNED -->|No| SETUP_NEEDED["⏩ Enter SETUP_WIZARD<br/>No database URL found<br/>by any method"]
     
-    ASK_MESH -->|No mesh URL known| FALLBACK_ENV{Fallback: check<br/>SETUP_DATABASE_URL env}
-    FALLBACK_ENV -->|Has URL| VALIDATE_ENV[Validate URL format]
-    VALIDATE_ENV --> PERSIST_ENV[Persist to SQLite node_config]
-    PERSIST_ENV --> PROBE
+    ASK_MESH -->|No mesh URL known| SETUP_NEEDED
     
-    FALLBACK_ENV -->|No env URL| SETUP_NEEDED["⏩ Enter SETUP_WIZARD<br/>No database URL found<br/>by any method"]
+    style SETUP_NEEDED fill:#f96,stroke:#333,stroke-width:2px
 ```
 
-### Resolution Order (Chain of Responsibility)
+### Resolution Order (Chain of Responsibility) — Main App Only
+
+**The main app NEVER reads env vars.** Environment variables (`SETUP_DATABASE_URL`) are only consumed by a dev-mode bootstrap injector that runs BEFORE the main pipeline, seeding the SQLite node_config. The main app's resolution is purely:
 
 ```typescript
 async function resolveDatabaseUrl(): Promise<string | null> {
@@ -182,6 +181,8 @@ async function resolveDatabaseUrl(): Promise<string | null> {
         const meshUrl = await meshClient.discoverDatabaseUrl(url)
         if (meshUrl) {
           logger.log(`🌐 Discovered database URL from mesh peer: ${url}`)
+          // Persist so next restart is fast-path
+          nodeConfig.upsert({ databaseUrl: meshUrl, ... })
           return meshUrl
         }
       } catch (err) {
@@ -190,13 +191,7 @@ async function resolveDatabaseUrl(): Promise<string | null> {
     }
   }
 
-  // ── Step 3: Environment variable (first-run only) ─────────────
-  if (process.env.SETUP_DATABASE_URL?.trim()) {
-    logger.log('📝 Using SETUP_DATABASE_URL from environment')
-    return process.env.SETUP_DATABASE_URL.trim()
-  }
-
-  // ── Step 4: Nothing found ─────────────────────────────────────
+  // ── Step 3: Nothing found ─────────────────────────────────────
   logger.warn('⏳ No database URL found by any method — setup wizard needed')
   return null
 }
@@ -834,18 +829,247 @@ export class DatabaseStartupGuard {
 
 ---
 
-## Part 10: Migration Path
+## Part 10: Advisor Review — Corrections & Amendments
 
-The migration from current to proposed can be done incrementally:
+> The architecture above was reviewed by a senior architect. Below are the corrections and gaps identified.
 
-1. **Phase 1 — Fail Fast** (1 session): Add `DatabaseStartupGuard` + probe → stop on unreachable DB. This is purely additive — doesn't change existing behavior for healthy DBs.
+### 🔴 Correction 1: `process.exit(1)` Inside State Machine
 
-2. **Phase 2 — Single Pool** (1 session): Consolidate the 3 factory functions into 1 pool creation. Requires careful verification that `GLOBAL_DATABASE_POOL` is not consumed anywhere (or update consumers).
+**Original**: `AppLifecycleStateService.transition('failed')` calls `process.exit(1)` directly.
 
-3. **Phase 3 — State Machine** (1 session): Add `AppLifecycleStateService` and wire it into the orchestrator + health endpoint. Replace ad-hoc status checks with state transitions.
+**Problem**: Side effect in a state setter. Makes the state machine untestable and surprising. Unit tests that transition to `failed` kill the test runner.
 
-4. **Phase 4 — Container Management** (1 session): Update `PostgresContainerService` to use fixed names + volumes. Add the Docker recovery path to `DatabaseStartupGuard`.
+**Fix**: The state machine fires events. The orchestrator subscribes and decides whether to exit.
 
-5. **Phase 5 — Circuit Breaker** (1 session): Add `DatabaseCircuitBreaker` service and integrate with pool error events.
+```typescript
+// AppLifecycleStateService — pure state, no side effects
+transition(phase: NodePhase, metadata?: Partial<NodeState>): void {
+  const from = this.state.phase
+  this.state = { ...this.state, phase, ...metadata }
+  this.logger.log(`🔄 State: ${from} → ${phase}`)
+  this.eventBus.emit('lifecycle.transition', { from, to: phase, state: this.state })
+  // ↑ Fire event, don't kill process
+}
 
-6. **Phase 6 — Cleanup** (1 session): Remove dead code (the 2 unused pool factories, the empty catch in `isHealthy()`).
+// OrchestratorService — decides what to DO with state changes
+@OnEvent('lifecycle.transition')
+handleTransition({ to }: LifecycleTransitionEvent): void {
+  if (to === 'failed') {
+    this.logger.error(this.state.getState().error)
+    this.gracefulShutdown('FATAL').then(() => process.exit(1))
+  }
+}
+```
+
+### 🔴 Correction 2: Probe After Module Init, Not Inside `forRoot()`
+
+**Original**: `GlobalDatabaseModule.forRoot()` is async and calls `probeDatabase()` before returning.
+
+**Problem**: If probe fails inside `forRoot`, NestJS wraps it in a generic DI error. The structured diagnostic is lost. Also creates a wasteful temporary pool just for probing.
+
+**Fix**: Create the pool synchronously (module init is simple), then probe inside the orchestrator _after_ module init using the real pool's first connection.
+
+```typescript
+// GlobalDatabaseModule — synchronous, no probe
+static forRoot(nodeConfig: NodeConfigRepository): DynamicModule {
+  const url = nodeConfig.find()?.databaseUrl?.trim()
+  if (!url) throw new Error('No DB URL in node_config')
+  
+  const pool = new Pool({
+    connectionString: url,
+    max: 20, min: 2,
+    connectionTimeoutMillis: 5_000,
+    idleTimeoutMillis: 30_000,
+    allowExitOnIdle: true,
+  })
+  
+  return {
+    module: GlobalDatabaseModule,
+    providers: [
+      { provide: GLOBAL_DATABASE_POOL, useValue: pool },
+      { provide: GLOBAL_DATABASE_CONNECTION, useFactory: (p: Pool) => drizzle(p, { schema: globalSchema }), inject: [GLOBAL_DATABASE_POOL] },
+      { provide: GlobalDatabaseService, useFactory: (p: Pool) => new GlobalDatabaseService(drizzle(p, { schema: globalSchema })), inject: [GLOBAL_DATABASE_POOL] },
+    ],
+    exports: [GlobalDatabaseService, GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL],
+  }
+}
+
+// OrchestratorService — probe AFTER init using the real pool
+async onApplicationBootstrap(): Promise<void> {
+  await this.probeDatabase(this.pool)  // use the REAL pool's first connection
+  this.lifecycle.transition('ready')
+}
+
+private async probeDatabase(pool: Pool): Promise<void> {
+  const client = await pool.connect()
+  try {
+    await client.query('SELECT 1')
+    this.lifecycle.transition('ready', { databaseReachable: true })
+  } catch (err) {
+    await pool.end()
+    this.lifecycle.transition('failed', { error: categorize(err) })
+  } finally {
+    client.release()
+  }
+}
+```
+
+### 🔴 Correction 3: Circuit Breaker as Observer, Not Co-Owner
+
+**Original**: `DatabaseCircuitBreaker` owns a parallel `state` field AND calls `lifecycle.transition()`.
+
+**Problem**: Dual state that can diverge. Two sources of truth for DB health.
+
+**Fix**: Strip to a `DatabaseFailureTracker` that only counts failures + schedules recovery. The lifecycle state machine is the sole source of truth.
+
+```typescript
+@Injectable()
+export class DatabaseFailureTracker {
+  private failureCount = 0
+  private readonly threshold = 5
+  private readonly resetTimeoutMs = 30_000
+  private recoveryTimer: ReturnType<typeof setTimeout> | null = null
+
+  constructor(private readonly lifecycle: AppLifecycleStateService) {}
+
+  // Called by pool error handler or query interceptor
+  recordFailure(): void {
+    this.failureCount++
+    if (this.failureCount >= this.threshold) {
+      this.lifecycle.transition('degraded', {
+        error: `${this.failureCount} consecutive failures`,
+      })
+      this.scheduleRecovery()
+    }
+  }
+
+  recordSuccess(): void {
+    this.failureCount = 0
+    if (this.lifecycle.getState().phase === 'degraded') {
+      this.lifecycle.transition('healthy')
+    }
+    if (this.recoveryTimer) {
+      clearTimeout(this.recoveryTimer)
+      this.recoveryTimer = null
+    }
+  }
+
+  private scheduleRecovery(): void {
+    const delay = Math.min(1_000 * 2 ** Math.min(this.failureCount - 5, 5), 30_000)
+    this.recoveryTimer = setTimeout(async () => {
+      const client = await this.pool.connect().catch(() => null)
+      if (client) {
+        client.release()
+        this.recordSuccess()
+      } else {
+        this.scheduleRecovery()  // Exponential backoff
+      }
+    }, delay)
+  }
+}
+```
+
+### 🟠 Correction 4: Remove Module-Scoped Singleton
+
+**Original**: `const SHARED_POOL: Pool | null = null` as module-level variable.
+
+**Problem**: Breaks test isolation and HMR. The pool should be DI-managed.
+
+**Fix**: The factory functions receive the pool via DI. The pool is created once as a provider value and injected everywhere.
+
+### 🟠 Correction 5: Decouple Docker Recovery from Guard
+
+**Original**: `DatabaseStartupGuard.tryDockerRecovery()` tries to restart a Docker container.
+
+**Problem**: Concern mixing — the guard should answer "is DB reachable?", not manage containers.
+
+**Fix**: The orchestrator coordinates:
+```
+orchestrator → guard.probe() → fails
+             → postgresContainerService.ensureRunning() → restarts container
+             → guard.probe() → succeeds → continue
+             → guard.probe() → fails → lifecycle.transition('failed')
+```
+
+### 🟢 Gap 6: Add Startup Probe Retry
+
+A single `SELECT 1` with 5s timeout can fail on transient Docker networking. Add 3 retries:
+```
+Attempt 1: 5s timeout → fail → wait 1s
+Attempt 2: 5s timeout → fail → wait 2s
+Attempt 3: 5s timeout → fail → STOP with diagnostic
+```
+
+### 🟢 Gap 7: Add `acquireTimeoutMillis`
+
+Without it, pool acquisition queues indefinitely when all connections are busy. Add:
+```typescript
+new Pool({
+  ...,
+  acquireTimeoutMillis: 10_000,  // Fail if client can't be acquired in 10s
+})
+```
+
+### 🟢 Gap 8: Add Test Strategy
+
+| Component | How to Test |
+|-----------|-------------|
+| `AppLifecycleStateService` | Unit test: inject fake event bus, verify transitions fire events, NOT process.exit |
+| `DatabaseFailureTracker` | Unit test: inject fake lifecycle, verify threshold → degraded transition |
+| `DatabaseStartupGuard` | Integration test: with/without Docker, mock pool |
+| Docker recovery | Integration test: start/stop/kill Postgres container, verify recovery |
+| Pool consolidation | Unit test: verify single pool is shared across all 3 providers |
+
+### 🟢 Gap 9: Add Metrics Exposure
+
+Add to health endpoint:
+```typescript
+pool: {
+  totalCount: pool.totalCount,
+  idleCount: pool.idleCount,
+  waitingCount: pool.waitingCount,
+}
+```
+
+---
+
+## Part 11: Revised Migration Path
+
+Based on the advisor's review, here is the corrected implementation order:
+
+### Phase 1 — State Machine (no side effects)
+- Create `AppLifecycleStateService` with event-based transitions (NO `process.exit`)
+- Wire into orchestrator + health endpoint
+- **Test**: Unit test proves transitions fire events without killing process
+
+### Phase 2 — Fail-Fast Startup Guard
+- Add `DatabaseStartupGuard` as orchestrator step
+- Probe uses **real pool** (created first, then probed)
+- 3 retries with 1s/2s/4s backoff
+- Diagnostic output on failure
+- **Test**: Verify probe with known-bad URL exits gracefully with diagnostic
+
+### Phase 3 — Single Shared Pool
+- Consolidate 3 factory functions → 1 pool creation
+- Add explicit pool config (max:20, min:2, connectionTimeoutMillis:5000, acquireTimeoutMillis:10000, idleTimeoutMillis:30000)
+- Verify no dead code (GLOBAL_DATABASE_POOL consumption)
+- **Test**: Verify pool.totalCount/idleCount match expectations
+
+### Phase 4 — Container Management
+- Fixed container name `deployer-postgres-dev`
+- Named volume `deployer_postgres_data`
+- `AutoRemove: false`
+- Existing container detection on startup
+- **Test**: Create container → stop → restart → verify same data
+
+### Phase 5 — DatabaseFailureTracker
+- Add as observer (no state co-ownership)
+- Integrate with pool `error` event
+- Recovery probes use `pool.connect()` (not new Pool)
+- **Test**: Unit test with fake pool, verify backoff schedule
+
+### Phase 6 — Cleanup
+- Remove empty `catch {}` in `isHealthy()` → add proper logging
+- Remove dead pool factory code
+- Add metrics to health endpoint
+- Add pool drain + SQLite close on shutdown

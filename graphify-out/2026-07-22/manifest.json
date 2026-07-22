@@ -7430,9 +7430,9 @@
     "semantic_hash": "832eb2b8f9e585c6ad979d539478fa68"
   },
   "packages/contracts/entities/src/entities/project/core.schema.ts": {
-    "mtime": 1779878623.9823647,
-    "ast_hash": "07ff19f67760869c0e4949582eeea30b",
-    "semantic_hash": "07ff19f67760869c0e4949582eeea30b"
+    "mtime": 1784728863.208535,
+    "ast_hash": "cd863a95cfeea4439d65e0192aeceec9",
+    "semantic_hash": ""
   },
   "packages/contracts/entities/src/entities/project/environments.schema.ts": {
     "mtime": 1779878623.9823647,
@@ -10610,7 +10610,7 @@
     "semantic_hash": "04653c4fab088f127200661684cc3ea4"
   },
   "docker/compose/api/docker-compose.api.dev.yml": {
-    "mtime": 1784206249.7558458,
+    "mtime": 1784728790.4556887,
     "ast_hash": "7330d346f724a34e86e49d02bddd569b",
     "semantic_hash": ""
   },

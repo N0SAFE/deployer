@@ -270,6 +270,10 @@ export default function DashboardProjectDetailPage() {
 
   const deployments = useMemo(() => [] as any[], [projectId])
   const notifications = useMemo(() => [] as any[], [projectId])
+  const serviceConfigs = useMemo(() => ({} as Record<string, any>), [])
+  const dependencies = useMemo(() => [] as any[], [])
+  const incidents = useMemo(() => [] as any[], [])
+  const projectConfiguration = useMemo(() => null as any, [])
 
   const runtimeOptions = useMemo(() => {
     return Array.from(new Set(localServices.map((service) => service.runtime))).sort()
@@ -904,29 +908,11 @@ export default function DashboardProjectDetailPage() {
     const name = createName.trim()
     const type = createType.trim()
     const runtime = createRuntime.trim()
-
     if (!name || !type || !runtime) {
       toast.error('Name, type and runtime are required')
       return
     }
-
-    const slugName = name.toLowerCase().replace(/\s+/g, '-')
-
-    setLocalServices((previous) => [
-      ...previous,
-      {
-        id: `svc-${slugName}-${String(Date.now())}`,
-        projectId,
-        name,
-        description: createDescription.trim() || 'Service created from mock dashboard action.',
-        type,
-        runtime,
-        layer: 9,
-        isActive: true,
-      },
-    ])
-
-    toast.success('Service created in mock dashboard')
+    toast.success('Service creation via API not yet implemented')
     setCreateDialogOpen(false)
     setCreateName('')
     setCreateDescription('')
@@ -935,22 +921,38 @@ export default function DashboardProjectDetailPage() {
   }
 
   const handleToggleService = (serviceId: string, isActive: boolean) => {
-    setLocalServices((previous) => previous.map((service) => (service.id === serviceId ? { ...service, isActive: !isActive } : service)))
-    toast.success(!isActive ? 'Service activated' : 'Service deactivated')
+    toast.success(!isActive ? 'Toggle activation not yet implemented' : 'Toggle activation not yet implemented')
   }
 
   const handleDeleteService = (serviceId: string) => {
-    if (!confirm('Delete this service from the mock dashboard?')) return
+    toast.success('Service deletion via API not yet implemented')
+  }
 
-    setLocalServices((previous) => previous.filter((service) => service.id !== serviceId))
-    toast.success('Service deleted from mock dashboard')
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <Siren className="mb-4 size-12 text-destructive" />
+        <h2 className="text-xl font-semibold">Failed to load project</h2>
+        <p className="mt-2 text-muted-foreground">{(error as Error).message ?? 'An unexpected error occurred'}</p>
+        <Button className="mt-4" variant="outline" onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="mb-4 size-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+        <p className="text-muted-foreground">Loading project...</p>
+      </div>
+    )
   }
 
   if (!project) {
     return (
       <Alert variant="destructive">
         <AlertTitle>Project not found</AlertTitle>
-        <AlertDescription>The requested project does not exist in the mock entity dataset.</AlertDescription>
+        <AlertDescription>The requested project does not exist or you do not have access.</AlertDescription>
       </Alert>
     )
   }
