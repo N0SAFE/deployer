@@ -9,7 +9,7 @@ services:
       file: ./docker-compose.config.yml
       service: api
     build:
-      context: ../../../../
+      context: ../../..
       dockerfile: ./docker/builder/api/Dockerfile.api.dev
       tags:
         - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-dev:latest"
@@ -50,7 +50,7 @@ services:
       watch:
         # Restart when Docker Compose configuration changes
         - action: restart
-          path: ../../../../
+          path: ../../..
           target: /app
           include:
             - docker/compose/api/docker-compose.api.dev.yml
@@ -58,13 +58,13 @@ services:
         # Sync+Restart when migrations change to automatically apply them
         - action: sync+restart
           initial_sync: true
-          path: ../../../../
+          path: ../../..
           target: /app
           include:
             - apps/api/src/config/drizzle/migrations/**
         # Rebuild when critical dependency or config files change
         - action: rebuild
-          path: ../../../../
+          path: ../../..
           target: /app
           include:
             - package.json
@@ -80,7 +80,7 @@ services:
         # Sync source code excluding node_modules and build artifacts
         - action: sync
           initial_sync: true
-          path: ../../../../
+          path: ../../..
           target: /app
           ignore:
             - node_modules/
