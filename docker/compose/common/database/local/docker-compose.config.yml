@@ -1,0 +1,7 @@
+# =====================================================================
+# Local SQLite BASE config — INCLUDE-ONLY. The local node db is a mounted
+# file/volume (compose-owned path); the API owns it when supervised.
+# =====================================================================
+services:
+  local-db:
+    restart: "no"

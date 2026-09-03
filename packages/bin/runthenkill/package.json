@@ -10,7 +10,7 @@
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "type-check": "tsgo --noEmit",
+        "type-check": "tsc --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage"
@@ -31,6 +31,7 @@
         "@repo/config-prettier": "*",
         "@repo/config-vitest": "*",
         "vitest": "catalog:testing",
-        "@types/node": "catalog:build"
+        "@types/node": "catalog:build",
+        "typescript": "catalog:build"
     }
 }

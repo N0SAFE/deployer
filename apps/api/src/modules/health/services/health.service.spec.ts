@@ -2,12 +2,13 @@ import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { HealthService } from './health.service';
-import { AppLifecycleService } from '@/core/modules/lifecycle';
+import { AppLifecycleService } from '@repo/nest-lifecycle';
 
 describe('HealthService', () => {
   let service: HealthService;
   let mockRepository: any;
   let mockLifecycle: any;
+  let mockSupervisors: any;
 
   beforeEach(async () => {
     mockRepository = {
@@ -25,11 +26,15 @@ describe('HealthService', () => {
       }),
     };
 
+    mockSupervisors = {
+      getHealthOfAll: vi.fn().mockResolvedValue([]),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         {
           provide: HealthService,
-          useFactory: () => new HealthService(mockRepository, mockLifecycle),
+          useFactory: () => new HealthService(mockRepository, mockLifecycle, mockSupervisors),
         },
       ],
     }).compile();

@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
   dockerContainerGroupedListSchema,
   dockerContainerListInputSchema,
@@ -14,4 +14,5 @@ export const dockerListContainersGroupedContract = dockerContainerGroupedListOps
   .path("/grouped")
   .input((b) => b.query(dockerContainerListInputSchema))
   .output((b) => b.body(dockerContainerGroupedListSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

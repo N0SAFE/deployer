@@ -4,14 +4,13 @@ import { Observable } from "rxjs";
 import z from "zod/v4";
 import { dockerRuntimeEventSchema, type DockerRuntimeEvent } from "@repo/contracts-entities";
 import { AppLogger } from "@repo/logger";
-import { contractBuilder } from "@/core/modules/events/event-contract.builder";
+import { contractBuilder } from "@repo/nest-events";
 import { BaseMeshService, InternalBaseMeshService } from "@/core/modules/mesh/services/base-mesh.service";
 import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { DockerDomainRuntimeEventsService } from "../events/docker-domain-runtime-events.service";
 
 const runtimeTopicInputSchema = z.object({
-    organizationId: z.string().nullable().optional(),
 });
 
 const dockerRuntimeMeshContracts = {
@@ -42,7 +41,7 @@ export class DockerRuntimeMeshRelayService
         meshTopologyService: SystemMeshTopologyService,
         private readonly dockerDomainRuntimeEventsService: DockerDomainRuntimeEventsService,
     ) {
-        super(meshTopicService, meshTopologyService, "docker-runtime-stream", dockerRuntimeMeshContracts);
+        super(meshTopicService, meshTopologyService, "docker-runtime-stream", dockerRuntimeMeshContracts, {});
     }
 
     onModuleInit(): void {
@@ -69,7 +68,7 @@ export class DockerRuntimeMeshRelayService
 
             let downstreamSubscription: Subscription | null = null;
             try {
-                downstreamSubscription = this.handle!.observe$("runtimeEventBroadcast", { organizationId: null }).subscribe(subscriber);
+                downstreamSubscription = this.handle!.observe$("runtimeEventBroadcast", {}).subscribe(subscriber);
             } catch (error) {
                 // Roll back side effects when setup fails to prevent the local relay
                 // running indefinitely without consumers — the original source of the
@@ -101,9 +100,9 @@ export class DockerRuntimeMeshRelayService
         if (!this.handle) return;
         this.handle.publish(
             "runtimeEventBroadcast",
-            { organizationId: null },
+            {},
             this.enrichEventWithNodeId(event),
-            { organizationId: null, propagate: true },
+            { propagate: true },
         );
     }
 
@@ -136,9 +135,9 @@ export class DockerRuntimeMeshRelayService
                 if (this.handle) {
                     this.handle.publish(
                         "runtimeEventBroadcast",
-                        { organizationId: null },
+                        {},
                         this.enrichEventWithNodeId(event),
-                        { organizationId: null, propagate: true },
+                        { propagate: true },
                     );
                 }
             },

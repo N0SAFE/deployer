@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
+import type { LocalEventOutboxRepository } from "@/core/modules/events/outbox/local-event-outbox.repository";
 import type { DeploymentRepository } from "../repositories/deployment.repository";
 import { DeploymentReadModelProjectorService } from "./deployment-read-model-projector.service";
 
@@ -36,37 +36,27 @@ function createEventRow(input: {
 }
 
 describe("DeploymentReadModelProjectorService", () => {
-    let selectQueue: unknown[][];
-    let mockDb: GlobalDatabaseService;
+    let outboxQueue: unknown[][];
+    let mockOutboxRepository: LocalEventOutboxRepository;
     let mockRepository: DeploymentRepository;
     let service: DeploymentReadModelProjectorService;
 
     beforeEach(() => {
-        selectQueue = [];
+        outboxQueue = [];
 
-        mockDb = {
-            db: {
-                select: vi.fn(() => ({
-                    from: vi.fn(() => ({
-                        where: vi.fn(() => ({
-                            orderBy: vi.fn(() => ({
-                                limit: vi.fn(async () => selectQueue.shift() ?? []),
-                            })),
-                        })),
-                    })),
-                })),
-            },
-        } as unknown as GlobalDatabaseService;
+        mockOutboxRepository = {
+            findByTopic: vi.fn(async () => outboxQueue.shift() ?? []),
+        } as unknown as LocalEventOutboxRepository;
 
         mockRepository = {
             findLogs: vi.fn(async () => []),
         } as unknown as DeploymentRepository;
 
-        service = new DeploymentReadModelProjectorService(mockDb, mockRepository);
+        service = new DeploymentReadModelProjectorService(mockOutboxRepository, mockRepository);
     });
 
     it("processes canonical outbox envelopes into deployment projections", async () => {
-        selectQueue.push([
+        outboxQueue.push([
             createEventRow({
                 id: "11111111-1111-4111-8111-111111111111",
                 createdAt: "2026-03-21T20:00:00.000Z",
@@ -86,7 +76,7 @@ describe("DeploymentReadModelProjectorService", () => {
     });
 
     it("rebuildAll replays all batches and refreshes latest projection snapshot", async () => {
-        selectQueue.push(
+        outboxQueue.push(
             [
                 createEventRow({
                     id: "11111111-1111-4111-8111-111111111111",
@@ -117,7 +107,7 @@ describe("DeploymentReadModelProjectorService", () => {
     });
 
     it("detects drift when projection and latest source log diverge", async () => {
-        selectQueue.push([
+        outboxQueue.push([
             createEventRow({
                 id: "11111111-1111-4111-8111-111111111111",
                 createdAt: "2026-03-21T20:00:00.000Z",

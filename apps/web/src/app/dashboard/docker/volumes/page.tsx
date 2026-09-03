@@ -24,7 +24,7 @@ import {
 import { Separator } from '@repo/ui/components/shadcn/separator'
 import { Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useSafeQueryStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
+import { useSafeQueryParamStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
 
 const VOLUME_LIST_INPUT = {
   query: {
@@ -70,7 +70,7 @@ export default function DashboardDockerVolumesPage() {
   const [newVolumeServiceId, setNewVolumeServiceId] = useState('manual-service')
   const [newVolumeSizeMb, setNewVolumeSizeMb] = useState('')
   const [localVolumes, setLocalVolumes] = useState<VolumeProjection[]>([])
-  const [listQuery, setListQuery] = useSafeQueryStatesFromZod(VOLUME_LIST_QUERY_SCHEMA)
+  const [listQuery, setListQuery] = useSafeQueryParamStatesFromZod(VOLUME_LIST_QUERY_SCHEMA)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
@@ -230,7 +230,7 @@ export default function DashboardDockerVolumesPage() {
               ]}
             />
 
-            <select
+            <select aria-label="Sort: Updated"
               className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
               value={sortBy}
               onChange={(event) => {
@@ -242,7 +242,7 @@ export default function DashboardDockerVolumesPage() {
               <option value="state">Sort: State</option>
             </select>
 
-            <select
+            <select aria-label="Desc"
               className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
               value={sortDirection}
               onChange={(event) => {

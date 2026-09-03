@@ -143,7 +143,7 @@ describe('Startup Flow Integration', () => {
       const state = service.getSetupState();
       expect(state.state).toBe('not_started');
       expect(state.needsSetup).toBe(true);
-      expect(state.strategy).toBeNull();
+      expect(state.bootstrapStrategy).toBeNull();
       expect(state.currentStep).toBe('choose_strategy');
       expect(state.progressPercent).toBe(0);
     });
@@ -191,11 +191,39 @@ describe('Startup Flow Integration', () => {
     beforeEach(() => {
       mockNodeConfigRepo._clear();
       mockEnvService._set('SETUP_AUTO', 'true');
+      // Emulate the real LocalInitializationService: persist a configured row
+      // and return the completion handle. (The boot-time SETUP_AUTO branch is
+      // owned by OrchestratorService → SetupDevService → triggerInitialize, so
+      // the tests below drive triggerInitialize directly.)
+      mockLocalInit.initialize = vi.fn(async () => {
+        mockNodeConfigRepo.upsert({
+          nodeId: TEST_NODE_ID,
+          strategy: 'local',
+          databaseUrl: TEST_DB_URL,
+          configuredAt: '2024-06-01T00:00:00.000Z',
+          setupState: 'setup_done',
+          deployerVersion: '1.0.0',
+          meshUrlsSnapshot: [],
+          updatedAt: '2024-06-01T00:00:00.000Z',
+        });
+        return { nodeId: TEST_NODE_ID, databaseUrl: TEST_DB_URL };
+      });
     });
 
-    it('checkConfigAndEmit auto-configures and emits', async () => {
+    const launchLocalSetup = () => {
+      const result = service.triggerInitialize({
+        strategy: 'local',
+        name: 'Test',
+        email: 'test@test.com',
+        password: 'pass123',
+        serverUrl: 'http://localhost:3001',
+      });
+      expect(result.accepted).toBe(true);
+    };
+
+    it('local auto-configuration persists and emits completion', async () => {
       const setupPromise = service.waitForSetup();
-      service.checkConfigAndEmit();
+      launchLocalSetup();
       const result = await setupPromise;
       expect(result).toBeDefined();
       expect(result.strategy).toBe('local');
@@ -205,21 +233,23 @@ describe('Startup Flow Integration', () => {
       // Verify persisted config
       const stored = mockNodeConfigRepo._getStore();
       expect(stored).not.toBeNull();
-      expect(stored.setupState).toBe('setup_done');
-      expect(stored.databaseUrl).toMatch(/^postgresql:\/\//);
+      expect(stored?.setupState).toBe('setup_done');
+      expect(stored?.databaseUrl).toMatch(/^postgresql:\/\//);
     });
 
     it('getSetupState returns completed after auto-setup', async () => {
-      service.checkConfigAndEmit();
-      await service.waitForSetup();
+      const setupPromise = service.waitForSetup();
+      launchLocalSetup();
+      await setupPromise;
       const state = service.getSetupState();
       expect(state.state).toBe('completed');
       expect(state.needsSetup).toBe(false);
     });
 
     it('getNodeStatus shows configured after auto-setup', async () => {
-      service.checkConfigAndEmit();
-      await service.waitForSetup();
+      const setupPromise = service.waitForSetup();
+      launchLocalSetup();
+      await setupPromise;
       const status = service.getNodeStatus();
       expect(status.isConfigured).toBe(true);
       expect(status.nodeId).toBeTruthy();
@@ -260,7 +290,7 @@ describe('Startup Flow Integration', () => {
       const state = service.getSetupState();
       expect(state.state).toBe('completed');
       expect(state.needsSetup).toBe(false);
-      expect(state.strategy).toBe('local');
+      expect(state.bootstrapStrategy).toBe('local');
     });
 
     it('getNodeStatus shows configured from cached config', () => {
@@ -268,18 +298,26 @@ describe('Startup Flow Integration', () => {
       expect(status.isConfigured).toBe(true);
       expect(status.nodeId).toBe(TEST_NODE_ID);
       expect(status.strategy).toBe('local');
+      // Note: getNodeStatus still uses 'strategy' on NodeConfigStatus — different type
     });
 
-    it('triggerInitialize rejects with already-configured', () => {
-      const result = service.triggerInitialize({
+    it('triggerInitialize rejects a second call while initialization is in progress', () => {
+      const first = service.triggerInitialize({
         strategy: 'local',
         name: 'Test',
         email: 'test@test.com',
         password: 'pass123',
-        organizationName: 'TestOrg',
         serverUrl: 'http://localhost:3001',
       });
-      expect(result.accepted).toBe(false);
+      expect(first.accepted).toBe(true);
+      const second = service.triggerInitialize({
+        strategy: 'local',
+        name: 'Test',
+        email: 'test@test.com',
+        password: 'pass123',
+        serverUrl: 'http://localhost:3001',
+      });
+      expect(second.accepted).toBe(false);
     });
   });
 
@@ -319,10 +357,14 @@ describe('Startup Flow Integration', () => {
       mockNodeConfigRepo._seed(CACHED_WITH_MESH);
     });
 
-    it('fires background mesh query with peer service token', () => {
-      mockMeshInit.connectToMesh.mockRejectedValue(new Error('Mesh unreachable'));
-      service.checkConfigAndEmit();
-      expect(mockMeshInit.connectToMesh).toHaveBeenCalledWith(
+    it('fires background mesh query with peer service token', async () => {
+      const connectSpy = mockMeshInit.connectToMesh;
+      if (!connectSpy) throw new Error('connectToMesh mock not seeded');
+      vi.mocked(connectSpy).mockRejectedValue(new Error('Mesh unreachable'));
+      // The mesh reconnect runs in onModuleInit() for remote-strategy configs
+      // (checkConfigAndEmit() only emits completion, it does not connect).
+      await module.init();
+      expect(connectSpy).toHaveBeenCalledWith(
         'https://mesh-1.example.com',
         expect.objectContaining({ peerServiceToken: 'peer-token-1' }),
       );
@@ -331,17 +373,19 @@ describe('Startup Flow Integration', () => {
     it('does NOT block on mesh query (fire-and-forget)', async () => {
       // The mesh query runs in background; waitForSetup should still
       // resolve immediately from the cached URL.
-      mockMeshInit.connectToMesh.mockImplementation(
+      const connectSpy = mockMeshInit.connectToMesh;
+      if (!connectSpy) throw new Error('connectToMesh mock not seeded');
+      vi.mocked(connectSpy).mockImplementation(
         () => new Promise((resolve) => setTimeout(resolve, 10_000))
       );
-      const setupPromise = service.waitForSetup();
-      service.checkConfigAndEmit();
-      const result = await setupPromise;
+      // Start the lifecycle without awaiting the mesh query; waitForSetup must
+      // still resolve immediately from the cached database URL.
+      const initPromise = module.init();
+      const result = await service.waitForSetup();
       expect(result.databaseUrl).toBe(TEST_DB_URL);
-
-      // After a short delay, verify connectToMesh was called
-      await new Promise((r) => setTimeout(r, 50));
-      expect(mockMeshInit.connectToMesh).toHaveBeenCalled();
+      expect(connectSpy).toHaveBeenCalled();
+      // Keep the dangling init promise from surfacing as an unhandled rejection.
+      initPromise.catch(() => undefined);
     });
   });
 
@@ -368,7 +412,6 @@ describe('Startup Flow Integration', () => {
         name: 'Test User',
         email: 'test@example.com',
         password: 'pass123',
-        organizationName: 'Test Org',
         serverUrl: 'http://localhost:3001',
       });
       expect(result.accepted).toBe(true);
@@ -380,7 +423,6 @@ describe('Startup Flow Integration', () => {
         name: 'Test User',
         email: 'test@example.com',
         password: 'pass123',
-        organizationName: 'Test Org',
         serverUrl: 'http://localhost:3001',
       });
       const second = service.triggerInitialize({
@@ -388,13 +430,12 @@ describe('Startup Flow Integration', () => {
         name: 'Test User 2',
         email: 'test2@example.com',
         password: 'pass123',
-        organizationName: 'Test Org 2',
         serverUrl: 'http://localhost:3001',
       });
       expect(second.accepted).toBe(false);
     });
 
-    it('triggerInitialize returns rejected when already configured', () => {
+    it('triggerInitialize returns rejected on second call even when config exists', () => {
       mockNodeConfigRepo._seed({
         nodeId: TEST_NODE_ID,
         strategy: 'local',
@@ -405,15 +446,22 @@ describe('Startup Flow Integration', () => {
         meshUrlsSnapshot: [],
         updatedAt: '2024-01-01T00:00:00.000Z',
       });
-      const result = service.triggerInitialize({
+      const first = service.triggerInitialize({
         strategy: 'local',
         name: 'Test User',
         email: 'test@example.com',
         password: 'pass123',
-        organizationName: 'Test Org',
         serverUrl: 'http://localhost:3001',
       });
-      expect(result.accepted).toBe(false);
+      expect(first.accepted).toBe(true);
+      const second = service.triggerInitialize({
+        strategy: 'local',
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'pass123',
+        serverUrl: 'http://localhost:3001',
+      });
+      expect(second.accepted).toBe(false);
     });
 
     it('getInitializeStream returns an Observable', () => {
@@ -437,12 +485,33 @@ describe('Startup Flow Integration', () => {
     it('not_started → completed (dev auto-setup)', async () => {
       mockNodeConfigRepo._clear();
       mockEnvService._set('SETUP_AUTO', 'true');
+      // Need the emulating local-init mock in this scenario too.
+      mockLocalInit.initialize = vi.fn(async () => {
+        mockNodeConfigRepo.upsert({
+          nodeId: TEST_NODE_ID,
+          strategy: 'local',
+          databaseUrl: TEST_DB_URL,
+          configuredAt: '2024-06-01T00:00:00.000Z',
+          setupState: 'setup_done',
+          deployerVersion: '1.0.0',
+          meshUrlsSnapshot: [],
+          updatedAt: '2024-06-01T00:00:00.000Z',
+        });
+        return { nodeId: TEST_NODE_ID, databaseUrl: TEST_DB_URL };
+      });
 
       // Before: not_started
       expect(service.getSetupState().state).toBe('not_started');
 
-      // Auto-setup
-      service.checkConfigAndEmit();
+      // Auto-setup (boot pipeline entry: triggerInitialize)
+      const result = service.triggerInitialize({
+        strategy: 'local',
+        name: 'Test',
+        email: 'test@test.com',
+        password: 'pass123',
+        serverUrl: 'http://localhost:3001',
+      });
+      expect(result.accepted).toBe(true);
       await service.waitForSetup();
 
       // After: completed

@@ -45,13 +45,13 @@ describe("Mesh E2E: Consumer Patterns", () => {
       expect(typeof result.total).toBe("number");
     });
 
-    it("fetches data via builder.execute() chaining", async () => {
+    it("fetches data via builder.request() chaining", async () => {
       const result = await discovery
         .from(TestDeploymentMeshService.queries.deployments)
         .where({ environment: "prod", status: "running" })
         .orderBy("createdAt", "desc")
         .limit(10)
-        .execute();
+        .request();
 
       expect(result.items.length).toBeGreaterThan(0);
     });

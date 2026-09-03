@@ -21,8 +21,9 @@ describe("StorageProviderRegistryService", () => {
         const input: DeploymentTriggerInput = {
             serviceId: "e6f5987e-7f79-4f40-9a14-42daf132f7ef",
             environment: "production",
-            sourceType: "upload",
-            sourceConfig: {
+            source: {
+                sourceType: "upload",
+                uploadId: "upload-default",
                 fileName: "bundle.zip",
                 fileSize: 1024,
             },
@@ -43,8 +44,9 @@ describe("StorageProviderRegistryService", () => {
         const input: DeploymentTriggerInput = {
             serviceId: "8f8fa2f8-3912-45eb-8ec8-4f89f7f3f8a5",
             environment: "production",
-            sourceType: "upload",
-            sourceConfig: {
+            source: {
+                sourceType: "upload",
+                uploadId: "upload-local-auto",
                 customData: {
                     storage: {
                         type: "local",
@@ -77,8 +79,9 @@ describe("StorageProviderRegistryService", () => {
         const input: DeploymentTriggerInput = {
             serviceId: "744f6f12-c31f-42e1-b470-08ca66ead8ca",
             environment: "production",
-            sourceType: "upload",
-            sourceConfig: {
+            source: {
+                sourceType: "upload",
+                uploadId: "upload-s3-manual",
                 customData: {
                     storage: {
                         type: "s3",
@@ -110,8 +113,9 @@ describe("StorageProviderRegistryService", () => {
         const input: DeploymentTriggerInput = {
             serviceId: "698f1ffb-c560-42b6-b4d9-74f42d338d44",
             environment: "production",
-            sourceType: "upload",
-            sourceConfig: {
+            source: {
+                sourceType: "upload",
+                uploadId: "upload-unsupported",
                 customData: {
                     storage: {
                         type: "unsupported",
@@ -128,8 +132,9 @@ describe("StorageProviderRegistryService", () => {
         const input: DeploymentTriggerInput = {
             serviceId: "3072a3b0-cf50-4be5-8c9f-30e496f68095",
             environment: "production",
-            sourceType: "upload",
-            sourceConfig: {
+            source: {
+                sourceType: "upload",
+                uploadId: "upload-service-policy",
                 fileName: "bundle.zip",
                 fileSize: 2048,
             },
@@ -160,8 +165,9 @@ describe("StorageProviderRegistryService", () => {
         const input: DeploymentTriggerInput = {
             serviceId: "f211e6f9-3553-4e13-a60d-8f9f535a2e9e",
             environment: "production",
-            sourceType: "upload",
-            sourceConfig: {
+            source: {
+                sourceType: "upload",
+                uploadId: "upload-override",
                 customData: {
                     storage: {
                         type: "local",

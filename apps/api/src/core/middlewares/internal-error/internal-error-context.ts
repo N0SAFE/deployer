@@ -1,4 +1,4 @@
-import type { Request } from "express";
+import type { IncomingMessage } from "node:http";
 
 export const INTERNAL_ERROR_CONTEXT_KEY = Symbol.for("api.internal-error-context");
 
@@ -10,14 +10,14 @@ export interface InternalErrorRequestContext {
     userAgent?: string;
 }
 
-type RequestWithInternalErrorContext = Request & {
+type RequestWithInternalErrorContext = IncomingMessage & {
     [INTERNAL_ERROR_CONTEXT_KEY]?: InternalErrorRequestContext;
 };
 
-export function setInternalErrorRequestContext(req: Request, context: InternalErrorRequestContext): void {
+export function setInternalErrorRequestContext(req: IncomingMessage, context: InternalErrorRequestContext): void {
     (req as RequestWithInternalErrorContext)[INTERNAL_ERROR_CONTEXT_KEY] = context;
 }
 
-export function getInternalErrorRequestContext(req: Request): InternalErrorRequestContext | undefined {
+export function getInternalErrorRequestContext(req: IncomingMessage): InternalErrorRequestContext | undefined {
     return (req as RequestWithInternalErrorContext)[INTERNAL_ERROR_CONTEXT_KEY];
 }

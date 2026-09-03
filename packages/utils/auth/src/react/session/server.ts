@@ -98,7 +98,6 @@ export function createSessionAwareAuthClient<
     const serverUseSession = createUseSession<TSession>({
         authClient: originalClient,
         sessionQueryKey: _options.sessionQueryKey ?? DEFAULT_SESSION_QUERY_KEY,
-        useSessionBridge: _options.useSessionBridge,
     })
 
     return new Proxy(originalClient, {

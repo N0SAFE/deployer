@@ -1,5 +1,5 @@
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
-import type { Subscription } from "rxjs";
+import { type Subscription, concatMap, from, EMPTY, catchError } from "rxjs";
 import { AppLogger } from "@repo/logger";
 import { DockerRuntimeEventsStreamService } from "./docker-runtime-events-stream.service";
 import { DockerRuntimeActivityRepository } from "../../repositories/runtime/docker-runtime-activity.repository";
@@ -25,24 +25,35 @@ export class DockerRuntimeActivityPersistenceService implements OnModuleInit, On
       return;
     }
 
-    this.runtimeEventSubscription = this.dockerRuntimeEventsStreamService.observeEvents().subscribe({
-      next: (event) => {
-        void this.dockerRuntimeActivityRepository.persistRuntimeActivityEvent(event)
-          .catch((error: unknown) => {
-            this.debugLogger.debug("persist_runtime_activity_failed", {
-              message: error instanceof Error ? error.message : String(error),
-              source: event.source,
-              action: event.action,
-              eventId: event.eventId,
-            });
+    // Use concatMap to process events SEQUENTIALLY — prevents pool exhaustion
+    // by ensuring each database insert completes before the next begins.
+    // The fire-and-forget pattern (void + .catch()) caused concurrent inserts
+    // that exhausted the 20-connection pool during event bursts (e.g. scan
+    // progress updates), leading to cascading timeouts on all database queries.
+    this.runtimeEventSubscription = this.dockerRuntimeEventsStreamService
+      .observeEvents()
+      .pipe(
+        concatMap((event) =>
+          from(this.dockerRuntimeActivityRepository.persistRuntimeActivityEvent(event)).pipe(
+            catchError((error: unknown) => {
+              this.debugLogger.debug("persist_runtime_activity_failed", {
+                message: error instanceof Error ? error.message : String(error),
+                source: event.source,
+                action: event.action,
+                eventId: event.eventId,
+              });
+              return EMPTY;
+            }),
+          ),
+        ),
+        catchError((error: unknown) => {
+          this.debugLogger.debug("runtime_event_stream_failed", {
+            message: error instanceof Error ? error.message : String(error),
           });
-      },
-      error: (error: unknown) => {
-        this.debugLogger.debug("runtime_event_stream_failed", {
-          message: error instanceof Error ? error.message : String(error),
-        });
-      },
-    });
+          return EMPTY;
+        }),
+      )
+      .subscribe();
   }
 
   onModuleDestroy(): void {

@@ -2,6 +2,7 @@ import z from "zod/v4";
 
 export const githubProviderConfigSchema = z
   .object({
+    providerAppId: z.string().optional(),
     sourceUrl: z.string().min(1),
     branch: z.string().min(1),
     rootPath: z.string().min(1),

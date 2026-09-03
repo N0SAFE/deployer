@@ -6,7 +6,6 @@ import { DockerService } from "@/core/modules/docker/services/docker.service";
 import { ConfigNotFoundError } from "@/core/modules/traefik/errors";
 import { BadRequestError } from "@repo/errors";
 import { TraefikService } from "@/core/modules/traefik/services/traefik.service";
-import { DeploymentLoadBalancerSyncAdapter } from "../adapters/deployment-load-balancer-sync.adapter";
 import type {
     DeploymentRuntimeRunner,
     DeploymentRuntimeRunnerType,
@@ -19,13 +18,11 @@ import type { DeploymentStorageBinding } from "@/modules/deployment/storage/base
 export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
     readonly runnerType: DeploymentRuntimeRunnerType = "docker";
     private static readonly DEFAULT_TRAEFIK_SYNC_MAX_ATTEMPTS = 3;
-    private static readonly DEFAULT_LOAD_BALANCER_SYNC_MAX_ATTEMPTS = 3;
     private static readonly DEFAULT_RETRY_BASE_DELAY_MS = 250;
 
     constructor(
         private readonly dockerService: DockerService,
         private readonly traefikService: TraefikService,
-        private readonly deploymentLoadBalancerSyncAdapter: DeploymentLoadBalancerSyncAdapter,
     ) {}
 
     async executeRuntime(input: RuntimeExecutionInput): Promise<RuntimeExecutionResult> {
@@ -48,11 +45,6 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
             ...(deployment.projectId
                 ? {
                       "deployer.project_id": deployment.projectId,
-                  }
-                : {}),
-            ...(deployment.organizationId
-                ? {
-                      "deployer.organization_id": deployment.organizationId,
                   }
                 : {}),
             ...(deployment.networkMode
@@ -113,26 +105,18 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
                 deployment.healthCheckUrl,
                 healthGateConfig,
             );
-            const loadBalancerSync = await this.safeSyncLoadBalancerOwnership({
-                deploymentId: deployment.deploymentId,
-                serviceId: deployment.serviceId,
-                organizationId: deployment.organizationId ?? null,
-            }, resolvedConvergenceConfig.loadBalancerSyncMaxAttempts, resolvedConvergenceConfig.retryBaseDelayMs);
-
             return {
                 containerId: created.id,
                 containerName,
                 containerImage,
                 routeVerification,
                 healthGate,
-                loadBalancerSync,
                 managedRuntime: {
                     managedBy: "deployment_service",
                     managedReason: "deployment_execution",
                     deploymentId: deployment.deploymentId,
                     serviceId: deployment.serviceId,
                     projectId: deployment.projectId ?? null,
-                    organizationId: deployment.organizationId ?? null,
                     imageRef: containerImage,
                     networkMode: deployment.networkMode ?? null,
                     labels: managedLabels,
@@ -144,47 +128,6 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
             }
             throw error;
         }
-    }
-
-    private async safeSyncLoadBalancerOwnership(input: {
-        deploymentId: string;
-        serviceId: string;
-        organizationId: string | null;
-    }, maxAttempts: number, retryBaseDelayMs: number): Promise<RuntimeExecutionResult["loadBalancerSync"]> {
-        let lastErrorMessage: string | null = null;
-
-        for (
-            let attempt = 1;
-            attempt <= maxAttempts;
-            attempt += 1
-        ) {
-            if (attempt > 1) {
-                await this.sleep(retryBaseDelayMs * (attempt - 1));
-            }
-
-            try {
-                const syncResult = await this.deploymentLoadBalancerSyncAdapter.syncDeploymentOwnership(input);
-                return {
-                    ...syncResult,
-                    attempts: attempt,
-                };
-            } catch (error) {
-                lastErrorMessage = error instanceof Error ? error.message : String(error);
-            }
-        }
-
-        return {
-            applied: false,
-            endpoint: null,
-            status: "skipped",
-            reportedAt: null,
-            attempts: maxAttempts,
-            ...(lastErrorMessage
-                ? {
-                      errorMessage: `LB sync skipped after ${String(maxAttempts)} attempts: ${lastErrorMessage}`,
-                  }
-                : {}),
-        };
     }
 
     private sanitizeExecutorLabels(labels: Record<string, string> | undefined): Record<string, string> {
@@ -454,12 +397,6 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
             input.traefikSyncMaxAttempts > 0
                 ? input.traefikSyncMaxAttempts
                 : DockerRuntimeRunnerService.DEFAULT_TRAEFIK_SYNC_MAX_ATTEMPTS;
-        const loadBalancerSyncMaxAttempts =
-            typeof input?.loadBalancerSyncMaxAttempts === "number" &&
-            Number.isInteger(input.loadBalancerSyncMaxAttempts) &&
-            input.loadBalancerSyncMaxAttempts > 0
-                ? input.loadBalancerSyncMaxAttempts
-                : DockerRuntimeRunnerService.DEFAULT_LOAD_BALANCER_SYNC_MAX_ATTEMPTS;
         const retryBaseDelayMs =
             typeof input?.retryBaseDelayMs === "number" &&
             Number.isInteger(input.retryBaseDelayMs) &&
@@ -469,7 +406,6 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
 
         return {
             traefikSyncMaxAttempts,
-            loadBalancerSyncMaxAttempts,
             retryBaseDelayMs,
         };
     }

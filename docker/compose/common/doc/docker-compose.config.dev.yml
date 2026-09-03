@@ -1,0 +1,98 @@
+# =====================================================================
+# Doc DEV variant — INCLUDE-ONLY (real base: build, ports, develop.watch).
+# =====================================================================
+services:
+  doc:
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    build:
+      context: ../../../../
+      dockerfile: ./docker/builder/doc/Dockerfile.doc.dev
+      tags:
+        - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-doc-dev:latest"
+      args:
+        - NODE_ENV=development
+        - BUILDKIT_INLINE_CACHE=1
+    ports:
+      - "${NEXT_PUBLIC_DOC_PORT:-3020}:${NEXT_PUBLIC_DOC_PORT:-3020}"
+    environment:
+      NODE_ENV: development
+      # URLs — client-side (browser access via localhost)
+      NEXT_PUBLIC_DOC_URL: ${NEXT_PUBLIC_DOC_URL:-http://localhost:${NEXT_PUBLIC_DOC_PORT:-3020}}
+      NEXT_PUBLIC_DOC_PORT: ${NEXT_PUBLIC_DOC_PORT:-3020}
+      # Debug
+      NEXT_PUBLIC_DEBUG: ${NEXT_PUBLIC_DEBUG:-}
+      # Dev tools — hot reloading (true for doc: fs polling avoids missed edits)
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      NEXT_WEBPACK_USEPOLLING: "1"
+      # Turbo remote cache
+      TURBO_TOKEN: ${TURBO_TOKEN:-}
+      TURBO_TEAM: ${TURBO_TEAM:-}
+    volumes:
+      # Persistent build caches (named volumes) to speed up installs/builds
+      - bun_cache_dev:/root/.bun/install/cache
+      - turbo_cache_dev:/root/.cache/turbo
+    develop:
+      watch:
+        # Restart when Docker Compose configuration changes
+        - action: restart
+          path: ../../../../
+          target: /app
+          include:
+            - docker/compose/doc/docker-compose.config.dev.yml
+            - docker/compose/docker-compose.dev.yml
+        # Rebuild when critical dependency or config files change
+        - action: rebuild
+          path: ../../../../
+          target: /app
+          include:
+            - package.json
+            - bun.lock*
+            - turbo.json
+            - apps/doc/package.json
+            - apps/doc/tsconfig.json
+            - apps/doc/tsconfig.*.json
+            - apps/doc/source.config.ts
+            - docker/builder/doc/Dockerfile.doc.dev
+            - packages/**/package.json
+        # Sync source code excluding node_modules and build artifacts
+        - action: sync
+          initial_sync: true
+          path: ../../../../
+          target: /app
+          ignore:
+            - node_modules/
+            - "**/node_modules/"
+            - bun.lock*
+            - package-lock.json
+            - yarn.lock
+            - pnpm-lock.yaml
+            - "**/dist/"
+            - "**/build/"
+            - "**/.next/"
+            - "**/out/"
+            - "**/.output/"
+            - "**/.turbo/"
+            - "**/.cache/"
+            - "**/.parcel-cache/"
+            - "**/.vite/"
+            - "**/*.log"
+            - "**/logs/"
+            - .git/
+            - .gitignore
+            - docker/
+            - Dockerfile*
+            - docker-compose*.yml
+            - .dockerignore
+            - "**/.vscode/"
+            - "**/.idea/"
+            - "**/*.swp"
+            - "**/*.swo"
+            - "**/coverage/"
+            - "**/.nyc_output/"
+            - "**/.DS_Store"
+            - "**/Thumbs.db"

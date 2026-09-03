@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { DockerSelectionToggle } from '@/app/dashboard/docker/_components/docker-page-utilities'
@@ -13,8 +13,9 @@ import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
+import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
 import { Toggle } from '@repo/ui/components/shadcn/toggle'
-import { ArrowLeft, Pause, Play, Search, WrapText } from 'lucide-react'
+import { ArrowLeft, Pause, Play, Search, Siren, WrapText } from 'lucide-react'
 import { ServiceSectionNav } from '../_components/service-section-nav'
 
 const LIST_INPUT = {
@@ -89,15 +90,14 @@ export default function DashboardServiceLogsPage() {
   const [pausedSnapshot, setPausedSnapshot] = useState<ServiceLogLine[] | null>(null)
   const [clearedAt, setClearedAt] = useState<number | null>(null)
 
-  const project = useMemo<ProjectItem | null>(
-    [projectId],
-  )
-  const service = useMemo(() => services.find((item: ServiceItem) => item.id === serviceId) ?? null, [serviceId, services])
-
-  const { data: deploymentData } = useDockerDeploymentList(LIST_INPUT)
-  const { data: containerData } = useDockerContainerList(LIST_INPUT)
+  const { data: deploymentData, isLoading: deploymentLoading, error: deploymentError } = useDockerDeploymentList(LIST_INPUT)
+  const { data: containerData, isLoading: containerLoading } = useDockerContainerList(LIST_INPUT)
   const { state: meshState, status: meshSseStatus } = useMeshSseState()
 
+  // ── Derived state (ALL hooks MUST run unconditionally — no early returns
+  //    before them, or React throws "Rendered more hooks than during the
+  //    previous render" which corrupts the hook order and lets queries fire
+  //    with template `:id` params). ──────────────────────────────────────────
   const allContainers = useMemo(() => (containerData?.data ?? []) as DockerContainerLite[], [containerData?.data])
   const allDeployments = useMemo(() => (deploymentData?.data ?? []) as DeploymentLite[], [deploymentData?.data])
 
@@ -186,7 +186,7 @@ export default function DashboardServiceLogsPage() {
       projected.push({
         id: `mesh-state-${String(meshState.revision)}-${serviceId}`,
         containerId: null,
-        containerName: service?.name ?? 'mesh-control-plane',
+        containerName: serviceId ?? 'mesh-control-plane',
         source: 'mesh',
         status: meshSseStatus,
         message: `Mesh ${meshState.reason.replaceAll('_', ' ')} · ${String(meshState.sessions.length)} sessions · ${String(meshState.peers.length)} peers`,
@@ -195,7 +195,7 @@ export default function DashboardServiceLogsPage() {
     }
 
     return projected.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-  }, [allDeployments, meshSseStatus, meshState, projectId, service?.name, serviceContainers, serviceId])
+  }, [allDeployments, meshSseStatus, meshState, serviceContainers, serviceId])
 
   const filteredLogs = useMemo(() => {
     const normalized = logsSearchTerm.trim().toLowerCase()
@@ -229,43 +229,26 @@ export default function DashboardServiceLogsPage() {
   const someVisibleReplicasSelected =
     selectedVisibleReplicasCount > 0 && selectedVisibleReplicasCount < filteredReplicaNames.length
 
-  if (!project) {
+  // Loading / error states — AFTER all hooks (Rules of Hooks: returns must
+  // come after every unconditional hook call).
+  if (deploymentLoading || containerLoading) {
     return (
-      <Alert variant="destructive">
-        <AlertTitle>Project not found</AlertTitle>
-        <AlertDescription>This project does not exist in the mock entities dataset.</AlertDescription>
-      </Alert>
+      <div className="space-y-6"><Skeleton className="h-8 w-48" /><Skeleton className="h-48 w-full rounded-xl" /></div>
     )
   }
 
-  if (!service) {
+  if (deploymentError) {
     return (
       <Alert variant="destructive">
-        <AlertTitle>Service not found</AlertTitle>
-        <AlertDescription>This service does not exist in the selected project mock dataset.</AlertDescription>
+        <Siren className="size-4" />
+        <AlertTitle>Failed to load logs</AlertTitle>
+        <AlertDescription>{isDefinedORPCError(deploymentError) ? getErrorMessage(deploymentError, 'An error occurred.') : 'An error occurred.'}</AlertDescription>
       </Alert>
     )
   }
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <Button asChild variant="ghost" size="sm" className="-ml-2 w-fit">
-          <Link href={`/dashboard/projects/${projectId}/services/${serviceId}`}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to service
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Service logs</h1>
-          <p className="text-sm text-muted-foreground">
-            Replica-aware logs. Select one or many replicas to inspect individual or combined stream output.
-          </p>
-        </div>
-      </div>
-
-      <ServiceSectionNav projectId={projectId} serviceId={serviceId} active="logs" />
-
       <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="overflow-hidden rounded-2xl border border-border/60 bg-card/50 backdrop-blur-xl">
           <div className="border-b border-border/60 px-3 py-3">
@@ -428,7 +411,7 @@ export default function DashboardServiceLogsPage() {
                     const url = URL.createObjectURL(blob)
                     const anchor = document.createElement('a')
                     anchor.href = url
-                    anchor.download = `${service.name}-logs.txt`
+                    anchor.download = `${serviceId}-logs.txt`
                     anchor.click()
                     URL.revokeObjectURL(url)
                   }}
@@ -462,7 +445,7 @@ export default function DashboardServiceLogsPage() {
                   placeholder="Search logs"
                 />
               </div>
-              <select
+              <select aria-label="All sources"
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={logsSourceFilter}
                 onChange={(event) => {
@@ -474,7 +457,7 @@ export default function DashboardServiceLogsPage() {
                 <option value="deployment">Deployments</option>
                 <option value="mesh">Mesh</option>
               </select>
-              <select
+              <select aria-label="All replicas"
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={logsReplicaFilter}
                 onChange={(event) => {

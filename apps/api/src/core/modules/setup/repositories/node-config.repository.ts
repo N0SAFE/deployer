@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { ConflictError } from "@/core/errors/app-error";
+import { ConflictError } from "@repo/errors";
 import { nodeConfig } from "@/config/drizzle/local/schema";
 import { LocalDatabaseService } from "../../database/local/local-database.service";
 import { isRecord, isObjectLike } from "@repo/type-guards"
@@ -60,5 +60,22 @@ export class NodeConfigRepository {
         return Reflect.get(isRecord(row) ? row : {}, "meshSharedSecret") as string | null
             ?? Reflect.get(isRecord(row) ? row : {}, "mesh_shared_secret") as string | null
             ?? null;
+    }
+
+    /**
+     * Update the meshUrlsSnapshot with a new set of peer URLs.
+     * Merges with existing URLs, deduplicates, and preserves all other fields.
+     * Returns the updated row.
+     */
+    updateMeshPeers(peerUrls: string[]): NodeConfigRow | null {
+        const existing = this.find();
+        if (!existing) return null;
+
+        const merged = [...new Set([...(existing.meshUrlsSnapshot ?? []), ...peerUrls])];
+        return this.upsert({
+            ...existing,
+            meshUrlsSnapshot: merged,
+            updatedAt: new Date().toISOString(),
+        });
     }
 }

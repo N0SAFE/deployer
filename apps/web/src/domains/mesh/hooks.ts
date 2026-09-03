@@ -1,5 +1,6 @@
 "use client";
 
+import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   meshRuntimeEventSchema,
@@ -32,7 +33,7 @@ const DEFAULT_MESH_RUNTIME_STREAM_INPUT: MeshRuntimeStreamInput = {
 export function useMeshLocalNode(options?: { enabled?: boolean }) {
   return useQuery(
     meshEndpoints.getLocalNode.queryOptions({
-      input: {},
+      input: undefined,
       enabled: options?.enabled ?? true,
       refetchInterval: false,
     }),
@@ -42,7 +43,7 @@ export function useMeshLocalNode(options?: { enabled?: boolean }) {
 export function useMeshPeers(options?: { enabled?: boolean }) {
   return useQuery(
     meshEndpoints.listPeers.queryOptions({
-      input: {},
+      input: undefined,
       enabled: options?.enabled ?? true,
       refetchInterval: false,
     }),
@@ -52,7 +53,7 @@ export function useMeshPeers(options?: { enabled?: boolean }) {
 export function useMeshPeerSessions(options?: { enabled?: boolean }) {
   return useQuery(
     meshEndpoints.listPeerSessions.queryOptions({
-      input: {},
+      input: undefined,
       enabled: options?.enabled ?? true,
       refetchInterval: false,
     }),
@@ -60,6 +61,12 @@ export function useMeshPeerSessions(options?: { enabled?: boolean }) {
 }
 
 type MeshListEventStreamsInput = Parameters<typeof meshEndpoints.listEventStreams.queryOptions>[0]["input"];
+
+/** Only fetch when the stream id is a real UUID — never a `:id` template placeholder. */
+const MESH_STREAM_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+function isMeshStreamIdUsable(id: string | undefined | null): id is string {
+  return typeof id === 'string' && MESH_STREAM_UUID_RE.test(id)
+}
 
 export function useMeshEventStreams(input: MeshListEventStreamsInput, options?: { enabled?: boolean }) {
   return useQuery(
@@ -72,14 +79,18 @@ export function useMeshEventStreams(input: MeshListEventStreamsInput, options?: 
 }
 
 export function useMeshEventStreamById(streamId: string | undefined, options?: { enabled?: boolean }) {
+  const usable = isMeshStreamIdUsable(streamId)
   return useQuery(
     meshEndpoints.findEventStreamById.queryOptions({
       input: {
         params: {
-          id: streamId ?? "00000000-0000-0000-0000-000000000000",
+          id: usable ? streamId : "00000000-0000-0000-0000-000000000000",
         },
       },
-      enabled: (options?.enabled ?? true) && !!streamId,
+      // Strict UUID guard: a template placeholder like `:id` must NOT fire.
+      // The all-zeros id below only ever leaves the client when the guard
+      // accidentally allows it; the contract rejects it server-side.
+      enabled: (options?.enabled ?? true) && usable,
       refetchInterval: false,
     }),
   );
@@ -88,7 +99,7 @@ export function useMeshEventStreamById(streamId: string | undefined, options?: {
 export function useMeshMembershipSnapshot(options?: { enabled?: boolean }) {
   return useQuery(
     meshEndpoints.membershipSnapshot.queryOptions({
-      input: {},
+      input: undefined,
       enabled: options?.enabled ?? true,
       refetchInterval: false,
     }),
@@ -140,7 +151,7 @@ export function usePlanMeshStreamRoute() {
 export function useMeshTrustKeyringStatus(options?: { enabled?: boolean }) {
   return useQuery(
     meshEndpoints.trustKeyringStatus.queryOptions({
-      input: {},
+      input: undefined,
       enabled: options?.enabled ?? true,
       refetchInterval: false,
     }),
@@ -150,7 +161,7 @@ export function useMeshTrustKeyringStatus(options?: { enabled?: boolean }) {
 export function useMeshTrustKeyringSecrets(options?: { enabled?: boolean }) {
   return useQuery(
     meshEndpoints.trustKeyringSecrets.queryOptions({
-      input: {},
+      input: undefined,
       enabled: options?.enabled ?? true,
       refetchInterval: false,
     }),
@@ -168,7 +179,7 @@ export function useMeshTrustKeyringRotate() {
 export function useMeshTrustKeyringConvergenceStatus(options?: { enabled?: boolean }) {
   return useQuery(
     meshEndpoints.trustKeyringConvergenceStatus.queryOptions({
-      input: {},
+      input: undefined,
       enabled: options?.enabled ?? true,
       refetchInterval: false,
     }),
@@ -178,7 +189,7 @@ export function useMeshTrustKeyringConvergenceStatus(options?: { enabled?: boole
 export function useMeshTrustStrictReadiness(options?: { enabled?: boolean }) {
   return useQuery(
     meshEndpoints.trustStrictReadiness.queryOptions({
-      input: {},
+      input: undefined,
       enabled: options?.enabled ?? true,
       refetchInterval: false,
     }),
@@ -276,9 +287,9 @@ export function useMeshSseState(
   return {
     status,
     lastError: streamQuery.isError
-      ? streamQuery.error instanceof Error
-        ? streamQuery.error.message
-        : "Mesh stream connection error"
+      ? (isDefinedORPCError(streamQuery.error)
+          ? getErrorMessage(streamQuery.error, "Mesh stream connection error")
+          : UNKNOWN_ORPC_ERROR_MESSAGE)
       : null,
     state,
   };

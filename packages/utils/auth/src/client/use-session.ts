@@ -90,13 +90,12 @@ export interface CreateUseSessionOptions<TData> {
  * 
  * The created hook integrates with:
  * 1. React Query cache (for HydrationBoundary/SessionPage hydration) - SUBSCRIBES to updates
- * 2. Optional SessionBridge (for backwards compatibility)
- * 3. Better Auth's useSession (as final fallback)
+ * 2. Better Auth's useSession (as fallback)
  * 
  * How it works:
  * 1. Subscribes to React Query cache changes via useSyncExternalStore
  *    - When a page hydrates the session (via HydrationBoundary), this hook re-renders
- * 2. If no hydrated data, falls back to SessionBridge (if provided) or Better Auth's useSession
+ * 2. If no hydrated data, falls back to Better Auth's useSession
  * 
  * This enables the key behavior:
  * - SessionPage: Server fetches + hydrates RQ cache → useSession picks it up instantly
@@ -108,12 +107,10 @@ export interface CreateUseSessionOptions<TData> {
  * // In your app's auth setup
  * import { createUseSession } from '@repo/auth/client'
  * import { authClient } from './options'
- * import { useSessionBridge } from './session-bridge'
  * 
  * export const useSession = createUseSession({
  *   authClient,
  *   sessionQueryKey: ['session'],
- *   useSessionBridge, // optional
  * })
  * ```
  */
@@ -123,7 +120,6 @@ export function createUseSession<TData>(
     const { 
         authClient, 
         sessionQueryKey = DEFAULT_SESSION_QUERY_KEY,
-        useSessionBridge,
     } = options
 
     return function useSession(): SessionResult<TData> {
@@ -139,9 +135,6 @@ export function createUseSession<TData>(
         // Use Better Auth's useSession as a fallback
         const betterAuthSession = authClient.useSession()
         
-        // Fallback to SessionBridge (legacy support)
-        const bridge = useSessionBridge?.() ?? null
-        
         // Determine which session data to use
         const result = useMemo((): SessionResult<TData> => {
             // Priority 1: React Query cache (subscribes to HydrationBoundary updates)
@@ -156,19 +149,9 @@ export function createUseSession<TData>(
                 }
             }
             
-            // Priority 2: SessionBridge (legacy support)
-            if (bridge?.data !== undefined) {
-                return {
-                    data: bridge.data,
-                    isLoading: false,
-                    error: undefined,
-                    refetch: async () => { /* no-op */ },
-                }
-            }
-            
-            // Priority 3: Better Auth's useSession (client-side fetch)
+            // Priority 2: Better Auth's useSession (client-side fetch)
             return betterAuthSession
-        }, [queryClient, hasHydratedData, cachedSession, bridge, betterAuthSession, sessionQueryKey])
+        }, [queryClient, hasHydratedData, cachedSession, betterAuthSession, sessionQueryKey])
         
         return result
     }

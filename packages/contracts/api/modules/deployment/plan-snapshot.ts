@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
     deploymentCompiledPlanSnapshotByRunResultSchema,
     deploymentCompiledPlanSnapshotSchema,
@@ -33,22 +33,26 @@ export const deploymentCreateCompiledPlanSnapshotContract = deploymentCreateComp
             .body(deploymentCreateCompiledPlanSnapshotInputSchema),
     )
     .output(deploymentCreateCompiledPlanSnapshotResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentListCompiledPlanSnapshotsContract = deploymentListCompiledPlanSnapshotsOps
     .list()
     .input((b) => b.params((p) => p`/${p("id", z.uuid())}/compiled-plan-snapshots`))
     .output(deploymentListCompiledPlanSnapshotsResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentGetCompiledPlanSnapshotContract = deploymentCompiledPlanSnapshotOps
     .read({ idFieldName: "snapshotId", idSchema: z.uuid() })
     .input((b) => b.params((p) => p`/compiled-plan-snapshots/${p("snapshotId", z.uuid())}`))
     .output(deploymentCompiledPlanSnapshotSchema.nullable())
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentGetCompiledPlanSnapshotByRunContract = deploymentCompiledPlanSnapshotByRunOps
     .list()
     .input((b) => b.params((p) => p`/runs/${p("runId", z.uuid())}/compiled-plan-snapshot`))
     .output(deploymentCompiledPlanSnapshotByRunResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

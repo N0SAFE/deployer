@@ -1,4 +1,4 @@
-import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
+import { createFilterConfig, standard, type ComputeInputSchema, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerNetworkEntitySchema } from "@repo/contracts-entities";
 
 const dockerNetworkListItemSchema = dockerNetworkEntitySchema.omit({ relations: true });
@@ -22,4 +22,5 @@ export type DockerNetworkListInput = ComputeInputSchema<typeof dockerNetworkList
 export const dockerListNetworksContract = dockerNetworkOps
   .list(dockerNetworkListConfigSchemas)
   .path("/")
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

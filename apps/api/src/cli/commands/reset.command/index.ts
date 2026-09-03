@@ -9,6 +9,7 @@ import { LocalDatabaseService } from '@/core/modules/database/local/local-databa
   description: 'Reset the database by dropping and recreating the public schema',
 })
 export class ResetCommand extends CommandRunner {
+  private readonly logger = new Logger(ResetCommand.name);
 
   constructor(
     private readonly localDatabaseService: LocalDatabaseService,

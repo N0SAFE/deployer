@@ -78,9 +78,9 @@ describe("Deployment strategy e2e: project, service, traefik, config, upload dep
         projectId: project.id,
         name: `api-${randomUUID()}`,
         description: "E2E service",
-        type: "web",
-        providerId: "upload",
-        builderId: "dockerfile",
+        type: "application",
+        providerId: "artifact-bundle",
+        builderId: "manual",
         port: 3000,
         healthCheckPath: "/health",
         customDomains: ["api.services.e2e.example.test"],
@@ -108,7 +108,7 @@ describe("Deployment strategy e2e: project, service, traefik, config, upload dep
     const validation = await context.traefikService.validateConfiguration(serviceConfig.id);
 
     expect(service.projectId).toBe(project.id);
-    expect(service.providerId).toBe("upload");
+    expect(service.providerId).toBe("artifact-bundle");
     expect(service.builderId).toBe("dockerfile");
     expect(serviceConfig.serviceId).toBe(service.id);
     expect(serviceConfig.fullDomain).toContain("services.e2e.example.test");
@@ -129,9 +129,9 @@ describe("Deployment strategy e2e: project, service, traefik, config, upload dep
         projectId: project.id,
         name: `web-${randomUUID()}`,
         description: "E2E deployment service",
-        type: "web",
-        providerId: "upload",
-        builderId: "dockerfile",
+        type: "application",
+        providerId: "artifact-bundle",
+        builderId: "manual",
         port: 8080,
       },
       context.ownerId,
@@ -142,13 +142,13 @@ describe("Deployment strategy e2e: project, service, traefik, config, upload dep
       {
         serviceId: service.id,
         environment: "preview",
-        sourceType: "upload",
-        sourceConfig: {
+        source: {
+          sourceType: "upload",
+          uploadId,
+          uploadPath: "/tmp/e2e-upload/bundle.zip",
           fileName: "bundle.zip",
           fileSize: 1024,
           customData: {
-            uploadId,
-            uploadPath: "/tmp/e2e-upload/bundle.zip",
             runtimeRunner: "dockerfile",
             containerImage: `ghcr.io/e2e/deploy-${service.id.slice(0, 8)}:latest`,
             runtimeRunnerOptions: {
@@ -165,7 +165,6 @@ describe("Deployment strategy e2e: project, service, traefik, config, upload dep
     );
 
     expect(deployment.status).toBe("queued");
-    expect(deployment.sourceType).toBe("upload");
 
     const queueJobs = context.deploymentService.listQueueJobs({
       deploymentId: deployment.id,
@@ -236,10 +235,14 @@ describe("Deployment strategy e2e: project, service, traefik, config, upload dep
       strict: true,
     });
 
+    expect(compileResult.compiled).toBe(true);
+    if (!compileResult.plan) {
+      throw new Error("Expected compiled plan to be present");
+    }
+
     const nodeTypes = new Set(compileResult.plan.nodes.map((node) => node.type));
     const rollbackEdges = compileResult.plan.edges.filter((edge) => edge.kind === "rollback");
 
-    expect(compileResult.compiled).toBe(true);
     expect(nodeTypes.has("preview_name")).toBe(true);
     expect(nodeTypes.has("route_provision")).toBe(true);
     expect(nodeTypes.has("tls_provision")).toBe(true);
@@ -263,11 +266,11 @@ describe("Deployment strategy e2e: project, service, traefik, config, upload dep
       strict: false,
     });
 
-    const rollbackEdges = compileResult.plan.edges.filter((edge) => edge.kind === "rollback");
+    const rollbackEdges = compileResult.plan?.edges.filter((edge) => edge.kind === "rollback");
 
     expect(compileResult.compiled).toBe(true);
-    expect(compileResult.plan.nodes.length).toBeGreaterThan(0);
-    expect(compileResult.plan.edges.length).toBeGreaterThan(0);
+    expect(compileResult.plan?.nodes.length).toBeGreaterThan(0);
+    expect(compileResult.plan?.edges.length).toBeGreaterThan(0);
     expect(rollbackEdges).toHaveLength(0);
   });
 
@@ -284,9 +287,9 @@ describe("Deployment strategy e2e: project, service, traefik, config, upload dep
         projectId: project.id,
         name: `svc-filter-${randomUUID()}`,
         description: "Service for queue listing filters",
-        type: "web",
-        providerId: "upload",
-        builderId: "dockerfile",
+        type: "application",
+        providerId: "artifact-bundle",
+        builderId: "manual",
         port: 3000,
       },
       context.ownerId,
@@ -296,13 +299,13 @@ describe("Deployment strategy e2e: project, service, traefik, config, upload dep
       {
         serviceId: service.id,
         environment: "preview",
-        sourceType: "upload",
-        sourceConfig: {
+        source: {
+          sourceType: "upload",
+          uploadId: `upload-filter-${randomUUID()}`,
+          uploadPath: "/tmp/e2e-upload/bundle-filter.zip",
           fileName: "bundle-filter.zip",
           fileSize: 2048,
           customData: {
-            uploadId: `upload-filter-${randomUUID()}`,
-            uploadPath: "/tmp/e2e-upload/bundle-filter.zip",
             runtimeRunner: "dockerfile",
             containerImage: `ghcr.io/e2e/filter-${service.id.slice(0, 8)}:latest`,
           },

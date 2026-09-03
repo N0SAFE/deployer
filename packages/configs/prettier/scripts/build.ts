@@ -48,7 +48,6 @@ async function runBuild(buildWatch: boolean) {
   const sharedConfig: Partial<BuildConfig> = {
     entrypoints: files.map((file) => path.join(srcDir, file)),
     minify: true,
-    splitting: true,
     target: 'bun',
     external: [
       'prettier',
@@ -56,9 +55,13 @@ async function runBuild(buildWatch: boolean) {
     ],
   };
 
-  // Build both ESM and CJS in parallel
+  // Build both ESM and CJS in parallel.
+  // NOTE: Bun only supports code splitting (`splitting: true`) when the output
+  // format is `esm`. Enabling it for the CJS build fails with
+  // "Code splitting is currently only supported when format is set to 'esm'",
+  // so `splitting` is applied only to the ESM build.
   const formatConfigs: Array<[string, string, Partial<BuildConfig>]> = [
-    ['esm', distEsmDir, {}],
+    ['esm', distEsmDir, { splitting: true }],
     ['cjs', distCjsDir, { format: 'cjs' }],
   ];
 

@@ -16,6 +16,7 @@ import { HttpAdapterHost } from '@nestjs/core';
 import * as http from 'node:http';
 import * as https from 'node:https';
 import { RouteRegistryService } from './route-registry.service';
+import { getInternalErrorRequestContext } from '@/core/middlewares/internal-error/internal-error-context';
 
 @Injectable()
 export class GatewayService implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -109,7 +110,7 @@ export class GatewayService implements OnApplicationBootstrap, OnApplicationShut
       res.end(JSON.stringify({
         statusCode: 503,
         message: 'Service not yet available — no sub-app registered for this route',
-        requestId: (req as Request & { requestId: string }).requestId,
+        requestId: getInternalErrorRequestContext(req)?.requestId,
         path,
         method,
       }));

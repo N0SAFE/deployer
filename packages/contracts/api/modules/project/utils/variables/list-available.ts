@@ -25,4 +25,7 @@ export const projectGetAvailableVariablesContract = projectAvailableVariableOps
             ),
         }),
     )
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
+
+import { standardDomainErrorContracts } from "@repo/orpc-utils";

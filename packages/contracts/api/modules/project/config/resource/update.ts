@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { projectResourceConfigSchema } from "@repo/contracts-entities";
  
 const projectResourceConfigOps = standard.zod(projectResourceConfigSchema, "projectResourceConfig");
@@ -14,4 +14,5 @@ export const projectUpdateResourceConfigContract = projectResourceConfigOps
             .body(projectResourceConfigUpdateInputSchema),
     )
     .output(projectResourceConfigSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

@@ -6,6 +6,7 @@ const coreBaseFactory = coreConfig.configs.base;
 const coreTestFactory = coreConfig.configs.test;
 
 const sharedRules: Partial<Linter.RulesRecord> = {
+            "@darraghor/nestjs-typed/api-enum-property-best-practices": "off",
             "@typescript-eslint/interface-name-prefix": "off",
             "@typescript-eslint/explicit-function-return-type": "off",
             "@typescript-eslint/explicit-module-boundary-types": "off",

@@ -1,7 +1,10 @@
 import { Injectable, type OnModuleDestroy, Logger } from "@nestjs/common";
 import { EnvService } from "@/config/env/env.service";
 import { DockerService } from "./docker.service";
+import { AppError } from "@repo/errors";
 import { isRecord, isObjectLike } from "@repo/type-guards"
+import fs from "node:fs";
+import path from "node:path";
 
 // ============================================================================
 // Types
@@ -80,6 +83,17 @@ export class ScannerContainerManagerService implements OnModuleDestroy {
   /** Global image-cleanup interval handle. */
   private imageCleanupTimer: ReturnType<typeof setInterval> | null = null;
 
+  /**
+   * One build attempt per process lifetime, keyed by image tag.
+   * The promise resolves once the build finished (true) or failed (false);
+   * failed builds are NOT retried — a later local `inspect` still succeeds
+   * if the operator builds the image manually in the meantime.
+   */
+  private readonly imageBuildAttempts = new Map<string, Promise<boolean>>();
+
+  /** Tags for which the "image unavailable" warning was already emitted. */
+  private readonly imageUnavailableWarned = new Set<string>();
+
   constructor(
     private readonly dockerService: DockerService,
     private readonly envService: EnvService,
@@ -139,8 +153,9 @@ export class ScannerContainerManagerService implements OnModuleDestroy {
   async execInScanner(scanner: ScannerType, cmd: string[]): Promise<ScannerExecResult> {
     const state = this.scanners[scanner];
     if (!state.containerId) {
-      throw new Error(
+      throw new AppError(
         `${scanner} shared container is not running — call ensureContainerRunning("${scanner}") first`,
+        "INTERNAL_ERROR",
       );
     }
 
@@ -208,14 +223,43 @@ export class ScannerContainerManagerService implements OnModuleDestroy {
     const state = this.scanners[scanner];
     const meta = SCANNER_META[scanner];
 
-    // 1. Ensure image exists
+    // 1. Ensure image exists (build attempted at most once per process)
     const imageExists = await this.ensureImageExists(image);
     if (!imageExists) {
-      this.logger.error(`Cannot start ${scanner} container — image "${image}" not available`);
+      if (!this.imageUnavailableWarned.has(image)) {
+        this.imageUnavailableWarned.add(image);
+        this.logger.error(
+          `Cannot start ${scanner} container — image "${image}" not available and build failed. ` +
+          `Scanners fall back to ephemeral per-scan containers until the image exists. ` +
+          `Build manually with: bun --bun run docker:build:scanner-runner`,
+        );
+      } else {
+        this.logger.debug(`Cannot start ${scanner} container — image "${image}" still unavailable`);
+      }
       return false;
     }
 
-    // 2. Determine socket bind mount from DockerService (never hardcoded)
+    // 2. Adopt an already-running shared container (e.g. left over from a
+    //    previous API run). Reusing it avoids a name conflict on create and
+    //    keeps ONE long-lived container across API restarts.
+    const adopted = await this.tryAdoptExistingContainer(meta.containerName);
+    if (adopted) {
+      state.containerId = adopted;
+      this.logger.log(`Adopted existing ${scanner} shared container ${adopted} (${meta.containerName})`);
+      await this.dockerService.startContainer(state.containerId).catch(() => undefined);
+
+      const ready = await this.waitForContainerReady(state.containerId);
+      if (!ready) {
+        this.logger.warn(`${scanner} adopted container did not become responsive in time`);
+      }
+
+      this.trackActivity(scanner);
+      this.resetIdleTimer(scanner);
+      this.startImageCleanupTimer();
+      return true;
+    }
+
+    // 3. Determine socket bind mount from DockerService (never hardcoded)
     const socketBind = this.dockerService.getDockerSocketBindMount();
     const envVars: string[] = [];
 
@@ -442,24 +486,46 @@ export class ScannerContainerManagerService implements OnModuleDestroy {
 
   /**
    * Ensure the scanner-runner image exists locally.
-   * Tries to inspect first; if not found, attempts a local Docker build
-   * (since this is a custom image not published on any registry).
+   *
+   * - Inspects first (covers images built manually or by a previous run).
+   * - If missing, builds it — but at most ONCE per process lifetime, no
+   *   matter how many scans arrive. Concurrent callers share the same
+   *   in-flight attempt; failed attempts are not retried (a later manual
+   *   `docker:build:scanner-runner` still succeeds via the inspect path).
    */
   private async ensureImageExists(image: string): Promise<boolean> {
     try {
       await this.dockerService.getDockerClient().getImage(image).inspect();
       return true;
     } catch {
-      // Not found — try building locally
+      // Not found locally — fall through to the one-shot build.
+    }
+
+    let attempt = this.imageBuildAttempts.get(image);
+    if (!attempt) {
+      attempt = this.buildScannerRunnerImageOnce(image);
+      this.imageBuildAttempts.set(image, attempt);
+    }
+    return attempt;
+  }
+
+  /** Single build attempt for the scanner-runner image. Never throws. */
+  private async buildScannerRunnerImageOnce(image: string): Promise<boolean> {
+    const context = this.resolveScannerBuildContext();
+
+    if (!context) {
+      this.logger.warn(
+        `Scanner-runner build context "docker/scanner-runner/" not found from cwd "${process.cwd()}" — ` +
+        `skipping build (one attempt per process). In docker dev, ensure the compose file mounts ` +
+        `the repo's docker/ directory into /app/docker. Manual fallback: bun --bun run docker:build:scanner-runner`,
+      );
+      return false;
     }
 
     try {
-      this.logger.log(`Attempting to build scanner-runner image "${image}" locally`);
-      await this.dockerService.buildImage(
-        "docker/scanner-runner/",
-        image,
-        { dockerfileName: "docker/scanner-runner/Dockerfile" },
-      );
+      this.logger.log(`Building scanner-runner image "${image}" from ${context} (single attempt)`);
+      await this.dockerService.buildImage(context, image, { dockerfileName: "Dockerfile" });
+      this.logger.log(`Scanner-runner image "${image}" built successfully`);
       return true;
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -470,5 +536,60 @@ export class ScannerContainerManagerService implements OnModuleDestroy {
       );
       return false;
     }
+  }
+
+  /**
+   * Locate the `docker/scanner-runner/` build context without relying on the
+   * process cwd being the repo root (in containers cwd is `/app`; locally it
+   * is often `apps/api`). Checks an env override first, then walks up from
+   * cwd. Returns the absolute directory containing the Dockerfile, or null.
+   */
+  private resolveScannerBuildContext(): string | null {
+    const candidates: string[] = [];
+
+    try {
+      const override = this.envService.get("SCANNER_RUNNER_BUILD_CONTEXT");
+      if (typeof override === "string" && override.trim().length > 0) {
+        candidates.push(path.resolve(override.trim()));
+      }
+    } catch {
+      // Env service unavailable — ignore the override.
+    }
+
+    let dir = path.resolve(process.cwd());
+    for (let depth = 0; depth < 6; depth += 1) {
+      candidates.push(path.join(dir, "docker", "scanner-runner"));
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+
+    for (const candidate of candidates) {
+      if (fs.existsSync(path.join(candidate, "Dockerfile"))) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Reuse a shared container left over from a previous API run instead of
+   * colliding with its fixed name on create. Running containers are adopted
+   * as-is; stopped/exited ones are force-removed so a fresh one can be
+   * created under the same name.
+   */
+  private async tryAdoptExistingContainer(name: string): Promise<string | null> {
+    try {
+      const existing = this.dockerService.getDockerClient().getContainer(name);
+      const info = await existing.inspect();
+      if (info.State.Running) {
+        return info.Id;
+      }
+      await existing.remove({ force: true });
+      this.logger.debug(`Removed stopped shared container "${name}" before recreating`);
+    } catch {
+      // No container with that name — nothing to adopt.
+    }
+    return null;
   }
 }

@@ -8,6 +8,7 @@ import {
   jsonb,
   pgEnum,
   index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { encryptedText } from '@/config/drizzle/shared/custom-types/encrypted-text';
@@ -30,12 +31,11 @@ export const previewDeploymentStatusEnum = pgEnum('preview_deployment_status', [
   ...zodEnumToPgEnumValues(previewDeploymentStatusSchema),
 ]);
 
-// GitHub Apps Table - Multiple GitHub app support per organization
+// GitHub Apps Table - Multiple GitHub app support
 export const githubApps = pgTable(
   'github_apps',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    organizationId: text('organization_id').notNull(), // Reference to organization (not enforced with FK)
     name: text('name').notNull(),
     appId: text('app_id').notNull(),
     clientId: text('client_id').notNull(),
@@ -52,7 +52,6 @@ export const githubApps = pgTable(
       .notNull(),
   },
   (table) => [
-    index('github_apps_org_id_idx').on(table.organizationId),
     index('github_apps_app_id_idx').on(table.appId),
   ],
 );
@@ -243,13 +242,18 @@ export const githubPreviewDeployments = pgTable(
 );
 
 // GitHub Webhook Events Table
+// `delivery_id` is the DURABLE idempotency checkpoint (W-P2): the unique
+// index makes the very first INSERT the atomic claim — a GitHub redelivery
+// (same `delivery_id`) conflicts and is skipped, surviving process restarts.
+// `github_app_id` is nullable so a delivery can be journaled before its app
+// is resolved (dedup must not depend on app resolution).
 export const githubWebhookEvents = pgTable(
   'github_webhook_events',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    githubAppId: uuid('github_app_id')
-      .notNull()
-      .references(() => githubApps.id, { onDelete: 'cascade' }),
+    githubAppId: uuid('github_app_id').references(() => githubApps.id, {
+      onDelete: 'cascade',
+    }),
 
     // Event Details
     event: text('event').notNull(),
@@ -266,8 +270,8 @@ export const githubWebhookEvents = pgTable(
       .notNull(),
   },
   (table) => [
+    uniqueIndex('github_webhook_events_delivery_id_uniq_idx').on(table.deliveryId),
     index('github_webhook_events_app_id_idx').on(table.githubAppId),
-    index('github_webhook_events_delivery_id_idx').on(table.deliveryId),
     index('github_webhook_events_processed_idx').on(table.processed),
   ],
 );

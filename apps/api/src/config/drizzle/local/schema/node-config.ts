@@ -68,6 +68,20 @@ export const nodeConfig = sqliteTable("node_config", {
     /** Stored database URL (null for not-yet-configured nodes) */
     databaseUrl: text("database_url"),
 
+    /**
+     * How the global Postgres database is provisioned:
+     *   "local"    — the API itself manages a Postgres container via
+     *                dockerode (auto-provisioned during setup). The
+     *                GlobalDbSupervisorService supervises this container.
+     *   "external" — the operator supplied an existing database URL
+     *                (SETUP_AUTO_DATABASE_URL / wizard). NOT supervised —
+     *                current probe + startup-guard logic applies.
+     *   null       — legacy/unknown (treated as external — no supervision).
+     */
+    databaseProvisioning: text("database_provisioning", {
+      enum: ["local", "external"],
+    }),
+
     /** ISO-8601 timestamp when the node was first configured (null if not configured) */
     configuredAt: text("configured_at"),
 

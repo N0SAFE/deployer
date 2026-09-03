@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 
 export const deviceSchema = z.object({
   deviceName: z.string(),
@@ -19,4 +19,5 @@ export const getStatsContract = pushStatsOps
   .path("/stats")
   .input(z.object({}))
   .output(getStatsOutputSchema)
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

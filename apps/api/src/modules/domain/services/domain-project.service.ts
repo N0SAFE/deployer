@@ -1,15 +1,14 @@
 import { Injectable } from "@nestjs/common";
 import { DomainAdapter } from "@/core/modules/domain/adapters/domain.adapter";
 import { ProjectAccessService } from "@/core/modules/project/services/project-access.service";
+import { DomainVerificationService } from "@/core/modules/domain/services/domain-verification.service";
 import {
+    DomainAlreadyExistsError,
     DomainNotVerifiedError,
-    OrganizationDomainNotFoundError,
-    ProjectDomainAlreadyExistsError,
     ProjectDomainDeletionError,
     ProjectDomainNotFoundError,
     ProjectDomainUpdateError,
 } from "@/core/modules/domain/errors";
-import { OrganizationDomainRepository } from "@/core/modules/domain/repositories/organization-domain.repository";
 import { ProjectDomainRepository } from "@/core/modules/domain/repositories/project-domain.repository";
 import { ServiceDomainMappingRepository } from "@/core/modules/domain/repositories/service-domain-mapping.repository";
 
@@ -17,16 +16,16 @@ import { ServiceDomainMappingRepository } from "@/core/modules/domain/repositori
 export class DomainProjectService {
     constructor(
         private readonly projectDomainRepository: ProjectDomainRepository,
-        private readonly organizationDomainRepository: OrganizationDomainRepository,
         private readonly serviceDomainMappingRepository: ServiceDomainMappingRepository,
         private readonly projectAccessService: ProjectAccessService,
+        private readonly domainVerificationService: DomainVerificationService,
     ) {}
 
     private async assertProjectAccess(projectId: string, requesterId: string) {
         await this.projectAccessService.assertProjectAccess(
             projectId,
             requesterId,
-            ["owner", "admin"],
+            ["owner", "maintainer"],
             "You do not have permission to manage domains for this project",
         );
     }
@@ -34,7 +33,8 @@ export class DomainProjectService {
     async addProjectDomain(
         input: {
             projectId: string;
-            organizationDomainId: string;
+            domain: string;
+            verificationMethod: "txt_record" | "cname_record";
             allowedSubdomains: string[];
             isPrimary: boolean;
         },
@@ -42,36 +42,50 @@ export class DomainProjectService {
     ) {
         await this.assertProjectAccess(input.projectId, requesterId);
 
-        const organizationDomain = await this.organizationDomainRepository.findById(input.organizationDomainId);
-        if (!organizationDomain) {
-            throw new OrganizationDomainNotFoundError(input.organizationDomainId);
-        }
-
-        if (organizationDomain.verificationStatus !== "verified") {
-            throw new DomainNotVerifiedError(organizationDomain.domain);
-        }
-
-        const existing = await this.projectDomainRepository.findByProjectAndOrgDomain(
+        const existing = await this.projectDomainRepository.findByProjectAndDomain(
             input.projectId,
-            input.organizationDomainId,
+            input.domain,
         );
-
         if (existing) {
-            throw new ProjectDomainAlreadyExistsError(input.projectId, organizationDomain.domain);
+            throw new DomainAlreadyExistsError(input.projectId, input.domain);
         }
 
+        const verificationToken = crypto.randomUUID().replace(/-/g, "");
         const projectDomain = await this.projectDomainRepository.create({
             projectId: input.projectId,
-            organizationDomainId: input.organizationDomainId,
+            domain: input.domain,
+            verificationMethod: input.verificationMethod,
+            verificationToken,
+            dnsRecordChecked: false,
+            verificationStatus: "pending",
             allowedSubdomains: input.allowedSubdomains,
             isPrimary: input.isPrimary,
         });
 
+        const recordName =
+            input.verificationMethod === "cname_record"
+                ? `_deployer.${input.domain}`
+                : "_deployer-challenge";
+        const recordValue =
+            input.verificationMethod === "cname_record"
+                ? `verify.deployer.${verificationToken}.acme.`
+                : `deployer-verification=${verificationToken}`;
+
+        const projectDomainContract = DomainAdapter.toProjectDomainContract(projectDomain);
+        const verificationInstructions = {
+            method: input.verificationMethod,
+            recordName,
+            recordValue,
+            instructions: `Create a ${input.verificationMethod.toUpperCase()} record: name "${recordName}" -> value "${recordValue}", then verify.`,
+        };
+
+        // addDomainResponse contract: projectDomain carries verificationInstructions
         return {
             projectDomain: {
-                ...DomainAdapter.toProjectDomainContract(projectDomain),
-                organizationDomain: DomainAdapter.toOrganizationDomainContract(organizationDomain),
+                ...projectDomainContract,
+                verificationInstructions,
             },
+            verificationInstructions,
             suggestions: {
                 commonSubdomains: ["api", "www", "app", "admin", "staging"],
                 wildcardOption: "*",
@@ -81,57 +95,24 @@ export class DomainProjectService {
 
     async listProjectDomains(input: { projectId: string }) {
         const projectDomains = await this.projectDomainRepository.findByProjectId(input.projectId);
-
-        return Promise.all(
-            projectDomains.map(async (projectDomain) => {
-                const organizationDomain = await this.organizationDomainRepository.findById(
-                    projectDomain.organizationDomainId,
-                );
-
-                if (!organizationDomain) {
-                    throw new OrganizationDomainNotFoundError(projectDomain.organizationDomainId);
-                }
-
-                return {
-                    ...DomainAdapter.toProjectDomainContract(projectDomain),
-                    organizationDomain: DomainAdapter.toOrganizationDomainContract(organizationDomain),
-                };
-            }),
-        );
+        return projectDomains.map(DomainAdapter.toProjectDomainContract);
     }
 
     async getAvailableDomains(input: { projectId: string }) {
         const availableDomains = await this.projectDomainRepository.getAvailableDomainsForProject(input.projectId);
 
-        const domainsWithDetails = await Promise.all(
+        return Promise.all(
             availableDomains.map(async (availableDomain) => {
-                const organizationDomain = await this.organizationDomainRepository.findById(
-                    availableDomain.organizationDomainId,
-                );
-
-                if (
-                    organizationDomain?.verificationStatus !== "verified" ||
-                    !organizationDomain.verifiedAt
-                ) {
-                    return null;
-                }
-
-                const alreadySelected = await this.projectDomainRepository.hasProjectDomainMapping(
-                    input.projectId,
-                    availableDomain.organizationDomainId,
-                );
-
+                const alreadySelected = await this.serviceDomainMappingRepository.hasProjectDomainMappings(availableDomain.id);
                 return {
-                    id: organizationDomain.id,
-                    domain: organizationDomain.domain,
+                    id: availableDomain.id,
+                    domain: availableDomain.domain,
                     verificationStatus: "verified" as const,
-                    verifiedAt: organizationDomain.verifiedAt,
+                    verifiedAt: availableDomain.verifiedAt,
                     alreadySelected,
                 };
             }),
         );
-
-        return domainsWithDetails.filter((domain): domain is NonNullable<typeof domain> => domain !== null);
     }
 
     async getAvailableDomainsForService(input: { projectId: string; serviceId?: string }) {
@@ -153,13 +134,9 @@ export class DomainProjectService {
                         })),
                 );
 
-                const organizationDomain = await this.organizationDomainRepository.findById(
-                    projectDomain.organizationDomainId,
-                );
-
                 return {
                     projectDomainId: projectDomain.id,
-                    domain: organizationDomain?.domain ?? "",
+                    domain: projectDomain.domain,
                     allowedSubdomains: projectDomain.allowedSubdomains,
                     isPrimary: projectDomain.isPrimary,
                     existingMappings,
@@ -192,15 +169,12 @@ export class DomainProjectService {
             throw new ProjectDomainUpdateError(input.domainId);
         }
 
-        const organizationDomain = await this.organizationDomainRepository.findById(updated.organizationDomainId);
-        if (!organizationDomain) {
-            throw new OrganizationDomainNotFoundError(updated.organizationDomainId);
-        }
+        return DomainAdapter.toProjectDomainContract(updated);
+    }
 
-        return {
-            ...DomainAdapter.toProjectDomainContract(updated),
-            organizationDomain: DomainAdapter.toOrganizationDomainContract(organizationDomain),
-        };
+    async verifyProjectDomain(input: { projectId: string; domainId: string }) {
+        await this.assertProjectAccess(input.projectId, "verify");
+        return this.domainVerificationService.verifyProjectDomain(input.projectId, input.domainId);
     }
 
     async removeProjectDomain(input: { domainId: string; requesterId: string }) {

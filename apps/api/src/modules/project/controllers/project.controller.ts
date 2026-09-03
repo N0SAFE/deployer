@@ -2,11 +2,15 @@ import { Controller } from "@nestjs/common";
 import { Implement, implement } from "@orpc/nest";
 import { projectContract } from "@repo/api-contracts";
 import { ProjectService } from "../services/project.service";
+import { ProjectNetworkService } from "../services/project-network.service";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 
 @Controller()
 export class ProjectController {
-    constructor(private readonly projectService: ProjectService) {}
+    constructor(
+        private readonly projectService: ProjectService,
+        private readonly projectNetworkService: ProjectNetworkService,
+    ) {}
 
     // ========================================
     // CORE CRUD
@@ -30,6 +34,8 @@ export class ProjectController {
     create() {
         return implement(projectContract.create).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
+            // The create contract is COMPACT input (body-only schema) — `input`
+            // IS the create payload, not `input.body`.
             const project = await this.projectService.createProject({ ...input, ownerId: userId });
             return { status: 201 as const, headers: {}, body: project };
         });
@@ -61,7 +67,7 @@ export class ProjectController {
     getCollaborators() {
         return implement(projectContract.getCollaborators).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const collaborators = await this.projectService.getCollaborators(input.id, userId);
+            const collaborators = await this.projectService.getCollaborators(input.params.id, userId);
             return { collaborators };
         });
     }
@@ -70,8 +76,7 @@ export class ProjectController {
     inviteCollaborator() {
         return implement(projectContract.inviteCollaborator).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const { id, ...inviteData } = input;
-            return this.projectService.inviteCollaborator(id, userId, inviteData);
+            return this.projectService.inviteCollaborator(input.params.id, userId, input.body);
         });
     }
 
@@ -79,8 +84,8 @@ export class ProjectController {
     updateCollaborator() {
         return implement(projectContract.updateCollaborator).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const { id, userId: targetUserId, ...data } = input;
-            return this.projectService.updateCollaborator(id, userId, targetUserId, data);
+            // body is optional (all fields optional) — coalesce to {}.
+            return this.projectService.updateCollaborator(input.params.id, userId, input.params.userId, input.body ?? {});
         });
     }
 
@@ -88,7 +93,7 @@ export class ProjectController {
     removeCollaborator() {
         return implement(projectContract.removeCollaborator).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            await this.projectService.removeCollaborator(input.id, userId, input.userId);
+            await this.projectService.removeCollaborator(input.params.id, userId, input.params.userId);
             return { success: true, message: "Collaborator removed successfully" };
         });
     }
@@ -101,7 +106,7 @@ export class ProjectController {
     listEnvironments() {
         return implement(projectContract.listEnvironments).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const envs = await this.projectService.listEnvironments(input.id, userId, input.type);
+            const envs = await this.projectService.listEnvironments(input.params.id, userId, input.query?.kind);
             return { environments: envs };
         });
     }
@@ -110,7 +115,7 @@ export class ProjectController {
     getEnvironment() {
         return implement(projectContract.getEnvironment).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            return this.projectService.getEnvironment(input.id, userId, input.environmentId);
+            return this.projectService.getEnvironment(input.params.id, userId, input.params.environmentId);
         });
     }
 
@@ -118,8 +123,7 @@ export class ProjectController {
     createEnvironment() {
         return implement(projectContract.createEnvironment).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const { id, ...data } = input;
-            return this.projectService.createEnvironment(id, userId, data);
+            return this.projectService.createEnvironment(input.params.id, userId, input.body);
         });
     }
 
@@ -127,8 +131,7 @@ export class ProjectController {
     updateEnvironment() {
         return implement(projectContract.updateEnvironment).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const { id, environmentId, ...data } = input;
-            return this.projectService.updateEnvironment(id, userId, environmentId, data);
+            return this.projectService.updateEnvironment(input.params.id, userId, input.params.environmentId, input.body ?? {});
         });
     }
 
@@ -136,7 +139,7 @@ export class ProjectController {
     deleteEnvironment() {
         return implement(projectContract.deleteEnvironment).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            await this.projectService.deleteEnvironment(input.id, userId, input.environmentId);
+            await this.projectService.deleteEnvironment(input.params.id, userId, input.params.environmentId);
             return { success: true, message: "Environment deleted successfully" };
         });
     }
@@ -145,8 +148,46 @@ export class ProjectController {
     cloneEnvironment() {
         return implement(projectContract.cloneEnvironment).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const { id, environmentId, ...data } = input;
-            return this.projectService.cloneEnvironment(id, userId, environmentId, data);
+            return this.projectService.cloneEnvironment(input.params.id, userId, input.params.environmentId, input.body);
+        });
+    }
+
+    // ========================================
+    // SERVICE × ENVIRONMENT LINKS
+    // ========================================
+
+    @Implement(projectContract.listServiceEnvironmentLinks)
+    listServiceEnvironmentLinks() {
+        return implement(projectContract.listServiceEnvironmentLinks).use(requireAuth()).handler(async ({ input, context }) => {
+            const userId = context.auth.user.id;
+            const links = await this.projectService.listServiceEnvironmentLinks(input.params.id, userId);
+            return { links };
+        });
+    }
+
+    @Implement(projectContract.upsertServiceEnvironmentLink)
+    upsertServiceEnvironmentLink() {
+        return implement(projectContract.upsertServiceEnvironmentLink).use(requireAuth()).handler(async ({ input, context }) => {
+            const userId = context.auth.user.id;
+            return this.projectService.upsertServiceEnvironmentLink(input.params.id, userId, input.body);
+        });
+    }
+
+    // ========================================
+    // NETWORK CONFIGURATION (DNS provider + zone + records)
+    // ========================================
+
+    @Implement(projectContract.getNetwork)
+    getNetwork() {
+        return implement(projectContract.getNetwork).use(requireAuth()).handler(async ({ input }) => {
+            return this.projectNetworkService.getNetwork(input.params.id);
+        });
+    }
+
+    @Implement(projectContract.updateNetwork)
+    updateNetwork() {
+        return implement(projectContract.updateNetwork).use(requireAuth()).handler(async ({ input }) => {
+            return this.projectNetworkService.updateNetwork(input.params.id, input.body ?? {});
         });
     }
 
@@ -158,7 +199,7 @@ export class ProjectController {
     listVariableTemplates() {
         return implement(projectContract.listVariableTemplates).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const templates = await this.projectService.listVariableTemplates(input.id, userId);
+            const templates = await this.projectService.listVariableTemplates(input.params.id, userId);
             return { templates };
         });
     }
@@ -167,7 +208,7 @@ export class ProjectController {
     getVariableTemplate() {
         return implement(projectContract.getVariableTemplate).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            return this.projectService.getVariableTemplate(input.id, userId, input.templateId);
+            return this.projectService.getVariableTemplate(input.params.id, userId, input.params.templateId);
         });
     }
 
@@ -175,8 +216,7 @@ export class ProjectController {
     createVariableTemplate() {
         return implement(projectContract.createVariableTemplate).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const { id, ...data } = input;
-            return this.projectService.createVariableTemplate(id, userId, data);
+            return this.projectService.createVariableTemplate(input.params.id, userId, input.body);
         });
     }
 
@@ -184,8 +224,7 @@ export class ProjectController {
     updateVariableTemplate() {
         return implement(projectContract.updateVariableTemplate).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const { id, templateId, ...data } = input;
-            return this.projectService.updateVariableTemplate(id, userId, templateId, data);
+            return this.projectService.updateVariableTemplate(input.params.id, userId, input.params.templateId, input.body ?? {});
         });
     }
 
@@ -193,7 +232,7 @@ export class ProjectController {
     deleteVariableTemplate() {
         return implement(projectContract.deleteVariableTemplate).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            await this.projectService.deleteVariableTemplate(input.id, userId, input.templateId);
+            await this.projectService.deleteVariableTemplate(input.params.id, userId, input.params.templateId);
             return { success: true, message: "Template deleted successfully" };
         });
     }
@@ -206,7 +245,7 @@ export class ProjectController {
     getGeneralConfig() {
         return implement(projectContract.getGeneralConfig).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            return this.projectService.getGeneralConfig(input.id, userId);
+            return this.projectService.getGeneralConfig(input.params.id, userId);
         });
     }
 
@@ -214,8 +253,7 @@ export class ProjectController {
     updateGeneralConfig() {
         return implement(projectContract.updateGeneralConfig).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const { id, ...patch } = input;
-            return this.projectService.updateGeneralConfig(id, userId, patch);
+            return this.projectService.updateGeneralConfig(input.params.id, userId, input.body ?? {});
         });
     }
 
@@ -223,7 +261,7 @@ export class ProjectController {
     getEnvironmentConfig() {
         return implement(projectContract.getEnvironmentConfig).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            return this.projectService.getEnvironmentConfig(input.id, userId);
+            return this.projectService.getEnvironmentConfig(input.params.id, userId);
         });
     }
 
@@ -231,8 +269,7 @@ export class ProjectController {
     updateEnvironmentConfig() {
         return implement(projectContract.updateEnvironmentConfig).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const { id, ...patch } = input;
-            return this.projectService.updateEnvironmentConfig(id, userId, patch);
+            return this.projectService.updateEnvironmentConfig(input.params.id, userId, input.body ?? {});
         });
     }
 
@@ -240,7 +277,7 @@ export class ProjectController {
     getDeploymentConfig() {
         return implement(projectContract.getDeploymentConfig).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            return this.projectService.getDeploymentConfig(input.id, userId);
+            return this.projectService.getDeploymentConfig(input.params.id, userId);
         });
     }
 
@@ -248,8 +285,7 @@ export class ProjectController {
     updateDeploymentConfig() {
         return implement(projectContract.updateDeploymentConfig).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const { id, ...patch } = input;
-            return this.projectService.updateDeploymentConfig(id, userId, patch);
+            return this.projectService.updateDeploymentConfig(input.params.id, userId, input.body ?? {});
         });
     }
 
@@ -257,7 +293,7 @@ export class ProjectController {
     getSecurityConfig() {
         return implement(projectContract.getSecurityConfig).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            return this.projectService.getSecurityConfig(input.id, userId);
+            return this.projectService.getSecurityConfig(input.params.id, userId);
         });
     }
 
@@ -265,8 +301,7 @@ export class ProjectController {
     updateSecurityConfig() {
         return implement(projectContract.updateSecurityConfig).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const { id, ...patch } = input;
-            return this.projectService.updateSecurityConfig(id, userId, patch);
+            return this.projectService.updateSecurityConfig(input.params.id, userId, input.body ?? {});
         });
     }
 
@@ -274,7 +309,7 @@ export class ProjectController {
     getResourceConfig() {
         return implement(projectContract.getResourceConfig).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            return this.projectService.getResourceConfig(input.id, userId);
+            return this.projectService.getResourceConfig(input.params.id, userId);
         });
     }
 
@@ -282,8 +317,7 @@ export class ProjectController {
     updateResourceConfig() {
         return implement(projectContract.updateResourceConfig).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const { id, ...patch } = input;
-            return this.projectService.updateResourceConfig(id, userId, patch);
+            return this.projectService.updateResourceConfig(input.params.id, userId, input.body ?? {});
         });
     }
 
@@ -291,7 +325,7 @@ export class ProjectController {
     getNotificationConfig() {
         return implement(projectContract.getNotificationConfig).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            return this.projectService.getNotificationConfig(input.id, userId);
+            return this.projectService.getNotificationConfig(input.params.id, userId);
         });
     }
 
@@ -299,8 +333,7 @@ export class ProjectController {
     updateNotificationConfig() {
         return implement(projectContract.updateNotificationConfig).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const { id, ...patch } = input;
-            return this.projectService.updateNotificationConfig(id, userId, patch);
+            return this.projectService.updateNotificationConfig(input.params.id, userId, input.body ?? {});
         });
     }
 
@@ -312,8 +345,7 @@ export class ProjectController {
     resolveVariables() {
         return implement(projectContract.resolveVariables).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const { id, ...data } = input;
-            return this.projectService.resolveVariables(id, userId, data);
+            return this.projectService.resolveVariables(input.params.id, userId, input.body);
         });
     }
 
@@ -321,8 +353,7 @@ export class ProjectController {
     getAvailableVariables() {
         return implement(projectContract.getAvailableVariables).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const { id, ...query } = input;
-            return this.projectService.getAvailableVariables(id, userId, query);
+            return this.projectService.getAvailableVariables(input.params.id, userId, input.query);
         });
     }
 
@@ -330,7 +361,7 @@ export class ProjectController {
     getEnvironmentStatus() {
         return implement(projectContract.getEnvironmentStatus).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const env = await this.projectService.getEnvironment(input.id, userId, input.environmentId);
+            const env = await this.projectService.getEnvironment(input.params.id, userId, input.params.environmentId);
             return {
                 environmentId: env.id,
                 status: env.status,
@@ -345,7 +376,7 @@ export class ProjectController {
     getAllEnvironmentStatuses() {
         return implement(projectContract.getAllEnvironmentStatuses).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const envs = await this.projectService.listEnvironments(input.id, userId);
+            const envs = await this.projectService.listEnvironments(input.params.id, userId);
             return {
                 statuses: envs.map((env) => ({
                     environmentId: env.id,
@@ -363,7 +394,7 @@ export class ProjectController {
     refreshEnvironmentStatus() {
         return implement(projectContract.refreshEnvironmentStatus).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
-            const env = await this.projectService.getEnvironment(input.id, userId, input.environmentId);
+            const env = await this.projectService.getEnvironment(input.params.id, userId, input.params.environmentId);
             // TODO: trigger actual health check
             return {
                 success: true,

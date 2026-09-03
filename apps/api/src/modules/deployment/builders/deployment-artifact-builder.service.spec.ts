@@ -240,7 +240,7 @@ describe("DeploymentArtifactBuilderService", () => {
                 },
                 fallbackContainerImage: null,
             }),
-        ).rejects.toThrow("Builder 'dockerfile' requires a Dockerfile in upload context");
+        ).rejects.toThrow("Builder 'dockerfile' requires a Dockerfile in the source context");
 
         expect(dockerService.buildImage).not.toHaveBeenCalled();
     });

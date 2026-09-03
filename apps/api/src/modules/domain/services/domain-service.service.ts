@@ -3,7 +3,6 @@ import { DomainAdapter } from "@/core/modules/domain/adapters/domain.adapter";
 import { DomainConflictService } from "@/core/modules/domain/services/domain-conflict.service";
 import { ProjectAccessService } from "@/core/modules/project/services/project-access.service";
 import {
-    OrganizationDomainNotFoundError,
     ProjectDomainNotFoundError,
     ServiceDomainMappingDeletionError,
     ServiceDomainMappingNotFoundError,
@@ -12,7 +11,6 @@ import {
     SetPrimaryDomainError,
     SubdomainConflictError,
 } from "@/core/modules/domain/errors";
-import { OrganizationDomainRepository } from "@/core/modules/domain/repositories/organization-domain.repository";
 import { ProjectDomainRepository } from "@/core/modules/domain/repositories/project-domain.repository";
 import { ServiceDomainMappingRepository } from "@/core/modules/domain/repositories/service-domain-mapping.repository";
 
@@ -21,7 +19,6 @@ export class DomainServiceService {
     constructor(
         private readonly serviceDomainMappingRepository: ServiceDomainMappingRepository,
         private readonly projectDomainRepository: ProjectDomainRepository,
-        private readonly organizationDomainRepository: OrganizationDomainRepository,
         private readonly domainConflictService: DomainConflictService,
         private readonly projectAccessService: ProjectAccessService,
     ) {}
@@ -30,7 +27,7 @@ export class DomainServiceService {
         await this.projectAccessService.assertProjectAccess(
             projectId,
             requesterId,
-            ["owner", "admin"],
+            ["owner", "maintainer"],
             "You do not have permission to manage domains for this project",
         );
     }
@@ -59,20 +56,9 @@ export class DomainServiceService {
                     throw new ProjectDomainNotFoundError(mapping.projectDomainId);
                 }
 
-                const organizationDomain = await this.organizationDomainRepository.findById(
-                    projectDomain.organizationDomainId,
-                );
-                if (!organizationDomain) {
-                    throw new OrganizationDomainNotFoundError(projectDomain.organizationDomainId);
-                }
-
                 return {
                     ...DomainAdapter.toServiceDomainMappingWithUrl(mapping, mapping.fullUrl),
-                    organizationDomain: {
-                        id: organizationDomain.id,
-                        domain: organizationDomain.domain,
-                        verificationStatus: organizationDomain.verificationStatus as "verified",
-                    },
+                    domain: projectDomain.domain,
                 };
             }),
         );
@@ -131,13 +117,6 @@ export class DomainServiceService {
             throw new ServiceDomainMappingNotFoundError(mapping.id);
         }
 
-        const organizationDomain = await this.organizationDomainRepository.findById(
-            projectDomain.organizationDomainId,
-        );
-        if (!organizationDomain) {
-            throw new OrganizationDomainNotFoundError(projectDomain.organizationDomainId);
-        }
-
         const sharedMappings = await this.serviceDomainMappingRepository.findBySubdomain(
             input.projectDomainId,
             input.subdomain,
@@ -160,11 +139,7 @@ export class DomainServiceService {
         return {
             mapping: {
                 ...DomainAdapter.toServiceDomainMappingWithUrl(mapping, fullUrl),
-                organizationDomain: {
-                    id: organizationDomain.id,
-                    domain: organizationDomain.domain,
-                    verificationStatus: organizationDomain.verificationStatus as "verified",
-                },
+                domain: projectDomain.domain,
             },
             fullUrl,
             warning,
@@ -231,20 +206,9 @@ export class DomainServiceService {
             throw new ServiceDomainMappingNotFoundError(updated.id);
         }
 
-        const organizationDomain = await this.organizationDomainRepository.findById(
-            projectDomain.organizationDomainId,
-        );
-        if (!organizationDomain) {
-            throw new OrganizationDomainNotFoundError(projectDomain.organizationDomainId);
-        }
-
         return {
             ...DomainAdapter.toServiceDomainMappingWithUrl(updated, fullUrl),
-            organizationDomain: {
-                id: organizationDomain.id,
-                domain: organizationDomain.domain,
-                verificationStatus: organizationDomain.verificationStatus as "verified",
-            },
+            domain: projectDomain.domain,
         };
     }
 
@@ -288,20 +252,9 @@ export class DomainServiceService {
             throw new ProjectDomainNotFoundError(updated.projectDomainId);
         }
 
-        const organizationDomain = await this.organizationDomainRepository.findById(
-            projectDomain.organizationDomainId,
-        );
-        if (!organizationDomain) {
-            throw new OrganizationDomainNotFoundError(projectDomain.organizationDomainId);
-        }
-
         return {
             ...DomainAdapter.toServiceDomainMappingWithUrl(updated, fullUrl),
-            organizationDomain: {
-                id: organizationDomain.id,
-                domain: organizationDomain.domain,
-                verificationStatus: organizationDomain.verificationStatus as "verified",
-            },
+            domain: projectDomain.domain,
         };
     }
 

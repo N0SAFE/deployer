@@ -1,6 +1,6 @@
 import z from "zod/v4";
 
-export const configurationScopeSchema = z.enum(["organization", "project", "service", "user"]);
+export const configurationScopeSchema = z.enum(["project", "service", "user"]);
 export type ConfigurationScope = z.infer<typeof configurationScopeSchema>;
 
 export const requestedEnvironmentSchema = z.enum([
@@ -251,15 +251,15 @@ export const runtimeStoragePolicySchema = z.union([
 ]);
 export type RuntimeStoragePolicy = z.infer<typeof runtimeStoragePolicySchema>;
 
-export const organizationDeploymentConfigSchema = z.object({
+export const meshDeploymentConfigSchema = z.object({
     defaultStrategy: configurationStrategySchema.optional(),
     enforceHttpsRedirect: z.boolean().optional(),
     previewEnabled: z.boolean().optional(),
 });
 
-export const organizationRuntimeConfigSchema = z
+export const meshRuntimeConfigSchema = z
     .object({
-        deployment: organizationDeploymentConfigSchema.optional(),
+        deployment: meshDeploymentConfigSchema.optional(),
         allowedProviders: z.array(configurationProviderTypeSchema).optional(),
         allowedRunners: z.array(configurationRunnerTypeSchema).optional(),
         projectLimits: runtimeResourcesSchema.optional(),
@@ -272,7 +272,7 @@ export const organizationRuntimeConfigSchema = z
         metadata: z.record(z.string(), z.unknown()).optional(),
     })
     .partial();
-export type OrganizationRuntimeConfig = z.infer<typeof organizationRuntimeConfigSchema>;
+export type MeshRuntimeConfig = z.infer<typeof meshRuntimeConfigSchema>;
 
 export const projectSettingsRuntimeConfigSchema = z.object({
     autoDeployEnabled: z.boolean().optional(),
@@ -414,7 +414,6 @@ export const runtimeConstraintsEffectiveSchema = z.object({
 
 export const runtimeConfigurationContextSchema = z
     .object({
-        organizationId: z.string().optional(),
         projectId: z.string().optional(),
         serviceId: z.string().optional(),
         userId: z.string().optional(),
@@ -445,7 +444,6 @@ export const runtimeConfigurationDispatchConditionSchema = z
         requestedProviderTypeIn: z.array(configurationProviderTypeSchema).optional(),
         requestedRunnerTypeIn: z.array(configurationRunnerTypeSchema).optional(),
         actorRoleIn: z.array(z.string()).optional(),
-        organizationIdIn: z.array(z.string()).optional(),
         projectIdIn: z.array(z.string()).optional(),
         serviceIdIn: z.array(z.string()).optional(),
         userIdIn: z.array(z.string()).optional(),
@@ -545,7 +543,7 @@ export type RuntimeConfigurationStateMachine = z.infer<typeof runtimeConfigurati
 export const runtimeConfigurationResolverInputSchema = z.object({
     scope: configurationScopeSchema,
     context: runtimeConfigurationContextSchema,
-    organization: organizationRuntimeConfigSchema.optional(),
+    mesh: meshRuntimeConfigSchema.optional(),
     project: projectRuntimeConfigSchema.optional(),
     service: serviceRuntimeConfigSchema.optional(),
     user: userRuntimeConfigSchema.optional(),
@@ -558,9 +556,6 @@ interface RuntimeConfigurationResolverSharedInput {
 }
 
 interface RuntimeConfigurationContextByScopeMap {
-    organization: RuntimeConfigurationContext & {
-        organizationId: string;
-    };
     project: RuntimeConfigurationContext & {
         projectId: string;
     };
@@ -577,18 +572,10 @@ export type RuntimeConfigurationContextByScope<TScope extends ConfigurationScope
     RuntimeConfigurationContextByScopeMap[TScope];
 
 interface RuntimeConfigurationResolverInputByScopeMap {
-    organization: RuntimeConfigurationResolverSharedInput & {
-        scope: "organization";
-        context: RuntimeConfigurationContextByScope<"organization">;
-        organization: OrganizationRuntimeConfig;
-        project?: ProjectRuntimeConfig;
-        service?: ServiceRuntimeConfig;
-        user?: UserRuntimeConfig;
-    };
     project: RuntimeConfigurationResolverSharedInput & {
         scope: "project";
         context: RuntimeConfigurationContextByScope<"project">;
-        organization?: OrganizationRuntimeConfig;
+        mesh?: MeshRuntimeConfig;
         project: ProjectRuntimeConfig;
         service?: ServiceRuntimeConfig;
         user?: UserRuntimeConfig;
@@ -596,7 +583,7 @@ interface RuntimeConfigurationResolverInputByScopeMap {
     service: RuntimeConfigurationResolverSharedInput & {
         scope: "service";
         context: RuntimeConfigurationContextByScope<"service">;
-        organization?: OrganizationRuntimeConfig;
+        mesh?: MeshRuntimeConfig;
         project?: ProjectRuntimeConfig;
         service: ServiceRuntimeConfig;
         user?: UserRuntimeConfig;
@@ -604,7 +591,7 @@ interface RuntimeConfigurationResolverInputByScopeMap {
     user: RuntimeConfigurationResolverSharedInput & {
         scope: "user";
         context: RuntimeConfigurationContextByScope<"user">;
-        organization?: OrganizationRuntimeConfig;
+        mesh?: MeshRuntimeConfig;
         project?: ProjectRuntimeConfig;
         service?: ServiceRuntimeConfig;
         user: UserRuntimeConfig;
@@ -619,7 +606,7 @@ export type RuntimeConfigurationResolverScopedInput =
 export const resolvedRuntimeConfigurationSchema = z.object({
     scope: configurationScopeSchema,
     context: runtimeConfigurationContextSchema,
-    organization: organizationRuntimeConfigSchema,
+    mesh: meshRuntimeConfigSchema,
     project: projectRuntimeConfigSchema,
     service: serviceRuntimeConfigSchema,
     user: userRuntimeConfigSchema,

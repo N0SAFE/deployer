@@ -36,6 +36,7 @@ import { DockerContainerRuntimeService } from "../runtime/docker-container-runti
 import { DockerContainerShellDomainService } from "../runtime/docker-container-shell-domain.service";
 import { DockerContainerResolutionService } from "./docker-container-resolution.service";
 
+import { AppError } from "@repo/errors";
 interface DockerTerminalStreamEvent {
   sessionId: string;
   timestamp: Date;
@@ -64,7 +65,7 @@ export class DockerContainersOrchestratorService {
     private readonly coreDockerService: CoreDockerService,
   ) {}
 
-  listContainers(input: DockerContainerListInput, options?: { localOnly?: boolean }) {
+  listContainers(input: DockerContainerListInput = {} as DockerContainerListInput, options?: { localOnly?: boolean }) {
     this.debug("DockerContainersOrchestratorService.listContainers", {
       limit: input.limit,
       offset: input.offset,
@@ -154,7 +155,7 @@ export class DockerContainersOrchestratorService {
       }
       default: {
         const exhaustiveCheck: never = input.action;
-        throw new Error(`Unsupported container action: ${String(exhaustiveCheck)}`);
+        throw new AppError(`Unsupported container action: ${String(exhaustiveCheck)}`, `INTERNAL_ERROR`);
       }
     }
 
@@ -357,7 +358,7 @@ export class DockerContainersOrchestratorService {
     }
   }
 
-  private async getFirstResponse<T>(call: Promise<{ responses: T[] }>): Promise<T | null> {
+  private async getFirstResponse<T>(call: Promise<{ responses: readonly T[] }>): Promise<T | null> {
     const result = await call;
     return result.responses[0] ?? null;
   }

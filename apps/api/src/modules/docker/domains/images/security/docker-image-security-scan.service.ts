@@ -149,7 +149,7 @@ export class DockerImageSecurityScanService {
             return;
           }
 
-          if (persisted) {
+          if (persisted && persisted.scanSummary) {
             subscriber.next({
               imageId,
               timestamp: new Date().toISOString(),
@@ -266,7 +266,7 @@ export class DockerImageSecurityScanService {
           maxAgeMs: maxCacheAgeMs,
         });
 
-        if (persisted) {
+        if (persisted && persisted.scanSummary) {
           emitEvent({
             imageId,
             timestamp: new Date().toISOString(),

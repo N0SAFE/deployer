@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 
 export const sendTestNotificationOutputSchema = z.object({
   success: z.number(),
@@ -17,4 +17,5 @@ export const sendTestNotificationContract = pushSendTestNotificationOps
   .path("/test")
   .input(z.object({}))
   .output(sendTestNotificationOutputSchema)
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

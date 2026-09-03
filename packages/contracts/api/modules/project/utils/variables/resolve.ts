@@ -15,4 +15,7 @@ export const projectResolveVariablesContract = projectResolvedVariablesOps
             ),
     )
     .output(resolvedVariablesOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
+
+import { standardDomainErrorContracts } from "@repo/orpc-utils";

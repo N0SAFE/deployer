@@ -24,7 +24,7 @@ interface BreadcrumbConfig {
  */
 const pathLabels: Record<string, string> = {
   dashboard: 'Dashboard',
-  organizations: 'Organizations',
+  deployments: 'Deployments',
   admin: 'Admin',
   users: 'Users',
   system: 'System',
@@ -32,7 +32,6 @@ const pathLabels: Record<string, string> = {
   demo: 'Demo',
   settings: 'Settings',
   projects: 'Projects',
-  deployments: 'Deployments',
   docker: 'Docker',
   containers: 'Containers',
   logs: 'Logs',
@@ -54,11 +53,12 @@ function formatSegmentLabel(segment: string): string {
     return customLabel
   }
   
-  // Check if it looks like a UUID or ID
+  // Check if it looks like a UUID or ID — detail layouts (project/service)
+  // render their own richer breadcrumbs, so a generic "Details" is noise.
   const uuidRegex = /^[a-f0-9-]{36}$/i
   const mongoIdRegex = /^[a-f0-9]{24}$/i
   if (uuidRegex.exec(segment) ?? mongoIdRegex.exec(segment)) {
-    return 'Details'
+    return ''
   }
   
   // Convert kebab-case or camelCase to Title Case
@@ -68,7 +68,20 @@ function formatSegmentLabel(segment: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
+/**
+ * DashboardBreadcrumbs — breadcrumb trail for the dashboard header.
+ * 
+ * Calls usePathname() (URL data). On routes with dynamic params not covered
+ * by generateStaticParams, the pathname suspends during prerendering. The
+ * Suspense boundary lives in the dashboard layout (server tree) — it wraps
+ * this component so the static shell can commit and the breadcrumbs stream
+ * in behind their skeleton.
+ */
 export function DashboardBreadcrumbs() {
+  return <DashboardBreadcrumbsInner />
+}
+
+function DashboardBreadcrumbsInner() {
   const pathname = usePathname()
   
   // Split pathname into segments and filter out empty ones
@@ -79,14 +92,14 @@ export function DashboardBreadcrumbs() {
     return null
   }
   
-  // Build breadcrumb items
-  const breadcrumbs: BreadcrumbConfig[] = segments.map((segment, index) => {
+  // Build breadcrumb items — dynamic-ID segments (project/service detail)
+  // render their own richer breadcrumbs, so skip them here to avoid "Details".
+  const breadcrumbs: BreadcrumbConfig[] = []
+  segments.forEach((segment, index) => {
     const href = '/' + segments.slice(0, index + 1).join('/')
     const label = formatSegmentLabel(segment)
-    
-    return {
-      label,
-      href,
+    if (label) {
+      breadcrumbs.push({ label, href })
     }
   })
   

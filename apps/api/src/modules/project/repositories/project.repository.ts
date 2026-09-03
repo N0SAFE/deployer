@@ -6,13 +6,14 @@ import {
     projects,
     services,
 } from "@/config/drizzle/global/schema/deployment";
-import { environments, variableTemplates } from "@/config/drizzle/global/schema/environment";
+import { environments, variableTemplates, serviceEnvironments } from "@/config/drizzle/global/schema/environment";
 import { user } from "@/config/drizzle/global/schema/auth";
 import { localEventOutbox } from "@/config/drizzle/global/schema/runtime";
 import { and, asc, count, desc, eq, ilike, inArray } from "drizzle-orm";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";
-import { ConflictError } from "@/core/errors/app-error";
+import { ConflictError } from "@repo/errors";
+import { environmentRulesSchema, projectNetworkConfigSchema } from "@repo/contracts-entities";
 import type { ProjectListInput } from "@repo/api-contracts/modules/project/list";
 
 // ---------------------------------------------------------------------------
@@ -27,11 +28,12 @@ type TemplateRow = typeof variableTemplates.$inferSelect;
 type ProjectCreateInput = Pick<ProjectRow, "name" | "ownerId"> & {
     description?: string | null;
     baseDomain?: string | null;
+    network?: ProjectRow["network"];
     settings?: ProjectRow["settings"];
 };
 
 type ProjectUpdateInput = Partial<
-    Pick<ProjectRow, "name" | "description" | "baseDomain" | "settings">
+    Pick<ProjectRow, "name" | "description" | "baseDomain" | "network" | "settings">
 >;
 
 interface CollaboratorCreateInput {
@@ -50,7 +52,14 @@ type CollaboratorUpdateInput = Partial<{
 interface EnvironmentCreateInput {
     projectId: string;
     name: string;
-    type: "production" | "staging" | "preview" | "development";
+    /** The primitive KIND: stable | preview | ephemeral. */
+    kind: "stable" | "preview" | "ephemeral";
+    /** Legacy built-in name (back-compat), e.g. development for custom envs. */
+    type?: "production" | "staging" | "preview" | "development";
+    /** Per-env rules (profiles, autoDeploy, strategy…). */
+    rules?: EnvironmentRow["rules"];
+    /** Trigger for preview/ephemeral envs. */
+    trigger?: EnvironmentRow["trigger"];
     description?: string | null;
     domainConfig?: EnvironmentRow["domainConfig"];
     deploymentConfig?: EnvironmentRow["deploymentConfig"];
@@ -60,7 +69,10 @@ interface EnvironmentCreateInput {
 
 type EnvironmentUpdateInput = Partial<{
     name: string;
+    kind: "stable" | "preview" | "ephemeral";
     type: "production" | "staging" | "preview" | "development";
+    rules: EnvironmentRow["rules"];
+    trigger: EnvironmentRow["trigger"];
     description: string | null;
     domainConfig: EnvironmentRow["domainConfig"];
     deploymentConfig: EnvironmentRow["deploymentConfig"];
@@ -89,14 +101,38 @@ const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
 function transformProject(row: ProjectRow) {
     return {
         ...row,
+        // Fill per-project network defaults (DB null → entity requires the
+        // full network object).
+        network: row.network
+            ? projectNetworkConfigSchema.safeParse(row.network).success
+                ? row.network
+                : projectNetworkConfigSchema.parse({})
+            : null,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
     };
 }
 
+/**
+ * Map legacy DB role names to the canonical project roles (SSOT:
+ * `PROJECT_ROLES` from `@repo/auth` → `projectRoleSchema`). The DB enum now
+ * stores canonical names; the map preserves any legacy (`admin`, `developer`)
+ * rows and guarantees the result is a canonical `ProjectRole`.
+ */
+type ProjectRole = import("zod/v4").infer<typeof import("@repo/contracts-entities").projectRoleSchema>;
+const LEGACY_TO_CANONICAL_ROLE: Partial<Record<CollaboratorRow["role"], ProjectRole>> = {
+    admin: "maintainer",
+    developer: "deployer",
+    owner: "owner",
+    maintainer: "maintainer",
+    deployer: "deployer",
+    viewer: "viewer",
+};
+
 function transformCollaborator(row: CollaboratorRow) {
     return {
         ...row,
+        role: LEGACY_TO_CANONICAL_ROLE[row.role] ?? (row.role as ProjectRole),
         invitedAt: row.invitedAt.toISOString(),
         acceptedAt: row.acceptedAt?.toISOString() ?? null,
         createdAt: row.createdAt.toISOString(),
@@ -108,6 +144,10 @@ function transformEnvironment(row: EnvironmentRow) {
     return {
         ...row,
         projectId: row.projectId,
+        // Fill per-env rule defaults (the DB may store null → entity requires
+        // the full rules object). `parse` yields a guaranteed EnvironmentRules
+        // (defaults filled), so the returned `rules` is never null.
+        rules: environmentRulesSchema.parse(row.rules ?? undefined),
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
     };
@@ -147,8 +187,8 @@ export class ProjectRepository {
         const filter = input.filter ?? {};
         const sort = input.sortBy ?? "createdAt";
         const direction = input.sortDirection ?? "desc";
-        const limit = input.limit ?? 20;
-        const offset = input.offset ?? 0;
+        const limit = input.limit;
+        const offset = input.offset;
 
         const result = await listBuilder(filter)
             .filter({
@@ -200,6 +240,7 @@ export class ProjectRepository {
                     name: data.name,
                     description: data.description ?? null,
                     baseDomain: data.baseDomain ?? null,
+                    network: data.network ?? null,
                     ownerId: data.ownerId,
                     settings: data.settings ?? null,
                     createdAt: new Date(),
@@ -244,6 +285,7 @@ export class ProjectRepository {
         if (data.name !== undefined) updates.name = data.name;
         if (data.description !== undefined) updates.description = data.description;
         if (data.baseDomain !== undefined) updates.baseDomain = data.baseDomain;
+        if (data.network !== undefined) updates.network = data.network;
         if (data.settings !== undefined) updates.settings = data.settings;
 
         const [row] = await db.transaction(async (tx) => {
@@ -486,12 +528,12 @@ export class ProjectRepository {
     // ENVIRONMENTS
     // ========================================
 
-    async findEnvironmentsByProject(projectId: string, type?: string) {
+    async findEnvironmentsByProject(projectId: string, kind?: string) {
         const db = this.databaseService.db;
         const conditions = [eq(environments.projectId, projectId)];
-        if (type) {
+        if (kind) {
             conditions.push(
-                eq(environments.type, type as "production" | "development" | "staging" | "preview"),
+                eq(environments.kind, kind as "stable" | "preview" | "ephemeral"),
             );
         }
         const rows = await db
@@ -523,7 +565,10 @@ export class ProjectRepository {
                 name: data.name,
                 slug,
                 description: data.description ?? null,
-                type: data.type,
+                kind: data.kind,
+                type: data.type ?? "development",
+                rules: data.rules ?? null,
+                trigger: data.trigger ?? null,
                 status: "pending",
                 isActive: true,
                 domainConfig: data.domainConfig ?? null,
@@ -545,6 +590,9 @@ export class ProjectRepository {
             updates.name = data.name;
             updates.slug = data.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
         }
+        if (data.kind !== undefined) updates.kind = data.kind;
+        if (data.rules !== undefined) updates.rules = data.rules;
+        if (data.trigger !== undefined) updates.trigger = data.trigger;
         if (data.type !== undefined) updates.type = data.type;
         if (data.description !== undefined) updates.description = data.description;
         if (data.domainConfig !== undefined) updates.domainConfig = data.domainConfig;
@@ -562,6 +610,75 @@ export class ProjectRepository {
     async deleteEnvironment(environmentId: string) {
         const db = this.databaseService.db;
         await db.delete(environments).where(eq(environments.id, environmentId));
+    }
+
+    // ========================================
+    // SERVICE × ENVIRONMENT LINKS
+    // ========================================
+
+    /** Resolve a service's owning project id (for link ownership checks). */
+    async findServiceProjectId(serviceId: string): Promise<string | null> {
+        const db = this.databaseService.db;
+        const [row] = await db
+            .select({ projectId: services.projectId })
+            .from(services)
+            .where(eq(services.id, serviceId))
+            .limit(1);
+        return row?.projectId ?? null;
+    }
+
+    /** List all service↔environment links for a project (with names). */
+    async findServiceEnvironmentLinksByProject(projectId: string) {
+        const db = this.databaseService.db;
+        const rows = await db
+            .select({
+                id: serviceEnvironments.id,
+                serviceId: serviceEnvironments.serviceId,
+                environmentId: serviceEnvironments.environmentId,
+                isEnabled: serviceEnvironments.isEnabled,
+                overrides: serviceEnvironments.overrides,
+                serviceName: services.name,
+                environmentName: environments.name,
+                environmentKind: environments.kind,
+            })
+            .from(serviceEnvironments)
+            .innerJoin(services, eq(services.id, serviceEnvironments.serviceId))
+            .innerJoin(environments, eq(environments.id, serviceEnvironments.environmentId))
+            .where(eq(services.projectId, projectId))
+            .orderBy(asc(environments.name), asc(services.name));
+        return rows;
+    }
+
+    /** Upsert a service↔environment link (enable/disable + overrides). */
+    async upsertServiceEnvironmentLink(input: {
+        serviceId: string;
+        environmentId: string;
+        isEnabled: boolean;
+        overrides?: Record<string, unknown> | null;
+    }) {
+        const db = this.databaseService.db;
+        const [row] = await db
+            .insert(serviceEnvironments)
+            .values({
+                id: randomUUID(),
+                serviceId: input.serviceId,
+                environmentId: input.environmentId,
+                isEnabled: input.isEnabled,
+                overrides: (input.overrides ?? null) as typeof serviceEnvironments.$inferInsert["overrides"],
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            })
+            .onConflictDoUpdate({
+                target: [serviceEnvironments.serviceId, serviceEnvironments.environmentId],
+                set: {
+                    isEnabled: input.isEnabled,
+                    overrides: (input.overrides ?? null),
+                    updatedAt: new Date(),
+                },
+            })
+            .returning();
+        if (!row) throw new ConflictError("Failed to upsert service-environment link");
+        return row;
     }
 
     // ========================================

@@ -6,7 +6,7 @@ import type {
 } from "@repo/api-contracts/modules/docker/runtime/activity";
 import type { DockerRuntimeActivityStreamInput } from "@repo/api-contracts/modules/docker/runtime/activity-stream";
 import type { DockerRuntimeEventsStreamQueryInput } from "@repo/api-contracts/modules/docker/runtime/shared";
-import type { DockerRuntimeActivityEntity } from "@repo/contracts-entities";
+import { dockerRuntimeEventSourceSchema, type DockerRuntimeActivityEntity } from "@repo/contracts-entities";
 import { DockerContainerResolutionService } from "../../containers/orchestration/docker-container-resolution.service";
 import { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
 import { DockerRuntimeActivityProjectorService } from "../../../common/events/docker-runtime-activity-projector.service";
@@ -38,9 +38,14 @@ export class DockerRuntimeActivityDomainService {
     // server-side best-effort, never load-bearing).
     const runtimeQuery: DockerRuntimeEventsStreamQueryInput = {};
     if (sourceFilter) {
-      runtimeQuery.filter = {
-        source: { operator: "eq", value: sourceFilter },
-      } as unknown as DockerRuntimeEventsStreamQueryInput["filter"];
+      // The activity stream input is a loose string; the runtime stream
+      // filter requires the closed enum — parse at the boundary.
+      const parsedSource = dockerRuntimeEventSourceSchema.safeParse(sourceFilter);
+      if (parsedSource.success) {
+        runtimeQuery.filter = {
+          source: { operator: "eq", value: parsedSource.data },
+        };
+      }
     }
     return this.dockerRuntimeStreamOrchestratorService
       .stream(runtimeQuery)

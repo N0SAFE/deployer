@@ -1,5 +1,6 @@
 # Dependencies
 node_modules
+**/node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -13,6 +14,28 @@ dist
 **/build
 **/.next
 **/out
+
+# Turborepo cache (can be GBs of .tar.zst files — must never reach Docker)
+.turbo
+**/.turbo
+*.tar.zst
+
+# Graphify knowledge graph output (large JSON dumps)
+graphify-out
+
+# Local databases / storage
+storage
+*.db
+*.db-wal
+*.db-shm
+
+# Build artifacts / reports (not needed in images)
+*.tsbuildinfo
+*.eslintcache
+nestjs-doctor-report.html
+dead-code-audit-report.md
+ts-output.txt
+test.txt
 
 # Environment files
 .env.local

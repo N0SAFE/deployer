@@ -1,4 +1,4 @@
-import { BetterAuthClientPlugin } from "better-auth"
+import type { BetterAuthClientPlugin } from "better-auth"
 
 export const loginAsClientPlugin = () => {
     return {

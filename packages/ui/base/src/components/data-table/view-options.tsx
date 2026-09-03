@@ -2,7 +2,7 @@
 
 import type { Table, Column } from "@tanstack/react-table";
 import { Check, GripVertical, Settings2, RotateCcw } from "lucide-react";
-import { Button } from "@/components/shadcn/button";
+import { Button } from "../shadcn/button";
 import {
   Command,
   CommandEmpty,
@@ -11,13 +11,13 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from "@/components/shadcn/command";
+} from "../shadcn/command";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/shadcn/popover";
-import { cn } from "@/lib/utils";
+} from "../shadcn/popover";
+import { cn } from "../../lib/utils";
 import * as React from "react";
 import { useCallback, useEffect, useState, useMemo } from "react";
 

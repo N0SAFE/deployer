@@ -1,6 +1,7 @@
+import { getErrorMessage } from "@/lib/orpc/typed-errors";
 import { NextResponse } from 'next/server'
 import { orpc } from '@/lib/orpc'
-import { unstable_rethrow } from 'next/dist/client/components/unstable-rethrow.server'
+import { unstable_rethrow } from 'next/navigation'
 
 export async function GET() {
     try {
@@ -31,7 +32,7 @@ export async function GET() {
         } catch (error: unknown) {
             unstable_rethrow(error)
             if (error instanceof Error) {
-                apiHealth.details = `Error fetching API health: ${error.message}`
+                apiHealth.details = `Error fetching API health: ${getErrorMessage(error)}`
             }
             apiHealth.status = 'unavailable'
         }

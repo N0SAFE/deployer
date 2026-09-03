@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { eq, and, ne } from 'drizzle-orm';
 import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service';
+import { AppError } from "@repo/errors";
 import {
   projectDomains,
-  organizationDomains,
 } from '@/config/drizzle/global/schema/domain';
 
 type ProjectDomain = typeof projectDomains.$inferSelect;
@@ -16,7 +16,7 @@ export class ProjectDomainRepository {
   constructor(private readonly databaseService: GlobalDatabaseService) {}
 
   /**
-   * Create a new project domain
+   * Create a new project domain (domains attach directly to a project)
    */
   async create(data: InsertProjectDomain): Promise<ProjectDomain> {
     const [domain] = await this.databaseService.db
@@ -25,10 +25,10 @@ export class ProjectDomainRepository {
       .returning();
     
     if (!domain) {
-      throw new Error('Failed to create project domain');
+      throw new AppError('Failed to create project domain', 'INTERNAL_ERROR');
     }
     
-    this.logger.debug(`Created project domain for project ${domain.projectId} using org domain ${domain.organizationDomainId}`);
+    this.logger.debug(`Created project domain ${domain.domain} for project ${domain.projectId}`);
     return domain;
   }
 
@@ -56,37 +56,37 @@ export class ProjectDomainRepository {
   }
 
   /**
-   * Find project domain by project and org domain ID
+   * Find project domain by project and domain name
    */
-  async findByProjectAndOrgDomain(
+  async findByProjectAndDomain(
     projectId: string,
-    organizationDomainId: string
+    domain: string
   ): Promise<ProjectDomain | null> {
-    const [domain] = await this.databaseService.db
+    const [row] = await this.databaseService.db
       .select()
       .from(projectDomains)
       .where(
         and(
           eq(projectDomains.projectId, projectId),
-          eq(projectDomains.organizationDomainId, organizationDomainId)
+          eq(projectDomains.domain, domain)
         )
       )
       .limit(1);
     
-    return domain ?? null;
+    return row ?? null;
   }
 
   /**
-   * Check if project already has a domain mapping for this org domain
+   * Check if project already has this domain name
    */
-  async hasProjectDomainMapping(
+  async hasProjectDomain(
     projectId: string,
-    organizationDomainId: string,
+    domain: string,
     excludeId?: string
   ): Promise<boolean> {
     const baseConditions = [
       eq(projectDomains.projectId, projectId),
-      eq(projectDomains.organizationDomainId, organizationDomainId),
+      eq(projectDomains.domain, domain),
     ];
 
     if (excludeId) {
@@ -103,62 +103,38 @@ export class ProjectDomainRepository {
   }
 
   /**
-   * Get available verified domains for a project
-   * This shows which org domains the project hasn't used yet
+   * Find all pending project domains (for auto-verification sweeps)
    */
-  async getAvailableDomainsForProject(projectId: string): Promise<{
-    organizationDomainId: string;
+  async findPending(): Promise<ProjectDomain[]> {
+    return await this.databaseService.db
+      .select()
+      .from(projectDomains)
+      .where(eq(projectDomains.verificationStatus, 'pending'));
+  }
+
+  /**
+   * Get the project's OWN verified domains (direct-domain model — no org).
+   */
+  async getAvailableDomainsForProject(projectId: string): Promise<Array<{
+    id: string;
     domain: string;
-    organizationId: string;
-  }[]> {
-    // Get the project's owner organization through organization_domains
-    // We need to find what organization this project belongs to
-    const existingProjectDomains = await this.databaseService.db
+    verifiedAt: Date;
+  }>> {
+    const rows = await this.databaseService.db
       .select({
-        organizationId: organizationDomains.organizationId,
-        organizationDomainId: organizationDomains.id,
+        id: projectDomains.id,
+        domain: projectDomains.domain,
+        verifiedAt: projectDomains.verifiedAt,
       })
       .from(projectDomains)
-      .innerJoin(organizationDomains, eq(projectDomains.organizationDomainId, organizationDomains.id))
-      .where(eq(projectDomains.projectId, projectId))
-      .limit(1);
-
-    if (existingProjectDomains.length === 0) {
-      // Project has no domains yet, can't determine organization
-      // This should be handled at a higher level
-      return [];
-    }
-
-    const firstDomain = existingProjectDomains[0];
-    if (!firstDomain) {
-      return [];
-    }
-    const orgId = firstDomain.organizationId;
-
-    // Get all verified domains for the organization
-    const allOrgDomains = await this.databaseService.db
-      .select({
-        organizationDomainId: organizationDomains.id,
-        domain: organizationDomains.domain,
-        organizationId: organizationDomains.organizationId,
-      })
-      .from(organizationDomains)
       .where(
         and(
-          eq(organizationDomains.organizationId, orgId),
-          eq(organizationDomains.verificationStatus, 'verified')
+          eq(projectDomains.projectId, projectId),
+          eq(projectDomains.verificationStatus, 'verified')
         )
       );
-
-    // Filter out domains already used by this project
-    const usedDomainIds = await this.databaseService.db
-      .select({ organizationDomainId: projectDomains.organizationDomainId })
-      .from(projectDomains)
-      .where(eq(projectDomains.projectId, projectId));
-
-    const usedIds = new Set(usedDomainIds.map(d => d.organizationDomainId));
-
-    return allOrgDomains.filter(d => !usedIds.has(d.organizationDomainId));
+    
+    return rows.filter((d): d is typeof d & { verifiedAt: Date } => d.verifiedAt !== null);
   }
 
   /**
@@ -229,15 +205,5 @@ export class ProjectDomainRepository {
     return result.length;
   }
 
-  /**
-   * Count domains using a specific organization domain
-   */
-  async countByOrganizationDomainId(organizationDomainId: string): Promise<number> {
-    const result = await this.databaseService.db
-      .select({ count: projectDomains.id })
-      .from(projectDomains)
-      .where(eq(projectDomains.organizationDomainId, organizationDomainId));
-    
-    return result.length;
-  }
+
 }

@@ -17,6 +17,7 @@ import type {
 import { ServerConnectionConsumerRegistry } from "./mesh-consumer-registry";
 import { isFilterSubset, unionFilters } from "../filter/mesh-filter-subset";
 
+import { NotFoundError } from "@repo/errors";
 // ─── Promotion decision ─────────────────────────────────────────────────────
 
 export type PromotionDecision =
@@ -131,7 +132,7 @@ export class MeshConnectionRegistry {
   ): Promise<void> {
     const conn = this.connections.get(connectionId);
     if (!conn) {
-      throw new Error(`Connection ${connectionId} not found`);
+      throw new NotFoundError(`Connection ${connectionId} not found`);
     }
 
     conn.consumers.set(consumerId, {
@@ -147,7 +148,7 @@ export class MeshConnectionRegistry {
       consumerCount: conn.consumers.size,
     });
 
-    this.logger.debug(`Attached consumer ${consumerId} to connection ${connectionId} (${conn.consumers.size} total)`);
+    this.logger.debug(`Attached consumer ${consumerId} to connection ${connectionId} (${String(conn.consumers.size)} total)`);
   }
 
   // ─── Promote a connection's filter ──────────────────────────────────────────
@@ -158,7 +159,7 @@ export class MeshConnectionRegistry {
   ): Promise<void> {
     const conn = this.connections.get(connectionId);
     if (!conn) {
-      throw new Error(`Connection ${connectionId} not found`);
+      throw new NotFoundError(`Connection ${connectionId} not found`);
     }
 
     // Update the server filter to the new broader scope.

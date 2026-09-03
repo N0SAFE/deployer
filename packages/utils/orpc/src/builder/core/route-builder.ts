@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/no-dynamic-delete */
+/* eslint-disable @typescript-eslint/no-explicit-any -- the plugin generic requires `any` to represent "any schema plugin" and impl signatures of overloaded fluent methods widen to `any` to satisfy tsgo's overload-compat check */
 /**
  * Main RouteBuilder class for route-builder-v2
  * Provides fluent API for creating ORPC contracts with Standard Schema
  */
 
 import { oc } from "@orpc/contract";
+import type { ContractProcedure } from "@orpc/contract";
 import type { HTTPPath, AnySchema } from "../../types/types";
 import type { 
     RouteMetadata, 
@@ -21,12 +23,21 @@ import type {
 } from "../../types/standard-schema-helpers";
 import {
     voidSchema,
-    emptyObjectSchema,
     objectSchema,
     optionalSchema,
     literalSchema,
 } from "../../types/standard-schema-helpers";
-import { type DetailedInputBuilderSchema } from "../input/builder";
+import {
+    BasePluginTransformer,
+    StandardPluginTransformer,
+    type PluginEmptyObject,
+    type PluginDetailedOutput,
+    type PluginDetectDetailedOutput,
+    type PluginBrandedInputParts,
+    type PluginBuildInput,
+    type PluginBuildOutput,
+} from "../plugin";
+import { type DetailedInputBuilderSchema, DetailedInputBuilder } from "../input/builder";
 import { InputSchemaProxy } from "../input/proxy";
 import { createOutputSchemaProxy, type OutputSchemaProxy, type OutputSchemaProxySchema } from "../output/proxy";
 import { error, type ErrorDefinitionBuilder, type ExtractErrorsFromBuilders } from "./error-builder";
@@ -161,18 +172,17 @@ export const DetailedOutputBrand = Symbol.for('DetailedOutputBrand');
  * Note: TStatus is the numeric value, but the actual schema wraps it in literalSchema
  * 
  * Includes a brand for type-level detection - this brand is removed when building the final contract
+ * 
+ * TPlugin (default StandardPluginTransformer): with ZodPluginTransformer the envelope
+ * is a REAL z.ZodObject (status: z.ZodLiteral, body, optional headers), so the
+ * contract's InferOutputSchema is Zod and z.infer works.
  */
 export type DetailedOutput<
     TStatus extends number = number,
     THeaders extends AnySchema = AnySchema,
-    TBody extends AnySchema = AnySchema
-> = ObjectSchema<{
-    status: ReturnType<typeof literalSchema<TStatus>>;
-    headers: THeaders;
-    body: TBody;
-}> & {
-    readonly [DetailedOutputBrand]: true;
-};
+    TBody extends AnySchema = AnySchema,
+    TPlugin extends BasePluginTransformer = StandardPluginTransformer,
+> = PluginDetailedOutput<TPlugin, TStatus, THeaders, TBody>;
 
 /**
  * Check if a type is DetailedOutput (has the brand)
@@ -181,82 +191,50 @@ export type IsDetailedOutput<T> = T extends { readonly [DetailedOutputBrand]: tr
 
 /**
  * Remove the DetailedOutput brand from a type (for building final contract)
- * This strips the brand but keeps the ObjectSchema structure
+ * This strips the brand but keeps the ObjectSchema structure.
+ * Structural strip — does not match `DetailedOutput<infer S,H,B>` (which is now
+ * a plugin-resolved envelope type whose parts aren't directly inferrable).
  */
-export type RemoveDetailedOutputBrand<T> = T extends DetailedOutput<infer S, infer H, infer B>
-    ? ObjectSchema<{
-        status: ReturnType<typeof literalSchema<S>>;
-    } & (IsVoidLikeDetailedField<H> extends true ? Record<never, never> : { headers: H })
-      & (IsVoidLikeDetailedField<B> extends true ? Record<never, never> : { body: B })>
-    : T;
+export type RemoveDetailedOutputBrand<T> =
+    T extends { readonly [DetailedOutputBrand]: true }
+        ? T extends ObjectSchema<infer Shape>
+            ? ObjectSchema<{
+                [K in keyof Shape]: Shape[K];
+            }>
+            : T
+        : T;
 
 /**
  * Detect if a schema has DetailedOutput structure (status, headers, body fields)
  * and convert it to DetailedOutput type if it does
  * 
  * Note: The status field should be a literalSchema<number>, headers and body should be AnySchema
+ * 
+ * In Zod mode a plain schema is never auto-detected as detailed — the output
+ * builder produces DetailedOutput directly via its own methods.
  */
-type DetectDetailedOutputStructure<T> = 
-    T extends ObjectSchema<infer Shape>
-        ? Shape extends { status: ReturnType<typeof literalSchema<infer S extends string | number | boolean>>, headers: infer H, body: infer B }
-            ? S extends number
-                ? H extends AnySchema
-                    ? B extends AnySchema
-                        ? DetailedOutput<S, H, B>
-                        : T
-                    : T
-                : T
-            : T
-        : T;
+type DetectDetailedOutputStructure<TP extends BasePluginTransformer, T extends AnySchema> = PluginDetectDetailedOutput<TP, T>;
 
-type CurrentDetailedInputParts<TInput> =
-    TInput extends ObjectSchema<infer Shape>
-        ? Shape extends {
-            params: infer P extends AnySchema;
-            query: infer Q extends AnySchema;
-            body: infer B extends AnySchema;
-            headers: infer H extends AnySchema;
-        }
-            ? {
-                params: P;
-                query: Q;
-                body: B;
-                headers: H;
-            }
-            : (
-                "params" extends keyof Shape
-                    ? true
-                    : "query" extends keyof Shape
-                        ? true
-                        : "body" extends keyof Shape
-                            ? true
-                            : "headers" extends keyof Shape
-                                ? true
-                                : false
-            ) extends true
-                ? {
-                    params: Shape extends { params: infer P extends AnySchema } ? P : ObjectSchema<Record<never, never>>;
-                    query: Shape extends { query: infer Q extends AnySchema } ? Q : ObjectSchema<Record<never, never>>;
-                    body: Shape extends { body: infer B extends AnySchema } ? B : ObjectSchema<Record<never, never>>;
-                    headers: Shape extends { headers: infer H extends AnySchema } ? H : ObjectSchema<Record<never, never>>;
-                }
-            : {
-                params: ObjectSchema<Record<never, never>>;
-                query: ObjectSchema<Record<never, never>>;
-                body: TInput;
-                headers: ObjectSchema<Record<never, never>>;
-            }
+/**
+ * Current detailed input parts.
+ * The brand check happens HERE (on TInput — concrete at use sites, so the
+ * object shape is indexable even when TP is generic). The plugin op only
+ * handles the BRANDED re-chain extraction (rare, deferred until TP is concrete).
+ */
+type CurrentDetailedInputParts<TP extends BasePluginTransformer, TInput extends AnySchema> =
+    TInput extends { readonly [DetailedInputBrand]: true }
+        ? PluginBrandedInputParts<TP, TInput>
         : {
-            params: ObjectSchema<Record<never, never>>;
-            query: ObjectSchema<Record<never, never>>;
+            params: PluginEmptyObject<TP>;
+            query: PluginEmptyObject<TP>;
             body: TInput;
-            headers: ObjectSchema<Record<never, never>>;
+            headers: PluginEmptyObject<TP>;
         };
 
-type CurrentInputParams<TInput> = CurrentDetailedInputParts<TInput>["params"];
-type CurrentInputQuery<TInput> = CurrentDetailedInputParts<TInput>["query"];
-type CurrentInputBody<TInput> = CurrentDetailedInputParts<TInput>["body"];
-type CurrentInputHeaders<TInput> = CurrentDetailedInputParts<TInput>["headers"];
+type CurrentInputParams<TInput extends AnySchema, TP extends BasePluginTransformer> = CurrentDetailedInputParts<TP, TInput>["params"];
+type CurrentInputQuery<TInput extends AnySchema, TP extends BasePluginTransformer> = CurrentDetailedInputParts<TP, TInput>["query"];
+type CurrentInputBody<TInput extends AnySchema, TP extends BasePluginTransformer> = CurrentDetailedInputParts<TP, TInput>["body"];
+type CurrentInputHeaders<TInput extends AnySchema, TP extends BasePluginTransformer> = CurrentDetailedInputParts<TP, TInput>["headers"];
 
 // ============================================================================
 // BACKWARD COMPATIBILITY - Keep old Detailed type as alias to DetailedInput
@@ -297,6 +275,31 @@ export type RouteEntitySchemaValue<TEntitySchema extends AnySchema> = TEntitySch
 
 
 
+/**
+ * Resolved contract input schema type for a plugin.
+ * Standard (default): strip the DetailedInput brand and compact void-like keys (today).
+ * Zod: the schema is already a real Zod schema — pass through unchanged.
+ */
+type BuildInput<TP extends BasePluginTransformer, TInput extends AnySchema> = PluginBuildInput<TP, TInput>;
+
+/**
+ * Resolved contract output schema type for a plugin.
+ * Standard (default): strip the DetailedOutput brand (today).
+ * Zod: the schema is already a real Zod schema — pass through unchanged.
+ */
+type BuildOutput<TP extends BasePluginTransformer, TOutput extends AnySchema> = PluginBuildOutput<TP, TOutput>;
+
+/**
+ * Clone a Standard Schema wrapper and remove the (enumerable) brand symbols.
+ * The DetailedOutput brand is non-enumerable (defineProperty) so it is not copied.
+ */
+function stripBrand<T extends object>(schema: T): T {
+    const clone = { ...schema } as Record<PropertyKey, unknown>;
+    delete clone[DetailedInputBrand];
+    delete clone[DetailedOutputBrand];
+    return clone as T;
+}
+
 // ============================================================================
 // ROUTE BUILDER CLASS
 // ============================================================================
@@ -325,11 +328,12 @@ export type RouteEntitySchemaValue<TEntitySchema extends AnySchema> = TEntitySch
  * ```
  */
 export class RouteBuilder<
-    TInput extends AnySchema | DetailedInput = VoidSchema,
-    TOutput extends AnySchema | DetailedOutput = VoidSchema,
+    TInput extends AnySchema = VoidSchema,
+    TOutput extends AnySchema = VoidSchema,
     TMethod extends HTTPMethod = "GET",
     TEntitySchema extends AnySchema = VoidSchema,
     TErrors extends ErrorMap = Record<never, never>,
+    TPlugin extends BasePluginTransformer = StandardPluginTransformer,
 > {
     private _metadata: RouteMetadata;
     private _input: TInput;
@@ -337,6 +341,7 @@ export class RouteBuilder<
     private _method: TMethod;
     private _entitySchema: RouteEntitySchemaValue<TEntitySchema>;
     private _errors: TErrors;
+    private _plugin: TPlugin;
 
     constructor(
         defaults?: {
@@ -346,52 +351,25 @@ export class RouteBuilder<
             path?: HTTPPath;
             entitySchema?: RouteEntitySchemaValue<TEntitySchema>;
             errors?: TErrors;
-            metadata?: RouteMetadata
+            metadata?: RouteMetadata;
+            /** Schema transformer plugin — default StandardPluginTransformer (today's behavior). */
+            use?: TPlugin;
         }
     ) {
         this._metadata = {
             ...(defaults?.metadata ?? {}),
             ...(defaults?.path && !defaults.metadata?.path ? { path: defaults.path } : {}),
         };
+        // Schema construction is INJECTED, never hard-coded: everything the builder
+        // creates (object/optional/literal/union/empty/void envelopes) goes through
+        // the plugin. Default = Standard (today's behavior), opt-in = Zod.
+        this._plugin = defaults?.use ?? (new StandardPluginTransformer() as unknown as TPlugin);
         // Default to void schema (simple mode)
-        this._input = defaults?.input ?? (voidSchema() as unknown as TInput);
-        this._output = (defaults?.output ?? voidSchema() as unknown as TOutput);
+        this._input = defaults?.input ?? (this._plugin.voidSchema() as unknown as TInput);
+        this._output = (defaults?.output ?? this._plugin.voidSchema() as unknown as TOutput);
         this._method = defaults?.method ?? ("GET" as TMethod);
-        this._entitySchema = (defaults?.entitySchema ?? voidSchema()) as RouteEntitySchemaValue<TEntitySchema>;
+        this._entitySchema = (defaults?.entitySchema ?? this._plugin.voidSchema()) as RouteEntitySchemaValue<TEntitySchema>;
         this._errors = (defaults?.errors ?? {}) as TErrors;
-
-        this._attachLegacyAccessors();
-    }
-
-    private _attachLegacyAccessors(): void {
-        const getEntitySchema = () => this.getEntitySchema();
-
-        const inputCallable = this.input.bind(this) as RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors>["input"] & {
-            entitySchema: RouteEntitySchemaValue<TEntitySchema>;
-        };
-
-        Object.defineProperty(inputCallable, "entitySchema", {
-            get() {
-                return getEntitySchema();
-            },
-            enumerable: false,
-            configurable: true,
-        });
-
-        const outputCallable = this.output.bind(this) as RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors>["output"] & {
-            entitySchema: RouteEntitySchemaValue<TEntitySchema>;
-        };
-
-        Object.defineProperty(outputCallable, "entitySchema", {
-            get() {
-                return getEntitySchema();
-            },
-            enumerable: false,
-            configurable: true,
-        });
-
-        (this as unknown as { input: typeof inputCallable }).input = inputCallable;
-        (this as unknown as { output: typeof outputCallable }).output = outputCallable;
     }
 
     // ============================================================================
@@ -401,105 +379,112 @@ export class RouteBuilder<
     /**
      * Set route metadata
      */
-    route(metadata: RouteMetadata): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors> {
+    route(metadata: RouteMetadata): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors, TPlugin> {
         return new RouteBuilder({
             metadata: { ...this._metadata, ...metadata },
             input: this._input,
             output: this._output,
             method: this._method,
             entitySchema: this._entitySchema,
-            errors: this._errors
+            errors: this._errors,
+            use: this._plugin,
         });
     }
 
     /**
      * Update route metadata (alias for route)
      */
-    updateRoute(metadata: Partial<RouteMetadata>): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors> {
+    updateRoute(metadata: Partial<RouteMetadata>): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors, TPlugin> {
         return this.route(metadata);
     }
 
     /**
      * Set HTTP method
      */
-    method<TNewMethod extends HTTPMethod>(method: TNewMethod): RouteBuilder<TInput, TOutput, TNewMethod, TEntitySchema, TErrors> {
+    method<TNewMethod extends HTTPMethod>(method: TNewMethod): RouteBuilder<TInput, TOutput, TNewMethod, TEntitySchema, TErrors, TPlugin> {
         return new RouteBuilder({
             metadata: { ...this._metadata, method },
             input: this._input,
             output: this._output,
             method,
             entitySchema: this._entitySchema,
-            errors: this._errors
+            errors: this._errors,
+            use: this._plugin,
         });
     }
 
     /**
      * Set the route path (simple string path without params)
      */
-    path(path: HTTPPath): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors> {
+    path(path: HTTPPath): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors, TPlugin> {
         return new RouteBuilder({
             metadata: { ...this._metadata, path },
             input: this._input,
             output: this._output,
             method: this._method,
             entitySchema: this._entitySchema,
-            errors: this._errors
+            errors: this._errors,
+            use: this._plugin,
         });
     }
 
     /**
      * Set route summary (OpenAPI)
      */
-    summary(summary: string): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors> {
+    summary(summary: string): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors, TPlugin> {
         return new RouteBuilder({
             metadata: { ...this._metadata, summary },
             input: this._input,
             output: this._output,
             method: this._method,
             entitySchema: this._entitySchema,
-            errors: this._errors
+            errors: this._errors,
+            use: this._plugin,
         });
     }
 
     /**
      * Set route description (OpenAPI)
      */
-    description(description: string): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors> {
+    description(description: string): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors, TPlugin> {
         return new RouteBuilder({
             metadata: { ...this._metadata, description },
             input: this._input,
             output: this._output,
             method: this._method,
             entitySchema: this._entitySchema,
-            errors: this._errors
+            errors: this._errors,
+            use: this._plugin,
         });
     }
 
     /**
      * Add tags (OpenAPI)
      */
-    tags(...tags: string[]): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors> {
+    tags(...tags: string[]): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors, TPlugin> {
         return new RouteBuilder({
             metadata: { ...this._metadata, tags: [...(this._metadata.tags ?? []), ...tags] },
             input: this._input,
             output: this._output,
             method: this._method,
             entitySchema: this._entitySchema,
-            errors: this._errors
+            errors: this._errors,
+            use: this._plugin,
         });
     }
 
     /**
      * Mark route as deprecated
      */
-    deprecated(deprecated = true): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors> {
+    deprecated(deprecated = true): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors, TPlugin> {
         return new RouteBuilder({
             metadata: { ...this._metadata, deprecated },
             input: this._input,
             output: this._output,
             method: this._method,
             entitySchema: this._entitySchema,
-            errors: this._errors
+            errors: this._errors,
+            use: this._plugin,
         });
     }
 
@@ -538,6 +523,14 @@ export class RouteBuilder<
         };
     }
 
+    /**
+     * Get the schema transformer plugin in use.
+     * @internal Used by the input/output proxies to keep schema construction injected.
+     */
+    getPlugin(): TPlugin {
+        return this._plugin;
+    }
+
     // ============================================================================
     // INPUT/OUTPUT API - BUILDER PATTERN
     // ============================================================================
@@ -569,17 +562,17 @@ export class RouteBuilder<
      * ```
      */
     input<TNewInput extends AnySchema>(
-        builder: (b: InputSchemaProxy<CurrentInputParams<TInput>, CurrentInputQuery<TInput>, CurrentInputBody<TInput>, CurrentInputHeaders<TInput>, TEntitySchema>) => TNewInput
-    ): RouteBuilder<TNewInput, TOutput, TMethod, TEntitySchema, TErrors>;
+        builder: (b: InputSchemaProxy<CurrentInputParams<TInput, TPlugin>, CurrentInputQuery<TInput, TPlugin>, CurrentInputBody<TInput, TPlugin>, CurrentInputHeaders<TInput, TPlugin>, TEntitySchema, TPlugin>) => TNewInput
+    ): RouteBuilder<TNewInput, TOutput, TMethod, TEntitySchema, TErrors, TPlugin>;
     input<TParams extends AnySchema, TQuery extends AnySchema, TBody extends AnySchema, THeaders extends AnySchema>(
-        builder: (b: InputSchemaProxy<CurrentInputParams<TInput>, CurrentInputQuery<TInput>, CurrentInputBody<TInput>, CurrentInputHeaders<TInput>, TEntitySchema>) => InputSchemaProxy<TParams, TQuery, TBody, THeaders, TEntitySchema>
-    ): RouteBuilder<DetailedInputBuilderSchema<TParams, TQuery, TBody, THeaders>, TOutput, TMethod, TEntitySchema, TErrors>;
+        builder: (b: InputSchemaProxy<CurrentInputParams<TInput, TPlugin>, CurrentInputQuery<TInput, TPlugin>, CurrentInputBody<TInput, TPlugin>, CurrentInputHeaders<TInput, TPlugin>, TEntitySchema, TPlugin>) => DetailedInputBuilder<TParams, TQuery, TBody, THeaders, TEntitySchema, TPlugin>
+    ): RouteBuilder<DetailedInputBuilderSchema<TPlugin, TParams, TQuery, TBody, THeaders>, TOutput, TMethod, TEntitySchema, TErrors, TPlugin>;
     input<TNewInput extends AnySchema>(
         schema: TNewInput
-    ): RouteBuilder<TNewInput, TOutput, TMethod, TEntitySchema, TErrors>;
+    ): RouteBuilder<TNewInput, TOutput, TMethod, TEntitySchema, TErrors, TPlugin>;
     input<TNewInput extends AnySchema>(
-        schemaOrBuilder: TNewInput | ((b: InputSchemaProxy<CurrentInputParams<TInput>, CurrentInputQuery<TInput>, CurrentInputBody<TInput>, CurrentInputHeaders<TInput>, TEntitySchema>) => TNewInput | InputSchemaProxy<AnySchema, AnySchema, AnySchema, AnySchema, TEntitySchema>)
-    ): RouteBuilder<AnySchema | DetailedInput, TOutput, TMethod, TEntitySchema, TErrors> {
+        schemaOrBuilder: TNewInput | ((b: InputSchemaProxy<CurrentInputParams<TInput, TPlugin>, CurrentInputQuery<TInput, TPlugin>, CurrentInputBody<TInput, TPlugin>, CurrentInputHeaders<TInput, TPlugin>, TEntitySchema, TPlugin>) => TNewInput | InputSchemaProxy<AnySchema, AnySchema, AnySchema, AnySchema, TEntitySchema, TPlugin>)
+    ): RouteBuilder<any, TOutput, TMethod, TEntitySchema, TErrors, TPlugin> {
         // Callback mode
         if (typeof schemaOrBuilder === "function") {
             // Build the input proxy from existing input parts
@@ -603,7 +596,8 @@ export class RouteBuilder<
                     output: this._output,
                     method: this._method,
                     entitySchema: this._entitySchema,
-                    errors: this._errors
+                    errors: this._errors,
+                    use: this._plugin,
                 });
             }
             
@@ -614,7 +608,8 @@ export class RouteBuilder<
                 output: this._output,
                 method: this._method,
                 entitySchema: this._entitySchema,
-                errors: this._errors
+                errors: this._errors,
+                use: this._plugin,
             });
         }
         
@@ -625,7 +620,8 @@ export class RouteBuilder<
             output: this._output,
             method: this._method,
             entitySchema: this._entitySchema,
-            errors: this._errors
+            errors: this._errors,
+            use: this._plugin,
         });
     }
 
@@ -651,23 +647,23 @@ export class RouteBuilder<
      */
     output<TNewOutput extends AnySchema>(
         builder: (
-            b: OutputSchemaProxy<TOutput, TMethod, TEntitySchema, TErrors>,
+            b: OutputSchemaProxy<TOutput, TMethod, TEntitySchema, TErrors, TPlugin>,
         ) => TNewOutput,
-    ): RouteBuilder<TInput, DetectDetailedOutputStructure<TNewOutput>, TMethod, TEntitySchema, TErrors>;
+    ): RouteBuilder<TInput, DetectDetailedOutputStructure<TPlugin, TNewOutput>, TMethod, TEntitySchema, TErrors, TPlugin>;
     output<TProxyOutput extends AnySchema | DetailedOutput>(
         builder: (
-            b: OutputSchemaProxy<TOutput, TMethod, TEntitySchema, TErrors>,
-        ) => OutputSchemaProxy<TProxyOutput, TMethod, TEntitySchema, TErrors>,
-    ): RouteBuilder<TInput, OutputSchemaProxySchema<TProxyOutput>, TMethod, TEntitySchema, TErrors>;
+            b: OutputSchemaProxy<TOutput, TMethod, TEntitySchema, TErrors, TPlugin>,
+        ) => OutputSchemaProxy<TProxyOutput, TMethod, TEntitySchema, TErrors, TPlugin>,
+    ): RouteBuilder<TInput, OutputSchemaProxySchema<TPlugin, TProxyOutput>, TMethod, TEntitySchema, TErrors, TPlugin>;
     output<TNewOutput extends AnySchema>(
         schema: TNewOutput
-    ): RouteBuilder<TInput, DetectDetailedOutputStructure<TNewOutput>, TMethod, TEntitySchema, TErrors>;
+    ): RouteBuilder<TInput, DetectDetailedOutputStructure<TPlugin, TNewOutput>, TMethod, TEntitySchema, TErrors, TPlugin>;
     output<TNewOutput extends AnySchema>(
-        schemaOrBuilder: TNewOutput | ((b: OutputSchemaProxy<TOutput, TMethod, TEntitySchema, TErrors>) => TNewOutput | OutputSchemaProxy<AnySchema | DetailedOutput, TMethod, TEntitySchema, TErrors>)
-    ): RouteBuilder<TInput, AnySchema | DetailedOutput, TMethod, TEntitySchema, TErrors> {
+        schemaOrBuilder: TNewOutput | ((b: OutputSchemaProxy<TOutput, TMethod, TEntitySchema, TErrors, TPlugin>) => TNewOutput | OutputSchemaProxy<AnySchema | DetailedOutput, TMethod, TEntitySchema, TErrors, TPlugin>)
+    ): RouteBuilder<TInput, any, TMethod, TEntitySchema, TErrors, TPlugin> {
         // Callback mode
         if (typeof schemaOrBuilder === "function") {
-            const proxy = createOutputSchemaProxy(this as unknown as RouteBuilder<AnySchema, TOutput, TMethod, TEntitySchema, TErrors>);
+            const proxy = createOutputSchemaProxy(this as unknown as RouteBuilder<AnySchema, TOutput, TMethod, TEntitySchema, TErrors, TPlugin>);
             const result = schemaOrBuilder(proxy);
             
             // Check if result is a proxy/builder (has _build method)
@@ -680,7 +676,8 @@ export class RouteBuilder<
                     output: outputSchema,
                     method: this._method,
                     entitySchema: this._entitySchema,
-                    errors: this._errors
+                    errors: this._errors,
+                    use: this._plugin,
                 });
             }
             
@@ -691,7 +688,8 @@ export class RouteBuilder<
                 output: result as TNewOutput,
                 method: this._method,
                 entitySchema: this._entitySchema,
-                errors: this._errors
+                errors: this._errors,
+                use: this._plugin,
             });
         }
         
@@ -702,69 +700,53 @@ export class RouteBuilder<
             output: schemaOrBuilder,
             method: this._method,
             entitySchema: this._entitySchema,
-            errors: this._errors
+            errors: this._errors,
+            use: this._plugin,
         });
     }
 
     /**
      * @internal Create a DetailedInputBuilder from the existing _input state.
      * Extracts existing params/query/body/headers if _input is a DetailedInput.
+     * Uses the injected plugin for both construction and introspection.
      */
-    private _createInputBuilder(): InputSchemaProxy<CurrentInputParams<TInput>, CurrentInputQuery<TInput>, CurrentInputBody<TInput>, CurrentInputHeaders<TInput>, TEntitySchema> {
-        let existingParams = emptyObjectSchema() as CurrentInputParams<TInput>;
-        let existingQuery = emptyObjectSchema() as CurrentInputQuery<TInput>;
-        let existingBody = this._input as CurrentInputBody<TInput>;
-        let existingHeaders = emptyObjectSchema() as CurrentInputHeaders<TInput>;
-        
-        if (typeof this._input === 'object' && '~standard' in this._input) {
-            const inputShape = (this._input as unknown as Record<symbol, SchemaShape>)[Symbol.for("standard-schema:shape")];
-            if (inputShape && typeof inputShape === 'object') {
-                const hasDetailedKeys =
-                    'params' in inputShape ||
-                    'query' in inputShape ||
-                    'body' in inputShape ||
-                    'headers' in inputShape;
+    private _createInputBuilder(): InputSchemaProxy<CurrentInputParams<TInput, TPlugin>, CurrentInputQuery<TInput, TPlugin>, CurrentInputBody<TInput, TPlugin>, CurrentInputHeaders<TInput, TPlugin>, TEntitySchema, TPlugin> {
+        let existingParams = this._plugin.emptyObject() as CurrentInputParams<TInput, TPlugin>;
+        let existingQuery = this._plugin.emptyObject() as CurrentInputQuery<TInput, TPlugin>;
+        let existingBody = this._input as CurrentInputBody<TInput, TPlugin>;
+        let existingHeaders = this._plugin.emptyObject() as CurrentInputHeaders<TInput, TPlugin>;
 
-                // If the schema already uses any detailed keys, treat it as structured input.
-                // This prevents non-detailed wrappers like { query: ... } from being copied into body.
-                if (hasDetailedKeys) {
-                    existingBody = emptyObjectSchema();
-                }
+        // The DETAILED INPUT BRAND is the ONLY reliable discriminator: a plain
+        // schema that happens to have a `query`/`body` field (e.g. an entity
+        // with a `query` property) must NOT be split into detailed parts.
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- brand probe on a generic input type
+        const isDetailedEnvelope = typeof this._input === 'object' && this._input !== null && DetailedInputBrand in this._input;
 
-                const paramsField = (inputShape as Record<string, AnySchema>).params;
-                const queryField = (inputShape as Record<string, AnySchema>).query;
-                const bodyField = (inputShape as Record<string, AnySchema>).body;
-                const headersField = (inputShape as Record<string, AnySchema>).headers;
-                
-                // Helper to unwrap OptionalSchema and check if non-empty
+        if (isDetailedEnvelope) {
+            // Re-chaining a previously-built detailed envelope: extract parts via the plugin.
+            existingBody = this._plugin.voidSchema() as CurrentInputBody<TInput, TPlugin>;
+            const inputShape = this._plugin.getShape(this._input);
+            if (inputShape) {
+                // Helper to unwrap OptionalSchema/ZodOptional and drop empty shapes
                 const unwrapAndExtract = (field: AnySchema | undefined): AnySchema | undefined => {
                     if (!field) return undefined;
-                    
-                    const isOptional = typeof field === 'object' && '_inner' in field;
-                    
-                    if (isOptional) {
-                        const inner = (field as { _inner: AnySchema })._inner;
-                        if (typeof inner === 'object' && '~standard' in inner) {
-                            const shape = (inner as unknown as Record<symbol, unknown>)[Symbol.for("standard-schema:shape")];
-                            if (shape && typeof shape === 'object') {
-                                const keys = Object.keys(shape);
-                                if (keys.length === 0) return undefined;
-                            }
-                        }
+                    if (this._plugin.isOptional(field)) {
+                        const inner = this._plugin.unwrapOptional(field);
+                        if (this._plugin.isEmpty(inner)) return undefined;
                         return inner;
                     }
-                    
                     return field;
                 };
                 
-                const extractedParams = unwrapAndExtract(paramsField);
-                const extractedQuery = unwrapAndExtract(queryField);
-                const extractedHeaders = unwrapAndExtract(headersField);
+                const extractedParams = unwrapAndExtract(inputShape.params as AnySchema | undefined);
+                const extractedQuery = unwrapAndExtract(inputShape.query as AnySchema | undefined);
+                const extractedHeaders = unwrapAndExtract(inputShape.headers as AnySchema | undefined);
+                const bodyField = inputShape.body as AnySchema | undefined;
                 
-                if (extractedParams) existingParams = extractedParams as CurrentInputParams<TInput>;
-                if (extractedQuery) existingQuery = extractedQuery as CurrentInputQuery<TInput>;
-                if (bodyField) existingBody = bodyField as CurrentInputBody<TInput>;
-                if (extractedHeaders) existingHeaders = extractedHeaders as CurrentInputHeaders<TInput>;
+                if (extractedParams) existingParams = extractedParams as CurrentInputParams<TInput, TPlugin>;
+                if (extractedQuery) existingQuery = extractedQuery as CurrentInputQuery<TInput, TPlugin>;
+                if (bodyField) existingBody = bodyField as CurrentInputBody<TInput, TPlugin>;
+                if (extractedHeaders) existingHeaders = extractedHeaders as CurrentInputHeaders<TInput, TPlugin>;
             }
         }
         
@@ -773,7 +755,9 @@ export class RouteBuilder<
             existingQuery,
             existingBody,
             existingHeaders,
-            this._entitySchema
+            this._entitySchema,
+            undefined,
+            this._plugin
         );
     }
 
@@ -784,14 +768,15 @@ export class RouteBuilder<
     /**
      * Set entity schema for use in input/output builders
      */
-    entity<TNewEntitySchema extends AnySchema>(schema: TNewEntitySchema): RouteBuilder<TInput, TOutput, TMethod, TNewEntitySchema, TErrors> {
+    entity<TNewEntitySchema extends AnySchema>(schema: TNewEntitySchema): RouteBuilder<TInput, TOutput, TMethod, TNewEntitySchema, TErrors, TPlugin> {
         return new RouteBuilder({
             metadata: this._metadata,
             input: this._input,
             output: this._output,
             method: this._method,
             entitySchema: schema,
-            errors: this._errors
+            errors: this._errors,
+            use: this._plugin,
         });
     }
 
@@ -818,13 +803,13 @@ export class RouteBuilder<
         errorsOrBuilder: TNewErrors[0] extends ErrorDefinitionBuilder<infer _A, infer _B, infer _C, infer _D>
             ? TNewErrors | ((factory: typeof error) => TNewErrors)
             : ((factory: typeof error) => TNewErrors)
-    ): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors & ExtractErrorsFromBuilders<TNewErrors>>;
+    ): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors & ExtractErrorsFromBuilders<TNewErrors>, TPlugin>;
     errors<TNewErrors extends readonly ErrorDefinitionBuilder<string, string | undefined, AnySchema | undefined, number | undefined>[]>(
         ...errors: TNewErrors
-    ): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors & ExtractErrorsFromBuilders<TNewErrors>>;
+    ): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors & ExtractErrorsFromBuilders<TNewErrors>, TPlugin>;
     errors<TNewErrors extends readonly ErrorDefinitionBuilder<string, string | undefined, AnySchema | undefined, number | undefined>[]>(
         ...errorsOrCallback: TNewErrors | [(factory: typeof error) => TNewErrors]
-    ): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors & ExtractErrorsFromBuilders<TNewErrors>> {
+    ): RouteBuilder<TInput, TOutput, TMethod, TEntitySchema, TErrors & ExtractErrorsFromBuilders<TNewErrors>, TPlugin> {
         // Check if single argument is a callback function
         const firstArg = errorsOrCallback[0];
         const errors = typeof firstArg === "function" && errorsOrCallback.length === 1
@@ -848,7 +833,8 @@ export class RouteBuilder<
             output: this._output,
             method: this._method,
             entitySchema: this._entitySchema,
-            errors: errorMap as TErrors & ExtractErrorsFromBuilders<TNewErrors>
+            errors: errorMap as TErrors & ExtractErrorsFromBuilders<TNewErrors>,
+            use: this._plugin,
         });
     }
 
@@ -857,54 +843,58 @@ export class RouteBuilder<
     // ============================================================================
 
     /**
-     * Build the final ORPC contract
-     * Removes the DetailedInput/DetailedOutput brands from input/output before creating the contract
+     * Build the final ORPC contract.
+     *
+     * Standard mode (default): strips the DetailedInput/DetailedOutput brand so
+     * downstream consumers don't keep enforcing detailed wrappers (today's behavior).
+     *
+     * Zod mode (use: ZodPluginTransformer): schemas are ALREADY real Zod — passed
+     * through unchanged. The brand is a hidden property ORPC ignores; the type
+     * carries it so `InferInputSchema<contract>` is the real Zod schema.
      */
     build() {
-        // Handle both simple AnySchema and Detailed modes
-        // If TInput is DetailedInput (has brand), remove it before passing to ORPC
-        // If TOutput is DetailedOutput (has brand), remove it before passing to ORPC
-        // If TInput/TOutput is simple AnySchema, use as-is
-        
-        // Use type assertion to prevent TypeScript from inferring union types
-        const cleanInput = (typeof this._input === 'object' && DetailedInputBrand in this._input)
-            ? (this._input as unknown as RemoveDetailedInputBrand<TInput>)
-            : (this._input as RemoveDetailedInputBrand<TInput>);
-        
-        const cleanOutput = (typeof this._output === 'object' && DetailedOutputBrand in this._output)
-            ? (this._output as unknown as RemoveDetailedOutputBrand<TOutput>)
-            : (this._output as RemoveDetailedOutputBrand<TOutput>);
+        // Detect detailed modes at runtime via the brand symbols.
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- brand probe on generic input/output types
+        const isDetailedInput = typeof this._input === 'object' && this._input !== null && DetailedInputBrand in this._input;
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- brand probe on generic input/output types
+        const isDetailedOutput = typeof this._output === 'object' && this._output !== null && DetailedOutputBrand in this._output;
 
-        // Remove detailed brand symbols at runtime so downstream consumers
-        // (hooks/clients) don't keep enforcing detailed request/response wrappers.
-        const inputForContract = (typeof this._input === 'object' && DetailedInputBrand in this._input)
-            ? (() => {
-                const clone = { ...(this._input as object) } as Record<PropertyKey, unknown>;
-                delete clone[DetailedInputBrand];
-                return clone as unknown as RemoveDetailedInputBrand<TInput>;
-            })()
-            : cleanInput;
+        // Zod mode: schemas are already real Zod — pass through unchanged.
+        // Standard mode: strip the brand symbol at runtime (clone, then delete).
+        const inputForContract: BuildInput<TPlugin, TInput> = this._plugin.producesZod()
+            ? this._input
+            : (isDetailedInput
+                ? stripBrand(this._input as object) as BuildInput<TPlugin, TInput>
+                : this._input);
 
-        const outputForContract = (typeof this._output === 'object' && DetailedOutputBrand in this._output)
-            ? (() => {
-                const clone = { ...(this._output as object) } as Record<PropertyKey, unknown>;
-                delete clone[DetailedOutputBrand];
-                return clone as unknown as RemoveDetailedOutputBrand<TOutput>;
-            })()
-            : cleanOutput;
-        
+        const outputForContract: BuildOutput<TPlugin, TOutput> = this._plugin.producesZod()
+            ? this._output
+            : (isDetailedOutput
+                ? stripBrand(this._output as object) as BuildOutput<TPlugin, TOutput>
+                : this._output);
+
         // Create the ORPC contract
         const contractWithOutput = oc.input(inputForContract).output(outputForContract);
 
         // Always include method from RouteBuilder state in final route metadata.
         // RouteBuilder stores method in `_method`, while `_metadata` may only contain
         // path/summary/description. Without this merge, ORPC falls back to POST.
+        // Set inputStructure/outputStructure based on whether detailed builder was used
+        // so the ORPC client encodes requests in the correct mode. ORPC defaults to
+        // "compact" which reads path params from top-level keys (input[paramName])
+        // instead of input.params[paramName] — causing validation failures.
         const finalRouteMetadata: RouteMetadata = {
             ...this._metadata,
             method: this._metadata.method ?? this._method,
+            ...(isDetailedInput
+                ? { inputStructure: 'detailed' as const }
+                : {}),
+            ...(isDetailedOutput
+                ? { outputStructure: 'detailed' as const }
+                : {}),
         };
 
-        return contractWithOutput.route(finalRouteMetadata)
+        return contractWithOutput.route(finalRouteMetadata) as unknown as ContractProcedure<BuildInput<TPlugin, TInput>, BuildOutput<TPlugin, TOutput>, TErrors, RouteMetadata>;
     }
 
     // ============================================================================

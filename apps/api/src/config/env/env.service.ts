@@ -7,36 +7,48 @@ import type { z } from "zod";
 export class EnvService<TSchema extends Record<string, unknown> = Env> {
   private readonly logger = new Logger(EnvService.name);
   private schema: z.ZodType;
-  private parsedEnv?: TSchema; // Cache parsed environment - immutable after construction
+  private parsedEnv: TSchema; // Parsed environment - immutable after construction
 
   constructor(
     @Optional() private readonly configService?: ConfigService
   ) {
     this.schema = envSchema;
     const isTest = process.env.NODE_ENV === 'test';
-    
+
     if (!isTest) {
       this.logger.log(`EnvService constructor called. ConfigService available: ${String(!!this.configService)}`);
     }
+    this.parsedEnv = this.parseEnv();
+  }
+
+  /**
+   * Parse the environment through the active schema once and cache the result.
+   *
+   * When a ConfigService is injected (EnvModule), ConfigModule.forRoot already
+   * validated + defaulted the env via `validate: (env) => envSchema.parse(env)`.
+   * We re-read the validated values through the schema so defaults/coercions are
+   * applied and the result is fully typed — no `as unknown as` at read time.
+   *
+   * When no ConfigService is available (CLI, tests), parse `process.env` directly.
+   */
+  private parseEnv(): TSchema {
     if (this.configService) {
-      if (!isTest) {
-        this.logger.log('ConfigService is properly injected');
+      const shape = (this.schema as z.ZodObject<Record<string, z.ZodTypeAny>>).shape;
+      const raw: Record<string, unknown> = {};
+      for (const key of Object.keys(shape)) {
+        raw[key] = this.configService.get(key);
       }
-    } else {
-      if (!isTest) {
-        this.logger.warn('ConfigService is NOT injected - will use process.env fallback');
+      return this.schema.parse(raw) as TSchema;
+    }
+
+    try {
+      return this.schema.parse(process.env) as TSchema;
+    } catch {
+      // If validation fails, take a direct snapshot of process.env
+      if (process.env.NODE_ENV !== 'test') {
+        this.logger.warn('Environment validation failed, using raw process.env snapshot');
       }
-      // Parse environment once during construction when not using ConfigService
-      // Take a snapshot of process.env at construction time (immutable)
-      try {
-        this.parsedEnv = this.schema.parse(process.env) as TSchema;
-      } catch {
-        // If validation fails, take a direct snapshot of process.env
-        if (!isTest) {
-          this.logger.warn('Environment validation failed, using raw process.env snapshot');
-        }
-        this.parsedEnv = { ...process.env } as TSchema;
-      }
+      return { ...process.env } as TSchema;
     }
   }
 
@@ -46,27 +58,11 @@ export class EnvService<TSchema extends Record<string, unknown> = Env> {
    */
   private setSchema(schema: z.ZodType): void {
     this.schema = schema;
-    // Re-parse with new schema if not using ConfigService
-    if (!this.configService) {
-      try {
-        this.parsedEnv = this.schema.parse(process.env) as TSchema;
-      } catch {
-        this.parsedEnv = { ...process.env } as TSchema;
-      }
-    }
+    this.parsedEnv = this.parseEnv();
   }
 
   get<T extends keyof TSchema>(key: T): TSchema[T] {
-    if (!this.configService) {
-      // Fallback to cached snapshot taken at construction time
-      // This ensures immutability - changes to process.env after construction don't affect the service
-      if (this.parsedEnv) {
-        return this.parsedEnv[key];
-      }
-      return undefined as TSchema[T];
-    }
-    const ret = this.configService.get<TSchema[T]>(key as string) as unknown as TSchema[T];
-    return ret
+    return this.parsedEnv[key];
   }
 
   /**

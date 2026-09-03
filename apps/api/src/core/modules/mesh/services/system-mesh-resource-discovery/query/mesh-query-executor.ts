@@ -52,7 +52,6 @@ export class MeshQueryExecutor {
       state.query.methodName ?? "list",
       {},
       {
-        organizationId: state.scopeOptions.organizationId,
         timeoutMs: state.scopeOptions.timeoutMs ?? 3_000,
       },
     );
@@ -342,7 +341,7 @@ export class MeshQueryExecutor {
 
     for (const join of joins) {
       // Execute the joined builder fully (recursive — supports nested joins)
-      const joinResult = await join.builder.execute();
+      const joinResult = await join.builder.request();
       const rightItems = joinResult.items;
 
       current = current.flatMap((leftItem): TResultShape[] => {

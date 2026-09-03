@@ -1,5 +1,5 @@
-import { z } from "zod/v4";
-import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
+import z from "zod/v4";
+import { createFilterConfig, standard, type ComputeInputSchema, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerImageEntitySchema } from "@repo/contracts-entities";
 
 const dockerImageListItemSchema = dockerImageEntitySchema
@@ -28,4 +28,5 @@ export type DockerImageListInput = ComputeInputSchema<typeof dockerImageListConf
 export const dockerListImagesContract = dockerImageOps
   .list(dockerImageListConfigSchemas)
   .path("/")
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

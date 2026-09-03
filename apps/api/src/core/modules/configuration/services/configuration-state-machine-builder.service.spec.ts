@@ -10,7 +10,7 @@ describe("ConfigurationStateMachineBuilderService", () => {
             .defineNode({
                 scope: "project",
                 lifecycleState: "active",
-                dependsOnScopes: ["organization"],
+                dependsOnScopes: [],
                 allowedProviderTypes: ["github", "gitlab"],
                 allowedRunnerTypes: ["docker", "buildpack"],
             })
@@ -51,7 +51,7 @@ describe("ConfigurationStateMachineBuilderService", () => {
             .policy()
             .node("service", "active")
             .describe("service runtime policy")
-            .dependsOn("organization", "project")
+            .dependsOn("project")
             .allowProviders("github")
             .allowRunners("docker")
             .done()
@@ -84,7 +84,7 @@ describe("ConfigurationStateMachineBuilderService", () => {
             .build();
 
         expect(machine.nodes).toHaveLength(1);
-        expect(machine.nodes[0]?.dependsOnScopes).toEqual(["organization", "project"]);
+        expect(machine.nodes[0]?.dependsOnScopes).toEqual(["project"]);
         expect(machine.transitions[0]?.from).toBe("active");
         expect(machine.dispatch.rules[0]?.id).toBe("prod-guard");
         expect(machine.dispatch.rules[0]?.priority).toBe(200);

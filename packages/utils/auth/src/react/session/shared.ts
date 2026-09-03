@@ -52,11 +52,6 @@ export interface CreateSessionAwareAuthClientOptions<TSession = unknown> {
      * @default ['session']
      */
     sessionQueryKey?: readonly unknown[]
-    /**
-     * Optional session bridge hook for backwards compatibility (client-side only)
-     * Returns { data: Session | null | undefined } or null if not available
-     */
-    useSessionBridge?: () => { data: TSession | null | undefined } | null
 }
 
 /**
@@ -76,11 +71,6 @@ export interface CreateUseSessionOptions<TData> {
      * @default ['session']
      */
     sessionQueryKey?: readonly unknown[]
-    /**
-     * Optional session bridge hook for backwards compatibility
-     * Returns { data: Session | null | undefined } or null if not available
-     */
-    useSessionBridge?: () => { data: TData | null | undefined } | null
 }
 
 /**

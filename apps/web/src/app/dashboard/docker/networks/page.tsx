@@ -24,7 +24,7 @@ import {
 import { Separator } from '@repo/ui/components/shadcn/separator'
 import { Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useSafeQueryStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
+import { useSafeQueryParamStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
 
 const NETWORK_LIST_INPUT = {
   query: {
@@ -72,7 +72,7 @@ export default function DashboardDockerNetworksPage() {
   const [newNetworkDriver, setNewNetworkDriver] = useState<'bridge' | 'overlay' | 'host'>('bridge')
   const [newNetworkSubnet, setNewNetworkSubnet] = useState('172.28.0.0/16')
   const [localNetworks, setLocalNetworks] = useState<NetworkProjection[]>([])
-  const [listQuery, setListQuery] = useSafeQueryStatesFromZod(NETWORK_LIST_QUERY_SCHEMA)
+  const [listQuery, setListQuery] = useSafeQueryParamStatesFromZod(NETWORK_LIST_QUERY_SCHEMA)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
@@ -227,7 +227,7 @@ export default function DashboardDockerNetworksPage() {
                 ]}
               />
 
-              <select
+              <select aria-label="Sort: Services"
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={sortBy}
                 onChange={(event) => {
@@ -239,7 +239,7 @@ export default function DashboardDockerNetworksPage() {
                 <option value="project">Sort: Project</option>
               </select>
 
-              <select
+              <select aria-label="Desc"
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={sortDirection}
                 onChange={(event) => {

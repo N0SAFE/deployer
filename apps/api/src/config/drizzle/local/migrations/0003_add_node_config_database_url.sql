@@ -1,3 +1,8 @@
 -- Add database_url column to node_config table
--- Nullable - null means not yet configured
-ALTER TABLE node_config ADD COLUMN database_url TEXT;
+-- NOTE: database_url already exists from migration 0000 (initial schema) and
+-- migration 0004 rebuilds the table with it. This migration is kept as a
+-- no-op marker for migration-state continuity — the column is guaranteed
+-- present by 0000/0004.
+-- (Previously this file tried `ALTER TABLE node_config ADD COLUMN database_url`
+-- which failed with "duplicate column name" on every boot — the old runner
+-- swallowed that error and marked the migration applied anyway.)

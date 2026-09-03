@@ -1,7 +1,7 @@
 import { Controller } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
-import { ORPCError } from '@orpc/server';
 import { setupContract } from '@repo/api-contracts';
+import { standardErrorOptions } from '@repo/orpc-utils';
 import { Pool } from 'pg';
 import { InitializationService } from '@/core/modules/setup/services/initialization.service';
 import { ReachabilityService } from '@/core/modules/reachability/services/reachability.service';
@@ -71,12 +71,14 @@ export class SetupWizardController {
   @Implement(setupContract.triggerInitialize)
   triggerInit() {
     return implement(setupContract.triggerInitialize)
-      .handler(async ({ input }) => {
+      .handler(async ({ input, errors }) => {
         const result = this.initializationService.triggerInitialize(input);
         if (!result.accepted) {
-          throw new ORPCError('CONFLICT', { message: 'Initialization already in progress' });
+          throw errors.CONFLICT(
+            standardErrorOptions('conflict', 'Initialization already in progress'),
+          );
         }
-        return { accepted: true };
+        return { status: 201 as const, headers: {}, body: result };
       });
   }
 

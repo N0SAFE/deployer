@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerContainerProcessesSnapshotSchema } from "../shared";
 import { dockerContainerProcessesStreamQuerySchema } from "../shared";
 
@@ -12,4 +12,5 @@ export const dockerContainerProcessesStreamContract = dockerContainerProcessesSt
   .path("/processes/stream")
   .input((b) => b.query(dockerContainerProcessesStreamQuerySchema))
   .output((b) => b.observable(dockerContainerProcessesSnapshotSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

@@ -1,12 +1,14 @@
 import { Module } from "@nestjs/common";
-import { ConfigurationCoreModule } from "@/core/modules/configuration/configuration-core.module";
+import { DatabaseModule } from "../../core/modules/database/database.module";
 import { AnalyticsController } from "./controllers/analytics.controller";
+import { AnalyticsDownloadController } from "./controllers/analytics-download.controller";
 import { AnalyticsService } from "./services/analytics.service";
+import { AnalyticsRepository } from "./repositories/analytics.repository";
 
 @Module({
-    imports: [ConfigurationCoreModule],
-    controllers: [AnalyticsController],
-    providers: [AnalyticsService],
+    imports: [DatabaseModule],
+    controllers: [AnalyticsController, AnalyticsDownloadController],
+    providers: [AnalyticsService, AnalyticsRepository],
     exports: [AnalyticsService],
 })
 export class AnalyticsModule {}

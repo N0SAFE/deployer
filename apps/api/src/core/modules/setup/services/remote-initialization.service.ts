@@ -1,3 +1,4 @@
+import { AppError } from "@repo/errors";
 import { Injectable, Logger } from '@nestjs/common'
 import type { SetupInitializeRemoteInput } from '@repo/contracts-entities'
 import { NodeConfigRepository } from '../repositories/node-config.repository'
@@ -86,10 +87,11 @@ export class RemoteInitializationService {
 
             if (!remoteVersion) {
                 // Remote is unreachable — refuse to join
-                throw new Error(
-                    `Cannot verify remote mesh version at ${input.meshUrl}. ` +
+                throw new AppError(
+                                        `Cannot verify remote mesh version at ${input.meshUrl}. ` +
                     `The remote mesh is unreachable. Ensure the mesh URL is correct ` +
-                    `and the remote node is running.`
+                    `and the remote node is running.`,
+                    "INTERNAL_ERROR",
                 );
             }
 
@@ -103,10 +105,11 @@ export class RemoteInitializationService {
 
             if (comparison < 0) {
                 // Local version is BEHIND the mesh — block join
-                throw new Error(
-                    `⛔ Version mismatch: this node is at ${DEPLOYER_VERSION} but the mesh ` +
+                throw new AppError(
+                                        `⛔ Version mismatch: this node is at ${DEPLOYER_VERSION} but the mesh ` +
                     `is at ${remoteVersion}. A node cannot join a mesh running a higher version. ` +
-                    `Please upgrade this node to ${remoteVersion} before joining.`
+                    `Please upgrade this node to ${remoteVersion} before joining.`,
+                    "INTERNAL_ERROR",
                 );
             }
 
@@ -134,6 +137,9 @@ export class RemoteInitializationService {
                 deployerVersion: DEPLOYER_VERSION,
                 meshUrlsSnapshot: meshUrls,
                 databaseUrl,
+                // Remote-join shares the mesh owner's database — externally
+                // managed, never supervised by this node's GlobalDbSupervisorService.
+                databaseProvisioning: 'external' as const,
                 configuredAt: now,
                 peerServiceToken: peerServiceToken ?? undefined,
                 peerServiceTokenExpiresAt: peerServiceTokenExpiresAt ?? undefined,

@@ -9,33 +9,39 @@ import { TraefikMiddlewareLibraryService } from './services/traefik-middleware-l
 import { TraefikRepository } from './repositories/traefik.repository';
 import { TraefikTemplateRepository } from './repositories/traefik-template.repository';
 import { TraefikEventService } from './events/traefik-event.service';
+import { TraefikPlatformConfigService } from './services/traefik-platform-config.service';
+import { TraefikConfigRefresher } from './services/traefik-config-refresher.service';
 import { DatabaseModule } from '../database/database.module';
-import { EnvService } from '@/config/env/env.service';
 import { EventsModule } from '@/core/modules/events/events.module';
+import { SupervisorsModule } from '../supervisors/supervisors.module';
+import { CorePlatformIngressModule } from '../platform-ingress/platform-ingress.module';
+import { CoreDockerModule } from '../docker/docker.module';
+import { EnvService } from '@/config/env/env.service';
 
 /**
  * CORE MODULE: Traefik
- * Provides all Traefik-related services and infrastructure
- * 
- * This is a CORE module - it provides Traefik infrastructure for the application.
- * 
- * Services exported:
- * - TraefikTemplateService: Template parsing and variable replacement
- * - TraefikVariableResolverService: Variable resolution for Traefik configs
- * - TraefikService: Main Traefik service for config management
- * - TraefikSyncService: Sync configurations to filesystem
- * - TraefikFileSystemService: Filesystem operations for Traefik configs
- * - TraefikValidationService: Validate Traefik configurations
- * - TraefikMiddlewareLibraryService: Pre-built middleware configurations
- * - TraefikEventService: Real-time event notifications for config changes
- * - TraefikRepository: Database operations for Traefik configs
- * - TraefikTemplateRepository: Database operations for Traefik templates
- * 
- * Dependencies:
- * - DatabaseModule: Database access
+ * Provides all Traefik-related services and infrastructure.
+ *
+ * This is the CONFIG hander for the live Traefik instance:
+ *   - `TraefikPlatformConfigService` rewrites the dynamic files the running
+ *     Traefik watches (platform api/web routes + DB-driven domain routes +
+ *     per-service configs); `TraefikConfigRefresher` is the fire-and-forget
+ *     update trigger (config write → process re-converge).
+ *   - The Traefik SUPERVISOR only ensures the process (container/network/
+ *     entry port/liveness) — it never writes config (see traefik-supervisor).
+ *
+ * Services exported: ...
  */
 @Module({
-  imports: [DatabaseModule, EventsModule],
+  imports: [
+    DatabaseModule,
+    EventsModule,
+    // The platform helpers (hostname, route builder, web target, route source)
+    // and the supervisor framework (orchestrator for process re-converge).
+    CorePlatformIngressModule,
+    CoreDockerModule,
+    SupervisorsModule,
+  ],
   providers: [
     // Services
     TraefikTemplateService,
@@ -51,6 +57,9 @@ import { EventsModule } from '@/core/modules/events/events.module';
     TraefikValidationService,
     TraefikMiddlewareLibraryService,
     TraefikEventService,
+    // Live-instance config handler (core-owned).
+    TraefikPlatformConfigService,
+    TraefikConfigRefresher,
     // Repositories
     TraefikRepository,
     TraefikTemplateRepository,
@@ -65,6 +74,8 @@ import { EventsModule } from '@/core/modules/events/events.module';
     TraefikValidationService,
     TraefikMiddlewareLibraryService,
     TraefikEventService,
+    TraefikPlatformConfigService,
+    TraefikConfigRefresher,
     // Repositories
     TraefikRepository,
     TraefikTemplateRepository,

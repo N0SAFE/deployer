@@ -8,6 +8,5 @@
     "noImplicitAny": false,
     "types": ["vitest/globals"]
   },
-  "include": ["**/__tests__/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["**/__tests__/**/*"]
 }

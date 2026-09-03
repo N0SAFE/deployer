@@ -135,6 +135,6 @@ export async function fetchRemoteAuthSession(serverUrl: string): Promise<MeshRem
     serverUrl,
     ...parsed,
     retrievedAt: new Date().toISOString(),
-    raw: payload && typeof payload === "object" ? payload : null,
+    raw: isRecord(payload) ? payload : null,
   };
 }

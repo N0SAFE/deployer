@@ -56,9 +56,6 @@ export function FeatureErrorFallback({
     if (lowerFeature.includes('user') || lowerFeature.includes('profile')) {
       return 'We had trouble loading your profile. Your data is safe.'
     }
-    if (lowerFeature.includes('organization') || lowerFeature.includes('org')) {
-      return 'We had trouble loading organization data. Please try again.'
-    }
     if (lowerFeature.includes('admin') || lowerFeature.includes('dashboard')) {
       return 'We had trouble loading the admin dashboard. Please try again.'
     }

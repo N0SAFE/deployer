@@ -8,6 +8,7 @@
  * Uses the custom contract system with automatic cache invalidation.
  */
 
+import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { adminEndpoints } from "./endpoints";
 import { adminInvalidations } from "./invalidations";
@@ -87,9 +88,7 @@ export function useAdminBanUser() {
         toast.success("User banned successfully");
       }),
       onError: (error) => {
-        toast.error(
-          `Failed to ban user: ${error instanceof Error ? error.message : "Unknown error"}`,
-        );
+        toast.error(isDefinedORPCError(error) ? getErrorMessage(error, 'Failed to ban user') : UNKNOWN_ORPC_ERROR_MESSAGE);
       },
     }),
   );
@@ -105,9 +104,7 @@ export function useAdminUnbanUser() {
         toast.success("User unbanned successfully");
       }),
       onError: (error) => {
-        toast.error(
-          `Failed to unban user: ${error instanceof Error ? error.message : "Unknown error"}`,
-        );
+        toast.error(isDefinedORPCError(error) ? getErrorMessage(error, 'Failed to unban user') : UNKNOWN_ORPC_ERROR_MESSAGE);
       },
     }),
   );
@@ -128,9 +125,7 @@ export function useAdminSetRole() {
         },
       ),
       onError: (error) => {
-        toast.error(
-          `Failed to update role: ${error instanceof Error ? error.message : "Unknown error"}`,
-        );
+        toast.error(isDefinedORPCError(error) ? getErrorMessage(error, 'Failed to update role') : UNKNOWN_ORPC_ERROR_MESSAGE);
       },
     }),
   );
@@ -146,9 +141,7 @@ export function useAdminCreateUser() {
         toast.success("User created successfully");
       }),
       onError: (error) => {
-        toast.error(
-          `Failed to create user: ${error instanceof Error ? error.message : "Unknown error"}`,
-        );
+        toast.error(isDefinedORPCError(error) ? getErrorMessage(error, 'Failed to create user') : UNKNOWN_ORPC_ERROR_MESSAGE);
       },
     }),
   );
@@ -164,9 +157,7 @@ export function useAdminUpdateUser() {
         toast.success("User updated successfully");
       }),
       onError: (error) => {
-        toast.error(
-          `Failed to update user: ${error instanceof Error ? error.message : "Unknown error"}`,
-        );
+        toast.error(isDefinedORPCError(error) ? getErrorMessage(error, 'Failed to update user') : UNKNOWN_ORPC_ERROR_MESSAGE);
       },
     }),
   );
@@ -182,9 +173,7 @@ export function useAdminRemoveUser() {
         toast.success("User removed successfully");
       }),
       onError: (error) => {
-        toast.error(
-          `Failed to remove user: ${error instanceof Error ? error.message : "Unknown error"}`,
-        );
+        toast.error(isDefinedORPCError(error) ? getErrorMessage(error, 'Failed to remove user') : UNKNOWN_ORPC_ERROR_MESSAGE);
       },
     }),
   );

@@ -1,7 +1,9 @@
 import { AuthDashboardProfile } from '@/routes'
 import { ProfileForm } from './profile-form'
 import { PageTimingLogger } from '@/lib/timing'
+import { PageHeader } from '@/components/dashboard'
 
+import type { Metadata } from 'next'
 /**
  * Profile Page using SessionRoute pattern
  * 
@@ -16,12 +18,11 @@ export default AuthDashboardProfile.SessionRoute(({ session }) => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">Profile</h1>
-        <p className="text-muted-foreground">
-          Manage your account settings and profile information.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Account"
+        title="Profile"
+        description="Manage your account settings and profile information."
+      />
 
       {/* Profile form - client component for interactivity */}
       <ProfileForm initialSession={session} />
@@ -31,3 +32,8 @@ export default AuthDashboardProfile.SessionRoute(({ session }) => {
     </div>
   )
 })
+
+export const metadata: Metadata = {
+    title: "Profile",
+    description: "Your profile and preferences",
+}

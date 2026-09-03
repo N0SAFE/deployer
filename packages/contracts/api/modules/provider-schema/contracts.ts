@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import z from "zod/v4";
 import {
     builderMetadataSchema,
@@ -31,12 +31,14 @@ export const getAllProvidersContract = providerMetadataOps
             total: z.number(),
         }),
     )
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const getProviderSchemaContract = providerSchemaOps
     .read({ idFieldName: "id", idSchema: z.string() })
     .input((b) => b.params((p) => p`/providers/${p("id", z.string())}/schema`))
     .output(configSchemaSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const getCompatibleBuildersContract = builderMetadataOps
@@ -48,6 +50,7 @@ export const getCompatibleBuildersContract = builderMetadataOps
             total: z.number(),
         }),
     )
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const getAllBuildersContract = builderMetadataOps
@@ -60,12 +63,14 @@ export const getAllBuildersContract = builderMetadataOps
             total: z.number(),
         }),
     )
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const getBuilderSchemaContract = builderSchemaOps
     .read({ idFieldName: "id", idSchema: z.string() })
     .input((b) => b.params((p) => p`/builders/${p("id", z.string())}/schema`))
     .output(configSchemaSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const getCompatibleProvidersContract = providerMetadataOps
@@ -77,6 +82,7 @@ export const getCompatibleProvidersContract = providerMetadataOps
             total: z.number(),
         }),
     )
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const validateProviderConfigContract = providerValidationOps
@@ -91,6 +97,7 @@ export const validateProviderConfigContract = providerValidationOps
             ),
     )
     .output(providerConfigValidationResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const validateBuilderConfigContract = builderValidationOps
@@ -105,4 +112,5 @@ export const validateBuilderConfigContract = builderValidationOps
             ),
     )
     .output(providerConfigValidationResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

@@ -152,13 +152,12 @@ export function useSessionQuery<TData>(
  * 
  * The created hook integrates with:
  * 1. React Query cache (for HydrationBoundary/SessionPage hydration) - SUBSCRIBES to updates
- * 2. Optional SessionBridge (for backwards compatibility)
- * 3. Better Auth's useSession (as final fallback)
+ * 2. Better Auth's useSession (as fallback)
  * 
  * How it works:
  * 1. Subscribes to React Query cache changes via useSyncExternalStore
  *    - When a page hydrates the session (via HydrationBoundary), this hook re-renders
- * 2. If no hydrated data, falls back to SessionBridge (if provided) or Better Auth's useSession
+ * 2. If no hydrated data, falls back to Better Auth's useSession
  * 
  * This enables the key behavior:
  * - SessionPage: Server fetches + hydrates RQ cache → useSession picks it up instantly
@@ -170,12 +169,10 @@ export function useSessionQuery<TData>(
  * // In your app's auth setup
  * import { createUseSession } from '@repo/auth/react/session/client'
  * import { authClient } from './options'
- * import { useSessionBridge } from './session-bridge'
  * 
  * export const useSession = createUseSession({
  *   authClient,
  *   sessionQueryKey: ['session'],
- *   useSessionBridge, // optional
  * })
  * ```
  */
@@ -185,7 +182,6 @@ export function createUseSession<TData>(
     const { 
         authClient, 
         sessionQueryKey = DEFAULT_SESSION_QUERY_KEY,
-        useSessionBridge,
     } = options
 
     return function useSession(): SessionResult<TData> {
@@ -198,9 +194,6 @@ export function createUseSession<TData>(
         
         // Use Better Auth's useSession as a fallback
         const betterAuthSession = authClient.useSession()
-        
-        // Fallback to SessionBridge (legacy support)
-        const bridge = useSessionBridge?.() ?? null
         
         // Determine which session data to use
         const result = useMemo((): SessionResult<TData> => {
@@ -230,18 +223,7 @@ export function createUseSession<TData>(
                 }
             }
             
-            // Priority 2: SessionBridge (legacy support)
-            if (bridge?.data !== undefined) {
-                return {
-                    data: bridge.data,
-                    isLoading: false,
-                    isPending: false,
-                    error: undefined,
-                    refetch: async () => { /* no-op */ },
-                }
-            }
-            
-            // Priority 3: Better Auth's useSession (client-side fetch)
+            // Priority 2: Better Auth's useSession (client-side fetch)
             // Normalize isPending to isLoading (and keep isPending for compat)
             return {
                 data: betterAuthSession.data,
@@ -250,7 +232,7 @@ export function createUseSession<TData>(
                 error: betterAuthSession.error,
                 refetch: betterAuthSession.refetch,
             }
-        }, [hasHydratedData, cachedSession, bridge, betterAuthSession])
+        }, [hasHydratedData, cachedSession, betterAuthSession])
         
         return result
     }
@@ -264,7 +246,6 @@ export function createUseSession<TData>(
  * 
  * The enhanced useSession:
  * - On client: Uses `useSyncExternalStore` to subscribe to React Query cache changes
- * - Falls back to SessionBridge (if provided) for backwards compatibility
  * - Falls back to the original Better Auth's useSession
  * 
  * All other auth client methods are passed through unchanged.
@@ -274,11 +255,9 @@ export function createUseSession<TData>(
  * // In your app's auth setup (client.ts)
  * import { createSessionAwareAuthClient } from '@repo/auth/react/session/client'
  * import { authClient as originalAuthClient } from './options'
- * import { useSessionBridge } from './session-bridge'
  * 
  * export const authClient = createSessionAwareAuthClient(originalAuthClient, {
  *   sessionQueryKey: ['session'],
- *   useSessionBridge, // optional
  * })
  * 
  * // Now authClient.useSession() will automatically use RQ cache subscription
@@ -298,14 +277,12 @@ export function createSessionAwareAuthClient<
 ): TClient {
     const { 
         sessionQueryKey = DEFAULT_SESSION_QUERY_KEY,
-        useSessionBridge,
     } = options
 
     // Create the enhanced useSession hook
     const enhancedUseSession = createUseSession({
         authClient: originalClient,
         sessionQueryKey,
-        useSessionBridge,
     })
 
     // Use a Proxy to properly forward all property access to the original client.

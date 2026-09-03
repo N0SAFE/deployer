@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import z from "zod/v4";
 import {
     analyticsReportSchema,
@@ -6,14 +6,6 @@ import {
     generateReportInputSchema,
     reportConfigurationSchema,
 } from "./schemas";
-
-const analyticsReportParamsSchema = z.object({
-    reportId: z.string(),
-});
-
-const analyticsReportConfigParamsSchema = z.object({
-    configId: z.string(),
-});
 
 const analyticsGenerateReportOutputSchema = z.object({
     reportId: z.string(),
@@ -105,13 +97,15 @@ export const analyticsGenerateReportContract = analyticsGenerateReportOps
     .path("/reports/generate")
     .input((input) => input.body(generateReportInputSchema))
     .output(analyticsGenerateReportOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsGetReportContract = analyticsGetReportOps
     .read({ idFieldName: "reportId", idSchema: z.string() })
-    .path("/reports/:reportId")
-    .input((input) => input.params(analyticsReportParamsSchema))
+    // path-template params form (schema-only params doesn't wire URL substitution)
+    .input((b) => b.params((p) => p`/reports/${p("reportId", z.string())}`))
     .output(analyticsGetReportOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsListReportsContract = analyticsListReportsOps
@@ -119,20 +113,21 @@ export const analyticsListReportsContract = analyticsListReportsOps
     .path("/reports")
     .input((input) => input.query(analyticsListReportsQuerySchema))
     .output(analyticsListReportsOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsDeleteReportContract = analyticsDeleteReportOps
     .delete({ idFieldName: "reportId", idSchema: z.string() })
-    .path("/reports/:reportId")
-    .input((input) => input.params(analyticsReportParamsSchema))
+    .input((b) => b.params((p) => p`/reports/${p("reportId", z.string())}`))
     .output(analyticsReportActionOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsDownloadReportContract = analyticsDownloadReportOps
     .list()
-    .path("/reports/:reportId/download")
-    .input((input) => input.params(analyticsReportParamsSchema))
+    .input((b) => b.params((p) => p`/reports/${p("reportId", z.string())}/download`))
     .output(analyticsDownloadReportOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsCreateReportConfigContract = analyticsCreateReportConfigOps
@@ -140,6 +135,7 @@ export const analyticsCreateReportConfigContract = analyticsCreateReportConfigOp
     .path("/reports/configurations")
     .input((input) => input.body(reportConfigurationSchema))
     .output(analyticsReportConfigOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsListReportConfigsContract = analyticsListReportConfigsOps
@@ -147,22 +143,23 @@ export const analyticsListReportConfigsContract = analyticsListReportConfigsOps
     .path("/reports/configurations")
     .input((input) => input.query(analyticsListReportConfigsQuerySchema))
     .output(analyticsListReportConfigsOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsUpdateReportConfigContract = analyticsUpdateReportConfigOps
     .update({ idFieldName: "configId", idSchema: z.string() })
-    .path("/reports/configurations/:configId")
-    .input((input) =>
-        input
-            .params(analyticsReportConfigParamsSchema)
+    .input((b) =>
+        b
+            .params((p) => p`/reports/configurations/${p.configId}`)
             .body(reportConfigurationSchema.partial()),
     )
     .output(analyticsReportConfigOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsDeleteReportConfigContract = analyticsDeleteReportConfigOps
     .delete({ idFieldName: "configId", idSchema: z.string() })
-    .path("/reports/configurations/:configId")
-    .input((input) => input.params(analyticsReportConfigParamsSchema))
+    .input((b) => b.params((p) => p`/reports/configurations/${p.configId}`))
     .output(analyticsReportActionOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

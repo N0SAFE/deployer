@@ -16,6 +16,6 @@ export const variableTemplateSchema = z.object({
   variables: z.array(templateVariableSchema),
   isSystem: z.boolean(),
   createdBy: z.string(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
 })

@@ -43,35 +43,35 @@ describe("Module contract surfaces e2e: public + auth boundaries", () => {
 
   it("user.list rejects anonymous access", async () => {
     await expectAnonymousUnauthorized(
-      () => context.orpc.user.list({ query: {} }),
+      () => context.orpc.user.list({ query: { limit: 20, offset: 0 } }),
       "/user",
     );
   });
 
   it("project.list rejects anonymous access", async () => {
     await expectAnonymousUnauthorized(
-      () => context.orpc.project.list({ query: {} }),
+      () => context.orpc.project.list({ query: { limit: 20, offset: 0 } }),
       "/projects",
     );
   });
 
   it("service.crud.list rejects anonymous access", async () => {
     await expectAnonymousUnauthorized(
-      () => context.orpc.service.crud.list({ query: {} }),
+      () => context.orpc.service.crud.list({ query: { limit: 20, offset: 0 } }),
       "/services",
     );
   });
 
   it("deployment.list rejects anonymous access", async () => {
     await expectAnonymousUnauthorized(
-      () => context.orpc.deployment.list({ query: {} }),
+      () => context.orpc.deployment.list({ query: { limit: 20, offset: 0 } }),
       "/deployments",
     );
   });
 
   it("template.list currently reports route-not-mounted (404)", async () => {
     await expectAnonymousUnauthorized(
-      () => context.orpc.template.list({ query: {} }),
+      () => context.orpc.template.list({ query: { limit: 20, offset: 0 } }),
       "/templates",
       404,
     );
@@ -91,20 +91,13 @@ describe("Module contract surfaces e2e: public + auth boundaries", () => {
     );
   });
 
-  it("domain.listOrganizationDomains rejects anonymous access", async () => {
+  it("domain.listProjectDomains rejects anonymous access", async () => {
     await expectAnonymousUnauthorized(
       () =>
-        context.orpc.domain.listOrganizationDomains({
-          params: { organizationId: randomUUID() },
+        context.orpc.domain.listProjectDomains({
+          params: { projectId: randomUUID() },
         }),
-      "/domains",
-    );
-  });
-
-  it("organization.admin.listAll rejects anonymous access", async () => {
-    await expectAnonymousUnauthorized(
-      () => context.orpc.organization.admin.listAll({ query: {} }),
-      "/organization/admin",
+      "/domains/projects",
     );
   });
 
@@ -117,7 +110,7 @@ describe("Module contract surfaces e2e: public + auth boundaries", () => {
 
   it("core.fleet.listServers rejects anonymous access", async () => {
     await expectAnonymousUnauthorized(
-      () => context.orpc.core.fleet.listServers({}),
+      () => context.orpc.core.fleet.listServers(),
       "/core/fleet/servers",
     );
   });

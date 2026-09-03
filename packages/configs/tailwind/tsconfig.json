@@ -15,6 +15,5 @@
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": ["index.ts", "index.mts", "tailwind.config.mts"],
-  "exclude": ["node_modules", "dist", "__tests__", "**/*.test.ts", "**/*.spec.ts", "vitest.config.mts"]
+  "include": ["index.ts", "index.mts", "tailwind.config.mts"]
 }

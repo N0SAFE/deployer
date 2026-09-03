@@ -175,8 +175,18 @@ export function buildDockerEntityEventChunk(input: {
   eventId: string | null
 }): DockerEntityEvent {
   const envelope = dockerEntityEventEnvelopeSchema.parse(input)
-  const { kind, entity, ...rest } = envelope
-  return { ...entity, ...rest } as DockerEntityEvent
+  // Validate the final shape through the canonical event schema instead of
+  // spreading + asserting: `kind` is deliberately included in the output
+  // (the discriminator is required by `dockerEntityStreamChunkSchema`), and
+  // the parse fails fast on any malformed chunk instead of silently shipping
+  // a value ORPC's output validation will reject with a 500.
+  return dockerEntityEventSchema.parse({
+    ...envelope.entity,
+    kind: envelope.kind,
+    action: envelope.action,
+    occurredAt: envelope.occurredAt,
+    eventId: envelope.eventId,
+  })
 }
 
 /**

@@ -24,7 +24,6 @@ import {
   notificationLevelSchema,
 } from '@repo/contracts-common'
 import {
-  organizationPlanSchema,
   runnerNetworkModeSchema,
   serviceDeploymentProfileSchema,
   serviceProviderTypeSchema,
@@ -42,7 +41,6 @@ import {
 
 export type PlatformDomainSchemaDeps = {
   envNameSchema?: typeof envNameSchema
-  organizationPlanSchema?: typeof organizationPlanSchema
   serviceProviderTypeSchema?: typeof serviceProviderTypeSchema
   serviceRunnerTypeSchema?: typeof serviceRunnerTypeSchema
   serviceHealthProtocolSchema?: typeof serviceHealthProtocolSchema
@@ -53,7 +51,6 @@ export type PlatformDomainSchemaDeps = {
 
 export function createPlatformDomainSchemas(deps: PlatformDomainSchemaDeps = {}) {
   const env = deps.envNameSchema ?? envNameSchema
-  const organizationPlan = deps.organizationPlanSchema ?? organizationPlanSchema
   const serviceProviderType = deps.serviceProviderTypeSchema ?? serviceProviderTypeSchema
   const serviceRunnerType = deps.serviceRunnerTypeSchema ?? serviceRunnerTypeSchema
   const serviceHealthProtocol = deps.serviceHealthProtocolSchema ?? serviceHealthProtocolSchema
@@ -62,25 +59,8 @@ export function createPlatformDomainSchemas(deps: PlatformDomainSchemaDeps = {})
   const projectEnvDeploymentStrategy =
     deps.projectEnvironmentDeploymentStrategySchema ?? projectEnvironmentDeploymentStrategySchema
 
-  const mockOrganizationSchema = z.object({
-    id: z.string(),
-    slug: z.string(),
-    name: z.string(),
-    plan: organizationPlan,
-    region: z.string(),
-  })
-
-  const mockTeamSchema = z.object({
-    id: z.string(),
-    organizationId: z.string(),
-    name: z.string(),
-    purpose: z.string(),
-  })
-
   const mockProjectSchema = z.object({
     id: z.string(),
-    organizationId: z.string(),
-    teamId: z.string(),
     slug: z.string(),
     name: z.string(),
     description: z.string(),
@@ -381,7 +361,6 @@ export function createPlatformDomainSchemas(deps: PlatformDomainSchemaDeps = {})
 
   const mockDeploymentSchema = z.object({
     id: z.string(),
-    organizationId: z.string(),
     projectId: z.string(),
     environment: env,
     status: operationsDeploymentStatusSchema,
@@ -392,7 +371,6 @@ export function createPlatformDomainSchemas(deps: PlatformDomainSchemaDeps = {})
 
   const mockIncidentSchema = z.object({
     id: z.string(),
-    organizationId: z.string(),
     projectId: z.string(),
     severity: incidentSeveritySchema,
     title: z.string(),
@@ -403,7 +381,6 @@ export function createPlatformDomainSchemas(deps: PlatformDomainSchemaDeps = {})
 
   const mockNotificationSchema = z.object({
     id: z.string(),
-    organizationId: z.string(),
     projectId: z.string(),
     channel: notificationChannelSchema,
     level: notificationLevelSchema,
@@ -412,7 +389,6 @@ export function createPlatformDomainSchemas(deps: PlatformDomainSchemaDeps = {})
   })
 
   const dependencyGraphMockScenarioSchema = z.object({
-    organization: mockOrganizationSchema,
     project: mockProjectSchema,
     relatedProjects: z.array(mockProjectSchema),
     configuration: projectConfigurationSchema,
@@ -568,7 +544,7 @@ export function createPlatformDomainSchemas(deps: PlatformDomainSchemaDeps = {})
         if (
           targetPolicy.mode === 'same-environment' &&
           executionOverride.dependencyLinkPolicy.provisioning.provisioningMode === 'shared-service' &&
-          executionOverride.dependencyLinkPolicy.provisioning.sharingScope === 'organization'
+          executionOverride.dependencyLinkPolicy.provisioning.sharingScope === 'project'
         ) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
@@ -666,15 +642,12 @@ export function createPlatformDomainSchemas(deps: PlatformDomainSchemaDeps = {})
   })
 
   const platformMockOverviewSchema = z.object({
-    organizations: z.array(mockOrganizationSchema),
-    teams: z.array(mockTeamSchema),
+
     projects: z.array(mockProjectSchema),
     projectScenarios: z.record(z.string(), dependencyGraphMockScenarioSchema),
   })
 
   return {
-    mockOrganizationSchema,
-    mockTeamSchema,
     mockProjectSchema,
     fixtureGroupMemberServiceSchema,
     fixtureGroupMemberDependencySchema,

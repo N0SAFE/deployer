@@ -1,4 +1,6 @@
+import { authClient } from '@/lib/auth/index';
 import { orpc } from '@/lib/orpc'
+import { custom } from '../shared/helpers';
 
 /**
  * User domain endpoints
@@ -41,6 +43,7 @@ export const userEndpoints = {
    * Get user count statistics
    */
   count: orpc.user.count,
+  
 } as const
 
 export type UserEndpoints = typeof userEndpoints

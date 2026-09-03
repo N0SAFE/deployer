@@ -1,4 +1,4 @@
-import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
+import { createFilterConfig, standard, type ComputeInputSchema, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { deploymentTemplateSchema } from "@repo/contracts-entities";
 
 const templateOps = standard.zod(deploymentTemplateSchema, "deploymentTemplate");
@@ -43,6 +43,6 @@ const templateListConfig = createFilterConfig(templateOps)
 
 export const templateListConfigSchemas = templateListConfig;
 
-export const templateListContract = templateOps.list(templateListConfig).build();
+export const templateListContract = templateOps.list(templateListConfig).errors((e) => [...standardDomainErrorContracts(e)]).build();
 
 export type TemplateListInput = ComputeInputSchema<typeof templateListConfigSchemas>;

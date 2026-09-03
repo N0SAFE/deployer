@@ -7,13 +7,13 @@
  */
 
 import * as z from "zod";
-import type { AnySchema, HTTPPath } from "@orpc/contract";
+import type { HTTPPath } from "@orpc/contract";
 import {
-    StandardOperations as BaseStandardOperations,
+    BaseStandardOperations,
     type EntityOperationOptions as BaseEntityOperationOptions,
     type ListPlainOptions as BaseListPlainOptions,
 } from "../base/standard-operations";
-import type { ObjectSchema, SchemaWithConfig } from "../base/types";
+import type { SchemaWithConfig } from "../base/types";
 import { CONFIG_SYMBOL } from "../base/types";
 import {
     createPaginationConfigSchema,
@@ -31,9 +31,9 @@ import {
     type ComputeOutputSchema,
     type QueryBuilder,
 } from "./utils";
-import { RouteBuilder } from "../../builder/core/route-builder";
-import type { VoidSchema } from "../../types/standard-schema-helpers";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- DetailedOutputBrand/DetailedInputBrand are imported so inferred declaration types can name them (TS4053)
+import { RouteBuilder, DetailedOutputBrand, DetailedInputBrand } from "../../builder/core/route-builder";
+import { ZodPluginTransformer } from "../../builder/index";
 
 /**
  * Zod entity schema type - requires ZodObject for schema manipulation
@@ -93,7 +93,7 @@ export type ZodEntityOperationOptions<TEntitySchema extends ZodEntitySchema, TId
  *
  * @example
  * ```typescript
- * import { z } from "zod/v4";
+ * import z from "zod/v4";
  *
  * const userSchema = z.object({
  *   id: z.uuid(),
@@ -123,7 +123,12 @@ export class ZodStandardOperations<
     TEntity extends ZodEntitySchema = ZodEntitySchema,
     TIdField extends string = "id",
     TIdSchema extends z.ZodType = InferIdSchema<TEntity, TIdField>,
-> extends BaseStandardOperations<TEntity, TIdField, TIdSchema> {
+> extends BaseStandardOperations<TEntity, TIdField, TIdSchema, ZodPluginTransformer> {
+    /** The Zod schema transformer — this implementation's plugin. */
+    protected getPlugin(): ZodPluginTransformer {
+        return new ZodPluginTransformer();
+    }
+
     private getEntityShapeOrNull(): z.ZodRawShape | null {
         const candidate = (this.entitySchema as unknown as { shape?: unknown }).shape;
         if (candidate && typeof candidate === "object") {
@@ -418,15 +423,19 @@ export class ZodStandardOperations<
      * Use createFilterConfig() to build the config with pagination, sorting, and filtering.
      */
     list<TConfig extends ZodListOperationOptions>(options: TConfig): RouteBuilder<
-        ObjectSchema<{
-            query: z.ZodType<
-                ComputeInputSchema<QueryConfigFromOptions<TConfig>>,
-                ComputeInputSchema<QueryConfigFromOptions<TConfig>>
+        z.ZodObject<{
+            query: z.ZodOptional<
+                z.ZodType<
+                    ComputeInputSchema<QueryConfigFromOptions<TConfig>>,
+                    ComputeInputSchema<QueryConfigFromOptions<TConfig>>
+                >
             >;
         }>,
         z.ZodType<ComputeOutputSchema<QueryConfigFromOptions<TConfig>, z.infer<TEntity>>>,
         "GET",
-        TEntity
+        TEntity,
+        Record<never, never>,
+        ZodPluginTransformer
     >;
 
     /**
@@ -435,10 +444,12 @@ export class ZodStandardOperations<
      * Use createFilterConfig() if you need pagination, sorting, or filtering.
      */
     list(): RouteBuilder<
-        VoidSchema,
+        z.ZodUndefined,
         z.ZodObject<{ data: z.ZodArray<TEntity> }>,
         "GET",
-        TEntity
+        TEntity,
+        Record<never, never>,
+        ZodPluginTransformer
     >;
 
     list(options?: ZodListOperationOptions): RouteBuilder<
@@ -446,7 +457,9 @@ export class ZodStandardOperations<
         any,
         z.ZodType,
         "GET",
-        TEntity
+        TEntity,
+        Record<never, never>,
+        ZodPluginTransformer
     > {
         if (!options) {
             return this.createBuilder({

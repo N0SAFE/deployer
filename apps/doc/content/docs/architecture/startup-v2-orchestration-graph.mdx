@@ -533,66 +533,30 @@ This is the **chronological execution order** from `main.ts` bootstrap to `app.l
 timeline
     title NestJS Bootstrap — Full Module Resolution Timeline
 
-    section Phase 1: Scan
-        0ms : NestFactory.create(AppModule)
-            : dependenciesScanner.scan() builds module tree
-            : @Global() → distance = MAX_VALUE
-            : All 25+ modules registered with distances
-            : Module graph complete
+    section Phase 1 — Scan
+        0ms : NestFactory.create(AppModule)<br/>dependenciesScanner.scan() builds module tree<br/>@Global() → distance = MAX_VALUE<br/>All 25+ modules registered with distances<br/>Module graph complete
 
-    section Phase 2: Instantiate (All Modules in Parallel with Barriers)
-        2ms   : EnvModule resolves immediately
-             :   → EnvService, ConfigService available
-             : InitializationService resolves immediately
-             :   → checkConfigAndEmit(), waitForSetup() blocks
-        5ms   : LocalModule (SQLite) resolves
-             : CoreReachabilityModule resolves
-             : CoreDockerModule resolves
+    section Phase 2 — Instantiate (All Modules in Parallel with Barriers)
+        2ms   : EnvModule resolves immediately<br/>→ EnvService, ConfigService available<br/>InitializationService resolves immediately<br/>→ checkConfigAndEmit(), waitForSetup() blocks
+        5ms   : LocalModule (SQLite) resolves<br/>CoreReachabilityModule resolves<br/>CoreDockerModule resolves
         10ms  : MeshInitializationModule resolves
-        15ms  : CoreInitializationModule resolves
-             :   (imports mesh + local + docker + reachability)
-        20ms  : ⏳ GLOBAL_DATABASE_POOL factory starts
-             :   → injects InitializationService
-             :   → calls checkConfigAndEmit()
-             :   → ⏳ BLOCKS on waitForSetup()
-        20ms  : All other independent providers resolve
-             :   Middlewares, filters, guards
-        50ms  : (If configured) Pool created
-             : ⏳ waitForSetup() resolves with databaseUrl
-             : new Pool(connectionString) created
-        55ms  : GLOBAL_DATABASE_CONNECTION factory
-             :   → injects Pool
-             :   → drizzle(pool, schema) created
-        60ms  : GlobalDatabaseService factory
-             :   → injects DrizzleClient
-        65ms  : AuthCoreService resolves
-             :   → injects DrizzleClient
-             : AuthModule.forRootAsync() → BetterAuth instance
-        70ms  : Feature module providers resolve
-             :   → all have GlobalDatabaseService available
-        80ms  : ORPCModule.forRootAsync() resolves
-             :   → injects REQUEST + AuthCoreService
-             :   → Router, interceptors, plugins configured
+        15ms  : CoreInitializationModule resolves<br/>(imports mesh + local + docker + reachability)
+        20ms  : ⏳ GLOBAL_DATABASE_POOL factory starts<br/>→ injects InitializationService<br/>→ calls checkConfigAndEmit()<br/>→ ⏳ BLOCKS on waitForSetup()
+        20ms  : All other independent providers resolve<br/>Middlewares, filters, guards
+        50ms  : (If configured) Pool created<br/>⏳ waitForSetup() resolves with databaseUrl<br/>new Pool(connectionString) created
+        55ms  : GLOBAL_DATABASE_CONNECTION factory<br/>→ injects Pool<br/>→ drizzle(pool, schema) created
+        60ms  : GlobalDatabaseService factory<br/>→ injects DrizzleClient
+        65ms  : AuthCoreService resolves<br/>→ injects DrizzleClient<br/>AuthModule.forRootAsync() → BetterAuth instance
+        70ms  : Feature module providers resolve<br/>→ all have GlobalDatabaseService available
+        80ms  : ORPCModule.forRootAsync() resolves<br/>→ injects REQUEST + AuthCoreService<br/>→ Router, interceptors, plugins configured
 
-    section Phase 3: Lifecycle Hooks
-        85ms  : callInitHook() — reverse distance order
-             : EnvModule.onModuleInit()
-             : DatabaseModule.onModuleInit()
-             : GlobalModule.onModuleInit()
-        90ms  : StartupOrchestratorService.onModuleInit()
-             :   → Phase 0: Core startup services (DB, setup, auth, mesh, ...)
-             :   → Step 1: Run migrations
-             :   → Step 2: Create admin user
-             :   → Step 3: Register mesh node
-             :   → Step 4: Report schema version
-             :   → isStartupComplete() = true
+    section Phase 3 — Lifecycle Hooks
+        85ms  : callInitHook() — reverse distance order<br/>EnvModule.onModuleInit()<br/>DatabaseModule.onModuleInit()<br/>GlobalModule.onModuleInit()
+        90ms  : StartupOrchestratorService.onModuleInit()<br/>→ Phase 0: Core startup services (DB, setup, auth, mesh, ...)<br/>→ Step 1: Run migrations<br/>→ Step 2: Create admin user<br/>→ Step 3: Register mesh node<br/>→ Step 4: Report schema version<br/>→ isStartupComplete() = true
         100ms : AppModule.onModuleInit()
         105ms : registerRouter() → bind routes
-        110ms : callBootstrapHook()
-             : EnvModule.onApplicationBootstrap()
-             : AppModule.onApplicationBootstrap()
-        115ms : app.listen(port)
-             : 🚀 Server accepting traffic on port 3005
+        110ms : callBootstrapHook()<br/>EnvModule.onApplicationBootstrap()<br/>AppModule.onApplicationBootstrap()
+        115ms : app.listen(port)<br/>🚀 Server accepting traffic on port 3005
 ```
 
 ---
@@ -990,7 +954,7 @@ sequenceDiagram
 |--------|-------|-------------|----------|
 | `EnvModule` | `EnvService` | None | Env vars, ConfigService |
 | `DatabaseModule` | — | None (facade) | LocalModule + GlobalModule |
-| `TriggersModule` | `TriggerRegistry` | None | All Trigger<T> instances |
+| `TriggersModule` | `TriggerRegistry` | None | All Trigger&lt;T&gt; instances |
 | `SubAppContextModule.forRoot()` | `SUB_APP_CONTEXT` | Varies | Trigger for this sub-app |
 
 ### Core forRootAsync Chain (Sequential via Imports)

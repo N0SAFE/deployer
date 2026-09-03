@@ -1,5 +1,6 @@
 'use client'
 
+import { getErrorMessage } from "@/lib/orpc/typed-errors";
 import * as React from 'react'
 import { logger } from '@repo/logger'
 
@@ -22,7 +23,7 @@ export default function GlobalError({
           <h1 style={{ color: '#dc2626' }}>Application Error</h1>
           <h2>Something went wrong!</h2>
           <p style={{ color: '#6b7280' }}>
-            {error.message || 'An unexpected error occurred'}
+            {getErrorMessage(error, 'An unexpected error occurred')}
           </p>
           {error.digest && (
             <p style={{ fontSize: '0.875rem', color: '#9ca3af' }}>

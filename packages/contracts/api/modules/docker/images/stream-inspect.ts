@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerImageInspectDetailSchema } from "@repo/contracts-entities";
 import z from "zod/v4";
 
@@ -17,6 +17,7 @@ export const dockerImageInspectStreamContract = dockerImageInspectStreamOps
   .path("/inspect/stream")
   .input((b) => b.query(dockerImageInspectStreamQuerySchema))
   .output((b) => b.observable(dockerImageInspectDetailSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();
 
 export type DockerImageInspectStreamQueryInput = z.infer<typeof dockerImageInspectStreamQuerySchema>;

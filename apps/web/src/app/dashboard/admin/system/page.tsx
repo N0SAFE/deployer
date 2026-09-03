@@ -1,10 +1,11 @@
 'use client'
 
+import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useOrganizations, useAllOrganizationPendingInvitations } from '@/domains/organization/hooks'
 import { useUserList } from '@/domains/user/hooks'
 import { useNodeStatus } from '@/domains/setup/hooks'
+import { NodeNetworkConfig } from '@/components/dashboard/system/NodeNetworkConfig'
 import {
   useFleetAdmissionRequests,
   useDeleteFleetAllocation,
@@ -52,7 +53,6 @@ import {
   fetchRemoteAuthSession,
   normalizeServerHttpUrl,
 } from '@/domains/mesh/connect-flow'
-import { Separator } from '@repo/ui/components/shadcn/separator'
 import { Switch } from '@repo/ui/components/shadcn/switch'
 import { Progress } from '@repo/ui/components/shadcn/progress'
 import { Label } from '@repo/ui/components/shadcn/label'
@@ -107,8 +107,8 @@ import {
 } from 'lucide-react'
 import type { MeshNodeRole, MeshRoutingMode, MeshPartitionConsistencyMode } from '@repo/contracts-entities'
 import Image from 'next/image'
-import { AuthDashboardAdminOrganizationsOrganizationId } from '@/routes'
 import { toast } from 'sonner'
+import { PageHeader } from '@/components/dashboard'
 
 type MeshRoutePlanHistoryEntry = {
   at: string
@@ -130,8 +130,7 @@ type MeshLookupHistoryEntry = {
 export default function AdminSystemPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { data: organizations, isLoading: orgsLoading } = useOrganizations()
-  const { data: pendingInvitations, isLoading: invitesLoading } = useAllOrganizationPendingInvitations()
+  const pendingInvitations = [] as Array<{ id: string; email: string; role: string; status: string; expiresAt: string }>
   
   // Use domain-based user hooks
   const { data: usersData, isLoading: usersLoading } = useUserList({
@@ -149,12 +148,11 @@ export default function AdminSystemPage() {
   const { data: fleetServersData, isLoading: fleetServersLoading } = useFleetServers()
   const { data: fleetAllocationsData, isLoading: fleetAllocationsLoading } = useFleetAllocations()
   const [admissionRequestStatusFilter, setAdmissionRequestStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'cancelled'>('pending')
-  const [admissionRequestOrgFilter, setAdmissionRequestOrgFilter] = useState('')
+
   const [reviewerNote, setReviewerNote] = useState('')
   const [decisionServerNodeId, setDecisionServerNodeId] = useState('')
   const { data: fleetAdmissionRequestsData, isLoading: fleetAdmissionRequestsLoading } = useFleetAdmissionRequests({
     status: admissionRequestStatusFilter,
-    organizationId: admissionRequestOrgFilter.trim() === '' ? undefined : admissionRequestOrgFilter.trim(),
   })
   const upsertFleetAllocation = useUpsertFleetAllocation()
   const deleteFleetAllocation = useDeleteFleetAllocation()
@@ -195,7 +193,7 @@ export default function AdminSystemPage() {
   const [desiredRouteBranches, setDesiredRouteBranches] = useState(2)
   const [lookupKind, setLookupKind] = useState<'stream' | 'queue' | 'deployment' | 'log'>('stream')
   const [lookupKey, setLookupKey] = useState('')
-  const [allocationOrganizationId, setAllocationOrganizationId] = useState('')
+
   const [allocationServerNodeId, setAllocationServerNodeId] = useState('')
   const [allocationMode, setAllocationMode] = useState<'dedicated_full' | 'dedicated_slice' | 'shared_slice'>('shared_slice')
   const [allocationCpuMillicores, setAllocationCpuMillicores] = useState(1000)
@@ -249,7 +247,7 @@ export default function AdminSystemPage() {
   const activeMeshEventStreams = meshEventStreams.filter((stream) => stream.isActive).length
   const isMeshStateLoading = meshStreamStatus === 'connecting' && !meshState
   const surfaceCardClass =
-    'border-slate-200/80 bg-white/85 shadow-sm backdrop-blur supports-backdrop-filter:bg-white/70 dark:border-slate-800 dark:bg-slate-950/45'
+    'border-border/60 bg-card/40 backdrop-blur-xl'
 
   const topologyNodes = useMemo(() => {
     const local = localNode
@@ -375,13 +373,6 @@ export default function AdminSystemPage() {
   }, [])
 
   useEffect(() => {
-    const firstOrganization = organizations?.at(0)
-    if (!allocationOrganizationId && firstOrganization) {
-      setAllocationOrganizationId(firstOrganization.id)
-    }
-  }, [allocationOrganizationId, organizations])
-
-  useEffect(() => {
     const firstServer = fleetServers.at(0)
     if (!allocationServerNodeId && firstServer) {
       setAllocationServerNodeId(firstServer.nodeId)
@@ -420,7 +411,7 @@ export default function AdminSystemPage() {
         }
       } catch (error) {
         if (!cancelled) {
-          const message = error instanceof Error ? error.message : 'Unknown mesh auth handoff error'
+          const message = isDefinedORPCError(error) ? getErrorMessage(error) : 'Unknown mesh auth handoff error'
           toast.error(`Unable to complete remote auth handoff: ${message}`)
           router.replace('/dashboard/admin/system')
         }
@@ -462,7 +453,7 @@ export default function AdminSystemPage() {
       toast.success('Remote server detected. Redirecting to remote login...')
       window.location.assign(signInUrl)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown mesh connect preflight error'
+      const message = isDefinedORPCError(error) ? getErrorMessage(error) : 'Unknown mesh connect preflight error'
       toast.error(`Failed to start remote auth handshake: ${message}`)
     }
   }
@@ -478,7 +469,7 @@ export default function AdminSystemPage() {
       })
       toast.success('Peer session disconnect requested')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown mesh disconnect error'
+      const message = isDefinedORPCError(error) ? getErrorMessage(error) : 'Unknown mesh disconnect error'
       toast.error(`Failed to disconnect peer: ${message}`)
     }
   }
@@ -510,7 +501,7 @@ export default function AdminSystemPage() {
 
       toast.success('Computed stream route plan from mesh resource index')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown route planning error'
+      const message = isDefinedORPCError(error) ? getErrorMessage(error) : 'Unknown route planning error'
       toast.error(`Unable to plan stream route: ${message}`)
     }
   }
@@ -547,17 +538,12 @@ export default function AdminSystemPage() {
         toast.warning('No mesh ownership location found for this resource key')
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown ownership lookup error'
+      const message = isDefinedORPCError(error) ? getErrorMessage(error) : 'Unknown ownership lookup error'
       toast.error(`Unable to lookup resource ownership: ${message}`)
     }
   }
 
   const handleUpsertFleetAllocation = async () => {
-    if (!allocationOrganizationId) {
-      toast.error('Select an organization first')
-      return
-    }
-
     if (!allocationServerNodeId) {
       toast.error('Select a server first')
       return
@@ -565,7 +551,6 @@ export default function AdminSystemPage() {
 
     try {
       await upsertFleetAllocation.mutateAsync({
-        organizationId: allocationOrganizationId,
         serverNodeId: allocationServerNodeId,
         allocationMode,
         cpuMillicores: Math.max(0, allocationCpuMillicores),
@@ -574,19 +559,19 @@ export default function AdminSystemPage() {
         isEnabled: true,
       })
 
-      toast.success('Organization/server capacity allocation saved')
+      toast.success('Server capacity allocation saved')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown allocation error'
+      const message = isDefinedORPCError(error) ? getErrorMessage(error) : 'Unknown allocation error'
       toast.error(`Failed to save allocation: ${message}`)
     }
   }
 
-  const handleDeleteFleetAllocation = async (organizationId: string, serverNodeId: string) => {
+  const handleDeleteFleetAllocation = async (serverNodeId: string) => {
     try {
-      await deleteFleetAllocation.mutateAsync({ organizationId, serverNodeId })
+      await deleteFleetAllocation.mutateAsync({ serverNodeId })
       toast.success('Allocation removed')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown deletion error'
+      const message = isDefinedORPCError(error) ? getErrorMessage(error) : 'Unknown deletion error'
       toast.error(`Failed to remove allocation: ${message}`)
     }
   }
@@ -604,7 +589,7 @@ export default function AdminSystemPage() {
       })
       toast.success(`Admission request ${decision}`)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown request resolution error'
+      const message = isDefinedORPCError(error) ? getErrorMessage(error) : 'Unknown request resolution error'
       toast.error(`Failed to resolve admission request: ${message}`)
     }
   }
@@ -617,7 +602,7 @@ export default function AdminSystemPage() {
       setStrictEnabled(enabled)
       toast.success(enabled ? 'Strict mode enabled' : 'Strict mode disabled')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error'
+      const message = isDefinedORPCError(error) ? getErrorMessage(error) : 'Unknown error'
       toast.error(`Failed to toggle strict mode: ${message}`)
     }
   }
@@ -633,7 +618,7 @@ export default function AdminSystemPage() {
       setRotateSecret('')
       toast.success('Trust keyring rotated')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error'
+      const message = isDefinedORPCError(error) ? getErrorMessage(error) : 'Unknown error'
       toast.error(`Failed to rotate key: ${message}`)
     }
   }
@@ -643,7 +628,7 @@ export default function AdminSystemPage() {
       await rollbackStrict.mutateAsync({ force: false })
       toast.success('Strict mode rollback initiated')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error'
+      const message = isDefinedORPCError(error) ? getErrorMessage(error) : 'Unknown error'
       toast.error(`Failed to rollback strict mode: ${message}`)
     }
   }
@@ -667,7 +652,7 @@ export default function AdminSystemPage() {
       setShowConfigForm(false)
       toast.success('Node configuration updated')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error'
+      const message = isDefinedORPCError(error) ? getErrorMessage(error) : 'Unknown error'
       toast.error(`Failed to update config: ${message}`)
     }
   }
@@ -678,7 +663,7 @@ export default function AdminSystemPage() {
       setShowSecretResult(result.meshSharedSecret)
       toast.success('Mesh shared secret regenerated')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error'
+      const message = isDefinedORPCError(error) ? getErrorMessage(error) : 'Unknown error'
       toast.error(`Failed to regenerate secret: ${message}`)
     }
   }
@@ -694,7 +679,7 @@ export default function AdminSystemPage() {
         toast.error(result.error ?? 'Connection failed')
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error'
+      const message = isDefinedORPCError(error) ? getErrorMessage(error) : 'Unknown error'
       setTestDbResult({ connected: false, error: message })
       toast.error(`Database test failed: ${message}`)
     }
@@ -713,60 +698,56 @@ export default function AdminSystemPage() {
   return (
     <div className="container mx-auto max-w-360 py-6 space-y-6">
         {/* ── Header ────────────────────────────────────────────────────── */}
-        <div className="rounded-xl border border-slate-200/70 bg-linear-to-b from-white to-slate-50/70 p-6 shadow-sm dark:border-slate-800 dark:from-slate-950 dark:to-slate-900/50">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">System Dashboard</h1>
-              <p className="mt-1 text-muted-foreground">
-                Mesh topology, fleet capacity, directory, and node configuration
-              </p>
-            </div>
+        <PageHeader
+          eyebrow="Admin"
+          title="System Dashboard"
+          description="Mesh topology, fleet capacity, directory, and node configuration"
+          badge={
             <Badge variant={meshStreamStatus === 'connected' ? 'default' : meshStreamStatus === 'error' ? 'destructive' : 'secondary'}>
               {meshStreamStatus}
             </Badge>
-          </div>
-          <Separator className="my-4" />
-          <div className="flex flex-wrap items-center gap-3">
-            <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
-              <Users className="h-3.5 w-3.5" />
-              {usersLoading ? '…' : `${users.length} users`}
+          }
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
+            <Users className="h-3.5 w-3.5" />
+            {usersLoading ? '…' : `${users.length} users`}
+          </Badge>
+          <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
+            <Building2 className="h-3.5 w-3.5" />
+            {fleetServersLoading ? '…' : `${fleetServers.length} servers`}
+          </Badge>
+          <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
+            <Mail className="h-3.5 w-3.5" />
+            {fleetAllocationsLoading ? '…' : `${fleetAllocations.length} allocations`}
+          </Badge>
+          <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
+            <Network className="h-3.5 w-3.5" />
+            {isMeshStateLoading ? '…' : `${peers.length} peers`}
+          </Badge>
+          <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
+            <Server className="h-3.5 w-3.5" />
+            {isMeshStateLoading ? '…' : `${fleetServers.length} servers`}
+          </Badge>
+          <Badge variant="outline" className="gap-1.5 px-3 py-1.5">
+            <Shield className="h-3.5 w-3.5" />
+            {strictReadinessLoading ? '…' : strictReadiness?.strictConfigured ? (strictReadiness.strictEnforced ? 'Strict ON' : 'Strict OFF') : 'N/A'}
+          </Badge>
+          {meshStreamError && (
+            <Badge variant="destructive" className="gap-1.5 px-3 py-1.5">
+              <AlertCircle className="h-3.5 w-3.5" />
+              {meshStreamError}
             </Badge>
-            <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
-              <Building2 className="h-3.5 w-3.5" />
-              {orgsLoading ? '…' : `${organizations?.length ?? 0} orgs`}
-            </Badge>
-            <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
-              <Mail className="h-3.5 w-3.5" />
-              {invitesLoading ? '…' : `${pendingInvitations?.length ?? 0} invites`}
-            </Badge>
-            <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
-              <Network className="h-3.5 w-3.5" />
-              {isMeshStateLoading ? '…' : `${peers.length} peers`}
-            </Badge>
-            <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
-              <Server className="h-3.5 w-3.5" />
-              {isMeshStateLoading ? '…' : `${fleetServers.length} servers`}
-            </Badge>
-            <Badge variant="outline" className="gap-1.5 px-3 py-1.5">
-              <Shield className="h-3.5 w-3.5" />
-              {strictReadinessLoading ? '…' : strictReadiness?.strictConfigured ? (strictReadiness.strictEnforced ? 'Strict ON' : 'Strict OFF') : 'N/A'}
-            </Badge>
-            {meshStreamError && (
-              <Badge variant="destructive" className="gap-1.5 px-3 py-1.5">
-                <AlertCircle className="h-3.5 w-3.5" />
-                {meshStreamError}
-              </Badge>
-            )}
-          </div>
+          )}
         </div>
 
         {/* ── Tabs ──────────────────────────────────────────────────────── */}
         <Tabs defaultValue="fleet" className="space-y-4" orientation="vertical">
           <TabsList className="inline-flex w-full md:w-auto">
             <TabsTrigger value="fleet" className="gap-2"><Server className="h-4 w-4" /> Fleet & Capacity</TabsTrigger>
-            <TabsTrigger value="mesh" className="gap-2"><Network className="h-4 w-4" /> Mesh Control</TabsTrigger>
+            <TabsTrigger value="mesh" className="gap-2"><Network className="h-4 w-4" /> Mesh Overview</TabsTrigger>
             <TabsTrigger value="directory" className="gap-2"><Building2 className="h-4 w-4" /> Directory</TabsTrigger>
-            <TabsTrigger value="node-config" className="gap-2"><Settings className="h-4 w-4" /> Node Config</TabsTrigger>
+            <TabsTrigger value="node-config" className="gap-2"><Settings className="h-4 w-4" /> Node Configuration</TabsTrigger>
           </TabsList>
 
         <TabsContent value="fleet" className="space-y-6">
@@ -774,7 +755,7 @@ export default function AdminSystemPage() {
         <CardHeader>
           <CardTitle>Superadmin Capacity Manager (Phase 1)</CardTitle>
           <CardDescription>
-            Manage which organization can use which connected server and with what CPU/RAM capacity.
+            Manage server allocations: assign CPU/RAM capacity to cluster nodes.
             Each instance stays on its own single database.
           </CardDescription>
         </CardHeader>
@@ -859,10 +840,10 @@ export default function AdminSystemPage() {
                               <p className="text-muted-foreground">{String(usedMem)}MB / {maxMem != null ? `${String(maxMem)}MB` : '∞'}</p>
                             </div>
                           </div>
-                          {server.allocationSummary.organizations > 0 && (
+                          {server.allocationSummary.services > 0 && (
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <Building2 className="h-3 w-3" />
-                              <span>{server.allocationSummary.organizations} organization(s)</span>
+                              <Globe className="h-3 w-3" />
+                              <span>{server.allocationSummary.services} allocation(s)</span>
                             </div>
                           )}
                           {isEditingCapacity ? (
@@ -898,7 +879,7 @@ export default function AdminSystemPage() {
                                         setCapacityEditNodeId(null)
                                         toast.success('Capacity limits updated')
                                       },
-                                      onError: (err) => { toast.error(err instanceof Error ? err.message : 'Failed to update capacity') },
+                                      onError: (err) => { toast.error(isDefinedORPCError(err) ? getErrorMessage(err, 'Failed to update capacity') : 'Failed to update capacity') },
                                     },
                                   )
                                 }}
@@ -935,20 +916,7 @@ export default function AdminSystemPage() {
                 <CardTitle className="text-base">Assign Capacity</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <select
-                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                  value={allocationOrganizationId}
-                  onChange={(event) => {
-                    setAllocationOrganizationId(event.target.value)
-                  }}
-                >
-                  <option value="">Select organization</option>
-                  {(organizations ?? []).map((org) => (
-                    <option key={org.id} value={org.id}>{org.name}</option>
-                  ))}
-                </select>
-
-                <select
+                <select aria-label="Select server"
                   className="h-10 w-full rounded-md border bg-background px-3 text-sm"
                   value={allocationServerNodeId}
                   onChange={(event) => {
@@ -963,7 +931,7 @@ export default function AdminSystemPage() {
                   ))}
                 </select>
 
-                <select
+                <select aria-label="shared_slice"
                   className="h-10 w-full rounded-md border bg-background px-3 text-sm"
                   value={allocationMode}
                   onChange={(event) => {
@@ -1032,7 +1000,6 @@ export default function AdminSystemPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Organization</TableHead>
                       <TableHead>Server</TableHead>
                       <TableHead>Mode</TableHead>
                       <TableHead>CPU</TableHead>
@@ -1044,7 +1011,6 @@ export default function AdminSystemPage() {
                   <TableBody>
                     {fleetAllocations.map((allocation) => (
                       <TableRow key={allocation.id}>
-                        <TableCell>{allocation.organizationName ?? allocation.organizationId}</TableCell>
                         <TableCell className="font-mono text-xs">{allocation.serverUrl ?? allocation.serverNodeId}</TableCell>
                         <TableCell>{allocation.allocationMode}</TableCell>
                         <TableCell>{allocation.cpuMillicores}m</TableCell>
@@ -1056,7 +1022,7 @@ export default function AdminSystemPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                              void handleDeleteFleetAllocation(allocation.organizationId, allocation.serverNodeId)
+                              void handleDeleteFleetAllocation(allocation.serverNodeId)
                             }}
                             disabled={deleteFleetAllocation.isPending}
                           >
@@ -1077,7 +1043,7 @@ export default function AdminSystemPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <select
+                <select aria-label="pending"
                   className="h-10 w-full rounded-md border bg-background px-3 text-sm"
                   value={admissionRequestStatusFilter}
                   onChange={(event) => {
@@ -1089,14 +1055,6 @@ export default function AdminSystemPage() {
                   <option value="rejected">rejected</option>
                   <option value="cancelled">cancelled</option>
                 </select>
-
-                <Input
-                  value={admissionRequestOrgFilter}
-                  onChange={(event) => {
-                    setAdmissionRequestOrgFilter(event.target.value)
-                  }}
-                  placeholder="Optional organization id filter"
-                />
 
                 <Input
                   value={decisionServerNodeId}
@@ -1123,7 +1081,6 @@ export default function AdminSystemPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Organization</TableHead>
                       <TableHead>Requested</TableHead>
                       <TableHead>Server Scope</TableHead>
                       <TableHead>Status</TableHead>
@@ -1134,7 +1091,6 @@ export default function AdminSystemPage() {
                   <TableBody>
                     {fleetAdmissionRequests.map((request) => (
                       <TableRow key={request.id}>
-                        <TableCell>{request.organizationName ?? request.organizationId}</TableCell>
                         <TableCell>
                           {request.requestedCpuMillicores}m · {request.requestedMemoryMb}MB · {request.requestedServices} svc
                         </TableCell>
@@ -1417,7 +1373,7 @@ export default function AdminSystemPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <select
+                <select aria-label="stream"
                   className="h-10 w-full rounded-md border bg-background px-3 text-sm"
                   value={lookupKind}
                   onChange={(event) => {
@@ -1530,50 +1486,37 @@ export default function AdminSystemPage() {
 
         <TabsContent value="directory" className="space-y-6">
 
-      {/* Organizations Table */}
+      {/* Directory — the mesh is the single tenant, so the directory shows users. */}
       <Card className={surfaceCardClass}>
         <CardHeader>
-          <CardTitle>All Organizations</CardTitle>
+          <CardTitle>Directory</CardTitle>
           <CardDescription>
-            {organizations?.length ?? 0} organization{organizations?.length !== 1 ? 's' : ''} in the system
+            {users.length} user{users.length !== 1 ? 's' : ''} in the mesh
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {orgsLoading ? (
+          {usersLoading ? (
             <div className="space-y-2">
               {[1, 2, 3].map(i => (
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
-          ) : organizations && organizations.length > 0 ? (
+          ) : users && users.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Slug</TableHead>
-                  <TableHead>Created At</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {organizations.map((org) => (
-                  <TableRow key={org.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        {org.logo ? (
-                          <Image src={org.logo} alt={org.name} width={24} height={24} className="h-6 w-6 rounded" />
-                        ) : (
-                          <Building2 className="h-6 w-6 text-muted-foreground" />
-                        )}
-                        {org.name}
-                      </div>
-                    </TableCell>
-                    <TableCell>@{org.slug}</TableCell>
-                    <TableCell>{new Date(org.createdAt).toLocaleDateString()}</TableCell>
+                {users.map((user) => (
+                  <TableRow key={(user as Record<string, unknown>).id as string}>
+                    <TableCell className="font-medium">{(user as Record<string, unknown>).name as string ?? '—'}</TableCell>
+                    <TableCell>{(user as Record<string, unknown>).email as string ?? '—'}</TableCell>
                     <TableCell>
-                      <AuthDashboardAdminOrganizationsOrganizationId.Link organizationId={org.id} className="text-sm text-primary hover:underline">
-                        View details
-                      </AuthDashboardAdminOrganizationsOrganizationId.Link>
+                      <Badge variant="secondary">{(user as Record<string, unknown>).role as string ?? 'member'}</Badge>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1581,63 +1524,11 @@ export default function AdminSystemPage() {
             </Table>
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">
-              No organizations yet
+              No users yet
             </p>
           )}
         </CardContent>
       </Card>
-
-      {/* Pending Invitations Table */}
-      {(pendingInvitations?.length ?? 0) > 0 && (
-        <Card className={surfaceCardClass}>
-          <CardHeader>
-            <CardTitle>Pending Invitations</CardTitle>
-            <CardDescription>
-              {pendingInvitations?.length ?? 0} pending invitation{(pendingInvitations?.length ?? 0) !== 1 ? 's' : ''}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Organization</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Expires</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pendingInvitations?.map((invitation) => (
-                  <TableRow key={invitation.id}>
-                    <TableCell className="font-medium">{invitation.email}</TableCell>
-                    <TableCell>{invitation.organizationId}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{invitation.role}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          invitation.status === 'pending'
-                            ? 'default'
-                            : invitation.status === 'accepted'
-                            ? 'success'
-                            : 'destructive'
-                        }
-                      >
-                        {invitation.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {new Date(invitation.expiresAt).toLocaleDateString()}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Recent Users Table */}
       <Card className={surfaceCardClass}>
@@ -1715,6 +1606,7 @@ export default function AdminSystemPage() {
              NODE CONFIG TAB
           ══════════════════════════════════════════════════════════════════ */}
           <TabsContent value="node-config" className="space-y-6">
+            <NodeNetworkConfig />
             {/* Node Configuration Editor */}
             <Card className={surfaceCardClass}>
               <CardHeader>
@@ -1741,7 +1633,7 @@ export default function AdminSystemPage() {
                           setEditNodeId(cfg?.nodeId ?? localNode?.nodeId ?? '')
                           setEditStrategy(cfg?.strategy === 'remote' ? 'remote' : 'local')
                           setEditMeshUrls((cfg?.meshUrlsSnapshot ?? []).join('\n'))
-                          setEditDatabaseUrl('databaseUrl' in cfg ? (cfg as { databaseUrl?: string }).databaseUrl ?? '' : '')
+                          setEditDatabaseUrl(cfg && 'databaseUrl' in cfg ? (cfg as { databaseUrl?: string }).databaseUrl ?? '' : '')
                           setEditRegion(localNode?.region ?? '')
                           setEditZone(localNode?.zone ?? '')
                           setEditVersion(localNode?.version ?? '')
@@ -1767,7 +1659,7 @@ export default function AdminSystemPage() {
                       </div>
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground">Strategy</p>
-                        <select
+                        <select aria-label="local"
                           className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors"
                           value={editStrategy}
                           onChange={(e) => setEditStrategy(e.target.value as 'local' | 'remote')}
@@ -1790,7 +1682,7 @@ export default function AdminSystemPage() {
                       </div>
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground">Routing Mode</p>
-                        <select
+                        <select aria-label="Default"
                           className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors"
                           value={editRoutingMode}
                           onChange={(e) => setEditRoutingMode(e.target.value)}
@@ -1804,7 +1696,7 @@ export default function AdminSystemPage() {
                       </div>
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground">Consistency Mode</p>
-                        <select
+                        <select aria-label="Default"
                           className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors"
                           value={editConsistencyMode}
                           onChange={(e) => setEditConsistencyMode(e.target.value)}

@@ -68,10 +68,10 @@ export function createCompositeHooks<TRouter extends object>(
     const queryClient = compositeOptions.useQueryClient();
     
     // Try to find list, create, update, delete hooks
-        const listHook = getOptionalHook<(opts: unknown) => unknown>(hooksRecord, 'useList');
-    const createHook = getOptionalHook<() => unknown>(hooksRecord, 'useCreate');
-    const updateHook = getOptionalHook<() => unknown>(hooksRecord, 'useUpdate');
-    const deleteHook = getOptionalHook<() => unknown>(hooksRecord, 'useDelete');
+        const listHook = getOptionalHook<(opts: unknown) => unknown>(baseHooks, 'useList');
+    const createHook = getOptionalHook<() => unknown>(baseHooks, 'useCreate');
+    const updateHook = getOptionalHook<() => unknown>(baseHooks, 'useUpdate');
+    const deleteHook = getOptionalHook<() => unknown>(baseHooks, 'useDelete');
 
     const listQuery = listHook?.(options?.pagination) as QueryResult<{ data?: unknown[]; meta?: unknown }> | undefined;
     const createMutation = createHook?.() as MutationResult | undefined;
@@ -146,8 +146,8 @@ export function createCompositeHooks<TRouter extends object>(
     const [page, setPage] = React.useState(1);
     const pageSize = options?.pageSize ?? compositeOptions.defaultPageSize ?? 20;
     
-        const listHook = getOptionalHook<(opts: unknown) => unknown>(hooksRecord, 'useList');
-    const countHook = getOptionalHook<() => unknown>(hooksRecord, 'useCount');
+        const listHook = getOptionalHook<(opts: unknown) => unknown>(baseHooks, 'useList');
+    const countHook = getOptionalHook<() => unknown>(baseHooks, 'useCount');
     
     const listQuery = listHook?.({
       limit: pageSize,
@@ -208,8 +208,8 @@ export function createCompositeHooks<TRouter extends object>(
    * ```
    */
   function useFormData(id: string) {
-        const findByIdHook = getOptionalHook<(value: string) => unknown>(hooksRecord, 'useFindById');
-    const updateHook = getOptionalHook<() => unknown>(hooksRecord, 'useUpdate');
+        const findByIdHook = getOptionalHook<(value: string) => unknown>(baseHooks, 'useFindById');
+    const updateHook = getOptionalHook<() => unknown>(baseHooks, 'useUpdate');
     
     const query = findByIdHook?.(id) as QueryResult | undefined;
     const mutation = updateHook?.() as MutationResult | undefined;

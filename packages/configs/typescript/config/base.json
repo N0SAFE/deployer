@@ -16,13 +16,28 @@
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo",
     "composite": false,
-    "declaration": true,
-    "declarationMap": true,
+    "declaration": false,
+    "declarationMap": false,
     "forceConsistentCasingInFileNames": true,
     "inlineSources": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "preserveWatchOutput": true
   },
-  "exclude": ["node_modules"]
+  "exclude": [
+    "../../../../**/node_modules",
+    "../../../../**/.next",
+    "../../../../**/.turbo",
+    "../../../../**/dist",
+    "../../../../**/out",
+    "../../../../**/build",
+    "../../../../**/coverage",
+    "../../../../**/.swc",
+    "../../../../**/.source",
+    "../../../../**/.tmp",
+    "../../../../**/test-results",
+    "../../../../**/graphify-out",
+    "../../../../**/.eslintcache",
+    "../../../../**/*.tsbuildinfo"
+  ]
 }

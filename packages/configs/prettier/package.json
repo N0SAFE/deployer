@@ -27,7 +27,7 @@
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
         "clean": "rimraf dist",
-        "type-check": "tsgo --noEmit"
+        "type-check": "tsc --noEmit"
     },
     "keywords": [],
     "author": "",
@@ -38,6 +38,7 @@
         "@repo/config-vitest": "*",
         "prettier": "catalog:linting",
         "prettier-plugin-tailwindcss": "catalog:linting",
-        "vitest": "catalog:testing"
+        "vitest": "catalog:testing",
+        "typescript": "catalog:build"
     }
 }

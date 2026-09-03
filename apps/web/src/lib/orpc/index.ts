@@ -11,6 +11,7 @@ import { ContextPlugin } from "./plugins/context-plugin";
 import { MasterTokenPlugin } from "./plugins/masterTokenClient";
 import { CookieHeadersPlugin } from "./plugins/cookie-headers-plugin";
 import { RedirectOnUnauthorizedPlugin } from "./plugins/redirect-on-unauthorized-plugin";
+import { AppInstancePlugin } from "./plugins/app-instance-plugin";
 import { StandardLinkPlugin } from "@orpc/client/standard";
 import { ObservableLinkPlugin } from "@repo/orpc-utils";
 import { FileUploadOpenAPILink } from "./links/file-upload-link";
@@ -21,6 +22,7 @@ const Plugins = [
   new MasterTokenPlugin(),
   new RedirectOnUnauthorizedPlugin(),
   new ContextPlugin(),
+  new AppInstancePlugin(),
   new ObservableLinkPlugin(appContract),
 ];
 

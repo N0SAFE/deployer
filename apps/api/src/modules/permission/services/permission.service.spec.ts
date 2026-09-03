@@ -29,7 +29,6 @@ const rule = {
 
 const orgRoleRule = {
   id: "rule-1",
-  organizationId: "org-1",
   roleName: "developer",
   resourceRules: [rule],
   createdAt: new Date("2024-01-01"),
@@ -42,8 +41,7 @@ const orgRoleRule = {
 describe("PermissionService", () => {
   let service: PermissionService;
   let mockRepository: {
-    getMemberRoles: ReturnType<typeof vi.fn>;
-    getOrgRoleRules: ReturnType<typeof vi.fn>;
+    getRoleRules: ReturnType<typeof vi.fn>;
     upsertRoleRules: ReturnType<typeof vi.fn>;
     deleteRoleRules: ReturnType<typeof vi.fn>;
     listRoleRules: ReturnType<typeof vi.fn>;
@@ -51,8 +49,7 @@ describe("PermissionService", () => {
 
   beforeEach(() => {
     mockRepository = {
-      getMemberRoles: vi.fn(),
-      getOrgRoleRules: vi.fn(),
+      getRoleRules: vi.fn(),
       upsertRoleRules: vi.fn(),
       deleteRoleRules: vi.fn(),
       listRoleRules: vi.fn(),
@@ -158,9 +155,9 @@ describe("PermissionService", () => {
     it("should delegate upsert to repository", async () => {
       mockRepository.upsertRoleRules.mockResolvedValue(undefined);
 
-      await service.upsertRoleRules("org-1", "developer", [rule]);
+      await service.upsertRoleRules("developer", [rule]);
 
-      expect(mockRepository.upsertRoleRules).toHaveBeenCalledWith("org-1", "developer", [rule]);
+      expect(mockRepository.upsertRoleRules).toHaveBeenCalledWith("developer", [rule]);
     });
   });
 
@@ -171,9 +168,9 @@ describe("PermissionService", () => {
     it("should delegate delete to repository", async () => {
       mockRepository.deleteRoleRules.mockResolvedValue(undefined);
 
-      await service.deleteRoleRules("org-1", "developer");
+      await service.deleteRoleRules("developer");
 
-      expect(mockRepository.deleteRoleRules).toHaveBeenCalledWith("org-1", "developer");
+      expect(mockRepository.deleteRoleRules).toHaveBeenCalledWith("developer");
     });
   });
 
@@ -181,19 +178,19 @@ describe("PermissionService", () => {
   // listRoleRules()
   // ─────────────────────────────────────────────────────────────────────────
   describe("listRoleRules", () => {
-    it("should return all role rules for org", async () => {
+    it("should return all role rules for mesh", async () => {
       mockRepository.listRoleRules.mockResolvedValue([orgRoleRule]);
 
-      const result = await service.listRoleRules("org-1");
+      const result = await service.listRoleRules();
 
       expect(result).toEqual([orgRoleRule]);
-      expect(mockRepository.listRoleRules).toHaveBeenCalledWith("org-1");
+      expect(mockRepository.listRoleRules).toHaveBeenCalledWith();
     });
 
-    it("should return empty array when org has no rules", async () => {
+    it("should return empty array when mesh has no rules", async () => {
       mockRepository.listRoleRules.mockResolvedValue([]);
 
-      const result = await service.listRoleRules("org-1");
+      const result = await service.listRoleRules();
 
       expect(result).toEqual([]);
     });

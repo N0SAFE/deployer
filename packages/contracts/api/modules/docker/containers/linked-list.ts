@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerContainerLinkedListSchema } from "@repo/contracts-entities";
 import { dockerContainerLinkedListQuerySchema } from "./shared";
 
@@ -12,4 +12,5 @@ export const dockerContainerLinkedListContract = dockerContainerLinkedListOps
   .path("/linked")
   .input((b) => b.query(dockerContainerLinkedListQuerySchema))
   .output((b) => b.body(dockerContainerLinkedListSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

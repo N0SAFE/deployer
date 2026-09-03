@@ -470,17 +470,17 @@ describe("Mesh E2E: Compliance — Query Executor", () => {
       orderBy(field: string, dir: "asc" | "desc"): QueryBuilderLike;
       limit(n: number): QueryBuilderLike;
       offset(n: number): QueryBuilderLike;
-      execute(): Promise<{ items: unknown[] }>;
+      request(): Promise<{ items: unknown[] }>;
     }
     const builder = {
       where: () => builder, orderBy: () => builder,
       limit: () => builder, offset: () => builder,
-      execute: async () => ({ items: [] }),
+      request: async () => ({ items: [] }),
     } as unknown as QueryBuilderLike;
 
     const result = builder
       .where({ env: "prod" }).where({ status: "running" })
-      .orderBy("createdAt", "desc").limit(20).execute();
+      .orderBy("createdAt", "desc").limit(20).request();
 
     expect(result).toBeInstanceOf(Promise);
     expect(typeof result.then).toBe("function");
@@ -570,7 +570,7 @@ describe("Mesh E2E: Compliance — Query Executor", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Mesh E2E: Compliance — Consumer Patterns", () => {
-  it("Pattern 1: Simple request via discovery.query() / builder.execute()", async () => {
+  it("Pattern 1: Simple request via discovery.query() / builder.request()", async () => {
     // Detailed: mesh-consumer-patterns, mesh-resource-builder-and-discovery
     const mockExecute = async () => ({
       items: [{ deploymentId: "d-1", serviceId: "svc-1", status: "running" }],

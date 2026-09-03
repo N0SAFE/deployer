@@ -12,13 +12,13 @@ import { DownloadIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 // ** import components
-import { Button } from "@/components/shadcn/button";
+import { Button } from "../shadcn/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/shadcn/dropdown-menu";
+} from "../shadcn/dropdown-menu";
 
 // ** import utils
 import { exportData, exportToCSV, exportToExcel } from "./utils/export-utils";

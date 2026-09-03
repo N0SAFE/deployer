@@ -3,7 +3,11 @@ import type { DockerDeploymentSnapshot, DockerImage } from '@repo/contracts-enti
 export type DockerImageEntity = DockerImage
 export type DockerImageDeployment = Pick<DockerDeploymentSnapshot, 'containerImage' | 'status'>
 
-export interface ImageTagRow extends Pick<DockerImageEntity, 'id' | 'sizeBytes' | 'createdAt' | 'lastSeenAt'> {
+// NOTE: `type` aliases (not `interface`) so rows satisfy the DataTable's
+// `ExportableData` (`Record<string, unknown>`) constraint — interfaces lack
+// the implicit index signature that type aliases get.
+
+export type ImageTagRow = Pick<DockerImageEntity, 'id' | 'sizeBytes' | 'createdAt' | 'lastSeenAt'> & {
   rowId: string
   imageRef: string
   tag: string
@@ -13,7 +17,7 @@ export interface ImageTagRow extends Pick<DockerImageEntity, 'id' | 'sizeBytes' 
   failed: number
 }
 
-export interface ImageGroupRow {
+export type ImageGroupRow = {
   rowId: string
   repositoryKey: string
   repositoryLabel: string

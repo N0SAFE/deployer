@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import z from "zod/v4";
 import {
     templateCompatibilityMatrixSchema,
@@ -20,6 +20,7 @@ export const templateGetCompatibilityMatrixContract = templateCompatibilityMatri
     .path("/compatibility/matrix")
     .input(z.object({}))
     .output(templateCompatibilityMatrixSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const templateValidateCompatibilityContract = templateCompatibilityValidationOps
@@ -27,4 +28,5 @@ export const templateValidateCompatibilityContract = templateCompatibilityValida
     .path("/compatibility/validate")
     .input((b) => b.body(templateCompatibilityValidationInputSchema))
     .output(templateCompatibilityValidationResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

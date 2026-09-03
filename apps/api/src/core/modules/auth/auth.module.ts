@@ -31,6 +31,7 @@ import type { InstanceWrapper } from "@nestjs/core/injector/instance-wrapper";
 import type { AuthContext, MiddlewareContext, MiddlewareOptions } from "better-auth";
 import type { Auth } from "@/auth";
 
+import { AppError } from "@repo/errors";
 const HOOKS = [
 	{ metadataKey: BEFORE_HOOK_KEY, hookType: "before" as const },
 	{ metadataKey: AFTER_HOOK_KEY, hookType: "after" as const },
@@ -79,8 +80,9 @@ export class AuthModule
 			"hooks" in this.options.auth.options && typeof this.options.auth.options.hooks === "object";
 
 		if (hasHookProviders && !hooksConfigured)
-			throw new Error(
+			throw new AppError(
 				"Detected @Hook providers but Better Auth 'hooks' are not configured. Add 'hooks: {}' to your betterAuth(...) options.",
+				"AUTH_CONFIG_ERROR",
 			);
 
 		if (!hooksConfigured) return;
@@ -133,7 +135,7 @@ export class AuthModule
 				exposedHeaders: ["Set-Cookie"],
 			});
 		} else if (trustedOrigins && !this.options.disableTrustedOriginsCors && !isNotFunctionBased)
-            throw new Error("Function-based trustedOrigins not supported in NestJS. Use string array or disable CORS with disableTrustedOriginsCors: true.");
+            throw new AppError("Function-based trustedOrigins not supported in NestJS. Use string array or disable CORS with disableTrustedOriginsCors: true.", "AUTH_CONFIG_ERROR");
 
 		// Only apply body parsing middleware if NestJS global body parser is disabled
 		// If bodyParser: true in main.ts, NestJS handles body parsing automatically

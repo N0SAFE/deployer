@@ -7,7 +7,6 @@ vi.mock('../plugin-utils/plugin-wrapper-factory', () => ({
   createPluginRegistry: vi.fn(() => ({
     getAll: vi.fn(() => ({
       admin: { listUsers: vi.fn(), createUser: vi.fn() },
-      organization: { createOrganization: vi.fn() },
     })),
   })),
 }));
@@ -56,7 +55,6 @@ describe('ORPC AuthUtils', () => {
       expect(utils).toHaveProperty('user');
       // Plugin accessors
       expect(utils).toHaveProperty('admin');
-      expect(utils).toHaveProperty('org');
       // Auth method
       expect(utils).toHaveProperty('requireAuth');
     });
@@ -88,7 +86,6 @@ describe('ORPC AuthUtils', () => {
       const utils = new AuthUtils(mockSession, mockAuth);
 
       expect(utils.admin).toBeDefined();
-      expect(utils.org).toBeDefined();
     });
 
     describe('requireAuth', () => {
@@ -118,7 +115,6 @@ describe('ORPC AuthUtils', () => {
       expect(utils).toHaveProperty('user');
       // Plugin accessors
       expect(utils).toHaveProperty('admin');
-      expect(utils).toHaveProperty('org');
       // Auth method
       expect(utils).toHaveProperty('requireAuth');
     });
@@ -142,7 +138,7 @@ describe('ORPC AuthUtils', () => {
       const utils = new AuthUtilsEmpty(mockAuth);
 
       expect(utils.admin).toBeDefined();
-      expect(utils.org).toBeDefined();
+      expect(utils.admin).toBeDefined();
     });
 
     describe('requireAuth', () => {

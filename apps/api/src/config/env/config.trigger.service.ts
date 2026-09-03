@@ -1,4 +1,4 @@
-import { z } from 'zod/v4';
+import z from 'zod/v4';
 import { BaseTriggerService } from '@/core/modules/triggers/base-bridge.service';
 
 export const configTriggerSchema = z.object({

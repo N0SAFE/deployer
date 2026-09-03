@@ -11,7 +11,7 @@
 # ===================================
 # Stage 1: Base - Install global dependencies and set environment
 # ===================================
-FROM oven/bun:1.3.14-alpine AS base
+FROM oven/bun:1.4.0-alpine AS base
 ENV NODE_ENV=production
 
 # Install system dependencies
@@ -95,14 +95,29 @@ RUN mkdir -p /app/apps/web/routes && chmod -R 755 /app/apps/web/routes
 
 # Copy node_modules from installer — single-tar pattern
 # (one tar -cf + one tar -xf, no find/subshell loops, excludes *.map/.cache/.turbo)
+#
+# IMPORTANT: `cd /mnt/installer` MUST happen BEFORE the globs are expanded.
+# The globs `apps/*/node_modules` etc. are expanded by the shell relative to
+# the current working directory. If they run from /app (the runner's dir), they
+# only match node_modules dirs that already exist in the pruned source — and
+# apps/<app>/node_modules is NOT part of the source, so it would be silently
+# skipped and never copied, breaking module resolution at runtime.
 RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
+    cd /mnt/installer && \
     PATHS="node_modules"; \
     for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules; do \
-        if [ -d "/mnt/installer/$d" ]; then PATHS="$PATHS $d"; fi; \
+        if [ -d "$d" ]; then PATHS="$PATHS $d"; fi; \
     done && \
-    cd /mnt/installer && \
-    tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
-    tar -xf - -C /app --owner=root --group=root
+    # cp -a merges into existing dirs (nested workspaces may appear in several
+    # PATHS entries); tar -xf would abort on such overlaps.
+    for d in $PATHS; do \
+        mkdir -p "/app/$d"; \
+        cp -a "/mnt/installer/$d/." "/app/$d/" 2>/dev/null || { \
+            rm -rf "/app/$d"; \
+            mkdir -p "/app/$d"; \
+            cp -a "/mnt/installer/$d/." "/app/$d/"; \
+        }; \
+    done
 
 # Copy turbo cache directories (workspace-level only; root /.turbo doesn't exist)
 COPY --parents --chmod=a+w **/.turbo/ ./
@@ -152,7 +167,7 @@ FROM base AS runner
 WORKDIR /app
 
 # Install only runtime dependencies (no build tools in production)
-RUN apk add --no-cache curl wget bash nodejs && \
+RUN apk add --no-cache curl wget bash nodejs coreutils && \
     ln -sf $(which bun) /usr/local/bin/npm && \
     addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs

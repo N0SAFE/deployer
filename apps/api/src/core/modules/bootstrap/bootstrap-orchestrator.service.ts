@@ -15,7 +15,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import type { OnApplicationBootstrap } from '@nestjs/common'
 import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service'
-import { AppLifecycleService } from '@/core/modules/lifecycle/app-lifecycle.service'
+import { AppLifecycleService } from '@repo/nest-lifecycle'
 
 @Injectable()
 export class BootstrapOrchestratorService implements OnApplicationBootstrap {

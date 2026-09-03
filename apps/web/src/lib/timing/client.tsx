@@ -9,7 +9,7 @@
  * - Navigation timing
  */
 
-import { useEffect, useRef } from 'react'
+import { Suspense, useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { AppLogger } from '@repo/logger'
 
@@ -102,8 +102,20 @@ interface PageTimingLoggerProps {
 /**
  * Component that logs timing when mounted (hydration complete)
  * Place this at the end of your page component
+ * 
+ * Wraps the usePathname() read in a Suspense boundary so this component
+ * never blocks prerendering on routes with dynamic params (the pathname
+ * suspends during prerendering; the timing log is a client-only concern).
  */
 export function PageTimingLogger({ pageName, meta }: PageTimingLoggerProps) {
+  return (
+    <Suspense fallback={null}>
+      <PageTimingLoggerInner pageName={pageName} meta={meta} />
+    </Suspense>
+  )
+}
+
+function PageTimingLoggerInner({ pageName, meta }: PageTimingLoggerProps) {
   const pathname = usePathname()
   const mountTimeRef = useRef<number | null>(null)
   const hasLoggedRef = useRef(false)

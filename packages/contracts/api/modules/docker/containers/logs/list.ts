@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
   dockerContainerLogsSnapshotSchema,
   dockerContainerLogsStreamQuerySchema,
@@ -14,4 +14,5 @@ export const dockerContainerLogsListContract = dockerContainerLogsOps
   .path("/")
   .input((b) => b.query(dockerContainerLogsStreamQuerySchema))
   .output((b) => b.body(dockerContainerLogsSnapshotSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
   dockerContainerTerminalMutationAckSchema,
   dockerContainerWriteFileBodySchema,
@@ -14,4 +14,5 @@ export const dockerContainerWriteFileContract = dockerContainerWriteFileOps
   .path("/write")
   .input((b) => b.body(dockerContainerWriteFileBodySchema))
   .output((b) => b.body(dockerContainerTerminalMutationAckSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

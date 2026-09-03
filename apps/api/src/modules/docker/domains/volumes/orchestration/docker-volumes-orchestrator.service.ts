@@ -16,7 +16,7 @@ export class DockerVolumesOrchestratorService {
 
   constructor(private readonly dockerVolumesDomainService: DockerVolumesDomainService) {}
 
-  listVolumes(input: DockerVolumeListInput) {
+  listVolumes(input: DockerVolumeListInput = {} as DockerVolumeListInput) {
     this.debug("DockerVolumesOrchestratorService.listVolumes", {
       limit: input.limit,
       offset: input.offset,

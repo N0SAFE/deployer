@@ -2,6 +2,7 @@ import { defineConfig } from "eslint/config";
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import turboConfig from 'eslint-config-turbo/flat';
+import progress from '@repo/config-eslint-plugins-progress';
 
 const tsconfigRootDir = process.cwd();
 
@@ -19,6 +20,7 @@ export const baseConfig = (options: BaseConfigOptions = {}) => {
     const { disableTseslint = false } = options;
     
     return defineConfig([
+        progress.configs['recommended-ci'],
         ...ignoresConfig,
         ...turboConfig,
         eslint.configs.recommended,
@@ -36,6 +38,7 @@ export const baseConfig = (options: BaseConfigOptions = {}) => {
         },
         {
             rules: {
+                "@typescript-eslint/no-extraneous-class": "off",
                 "@typescript-eslint/unified-signatures": "off",
                 "@typescript-eslint/no-unnecessary-type-parameters": "off",
             }
@@ -47,6 +50,7 @@ export const testConfig = (options: BaseConfigOptions = {}) => {
     const { disableTseslint = false } = options;
     
     return defineConfig([
+        progress.configs['recommended-ci'],
         ...ignoresConfig,
         eslint.configs.recommended,
         ...(disableTseslint ? [] : [
@@ -62,6 +66,7 @@ export const testConfig = (options: BaseConfigOptions = {}) => {
         },
         {
             rules: {
+                "@typescript-eslint/no-extraneous-class": "off",
                 "@typescript-eslint/no-unused-vars": ["warn"],
                 "@typescript-eslint/no-explicit-any": "off",
                 "@typescript-eslint/no-non-null-assertion": "off",

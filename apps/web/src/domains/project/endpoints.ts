@@ -27,6 +27,14 @@ export const projectEndpoints = {
   deleteEnvironment: orpc.project.deleteEnvironment,
   cloneEnvironment: orpc.project.cloneEnvironment,
 
+  // Service × environment links
+  listServiceEnvironmentLinks: orpc.project.listServiceEnvironmentLinks,
+  upsertServiceEnvironmentLink: orpc.project.upsertServiceEnvironmentLink,
+
+  // Network (DNS provider + zone + record policy)
+  getNetwork: orpc.project.getNetwork,
+  updateNetwork: orpc.project.updateNetwork,
+
   // Variable templates
   listVariableTemplates: orpc.project.listVariableTemplates,
   getVariableTemplate: orpc.project.getVariableTemplate,

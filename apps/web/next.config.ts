@@ -7,7 +7,7 @@ import path from "node:path";
 // When this file is loaded as a CJS module by Next.js, `__dirname` is the
 // directory of this config file (apps/web/). Going up two levels reaches the
 // monorepo root where `next` is hoisted in node_modules.
-// NOTE: do NOT use `import.meta.url` here — Bun 1.3.14 has a transpiler bug
+// NOTE: do NOT use `import.meta.url` here — Bun 1.4.0 has a transpiler bug
 // that throws "Expected CommonJS module to have a function wrapper" when
 // `import.meta.url` is used inside a `.ts` file loaded as CJS.
 
@@ -41,6 +41,28 @@ function getWorkspaceTranspilePackages(): string[] {
     );
     return ["@repo/declarative-routing", "@repo/nextjs-devtool"];
   }
+}
+
+/**
+ * Dev-mode HMR origins — ALWAYS supplied by the deployment, never computed
+ * here:
+ *
+ * - Compose-managed (dev/CI): the compose file sets NEXT_ALLOWED_DEV_ORIGINS
+ *   (wildcard over the stack's domain, e.g. `*.deployer.localhost`).
+ * - API-managed web: ManagedWebSupervisor restarts the container with
+ *   NEXT_ALLOWED_DEV_ORIGINS=<the web's public origin> (its tunnel/domain).
+ *
+ * Next.js 16.3 rejects a bare `'*'` (single-segment wildcard — see
+ * matchWildcardDomain in csrf-protection), so `.env`/compose must set a value
+ * that actually matches: a hostname and/or a `*.{parent-domain}` wildcard.
+ * Localhost is always allowed by Next itself (`**.localhost`).
+ */
+function resolveAllowedDevOrigins(): string[] | undefined {
+  const envList = process.env.NEXT_ALLOWED_DEV_ORIGINS
+    ?.split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return envList !== undefined && envList.length > 0 ? envList : undefined;
 }
 
 const workspaceTranspilePackages = getWorkspaceTranspilePackages();
@@ -121,6 +143,15 @@ const nextConfig: NextConfig = {
     "motion-utils",
   ],
   cacheComponents: true,
+  // Dev HMR origins — from NEXT_ALLOWED_DEV_ORIGINS (set by compose or the
+  // managed-web restart). No fallback is computed here.
+  // See resolveAllowedDevOrigins() above.
+  allowedDevOrigins: resolveAllowedDevOrigins(),
+  // Partial Prefetching: links prefetch the shared App Shell by default.
+  // Audited 2026-08-24: zero `<Link prefetch={true}>` / `router.prefetch()`
+  // call sites in the app, so no per-destination adoption was needed before
+  // flipping this on. See .agents/skills/next-partial-prefetching-adoption.
+  partialPrefetching: true,
   reactCompiler: false,
   // Monorepo: tell Turbopack the workspace root so it can resolve `next` from
   // the hoisted `node_modules` at the repo root. Without this, Next.js 16+ with

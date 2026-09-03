@@ -114,7 +114,6 @@ export class MeshEnvelopeSideEffectsService {
           this.queueReplication.applyReplicated({
               entry: {
                   ...parsed.data,
-                  organizationId: envelope.organizationId ?? parsed.data.organizationId ?? null,
               },
           });
       }

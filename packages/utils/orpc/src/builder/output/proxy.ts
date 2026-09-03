@@ -5,8 +5,11 @@
  * behavior lives in `./builder.ts`.
  */
 
+ 
 import type { AnySchema, HTTPMethod, ErrorMap } from "../../types/types";
 import type { VoidSchema } from "../../types/standard-schema-helpers";
+import { StandardPluginTransformer } from "../plugin";
+import type { BasePluginTransformer } from "../plugin";
 import type { RouteBuilder, DetailedOutput } from "../core/route-builder";
 import { DetailedOutputBuilder } from "./builder";
 
@@ -33,16 +36,17 @@ export class OutputSchemaProxy<
     TMethod extends HTTPMethod = "GET",
     TEntitySchema extends AnySchema = VoidSchema,
     TErrors extends ErrorMap = Record<string, never>,
-> extends DetailedOutputBuilder<TData, TMethod, TEntitySchema, TErrors> {
-    readonly _routeBuilder: RouteBuilder<AnySchema, AnySchema, TMethod, TEntitySchema, TErrors>;
+    TPlugin extends BasePluginTransformer = StandardPluginTransformer,
+> extends DetailedOutputBuilder<TData, TMethod, TEntitySchema, TErrors, TPlugin> {
+    readonly _routeBuilder: RouteBuilder<AnySchema, AnySchema, TMethod, TEntitySchema, TErrors, TPlugin>;
 
-    constructor(routeBuilder: RouteBuilder<AnySchema, AnySchema, TMethod, TEntitySchema, TErrors>, data: TData) {
-        super(data);
+    constructor(routeBuilder: RouteBuilder<AnySchema, AnySchema, TMethod, TEntitySchema, TErrors, TPlugin>, data: TData) {
+        super(data, routeBuilder.getPlugin());
         this._routeBuilder = routeBuilder;
     }
 
     /** Create next immutable proxy instance with updated output state. */
-    protected _create<TNewData extends AnySchema | DetailedOutput>(data: TNewData): OutputSchemaProxy<TNewData, TMethod, TEntitySchema, TErrors> {
+    protected _create<TNewData extends AnySchema | DetailedOutput>(data: TNewData): OutputSchemaProxy<TNewData, TMethod, TEntitySchema, TErrors, TPlugin> {
         return new OutputSchemaProxy(this._routeBuilder, data);
     }
 
@@ -55,10 +59,16 @@ export class OutputSchemaProxy<
 /**
  * Create an output proxy from a RouteBuilder instance.
  */
-export function createOutputSchemaProxy<TOutput extends AnySchema | DetailedOutput, TMethod extends HTTPMethod, TEntitySchema extends AnySchema, TErrors extends ErrorMap>(
-    routeBuilder: RouteBuilder<AnySchema, TOutput, TMethod, TEntitySchema, TErrors>,
-): OutputSchemaProxy<TOutput, TMethod, TEntitySchema, TErrors> {
-    const rb = routeBuilder as unknown as RouteBuilder<AnySchema, AnySchema, TMethod, TEntitySchema, TErrors>;
+export function createOutputSchemaProxy<
+    TOutput extends AnySchema | DetailedOutput,
+    TMethod extends HTTPMethod,
+    TEntitySchema extends AnySchema,
+    TErrors extends ErrorMap,
+    TPlugin extends BasePluginTransformer,
+>(
+    routeBuilder: RouteBuilder<AnySchema, TOutput, TMethod, TEntitySchema, TErrors, TPlugin>,
+): OutputSchemaProxy<TOutput, TMethod, TEntitySchema, TErrors, TPlugin> {
+    const rb = routeBuilder as unknown as RouteBuilder<AnySchema, AnySchema, TMethod, TEntitySchema, TErrors, TPlugin>;
     const data = routeBuilder.getOutputSchema();
-    return new OutputSchemaProxy<TOutput, TMethod, TEntitySchema, TErrors>(rb, data);
+    return new OutputSchemaProxy<TOutput, TMethod, TEntitySchema, TErrors, TPlugin>(rb, data);
 }

@@ -11,6 +11,7 @@ describe('ProjectService', () => {
     let mockRepository: any;
     let mockEventService: any;
     let mockCoreEventSyncService: any;
+    let mockRuntimeConfigurationAccessor: any;
 
     const now = '2024-01-01T00:00:00.000Z';
 
@@ -110,6 +111,14 @@ describe('ProjectService', () => {
             selectMany: vi.fn(),
         };
 
+        mockRuntimeConfigurationAccessor = {
+            resolveStrict: vi.fn(),
+            resolve: vi.fn(),
+            resolveForDeployment: vi.fn(),
+            projectConfigFromSettings: vi.fn(),
+            serviceConfigFromRecord: vi.fn(),
+        };
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 {
@@ -117,6 +126,7 @@ describe('ProjectService', () => {
                     useFactory: () => new ProjectService(
                         mockRepository,
                         mockEventService,
+                        mockRuntimeConfigurationAccessor,
                         mockCoreEventSyncService,
                     ),
                 },
@@ -416,7 +426,7 @@ describe('ProjectService', () => {
 
             const result = await service.createEnvironment('proj-1', 'user-1', {
                 name: 'production',
-                type: 'production',
+                kind: 'stable',
             });
 
             expect(result).toEqual(mockEnvironment);

@@ -1,5 +1,6 @@
 import type { Clock } from "./clock";
 
+import { AppError } from "@repo/errors";
 /**
  * Hybrid Logical Clock (Kulkarni et al., 2014).
  *
@@ -27,7 +28,7 @@ export function serializeHlc(hlc: Hlc): string {
 export function deserializeHlc(input: string): Hlc {
     const [wall, logical, nodeId] = input.split(".");
     if (!wall || !logical || !nodeId) {
-        throw new Error(`Invalid HLC string: ${input}`);
+        throw new AppError(`Invalid HLC string: ${input}`, `INTERNAL_ERROR`);
     }
     return {
         wallMs: Number(wall),

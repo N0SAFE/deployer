@@ -28,7 +28,13 @@ export class SetupWizardService implements OnModuleInit {
       this.logger.log('✅ Node already configured — firing bridge');
       // Read the actual databaseUrl from the node config, not status.nodeId
       const config = this.nodeConfigRepository.find();
-      const databaseUrl = config?.databaseUrl ?? process.env.SETUP_DATABASE_URL ?? '';
+      const databaseUrl = config?.databaseUrl?.trim() ?? '';
+      if (!databaseUrl) {
+        // configuredAt without a URL is a stale/partial write — never boot
+        // without the global database. Hard-fail instead of hanging.
+        this.logger.error('❌ Node flagged configured but no database URL — refusing to boot without Postgres. Re-run setup.');
+        process.exit(1);
+      }
       this.wizardBridge.emit({
         databaseUrl,
         strategy: status.strategy ?? 'local',
@@ -49,25 +55,38 @@ export class SetupWizardService implements OnModuleInit {
       const devEmail = process.env.DEFAULT_ADMIN_EMAIL ?? 'admin@admin.com';
       const devPassword = process.env.DEFAULT_ADMIN_PASSWORD ?? 'adminadmin';
       const devName = process.env.DEFAULT_ADMIN_NAME ?? 'Admin';
-      const devOrgName = process.env.DEFAULT_ADMIN_ORGANIZATION ?? 'My Organization';
       const serverUrl = process.env.NEXT_PUBLIC_API_URL ?? `http://127.0.0.1:${process.env.API_PORT ?? '3001'}`;
+      // Optional explicit URL — skips container creation, uses this database
+      // instead. When absent, the local initializer provisions a new Postgres
+      // container (mandatory: no "local-only" mode).
+      const existingDatabaseUrl = (
+        process.env.SETUP_AUTO_DATABASE_URL ??
+        process.env.SETUP_DATABASE_URL ??
+        ''
+      ).trim() || undefined;
 
       this.initializationService.triggerInitialize({
         strategy: 'local',
         name: devName,
         email: devEmail,
         password: devPassword,
-        organizationName: devOrgName,
+        existingDatabaseUrl,
         serverUrl,
       });
 
       // Set up non-blocking listener for initialization completion
       // (Don't await — onModuleInit must return immediately)
+      // Failure (aborted/error) is FATAL here: a SETUP_AUTO boot must never
+      // degrade into a hang — the global DB is mandatory.
       this.initializationService.getInitializeStream().pipe(
-        filter((e: any) => e.type === 'completed'),
+        filter((e: any) => e?.type === 'completed' || e?.type === 'aborted' || e?.type === 'error'),
         take(1),
       ).subscribe({
-        next: () => {
+        next: (e: any) => {
+          if (e?.type !== 'completed') {
+            this.logger.error(`❌ SETUP_AUTO initialization FAILED (${e?.type ?? 'unknown'}) — refusing to boot without a global database. Check SETUP_AUTO_DATABASE_URL / Docker availability.`);
+            process.exit(1);
+          }
           this.initializationService.waitForSetup()
             .then((setupStatus) => {
               this.logger.log('✅ SETUP_AUTO local initialization completed — firing bridge');
@@ -80,10 +99,12 @@ export class SetupWizardService implements OnModuleInit {
             })
             .catch((err) => {
               this.logger.error('SETUP_AUTO failed', err);
+              process.exit(1);
             });
         },
         error: (err) => {
           this.logger.error('SETUP_AUTO stream error', err);
+          process.exit(1);
         },
       });
       return;

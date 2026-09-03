@@ -1,3 +1,4 @@
+import { AppError } from "@repo/errors";
 interface EnumLike<T extends string> {
   options: readonly T[] | T[]
 }
@@ -5,7 +6,7 @@ interface EnumLike<T extends string> {
 export function zodEnumToPgEnumValues<T extends string>(schema: EnumLike<T>): [T, ...T[]] {
   const values = [...schema.options]
   if (values.length === 0) {
-    throw new Error('zodEnumToPgEnumValues requires at least one enum value')
+    throw new AppError('zodEnumToPgEnumValues requires at least one enum value', 'INTERNAL_ERROR')
   }
 
   return values as [T, ...T[]]

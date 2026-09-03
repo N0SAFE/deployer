@@ -143,6 +143,14 @@ export type ExtractErrorFromBuilder<TBuilder> =
 
 /**
  * Helper type to merge error definitions from an array of ErrorDefinitionBuilders
+ *
+ * Handles BOTH:
+ * - exact tuples (`[A, B]`) — the callback array-literal form; and
+ * - non-tuple arrays (`A[]`) — which TypeScript infers when the array literal
+ *   is produced inside a callback (e.g. `.errors(e => [e().code('X'), ...])`).
+ *
+ * Without the array fallback, non-tuple arrays resolve to `unknown`, silently
+ * dropping the error map type from the RouteBuilder generic.
  */
 export type ExtractErrorsFromBuilders<
     TBuilders extends readonly ErrorDefinitionBuilder<string, string | undefined, AnySchema | undefined, number | undefined>[]
@@ -153,4 +161,9 @@ export type ExtractErrorsFromBuilders<
     ? TRest extends readonly []
         ? ExtractErrorFromBuilder<TFirst>
         : ExtractErrorFromBuilder<TFirst> & ExtractErrorsFromBuilders<TRest>
-    : unknown;
+    : TBuilders extends readonly (infer TItem extends ErrorDefinitionBuilder<string, string | undefined, AnySchema | undefined, number | undefined>)[]
+        ? UnionToIntersection<ExtractErrorFromBuilder<TItem>>
+        : never;
+
+/** Convert a union of error maps into an intersection (all error codes present). */
+type UnionToIntersection<U> = (U extends unknown ? (value: U) => void : never) extends (value: infer I) => void ? I : never;

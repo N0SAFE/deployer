@@ -1,6 +1,8 @@
 "use client"
 
+import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useEffect, useRef, useState } from "react"
+import { useForm, useStore } from "@tanstack/react-form"
 import { ArrowLeft, ArrowRight, Database, Sparkles, Lock, Server, HardDrive } from "lucide-react"
 import { Button } from "@repo/ui/components/shadcn/button"
 import { Input } from "@repo/ui/components/shadcn/input"
@@ -18,15 +20,20 @@ type Props = {
 
 export function LocalDatabaseStep({ initial, onBack, onContinue }: Props) {
   const [useExisting, setUseExisting] = useState(initial.dbMode === "existing")
-  const [dbUrl, setDbUrl] = useState(initial.dbUrl)
   const [state, setState] = useState<ConnectionState>("idle")
   const [detail, setDetail] = useState<string | undefined>()
   const probeDb = useProbeDatabase()
-  // Stable ref to the mutation object — TanStack returns a new object
-  // every render, which would otherwise cause an infinite re-probe
-  // loop when listed in a useEffect dependency array.
   const probeDbRef = useRef(probeDb)
   probeDbRef.current = probeDb
+
+  const dbForm = useForm({
+    defaultValues: { dbUrl: initial.dbUrl },
+  })
+
+  // useFormStore subscribes to the TanStack store reactively — store.state
+  // alone is NOT a React state and never triggers re-renders, so the
+  // debounced probe effect never fires.
+  const dbUrl = useStore(dbForm.store, (s) => s.values.dbUrl)
 
   useEffect(() => {
     if (!useExisting) {
@@ -39,9 +46,6 @@ export function LocalDatabaseStep({ initial, onBack, onContinue }: Props) {
       setDetail(undefined)
       return
     }
-    // Validate as a postgresql URL before sending a probe request —
-    // the server endpoint will reject anything else anyway, but
-    // checking locally avoids an obvious roundtrip on typos.
     if (!/^postgres(?:ql)?:\/\//i.test(dbUrl.trim())) {
       setState("unreachable")
       setDetail("Connection string must start with postgresql:// or postgres://")
@@ -59,13 +63,14 @@ export function LocalDatabaseStep({ initial, onBack, onContinue }: Props) {
             setDetail(result.latencyMs ? `${result.latencyMs}ms latency` : "Connected")
           } else {
             setState("unreachable")
-            setDetail(result.error ?? "Not reachable")
+            // Normalize empty error detail so the UI never shows a blank reason.
+            setDetail(result.error?.trim() ? result.error : "Not reachable")
           }
         },
         onError: (err) => {
           if (cancelled) return
           setState("unreachable")
-          setDetail(err.message)
+          setDetail(isDefinedORPCError(err) ? getErrorMessage(err) : UNKNOWN_ORPC_ERROR_MESSAGE)
         },
       })
     }, 500)
@@ -76,7 +81,15 @@ export function LocalDatabaseStep({ initial, onBack, onContinue }: Props) {
   }, [useExisting, dbUrl])
 
   const dbMode: "managed" | "existing" = useExisting ? "existing" : "managed"
-  const canContinue = !useExisting || state === "reachable"
+  // The probe is ADVISORY: the check runs from the API's network context, and
+  // a database that is perfectly healthy on the user's machine may be
+  // unreachable from there (the classic `localhost` trap: the API runs in a
+  // container, so the host's DB is at a different address). Blocking forever
+  // on "unreachable" makes it impossible to proceed with such a DB, even
+  // though the URL is correct. So when the user opted in to existing-DB, we
+  // allow continuing once the probe settles — the warning makes the risk
+  // explicit, and a genuinely bad URL still surfaces the real error.
+  const canContinue = !useExisting || state === "reachable" || state === "unreachable"
 
   return (
     <div className="flex flex-col gap-7">
@@ -166,16 +179,27 @@ export function LocalDatabaseStep({ initial, onBack, onContinue }: Props) {
               <Label htmlFor="setup-db-url" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Connection string
               </Label>
-              <Input
-                id="setup-db-url"
-                value={dbUrl}
-                onChange={(e) => setDbUrl(e.target.value)}
-                placeholder="postgresql://user:pass@host:5432/db"
-                className="font-mono text-xs"
-              />
+              <dbForm.Field name="dbUrl">
+                {(field) => (
+                  <Input
+                    id="setup-db-url"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    placeholder="postgresql://user:pass@host:5432/db"
+                    className="font-mono text-xs"
+                  />
+                )}
+              </dbForm.Field>
             </div>
 
             {dbUrl.trim() ? <ConnectionStatus state={state} detail={detail} /> : null}
+            {state === "unreachable" ? (
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                The connection string could not be verified from this node. If your database is
+                on a different machine than this one, use its reachable address — or
+                continue anyway; initialization will fail if it is truly unreachable.
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

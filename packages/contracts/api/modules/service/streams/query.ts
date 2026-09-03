@@ -1,5 +1,6 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { serviceTypeSchema } from "@repo/contracts-common";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 
 const streamEventMetaShape = {
   sequence: z.number().int().nonnegative().optional(),
@@ -73,7 +74,7 @@ export const serviceStreamQueryFiltersSchema = z
   .object({
     serviceId: z.uuid().optional(),
     projectId: z.uuid().optional(),
-    serviceType: z.string().optional(),
+    serviceType: serviceTypeSchema.optional(),
     isActive: z.coerce.boolean().optional(),
     eventTypes: z.array(serviceStreamEventTypeSchema).optional(),
     fuzzy: z.string().trim().min(1).optional(),
@@ -98,4 +99,5 @@ export const serviceQueryStreamContract = serviceStreamEventOps
   .path("/stream/query")
   .input((b) => b.query(serviceStreamQueryFiltersSchema))
   .output((b) => b.observable(serviceStreamEventSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { CoreEventStreamPoolService } from "@/core/modules/events/services/core-event-stream-pool.service";
-import type { EventContracts } from "@/core/modules/events/event-contract.builder";
+import { CoreEventStreamPoolService } from "@repo/nest-events";
+import type { EventContracts } from "@repo/nest-events";
 import {
     MeshTopicNamespaceAlreadyRegisteredError,
     MeshTopicNamespaceNotFoundError,
@@ -66,7 +66,6 @@ export class MeshTopicRegistryService {
         this.resourceIndex.indexTopics(
             namespace,
             topicNames,
-            definition.organizationId ?? null,
         );
 
         return this.buildHandle(namespace, runtime, topicNames);

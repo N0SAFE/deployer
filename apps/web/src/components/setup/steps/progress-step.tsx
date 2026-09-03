@@ -1,11 +1,14 @@
 "use client"
 
+import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Activity, CheckCircle2, Loader2, XCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 import type { SetupStreamEvent } from "@repo/contracts-entities"
 import { Button } from "@repo/ui/components/shadcn/button"
 import { ProgressTasks, buildTasksFromEvents } from "@/components/setup/progress-tasks"
+import { AuthSignin } from "@/routes/index"
+import { signInWithEmail } from "@/lib/auth"
 
 /**
  * Optional context about the configuration the user submitted. Any
@@ -165,7 +168,7 @@ function ContinueButton({ context }: { context: ProgressStepContext }) {
     }
 
     if (!context.email || !context.password) {
-      router.push("/login")
+      AuthSignin.immediate(router)
       return
     }
 
@@ -173,20 +176,11 @@ function ContinueButton({ context }: { context: ProgressStepContext }) {
     setLoginError(null)
 
     try {
-      const res = await fetch("/api/auth/sign-in/email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: context.email, password: context.password }),
-      })
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error((body as Record<string, unknown>).message as string ?? "Sign in failed")
-      }
+      await signInWithEmail({ email: context.email, password: context.password })
 
       router.push("/")
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = isDefinedORPCError(err) ? getErrorMessage(err) : String(err)
       setLoginError(msg)
       setLoggingIn(false)
     }

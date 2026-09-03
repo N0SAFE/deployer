@@ -1,6 +1,7 @@
 import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { MeshOrchestrationService } from './mesh-orchestration.service';
+import { describe, it, expect, beforeEach } from "vitest";
 
 describe('MeshOrchestrationService', () => {
   let service: MeshOrchestrationService;

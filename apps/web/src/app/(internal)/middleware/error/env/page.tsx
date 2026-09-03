@@ -9,6 +9,7 @@ import {
 import { validateEnvSafe } from '#/env'
 import RedirectAfterDelay from './RedirectAfterDelay'
 
+import type { Metadata } from 'next'
 function renderInvalidType(issue: $ZodIssueInvalidType) {
     return (
         <div className="m-4 flex gap-4">
@@ -83,4 +84,9 @@ export default async function EnvPage(props: {
             ))}
         </div>
     )
+}
+
+export const metadata: Metadata = {
+    title: "Configuration error",
+    description: "Environment configuration failed",
 }

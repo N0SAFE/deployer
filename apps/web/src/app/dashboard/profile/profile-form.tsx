@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { getErrorMessage } from "@/lib/orpc/typed-errors";
+import { useState, useEffect } from 'react'
+import { useForm } from '@tanstack/react-form'
 import { useSession, authClient } from '@/lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
 import { Button } from '@repo/ui/components/shadcn/button'
@@ -54,49 +56,47 @@ export function ProfileForm({ initialSession }: ProfileFormProps) {
   const { data: session, refetch } = useSession()
   const currentSession = session ?? initialSession
   
-  const [name, setName] = useState('')
   const [isEditing, setIsEditing] = useState(false)
-  const [isUpdating, setIsUpdating] = useState(false)
   
   // Get user name from session - session data can be null when not authenticated
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   const userName = currentSession?.user?.name ?? ''
+
+  const form = useForm({
+    defaultValues: {
+      name: userName,
+    },
+    onSubmit: async ({ value }) => {
+      if (!value.name.trim()) {
+        toast.error('Name cannot be empty')
+        return
+      }
+      try {
+        const result = await authClient.updateUser({ name: value.name.trim() })
+        if (result.error) {
+          throw new Error(result.error.message ?? 'Failed to update profile')
+        }
+        toast.success('Profile updated successfully')
+        setIsEditing(false)
+        await refetch()
+      } catch (error) {
+        const message = error instanceof Error ? getErrorMessage(error) : 'Failed to update profile'
+        toast.error(message)
+      }
+    },
+  })
   
-  // Initialize name when session loads
+  // Reset form when session loads or editing is cancelled
   useEffect(() => {
     if (userName !== '' && !isEditing) {
-      setName(userName)
+      form.setFieldValue('name', userName)
     }
   }, [userName, isEditing])
   
-  const handleSave = useCallback(async () => {
-    if (!name.trim()) {
-      toast.error('Name cannot be empty')
-      return
-    }
-    
-    setIsUpdating(true)
-    try {
-      const result = await authClient.updateUser({ name: name.trim() })
-      if (result.error) {
-        throw new Error(result.error.message ?? 'Failed to update profile')
-      }
-      toast.success('Profile updated successfully')
-      setIsEditing(false)
-      // Refetch session to get updated user data
-      await refetch()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update profile'
-      toast.error(message)
-    } finally {
-      setIsUpdating(false)
-    }
-  }, [name, refetch])
-  
-  const handleCancel = useCallback(() => {
-    setName(userName)
+  const handleCancel = () => {
+    form.setFieldValue('name', userName)
     setIsEditing(false)
-  }, [userName])
+  }
   
   if (!currentSession?.user) {
     return null // Parent route already handles auth
@@ -162,21 +162,25 @@ export function ProfileForm({ initialSession }: ProfileFormProps) {
 
           {/* Edit Form */}
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Display Name</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value)
-                    if (!isEditing) setIsEditing(true)
-                  }}
-                  placeholder="Enter your name"
-                  disabled={isUpdating}
-                />
-              </div>
-            </div>
+            <form.Field name="name">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor="name">Display Name</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="name"
+                      value={field.state.value}
+                      onChange={(e) => {
+                        field.handleChange(e.target.value)
+                        if (!isEditing) setIsEditing(true)
+                      }}
+                      placeholder="Enter your name"
+                      disabled={form.state.isSubmitting}
+                    />
+                  </div>
+                </div>
+              )}
+            </form.Field>
 
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
@@ -193,11 +197,15 @@ export function ProfileForm({ initialSession }: ProfileFormProps) {
 
             {isEditing && (
               <div className="flex gap-2">
-                <Button onClick={() => void handleSave()} disabled={isUpdating}>
-                  {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Save Changes
-                </Button>
-                <Button variant="outline" onClick={handleCancel} disabled={isUpdating}>
+                <form.Subscribe selector={(s) => s.isSubmitting}>
+                  {(isSubmitting) => (
+                    <Button onClick={form.handleSubmit} disabled={isSubmitting}>
+                      {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Save Changes
+                    </Button>
+                  )}
+                </form.Subscribe>
+                <Button variant="outline" onClick={handleCancel} disabled={form.state.isSubmitting}>
                   Cancel
                 </Button>
               </div>

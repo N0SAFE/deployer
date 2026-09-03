@@ -63,7 +63,7 @@ flowchart TB
         S1_COMPLETE --> S1_DESTROY["app.close() → OnModuleDestroy\n❌ Sub-app destroyed"]
     end
 
-    subgraph CHECK_CONFIG{"NodeConfigRepository\n— already configured?"}
+    subgraph CHECK_CONFIG["NodeConfigRepository\n— already configured?"]
         CHECK_YES["✅ Yes: read persisted URL\n→ fire immediately"]
         CHECK_NO["❌ No: start setup wizard"]
     end
@@ -207,79 +207,36 @@ flowchart TB
 
 ## Execution Timeline (Milliseconds)
 
-```
- 0ms  │ main.ts → NestFactory.create(AppModule)
-      │
- 1ms  │ Phase 1: Build module tree
-      │   Register AppModule, EnvModule(@G), SubAppOrchModule,
-      │   DatabaseModule(@G), AuthModule.forRootAsync, 20+ feature modules
-      │
- 2ms  │ Phase 2: Resolve providers
-      │
- 3ms  │   BootstrapGate provider fires (no deps → runs first)
-      │     └─ SubAppOrchestrator.runAll(ALL_SUB_APPS)
-      │
- 5ms  │   ┌─ SubApp 1: ConfigSubApp (timeout: 5s)
- 6ms  │   │   ├─ Validate env vars (NODE_ENV, API_PORT, DATABASE_URL)
- 7ms  │   │   ├─ emit({ config }) + complete()
- 8ms  │   │   └─ app.close() → destroyed
-      │   │
- 9ms  │   ├─ SubApp 2: SetupWizardSubApp (timeout: 5min)
-10ms  │   │   ├─ checkConfigAndEmit() → no config
-11ms  │   │   ├─ EphemeralHttpServer.start(0, '127.0.0.1') → port 54321
-12ms  │   │   ├─ ⏳ WAIT for user... (GET /setup/state, POST /setup/initialize, SSE /setup/stream)
-      │   │   │
-      │   │   ├─ [User completes setup via browser]
-      │   │   │
-13s   │   │   ├─ emit({ databaseUrl, strategy }) + complete()
-13s   │   │   ├─ EphemeralHttpServer.stop()
-13s   │   │   └─ app.close() → destroyed
-      │   │
-14s   │   ├─ SubApp 3: DatabaseSubApp (timeout: 60s)
-14s   │   │   ├─ await setupWizardTrigger.waitFor() → returns immediately
-14s   │   │   ├─ new Pool(databaseUrl)
-15s   │   │   ├─ drizzle(pool, schema)
-15s   │   │   ├─ emit({ pool, drizzle, isMigrated }) + complete()
-16s   │   │   └─ app.close() → destroyed
-      │   │
-17s   │   ├─ SubApp 4: AuthSubApp (timeout: 30s)
-17s   │   │   ├─ Verify AuthCoreService.instance
-17s   │   │   ├─ emit({ authInstance, ... }) + complete()
-18s   │   │   └─ app.close() → destroyed
-      │   │
-19s   │   ├─ SubApp 5: MeshSubApp (timeout: 30s)
-19s   │   │   ├─ Read meshUrlsSnapshot from config
-20s   │   │   ├─ Connect to mesh peers
-21s   │   │   ├─ emit({ meshClient, nodeId }) + complete()
-22s   │   │   └─ app.close() → destroyed
-      │   │
-23s   │   ├─ SubApp 6: EventsSubApp (timeout: 10s)
-23s   │   │   ├─ Verify event infrastructure
-23s   │   │   ├─ emit({ eventBus }) + complete()
-24s   │   │   └─ app.close() → destroyed
-      │   │
-23s   │   └─ SubApp 7: DockerSubApp (timeout: 10s)
-23s   │       ├─ new DockerService(envService)
-24s   │       ├─ Verify socket availability
-24s   │       ├─ emit({ dockerode, socketAvailable }) + complete()
-25s   │       └─ app.close() → destroyed
-      │
-26s  │   BootstrapGate resolves (all sub-apps done)
-      │
-27s  │   GlobalModule: await databaseTrigger.waitFor() → returns immediately
-27s  │     └─ Provides GLOBAL_DATABASE_POOL, GLOBAL_DATABASE_CONNECTION, GlobalDatabaseService
-      │
-27s  │   CoreDockerModule: await dockerTrigger.waitFor() → returns immediately
-27s  │     └─ Provides DockerService
-      │
-28s  │   AuthModule.forRootAsync: receives DrizzleClient → creates BetterAuth
-28s  │   ORPCModule.forRootAsync: receives AuthCoreService → binds router
-28s  │   All feature modules: receive all deps → resolved
-      │
-29s  │ Phase 3: Lifecycle hooks (onModuleInit, onApplicationBootstrap)
-29s  │   @Global() hooks first, then leaf modules, then AppModule
-      │
-30s  │ app.listen(3005) → 🚀 Server accepting traffic
+```mermaid
+timeline
+    title Startup execution — from main.ts to traffic
+
+    section Bootstrap
+        0ms : main.ts → NestFactory.create(AppModule)
+        1ms : Phase 1 — build module tree : register AppModule, EnvModule(@G), SubAppOrchModule, DatabaseModule(@G), AuthModule.forRootAsync, 20+ feature modules
+        2ms : Phase 2 — resolve providers
+
+    section Sub-app chain (BootstrapGate fires first — no deps → runs before all factories)
+        3ms : BootstrapGate provider fires : SubAppOrchestrator.runAll(ALL_SUB_APPS)
+        5ms : SubApp 1 ConfigSubApp (timeout 5s) : validate env vars NODE_ENV, API_PORT, DATABASE_URL : emit(config) + complete() : app.close() → destroyed
+        9ms : SubApp 2 SetupWizardSubApp (timeout 5min) : checkConfigAndEmit() → no config : EphemeralHttpServer.start(0) → port 54321 : WAIT for user — GET /setup/state, POST /setup/initialize, SSE /setup/stream
+        13s : user completes setup via browser : emit(databaseUrl, strategy) + complete() : EphemeralHttpServer.stop() : app.close() → destroyed
+
+    section Remaining sub-apps
+        14s : SubApp 3 DatabaseSubApp (timeout 60s) : await setupWizardTrigger.waitFor() → returns immediately : new Pool(databaseUrl) : drizzle(pool, schema) : emit(pool, drizzle, isMigrated) + complete() : app.close() → destroyed
+        17s : SubApp 4 AuthSubApp (timeout 30s) : verify AuthCoreService.instance : emit(authInstance, ...) + complete() : app.close() → destroyed
+        19s : SubApp 5 MeshSubApp (timeout 30s) : read meshUrlsSnapshot from config : connect to mesh peers : emit(meshClient, nodeId) + complete() : app.close() → destroyed
+        23s : SubApp 6 EventsSubApp (timeout 10s) : verify event infrastructure : emit(eventBus) + complete() : app.close() → destroyed
+        23s : SubApp 7 DockerSubApp (timeout 10s) : new DockerService(envService) : verify socket availability : emit(dockerode, socketAvailable) + complete() : app.close() → destroyed
+
+    section Module resolution
+        26s : BootstrapGate resolves — all sub-apps done
+        27s : GlobalModule awaits databaseTrigger → returns immediately : provides GLOBAL_DATABASE_POOL, GLOBAL_DATABASE_CONNECTION, GlobalDatabaseService : CoreDockerModule awaits dockerTrigger → provides DockerService
+        28s : AuthModule.forRootAsync receives DrizzleClient → creates BetterAuth : ORPCModule.forRootAsync receives AuthCoreService → binds router : all feature modules receive all deps → resolved
+
+    section Lifecycle + listen
+        29s : Phase 3 lifecycle hooks (onModuleInit, onApplicationBootstrap) : @Global() hooks first, then leaf modules, then AppModule
+        30s : app.listen(3005) → 🚀 Server accepting traffic
 ```
 
 ---

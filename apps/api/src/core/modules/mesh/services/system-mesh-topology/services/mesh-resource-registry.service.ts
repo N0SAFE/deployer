@@ -29,7 +29,7 @@ import { SystemMeshClusterRepository } from "../../../repositories/system-mesh-c
           try {
               const locations = await this.clusterRepository.loadAllResourceLocations();
               for (const loc of locations) {
-                  const key = this.indexKey(loc.kind, loc.key, loc.organizationId ?? null);
+                  const key = this.indexKey(loc.kind, loc.key);
                   const existing = this.index.get(key) ?? [];
                   existing.push(loc);
                   this.index.set(key, this.meshLogic.rankResourceLocations(existing));
@@ -43,7 +43,7 @@ import { SystemMeshClusterRepository } from "../../../repositories/system-mesh-c
       }
 
       lookup(input: MeshResourceLookupInput): MeshResourceLookupResult {
-          const key = this.indexKey(input.kind, input.key, input.organizationId ?? null);
+          const key = this.indexKey(input.kind, input.key);
           const ranked = this.meshLogic.rankResourceLocations((this.index.get(key) ?? []).slice());
           const candidates = input.includeCandidates ? ranked : ranked.slice(0, 1);
           return { found: ranked.length > 0, query: input, primary: ranked[0] ?? null, candidates };
@@ -52,15 +52,10 @@ import { SystemMeshClusterRepository } from "../../../repositories/system-mesh-c
       upsert(input: MeshResourceIndexUpsertInput): MeshResourceIndexUpsertResult {
           let replaced = 0;
           let upserted = 0;
-          const orgScope = input.organizationId ?? null;
 
           if (input.replaceExistingForSource) {
               for (const [key, existing] of this.index) {
-                  const retained = existing.filter((r) => {
-                      if (r.ownerNodeId !== input.sourceNodeId) return true;
-                      if (orgScope === null) return false;
-                      return (r.organizationId ?? null) !== orgScope;
-                  });
+                  const retained = existing.filter((r) => r.ownerNodeId !== input.sourceNodeId);
                   replaced += existing.length - retained.length;
                   if (retained.length === 0) this.index.delete(key);
                   else this.index.set(key, retained);
@@ -68,17 +63,15 @@ import { SystemMeshClusterRepository } from "../../../repositories/system-mesh-c
           }
 
           for (const resource of input.resources) {
-              const resourceOrg = resource.organizationId ?? orgScope;
-              const normalized: MeshResourceLocation = { ...resource, organizationId: resourceOrg };
-              const key = this.indexKey(normalized.kind, normalized.key, resourceOrg);
+              const normalized: MeshResourceLocation = resource;
+              const key = this.indexKey(normalized.kind, normalized.key);
               const existing = this.index.get(key) ?? [];
               const deduped = existing.filter(
                   (r) => !(
                       r.ownerNodeId === normalized.ownerNodeId &&
                       r.ownerServerUrl === normalized.ownerServerUrl &&
                       r.endpointPath === normalized.endpointPath &&
-                      r.protocol === normalized.protocol &&
-                      (r.organizationId ?? null) === (normalized.organizationId ?? null)
+                      r.protocol === normalized.protocol
                   ),
               );
               if (deduped.length !== existing.length) replaced += existing.length - deduped.length;
@@ -105,8 +98,8 @@ import { SystemMeshClusterRepository } from "../../../repositories/system-mesh-c
           }
       }
 
-      private indexKey(kind: MeshResourceKind, key: string, orgId: string | null): string {
-          return `${orgId ?? "__global__"}:${kind}:${key}`;
+      private indexKey(kind: MeshResourceKind, key: string): string {
+          return `${kind}:${key}`;
       }
 
       private errMsg(e: unknown): string { return e instanceof Error ? e.message : "unknown_error"; }

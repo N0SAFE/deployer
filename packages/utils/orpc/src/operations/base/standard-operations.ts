@@ -17,9 +17,13 @@
 import type { AnySchema } from "@orpc/contract";
 import { RouteBuilder } from "../../builder/core/route-builder";
 import type { EntitySchema, SchemaWithConfig } from "./types";
-import type { VoidSchema } from "../../types/standard-schema-helpers";
 import type { UUIDSchema } from "./types";
 import type { FieldFilterConfig } from "./utils";
+import {
+    BasePluginTransformer,
+    StandardPluginTransformer,
+    type PluginVoid,
+} from "../../builder/index";
 
 /**
  * Options for entity operations
@@ -74,26 +78,31 @@ export type ListPlainOptions = {
 };
 
 /**
- * Abstract Standard Operations class
+ * Abstract Standard Operations class — the library-agnostic BASE of the
+ * operations hierarchy, mirroring the plugin layering
+ * (`BasePluginTransformer` / `StandardPluginTransformer` / `ZodPluginTransformer`).
  *
- * Defines the contract for all entity operations.
- * Concrete implementations must implement every abstract method
- * using their chosen validation library (Zod, Valibot, Arktype, etc.).
+ * Concrete implementations (`StandardOperations` for the Standard Schema
+ * library, `ZodStandardOperations` for Zod, ...) extend this base and supply
+ * their own schema transformer via `getPlugin()`.
  *
- * The base holds shared state and a `createBuilder()` helper,
- * but delegates all schema construction to implementations.
+ * The base holds shared state and a `createBuilder()` helper, but delegates
+ * ALL schema construction (including which transformer the RouteBuilder uses)
+ * to implementations — it never imports a concrete plugin.
  *
  * @typeParam TEntity - The entity schema type
  * @typeParam TIdField - The ID field name literal (default: "id")
  * @typeParam TIdSchema - The ID schema type (default: UUIDSchema)
+ * @typeParam TPlugin - The schema transformer plugin the implementation uses
  *
  * @example
  * ```typescript
  * // Zod implementation
  * class ZodStandardOperations<TEntity extends z.ZodObject<z.ZodRawShape>>
- *   extends StandardOperations<TEntity> {
+ *   extends BaseStandardOperations<TEntity, "id", z.ZodType, ZodPluginTransformer> {
  *
  *   protected getDefaultIdSchema() { return z.uuid(); }
+ *   protected getPlugin() { return new ZodPluginTransformer(); }
  *
  *   read(options?) {
  *     return this.createBuilder({ method: "GET" })
@@ -105,7 +114,12 @@ export type ListPlainOptions = {
  * }
  * ```
  */
-export abstract class StandardOperations<TEntity extends EntitySchema = EntitySchema, TIdField extends string = "id", TIdSchema extends AnySchema = UUIDSchema> {
+export abstract class BaseStandardOperations<
+    TEntity extends EntitySchema = EntitySchema,
+    TIdField extends string = "id",
+    TIdSchema extends AnySchema = UUIDSchema,
+    TPlugin extends BasePluginTransformer = StandardPluginTransformer,
+> {
     protected entitySchema: TEntity;
     protected entityName: string;
     protected idField: TIdField;
@@ -129,17 +143,25 @@ export abstract class StandardOperations<TEntity extends EntitySchema = EntitySc
     protected abstract getDefaultIdSchema(): TIdSchema;
 
     /**
-     * Create a RouteBuilder with minimal initial configuration.
-     * Shared across all implementations — RouteBuilder is library-agnostic.
+     * The schema transformer plugin for this implementation.
+     * Implementations supply their own (Zod → ZodPluginTransformer, Standard →
+     * StandardPluginTransformer, ...) so `createBuilder` is library-agnostic.
      */
-    protected createBuilder<TMethod extends "GET" | "POST" | "PUT" | "PATCH" | "DELETE">(metadata: { method: TMethod; summary?: string; description?: string }): RouteBuilder<VoidSchema, VoidSchema, TMethod, TEntity> {
-        return new RouteBuilder<VoidSchema, VoidSchema, TMethod, TEntity, Record<string, never>>({
+    protected abstract getPlugin(): TPlugin;
+
+    /**
+     * Create a RouteBuilder with minimal initial configuration.
+     * Shared across all implementations — the plugin comes from `getPlugin()`.
+     */
+    protected createBuilder<TMethod extends "GET" | "POST" | "PUT" | "PATCH" | "DELETE">(metadata: { method: TMethod; summary?: string; description?: string }): RouteBuilder<PluginVoid<TPlugin>, PluginVoid<TPlugin>, TMethod, TEntity, Record<string, never>, TPlugin> {
+        return new RouteBuilder<PluginVoid<TPlugin>, PluginVoid<TPlugin>, TMethod, TEntity, Record<string, never>, TPlugin>({
             entitySchema: this.entitySchema,
             method: metadata.method,
             metadata: {
                 summary: metadata.summary,
                 description: metadata.description,
             },
+            use: this.getPlugin(),
         });
     }
 

@@ -4,14 +4,16 @@ import { dockerContainerRuntimeEventSchema, dockerImageRuntimeEventSchema } from
 import { DockerImageAutoScanListenerService } from "./docker-image-auto-scan-listener.service";
 
 async function flushAsyncWork(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
+  // The bootstrap path awaits listImages + reconcile before the drain queue
+  // runs, so give the microtask chain enough rounds to complete.
+  for (let i = 0; i < 10; i++) {
+    await Promise.resolve();
+  }
 }
 
 function createServiceHarness(options?: {
-  listContainersImpl?: () => Promise<{
-    data: Array<{ imageId: string | null; managedImageRef: string | null }>;
+  listImagesImpl?: (offset: number) => Promise<{
+    data: Array<{ id: string | null }>;
     meta: { total: number; limit: number; offset: number; hasMore: boolean };
   }>;
 }) {
@@ -29,47 +31,50 @@ function createServiceHarness(options?: {
     relayRuntimeEvent: vi.fn(),
   };
 
-  const dockerContainerResolutionService = {
-    listContainers: vi.fn(
-      options?.listContainersImpl
-      ?? (async () => ({
-        data: [],
-        meta: {
-          total: 0,
-          limit: 250,
-          offset: 0,
-          hasMore: false,
-        },
-      })),
-    ),
-  };
-
   const dockerImagesApplicationService = {
     ensureImageSecurityScan: vi.fn(async (input: { imageId: string }) => ({
       started: true,
       reason: "started" as const,
       imageId: input.imageId,
     })),
+    listImages: vi.fn(async ({ offset }: { offset: number }) => {
+      const page = options?.listImagesImpl
+        ? await options.listImagesImpl(offset)
+        : {
+            data: [],
+            meta: { total: 0, limit: 500, offset, hasMore: false },
+          };
+      return page;
+    }),
+  };
+  const dockerImageSecurityRepository = {
+    recordAutoScanAttempt: vi.fn(async () => undefined),
+    reconcileImageLifecycleWithActiveSet: vi.fn(async () => undefined),
+    ensureImageAutoScanEligibility: vi.fn(async () => ({ shouldScan: true })),
+  };
+
+  const envService = {
+    get: vi.fn(() => false),
   };
 
   const service = new DockerImageAutoScanListenerService(
     systemMeshTopologyService as never,
     dockerRuntimeEventsStreamService as never,
     dockerRuntimeMeshRelayService as never,
-    dockerContainerResolutionService as never,
     dockerImagesApplicationService as never,
+    dockerImageSecurityRepository as never,
+    envService as never,
   );
 
   return {
     service,
     runtimeEvents$,
-    dockerContainerResolutionService,
     dockerImagesApplicationService,
   };
 }
 
 describe("DockerImageAutoScanListenerService", () => {
-  it("triggers auto-scan for container create events with image payload", async () => {
+  it("triggers auto-scan for container start events with image payload", async () => {
     const { service, runtimeEvents$, dockerImagesApplicationService } = createServiceHarness();
 
     service.onModuleInit();
@@ -78,7 +83,7 @@ describe("DockerImageAutoScanListenerService", () => {
     runtimeEvents$.next(dockerContainerRuntimeEventSchema.parse({
       type: "docker_event",
       source: "container",
-      action: "create",
+      action: "start",
       actorId: "ctr-1",
       actorAttributes: {
         meshNodeId: "node-local",
@@ -115,18 +120,22 @@ describe("DockerImageAutoScanListenerService", () => {
 
   it("ignores non-container and non-create runtime events", async () => {
     const runtimeEvents$ = new Subject<unknown>();
-    const { service, dockerContainerResolutionService, dockerImagesApplicationService } = createServiceHarness();
+    const { service, dockerImagesApplicationService } = createServiceHarness();
 
     const dockerRuntimeEventsStreamService = {
       observeEvents: vi.fn(() => runtimeEvents$),
     };
 
+    const dockerImageSecurityRepository = { recordAutoScanAttempt: vi.fn(async () => undefined) };
+    const envService = { get: vi.fn(() => false) };
+
     const serviceWithCustomStream = new DockerImageAutoScanListenerService(
       { getLocalNode: vi.fn(() => ({ nodeId: "node-local" })) } as never,
       dockerRuntimeEventsStreamService as never,
       { relayRuntimeEvent: vi.fn() } as never,
-      dockerContainerResolutionService as never,
       dockerImagesApplicationService as never,
+      dockerImageSecurityRepository as never,
+      envService as never,
     );
 
     serviceWithCustomStream.onModuleInit();
@@ -187,7 +196,7 @@ describe("DockerImageAutoScanListenerService", () => {
     service.onModuleDestroy();
   });
 
-  it("ignores container create events emitted by a different mesh node", async () => {
+  it("ignores container start events emitted by a different mesh node", async () => {
     const { service, runtimeEvents$, dockerImagesApplicationService } = createServiceHarness();
 
     service.onModuleInit();
@@ -196,7 +205,7 @@ describe("DockerImageAutoScanListenerService", () => {
     runtimeEvents$.next(dockerContainerRuntimeEventSchema.parse({
       type: "docker_event",
       source: "container",
-      action: "create",
+      action: "start",
       actorId: "ctr-3",
       actorAttributes: {
         meshNodeId: "node-remote",
@@ -225,16 +234,16 @@ describe("DockerImageAutoScanListenerService", () => {
   });
 
   it("queues startup scans for unique local container images", async () => {
-    const { service, dockerContainerResolutionService, dockerImagesApplicationService } = createServiceHarness({
-      listContainersImpl: async () => ({
+    const { service, dockerImagesApplicationService } = createServiceHarness({
+      listImagesImpl: async () => ({
         data: [
-          { imageId: "sha256:image-a", managedImageRef: null },
-          { imageId: "sha256:image-a", managedImageRef: null },
-          { imageId: null, managedImageRef: "repo/worker:latest" },
+          { id: "sha256:image-a" },
+          { id: "sha256:image-a" },
+          { id: "repo/worker:latest" },
         ],
         meta: {
           total: 3,
-          limit: 250,
+          limit: 500,
           offset: 0,
           hasMore: false,
         },
@@ -244,19 +253,14 @@ describe("DockerImageAutoScanListenerService", () => {
     service.onModuleInit();
     await flushAsyncWork();
 
-    expect(dockerContainerResolutionService.listContainers).toHaveBeenCalledTimes(1);
-    expect(dockerContainerResolutionService.listContainers).toHaveBeenCalledWith(
-      {
-        limit: 250,
-        offset: 0,
-        sortBy: "updatedAt",
-        sortDirection: "desc",
-        filter: {},
-      },
-      {
-        localOnly: true,
-      },
-    );
+    expect(dockerImagesApplicationService.listImages).toHaveBeenCalledTimes(1);
+    expect(dockerImagesApplicationService.listImages).toHaveBeenCalledWith({
+      limit: 500,
+      offset: 0,
+      sortBy: "lastSeenAt",
+      sortDirection: "desc",
+      filter: {},
+    });
 
     expect(dockerImagesApplicationService.ensureImageSecurityScan).toHaveBeenCalledTimes(2);
     expect(dockerImagesApplicationService.ensureImageSecurityScan).toHaveBeenNthCalledWith(1, {
@@ -278,27 +282,32 @@ describe("DockerImageAutoScanListenerService", () => {
   });
 
   it("drains startup queue sequentially by waiting for each scan completion", async () => {
-    let firstResolve: (() => void) | null = null;
+    // Deferred-resolve holder — TS narrows closure-written lets to never, so
+    // keep the mutable slot OUT of the mock closure (a mutable holder object).
+    const deferred: { resolveFirst: (() => void) | null } = { resolveFirst: null };
 
     const { service, dockerImagesApplicationService } = createServiceHarness({
-      listContainersImpl: async () => ({
+      listImagesImpl: async () => ({
         data: [
-          { imageId: "sha256:first", managedImageRef: null },
-          { imageId: "sha256:second", managedImageRef: null },
+          { id: "sha256:first" },
+          { id: "sha256:second" },
         ],
         meta: {
           total: 2,
-          limit: 250,
+          limit: 500,
           offset: 0,
           hasMore: false,
         },
       }),
     });
 
-    dockerImagesApplicationService.ensureImageSecurityScan = vi
+    // Vitest's generic mockImplementationOnce collapses heterogeneous
+    // implementations to never — keep the plain mock type at the fixture
+    // boundary (consistent with the file's existing `as never` fixtures).
+    (dockerImagesApplicationService as { ensureImageSecurityScan: ReturnType<typeof vi.fn> }).ensureImageSecurityScan = vi
       .fn()
-      .mockImplementationOnce(async () => new Promise((resolve) => {
-        firstResolve = () => {
+      .mockImplementationOnce(() => new Promise<{ started: boolean; reason: string; imageId: string }>((resolve) => {
+        deferred.resolveFirst = () => {
           resolve({
             started: true,
             reason: "started" as const,
@@ -310,7 +319,7 @@ describe("DockerImageAutoScanListenerService", () => {
         started: true,
         reason: "started" as const,
         imageId: "sha256:second",
-      }));
+      })) as ReturnType<typeof vi.fn>;
 
     service.onModuleInit();
     await flushAsyncWork();
@@ -324,7 +333,7 @@ describe("DockerImageAutoScanListenerService", () => {
       waitForCompletion: true,
     });
 
-    firstResolve?.();
+    deferred.resolveFirst?.();
     await flushAsyncWork();
 
     expect(dockerImagesApplicationService.ensureImageSecurityScan).toHaveBeenCalledTimes(2);

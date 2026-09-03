@@ -34,10 +34,15 @@ export function MermaidDiagram({ chart, title, caption }: MermaidDiagramProps) {
       try {
         const mermaid = (await import('mermaid')).default;
 
+        // Fumadocs (next-themes) toggles a `.dark` class on <html>.
+        const isDark
+          = typeof document !== 'undefined'
+            && document.documentElement.classList.contains('dark');
+
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: 'loose',
-          theme: 'neutral',
+          theme: isDark ? 'dark' : 'neutral',
         });
 
         const renderId = `doc-mermaid-${Math.random().toString(36).slice(2, 10)}`;

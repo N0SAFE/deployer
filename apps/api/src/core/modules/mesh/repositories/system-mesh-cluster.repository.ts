@@ -6,6 +6,7 @@ import type { MeshResourceIndexUpsertInput, MeshResourceLocation } from "@repo/c
 import { GlobalDatabaseService } from "../../database/global/global-database.service";
 import { NodeConfigRepository } from "../../setup/repositories/node-config.repository";
 
+import { AppError } from "@repo/errors";
 @Injectable()
 export class SystemMeshClusterRepository {
     constructor(
@@ -100,7 +101,6 @@ export class SystemMeshClusterRepository {
             }
 
             locations.push({
-                organizationId: row.organizationId,
                 kind: row.resourceKind,
                 key: row.resourceKey,
                 ownerNodeId: row.ownerNodeId,
@@ -125,59 +125,26 @@ export class SystemMeshClusterRepository {
     }
 
     async persistResourceIndexUpsert(input: MeshResourceIndexUpsertInput): Promise<void> {
-        const scope = input.organizationId ?? null;
-
         if (input.replaceExistingForSource) {
-            if (scope === null) {
-                await this.databaseService.db
-                    .delete(resourceOwnershipIndex)
-                    .where(
-                        and(
-                            eq(resourceOwnershipIndex.ownerNodeId, input.sourceNodeId),
-                            isNull(resourceOwnershipIndex.organizationId),
-                        ),
-                    );
-            } else {
-                await this.databaseService.db
-                    .delete(resourceOwnershipIndex)
-                    .where(
-                        and(
-                            eq(resourceOwnershipIndex.ownerNodeId, input.sourceNodeId),
-                            eq(resourceOwnershipIndex.organizationId, scope),
-                        ),
-                    );
-            }
+            await this.databaseService.db
+                .delete(resourceOwnershipIndex)
+                .where(
+                    eq(resourceOwnershipIndex.ownerNodeId, input.sourceNodeId),
+                );
         }
 
         for (const resource of input.resources) {
-            const organizationId = resource.organizationId ?? scope;
-
-            if (organizationId === null) {
-                await this.databaseService.db
-                    .delete(resourceOwnershipIndex)
-                    .where(
-                        and(
-                            isNull(resourceOwnershipIndex.organizationId),
-                            eq(resourceOwnershipIndex.resourceKind, resource.kind),
-                            eq(resourceOwnershipIndex.resourceKey, resource.key),
-                            eq(resourceOwnershipIndex.ownerNodeId, resource.ownerNodeId),
-                        ),
-                    );
-            } else {
-                await this.databaseService.db
-                    .delete(resourceOwnershipIndex)
-                    .where(
-                        and(
-                            eq(resourceOwnershipIndex.organizationId, organizationId),
-                            eq(resourceOwnershipIndex.resourceKind, resource.kind),
-                            eq(resourceOwnershipIndex.resourceKey, resource.key),
-                            eq(resourceOwnershipIndex.ownerNodeId, resource.ownerNodeId),
-                        ),
-                    );
-            }
+            await this.databaseService.db
+                .delete(resourceOwnershipIndex)
+                .where(
+                    and(
+                        eq(resourceOwnershipIndex.resourceKind, resource.kind),
+                        eq(resourceOwnershipIndex.resourceKey, resource.key),
+                        eq(resourceOwnershipIndex.ownerNodeId, resource.ownerNodeId),
+                    ),
+                );
 
             await this.databaseService.db.insert(resourceOwnershipIndex).values({
-                organizationId,
                 resourceKind: resource.kind,
                 resourceKey: resource.key,
                 ownerNodeId: resource.ownerNodeId,
@@ -202,7 +169,6 @@ export class SystemMeshClusterRepository {
 
     async persistNodeHeartbeat(input: {
         nodeId: string;
-        organizationId?: string | null;
         serverUrl?: string | null;
         metrics: {
             latencyMs: number;
@@ -236,7 +202,6 @@ export class SystemMeshClusterRepository {
 
         await this.databaseService.db.insert(clusterNodeMetrics).values({
             nodeId: input.nodeId,
-            organizationId: input.organizationId ?? null,
             metrics: {
                 cpuUsage: this.clamp01(input.metrics.packetLossRatio),
                 memoryUsage: this.clamp01(1 - input.metrics.reliabilityScore),
@@ -249,7 +214,6 @@ export class SystemMeshClusterRepository {
     }
 
     async issueJoinGrant(input: {
-        organizationId?: string | null;
         targetNodeId?: string | null;
         issuedByUserId: string;
         ttlSeconds: number;
@@ -262,7 +226,6 @@ export class SystemMeshClusterRepository {
         const [created] = await this.databaseService.db
             .insert(clusterJoinGrants)
             .values({
-                organizationId: input.organizationId ?? null,
                 targetNodeId: input.targetNodeId ?? null,
                 issuedByUserId: input.issuedByUserId,
                 grantTokenHash,
@@ -276,7 +239,7 @@ export class SystemMeshClusterRepository {
             });
 
         if (!created) {
-            throw new Error("Failed to create join grant record");
+            throw new AppError("Failed to create join grant record", "INTERNAL_ERROR");
         }
 
         return {
@@ -380,10 +343,10 @@ export class SystemMeshClusterRepository {
         // URL is missing.
         const databaseUrl = this.getDatabaseUrlFromConfig();
         if (!databaseUrl) {
-            throw new Error(
+            throw new AppError(
                 "No database URL in node_config — the receiving mesh node " +
                     "cannot return it to the joining peer. Run the setup wizard first.",
-            );
+"INTERNAL_ERROR");
         }
 
         return {

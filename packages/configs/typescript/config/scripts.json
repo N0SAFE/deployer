@@ -20,6 +20,5 @@
     "allowJs": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["../../scripts/**/*.ts"],
-  "exclude": ["node_modules", "dist", ".turbo"]
+  "include": ["../../scripts/**/*.ts"]
 }

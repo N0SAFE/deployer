@@ -1,6 +1,7 @@
 import type { z, ZodType } from "zod";
 import type { MeshQuery, AnyMeshQuery } from "./mesh-query";
 import type { MeshMutation, AnyMeshMutation } from "./mesh-mutation";
+import { NotFoundError } from "@repo/errors";
 import type {
   MeshResourceOwnership,
   MeshEventSourceConfig,
@@ -15,27 +16,6 @@ export type {
   MeshEventSourceType,
 } from "./mesh-resource-definition";
 
-// ─── Resource Scope Types (legacy, use MeshResourceOwnership instead) ─────────
-
-/**
- * @deprecated Use MeshResourceOwnership instead for more flexibility
- */
-export type MeshResourceScope = "global" | "node-owned";
-
-/**
- * @deprecated Use MeshResourceOwnership instead
- */
-export interface MeshResourceConfig<TScope extends MeshResourceScope = MeshResourceScope> {
-  /** How this resource is distributed across the mesh */
-  readonly scope: TScope;
-
-  /** For global resources: whether real-time subscriptions are supported */
-  readonly subscriptions?: TScope extends "global" ? boolean : never;
-
-  /** For node-owned resources: the field that identifies which node owns the item */
-  readonly nodeIdField?: TScope extends "node-owned" ? string : never;
-}
-
 // ─── Core interface ───────────────────────────────────────────────────────────
 
 /**
@@ -46,7 +26,6 @@ export interface MeshResourceConfig<TScope extends MeshResourceScope = MeshResou
  * @param TItemKey   - The field name that uniquely identifies an item (e.g. "deploymentId")
  * @param TQueries   - Map of query operations this entity supports
  * @param TMutations - Map of mutation operations this entity supports
- * @param TScope     - Resource scope: "global" or "node-owned"
  */
 export interface MeshEntity<
   TKey extends string,
@@ -54,25 +33,24 @@ export interface MeshEntity<
   TItemKey extends keyof z.infer<TItemSchema> & string,
   TQueries extends Record<string, AnyMeshQuery>,
   TMutations extends Record<string, AnyMeshMutation>,
-  TScope extends MeshResourceScope = MeshResourceScope,
 > {
   readonly key: TKey;
   readonly item: TItemSchema;
   readonly itemKey: TItemKey;
   readonly queries: TQueries;
   readonly mutations: TMutations;
-  readonly config: MeshResourceConfig<TScope>;
 }
 
 // ─── Any-type alias ───────────────────────────────────────────────────────────
 
 /**
- * Unconstrained mesh entity type.
- * Uses 'never' for TItemKey because we can't verify the key constraint
- * without knowing the specific item schema. Concrete entities will have the
- * correct constrained key.
+ * Unconstrained mesh entity type (catch-all).
+ * Uses `any` for the item schema so the `TItemKey` constraint resolves to
+ * `string` while accepting any concrete entity's schema, and `string` for the
+ * item key since we can't verify the specific key without knowing the item
+ * schema. Concrete entities carry their correct constrained key.
  */
-export type AnyMeshEntity = MeshEntity<string, ZodType, never, Record<string, AnyMeshQuery>, Record<string, AnyMeshMutation>>;
+export type AnyMeshEntity = MeshEntity<string, any, string, Record<string, AnyMeshQuery>, Record<string, AnyMeshMutation>>;
 
 // ─── Type transformers for bound queries/mutations ────────────────────────────
 
@@ -199,21 +177,18 @@ export function meshEntity<
   TItemKey extends keyof z.infer<TItemSchema> & string,
   TQueries extends Record<string, AnyMeshQuery>,
   TMutations extends Record<string, AnyMeshMutation>,
-  TScope extends MeshResourceScope = "node-owned",
 >(config: {
   key: TKey;
   item: TItemSchema;
   itemKey: TItemKey;
   queries: TQueries;
   mutations: TMutations;
-  config?: MeshResourceConfig<TScope>;
 }): MeshEntity<
   TKey,
   TItemSchema,
   TItemKey,
   BoundEntityQueries<TQueries, z.infer<TItemSchema>>,
-  BoundEntityMutations<TMutations, z.infer<TItemSchema>>,
-  TScope
+  BoundEntityMutations<TMutations, z.infer<TItemSchema>>
 > {
   type TItem = z.infer<TItemSchema>;
 
@@ -223,14 +198,11 @@ export function meshEntity<
     TItemSchema,
     TItemKey,
     BoundEntityQueries<TQueries, TItem>,
-    BoundEntityMutations<TMutations, TItem>,
-    TScope
+    BoundEntityMutations<TMutations, TItem>
   >;
 
-  // Create the entity with default config
   const entity = {
     ...config,
-    config: config.config ?? ({ scope: "node-owned" } as MeshResourceConfig<TScope>),
   } as unknown as ResultEntity;
 
   // Attach routing metadata to each query for topic derivation
@@ -300,10 +272,7 @@ export interface EnhancedMeshEntity<
   TItemSchema,
   TItemKey,
   TQueries,
-  TMutations,
-  TOwnership extends { type: "global" } ? "global" :
-  TOwnership extends { type: "node-owned" } ? "node-owned" :
-  MeshResourceScope
+  TMutations
 > {
   /** Event source configuration and registry */
   readonly events: MeshEntityEventSources<z.infer<TItemSchema>, TEventSources>;
@@ -390,21 +359,12 @@ export function meshEntityEnhanced<
 > {
   type TItem = z.infer<TItemSchema>;
   
-  // Create base entity with legacy config format for backward compatibility
-  const legacyScope: MeshResourceScope = config.ownership.type === "global" ? "global" : "node-owned";
-  const legacyConfig: MeshResourceConfig = {
-    scope: legacyScope,
-    ...(config.ownership.type === "global" && { subscriptions: true }),
-    ...(config.ownership.type === "node-owned" && { nodeIdField: config.ownership.ownerField }),
-  };
-
   const baseEntity = meshEntity({
     key: config.key,
     item: config.item,
     itemKey: config.itemKey,
     queries: config.queries ?? {},
     mutations: config.mutations ?? {},
-    config: legacyConfig,
   });
 
   // Create event source registry
@@ -432,12 +392,12 @@ export function meshEntityEnhanced<
     getSourceObservable<TPayload>(sourceName: keyof TEventSources) {
       const source = eventSources[sourceName];
       if (!source) {
-        throw new Error(`Event source "${String(sourceName)}" not found on entity "${config.key}"`);
+        throw new NotFoundError(`Event source "${String(sourceName)}" not found on entity "${config.key}"`);
       }
       
       // This would be connected to the actual event stream in a real implementation
       // For now, return a placeholder that would be replaced by the mesh infrastructure
-      const { Subject } = require("rxjs");
+      const { Subject } = require("rxjs") as typeof import("rxjs");
       return new Subject<{
         readonly type: string;
         readonly item: TItem;

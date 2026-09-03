@@ -7,7 +7,6 @@ import type zod from "zod/v4";
 import type {
     apiEnvSchema,
     docEnvSchema,
-    loadBalancerEnvSchema,
     webEnvSchema,
 } from "./index";
 
@@ -66,20 +65,6 @@ const webMockEnv: EnvMockForSchema<typeof webEnvSchema> = {
 
 const docMockEnv: EnvMockForSchema<typeof docEnvSchema> = {};
 
-const loadBalancerMockEnv: EnvMockForSchema<typeof loadBalancerEnvSchema> = {
-    LOAD_BALANCER_PORT: "3010",
-    API_URL: "http://localhost:3001",
-    APP_URL: "http://localhost:3005",
-    LB_ROUTE_SECRET: "mock-lb-route-secret-for-development-only",
-    LB_ROUTE_SECRET_PREVIOUS: "",
-    LB_REPORT_TTL_MS: "30050",
-    LB_LOAD_REPORT_DEDUPE_TTL_MS: "120000",
-    LB_LOAD_REPORT_MAX_HOPS: "2",
-    LB_PEER_URLS: "",
-    MESH_NODE_ID: "88888888-8888-4888-8888-888888888888",
-    MESH_STREAM_SHARED_SECRET: "mock-mesh-stream-secret-for-development-only",
-};
-
 export const mockEnv = {
     // ============================================================================
     // API Mock Environment
@@ -95,11 +80,6 @@ export const mockEnv = {
     // Doc Mock Environment
     // ============================================================================
     doc: docMockEnv,
-
-    // ============================================================================
-    // Load Balancer Mock Environment
-    // ============================================================================
-    loadBalancer: loadBalancerMockEnv,
 } as const;
 
 export type MockEnvAppName = keyof typeof mockEnv;
@@ -130,7 +110,7 @@ export function getAllMockEnv(): Record<string, string> {
  */
 export function mergeMockEnv(
     existing: Record<string, string>,
-    appName?: Exclude<MockEnvAppName, "loadBalancer">
+    appName?: MockEnvAppName
 ): Record<string, string> {
     if (appName) {
         return { ...mockEnv[appName], ...existing }

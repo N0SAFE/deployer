@@ -1,5 +1,5 @@
 import { oc } from "@orpc/contract";
-import { z } from "zod";
+import z from "zod/v4";
 import {
     setupStateSnapshotSchema,
     setupInitializeInputSchema,
@@ -15,7 +15,12 @@ import {
     listHintsResultSchema,
     dismissHintInputSchema,
 } from "@repo/contracts-entities";
-import { standard } from "@repo/orpc-utils";
+import {
+    standard,
+    standardDomainErrorContracts,
+    standardDomainErrorPayloadSchema,
+    type ErrorDefinitionBuilder,
+} from "@repo/orpc-utils";
 
 const setupStateOps    = standard.zod(setupStateSnapshotSchema, "setupState");
 const setupNodeStatusOps = standard.zod(nodeConfigStatusSchema, "setupNodeStatus");
@@ -24,6 +29,36 @@ const setupProbeMeshOps = standard.zod(setupProbeMeshResultSchema, "setupProbeMe
 const setupRemoteAuthOps = standard.zod(setupRemoteAuthResultSchema, "setupRemoteAuth");
 const setupInitializeOps = standard.zod(setupInitializeLocalResultSchema, "setupInitialize");
 const setupListHintsOps = standard.zod(listHintsResultSchema, "setupListHints");
+
+/**
+ * Canonical setup-domain error set.
+ *
+ * Spreads the standard product-domain errors, then adds the gateway errors
+ * the wizard controller throws when the remote mesh node misbehaves. The
+ * data schema is `standardDomainErrorPayloadSchema` so every thrown error
+ * arrives as a DEFINED (typed) error on the client — see
+ * `standardErrorOptions` for the matching throw-side payload builder.
+ */
+function setupDomainErrorContracts(e: (code?: string) => ErrorDefinitionBuilder) {
+    return [
+        ...standardDomainErrorContracts(e),
+        e()
+            .code("BAD_GATEWAY")
+            .message("Upstream mesh node request failed")
+            .status(502)
+            .data(standardDomainErrorPayloadSchema),
+        e()
+            .code("GATEWAY_TIMEOUT")
+            .message("Upstream mesh node timed out")
+            .status(504)
+            .data(standardDomainErrorPayloadSchema),
+        e()
+            .code("INTERNAL_SERVER_ERROR")
+            .message("Setup failed")
+            .status(500)
+            .data(standardDomainErrorPayloadSchema),
+    ] as const;
+}
 
 export const setupContract = oc.tag("Setup").prefix("/setup").router({
     // ─── State ──────────────────────────────────────────────────────────────
@@ -34,6 +69,7 @@ export const setupContract = oc.tag("Setup").prefix("/setup").router({
         .path("/state")
         .input((b) => b.body(z.object({}).optional()))
         .output((b) => b.body(setupStateSnapshotSchema))
+        .errors((e) => setupDomainErrorContracts(e))
         .build(),
 
     /** Persisted node config — is this node already configured? */
@@ -42,6 +78,7 @@ export const setupContract = oc.tag("Setup").prefix("/setup").router({
         .path("/node-status")
         .input((b) => b.body(z.object({}).optional()))
         .output((b) => b.body(nodeConfigStatusSchema))
+        .errors((e) => setupDomainErrorContracts(e))
         .build(),
 
     // ─── Pre-flight probes ───────────────────────────────────────────────────
@@ -52,6 +89,7 @@ export const setupContract = oc.tag("Setup").prefix("/setup").router({
         .path("/probe/database")
         .input((b) => b.body(setupProbeDbInputSchema))
         .output((b) => b.body(setupProbeDbResultSchema))
+        .errors((e) => setupDomainErrorContracts(e))
         .build(),
 
     /** Test a mesh URL before submitting (remote flow, Step 2) */
@@ -60,6 +98,7 @@ export const setupContract = oc.tag("Setup").prefix("/setup").router({
         .path("/probe/mesh")
         .input((b) => b.body(setupProbeMeshInputSchema))
         .output((b) => b.body(setupProbeMeshResultSchema))
+        .errors((e) => setupDomainErrorContracts(e))
         .build(),
 
     // ─── Remote auth ─────────────────────────────────────────────────────────
@@ -73,6 +112,7 @@ export const setupContract = oc.tag("Setup").prefix("/setup").router({
         .path("/remote/auth")
         .input((b) => b.body(setupRemoteAuthInputSchema))
         .output((b) => b.body(setupRemoteAuthResultSchema))
+        .errors((e) => setupDomainErrorContracts(e))
         .build(),
 
     // ─── Trigger initialization (returns immediately) ────────────────────────
@@ -87,6 +127,7 @@ export const setupContract = oc.tag("Setup").prefix("/setup").router({
         .path("/trigger")
         .input((b) => b.body(setupInitializeInputSchema))
         .output((b) => b.body(z.object({ accepted: z.boolean() })))
+        .errors((e) => setupDomainErrorContracts(e))
         .build(),
 
     // ─── Stream initialization events (SSE) ─────────────────────────────────
@@ -101,7 +142,9 @@ export const setupContract = oc.tag("Setup").prefix("/setup").router({
     getInitializeStream: setupInitializeOps
         .list()
         .path("/stream")
+        .input((b) => b.body(z.object({}).optional()))
         .output((b) => b.observable(setupStreamEventSchema))
+        .errors((e) => setupDomainErrorContracts(e))
         .build(),
 
     // ─── Post-setup hints ─────────────────────────────────────────────────
@@ -112,6 +155,7 @@ export const setupContract = oc.tag("Setup").prefix("/setup").router({
         .path("/post-setup/hints")
         .input((b) => b.body(z.object({}).optional()))
         .output((b) => b.body(listHintsResultSchema))
+        .errors((e) => setupDomainErrorContracts(e))
         .build(),
 
     /** Dismiss a post-setup hint — marks it as completed in node_config */
@@ -120,5 +164,6 @@ export const setupContract = oc.tag("Setup").prefix("/setup").router({
         .path("/post-setup/hints/dismiss")
         .input((b) => b.body(dismissHintInputSchema))
         .output((b) => b.body(z.object({ ok: z.boolean() })))
+        .errors((e) => setupDomainErrorContracts(e))
         .build(),
 });

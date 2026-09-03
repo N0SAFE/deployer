@@ -5,17 +5,26 @@ import { NotFoundException, BadRequestException, ForbiddenException } from '@nes
 import { firstValueFrom, take, toArray } from 'rxjs';
 import { DeploymentService } from './deployment.service';
 import { DeploymentEventService } from '../events/deployment-event.service';
-import { SourceProviderRegistryService } from '../providers/source-provider-registry.service';
-import { GithubSourceProviderService } from '../providers/github/github-source-provider.service';
-import { UploadSourceProviderService } from '../providers/upload/upload-source-provider.service';
-import { UploadBundleRegistryService } from '../providers/upload/upload-bundle-registry.service';
-import { CustomSourceProviderService } from '../providers/custom/custom-source-provider.service';
-import { RuntimeRunnerRegistryService } from '../runners/runtime-runner-registry.service';
-import { DockerRuntimeRunnerService } from '../runners/docker/docker-runtime-runner.service';
-import { DeploymentLoadBalancerSyncAdapter } from '../adapters/deployment-load-balancer-sync.adapter';
+import { CodeProviderRegistryService } from "@/modules/providers/code/shared/code-provider-registry.service";
+import { DomainRoutingService } from '@/core/modules/domain/services/domain-routing.service';
+import { TraefikConfigRefresher } from '@/core/modules/traefik/services/traefik-config-refresher.service';
+import { RuntimeConfigurationAccessorService } from '@/core/modules/configuration/services/runtime-configuration-accessor.service';
+import {
+    runtimeConfigurationContextSchema,
+    meshRuntimeConfigSchema,
+    projectRuntimeConfigSchema,
+    serviceRuntimeConfigSchema,
+    userRuntimeConfigSchema,
+    type ResolvedRuntimeConfiguration,
+} from '@/core/modules/configuration/schemas/runtime-configuration.schema';
+import { GithubSourceProviderService } from "@/modules/providers/code/github/services/github-source-provider.service";
+import { UploadSourceProviderService } from "@/modules/providers/code/upload/services/upload-source-provider.service";
+import { UploadBundleRegistryService } from "@/modules/providers/code/upload/services/upload-bundle-registry.service";
+import { CustomSourceProviderService } from "@/modules/providers/code/custom/services/custom-source-provider.service";
+import { RuntimeRunnerRegistryService } from "@/modules/runners/runtime-runner-registry.service";
+import { DockerRuntimeRunnerService } from "@/modules/runners/docker/docker-runtime-runner.service";
 import { DeploymentExecutionWorkflowService } from './deployment-execution-workflow.service';
 import { DeploymentQueueLifecycleService } from '../queue/deployment-queue-lifecycle.service';
-import { DeploymentBullQueueService } from '../queue/deployment-bull-queue.service';
 import { DeploymentQueueEventService } from '../queue/deployment-queue-event.service';
 import { StorageProviderRegistryService } from '../storage/storage-provider-registry.service';
 import { LocalStorageProviderService } from '../storage/local/local-storage-provider.service';
@@ -26,7 +35,7 @@ import { StoragePolicyResolverRegistryService } from '../storage/policy/storage-
 import { ServiceCustomDataStoragePolicyResolverService } from '../storage/policy/service-custom-data-storage-policy-resolver.service';
 import { ServiceTopLevelStoragePolicyResolverService } from '../storage/policy/service-top-level-storage-policy-resolver.service';
 import { RuntimeConfigurationStoragePolicyResolverService } from '../storage/policy/runtime-configuration-storage-policy-resolver.service';
-import { EnvService } from '@/config/env/env.service';
+
 import { DeploymentProviderBuilderRunnerStateMachineService } from '@/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service';
 
 async function* fromArray<T>(items: T[]): AsyncGenerator<T> {
@@ -44,12 +53,71 @@ describe('DeploymentService', () => {
     let mockGitService: any;
     let mockDockerService: any;
     let mockTraefikService: any;
-    let mockDeploymentBullQueueService: any;
     let mockDeploymentQueueEventService: any;
     let mockProjectAccessService: any;
     let mockUploadBundleRegistryService: any;
+    let mockDomainRoutingService: any;
+    let mockRuntimeConfigurationAccessor: any;
+    let mockIngressRefresher: any;
 
     const now = '2024-01-01T00:00:00.000Z';
+
+    function defaultResolvedRuntimeConfiguration(): ResolvedRuntimeConfiguration {
+        return {
+            scope: 'project',
+            context: runtimeConfigurationContextSchema.parse({}),
+            mesh: meshRuntimeConfigSchema.parse({}),
+            project: projectRuntimeConfigSchema.parse({}),
+            service: serviceRuntimeConfigSchema.parse({}),
+            user: userRuntimeConfigSchema.parse({}),
+            effective: {
+                deployment: {
+                    strategy: 'rolling',
+                    autoDeployEnabled: true,
+                    previewEnabled: true,
+                    requireApprovalForProduction: false,
+                },
+                routing: { forceHttps: false, domains: [] },
+                execution: { providerType: 'github', runnerType: 'docker' },
+                replicas: { min: 0, desired: 1, max: 3 },
+                resources: { cpuMillicores: 100, memoryMb: 128 },
+                envPolicy: { required: [], allowList: [], denyList: [] },
+                traefik: {
+                    enabled: true,
+                    entryPoints: ['web'],
+                    middlewares: [],
+                    stripPrefix: null,
+                    domains: [],
+                    tls: { enabled: false, resolver: null },
+                },
+                lifecycle: { current: 'active', allowedNextStates: [] },
+                environmentDomains: {
+                    build: {},
+                    runtime: {},
+                    deployment: {},
+                    network: {},
+                    traefik: {},
+                    provider: {},
+                    runner: {},
+                    security: {},
+                },
+                environment: {},
+                featureFlags: {},
+                constraints: {
+                    canDeployToRequestedEnvironment: true,
+                    providerAllowed: true,
+                    runnerAllowed: true,
+                    replicasWithinLimits: true,
+                    resourcesWithinProjectLimits: true,
+                    envPolicyValid: true,
+                    lifecycleTransitionAllowed: true,
+                    reason: null,
+                    reasons: [],
+                },
+            },
+            dispatchAudit: { evaluatedRules: 0, appliedRuleIds: [] },
+        };
+    }
 
     const mockDeployment = {
         id: 'deploy-1',
@@ -83,6 +151,12 @@ describe('DeploymentService', () => {
         ...mockDeployment,
         id: 'deploy-failed',
         status: 'failed' as const,
+        // Real persisted shape: the discriminated trigger source (nested).
+        sourceConfig: {
+            sourceType: 'github',
+            repositoryUrl: 'https://github.com/acme/repo',
+            branch: 'main',
+        },
     };
 
     const mockRollback = {
@@ -148,6 +222,7 @@ describe('DeploymentService', () => {
             getServiceProjectId: vi.fn(),
             getRuntimeConfigurationSeed: vi.fn(),
             getServiceDependencies: vi.fn(),
+            resolveEnvironmentId: vi.fn().mockResolvedValue('env-prod-1'),
         };
 
         mockProjectAccessService = {
@@ -185,8 +260,16 @@ describe('DeploymentService', () => {
             getHealthStatus: vi.fn(),
         };
 
-        mockDeploymentBullQueueService = {
-            enqueueFromQueueJob: vi.fn().mockResolvedValue(null),
+        mockDomainRoutingService = {
+            promotePreviewToStable: vi.fn().mockResolvedValue(undefined),
+        };
+
+        mockRuntimeConfigurationAccessor = {
+            resolveForDeployment: vi.fn(() => defaultResolvedRuntimeConfiguration()),
+        };
+
+        mockIngressRefresher = {
+            refresh: vi.fn().mockResolvedValue(undefined),
         };
 
         mockDeploymentQueueEventService = {
@@ -206,12 +289,11 @@ describe('DeploymentService', () => {
                 {
                     provide: DeploymentService,
                     useFactory: (
-                        sourceProviderRegistryService: SourceProviderRegistryService,
+                        sourceProviderRegistryService: CodeProviderRegistryService,
                         storageProviderRegistryService: StorageProviderRegistryService,
                         storagePolicyResolverRegistryService: StoragePolicyResolverRegistryService,
                         deploymentExecutionWorkflowService: DeploymentExecutionWorkflowService,
                         deploymentQueueLifecycleService: DeploymentQueueLifecycleService,
-                        deploymentBullQueueService: DeploymentBullQueueService,
                         deploymentProviderBuilderRunnerStateMachineService: DeploymentProviderBuilderRunnerStateMachineService,
                         uploadBundleRegistryService: UploadBundleRegistryService,
                     ) =>
@@ -224,20 +306,24 @@ describe('DeploymentService', () => {
                             storagePolicyResolverRegistryService,
                             deploymentExecutionWorkflowService,
                             deploymentQueueLifecycleService,
-                            deploymentBullQueueService,
                             deploymentProviderBuilderRunnerStateMachineService,
                             uploadBundleRegistryService,
                             mockProjectAccessService,
+                            mockDomainRoutingService,
+                            mockRuntimeConfigurationAccessor,
+                            mockIngressRefresher,
                         ),
                     inject: [
-                        SourceProviderRegistryService,
+                        CodeProviderRegistryService,
                         StorageProviderRegistryService,
                         StoragePolicyResolverRegistryService,
                         DeploymentExecutionWorkflowService,
                         DeploymentQueueLifecycleService,
-                        DeploymentBullQueueService,
                         DeploymentProviderBuilderRunnerStateMachineService,
                         UploadBundleRegistryService,
+                        DomainRoutingService,
+                        RuntimeConfigurationAccessorService,
+                        TraefikConfigRefresher,
                     ],
                 },
                 {
@@ -249,17 +335,29 @@ describe('DeploymentService', () => {
                     useFactory: () => mockDeploymentEventService,
                 },
                 {
+                    provide: DomainRoutingService,
+                    useFactory: () => mockDomainRoutingService,
+                },
+                {
+                    provide: RuntimeConfigurationAccessorService,
+                    useFactory: () => mockRuntimeConfigurationAccessor,
+                },
+                {
+                    provide: TraefikConfigRefresher,
+                    useFactory: () => mockIngressRefresher,
+                },
+                {
                     provide: GithubSourceProviderService,
                     useFactory: () => new GithubSourceProviderService(mockGitService),
                 },
                 {
-                    provide: SourceProviderRegistryService,
+                    provide: CodeProviderRegistryService,
                     useFactory: (
                         githubSourceProviderService: GithubSourceProviderService,
                         uploadSourceProviderService: UploadSourceProviderService,
                         customSourceProviderService: CustomSourceProviderService,
                     ) =>
-                        new SourceProviderRegistryService([
+                        new CodeProviderRegistryService([
                             githubSourceProviderService,
                             uploadSourceProviderService,
                             customSourceProviderService,
@@ -282,16 +380,11 @@ describe('DeploymentService', () => {
                 },
                 {
                     provide: DockerRuntimeRunnerService,
-                    useFactory: () => {
-                        const loadBalancerSyncAdapter = new DeploymentLoadBalancerSyncAdapter(
-                            new EnvService(),
-                        );
-                        return new DockerRuntimeRunnerService(
+                    useFactory: () =>
+                        new DockerRuntimeRunnerService(
                             mockDockerService,
                             mockTraefikService,
-                            loadBalancerSyncAdapter,
-                        );
-                    },
+                        ),
                 },
                 {
                     provide: LocalStorageProviderService,
@@ -370,13 +463,15 @@ describe('DeploymentService', () => {
                     provide: DeploymentExecutionWorkflowService,
                     useFactory: (
                         runtimeRunnerRegistryService: RuntimeRunnerRegistryService,
+                        domainRoutingService: DomainRoutingService,
                     ) =>
                         new DeploymentExecutionWorkflowService(
                             mockRepository,
                             runtimeRunnerRegistryService,
                             mockDeploymentEventService,
+                            domainRoutingService,
                         ),
-                    inject: [RuntimeRunnerRegistryService],
+                    inject: [RuntimeRunnerRegistryService, DomainRoutingService],
                 },
                 {
                     provide: DeploymentQueueLifecycleService,
@@ -384,10 +479,6 @@ describe('DeploymentService', () => {
                         new DeploymentQueueLifecycleService(
                             mockDeploymentQueueEventService,
                         ),
-                },
-                {
-                    provide: DeploymentBullQueueService,
-                    useFactory: () => mockDeploymentBullQueueService,
                 },
                 {
                     provide: DeploymentQueueEventService,
@@ -539,8 +630,11 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'github',
-                sourceConfig: { repositoryUrl: 'https://github.com/acme/repo', branch: 'main' },
+                source: {
+                    sourceType: 'github',
+                    repositoryUrl: 'https://github.com/acme/repo',
+                    branch: 'main',
+                },
             } as any;
             const result = await service.triggerDeployment(input, 'user-1');
 
@@ -565,8 +659,11 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'github',
-                sourceConfig: { repositoryUrl: 'https://github.com/acme/repo', branch: 'main' },
+                source: {
+                    sourceType: 'github',
+                    repositoryUrl: 'https://github.com/acme/repo',
+                    branch: 'main',
+                },
             } as any;
             await service.triggerDeployment(input, 'user-1');
 
@@ -609,8 +706,11 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'github',
-                sourceConfig: { repositoryUrl: 'https://github.com/acme/repo', branch: 'main' },
+                source: {
+                    sourceType: 'github',
+                    repositoryUrl: 'https://github.com/acme/repo',
+                    branch: 'main',
+                },
             } as any;
 
             await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(BadRequestException);
@@ -637,8 +737,11 @@ describe('DeploymentService', () => {
                 {
                     serviceId: 'service-1',
                     environment: 'production',
-                    sourceType: 'github',
-                    sourceConfig: { repositoryUrl: 'https://github.com/acme/repo', branch: 'main' },
+                    source: {
+                        sourceType: 'github',
+                        repositoryUrl: 'https://github.com/acme/repo',
+                        branch: 'main',
+                    },
                 } as any,
                 'user-1',
             );
@@ -662,8 +765,9 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'github',
-                sourceConfig: { branch: 'main' },
+                source: {
+                    sourceType: 'github',
+                },
             } as any;
 
             await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(BadRequestException);
@@ -676,8 +780,11 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'github',
-                sourceConfig: { repositoryUrl: 'https://github.com/acme/private-repo', branch: 'main' },
+                source: {
+                    sourceType: 'github',
+                    repositoryUrl: 'https://github.com/acme/repo',
+                    branch: 'main',
+                },
             } as any;
 
             await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(BadRequestException);
@@ -702,8 +809,11 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'github',
-                sourceConfig: { repositoryUrl: 'https://github.com/acme/private-repo', branch: 'main' },
+                source: {
+                    sourceType: 'github',
+                    repositoryUrl: 'https://github.com/acme/repo',
+                    branch: 'main',
+                },
             } as any;
 
             await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(BadRequestException);
@@ -714,8 +824,11 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'github',
-                sourceConfig: { repositoryUrl: 'https://github.com/acme/repo', branch: 'main' },
+                source: {
+                    sourceType: 'github',
+                    repositoryUrl: 'https://github.com/acme/repo',
+                    branch: 'main',
+                },
             } as any;
 
             await expect(service.triggerDeployment(input, 'other-user')).rejects.toThrow(ForbiddenException);
@@ -729,8 +842,11 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'github',
-                sourceConfig: { repositoryUrl: 'https://github.com/acme/repo', branch: 'main' },
+                source: {
+                    sourceType: 'github',
+                    repositoryUrl: 'https://github.com/acme/repo',
+                    branch: 'main',
+                },
             } as any;
 
             const result = await service.triggerDeployment(input, 'other-user', 'operator');
@@ -759,10 +875,12 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'upload',
-                sourceConfig: {
+                source: {
+                    sourceType: 'upload',
                     fileName: 'bundle.zip',
                     fileSize: 12345,
+                    uploadId: 'upload-123',
+                    uploadPath: '/tmp/uploads/upload-123',
                     customData: {
                         uploadId: 'upload-123',
                         uploadPath: '/tmp/uploads/upload-123',
@@ -783,6 +901,7 @@ describe('DeploymentService', () => {
                 uploadPath: '/tmp/uploads/upload-123',
                 fileName: 'bundle.zip',
                 fileSize: 12345,
+                runtimeRunnerOptions: { runner: 'docker' },
             });
             expect((jobs[0]?.payload as { context?: { storageBinding?: unknown } } | undefined)?.context?.storageBinding)
                 .toMatchObject({
@@ -819,8 +938,9 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'upload',
-                sourceConfig: {
+                source: {
+                    sourceType: 'upload',
+                    uploadId: 'upload-registry-1',
                     customData: {
                         uploadId: 'upload-registry-1',
                     },
@@ -842,6 +962,7 @@ describe('DeploymentService', () => {
                 uploadPath: '/tmp/uploads/upload-registry-1-bundle.zip',
                 fileName: 'bundle.zip',
                 fileSize: 45678,
+                runtimeRunnerOptions: { runner: 'docker' },
             });
         });
 
@@ -851,8 +972,9 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'upload',
-                sourceConfig: {
+                source: {
+                    sourceType: 'upload',
+                    uploadId: 'upload-missing-1',
                     customData: {
                         uploadId: 'upload-missing-1',
                     },
@@ -888,14 +1010,36 @@ describe('DeploymentService', () => {
                     },
                 },
             });
+            mockRuntimeConfigurationAccessor.resolveForDeployment.mockReturnValue({
+                ...defaultResolvedRuntimeConfiguration(),
+                service: {
+                    ...defaultResolvedRuntimeConfiguration().service,
+                    metadata: {
+                        customData: {
+                            storage: {
+                                type: 'local',
+                                autoRedeployOnUpdate: true,
+                                mountPath: '/workspace/persisted',
+                                local: {
+                                    rootPath: '/srv/storage/services/service-1',
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+
             mockRepository.create.mockResolvedValue(mockDeployment);
             mockGitService.validateRepository.mockResolvedValue(true);
 
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'github',
-                sourceConfig: { repositoryUrl: 'https://github.com/acme/repo', branch: 'main' },
+                source: {
+                    sourceType: 'github',
+                    repositoryUrl: 'https://github.com/acme/repo',
+                    branch: 'main',
+                },
             } as any;
 
             await service.triggerDeployment(input, 'user-1');
@@ -917,11 +1061,10 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'upload',
-                sourceConfig: {
+                source: {
+                    sourceType: 'upload',
                     fileName: 'bundle.zip',
                     fileSize: 12345,
-                    customData: {},
                 },
             } as any;
 
@@ -933,14 +1076,12 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'upload',
-                sourceConfig: {
+                source: {
+                    sourceType: 'upload',
                     fileName: 'bundle.zip',
                     fileSize: 12345,
-                    customData: {
-                        uploadId: 'upload-123',
-                        runtimeRunner: 'dockerfile',
-                    },
+                    uploadId: 'upload-123',
+                    runtimeRunner: 'dockerfile',
                 },
             } as any;
 
@@ -967,10 +1108,13 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'upload',
-                sourceConfig: {
+                source: {
+                    sourceType: 'upload',
                     fileName: 'bundle.zip',
                     fileSize: 12345,
+                    uploadId: 'upload-123',
+                    uploadPath: '/tmp/uploads/upload-123',
+                    runtimeRunner: 'dockerfile',
                     customData: {
                         uploadId: 'upload-123',
                         uploadPath: '/tmp/uploads/upload-123',
@@ -1026,13 +1170,9 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'preview',
-                sourceType: 'custom',
-                sourceConfig: {
-                    customData: {
-                        containerImage: 'registry.local/custom:latest',
-                        containerName: 'svc-custom-1',
-                        runtimeRunner: 'dockerfile',
-                    },
+                source: {
+                    sourceType: 'custom',
+                    customData: { containerImage: 'registry.local/custom:latest', containerName: 'svc-custom-1', runtimeRunner: 'dockerfile' },
                 },
             } as any;
 
@@ -1060,12 +1200,9 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'custom',
-                sourceConfig: {
-                    customData: {
-                        containerImage: 'registry.local/custom:latest',
-                        runtimeRunner: 'dockerfile',
-                    },
+                source: {
+                    sourceType: 'custom',
+                    customData: { containerImage: 'registry.local/custom:latest', runtimeRunner: 'dockerfile' },
                 },
                 execution: {
                     builder: 'nixpacks',
@@ -1081,12 +1218,9 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
-                sourceType: 'custom',
-                sourceConfig: {
-                    customData: {
-                        containerImage: 'registry.local/custom:latest',
-                        runtimeRunner: 'dockerfile',
-                    },
+                source: {
+                    sourceType: 'custom',
+                    customData: { containerImage: 'registry.local/custom:latest', runtimeRunner: 'dockerfile' },
                 },
                 execution: {
                     customCommands: {
@@ -1122,8 +1256,11 @@ describe('DeploymentService', () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'preview',
-                sourceType: 'github',
-                sourceConfig: { repositoryUrl: 'https://github.com/acme/repo', branch: 'main' },
+                source: {
+                    sourceType: 'github',
+                    repositoryUrl: 'https://github.com/acme/repo',
+                    branch: 'main',
+                },
             } as any;
 
             await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(BadRequestException);
@@ -1149,8 +1286,8 @@ describe('DeploymentService', () => {
                 {
                     serviceId: 'service-1',
                     environment: 'production',
-                    sourceType: 'github',
-                    sourceConfig: {
+                    source: {
+                        sourceType: 'github',
                         repositoryUrl: 'https://github.com/acme/repo',
                         branch: 'main',
                     },
@@ -1713,6 +1850,14 @@ describe('DeploymentService', () => {
                 return Promise.resolve(null);
             });
 
+            mockRuntimeConfigurationAccessor.resolveForDeployment.mockReturnValue({
+                ...defaultResolvedRuntimeConfiguration(),
+                project: {
+                    ...defaultResolvedRuntimeConfiguration().project,
+                    metadata: { deploymentStateMachine: { rollback: { enabled: false } } },
+                },
+            });
+
             await expect(service.rollbackDeployment('deploy-1', 'deploy-2', 'user-1')).rejects.toThrow(BadRequestException);
             expect(mockRepository.create).not.toHaveBeenCalled();
         });
@@ -1950,10 +2095,16 @@ describe('DeploymentService', () => {
     // ========================================
 
     describe('retryDeployment', () => {
+        const enableRetryCheckout = () => {
+            mockGitService.validateRepository.mockResolvedValue(true);
+        };
+
         it('should create a retry deployment for failed deployment', async () => {
+            enableRetryCheckout();
             const retryDeployment = { ...mockDeployment, id: 'deploy-retry' };
             mockRepository.findById.mockResolvedValue(mockFailedDeployment);
             mockRepository.create.mockResolvedValue(retryDeployment);
+            mockRepository.getServiceProjectId.mockResolvedValue('proj-1');
 
             const result = await service.retryDeployment('deploy-failed', 'user-1');
 
@@ -1964,6 +2115,39 @@ describe('DeploymentService', () => {
                     triggeredBy: 'user-1',
                 }),
             );
+        });
+
+        it('should enqueue a real retry job carrying the original source context (W10)', async () => {
+            enableRetryCheckout();
+            const retryDeployment = { ...mockDeployment, id: 'deploy-retry' };
+            mockRepository.findById.mockResolvedValue(mockFailedDeployment);
+            mockRepository.create.mockResolvedValue(retryDeployment);
+            mockRepository.getServiceProjectId.mockResolvedValue('proj-1');
+
+            await service.retryDeployment('deploy-failed', 'user-1');
+
+            const jobs = Array.from((service as any).queueJobs.values());
+            expect(jobs).toHaveLength(1);
+            expect(jobs[0]).toMatchObject({
+                type: 'retry',
+                idempotencyKey: 'retry:deploy-retry',
+                payload: {
+                    deploymentId: 'deploy-retry',
+                    serviceId: mockFailedDeployment.serviceId,
+                    projectId: 'proj-1',
+                    environment: mockFailedDeployment.environment,
+                    context: {
+                        sourceType: mockFailedDeployment.sourceType,
+                        retryOf: 'deploy-failed',
+                        triggeredBy: 'user-1',
+                        // Re-resolved checkout so the builder can rebuild.
+                        sourceCheckout: expect.objectContaining({
+                            provider: 'github',
+                            repositoryUrl: 'https://github.com/acme/repo',
+                        }),
+                    },
+                },
+            });
         });
 
         it('should throw BadRequestException for non-retryable status', async () => {

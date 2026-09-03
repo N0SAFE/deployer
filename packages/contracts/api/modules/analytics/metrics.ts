@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import z from "zod/v4";
 import {
     analyticsResourceUsageSchema,
@@ -7,30 +7,35 @@ import {
     deploymentAnalyticsSchema,
     analyticsServiceHealthSchema,
     getMetricsInputSchema,
+    analyticsDataSourceSchema,
 } from "./schemas";
 
 const analyticsResourceMetricsOutputSchema = z.object({
     data: z.array(analyticsResourceUsageSchema),
     timeRange: z.string(),
     granularity: z.string(),
+    dataSource: analyticsDataSourceSchema.default("unavailable"),
 });
 
 const analyticsApplicationMetricsOutputSchema = z.object({
     data: z.array(applicationMetricsSchema),
     timeRange: z.string(),
     granularity: z.string(),
+    dataSource: analyticsDataSourceSchema.default("unavailable"),
 });
 
 const analyticsDatabaseMetricsOutputSchema = z.object({
     data: z.array(databaseMetricsSchema),
     timeRange: z.string(),
     granularity: z.string(),
+    dataSource: analyticsDataSourceSchema.default("unavailable"),
 });
 
 const analyticsDeploymentMetricsOutputSchema = z.object({
     data: z.array(deploymentAnalyticsSchema),
     timeRange: z.string(),
     granularity: z.string(),
+    dataSource: analyticsDataSourceSchema.default("unavailable"),
 });
 
 const analyticsServiceHealthQuerySchema = z
@@ -42,6 +47,7 @@ const analyticsServiceHealthQuerySchema = z
 const analyticsServiceHealthOutputSchema = z.object({
     data: z.array(analyticsServiceHealthSchema),
     timestamp: z.date(),
+    dataSource: analyticsDataSourceSchema.default("unavailable"),
 });
 
 const analyticsRealtimeMetricsOutputSchema = z.object({
@@ -64,11 +70,12 @@ const analyticsRealtimeMetricsOutputSchema = z.object({
     services: z.array(
         z.object({
             name: z.string(),
-            status: z.enum(["healthy", "degraded", "unhealthy"]),
+            status: z.enum(["healthy", "degraded", "unhealthy", "unknown"]),
             responseTime: z.number(),
             uptime: z.number(),
         }),
     ),
+    dataSource: analyticsDataSourceSchema.default("unavailable"),
 });
 
 const analyticsResourceMetricsOps = standard.zod(analyticsResourceMetricsOutputSchema, "analyticsResourceMetrics");
@@ -83,6 +90,7 @@ export const analyticsGetResourceMetricsContract = analyticsResourceMetricsOps
     .path("/metrics/resources")
     .input((input) => input.query(getMetricsInputSchema.optional()))
     .output(analyticsResourceMetricsOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsGetApplicationMetricsContract = analyticsApplicationMetricsOps
@@ -90,6 +98,7 @@ export const analyticsGetApplicationMetricsContract = analyticsApplicationMetric
     .path("/metrics/application")
     .input((input) => input.query(getMetricsInputSchema.optional()))
     .output(analyticsApplicationMetricsOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsGetDatabaseMetricsContract = analyticsDatabaseMetricsOps
@@ -97,6 +106,7 @@ export const analyticsGetDatabaseMetricsContract = analyticsDatabaseMetricsOps
     .path("/metrics/database")
     .input((input) => input.query(getMetricsInputSchema.optional()))
     .output(analyticsDatabaseMetricsOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsGetDeploymentMetricsContract = analyticsDeploymentMetricsOps
@@ -104,6 +114,7 @@ export const analyticsGetDeploymentMetricsContract = analyticsDeploymentMetricsO
     .path("/metrics/deployments")
     .input((input) => input.query(getMetricsInputSchema.optional()))
     .output(analyticsDeploymentMetricsOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsGetServiceHealthContract = analyticsServiceHealthOps
@@ -111,6 +122,7 @@ export const analyticsGetServiceHealthContract = analyticsServiceHealthOps
     .path("/metrics/health")
     .input((input) => input.query(analyticsServiceHealthQuerySchema))
     .output(analyticsServiceHealthOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsGetRealTimeMetricsContract = analyticsRealtimeMetricsOps
@@ -118,4 +130,5 @@ export const analyticsGetRealTimeMetricsContract = analyticsRealtimeMetricsOps
     .path("/metrics/realtime")
     .input((input) => input.query(analyticsServiceHealthQuerySchema))
     .output(analyticsRealtimeMetricsOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

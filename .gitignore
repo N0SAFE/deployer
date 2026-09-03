@@ -48,3 +48,5 @@ _experiment
 !/.env.example
 
 .docker
+# graphify output (272MB of JSON extraction artifacts)
+graphify-out/

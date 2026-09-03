@@ -1,9 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 // TODO: Install @nestjs/schedule to enable cron-based auto-verification
 // import { Cron, CronExpression } from '@nestjs/schedule';
-import { OrganizationDomainService } from './organization-domain.service';
 import {
-  OrganizationDomainNotFoundError,
+  ProjectDomainNotFoundError,
   DnsLookupError,
   VerificationTokenMismatchError,
   VerificationRecordNotFoundError,
@@ -15,12 +14,13 @@ import type {
 } from '../interfaces';
 import * as dns from 'dns/promises';
 import { randomBytes } from 'crypto';
+import { ProjectDomainRepository } from '../repositories/project-domain.repository';
 
 @Injectable()
 export class DomainVerificationService {
   private readonly logger = new Logger(DomainVerificationService.name);
 
-  constructor(private readonly organizationDomainService: OrganizationDomainService) {}
+  constructor(private readonly projectDomainRepository: ProjectDomainRepository) {}
 
   /**
    * Generate a unique verification token for domain ownership.
@@ -95,42 +95,41 @@ The verification will be checked automatically within an hour, or you can trigge
   }
 
   /**
-   * Verify domain ownership via DNS records
+   * Verify a project domain's ownership via DNS records
    */
-  async verifyDomain(domainId: string): Promise<VerifyDomainResult> {
-    // Fetch domain details
-    const orgDomain = await this.organizationDomainService.findById(domainId);
+  async verifyProjectDomain(projectId: string, domainId: string): Promise<VerifyDomainResult> {
+    const projectDomain = await this.projectDomainRepository.findById(domainId);
 
-    if (!orgDomain) {
-      throw new OrganizationDomainNotFoundError(domainId);
+    if (!projectDomain || projectDomain.projectId !== projectId) {
+      throw new ProjectDomainNotFoundError(domainId);
     }
 
     // Check if already verified
-    if (orgDomain.verificationStatus === 'verified' && orgDomain.verifiedAt) {
+    if (projectDomain.verificationStatus === 'verified' && projectDomain.verifiedAt) {
       return {
         success: true,
         status: 'verified',
         message: 'Domain is already verified',
-        verifiedAt: orgDomain.verifiedAt,
+        verifiedAt: projectDomain.verifiedAt,
       };
     }
 
-    const recordName = `_deployer-verify.${orgDomain.domain}`;
+    const recordName = `_deployer-verify.${projectDomain.domain}`;
 
     try {
       // Query DNS based on verification method
       let verified = false;
 
-      if (orgDomain.verificationMethod === 'txt_record') {
-        verified = await this.verifyTxtRecord(recordName, orgDomain.verificationToken, orgDomain.domain);
+      if (projectDomain.verificationMethod === 'txt_record') {
+        verified = await this.verifyTxtRecord(recordName, projectDomain.verificationToken, projectDomain.domain);
       } else {
-        verified = await this.verifyCnameRecord(recordName, orgDomain.verificationToken, orgDomain.domain);
+        verified = await this.verifyCnameRecord(recordName, projectDomain.verificationToken, projectDomain.domain);
       }
 
       // Update domain status
       if (verified) {
         const now = new Date();
-        await this.organizationDomainService.update(domainId, {
+        await this.projectDomainRepository.update(domainId, {
           verificationStatus: 'verified',
           verifiedAt: now,
           dnsRecordChecked: true,
@@ -138,7 +137,7 @@ The verification will be checked automatically within an hour, or you can trigge
           updatedAt: now,
         });
 
-        this.logger.log(`Domain verified successfully: ${orgDomain.domain}`);
+        this.logger.log(`Domain verified successfully: ${projectDomain.domain}`);
 
         return {
           success: true,
@@ -148,7 +147,7 @@ The verification will be checked automatically within an hour, or you can trigge
         };
       } else {
         const now = new Date();
-        await this.organizationDomainService.update(domainId, {
+        await this.projectDomainRepository.update(domainId, {
           verificationStatus: 'failed',
           dnsRecordChecked: true,
           lastVerificationAttempt: now,
@@ -167,7 +166,7 @@ The verification will be checked automatically within an hour, or you can trigge
       }
     } catch (error) {
       // Re-throw domain-specific errors
-      if (error instanceof OrganizationDomainNotFoundError ||
+      if (error instanceof ProjectDomainNotFoundError ||
           error instanceof DnsLookupError ||
           error instanceof VerificationTokenMismatchError ||
           error instanceof VerificationRecordNotFoundError) {
@@ -175,7 +174,7 @@ The verification will be checked automatically within an hour, or you can trigge
       }
 
       const err = error as Error;
-      this.logger.error(`[${VerificationAttemptError.name}] Domain verification failed for ${orgDomain.domain}: ${err.message}`, err.stack);
+      this.logger.error(`[${VerificationAttemptError.name}] Domain verification failed for ${projectDomain.domain}: ${err.message}`, err.stack);
       
       throw new VerificationAttemptError(domainId, err.message);
     }
@@ -245,14 +244,14 @@ The verification will be checked automatically within an hour, or you can trigge
     this.logger.log('Running auto-verification for pending domains...');
 
     try {
-      // Get all pending domains
-      const pendingDomains = await this.organizationDomainService.findPendingDomains();
+      // Get all pending project domains
+      const pendingDomains = await this.projectDomainRepository.findPending();
 
       this.logger.log(`Found ${String(pendingDomains.length)} pending domains to verify`);
 
       for (const domain of pendingDomains) {
         try {
-          const result = await this.verifyDomain(domain.id);
+          const result = await this.verifyProjectDomain(domain.projectId, domain.id);
           
           if (result.success) {
             this.logger.log(`Auto-verified domain: ${domain.domain}`);
@@ -276,24 +275,24 @@ The verification will be checked automatically within an hour, or you can trigge
   }
 
   /**
-   * Get pending domains count
+   * Get the number of pending domains for a project
    */
-  async getPendingDomainsCount(organizationId: string): Promise<number> {
-    const domains = await this.organizationDomainService.findByOrganizationId(organizationId);
+  async getPendingDomainsCount(projectId: string): Promise<number> {
+    const domains = await this.projectDomainRepository.findByProjectId(projectId);
     return domains.filter(d => d.verificationStatus === 'pending').length;
   }
 
   /**
    * Retry failed verification
    */
-  async retryVerification(domainId: string): Promise<VerifyDomainResult> {
+  async retryVerification(projectId: string, domainId: string): Promise<VerifyDomainResult> {
     // Reset status to pending before retrying
-    await this.organizationDomainService.update(domainId, {
+    await this.projectDomainRepository.update(domainId, {
       verificationStatus: 'pending',
       updatedAt: new Date(),
     });
 
     // Trigger verification
-    return await this.verifyDomain(domainId);
+    return await this.verifyProjectDomain(projectId, domainId);
   }
 }

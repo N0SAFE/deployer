@@ -1,15 +1,15 @@
 import { Module, Global } from '@nestjs/common';
 import { DatabaseModule } from '@/core/modules/database/database.module';
-import { BaseEventService } from './base-event.service';
+import { BaseEventService, CoreEventStreamPoolService } from '@repo/nest-events';
 import { CoreEventLogRepository } from './repositories/core-event-log.repository';
 import { CoreEventStreamRepository } from './repositories/core-event-stream.repository';
 import { CoreEventSyncService } from './services/core-event-sync.service';
-import { CoreEventStreamPoolService } from './services/core-event-stream-pool.service';
+import { LocalEventOutboxRepository } from './outbox/local-event-outbox.repository';
 import { LocalEventOutboxDispatcherService } from './outbox/local-event-outbox-dispatcher.service';
 
 /**
  * Global Events Module
- * 
+ *
  * This module provides the base event infrastructure.
  * Feature-specific event services should be registered in their respective modules.
  */
@@ -19,6 +19,7 @@ import { LocalEventOutboxDispatcherService } from './outbox/local-event-outbox-d
   providers: [
     CoreEventLogRepository,
     CoreEventStreamRepository,
+    LocalEventOutboxRepository,
     CoreEventStreamPoolService,
     CoreEventSyncService,
     LocalEventOutboxDispatcherService,
@@ -26,6 +27,7 @@ import { LocalEventOutboxDispatcherService } from './outbox/local-event-outbox-d
   exports: [
     CoreEventLogRepository,
     CoreEventStreamRepository,
+    LocalEventOutboxRepository,
     CoreEventStreamPoolService,
     CoreEventSyncService,
     LocalEventOutboxDispatcherService,

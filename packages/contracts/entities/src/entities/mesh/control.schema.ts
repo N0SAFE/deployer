@@ -22,7 +22,7 @@ export type MeshControlEnvelopeType = z.infer<typeof meshControlEnvelopeTypeSche
 
 export const meshControlEnvelopeSchema = z.object({
     envelopeId: z.uuid(),
-    organizationId: z.uuid().nullable().optional(),
+
     keyId: z.string().min(1).optional(),
     algorithm: z.enum(["HS256"]).optional(),
     signature: z.string().min(1).optional(),

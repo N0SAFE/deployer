@@ -1,5 +1,6 @@
 import type { AnyRecord } from "../../../mesh-type-utils";
 
+import { NotFoundError } from "@repo/errors";
 // ─── Aggregator interface ─────────────────────────────────────────────────────
 
 /**
@@ -145,7 +146,7 @@ export function groupBy<TItem extends AnyRecord, K extends keyof TItem & string,
         const key = String(item[field as keyof AnyRecord] ?? "__null__");
         if (!groups.has(key)) groups.set(key, []);
         const value = groups.get(key);
-        if (!value) throw new Error('[Illogical] Grouping error: group not found after creation');
+        if (!value) throw new NotFoundError('[Illogical] Grouping error: group not found after creation');
         value.push(item);
       }
       const result: Record<string, unknown> = {};

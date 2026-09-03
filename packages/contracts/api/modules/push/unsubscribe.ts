@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 
 export const unsubscribeInputSchema = z.object({
   endpoint: z.string(),
@@ -16,4 +16,8 @@ export const unsubscribeContract = pushUnsubscribeOps
   .path("/unsubscribe")
   .input((b) => b.body(unsubscribeInputSchema))
   .output(unsubscribeOutputSchema)
+  .errors((e) => [
+    // 404 for unknown push subscription endpoint.
+    ...standardDomainErrorContracts(e),
+  ])
   .build();

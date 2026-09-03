@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 
 const subscriptionKeysSchema = z.object({
   p256dh: z.string(),
@@ -26,4 +26,8 @@ export const subscribeContract = pushSubscribeOps
   .path("/subscribe")
   .input((b) => b.body(subscribeInputSchema))
   .output(subscribeOutputSchema)
+  .errors((e) => [
+    // 400 malformed push endpoint/keys; 409 duplicate subscription.
+    ...standardDomainErrorContracts(e),
+  ])
   .build();

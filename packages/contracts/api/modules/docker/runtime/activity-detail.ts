@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerRuntimeActivityEntitySchema } from "@repo/contracts-entities";
 import z from "zod/v4";
 
@@ -16,6 +16,7 @@ export const dockerRuntimeActivityDetailContract = dockerRuntimeActivityDetailOp
   .path("/detail")
   .input((b) => b.query(dockerRuntimeActivityDetailQuerySchema))
   .output((b) => b.body(dockerRuntimeActivityEntitySchema.nullable()))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();
 
 export type DockerRuntimeActivityDetailQueryInput = z.infer<typeof dockerRuntimeActivityDetailQuerySchema>;

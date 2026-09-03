@@ -9,8 +9,8 @@ import {
 } from "@repo/contracts-entities";
 import { AppLogger } from "@repo/logger";
 import { DockerService as CoreDockerService } from "@/core/modules/docker/services/docker.service";
-import { AbstractDomainEventStreamService } from "@/core/modules/events/services/abstract-domain-event-stream.service";
-import { CoreEventStreamPoolService } from "@/core/modules/events/services/core-event-stream-pool.service";
+import { AbstractDomainEventStreamService } from "@repo/nest-events";
+import { CoreEventStreamPoolService } from "@repo/nest-events";
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
 interface RuntimeEventFilterNode {

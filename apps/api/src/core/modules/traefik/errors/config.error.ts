@@ -1,4 +1,5 @@
-import { AppError, type ValidationIssue } from '@/core/errors';
+import { AppError } from '@repo/errors';
+import type { ValidationIssue } from '@repo/errors';
 
 /**
  * Base error class for all Traefik-related errors

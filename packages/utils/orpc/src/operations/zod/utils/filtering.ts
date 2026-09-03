@@ -154,8 +154,8 @@ type FieldFilterEntry<TOps extends FilterOperator, TValue> = {
 export type FilteringSchemaOutput<TFields extends Record<string, FieldFilterConfig>> = {
     [K in keyof TFields]?: FieldFilterEntry<ExtractOperators<TFields[K]>, ExtractValueType<TFields[K]>>;
 } & {
-    _and?: Partial<Record<keyof TFields | "_and" | "_or", unknown>>;
-    _or?: Partial<Record<keyof TFields | "_and" | "_or", unknown>>;
+    _and?: FilteringSchemaOutput<TFields>[];
+    _or?: FilteringSchemaOutput<TFields>[];
 };
 
 /**

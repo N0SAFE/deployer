@@ -24,6 +24,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Injectable, Logger } from "@nestjs/common";
 
+import { AppError } from "@repo/errors";
 // Resolve path relative to this file
 // This file lives at: apps/api/src/core/utils/migration-journal.service.ts
 // Target:          apps/api/src/config/drizzle/global/migrations/meta/_journal.json
@@ -68,15 +69,15 @@ export class MigrationJournalService {
       const parsed = JSON.parse(raw) as MigrationJournal;
 
       if (!parsed.entries || !Array.isArray(parsed.entries)) {
-        throw new Error("Journal has no entries array");
+        throw new AppError("Journal has no entries array", "INTERNAL_ERROR");
       }
 
       // Validate entries have required fields
       for (const entry of parsed.entries) {
         if (typeof entry.idx !== "number" || typeof entry.tag !== "string") {
-          throw new Error(
+          throw new AppError(
             `Invalid journal entry at idx ${entry.idx}: missing idx or tag`,
-          );
+"INTERNAL_ERROR");
         }
       }
 
@@ -88,9 +89,9 @@ export class MigrationJournalService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`❌ Failed to load migration journal: ${message}`);
-      throw new Error(
+      throw new AppError(
         `Migration journal missing or corrupted at ${JOURNAL_PATH}: ${message}`,
-      );
+"INTERNAL_ERROR");
     }
   }
 

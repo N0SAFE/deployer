@@ -31,10 +31,23 @@ export {
 	type ProjectDerivedEnvironmentConfig,
 	projectEnvironmentExtensionConfigSchema,
 	type ProjectEnvironmentExtensionConfig,
+	serviceContractRegistrySchema,
+	type ServiceContractRegistry,
+	serviceContractRegistryMapSchema,
+	type ServiceContractRegistryMap,
+	previewSourceTemplateSchema,
+	type PreviewSourceTemplate,
+	previewBackendResolutionSchema,
+	type PreviewBackendResolution,
+	previewLinkedServiceSchema,
+	type PreviewLinkedService,
 } from './entities/configuration'
 export * from './entities/project'
 export {
 	serviceSchema,
+	serviceObjectShape,
+	serviceEffectiveConfigSchema,
+	serviceWithEffectiveConfigSchema,
 	githubProviderConfigSchema,
 	gitlabProviderConfigSchema,
 	bitbucketProviderConfigSchema,
@@ -44,19 +57,29 @@ export {
 	providerConfigSchemaById,
 	serviceProviderConfigUnionSchema,
 	kubernetesRunnerConfigSchema,
-	dockerComposeRunnerConfigSchema,
-	dockerSwarmRunnerConfigSchema,
+	manualRunnerConfigSchema,
+	orchestratorRunnerConfigSchema,
+	orchestratorSubServiceSchema,
 	workerRuntimeRunnerConfigSchema,
 	nomadRunnerConfigSchema,
 	staticRunnerConfigSchema,
 	runnerConfigSchemaById,
 	serviceRunnerConfigUnionSchema,
+	mockEngineSchema,
+	mockServiceConfigSchema,
+	implementedContractSchema,
 } from './entities/service.schema'
 
 export type {
 	Service,
+	ServiceEffectiveConfig,
+	ServiceWithEffectiveConfig,
+	MockEngine,
+	MockServiceConfig,
+	ImplementedContract,
 } from './entities/service.schema'
 export * from './entities/deployment'
+export * from './entities/provider'
 export {
 	dockerContainerStatusSchema,
 	dockerContainerHealthSchema,

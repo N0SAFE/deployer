@@ -10,7 +10,11 @@ import { ExpressAdapter } from "@nestjs/platform-express";
 import http from "node:http";
 import express from "express";
 
-import { buildAllowedOrigins, normalizeUrl, isLocalhostOrigin } from "./core/utils/cors.utils";
+import {
+  buildAllowedOrigins,
+  resolveCorsDecision,
+  CORS_ALLOWED_HEADERS,
+} from "./core/utils/cors.utils";
 import { logger } from "@repo/logger";
 import { RouteRegistryService } from "./core/gateway/route-registry.service";
 import { OrchestrationModule } from "./core/orchestrator/orchestrator.module";
@@ -34,34 +38,36 @@ function createCorsMiddleware(): express.RequestHandler {
   const corsAllowedOrigins = buildAllowedOrigins(
     process.env as Record<string, string | undefined>,
   );
+  const isDevelopment = process.env.NODE_ENV !== "production";
 
   return (req, res, next) => {
-    const origin = req.headers.origin;
+    // Cookie presence separates the credentialed (allowlisted) path from the
+    // credential-free app-instance-token path — see resolveCorsDecision.
+    const cookieHeader = req.headers.cookie;
+    const hasCookieHeader =
+      typeof cookieHeader === "string" && cookieHeader.length > 0;
 
-    let allowed = false;
-    if (!origin) {
-      allowed = true;
-    } else {
-      const normalized = normalizeUrl(origin);
-      if (corsAllowedOrigins.includes(normalized)) {
-        allowed = true;
-      } else if (process.env.NODE_ENV !== "production" && isLocalhostOrigin(normalized)) {
-        allowed = true;
+    const decision = resolveCorsDecision({
+      origin: req.headers.origin,
+      hasCookieHeader,
+      allowedOrigins: corsAllowedOrigins,
+      isDevelopment,
+    });
+
+    if (decision.allowOrigin) {
+      res.setHeader("Access-Control-Allow-Origin", req.headers.origin ?? "*");
+      if (decision.allowCredentials) {
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+        res.setHeader("Access-Control-Expose-Headers", "Set-Cookie");
       }
-    }
-
-    if (allowed) {
-      res.setHeader("Access-Control-Allow-Origin", origin ?? "*");
-      res.setHeader("Access-Control-Allow-Credentials", "true");
       res.setHeader(
         "Access-Control-Allow-Methods",
         "GET, POST, PUT, DELETE, PATCH, OPTIONS",
       );
       res.setHeader(
         "Access-Control-Allow-Headers",
-        "Content-Type, Authorization, Cookie",
+        CORS_ALLOWED_HEADERS.join(", "),
       );
-      res.setHeader("Access-Control-Expose-Headers", "Set-Cookie");
     }
 
     if (req.method === "OPTIONS") {

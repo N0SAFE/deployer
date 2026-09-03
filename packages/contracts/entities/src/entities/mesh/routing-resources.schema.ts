@@ -10,15 +10,15 @@ export type MeshResourceKind = z.infer<typeof meshResourceKindSchema>;
 export const meshDirectProtocolSchema = z.enum(["http", "https", "ws", "wss", "sse"]);
 export type MeshDirectProtocol = z.infer<typeof meshDirectProtocolSchema>;
 
-export const meshOrganizationScopeSchema = z.object({
-    organizationId: z.uuid().nullable().optional(),
-});
-export type MeshOrganizationScope = z.infer<typeof meshOrganizationScopeSchema>;
+export const meshScopeSchema = z.object({
 
-export const meshOrganizationCandidateScopeSchema = meshOrganizationScopeSchema.extend({
+});
+export type MeshScope = z.infer<typeof meshScopeSchema>;
+
+export const meshCandidateScopeSchema = meshScopeSchema.extend({
     includeCandidates: z.boolean().default(true),
 });
-export type MeshOrganizationCandidateScope = z.infer<typeof meshOrganizationCandidateScopeSchema>;
+export type MeshCandidateScope = z.infer<typeof meshCandidateScopeSchema>;
 
 export const meshStreamReplayQuerySchema = z.object({
     replay: z.coerce.boolean().default(true),
@@ -26,7 +26,7 @@ export const meshStreamReplayQuerySchema = z.object({
 });
 export type MeshStreamReplayQuery = z.infer<typeof meshStreamReplayQuerySchema>;
 
-export const meshStreamRoutePlanInputSchema = meshOrganizationCandidateScopeSchema.extend({
+export const meshStreamRoutePlanInputSchema = meshCandidateScopeSchema.extend({
     streamId: z.uuid(),
     desiredBranches: z.coerce.number().int().min(1).max(6).default(1),
 });
@@ -61,11 +61,11 @@ export const meshTopologyStreamQuerySchema = meshRuntimeStreamQuerySchema.extend
 });
 export type MeshTopologyStreamQuery = z.infer<typeof meshTopologyStreamQuerySchema>;
 
-export const meshTopologyStreamInputSchema = meshOrganizationScopeSchema.extend(meshTopologyStreamQuerySchema.shape);
+export const meshTopologyStreamInputSchema = meshScopeSchema.extend(meshTopologyStreamQuerySchema.shape);
 export type MeshTopologyStreamInput = z.infer<typeof meshTopologyStreamInputSchema>;
 
 export const meshMembershipReconcileInputSchema = z.object({
-    organizationId: z.uuid().nullable().optional(),
+
     snapshot: meshMembershipSnapshotSchema,
     sourceNodeId: z.uuid(),
     dryRun: z.boolean().default(false),
@@ -82,7 +82,7 @@ export const meshMembershipReconcileResultSchema = z.object({
 export type MeshMembershipReconcileResult = z.infer<typeof meshMembershipReconcileResultSchema>;
 
 export const meshResourceLocationSchema = z.object({
-    organizationId: z.uuid().nullable().optional(),
+
     kind: meshResourceKindSchema,
     key: z.string().min(1),
     ownerNodeId: z.uuid(),
@@ -99,7 +99,7 @@ export const meshResourceLocationSchema = z.object({
 });
 export type MeshResourceLocation = z.infer<typeof meshResourceLocationSchema>;
 
-export const meshResourceLookupInputSchema = meshOrganizationCandidateScopeSchema.extend({
+export const meshResourceLookupInputSchema = meshCandidateScopeSchema.extend({
     kind: meshResourceKindSchema,
     key: z.string().min(1),
 });
@@ -114,7 +114,9 @@ export const meshResourceLookupResultSchema = z.object({
 export type MeshResourceLookupResult = z.infer<typeof meshResourceLookupResultSchema>;
 
 export const meshResourceIndexUpsertInputSchema = z.object({
-    organizationId: z.uuid().nullable().optional(),
+    // Normalize empty-string org IDs to null — the mesh topic index path can
+    // produce `""` which Postgres rejects for the uuid-referencing column.
+
     sourceNodeId: z.uuid(),
     resources: z.array(meshResourceLocationSchema).min(1),
     replaceExistingForSource: z.boolean().default(false),
@@ -129,7 +131,7 @@ export const meshResourceIndexUpsertResultSchema = z.object({
 });
 export type MeshResourceIndexUpsertResult = z.infer<typeof meshResourceIndexUpsertResultSchema>;
 
-export const meshQueuePartitionPlanInputSchema = meshOrganizationCandidateScopeSchema.extend({
+export const meshQueuePartitionPlanInputSchema = meshCandidateScopeSchema.extend({
     queue: z.string().min(1),
     partitionKey: z.string().min(1),
     leaseHolderNodeId: z.uuid().nullable().optional(),
@@ -174,7 +176,7 @@ export const meshQueueTransitionPayloadSchema = z.object({
 export type MeshQueueTransitionPayload = z.infer<typeof meshQueueTransitionPayloadSchema>;
 
 export const meshQueueTransitionLogEntrySchema = z.object({
-    organizationId: z.uuid().nullable().optional(),
+
     sourceNodeId: z.uuid(),
     sequence: z.number().int().min(1),
     payloadHash: z.string().min(1),
@@ -190,7 +192,7 @@ const meshQueueTransitionAppendPayloadSchema = meshQueueTransitionPayloadSchema.
 });
 
 export const meshQueueTransitionAppendInputSchema = meshQueueTransitionAppendPayloadSchema.extend({
-    organizationId: z.uuid().nullable().optional(),
+
     occurredAt: z.string().optional(),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),
 });
@@ -218,7 +220,7 @@ export const meshQueueTransitionApplyResultSchema = meshQueueTransitionWriteResu
 export type MeshQueueTransitionApplyResult = z.infer<typeof meshQueueTransitionApplyResultSchema>;
 
 export const meshQueueTransitionListInputSchema = z.object({
-    organizationId: z.uuid().nullable().optional(),
+
     queue: z.string().min(1).optional(),
     partitionKey: z.string().min(1).optional(),
     sourceNodeId: z.uuid().optional(),

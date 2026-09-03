@@ -1,8 +1,19 @@
-import { Injectable, OnModuleDestroy } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
+import { Injectable, type OnModuleDestroy } from "@nestjs/common";
 import type { Container } from "dockerode";
 import { DockerService } from "../../services/docker.service";
 import { AbstractDockerContainerService } from "../../services/abstract-docker-container.service";
+
+const MANAGED_CONTAINER_NAME = "deployer-postgres-dev";
+const MANAGED_VOLUME_NAME = "deployer_postgres_data";
+
+/** Stable container name of the API-managed Postgres (shared with the supervisor). */
+export const MANAGED_POSTGRES_CONTAINER_NAME = MANAGED_CONTAINER_NAME;
+/** Stable named volume persisting the API-managed Postgres data. */
+export const MANAGED_POSTGRES_VOLUME_NAME = MANAGED_VOLUME_NAME;
+/** Image of the API-managed Postgres container (shared with the supervisor). */
+export const MANAGED_POSTGRES_IMAGE = "postgres:16-alpine";
+/** Container-side port of the managed Postgres. */
+export const MANAGED_POSTGRES_PORT = 5432;
 
 export interface PostgresContainerStartOptions {
     databaseName?: string;
@@ -16,92 +27,110 @@ export interface PostgresContainerStartOptions {
 
 @Injectable()
 export class PostgresContainerService extends AbstractDockerContainerService implements OnModuleDestroy {
-    /** Tracks auto-provisioned Postgres container IDs for cleanup on shutdown. */
-    private readonly managedContainerIds = new Set<string>();
-
     constructor(protected readonly dockerService: DockerService) {
         super(dockerService);
     }
 
     async onModuleDestroy(): Promise<void> {
-        if (this.managedContainerIds.size === 0) return;
-
-        this.logger.log(`Cleaning up ${String(this.managedContainerIds.size)} managed Postgres container(s) …`);
-
-        const docker = this.dockerService.getDockerClient();
-        const errors: string[] = [];
-
-        for (const containerId of this.managedContainerIds) {
-            try {
-                const container = docker.getContainer(containerId);
-                // Stop with a short timeout — autoRemove will clean up the container.
-                await container.stop({ t: 5 }).catch(() => undefined);
-                this.logger.log(`Stopped managed Postgres container ${containerId}`);
-            } catch (err: unknown) {
-                const msg = err instanceof Error ? err.message : String(err);
-                errors.push(`${containerId}: ${msg}`);
-                this.logger.warn(`Failed to stop managed Postgres container ${containerId}: ${msg}`);
-            }
-        }
-
-        this.managedContainerIds.clear();
-
-        if (errors.length > 0) {
-            this.logger.warn(
-                `Finished cleanup with ${String(errors.length)} error(s): ${errors.join("; ")}`
-            );
-        } else {
-            this.logger.log("All managed Postgres containers cleaned up successfully");
+        // Graceful stop only — container persists for next restart
+        try {
+            const docker = this.dockerService.getDockerClient();
+            const container = docker.getContainer(MANAGED_CONTAINER_NAME);
+            await container.stop({ t: 5 }).catch(() => undefined);
+            this.logger.log(`🛑 Stopped managed Postgres container: ${MANAGED_CONTAINER_NAME}`);
+        } catch (err: unknown) {
+            // Container may not exist — that's fine
+            this.logger.log(`No managed container to stop (${(err as Error).message})`);
         }
     }
 
+    /**
+     * Ensure a Postgres container is running. Uses a FIXED container name so
+     * the same container is reused across restarts. Data persists via a named volume.
+     *
+     * Strategy:
+     *   1. Check if container `deployer-postgres-dev` already exists
+     *   2. If running → return its connection URL immediately
+     *   3. If stopped → restart it
+     *   4. If doesn't exist → create new with fixed name + named volume
+     */
     async startPostgresContainer(options: PostgresContainerStartOptions = {}): Promise<Container> {
         const databaseName = options.databaseName ?? "deployer";
         const username = options.username ?? "deployer";
         const password = options.password ?? "deployer";
-        const apiUrl = options.apiUrl?.trim() ?? "http://127.0.0.1:3000";
-        const shutdownTimeoutSeconds = options.shutdownTimeoutSeconds ?? 120;
 
-        // Use the official postgres image directly with a simple CMD wrapper that
-        // starts postgres normally. On Linux, the health check from inside the
-        // container cannot reach the host's localhost, so we use a minimal CMD
-        // that just runs postgres with the original entrypoint.
-        //
-        // We avoid building a custom Dockerfile with a health check loop because:
-        // 1) The health check URL (127.0.0.1:3000) from inside the container
-        //    points to the container's own network namespace, not the host.
-        // 2) Backgrounding docker-entrypoint.sh can cause postgres to fail
-        //    silently due to shell process group issues.
-        // 3) The double invocation of docker-entrypoint.sh (ENTRYPOINT + CMD)
-        //    creates unnecessary complexity.
-        //
-        // Instead, we let the image's own ENTRYPOINT handle initialization,
-        // and the container stays alive with postgres as PID 1.
-        // autoRemove will clean it up when the container exits (via explicit
-        // stop or if postgres crashes).
+        const docker = this.dockerService.getDockerClient();
+
+        // ── Step 1: Check for existing container ──────────────────────────
+        try {
+            const existing = docker.getContainer(MANAGED_CONTAINER_NAME);
+            const info = await existing.inspect();
+
+            if (info.State.Running) {
+                this.logger.log(`♻️ Reusing existing Postgres container: ${MANAGED_CONTAINER_NAME}`);
+                return existing;
+            }
+
+            // Container exists but stopped — restart it
+            this.logger.log(`🔄 Restarting stopped Postgres container: ${MANAGED_CONTAINER_NAME}`);
+            await existing.start();
+            return existing;
+
+        } catch (err: unknown) {
+            if (err instanceof Error && err.message.includes("no such container")) {
+                // Container doesn't exist — create it
+                this.logger.log(`📦 Creating new Postgres container: ${MANAGED_CONTAINER_NAME}`);
+                return this.createPostgresContainer(docker, databaseName, username, password);
+            }
+            throw err;
+        }
+    }
+
+    /**
+     * Create a new Postgres container with a FIXED name and named volume.
+     * AutoRemove is false so the container (and its data) survives restarts.
+     */
+    private async createPostgresContainer(
+        docker: import("dockerode"),
+        databaseName: string,
+        username: string,
+        password: string,
+    ): Promise<Container> {
+        // Ensure named volume exists
+        const volumes = await docker.listVolumes();
+        const hasVolume = volumes.Volumes?.some((v) => v.Name === MANAGED_VOLUME_NAME);
+        if (!hasVolume) {
+            await docker.createVolume({ Name: MANAGED_VOLUME_NAME });
+            this.logger.log(`📀 Created named volume: ${MANAGED_VOLUME_NAME}`);
+        }
 
         const container = await this.startContainer({
-            image: options.image ?? "postgres:16-alpine",
-            name: options.name ?? `deployer-bootstrap-postgres-${randomUUID().slice(0, 8)}`,
-            env: [`POSTGRES_DB=${databaseName}`, `POSTGRES_USER=${username}`, `POSTGRES_PASSWORD=${password}`],
+            name: MANAGED_CONTAINER_NAME,
+            image: MANAGED_POSTGRES_IMAGE,
+            env: [
+                `POSTGRES_DB=${databaseName}`,
+                `POSTGRES_USER=${username}`,
+                `POSTGRES_PASSWORD=${password}`,
+            ],
             labels: {
                 "deployer.managed": "true",
                 "deployer.managed_reason": "bootstrap_database",
             },
-            exposedPorts: { "5432/tcp": {} },
-            autoRemove: true,
+            exposedPorts: { [`${String(MANAGED_POSTGRES_PORT)}/tcp`]: {} },
+            hostConfig: {
+                Binds: [`${MANAGED_VOLUME_NAME}:/var/lib/postgresql/data`],
+            },
+            autoRemove: false,
             healthCheck: {
                 test: ["CMD-SHELL", `pg_isready -U ${username} -d ${databaseName}`],
-                interval: 1_000_000_000,   // 1s
-                timeout: 5_000_000_000,     // 5s
+                interval: 1_000_000_000,
+                timeout: 5_000_000_000,
                 retries: 30,
-                startPeriod: 5_000_000_000, // 5s grace period
+                startPeriod: 5_000_000_000,
             },
         });
 
-        // Track the container for cleanup on module destroy.
-        this.managedContainerIds.add(container.id);
-
+        this.logger.log(`✅ Postgres container created: ${MANAGED_CONTAINER_NAME}`);
         return container;
     }
 

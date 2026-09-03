@@ -61,7 +61,7 @@ export class DockerImagesOrchestratorService {
     return this.dockerImagesApplicationService.ensureImageSecurityScan(input, options);
   }
 
-  listImages(input: DockerImageListInput) {
+  listImages(input: DockerImageListInput = {} as DockerImageListInput) {
     this.debug("DockerImagesOrchestratorService.listImages", {
       limit: input.limit,
       offset: input.offset,

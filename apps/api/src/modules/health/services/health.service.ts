@@ -1,12 +1,14 @@
 import { Injectable } from "@nestjs/common";
 import { HealthRepository } from "../repositories/health.repository";
-import { AppLifecycleService } from "@/core/modules/lifecycle";
+import { AppLifecycleService } from "@repo/nest-lifecycle";
+import { SupervisorOrchestratorService } from "@/core/modules/supervisors/supervisor-orchestrator.service";
 
 @Injectable()
 export class HealthService {
     constructor(
         private readonly healthRepository: HealthRepository,
         private readonly lifecycle: AppLifecycleService,
+        private readonly supervisors: SupervisorOrchestratorService,
     ) {}
 
     /**
@@ -55,14 +57,18 @@ export class HealthService {
     }
 
     /**
-     * Detailed health check
+     * Detailed health check — includes every registered platform supervisor.
+     * Overall status degrades when the database is unhealthy OR any supervisor
+     * reports unhealthy (convergence failed / probe failing).
      */
     async getDetailedHealth() {
         const dbHealth = await this.healthRepository.checkDatabaseHealth();
         const memory = this.healthRepository.getMemoryInfo();
         const uptime = this.healthRepository.getUptime();
+        const supervisorHealth = await this.supervisors.getHealthOfAll();
 
-        const isHealthy = dbHealth.status === "ok";
+        const allSupervisorsHealthy = supervisorHealth.every((s) => s.healthy);
+        const isHealthy = dbHealth.status === "ok" && allSupervisorsHealthy;
 
         return {
             status: isHealthy ? "ok" : "degraded",
@@ -71,6 +77,7 @@ export class HealthService {
             uptime,
             memory,
             database: dbHealth,
+            supervisors: supervisorHealth,
         };
     }
 }

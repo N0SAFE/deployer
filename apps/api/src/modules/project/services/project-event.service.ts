@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import * as z from "zod";
-import { BasePooledEventService } from "@/core/modules/events/services/base-pooled-event.service";
-import { contractBuilder } from "@/core/modules/events/event-contract.builder";
-import { CoreEventStreamPoolService } from "@/core/modules/events/services/core-event-stream-pool.service";
+import { BasePooledEventService } from "@repo/nest-events";
+import { contractBuilder } from "@repo/nest-events";
+import { CoreEventStreamPoolService } from "@repo/nest-events";
 
 export const projectEventContracts = {
     projectCreated: contractBuilder()

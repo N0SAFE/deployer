@@ -21,7 +21,6 @@ import { Injectable } from "@nestjs/common";
 
       planRoute(input: MeshStreamRoutePlanInput): MeshStreamRoutePlanResult {
           const lookup = this.resources.lookup({
-              organizationId: input.organizationId ?? null,
               kind: "stream",
               key: `stream:${input.streamId}`,
               includeCandidates: true,
@@ -29,7 +28,6 @@ import { Injectable } from "@nestjs/common";
 
           const filtered = this.overlayScope.filterCandidatesByOrganization(
               lookup.candidates,
-              input.organizationId ?? null,
           );
 
           const weighted: MeshStreamRoutePlanBranch[] = filtered.map((candidate) => {

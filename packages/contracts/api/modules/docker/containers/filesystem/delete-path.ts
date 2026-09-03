@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
   dockerContainerDeletePathBodySchema,
   dockerContainerTerminalMutationAckSchema,
@@ -14,4 +14,5 @@ export const dockerContainerDeletePathContract = dockerContainerDeletePathOps
   .path("/delete")
   .input((b) => b.body(dockerContainerDeletePathBodySchema))
   .output((b) => b.body(dockerContainerTerminalMutationAckSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

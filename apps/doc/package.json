@@ -11,8 +11,8 @@
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint",
-        "type-check": "tsgo --noEmit"
+        "lint": "eslint --cache --concurrency=auto",
+        "type-check": "tsc --noEmit"
     },
     "dependencies": {
         "@repo/type-guards": "*",
@@ -40,6 +40,6 @@
         "eslint-config-next": "catalog:next",
         "postcss": "catalog:styling",
         "tailwindcss": "catalog:styling",
-        "@typescript/native-preview": "catalog:build"
+        "typescript": "catalog:build"
     }
 }

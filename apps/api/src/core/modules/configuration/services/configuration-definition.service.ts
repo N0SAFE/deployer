@@ -1,7 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import {
     configurationScopeSchema,
-    organizationRuntimeConfigSchema,
     projectRuntimeConfigSchema,
     serviceRuntimeConfigSchema,
     userRuntimeConfigSchema,
@@ -9,7 +8,6 @@ import {
 } from "../schemas/runtime-configuration.schema";
 
 interface RuntimeConfigurationSchemaByScope {
-    organization: typeof organizationRuntimeConfigSchema;
     project: typeof projectRuntimeConfigSchema;
     service: typeof serviceRuntimeConfigSchema;
     user: typeof userRuntimeConfigSchema;
@@ -27,29 +25,23 @@ export interface RuntimeConfigurationDefinition {
 type RuntimeConfigurationDefinitionMap = Record<ConfigurationScope, RuntimeConfigurationDefinition>;
 
 const runtimeConfigurationDefinitions: RuntimeConfigurationDefinitionMap = {
-    organization: {
-        scope: "organization",
-        schema: organizationRuntimeConfigSchema,
-        description: "Organization-level defaults and guardrails",
-        dependsOn: [],
-    },
     project: {
         scope: "project",
         schema: projectRuntimeConfigSchema,
         description: "Project-level overrides and deployment behavior",
-        dependsOn: ["organization"],
+        dependsOn: [],
     },
     service: {
         scope: "service",
         schema: serviceRuntimeConfigSchema,
         description: "Service-level runtime and routing overrides",
-        dependsOn: ["organization", "project"],
+        dependsOn: ["project"],
     },
     user: {
         scope: "user",
         schema: userRuntimeConfigSchema,
         description: "User-level runtime overrides (e.g., preview preferences)",
-        dependsOn: ["organization", "project", "service"],
+        dependsOn: ["project", "service"],
     },
 };
 

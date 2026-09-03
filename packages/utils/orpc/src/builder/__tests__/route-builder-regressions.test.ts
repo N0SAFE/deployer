@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { z } from 'zod/v4';
+import z from 'zod/v4';
 import { RouteBuilder, route } from '../core/route-builder';
 import type { InferSchemaInput } from '../../types/types';
 

@@ -11,6 +11,10 @@ export interface OwnershipChange {
   owners: string[]
 }
 
+function isOwnershipPayload(value: unknown): value is { owns?: boolean } {
+  return typeof value === 'object' && value !== null
+}
+
 @Injectable()
 export class OwnershipResolverService {
   private readonly logger = new Logger(OwnershipResolverService.name)
@@ -40,7 +44,7 @@ export class OwnershipResolverService {
 
         if (!res.ok) continue
         const body = await res.json()
-        if (body?.owns) {
+        if (isOwnershipPayload(body)) {
           owners.push(node.id)
         }
       } catch (err) {

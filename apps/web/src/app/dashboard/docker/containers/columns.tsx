@@ -4,7 +4,11 @@ import type React from 'react'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { DataTableColumnHeader } from '@repo/ui/components/data-table/column-header'
 
-export interface ContainerInstanceProjection {
+// NOTE: these are `type` aliases, not `interface` — type aliases receive an
+// implicit index signature and are therefore assignable to the DataTable's
+// `ExportableData` constraint (`Record<string, unknown>`). Interfaces are not.
+
+export type ContainerInstanceProjection = {
   instanceKey: string
   id: string
   name: string
@@ -15,7 +19,7 @@ export interface ContainerInstanceProjection {
   serviceId: string
 }
 
-export interface ContainerProjection {
+export type ContainerProjection = {
   id: string
   hash: string
   name: string
@@ -33,7 +37,7 @@ export interface ContainerProjection {
   instances: ContainerInstanceProjection[]
 }
 
-export interface ContainerTableRow extends ContainerProjection {
+export type ContainerTableRow = ContainerProjection & {
   rowId: string
 }
 

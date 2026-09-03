@@ -5,27 +5,32 @@ import {
     deploymentLogs,
     deploymentRollbacks,
     deploymentStreams,
+    previewEnvironments,
     projects,
     serviceDependencies,
     services,
 } from "@/config/drizzle/global/schema/deployment";
 import { localEventOutbox } from "@/config/drizzle/global/schema/runtime";
+import { environments } from "@/config/drizzle/global/schema/environment";
+import { resourceOwnershipIndex } from "@/config/drizzle/global/schema/cluster";
 import { and, asc, count, desc, eq, type SQL } from "drizzle-orm";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";
 import type { DeploymentListInput } from "@repo/api-contracts/modules/deployment/list";
 import type { DeploymentTriggerInput } from "@repo/api-contracts/modules/deployment/crud";
+import { deploymentTriggerSourceSchema } from "@repo/api-contracts/modules/deployment/crud";
 import type {
     DeploymentStreamListInput,
 } from "@repo/api-contracts/modules/deployment/stream";
 import { deploymentStreamSchema, type DeploymentStream } from "@repo/contracts-entities";
 import { isRecord, isObjectLike } from "@repo/type-guards"
+import { ConflictError } from "@repo/errors";
 
 const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
 
 // ─── Local types ─────────────────────────────────────────────────────────────
 
-type DeploymentRow = typeof deployments.$inferSelect;
+export type DeploymentRow = typeof deployments.$inferSelect;
 type DeploymentLogRow = typeof deploymentLogs.$inferSelect;
 type DeploymentRollbackRow = typeof deploymentRollbacks.$inferSelect;
 type DeploymentStreamRow = typeof deploymentStreams.$inferSelect;
@@ -37,8 +42,10 @@ interface DeploymentCreateInput {
     serviceId: string;
     triggeredBy: string | null;
     environment: DeploymentRow["environment"];
+    /** The environment primitive this deployment is created FROM (resolved by name). */
+    environmentId?: string | null;
     sourceType: DeploymentRow["sourceType"];
-    sourceConfig?: DeploymentTriggerInput["sourceConfig"];
+    sourceConfig?: DeploymentTriggerInput["source"];
     metadata?: DeploymentRow["metadata"];
 }
 
@@ -77,6 +84,7 @@ interface UpdateRollbackStatusInput {
 function toDto(row: DeploymentRow) {
     return {
         ...row,
+        sourceConfig: coerceSourceConfig(row.sourceConfig),
         observability: null,
         progress: null,
         connectivityStatus: null,
@@ -87,6 +95,20 @@ function toDto(row: DeploymentRow) {
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
     };
+}
+
+/**
+ * Validate a stored sourceConfig through the SSOT discriminated-union schema.
+ * Returns null when the row is absent or malformed.
+ */
+function coerceSourceConfig(
+    raw: DeploymentRow["sourceConfig"],
+): DeploymentTriggerInput["source"] | null {
+    if (!raw) {
+        return null;
+    }
+    const parsed = deploymentTriggerSourceSchema.safeParse(raw);
+    return parsed.success ? parsed.data : null;
 }
 
 /**
@@ -151,6 +173,32 @@ function toStreamDto(row: DeploymentStreamRow) {
 export class DeploymentRepository {
     constructor(private readonly databaseService: GlobalDatabaseService) {}
 
+    /**
+     * Preview environments for a service (join preview_environments →
+     * deployments by serviceId).
+     */
+    async findPreviewsByServiceId(serviceId: string) {
+        const db = this.databaseService.db;
+        return db
+            .select({
+                id: previewEnvironments.id,
+                subdomain: previewEnvironments.subdomain,
+                fullDomain: previewEnvironments.fullDomain,
+                sslEnabled: previewEnvironments.sslEnabled,
+                isActive: previewEnvironments.isActive,
+                webhookTriggered: previewEnvironments.webhookTriggered,
+                expiresAt: previewEnvironments.expiresAt,
+                deploymentId: previewEnvironments.deploymentId,
+                metadata: previewEnvironments.metadata,
+                createdAt: previewEnvironments.createdAt,
+                updatedAt: previewEnvironments.updatedAt,
+            })
+            .from(previewEnvironments)
+            .innerJoin(deployments, eq(deployments.id, previewEnvironments.deploymentId))
+            .where(eq(deployments.serviceId, serviceId))
+            .orderBy(desc(previewEnvironments.createdAt));
+    }
+
     async findMany(input: DeploymentListInput = {} as DeploymentListInput) {
         const db = this.databaseService.db;
         const filter = input.filter ?? {};
@@ -179,6 +227,11 @@ export class DeploymentRepository {
             conditions.push(eq(services.projectId, filter.projectId.value));
         }
 
+        if (filter.nodeId?.operator === "eq" && typeof filter.nodeId.value === "string") {
+            conditions.push(eq(resourceOwnershipIndex.ownerNodeId, filter.nodeId.value));
+            conditions.push(eq(resourceOwnershipIndex.resourceKind, "deployment"));
+        }
+
         const whereClause =
             conditions.length === 0
                 ? undefined
@@ -194,21 +247,33 @@ export class DeploymentRepository {
                   : deployments.createdAt;
         const orderClause = direction === "asc" ? asc(sortColumn) : desc(sortColumn);
 
-        const dataQuery = db
-            .select({ deployment: deployments })
-            .from(deployments)
-            .leftJoin(services, eq(services.id, deployments.serviceId));
+        const dataQuery = filter.nodeId?.operator === "eq" && typeof filter.nodeId.value === "string"
+            ? db
+                .select({ deployment: deployments })
+                .from(deployments)
+                .innerJoin(resourceOwnershipIndex, eq(resourceOwnershipIndex.resourceKey, deployments.id))
+                .leftJoin(services, eq(services.id, deployments.serviceId))
+            : db
+                .select({ deployment: deployments })
+                .from(deployments)
+                .leftJoin(services, eq(services.id, deployments.serviceId));
 
-        const countQuery = db
-            .select({ count: count() })
-            .from(deployments)
-            .leftJoin(services, eq(services.id, deployments.serviceId));
+        const countQuery = filter.nodeId?.operator === "eq" && typeof filter.nodeId.value === "string"
+            ? db
+                .select({ count: count() })
+                .from(deployments)
+                .innerJoin(resourceOwnershipIndex, eq(resourceOwnershipIndex.resourceKey, deployments.id))
+                .leftJoin(services, eq(services.id, deployments.serviceId))
+            : db
+                .select({ count: count() })
+                .from(deployments)
+                .leftJoin(services, eq(services.id, deployments.serviceId));
 
         const [rows, totalResult] = await Promise.all([
             (whereClause ? dataQuery.where(whereClause) : dataQuery)
                 .orderBy(orderClause)
-                .limit(input.limit ?? 20)
-                .offset(input.offset ?? 0),
+                .limit(input.limit)
+                .offset(input.offset),
             whereClause ? countQuery.where(whereClause) : countQuery,
         ]);
 
@@ -218,9 +283,9 @@ export class DeploymentRepository {
             data: rows.map((row) => toDto(row.deployment)),
             meta: {
                 total,
-                limit: input.limit ?? 20,
-                offset: input.offset ?? 0,
-                hasMore: (input.offset ?? 0) + (input.limit ?? 20) < total,
+                limit: input.limit,
+                offset: input.offset,
+                hasMore: (input.offset) + (input.limit) < total,
             },
         };
     }
@@ -320,17 +385,33 @@ export class DeploymentRepository {
         return rows;
     }
 
+    /**
+     * Resolve the environment primitive for a service + legacy env name.
+     * A deployment is created FROM an environment (its rules/kind/trigger were
+     * active). Falls back to null (no env row) instead of failing.
+     */
+    async resolveEnvironmentId(serviceId: string, environment: string): Promise<string | null> {
+        const db = this.databaseService.db;
+        const [row] = await db
+            .select({ envId: environments.id })
+            .from(environments)
+            .innerJoin(services, eq(services.id, serviceId))
+            .where(and(eq(environments.projectId, services.projectId), eq(environments.name, environment)))
+            .limit(1);
+        return row?.envId ?? null;
+    }
+
     async create(data: DeploymentCreateInput) {
         const db = this.databaseService.db;
         const [row] = await db.transaction(async (tx) => {
             const [created] = await tx
                 .insert(deployments)
                 .values({
-                    id: randomUUID(),
                     serviceId: data.serviceId,
                     triggeredBy: data.triggeredBy,
                     status: "queued",
                     environment: data.environment,
+                    environmentId: data.environmentId ?? null,
                     sourceType: data.sourceType,
                     sourceConfig: data.sourceConfig ?? null,
                     metadata: data.metadata ?? null,
@@ -675,7 +756,7 @@ export class DeploymentRepository {
                     stage: data.stage ?? null,
                     metadata:
                         Object.keys(metadata).length > 0
-                            ? (metadata as unknown as DeploymentLogRow["metadata"])
+                            ? metadata
                             : null,
                     timestamp: now,
                 })
@@ -916,7 +997,7 @@ export class DeploymentRepository {
         }));
     }
 
-    async findStreamMany(input: DeploymentStreamListInput): Promise<{
+    async findStreamMany(input: DeploymentStreamListInput | undefined): Promise<{
         data: DeploymentStream[];
         meta: {
             total: number;
@@ -926,9 +1007,9 @@ export class DeploymentRepository {
         };
     }> {
         const db = this.databaseService.db;
-        const filter = input.filter ?? {};
-        const sort = input.sortBy ?? "createdAt";
-        const direction = input.sortDirection ?? "desc";
+        const filter = input?.filter ?? {};
+        const sort = input?.sortBy ?? "createdAt";
+        const direction = input?.sortDirection ?? "desc";
 
         const result = await listBuilder(filter)
             .filter({
@@ -960,7 +1041,7 @@ export class DeploymentRepository {
                 },
                 deploymentStreams.createdAt,
             )
-            .pagination({ limit: input.limit, offset: input.offset })
+            .pagination({ limit: input?.limit ?? 20, offset: input?.offset ?? 0 })
             .execute(db, deploymentStreams);
 
         return {

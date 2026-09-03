@@ -1,6 +1,7 @@
 import type { z, ZodType } from "zod";
 import type { Observable } from "rxjs";
 
+import { AppError } from "@repo/errors";
 // ═══════════════════════════════════════════════════════════════════════════════
 // EVENT SOURCE DEFINITIONS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -293,7 +294,7 @@ export interface MeshResourceDefinition<
   // Identity
   TKey extends string = string,
   TItemSchema extends ZodType = ZodType,
-  TItemKey extends keyof z.infer<TItemSchema> & string = string,
+  TItemKey extends string = string,
   
   // Ownership
   TOwnership extends MeshResourceOwnership = MeshResourceOwnership,
@@ -414,7 +415,7 @@ export class MeshResourceBuilder<
   TEventSources extends Record<string, MeshEventSourceConfig> = {},
   TCustomEvents extends Record<string, ZodType> = {},
 > {
-  private config: Partial<MeshResourceDefinition> = {};
+  private config: { -readonly [K in keyof MeshResourceDefinition]?: MeshResourceDefinition[K] } = {};
 
   /** Set the resource key */
   key<T extends string>(key: T): MeshResourceBuilder<
@@ -518,10 +519,10 @@ export class MeshResourceBuilder<
   build(): MeshResourceDefinition<
     TKey, TItemSchema, TItemKey, TOwnership, TQueries, TMutations, TEventSources, TCustomEvents
   > {
-    if (!this.config.key) throw new Error("Resource key is required");
-    if (!this.config.itemSchema) throw new Error("Item schema is required");
-    if (!this.config.itemKey) throw new Error("Item key is required");
-    if (!this.config.ownership) throw new Error("Ownership is required");
+    if (!this.config.key) throw new AppError("Resource key is required", "INTERNAL_ERROR");
+    if (!this.config.itemSchema) throw new AppError("Item schema is required", "INTERNAL_ERROR");
+    if (!this.config.itemKey) throw new AppError("Item key is required", "INTERNAL_ERROR");
+    if (!this.config.ownership) throw new AppError("Ownership is required", "INTERNAL_ERROR");
 
     return this.config as MeshResourceDefinition<
       TKey, TItemSchema, TItemKey, TOwnership, TQueries, TMutations, TEventSources, TCustomEvents

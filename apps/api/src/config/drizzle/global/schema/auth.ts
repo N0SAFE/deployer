@@ -18,7 +18,7 @@ export const user = pgTable("user", {
   updatedAt: timestamp("updated_at")
     .$onUpdate(() => new Date())
     .notNull(),
-  role: text("role"),
+  role: text("role").default("user").notNull(),
   banned: boolean("banned").default(false),
   banReason: text("ban_reason"),
   banExpires: timestamp("ban_expires"),
@@ -40,8 +40,6 @@ export const session = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     impersonatedBy: text("impersonated_by"),
-    activeOrganizationId: text("active_organization_id"),
-    activeTeamId: text("active_team_id"),
   },
   (table) => [index("session_userId_idx").on(table.userId)],
 );
@@ -50,6 +48,7 @@ export const account = pgTable(
   "account",
   {
     id: text("id").primaryKey(),
+    issuer: text("issuer").notNull(),
     accountId: text("account_id").notNull(),
     providerId: text("provider_id").notNull(),
     userId: text("user_id")
@@ -67,7 +66,13 @@ export const account = pgTable(
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (table) => [index("account_userId_idx").on(table.userId)],
+  (table) => [
+    uniqueIndex("account_issuer_accountId_uidx").on(
+      table.issuer,
+      table.accountId,
+    ),
+    index("account_userId_idx").on(table.userId),
+  ],
 );
 
 export const verification = pgTable(
@@ -90,118 +95,13 @@ export const platformInvite = pgTable("platform_invite", {
   token: text("token").notNull().unique(),
   email: text("email").notNull(),
   role: text("role").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   usedAt: timestamp("used_at"),
   invitedUserId: text("invited_user_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
 });
-
-export const organization = pgTable(
-  "organization",
-  {
-    id: text("id").primaryKey(),
-    name: text("name").notNull(),
-    slug: text("slug").notNull().unique(),
-    logo: text("logo"),
-    createdAt: timestamp("created_at").notNull(),
-    metadata: text("metadata"),
-  },
-  (table) => [uniqueIndex("organization_slug_uidx").on(table.slug)],
-);
-
-export const organizationRole = pgTable(
-  "organization_role",
-  {
-    id: text("id").primaryKey(),
-    organizationId: text("organization_id")
-      .notNull()
-      .references(() => organization.id, { onDelete: "cascade" }),
-    role: text("role").notNull(),
-    permission: text("permission").notNull(),
-    createdAt: timestamp("created_at").notNull(),
-    updatedAt: timestamp("updated_at").$onUpdate(() => new Date()),
-  },
-  (table) => [
-    index("organizationRole_organizationId_idx").on(table.organizationId),
-    index("organizationRole_role_idx").on(table.role),
-  ],
-);
-
-export const team = pgTable(
-  "team",
-  {
-    id: text("id").primaryKey(),
-    name: text("name").notNull(),
-    organizationId: text("organization_id")
-      .notNull()
-      .references(() => organization.id, { onDelete: "cascade" }),
-    createdAt: timestamp("created_at").notNull(),
-    updatedAt: timestamp("updated_at").$onUpdate(() => new Date()),
-  },
-  (table) => [index("team_organizationId_idx").on(table.organizationId)],
-);
-
-export const teamMember = pgTable(
-  "team_member",
-  {
-    id: text("id").primaryKey(),
-    teamId: text("team_id")
-      .notNull()
-      .references(() => team.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    createdAt: timestamp("created_at"),
-  },
-  (table) => [
-    index("teamMember_teamId_idx").on(table.teamId),
-    index("teamMember_userId_idx").on(table.userId),
-  ],
-);
-
-export const member = pgTable(
-  "member",
-  {
-    id: text("id").primaryKey(),
-    organizationId: text("organization_id")
-      .notNull()
-      .references(() => organization.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    role: text("role").default("member").notNull(),
-    createdAt: timestamp("created_at").notNull(),
-  },
-  (table) => [
-    index("member_organizationId_idx").on(table.organizationId),
-    index("member_userId_idx").on(table.userId),
-  ],
-);
-
-export const invitation = pgTable(
-  "invitation",
-  {
-    id: text("id").primaryKey(),
-    organizationId: text("organization_id")
-      .notNull()
-      .references(() => organization.id, { onDelete: "cascade" }),
-    email: text("email").notNull(),
-    role: text("role"),
-    teamId: text("team_id"),
-    status: text("status").default("pending").notNull(),
-    expiresAt: timestamp("expires_at").notNull(),
-    createdAt: timestamp("created_at").notNull(),
-    inviterId: text("inviter_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-  },
-  (table) => [
-    index("invitation_organizationId_idx").on(table.organizationId),
-    index("invitation_email_idx").on(table.email),
-  ],
-);
 
 export const userVapidKeys = pgTable("user_vapid_keys", {
   id: text("id").primaryKey(),
@@ -212,7 +112,7 @@ export const userVapidKeys = pgTable("user_vapid_keys", {
   publicKey: text("public_key").notNull(),
   privateKey: text("private_key").notNull(),
   subject: text("subject"),
-  createdAt: timestamp("created_at"),
+  createdAt: timestamp("created_at").notNull(),
 });
 
 export const pushSubscription = pgTable("push_subscription", {
@@ -225,20 +125,17 @@ export const pushSubscription = pgTable("push_subscription", {
   auth: text("auth").notNull(),
   deviceName: text("device_name"),
   userAgent: text("user_agent"),
-  isActive: boolean("is_active"),
-  createdAt: timestamp("created_at"),
-  updatedAt: timestamp("updated_at"),
+  isActive: boolean("is_active").notNull(),
+  createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
   lastUsedAt: timestamp("last_used_at"),
 });
 
-export const userRelations = relations(user, ({ many }) => ({
+export const userRelations = relations(user, ({ one, many }) => ({
   sessions: many(session),
   accounts: many(account),
   platformInvites: many(platformInvite),
-  teamMembers: many(teamMember),
-  members: many(member),
-  invitations: many(invitation),
-  userVapidKeys: many(userVapidKeys),
+  userVapidKeys: one(userVapidKeys),
   pushSubscriptions: many(pushSubscription),
 }));
 
@@ -259,64 +156,6 @@ export const accountRelations = relations(account, ({ one }) => ({
 export const platformInviteRelations = relations(platformInvite, ({ one }) => ({
   user: one(user, {
     fields: [platformInvite.invitedUserId],
-    references: [user.id],
-  }),
-}));
-
-export const organizationRelations = relations(organization, ({ many }) => ({
-  organizationRoles: many(organizationRole),
-  teams: many(team),
-  members: many(member),
-  invitations: many(invitation),
-}));
-
-export const organizationRoleRelations = relations(
-  organizationRole,
-  ({ one }) => ({
-    organization: one(organization, {
-      fields: [organizationRole.organizationId],
-      references: [organization.id],
-    }),
-  }),
-);
-
-export const teamRelations = relations(team, ({ one, many }) => ({
-  organization: one(organization, {
-    fields: [team.organizationId],
-    references: [organization.id],
-  }),
-  teamMembers: many(teamMember),
-}));
-
-export const teamMemberRelations = relations(teamMember, ({ one }) => ({
-  team: one(team, {
-    fields: [teamMember.teamId],
-    references: [team.id],
-  }),
-  user: one(user, {
-    fields: [teamMember.userId],
-    references: [user.id],
-  }),
-}));
-
-export const memberRelations = relations(member, ({ one }) => ({
-  organization: one(organization, {
-    fields: [member.organizationId],
-    references: [organization.id],
-  }),
-  user: one(user, {
-    fields: [member.userId],
-    references: [user.id],
-  }),
-}));
-
-export const invitationRelations = relations(invitation, ({ one }) => ({
-  organization: one(organization, {
-    fields: [invitation.organizationId],
-    references: [organization.id],
-  }),
-  user: one(user, {
-    fields: [invitation.inviterId],
     references: [user.id],
   }),
 }));

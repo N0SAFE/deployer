@@ -47,7 +47,7 @@ export class StatementsConfig<TStatement extends Record<string, readonly string[
     return new StatementsConfig({
       ...this._value,
       [resource]: actions,
-    } as TStatement & Record<TResource, TActions>);
+    });
   }
 
   /**
@@ -59,7 +59,7 @@ export class StatementsConfig<TStatement extends Record<string, readonly string[
     return new StatementsConfig({
       ...this._value,
       ...resources,
-    } as TStatement & TResources);
+    });
   }
 
   /**
@@ -104,7 +104,7 @@ export class StatementsConfig<TStatement extends Record<string, readonly string[
       // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
       delete newStatement[resource];
     }
-    return new StatementsConfig(newStatement as Omit<TStatement, K>);
+    return new StatementsConfig(newStatement) as unknown as StatementsConfig<Omit<TStatement, K>>;
   }
 
   /**
@@ -163,7 +163,7 @@ export class StatementsConfig<TStatement extends Record<string, readonly string[
     return new StatementsConfig({
       ...this._value,
       ...other._value,
-    } as TStatement & T);
+    });
   }
 
   /**
@@ -176,7 +176,7 @@ export class StatementsConfig<TStatement extends Record<string, readonly string[
     return new StatementsConfig({
       ...this._value,
       [resource]: actions,
-    } as TStatement & Record<K, TActions>);
+    });
   }
 
   /**
@@ -190,7 +190,7 @@ export class StatementsConfig<TStatement extends Record<string, readonly string[
     return new StatementsConfig({
       ...this._value,
       [resource]: [...existing, ...actions] as const,
-    } as TStatement & Record<K, readonly [...TStatement[K], ...TActions]>);
+    });
   }
 
   /**
@@ -208,7 +208,7 @@ export class StatementsConfig<TStatement extends Record<string, readonly string[
     return new StatementsConfig({
       ...this._value,
       [resource]: filtered,
-    } as TStatement) as this;
+    }) as unknown as this;
   }
 
   /**

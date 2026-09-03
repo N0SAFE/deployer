@@ -3,20 +3,13 @@
  *
  * Type-safe, reactive access to a route's URL search state.
  *
- * The package re-exports:
+ * The package exports:
  *  - `useSafeQueryParamStatesFromZod` — the core hook.
  *  - `useRouteSearchBuilder` — drop-in helper for routes.
  *  - `createParserForZodField` / `getZodObjectDefaults` / `mergeWithDefaults`
  *    — building blocks used by the hook, also exposed for advanced
  *    consumers.
- *
- * For backwards compatibility, the legacy names
- * `useSafeQueryStatesFromZod` and `QueryStateFromZodOptions` are also
- * re-exported.
  */
-import { useSafeQueryParamStatesFromZod } from './useSafeQueryParamStatesFromZod'
-import type { UseSafeQueryParamStatesOptions } from './types'
-
 export {
     useSafeQueryParamStatesFromZod,
     type SetQueryParamState,
@@ -46,11 +39,3 @@ export type {
     ZodRawShapeSchema,
     UnknownRecord,
 } from './types'
-
-/**
- * Backwards-compatible aliases. The original `useSafeQueryStatesFromZod`
- * name and `QueryStateFromZodOptions` type are kept so existing
- * consumers keep working without code changes.
- */
-export { useSafeQueryParamStatesFromZod as useSafeQueryStatesFromZod }
-export type { UseSafeQueryParamStatesOptions as QueryStateFromZodOptions }

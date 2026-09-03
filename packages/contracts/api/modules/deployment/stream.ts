@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
+import { createFilterConfig, standard, type ComputeInputSchema, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
     deploymentConnectivityStatusSchema,
     deploymentExecutionProgressSchema,
@@ -289,12 +289,14 @@ export const deploymentStreamListConfigSchemas = deploymentStreamListConfig;
 export const deploymentStreamsListContract = deploymentStreamOps
     .list(deploymentStreamListConfig)
     .path("/streams")
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 export type DeploymentStreamListInput = ComputeInputSchema<typeof deploymentStreamListConfigSchemas>;
 
 export const deploymentStreamFindByIdContract = deploymentStreamOps
     .read()
     .path("/streams/{id}")
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 const deploymentProgressEventContractEntitySchema = z.object({
@@ -336,6 +338,7 @@ export const deploymentStreamContract = deploymentProgressEventOps
             .query(streamReplayQuerySchema),
     )
     .output((b) => b.observable(deploymentProgressEventSchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 /** GET /deployments/internal/{id}/stream — internal mesh stream access */
@@ -347,6 +350,7 @@ export const deploymentInternalStreamContract = deploymentProgressEventOps
             .query(streamReplayQuerySchema),
     )
     .output((b) => b.observable(deploymentProgressEventSchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 /** GET /deployments/services/{serviceId}/stream — subscribe to all deployments for a service */
@@ -358,6 +362,7 @@ export const serviceDeploymentsStreamContract = serviceDeploymentEventOps
             .query(streamReplayQuerySchema),
     )
     .output((b) => b.observable(serviceDeploymentEventSchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 /** GET /deployments/stream/query — subscribe to filtered deployment events */
@@ -366,5 +371,6 @@ export const deploymentQueryStreamContract = deploymentQueryEventOps
     .path("/stream/query")
     .input((b) => b.query(deploymentQueryFiltersSchema))
     .output((b) => b.observable(deploymentQueryEventSchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 

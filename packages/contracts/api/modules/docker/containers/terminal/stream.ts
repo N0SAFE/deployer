@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
   dockerContainerTerminalSessionEventSchema,
   dockerContainerTerminalStreamQuerySchema,
@@ -14,4 +14,5 @@ export const dockerContainerTerminalStreamContract = dockerContainerTerminalStre
   .path("/stream")
   .input((b) => b.query(dockerContainerTerminalStreamQuerySchema))
   .output((b) => b.observable(dockerContainerTerminalSessionEventSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

@@ -7,7 +7,7 @@
  * @example
  * ```typescript
  * import { standard } from '@repo/orpc-utils';
- * import { z } from 'zod/v4';
+ * import z from 'zod/v4';
  * 
  * const userSchema = z.object({
  *   id: z.uuid(),
@@ -31,9 +31,19 @@ export { type ZodEntitySchema, type ZodEntityOperationOptions } from "../operati
 // Re-export list builder
 export { ListOperationBuilder, createListConfig, createFilterConfig, type BuilderFilterField } from "../operations/zod/list-builder";
 
+// Re-export query config factories (pagination + sorting) used by list/search ops.
+// The ZOD variants (not the base standard-schema ones) — they produce
+// ZodSchemaWithConfig, which is what ZodStandardOperations consumes.
+export {
+    createPaginationConfigSchema,
+    createSortingConfigSchema,
+    type PaginationConfig,
+    type SortingConfig,
+} from "../operations/zod/utils";
+
 // Re-export base standard operations types
 export {
-    StandardOperations as BaseStandardOperations,
+    BaseStandardOperations,
     type EntityOperationOptions,
     type ListOperationOptions,
     type ListPlainOptions,

@@ -37,36 +37,6 @@ export {
 } from "./config";
 
 // ============================================================================
-// ORGANIZATION PERMISSION EXPORTS
-// ============================================================================
-
-// Organization permission configuration
-export {
-    organizationPermissionConfig,
-    organizationStatement,
-    organizationAc,
-    organizationRoles,
-    organizationSchemas,
-    organizationRoleMeta,
-    organizationRolesConfig,
-} from "./config";
-
-// Organization builder (for generic plugin type inference)
-export { organizationBuilder } from "./config";
-
-// Organization roles
-export {
-    ORGANIZATION_ROLES,
-    type OrganizationRole,
-} from "./config";
-
-// Organization resources
-export {
-    ORGANIZATION_RESOURCES,
-    type OrganizationResource,
-    type OrganizationActionsForResource,
-} from "./config";
-
 // ============================================================================
 // PROJECT ROLE EXPORTS
 // ============================================================================
@@ -81,20 +51,16 @@ export {
 // COMMON PERMISSIONS & UTILITIES
 // ============================================================================
 
-// Export platform and organization permission bundles
+// Export platform permission bundles
 export {
     platformPermissions,
-    organizationPermissions,
     type PlatformPermissionKeys,
-    type OrganizationPermissionKeys,
     type PlatformPermission,
-    type OrganizationPermission,
 } from "./common";
 
 // Export schema helpers
 export {
     platformSchemaHelpers,
-    organizationSchemaHelpers,
 } from "./common";
 
 // Export utilities

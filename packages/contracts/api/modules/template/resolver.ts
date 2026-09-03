@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
     templateResolveInputSchema,
     templateResolveResultSchema,
@@ -14,6 +14,7 @@ export const templateResolveContract = templateResolveOps
     .path("/resolve")
     .input((b) => b.body(templateResolveInputSchema))
     .output(templateResolveResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const templateResolveSetContract = templateSetResolveOps
@@ -21,4 +22,5 @@ export const templateResolveSetContract = templateSetResolveOps
     .path("/resolve-set")
     .input((b) => b.body(templateSetResolveInputSchema))
     .output(templateSetResolveResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

@@ -1,120 +1,263 @@
 {
-    "$schema": "https://turbo.build/schema.json",
-    "ui": "tui",
-    "remoteCache": {
-        "enabled": true
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "remoteCache": {
+    "enabled": true
+  },
+  "globalDependencies": [
+    "**/.env.*local",
+    "**/.env",
+    ".env.local"
+  ],
+  "globalPassThroughEnv": [
+    ".env.local",
+    "TURBO_TOKEN",
+    "TURBO_TEAM",
+    "MANAGED_*",
+    "NEXT_ALLOWED_DEV_ORIGINS",
+    "NODE_OPTIONS",
+    "WATCHPACK_*",
+    "CHOKIDAR_*",
+    "NEXT_WEBPACK_*",
+    "DEPLOYER_INSTANCE_*",
+    "APP_INSTANCE_TOKEN_PATH"
+  ],
+  "globalEnv": [
+    "API_PORT",
+    "API_URL",
+    "APP_URL",
+    "AUTH_BASE_DOMAIN",
+    "AUTH_SECRET",
+    "BETTER_AUTH_SECRET",
+    "CHOKIDAR_USEPOLLING",
+    "CORS_ORIGIN",
+    "DEFAULT_ADMIN_EMAIL",
+    "DEFAULT_ADMIN_PASSWORD",
+    "DEPLOYER_PREFIX",
+    "DEPLOYER_TRAEFIK_IMAGE",
+    "DEPLOYER_TRAEFIK_HTTP_PORT",
+    "DEPLOYER_TRAEFIK_TLS_ENABLED",
+    "DEPLOYER_REDIS_URL",
+    "DEPLOYER_REDIS_IMAGE",
+    "DEPLOYER_REDIS_PORT",
+    "DEPLOYER_REDIS_PASSWORD",
+    "DEPLOYER_WEB_TARGET",
+    "DEPLOYER_API_TARGET",
+    "DEPLOYER_DIRECT_PROXY_ENABLED",
+    "DEPLOYER_DIRECT_PROXY_IMAGE",
+    "DIRECT_PROXY_API_TARGET",
+    "DIRECT_PROXY_WEB_TARGET",
+    "DIRECT_PROXY_WEB_HOST_PORT",
+    "DIRECT_PROXY_CONFIG_VOLUME",
+    "DIRECT_PROXY_CONFIG_BASE_PATH",
+    "TRAEFIK_CONFIG_BASE_PATH",
+    "TRAEFIK_CONFIG_VOLUME",
+    "TRAEFIK_BACKUP_PATH",
+    "TRAEFIK_STARTUP_SYNC_ENABLED",
+    "TRAEFIK_FAIL_ON_STARTUP_ERROR",
+    "TRAEFIK_CLEANUP_ON_STARTUP",
+    "HOSTNAME",
+    "DEV_AUTH_KEY",
+    "GITHUB_WEBHOOK_SECRET",
+    "LOG_LEVEL",
+    "MANAGED_WEB_APP_ENABLED",
+    "MANAGED_WEB_APP_EXTERNAL",
+    "MANAGED_WEB_APP_IMAGE",
+    "NEXT_PUBLIC_*",
+    "SETUP_*",
+    "MESH_*",
+    "MESH_CLUSTER_ID",
+    "MESH_NODE_ID",
+    "MESH_STREAM_SHARED_SECRET",
+    "NEXT_AUTH",
+    "NEXT_PUBLIC_API_URL",
+    "NEXT_PUBLIC_APP_URL",
+    "NEXT_PUBLIC_DEV_AUTH_KEY",
+    "NODE_ENV",
+    "NODE_LOCAL_DB_PATH",
+    "PHASE",
+    "PLATFORM_LIBC",
+    "SETUP_AUTO",
+    "TRUSTED_ORIGINS",
+    "TURBO_TEAM",
+    "TURBO_TOKEN",
+    "WORKSPACE_DIR"
+  ],
+  "tasks": {
+    "dev": {
+      "cache": false,
+      "persistent": true
     },
-    "globalDependencies": ["**/.env.*local", "**/.env", ".env.local"],
-    "globalPassThroughEnv": [".env.local", "TURBO_TOKEN", "TURBO_TEAM"],
-    "globalEnv": [
-        "PLATFORM_LIBC",
-        "API_URL",
-        "NEXT_AUTH",
-        "TURBO_TOKEN",
-        "TURBO_TEAM",
-        "BETTER_AUTH_SECRET",
-        "AUTH_SECRET",
-        "NODE_ENV",
-        "PHASE",
-        "NEXT_PUBLIC_APP_URL",
-        "APP_URL",
-        "NEXT_PUBLIC_API_URL",
-        "API_PORT",
-        "DEV_AUTH_KEY",
-        "NEXT_PUBLIC_DEV_AUTH_KEY",
-        "CORS_ORIGIN",
-        "LOG_LEVEL",
-        "CHOKIDAR_USEPOLLING",
-        "TRUSTED_ORIGINS",
-        "AUTH_BASE_DOMAIN",
-        "DEFAULT_ADMIN_EMAIL",
-        "DEFAULT_ADMIN_PASSWORD",
-        "MESH_CLUSTER_ID",
-        "MESH_NODE_ID",
-        "MESH_STREAM_SHARED_SECRET",
-        "WORKSPACE_DIR",
-        "NODE_LOCAL_DB_PATH",
-        "GITHUB_WEBHOOK_SECRET"
-    ],
-    "tasks": {
-        "dev": {
-            "cache": false,
-            "persistent": true
-        },
-        "build": {
-            "dependsOn": ["^build"],
-            "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
-            "inputs": ["src/**", "public/**", "*.config.*", "package.json"]
-        },
-        "compile": {
-            "dependsOn": ["^compile"],
-            "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
-            "inputs": ["src/**", "public/**", "*.config.*", "package.json"]
-        },
-        "start": {
-            "cache": false,
-            "persistent": true,
-            "dependsOn": ["build"]
-        },
-        "docker:build": {
-            "cache": false,
-            "dependsOn": ["build"]
-        },
-        "docker:dev": {
-            "cache": false,
-            "persistent": true
-        },
-        "init": {
-            "dependsOn": ["^init", "clean"],
-            "outputs": ["dist/**"],
-            "cache": false
-        },
-        "generate:directus:types": {
-            "cache": false,
-            "dependsOn": ["^generate:directus:types"]
-        },
-        "generate": {
-            "dependsOn": ["^generate", "generate:directus:types"],
-            "cache": false
-        },
-        "test": {
-            "dependsOn": ["@repo/config-vitest#build"],
-            "inputs": ["src/**", "test/**", "**/*.test.*", "**/*.spec.*", "*.config.*", "vitest.config.*", "vitest.setup.*"]
-        },
-        "test:watch": {
-            "cache": false,
-            "persistent": true,
-            "dependsOn": ["^build", "@repo/config-eslint#build", "@repo/config-prettier#build", "@repo/config-vitest#build"]
-        },
-        "test:ui": {
-            "cache": false,
-            "persistent": true,
-            "dependsOn": ["^build", "@repo/config-eslint#build", "@repo/config-prettier#build", "@repo/config-vitest#build"]
-        },
-        "test:coverage": {
-            "dependsOn": ["^build", "@repo/config-eslint#build", "@repo/config-prettier#build", "@repo/config-vitest#build"],
-            "outputs": ["coverage/**"],
-            "inputs": ["src/**", "test/**", "**/*.test.*", "**/*.spec.*", "*.config.*", "vitest.config.*", "vitest.setup.*"]
-        },
-        "lint": {
-            "dependsOn": ["@repo/config-eslint#build", "doc#compile"],
-            "inputs": ["src/**", "*.config.*", "package.json"]
-        },
-        "prettify": {
-            "dependsOn": ["^lint", "@repo/config-prettier#build"]
-        },
-        "format:check": {
-            "dependsOn": ["^lint", "@repo/config-prettier#build"]
-        },
-        "clean": {
-            "cache": false
-        },
-        "doc#type-check": {
-            "dependsOn": ["doc#compile"],
-            "inputs": ["**/*.ts", "**/*.tsx", "package.json", "tsconfig.json"]
-        },
-        "type-check": {
-            "inputs": ["**/*.ts", "**/*.tsx", "package.json", "tsconfig.json"]
-        }
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**"
+      ],
+      "inputs": [
+        "src/**",
+        "public/**",
+        "*.config.*",
+        "package.json"
+      ]
+    },
+    "compile": {
+      "dependsOn": [
+        "^compile"
+      ],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**"
+      ],
+      "inputs": [
+        "src/**",
+        "public/**",
+        "*.config.*",
+        "package.json"
+      ]
+    },
+    "start": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": [
+        "build"
+      ]
+    },
+    "docker:build": {
+      "cache": false,
+      "dependsOn": [
+        "build"
+      ]
+    },
+    "docker:dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "init": {
+      "dependsOn": [
+        "^init",
+        "clean"
+      ],
+      "outputs": [
+        "dist/**"
+      ],
+      "cache": false
+    },
+    "generate:directus:types": {
+      "cache": false,
+      "dependsOn": [
+        "^generate:directus:types"
+      ]
+    },
+    "generate": {
+      "dependsOn": [
+        "^generate",
+        "generate:directus:types"
+      ],
+      "cache": false
+    },
+    "test": {
+      "dependsOn": [
+        "@repo/config-vitest#build"
+      ],
+      "inputs": [
+        "src/**",
+        "test/**",
+        "**/*.test.*",
+        "**/*.spec.*",
+        "*.config.*",
+        "vitest.config.*",
+        "vitest.setup.*"
+      ]
+    },
+    "test:watch": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": [
+        "^build",
+        "@repo/config-eslint#build",
+        "@repo/config-prettier#build",
+        "@repo/config-vitest#build"
+      ]
+    },
+    "test:ui": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": [
+        "^build",
+        "@repo/config-eslint#build",
+        "@repo/config-prettier#build",
+        "@repo/config-vitest#build"
+      ]
+    },
+    "test:coverage": {
+      "dependsOn": [
+        "^build",
+        "@repo/config-eslint#build",
+        "@repo/config-prettier#build",
+        "@repo/config-vitest#build"
+      ],
+      "outputs": [
+        "coverage/**"
+      ],
+      "inputs": [
+        "src/**",
+        "test/**",
+        "**/*.test.*",
+        "**/*.spec.*",
+        "*.config.*",
+        "vitest.config.*",
+        "vitest.setup.*"
+      ]
+    },
+    "lint": {
+      "dependsOn": [
+        "@repo/config-eslint#build",
+        "doc#compile"
+      ],
+      "inputs": [
+        "src/**",
+        "*.config.*",
+        "package.json"
+      ]
+    },
+    "prettify": {
+      "dependsOn": [
+        "^lint",
+        "@repo/config-prettier#build"
+      ]
+    },
+    "format:check": {
+      "dependsOn": [
+        "^lint",
+        "@repo/config-prettier#build"
+      ]
+    },
+    "clean": {
+      "cache": false
+    },
+    "doc#type-check": {
+      "dependsOn": [
+        "doc#compile"
+      ],
+      "inputs": [
+        "**/*.ts",
+        "**/*.tsx",
+        "package.json",
+        "tsconfig.json"
+      ]
+    },
+    "type-check": {
+      "inputs": [
+        "**/*.ts",
+        "**/*.tsx",
+        "package.json",
+        "tsconfig.json"
+      ]
     }
+  }
 }

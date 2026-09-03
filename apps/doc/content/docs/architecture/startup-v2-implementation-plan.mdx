@@ -33,10 +33,10 @@ No dependencies on any other new code.
 
 | Step | File | Purpose |
 |------|------|---------|
-| 0.1 | `core/modules/triggers/trigger.ts` | `Trigger<T>` class with `fire()`, `waitFor()`, `resolved`, `value` |
+| 0.1 | `core/modules/triggers/trigger.ts` | `Trigger&lt;T&gt;` class with `fire()`, `waitFor()`, `resolved`, `value` |
 | 0.2 | `core/modules/triggers/trigger-registry.ts` | `TriggerRegistry` + all payload type interfaces |
 | 0.3 | `core/modules/triggers/triggers.module.ts` | `@Global()` module exporting `TriggerRegistry` |
-| 0.4 | `core/modules/sub-app-runner/sub-app.interface.ts` | `SubApp<T>`, `SubAppContext<T>` interfaces |
+| 0.4 | `core/modules/sub-app-runner/sub-app.interface.ts` | `SubApp&lt;T&gt;`, `SubAppContext&lt;T&gt;` interfaces |
 | 0.5 | `core/modules/sub-app-runner/tokens.ts` | `SUB_APP_CONTEXT` symbol |
 | 0.6 | `core/modules/sub-app-runner/sub-app-context.module.ts` | `SubAppContextModule.forRoot()` dynamic module |
 
@@ -95,7 +95,7 @@ Each sub-app depends on Phase 0 + Phase 1.
 
 | Step | File | Tests |
 |------|------|-------|
-| 6.1 | `trigger.spec.ts` | Unit tests for Trigger<T> |
+| 6.1 | `trigger.spec.ts` | Unit tests for Trigger&lt;T&gt; |
 | 6.2 | `sub-app-orchestrator.spec.ts` | Unit tests for orchestrator |
 | 6.3 | `config.sub-app.spec.ts` | Config sub-app test |
 | 6.4 | `database.sub-app.spec.ts` | Database sub-app test |

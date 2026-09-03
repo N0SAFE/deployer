@@ -46,10 +46,7 @@ export class MeshMembershipService {
                 node,
                 timestamp: this.clock.nowIso(),
             })
-            this.overlayScope.upsertNodeOverlayMemberships(
-                node.nodeId,
-                node.metadata
-            )
+            this.overlayScope.upsertNodeOverlayMemberships()
             this.bumpVersion()
         }
         return changed
@@ -61,7 +58,7 @@ export class MeshMembershipService {
         if (removed) {
             this.health.removeByNodeId(nodeId)
             this.sessions.removeByPeerNodeId(nodeId)
-            this.overlayScope.removeNodeFromAllOverlayScopes(nodeId)
+            this.overlayScope.removeNodeFromAllOverlayScopes()
             this.meshEventService.emitTopology({
                 type: 'node_removed',
                 nodeId,
@@ -97,8 +94,7 @@ export class MeshMembershipService {
     ): MeshMembershipReconcileResult {
         const parsed = meshMembershipReconcileInputSchema.parse(input)
         const scoped = this.overlayScope.scopeMembershipSnapshotByOrganization(
-            parsed.snapshot,
-            parsed.organizationId ?? null
+            parsed.snapshot
         )
 
         let mergedNodes = 0
@@ -153,7 +149,7 @@ export class MeshMembershipService {
         }
     }
 
-    getSnapshot(organizationId?: string | null): MeshMembershipSnapshot {
+    getSnapshot(): MeshMembershipSnapshot {
         const snapshot: MeshMembershipSnapshot = {
             version: this.membershipVersion,
             generatedAt: this.clock.nowIso(),
@@ -162,14 +158,7 @@ export class MeshMembershipService {
             connections: this.health.listRanked(),
             sessions: this.sessions.list(),
         }
-        if (!organizationId) return snapshot
-        return this.overlayScope.scopeMembershipSnapshotByOrganization(
-            snapshot,
-            organizationId,
-            {
-                fallbackToUnscoped: false,
-            }
-        )
+        return this.overlayScope.scopeMembershipSnapshotByOrganization(snapshot)
     }
 
     getRemoteNode(nodeId: string): MeshNodeState | undefined {

@@ -1,0 +1,1139 @@
+nohup: les entrées sont ignorées
+Unused files (36)
+apps/api/src/core/gateway/gateway.module.ts                                                                    
+apps/api/src/core/gateway/gateway.ts                                                                           
+apps/api/src/core/modules/app-config/app-config.module.ts                                                      
+apps/api/src/core/modules/app-config/app-config.service.ts                                                     
+apps/api/src/core/modules/lifecycle/index.ts                                                                   
+apps/api/src/core/modules/mesh/controllers/mesh.controller.ts                                                  
+apps/api/src/core/modules/mesh/query/mesh-query-builder-types.ts                                               
+apps/api/src/core/modules/mesh/query/mesh-query-builder.ts                                                     
+apps/api/src/core/modules/mesh/services/system-mesh-resource-discovery/query/mesh-field-ref.ts                 
+apps/api/src/core/modules/mesh/services/system-mesh-resource-discovery/query/mesh-resource-query-builder.ts    
+apps/api/src/core/modules/mesh/services/system-mesh-resource-discovery/query/mesh-resource-query-state.ts      
+apps/api/src/core/modules/mesh/services/system-mesh-resource-discovery/query/mesh-resource-sub-query-builder.ts
+apps/api/src/core/modules/mesh/services/system-mesh-resource-discovery/query/mesh-where-expression.ts          
+apps/api/src/core/modules/mesh/services/system-mesh-resource-discovery/schemas/mesh-resource-kind-schemas.ts   
+apps/api/src/core/modules/mesh/services/system-mesh-resource-discovery/types/mesh-resource-discovery-types.ts  
+apps/api/src/core/modules/sub-app-runner/sub-app-result.store.ts                                               
+apps/api/src/core/modules/sub-app-runner/sub-app-runner.module.ts                                              
+apps/api/src/core/modules/sub-app-runner/sub-app.constants.ts                                                  
+apps/api/src/core/modules/supervisors/base-multi-supervisor.service.ts                                         
+apps/api/src/modules/providers/base/source-provider.token.ts                                                   
+apps/api/src/sub-apps/setup-sub-app.module.ts                                                                  
+apps/api/src/sub-apps/setup-wizard/setup-wizard-init.module.ts                                                 
+apps/api/src/sub-apps/setup-wizard/setup-wizard.api.module.ts                                                  
+apps/api/src/sub-apps/setup-wizard/setup-wizard.app.module.ts                                                  
+apps/api/src/sub-apps/setup-wizard/setup-wizard.controller.ts                                                  
+apps/api/src/sub-apps/setup-wizard/setup-wizard.orpc.module.ts                                                 
+apps/api/src/sub-apps/setup-wizard/setup-wizard.service.ts                                                     
+apps/web/src/components/auth/RequireOrganizationRole.tsx                                                       
+apps/web/src/components/setup/steps/complete-step.tsx                                                          
+apps/web/src/domains/gitlab/index.ts                                                                           
+apps/web/src/routes/openapi.template.ts                                                                        
+packages/configs/prettier/src/base.ts                                                                          
+packages/configs/prettier/src/tailwind.ts                                                                      
+prettier.config.ts                                                                                             
+tmp/seed-admin.ts                                                                                              
+tmp/seed-node-config.ts                                                                                        
+Unused dependencies (50)
+@thallesp/nestjs-better-auth    apps/api/package.json:98:6                                
+bcrypt                          apps/api/package.json:101:6                               
+chalk                           apps/api/package.json:104:6                               
+express-list-routes             apps/api/package.json:112:6                               
+nestjs-flub                     apps/api/package.json:117:6                               
+openapi-merge                   apps/api/package.json:118:6                               
+@repo/type-guards               apps/doc/package.json:18:10                               
+tw-animate-css                  apps/doc/package.json:27:10                               
+@million/lint                   apps/web/package.json:41:10                               
+@serwist/turbopack              apps/web/package.json:59:10                               
+@tanstack/react-devtools        apps/web/package.json:60:10                               
+@tanstack/react-query-devtools  apps/web/package.json:63:10                               
+@tanstack/react-virtual         apps/web/package.json:65:10                               
+@types/circular-json            apps/web/package.json:66:10                               
+circular-json                   apps/web/package.json:69:10                               
+date-fns                        apps/web/package.json:75:10                               
+date-fns-tz                     apps/web/package.json:76:10                               
+esbuild-wasm                    apps/web/package.json:78:10                               
+exceljs                         apps/web/package.json:79:10                               
+react-day-picker                apps/web/package.json:95:10                               
+react-use                       apps/web/package.json:100:10                              
+react-window                    apps/web/package.json:101:10                              
+shadcn                          apps/web/package.json:104:10                              
+yaml                            apps/web/package.json:107:10                              
+detect-libc                     package.json:327:10                                       
+@repo/type-guards               packages/bin/declarative-routing/package.json:53:10       
+@repo/type-guards               packages/bin/runthenkill/package.json:27:10               
+nanospinner                     packages/configs/eslint/plugins/progress/package.json:12:6
+picocolors                      packages/configs/eslint/plugins/progress/package.json:13:6
+@orpc/shared                    packages/contracts/api/package.json:28:10                 
+@repo/type-guards               packages/contracts/common/package.json:16:10              
+@repo/type-guards               packages/contracts/entities/package.json:23:10            
+@repo/type-guards               packages/types/package.json:43:10                         
+@hookform/resolvers             packages/ui/base/package.json:94:10                       
+@radix-ui/react-collapsible     packages/ui/base/package.json:95:10                       
+@radix-ui/react-context-menu    packages/ui/base/package.json:96:10                       
+@radix-ui/react-popover         packages/ui/base/package.json:97:10                       
+@radix-ui/react-select          packages/ui/base/package.json:98:10                       
+@radix-ui/react-slot            packages/ui/base/package.json:99:10                       
+@radix-ui/react-tabs            packages/ui/base/package.json:100:10                      
+@radix-ui/react-toggle          packages/ui/base/package.json:101:10                      
+@tanstack/react-query           packages/ui/base/package.json:103:10                      
+framer-motion                   packages/ui/base/package.json:112:10                      
+react-use                       packages/ui/base/package.json:118:10                      
+tailwindcss-animate             packages/ui/base/package.json:124:10                      
+zod                             packages/ui/base/package.json:126:10                      
+@simplewebauthn/server          packages/utils/auth/package.json:35:10                    
+@repo/type-guards               packages/utils/env/package.json:30:10                     
+pino-pretty                     packages/utils/logger/package.json:20:10                  
+@repo/type-guards               packages/utils/provider-schema/package.json:19:10         
+Unused devDependencies (75)
+@anatine/esbuild-decorators       apps/api/package.json:132:6                                           
+@repo/config-prettier             apps/api/package.json:137:6                                           
+@types/bcrypt                     apps/api/package.json:142:6                                           
+source-map-support                apps/api/package.json:156:6                                           
+ts-loader                         apps/api/package.json:159:6                                           
+ts-node                           apps/api/package.json:160:6                                           
+tsconfig-paths                    apps/api/package.json:161:6                                           
+@eslint/eslintrc                  apps/doc/package.json:30:10                                           
+@repo/config-prettier             apps/doc/package.json:32:10                                           
+eslint-config-next                apps/doc/package.json:40:10                                           
+@asteasolutions/zod-to-openapi    apps/web/package.json:111:10                                          
+@eslint/eslintrc                  apps/web/package.json:113:10                                          
+@repo/cli-declarative-routing     apps/web/package.json:114:10                                          
+@tanstack/eslint-plugin-query     apps/web/package.json:122:10                                          
+@testing-library/user-event       apps/web/package.json:125:10                                          
+@types/mdx                        apps/web/package.json:131:10                                          
+dotenv                            apps/web/package.json:140:10                                          
+dotenv-expand                     apps/web/package.json:142:10                                          
+eslint-config-next                apps/web/package.json:144:10                                          
+estree-walker                     apps/web/package.json:145:10                                          
+tailwind-variants                 apps/web/package.json:151:10                                          
+wait-on                           apps/web/package.json:154:10                                          
+@repo/env                         package.json:308:10                                                   
+@repo/config-prettier             packages/bin/declarative-routing/package.json:39:10                   
+@repo/config-vitest               packages/bin/declarative-routing/package.json:40:10                   
+@types/diff                       packages/bin/declarative-routing/package.json:41:10                   
+@repo/config-prettier             packages/bin/runthenkill/package.json:31:10                           
+@eslint/compat                    packages/configs/eslint/package.json:50:10                            
+@repo/config-prettier             packages/configs/eslint/package.json:52:10                            
+@repo/config-vitest               packages/configs/eslint/package.json:53:10                            
+@typescript-eslint/eslint-plugin  packages/configs/eslint/package.json:56:10                            
+@vercel/style-guide               packages/configs/eslint/package.json:58:10                            
+babel-plugin-macros               packages/configs/eslint/package.json:59:10                            
+chokidar                          packages/configs/eslint/package.json:60:10                            
+eslint-config-nestjs              packages/configs/eslint/package.json:62:10                            
+eslint-config-next                packages/configs/eslint/package.json:63:10                            
+eslint-config-prettier            packages/configs/eslint/package.json:64:10                            
+eslint-plugin-next                packages/configs/eslint/package.json:67:10                            
+eslint-plugin-only-warn           packages/configs/eslint/package.json:68:10                            
+eslint-plugin-react-refresh       packages/configs/eslint/package.json:71:10                            
+@repo/config-vitest               packages/configs/prettier/package.json:38:10                          
+prettier-plugin-tailwindcss       packages/configs/prettier/package.json:40:10                          
+@repo/config-prettier             packages/configs/tailwind/package.json:18:10                          
+tailwind-variants                 packages/configs/tailwind/package.json:21:10                          
+@repo/config-prettier             packages/configs/typescript/package.json:11:10                        
+chokidar                          packages/configs/vitest/package.json:52:10                            
+@testing-library/jest-dom         packages/configs/vitest/package.json:53:10                            
+@testing-library/react            packages/configs/vitest/package.json:54:10                            
+@testing-library/user-event       packages/configs/vitest/package.json:55:10                            
+@repo/config-prettier             packages/contracts/api/package.json:46:10                             
+@repo/config-typescript           packages/contracts/api/package.json:48:10                             
+@repo/config-prettier             packages/nest/events/package.json:28:10                               
+@repo/config-prettier             packages/nest/lifecycle/package.json:26:10                            
+@eslint/eslintrc                  packages/types/package.json:27:10                                     
+@eslint/js                        packages/types/package.json:28:10                                     
+zod                               packages/types/package.json:34:10                                     
+drizzle-orm                       packages/types/package.json:35:10                                     
+@eslint/eslintrc                  packages/ui/base/package.json:62:10                                   
+@eslint/js                        packages/ui/base/package.json:63:10                                   
+@repo/config-prettier             packages/ui/base/package.json:65:10                                   
+@repo/config-tailwind             packages/ui/base/package.json:66:10                                   
+@repo/types                       packages/ui/base/package.json:68:10                                   
+@testing-library/user-event       packages/ui/base/package.json:73:10                                   
+delete-cli                        packages/ui/base/package.json:79:10                                   
+prettier-plugin-tailwindcss       packages/ui/base/package.json:84:10                                   
+tailwind-variants                 packages/ui/base/package.json:87:10                                   
+@repo/config-prettier             packages/utils/auth/package.json:46:10                                
+@repo/config-prettier             packages/utils/declarative-routing/package.json:55:10                 
+@repo/config-prettier             packages/utils/env/package.json:36:10                                 
+@repo/config-prettier             packages/utils/errors/package.json:19:10                              
+@repo/config-prettier             packages/utils/logger/package.json:25:10                              
+@repo/config-prettier             packages/utils/orpc/package.json:41:10                                
+@repo/config-prettier             packages/utils/type-guards/package.json:19:10                         
+@repo/config-prettier             packages/utils/use-safe-query-param-states-from-zod/package.json:32:10
+@repo/config-vitest               packages/utils/use-safe-query-param-states-from-zod/package.json:34:10
+Referenced optional peerDependencies (1)
+nprogress  packages/utils/declarative-routing/package.json
+Unlisted dependencies (7)
+@tanstack/charts/react  apps/doc/src/components/docs/DocChart.tsx:19:23               
+server-only             apps/web/src/lib/auth/cookie-session.ts:22:8                  
+server-only             apps/web/src/lib/platform/app-instance.server.ts:16:8         
+server-only             apps/web/src/routes/configure-auth.ts:10:8                    
+server-only             apps/web/src/utils/providers/SessionHydrationProvider.tsx:34:8
+@orpc/contract          scripts/check-contract.ts:2:68                                
+prompts                 scripts/init.ts:6:39                                          
+Unlisted binaries (21)
+prettier  apps/api/package.json                                           
+prettier  apps/doc/package.json                                           
+prettier  packages/bin/declarative-routing/package.json                   
+prettier  packages/bin/runthenkill/package.json                           
+prettier  packages/configs/eslint/package.json                            
+prettier  packages/configs/tailwind/package.json                          
+prettier  packages/configs/typescript/package.json                        
+prettier  packages/configs/vitest/package.json                            
+prettier  packages/contracts/api/package.json                             
+prettier  packages/nest/events/package.json                               
+prettier  packages/nest/lifecycle/package.json                            
+prettier  packages/types/package.json                                     
+prettier  packages/ui/base/package.json                                   
+prettier  packages/utils/auth/package.json                                
+prettier  packages/utils/declarative-routing/package.json                 
+prettier  packages/utils/env/package.json                                 
+prettier  packages/utils/errors/package.json                              
+prettier  packages/utils/logger/package.json                              
+prettier  packages/utils/orpc/package.json                                
+prettier  packages/utils/type-guards/package.json                         
+prettier  packages/utils/use-safe-query-param-states-from-zod/package.json
+Unresolved imports (12)
+./src/core/modules/database/services/database.ser…  apps/api/debug-cli.ts:5:33                                          
+../src/modules/providers/dns/cloudflare/cloudflar…  apps/api/scripts/cloudflare-zone-error-proof.ts:12:42               
+@/core/modules/mesh/examples/test-deployment-mesh…  …/api/src/e2e/mesh-workflows/mesh-consumer-patterns.e2e-spec.ts:5:42
+@/core/modules/mesh/examples/test-deployment-mesh…  …/api/src/e2e/mesh-workflows/mesh-consumer-patterns.e2e-spec.ts:6:43
+@/core/modules/mesh/examples/test-deployment-cons…  …/api/src/e2e/mesh-workflows/mesh-consumer-patterns.e2e-spec.ts:7:47
+@/core/modules/mesh/examples/test-deployment-mesh…  apps/api/src/e2e/mesh-workflows/mesh-listen-api.e2e-spec.ts:4:42    
+@/core/modules/mesh/examples/test-deployment-mesh…  apps/api/src/e2e/mesh-workflows/mesh-listen-api.e2e-spec.ts:5:43    
+@/core/modules/mesh/examples/test-deployment-mesh…  apps/api/src/e2e/mesh-workflows/mesh-query-executor.e2e-spec.ts:3:42
+@/core/modules/mesh/examples/test-deployment-mesh…  apps/api/src/e2e/mesh-workflows/mesh-query-executor.e2e-spec.ts:4:43
+@/core/modules/mesh/examples/test-deployment-mesh…  …mesh-workflows/mesh-resource-builder-and-discovery.e2e-spec.ts:5:42
+@/core/modules/mesh/examples/test-deployment-cons…  …mesh-workflows/mesh-resource-builder-and-discovery.e2e-spec.ts:6:47
+@/core/modules/mesh/examples/test-deployment-mesh…  …mesh-workflows/mesh-resource-builder-and-discovery.e2e-spec.ts:7:43
+Unused exports (537)
+auth                                                                        apps/api/src/auth.ts:8:14                   
+AUTH_CORE_SERVICE                                                           apps/api/src/cli/tokens.ts:14:14            
+CONFIG_SERVICE                                                              apps/api/src/cli/tokens.ts:15:14            
+ENV_SERVICE                                                                 apps/api/src/cli/tokens.ts:16:14            
+CLI_AUTH_SERVICE_TOKEN                                                      apps/api/src/cli/tokens.ts:17:14            
+CLI_AUTH_SERVICE                                                            apps/api/src/cli/tokens.ts:24:14            
+AUTH_SERVICE                                                                apps/api/src/cli/tokens.ts:30:14            
+generateEncryptionKey                                             function  …hared/custom-types/encrypted-text.ts:161:17
+serializeTraefikConfigBuilder                                     function  …ustom-types/traefik-config-builder.ts:11:17
+deserializeTraefikConfigBuilder                                   function  …ustom-types/traefik-config-builder.ts:29:17
+INTERNAL_ERROR_CONTEXT_KEY                                                  …ternal-error/internal-error-context.ts:3:14
+AuthErrorType                                                               …ore/modules/auth/guards/auth.guard.ts:10:14
+AuthContextErrorMap                                                         …ore/modules/auth/guards/auth.guard.ts:15:14
+httpStatusToORPCCode                                              function  …ore/modules/auth/orpc/interceptors.ts:14:17
+transformHttpExceptionToORPCError                                 function  …ore/modules/auth/orpc/interceptors.ts:82:17
+transformMeshDomainErrorToORPCError                               function  …re/modules/auth/orpc/interceptors.ts:111:17
+setMeshSecretProvider                                             function  …core/modules/auth/orpc/middlewares.ts:43:17
+createAuthMiddleware                                              function  …core/modules/auth/orpc/middlewares.ts:81:17
+HasPermissionCheck                                                class     …leware/admin.middleware-definition.ts:69:14
+HasPermissionByRoleCheck                                          class     …eware/admin.middleware-definition.ts:122:14
+HasRoleCheck                                                      class     …eware/admin.middleware-definition.ts:184:14
+RequireAdminRoleCheck                                             class     …eware/admin.middleware-definition.ts:236:14
+SessionRequiredCheck                                              class     …dleware/base.middleware-definition.ts:80:14
+resolveValue                                                                …/auth/plugin-utils/middleware/index.ts:84:3
+createAuthError                                                             …/auth/plugin-utils/middleware/index.ts:85:3
+createPermissionError                                                       …/auth/plugin-utils/middleware/index.ts:86:3
+createRoleError                                                             …/auth/plugin-utils/middleware/index.ts:87:3
+BaseMiddlewareDefinition                                                    …/auth/plugin-utils/middleware/index.ts:97:3
+SessionRequiredCheck                                                        …/auth/plugin-utils/middleware/index.ts:98:3
+HasPermissionCheck                                                          …auth/plugin-utils/middleware/index.ts:105:3
+HasPermissionByRoleCheck                                                    …auth/plugin-utils/middleware/index.ts:106:3
+HasRoleCheck                                                                …auth/plugin-utils/middleware/index.ts:107:3
+RequireAdminRoleCheck                                                       …auth/plugin-utils/middleware/index.ts:108:3
+HasOrganizationPermissionCheck                                              …auth/plugin-utils/middleware/index.ts:115:3
+IsMemberOfCheck                                                             …auth/plugin-utils/middleware/index.ts:116:3
+HasOrganizationRoleCheck                                                    …auth/plugin-utils/middleware/index.ts:117:3
+IsOrganizationOwnerCheck                                                    …auth/plugin-utils/middleware/index.ts:118:3
+createDynamicNestGuard                                                      …auth/plugin-utils/middleware/index.ts:154:3
+createDynamicNestGuardWithResolver                                          …auth/plugin-utils/middleware/index.ts:155:3
+resolveNestValue                                                            …auth/plugin-utils/middleware/index.ts:156:3
+resolveOrpcValue                                                            …auth/plugin-utils/middleware/index.ts:162:3
+collect                                                                     …auth/plugin-utils/middleware/index.ts:165:3
+extractCheckMetadata                                                        …auth/plugin-utils/middleware/index.ts:166:3
+extractChecksMetadata                                                       …auth/plugin-utils/middleware/index.ts:167:3
+createCompositeOrpcMiddlewareFromChecks                                     …auth/plugin-utils/middleware/index.ts:275:3
+createRoleError                                                   function  …utils/middleware/middleware-check.ts:388:17
+createDynamicNestGuard                                            function  …s/middleware/middleware-converter.ts:381:17
+createDynamicNestGuardWithResolver                                function  …s/middleware/middleware-converter.ts:448:17
+collect                                                           function  …s/middleware/middleware-converter.ts:796:17
+extractCheckMetadata                                              function  …s/middleware/middleware-converter.ts:806:17
+extractChecksMetadata                                             function  …s/middleware/middleware-converter.ts:830:17
+resolveOrpcValue                                                            …s/middleware/middleware-converter.ts:838:21
+resolveNestValue                                                            …s/middleware/middleware-converter.ts:838:39
+HasOrganizationPermissionCheck                                    class     …organization.middleware-definition.ts:88:14
+IsMemberOfCheck                                                   class     …rganization.middleware-definition.ts:141:14
+HasOrganizationRoleCheck                                          class     …rganization.middleware-definition.ts:201:14
+IsOrganizationOwnerCheck                                          class     …rganization.middleware-definition.ts:280:14
+createCompositeOrpcMiddlewareFromChecks                           function  …/middleware/orpc-middleware-proxy.ts:341:17
+createAdminWrapper                                                function  …ugin-utils/plugin-wrapper-factory.ts:144:17
+createOrganizationWrapper                                         function  …ugin-utils/plugin-wrapper-factory.ts:172:17
+AUTH_MODULE_OPTIONS_KEY                                                     …src/core/modules/auth/types/symbols.ts:4:14
+configurationTriggerSchema                                                  …hemas/runtime-configuration.schema.ts:14:14
+configurationSourceProviderSchema                                           …hemas/runtime-configuration.schema.ts:16:14
+configurationStrategySchema                                                 …hemas/runtime-configuration.schema.ts:24:14
+configurationEnvironmentDomainSchema                                        …hemas/runtime-configuration.schema.ts:42:14
+primitiveAttributeValueSchema                                               …hemas/runtime-configuration.schema.ts:53:14
+runtimeEnvironmentByDomainSchema                                            …hemas/runtime-configuration.schema.ts:57:14
+runtimeEnvironmentByDomainEffectiveSchema                                   …hemas/runtime-configuration.schema.ts:68:14
+runtimeEnvironmentByDomainDeletesSchema                                     …hemas/runtime-configuration.schema.ts:79:14
+runtimeEnvironmentMutationFlatSchema                                        …hemas/runtime-configuration.schema.ts:90:14
+runtimeEnvironmentMutationDomainSchema                                      …hemas/runtime-configuration.schema.ts:96:14
+runtimeResourcesSchema                                                      …emas/runtime-configuration.schema.ts:109:14
+runtimeReplicasSchema                                                       …emas/runtime-configuration.schema.ts:114:14
+runtimeTraefikTlsSchema                                                     …emas/runtime-configuration.schema.ts:120:14
+runtimeTraefikConfigSchema                                                  …emas/runtime-configuration.schema.ts:125:14
+runtimeEnvPolicySchema                                                      …emas/runtime-configuration.schema.ts:134:14
+runtimeExecutionSpecSchema                                                  …emas/runtime-configuration.schema.ts:140:14
+runtimeStorageTypeSchema                                                    …emas/runtime-configuration.schema.ts:145:14
+runtimeStoragePolicyDiscriminatedSchema                                     …emas/runtime-configuration.schema.ts:241:14
+organizationDeploymentConfigSchema                                          …emas/runtime-configuration.schema.ts:254:14
+projectSettingsRuntimeConfigSchema                                          …emas/runtime-configuration.schema.ts:277:14
+serviceDeploymentRuntimeConfigSchema                                        …emas/runtime-configuration.schema.ts:303:14
+serviceRoutingRuntimeConfigSchema                                           …emas/runtime-configuration.schema.ts:308:14
+userDeploymentRuntimeConfigSchema                                           …emas/runtime-configuration.schema.ts:332:14
+runtimeDeploymentEffectiveSchema                                            …emas/runtime-configuration.schema.ts:350:14
+runtimeRoutingEffectiveSchema                                               …emas/runtime-configuration.schema.ts:357:14
+runtimeExecutionEffectiveSchema                                             …emas/runtime-configuration.schema.ts:362:14
+runtimeReplicasEffectiveSchema                                              …emas/runtime-configuration.schema.ts:367:14
+runtimeResourcesEffectiveSchema                                             …emas/runtime-configuration.schema.ts:373:14
+runtimeEnvPolicyEffectiveSchema                                             …emas/runtime-configuration.schema.ts:378:14
+runtimeTraefikTlsEffectiveSchema                                            …emas/runtime-configuration.schema.ts:384:14
+runtimeTraefikEffectiveSchema                                               …emas/runtime-configuration.schema.ts:389:14
+runtimeLifecycleEffectiveSchema                                             …emas/runtime-configuration.schema.ts:398:14
+runtimeConstraintsEffectiveSchema                                           …emas/runtime-configuration.schema.ts:403:14
+runtimeConfigurationDispatchSchema                                          …emas/runtime-configuration.schema.ts:508:14
+ServiceContextBuilder                                             class     …/core/modules/context/types/index.ts:179:14
+ProjectContextBuilder                                             class     …/core/modules/context/types/index.ts:282:14
+deploymentProviderKindSchema                                                …uilder-runner-state-machine.service.ts:4:14
+DomainError                                                                 …c/core/modules/domain/errors/index.ts:62:10
+InvalidDomainFormatError                                                    …rc/core/modules/domain/errors/index.ts:68:3
+GranularityViolationError                                                   …rc/core/modules/domain/errors/index.ts:72:3
+DomainVerificationError                                                     …rc/core/modules/domain/errors/index.ts:77:3
+SubdomainNotAllowedError                                                    …rc/core/modules/domain/errors/index.ts:97:3
+InvalidSubdomainFormatError                                                 …rc/core/modules/domain/errors/index.ts:98:3
+InvalidBasePathFormatError                                                  …rc/core/modules/domain/errors/index.ts:99:3
+InvalidDomainFormatError                                          class     …/errors/organization-domain-errors.ts:51:14
+GranularityViolationError                                         class     …errors/organization-domain-errors.ts:106:14
+SubdomainNotAllowedError                                          class     …rors/service-domain-mapping-errors.ts:81:14
+InvalidSubdomainFormatError                                       class     …ors/service-domain-mapping-errors.ts:102:14
+InvalidBasePathFormatError                                        class     …ors/service-domain-mapping-errors.ts:123:14
+DomainVerificationError                                           class     …/domain/errors/verification-errors.ts:12:14
+BaseEventService                                                            …s/api/src/core/modules/events/index.ts:12:3
+BASE_EVENT_SERVICE_SYMBOL                                                   …s/api/src/core/modules/events/index.ts:13:3
+EventContractBuilder                                                        …s/api/src/core/modules/events/index.ts:14:3
+contractBuilder                                                             …s/api/src/core/modules/events/index.ts:15:3
+BasePooledEventService                                                      …s/api/src/core/modules/events/index.ts:16:3
+AbstractDomainEventStreamService                                            …s/api/src/core/modules/events/index.ts:17:3
+CoreEventStreamPoolService                                                  …s/api/src/core/modules/events/index.ts:18:3
+observableToAsyncIterable                                                   …s/api/src/core/modules/events/index.ts:19:3
+GitHubModule                                                                …i/src/core/modules/git/github/index.ts:2:10
+GitHubService                                                               …i/src/core/modules/git/github/index.ts:3:10
+GithubDeploymentCacheRepository                                             …i/src/core/modules/git/github/index.ts:6:10
+GithubDeploymentRulesRepository                                             …i/src/core/modules/git/github/index.ts:7:10
+GithubRepositoryConfigRepository                                            …i/src/core/modules/git/github/index.ts:8:10
+getGitHubEventType                                                          …/src/core/modules/git/github/index.ts:14:10
+getGitHubDeliveryId                                                         …/src/core/modules/git/github/index.ts:14:30
+GithubDeploymentCacheRepository                                   class     …github-deployment-cache.repository.ts:28:14
+GithubRepositoryConfigRepository                                  class     …ithub-repository-config.repository.ts:28:14
+hasRepository                                                     function  …/github/types/github-events.types.ts:116:17
+isPushEvent                                                       function  …/github/types/github-events.types.ts:125:17
+isPullRequestEvent                                                function  …/github/types/github-events.types.ts:135:17
+isCreateEvent                                                     function  …/github/types/github-events.types.ts:145:17
+isReleaseEvent                                                    function  …/github/types/github-events.types.ts:155:17
+isIssuesEvent                                                     function  …/github/types/github-events.types.ts:165:17
+isWorkflowRunEvent                                                function  …/github/types/github-events.types.ts:175:17
+extractChangedFilesFromCommits                                    function  …/github/types/github-events.types.ts:185:17
+getGitHubEventType                                                function  …t/github/utils/webhook-verification.ts:4:17
+getGitHubDeliveryId                                               function  …/github/utils/webhook-verification.ts:13:17
+GitHubModule                                                                apps/api/src/core/modules/git/index.ts:20:3 
+GitHubService                                                               apps/api/src/core/modules/git/index.ts:21:3 
+GithubDeploymentCacheRepository                                             apps/api/src/core/modules/git/index.ts:22:3 
+GithubDeploymentRulesRepository                                             apps/api/src/core/modules/git/index.ts:23:3 
+GithubRepositoryConfigRepository                                            apps/api/src/core/modules/git/index.ts:24:3 
+getGitHubEventType                                                          apps/api/src/core/modules/git/index.ts:25:3 
+getGitHubDeliveryId                                                         apps/api/src/core/modules/git/index.ts:26:3 
+createFilter                                                                …core/modules/mesh/filter/mesh-filter.ts:9:3
+whereEq                                                                     …ore/modules/mesh/filter/mesh-filter.ts:10:9
+whereNeq                                                                    …re/modules/mesh/filter/mesh-filter.ts:11:10
+whereGt                                                                     …ore/modules/mesh/filter/mesh-filter.ts:12:9
+whereGte                                                                    …re/modules/mesh/filter/mesh-filter.ts:13:10
+whereLt                                                                     …ore/modules/mesh/filter/mesh-filter.ts:14:9
+whereLte                                                                    …re/modules/mesh/filter/mesh-filter.ts:15:10
+whereInList                                                                 …re/modules/mesh/filter/mesh-filter.ts:16:14
+whereNinList                                                                …re/modules/mesh/filter/mesh-filter.ts:17:17
+whereAnd                                                                    …re/modules/mesh/filter/mesh-filter.ts:18:10
+whereOr                                                                     …ore/modules/mesh/filter/mesh-filter.ts:19:9
+meshEntityEnhanced                                                function  …src/core/modules/mesh/mesh-entity.ts:345:17
+MESH_MUTATION_BRAND                                                         …src/core/modules/mesh/mesh-mutation.ts:5:14
+MESH_QUERY_BRAND                                                            …pi/src/core/modules/mesh/mesh-query.ts:5:14
+extractPagination                                                 function  …s/mesh/params/mesh-params-compiler.ts:45:17
+_BaseMeshServiceClass                                                       …s/mesh/services/base-mesh.service.ts:824:14
+count                                                             function  …rce-discovery/query/mesh-aggregate.ts:22:17
+sum                                                               function  …rce-discovery/query/mesh-aggregate.ts:36:17
+avg                                                               function  …rce-discovery/query/mesh-aggregate.ts:56:17
+min                                                               function  …rce-discovery/query/mesh-aggregate.ts:83:17
+max                                                               function  …ce-discovery/query/mesh-aggregate.ts:109:17
+groupBy                                                           function  …ce-discovery/query/mesh-aggregate.ts:137:17
+collect                                                           function  …ce-discovery/query/mesh-aggregate.ts:179:17
+distinct                                                          function  …ce-discovery/query/mesh-aggregate.ts:194:17
+executeAggregate                                                  function  …ce-discovery/query/mesh-aggregate.ts:221:17
+MESH_EXPRESSION_BRAND                                                       …resource-discovery/query/mesh-where.ts:7:14
+neq                                                               function  …esource-discovery/query/mesh-where.ts:78:17
+gte                                                               function  …source-discovery/query/mesh-where.ts:100:17
+lt                                                                function  …source-discovery/query/mesh-where.ts:111:17
+lte                                                               function  …source-discovery/query/mesh-where.ts:122:17
+inArray                                                           function  …source-discovery/query/mesh-where.ts:133:17
+notInArray                                                        function  …source-discovery/query/mesh-where.ts:145:17
+contains                                                          function  …source-discovery/query/mesh-where.ts:157:17
+startsWith                                                        function  …source-discovery/query/mesh-where.ts:168:17
+endsWith                                                          function  …source-discovery/query/mesh-where.ts:179:17
+isNull                                                            function  …source-discovery/query/mesh-where.ts:190:17
+isNotNull                                                         function  …source-discovery/query/mesh-where.ts:201:17
+pathEq                                                            function  …source-discovery/query/mesh-where.ts:213:17
+pathIn                                                            function  …source-discovery/query/mesh-where.ts:223:17
+not                                                               function  …source-discovery/query/mesh-where.ts:259:17
+createTypedFilter                                                 function  …source-discovery/query/mesh-where.ts:403:17
+MeshBaseDomainError                                                         …em-mesh-topology/domain/mesh-errors.ts:3:10
+MESH_DOMAIN_ERROR_HTTP_STATUS                                               …m-mesh-topology/domain/mesh-errors.ts:14:14
+MESH_DOMAIN_ERROR_ORPC_CODE                                                 …m-mesh-topology/domain/mesh-errors.ts:28:14
+meshDomainErrorStatus                                             function  …m-mesh-topology/domain/mesh-errors.ts:41:17
+meshDomainErrorOrpcCode                                           function  …m-mesh-topology/domain/mesh-errors.ts:48:17
+MeshConflictError                                                 class     …m-mesh-topology/domain/mesh-errors.ts:96:14
+FakeClock                                                         class     …dules/mesh/shared/primitives/clock.ts:15:14
+isFencedOperationValid                                            function  …sh/shared/primitives/fencing-token.ts:16:17
+serializeHlc                                                      function  …ed/primitives/hybrid-logical-clock.ts:24:17
+deserializeHlc                                                    function  …ed/primitives/hybrid-logical-clock.ts:28:17
+SequentialIdGenerator                                             class     …esh/shared/primitives/id-generator.ts:14:14
+resolveLocalServerUrl                                             function  …shared/utils/mesh-server-url.utils.ts:16:17
+DEPLOYER_BASE_HOST                                                          …-ingress/services/hostname.service.ts:14:14
+MANAGED_WEB_APP_ENABLED_KEY                                                 …s/services/platform-config.service.ts:15:14
+MANAGED_WEB_ORIGIN_KEY                                                      …s/services/platform-config.service.ts:20:14
+MANAGED_WEB_TUNNEL_ID_KEY                                                   …s/services/platform-config.service.ts:25:14
+MANAGED_WEB_TUNNEL_HOSTNAME_KEY                                             …s/services/platform-config.service.ts:26:14
+MANAGED_WEB_TUNNEL_PROVIDER_KEY                                             …s/services/platform-config.service.ts:27:14
+INGRESS_ENTRY_PORT_KEY                                                      …/platform-ingress-settings.service.ts:25:14
+PLATFORM_TRAEFIK_BASE_NAME                                                  …rm-ingress/services/platform-names.ts:20:14
+PLATFORM_WEB_ROUTER_NAME                                                    …ices/platform-route-config.service.ts:21:14
+PLATFORM_WEB_SERVICE_NAME                                                   …ices/platform-route-config.service.ts:22:14
+PLATFORM_WEB_CONSOLE_ROUTER_NAME                                            …ices/platform-route-config.service.ts:23:14
+PLATFORM_WEB_CONSOLE_SERVICE_NAME                                           …ices/platform-route-config.service.ts:24:14
+PLATFORM_WEB_CONSOLE_PATH                                                   …ices/platform-route-config.service.ts:32:14
+supervisedRouteSourceSchema                                                 …ces/platform-routes-source.service.ts:45:14
+supervisedRouteTargetSchema                                                 …ces/platform-routes-source.service.ts:56:14
+ACCESS_POINT_EVENT_SCOPE                                                    …/public-access-point-event.service.ts:23:14
+EMPTY_PUBLIC_ACCESS_POINT_STATE                                             …services/public-access-point.state.ts:32:14
+LOCAL_STEP_IDS                                                              …les/setup/utils/setup-runner.utils.ts:81:14
+REMOTE_STEP_IDS                                                             …les/setup/utils/setup-runner.utils.ts:97:14
+injectResult                                                      function  …odules/sub-app-runner/bridge.utils.ts:75:17
+supervisorProbeMetaSchema                                                   …upervisors/base-supervisor.service.ts:46:14
+DIRECT_PORT_PROXY_CONFIG_MOUNT                                              …rect-port-proxy.supervisor.service.ts:57:14
+PLATFORM_MANAGED_WEB_ROLE                                                   …orm/managed-web-supervisor.service.ts:41:14
+PLATFORM_MANAGED_WEB_SUPERVISOR_ID                                          …orm/managed-web-supervisor.service.ts:42:14
+PLATFORM_REDIS_SUPERVISOR_ID                                                …/platform/redis-supervisor.service.ts:42:14
+PLATFORM_INGRESS_ROLE                                                       …latform/traefik-supervisor.service.ts:42:14
+PLATFORM_INGRESS_SUPERVISOR_ID                                              …latform/traefik-supervisor.service.ts:44:14
+TRAEFIK_CONFIG_MOUNT                                                        …atform/traefik-supervisor.service.ts:125:14
+EntryPortConflictError                                            class     …atform/traefik-supervisor.service.ts:130:14
+HttpRouterBuilder                                                           …efik/config-builder/builders/index.ts:15:10
+ServiceBuilder                                                              …efik/config-builder/builders/index.ts:16:10
+LoadBalancerBuilder                                                         …efik/config-builder/builders/index.ts:16:26
+HealthCheckBuilder                                                          …efik/config-builder/builders/index.ts:16:47
+MiddlewareBuilder                                                           …efik/config-builder/builders/index.ts:17:10
+TLSBuilder                                                                  …efik/config-builder/builders/index.ts:18:10
+VariableResolutionError                                                     …efik/config-builder/variables/index.ts:38:3
+VariableResolutionError                                           class     …builder/variables/variable-resolver.ts:9:14
+FileSystemError                                                   class     …es/traefik/errors/file-system.error.ts:6:14
+FileExistsError                                                   class     …s/traefik/errors/file-system.error.ts:30:14
+InvalidPathError                                                  class     …s/traefik/errors/file-system.error.ts:40:14
+FileDeleteError                                                   class     …/traefik/errors/file-system.error.ts:103:14
+TraefikError                                                                …c/core/modules/traefik/errors/index.ts:37:3
+FileSystemError                                                             …c/core/modules/traefik/errors/index.ts:46:3
+FileExistsError                                                             …c/core/modules/traefik/errors/index.ts:48:3
+InvalidPathError                                                            …c/core/modules/traefik/errors/index.ts:49:3
+FileDeleteError                                                             …c/core/modules/traefik/errors/index.ts:53:3
+TemplateError                                                               …c/core/modules/traefik/errors/index.ts:58:3
+TemplateSyntaxError                                                         …c/core/modules/traefik/errors/index.ts:59:3
+MiddlewareNotFoundError                                                     …c/core/modules/traefik/errors/index.ts:68:3
+SSLCertificateError                                                         …c/core/modules/traefik/errors/index.ts:74:3
+SSLCertificateNotFoundError                                                 …c/core/modules/traefik/errors/index.ts:75:3
+SSLCertificateExpiredError                                                  …c/core/modules/traefik/errors/index.ts:76:3
+SSLCertificateValidationError                                               …c/core/modules/traefik/errors/index.ts:77:3
+MiddlewareNotFoundError                                           class     …es/traefik/errors/middleware.error.ts:20:14
+SSLCertificateError                                               class     …re/modules/traefik/errors/ssl.error.ts:6:14
+SSLCertificateNotFoundError                                       class     …e/modules/traefik/errors/ssl.error.ts:20:14
+SSLCertificateExpiredError                                        class     …e/modules/traefik/errors/ssl.error.ts:34:14
+SSLCertificateValidationError                                     class     …e/modules/traefik/errors/ssl.error.ts:51:14
+TemplateError                                                     class     …dules/traefik/errors/template.error.ts:6:14
+TemplateSyntaxError                                               class     …ules/traefik/errors/template.error.ts:25:14
+configSyncContract                                                          …efik/events/traefik-event.contracts.ts:8:14
+configChangeContract                                                        …fik/events/traefik-event.contracts.ts:29:14
+validationResultContract                                                    …fik/events/traefik-event.contracts.ts:49:14
+cleanupContract                                                             …fik/events/traefik-event.contracts.ts:75:14
+semverSatisfies                                                   function  …pi/src/core/utils/deployer-version.ts:85:17
+asyncIterableToObservable                                         function  …pi/src/core/utils/observable.utils.ts:97:17
+assertNeedsSetupSnapshot                                          function  …/support/setup-workflow-assertions.ts:23:17
+setSharedRuntimeRequestOverride                                             …pi/src/e2e/utils/shared-api-runtime.ts:78:5
+setSharedRuntimeAuthHeaders                                                 …pi/src/e2e/utils/shared-api-runtime.ts:79:5
+resetSharedRuntimeRequestOverride                                           …pi/src/e2e/utils/shared-api-runtime.ts:80:5
+resolveSharedRuntimeMaxConcurrency                                          …/src/e2e/utils/shared-api-runtime.ts:143:10
+defaultRequestOverride                                                      …shared-api-runtime/request-override.ts:3:14
+SHARED_RUNTIME_MAX_CONCURRENCY_ENV                                          …2e/utils/shared-api-runtime/types.ts:157:14
+deploymentSummarySchema                                                     …ntities/deployment-resource.entity.ts:18:14
+listDeploymentsInputSchema                                                  …ntities/deployment-resource.entity.ts:27:14
+resolveDeploymentInputSchema                                                …ntities/deployment-resource.entity.ts:35:14
+resolveDeploymentOutputSchema                                               …ntities/deployment-resource.entity.ts:40:14
+searchDeploymentsInputSchema                                                …ntities/deployment-resource.entity.ts:47:14
+deploymentsEntity                                                           …h/services/deployment-mesh.service.ts:53:14
+deploymentQueueEventFilterSchema                                            …e/deployment-queue-event.contracts.ts:10:14
+deploymentStoragePolicyLooseSchema                                          …storage/base/storage-policy.schema.ts:82:14
+deploymentStorageTypeInputSchema                                            …torage/base/storage-policy.schema.ts:104:14
+deploymentStorageTypeKnownSchema                                            …torage/base/storage-policy.schema.ts:110:14
+deploymentStorageUpdateStrategySchema                                       …age/base/storage-provider.interface.ts:8:14
+readHeader                                                        function  …/modules/platform/orpc/middlewares.ts:36:17
+dockerRuntimeRunnerOptionsSchema                                            …s/base/runtime-runner-options.schema.ts:7:5
+dockerfileRuntimeRunnerOptionsSchema                                        …s/base/runtime-runner-options.schema.ts:8:5
+dockerComposeRuntimeRunnerOptionsSchema                                     …s/base/runtime-runner-options.schema.ts:9:5
+nixpacksRuntimeRunnerOptionsSchema                                          …/base/runtime-runner-options.schema.ts:10:5
+buildpackRuntimeRunnerOptionsSchema                                         …/base/runtime-runner-options.schema.ts:11:5
+railpackRuntimeRunnerOptionsSchema                                          …/base/runtime-runner-options.schema.ts:12:5
+RUNTIME_RUNNER_KINDS                                                        …/base/runtime-runner-options.schema.ts:15:5
+packageJsonSchema                                                           …rollers/github-account.controller.ts:733:14
+cloudflareSdkRecordSchema                                                   …dflare/services/cloudflare.helpers.ts:17:14
+cloudflareTunnelStatusSchema                                                …flare/services/cloudflare.helpers.ts:132:14
+DNS_PROVIDERS                                                               …ared/dns-provider-registry.service.ts:16:14
+resolveGithubWebhookAuth                                          function  …are/github-webhook-auth.middleware.ts:90:23
+dockerRuntimeRunnerOptionsSchema                                            …/base/runner-option-policies.schema.ts:19:5
+dockerfileRuntimeRunnerOptionsSchema                                        …/base/runner-option-policies.schema.ts:20:5
+dockerComposeRuntimeRunnerOptionsSchema                                     …/base/runner-option-policies.schema.ts:21:5
+nixpacksRuntimeRunnerOptionsSchema                                          …/base/runner-option-policies.schema.ts:22:5
+buildpackRuntimeRunnerOptionsSchema                                         …/base/runner-option-policies.schema.ts:23:5
+railpackRuntimeRunnerOptionsSchema                                          …/base/runner-option-policies.schema.ts:24:5
+runtimeRunnerOptionsSchema                                                  …/base/runner-option-policies.schema.ts:25:5
+dockerRunnerOptionsSchema                                                   …base/runner-option-policies.schema.ts:36:14
+computeChildPath                                                  function  …ce/repositories/service.repository.ts:67:17
+testAuthPatternsContract                                                    …/test/controllers/test.controller.ts:296:27
+MeshInitializerBridgeResult                                                 …nitializer/mesh-initializer.bridge.ts:15:55
+SetupWizardBridgeResult                                                     …s/setup-wizard/setup-wizard.bridge.ts:14:51
+usePlatformRole                                                   function  …ponents/auth/RequirePlatformRole.tsx:109:17
+DashboardLoadingSpinner                                           function  …shboard/DashboardLoadingSkeleton.tsx:166:17
+DashboardLoadingBranded                                           function  …shboard/DashboardLoadingSkeleton.tsx:187:17
+DashboardSidebarSkeleton                                          function  …ashboard/DashboardSidebarSkeleton.tsx:34:17
+FilteredEmptyState                                                function  …c/components/dashboard/EmptyState.tsx:60:17
+environmentTone                                                   function  …rc/components/dashboard/env-badge.tsx:38:17
+environmentLabel                                                  function  …rc/components/dashboard/env-badge.tsx:48:17
+DashboardSidebarSkeleton                                                    …/web/src/components/dashboard/index.ts:2:10
+DashboardBreadcrumbs                                                        …/web/src/components/dashboard/index.ts:3:10
+DashboardLoadingSpinner                                                     …s/web/src/components/dashboard/index.ts:6:3
+DashboardLoadingBranded                                                     …s/web/src/components/dashboard/index.ts:7:3
+StatCard                                                                    …web/src/components/dashboard/index.ts:10:10
+FilteredEmptyState                                                          …web/src/components/dashboard/index.ts:12:22
+statusLabel                                                                 …web/src/components/dashboard/index.ts:13:76
+environmentTone                                                             …web/src/components/dashboard/index.ts:14:28
+environmentLabel                                                            …web/src/components/dashboard/index.ts:14:45
+openCommandPalette                                                          …web/src/components/dashboard/index.ts:16:10
+StatCard                                                          function  …src/components/dashboard/StatCard.tsx:25:17
+statusToneClasses                                                           …b/src/components/dashboard/status.tsx:35:14
+statusLabel                                                       function  …/src/components/dashboard/status.tsx:110:17
+DefaultErrorFallback                                              function  …onents/error/DefaultErrorFallback.tsx:36:17
+ErrorBoundary                                                               apps/web/src/components/error/index.ts:8:10 
+DefaultErrorFallback                                                        apps/web/src/components/error/index.ts:13:10
+QueryErrorFallback                                                          apps/web/src/components/error/index.ts:14:10
+FeatureErrorFallback                                                        apps/web/src/components/error/index.ts:15:10
+AppLoadingMinimal                                                 function  …ponents/loading/AppLoadingScreen.tsx:172:17
+AppLoadingElegant                                                 function  …ponents/loading/AppLoadingScreen.tsx:193:17
+AppLoadingCard                                                    function  …ponents/loading/AppLoadingScreen.tsx:234:17
+AppLoadingSpinner                                                 function  …ponents/loading/AppLoadingScreen.tsx:277:17
+AppLoadingMinimal                                                           …ps/web/src/components/loading/index.ts:10:3
+AppLoadingElegant                                                           …ps/web/src/components/loading/index.ts:11:3
+AppLoadingCard                                                              …ps/web/src/components/loading/index.ts:12:3
+AppLoadingSpinner                                                           …ps/web/src/components/loading/index.ts:13:3
+ButtonGroupSeparator                                                        …web/src/components/ui/button-group.tsx:80:3
+ButtonGroupText                                                             …web/src/components/ui/button-group.tsx:81:3
+buttonGroupVariants                                                         …web/src/components/ui/button-group.tsx:82:3
+buttonVariants                                                              apps/web/src/components/ui/button.tsx:67:18 
+CommandDialog                                                               apps/web/src/components/ui/command.tsx:187:3
+CommandInput                                                                apps/web/src/components/ui/command.tsx:188:3
+CommandShortcut                                                             apps/web/src/components/ui/command.tsx:193:3
+CommandSeparator                                                            apps/web/src/components/ui/command.tsx:194:3
+DialogClose                                                                 apps/web/src/components/ui/dialog.tsx:159:3 
+DialogFooter                                                                apps/web/src/components/ui/dialog.tsx:162:3 
+DialogOverlay                                                               apps/web/src/components/ui/dialog.tsx:164:3 
+DialogPortal                                                                apps/web/src/components/ui/dialog.tsx:165:3 
+DialogTrigger                                                               apps/web/src/components/ui/dialog.tsx:167:3 
+DropdownMenuPortal                                                          …b/src/components/ui/dropdown-menu.tsx:255:3
+DropdownMenuGroup                                                           …b/src/components/ui/dropdown-menu.tsx:258:3
+DropdownMenuItem                                                            …b/src/components/ui/dropdown-menu.tsx:260:3
+DropdownMenuShortcut                                                        …b/src/components/ui/dropdown-menu.tsx:265:3
+DropdownMenuSub                                                             …b/src/components/ui/dropdown-menu.tsx:266:3
+DropdownMenuSubTrigger                                                      …b/src/components/ui/dropdown-menu.tsx:267:3
+DropdownMenuSubContent                                                      …b/src/components/ui/dropdown-menu.tsx:268:3
+InputGroupButton                                                            …web/src/components/ui/input-group.tsx:152:3
+InputGroupText                                                              …web/src/components/ui/input-group.tsx:153:3
+InputGroupTextarea                                                          …web/src/components/ui/input-group.tsx:155:3
+MapCircle                                                                   apps/web/src/components/ui/map.tsx:1506:5   
+MapCircleMarker                                                             apps/web/src/components/ui/map.tsx:1507:5   
+MapControlContainer                                                         apps/web/src/components/ui/map.tsx:1508:5   
+MapDrawCircle                                                               apps/web/src/components/ui/map.tsx:1509:5   
+MapDrawControl                                                              apps/web/src/components/ui/map.tsx:1510:5   
+MapDrawDelete                                                               apps/web/src/components/ui/map.tsx:1511:5   
+MapDrawEdit                                                                 apps/web/src/components/ui/map.tsx:1512:5   
+MapDrawMarker                                                               apps/web/src/components/ui/map.tsx:1513:5   
+MapDrawPolygon                                                              apps/web/src/components/ui/map.tsx:1514:5   
+MapDrawPolyline                                                             apps/web/src/components/ui/map.tsx:1515:5   
+MapDrawRectangle                                                            apps/web/src/components/ui/map.tsx:1516:5   
+MapDrawUndo                                                                 apps/web/src/components/ui/map.tsx:1517:5   
+MapFeatureGroup                                                             apps/web/src/components/ui/map.tsx:1518:5   
+MapFullscreenControl                                                        apps/web/src/components/ui/map.tsx:1519:5   
+MapLayerGroup                                                               apps/web/src/components/ui/map.tsx:1520:5   
+MapLayers                                                                   apps/web/src/components/ui/map.tsx:1521:5   
+MapLayersControl                                                            apps/web/src/components/ui/map.tsx:1522:5   
+MapLocateControl                                                            apps/web/src/components/ui/map.tsx:1523:5   
+MapMarkerClusterGroup                                                       apps/web/src/components/ui/map.tsx:1525:5   
+MapPolygon                                                                  apps/web/src/components/ui/map.tsx:1526:5   
+MapPopup                                                                    apps/web/src/components/ui/map.tsx:1528:5   
+MapRectangle                                                                apps/web/src/components/ui/map.tsx:1529:5   
+MapSearchControl                                                            apps/web/src/components/ui/map.tsx:1530:5   
+useLeaflet                                                                  apps/web/src/components/ui/map.tsx:1534:5   
+useAdminHasPermission                                             function  apps/web/src/domains/admin/hooks.ts:61:17   
+useAdminBanUser                                                   function  apps/web/src/domains/admin/hooks.ts:84:17   
+useAdminUnbanUser                                                 function  apps/web/src/domains/admin/hooks.ts:100:17  
+useAdminSetRole                                                   function  apps/web/src/domains/admin/hooks.ts:116:17  
+useAdminCreateUser                                                function  apps/web/src/domains/admin/hooks.ts:137:17  
+useAdminUpdateUser                                                function  apps/web/src/domains/admin/hooks.ts:153:17  
+useAdminRemoveUser                                                function  apps/web/src/domains/admin/hooks.ts:169:17  
+useDeployment                                                     function  …s/web/src/domains/deployment/hooks.ts:41:17
+useDeploymentLogs                                                 function  …s/web/src/domains/deployment/hooks.ts:48:17
+useDeploymentRollbackHistory                                      function  …s/web/src/domains/deployment/hooks.ts:60:17
+useCloudflareListZones                                            function  …eb/src/domains/dns-providers/hooks.ts:84:17
+useCloudflareCheckRecord                                          function  …eb/src/domains/dns-providers/hooks.ts:88:17
+useCloudflareTunnel                                               function  …b/src/domains/dns-providers/hooks.ts:121:17
+useDockerContainerLinkedList                                      function  apps/web/src/domains/docker/hooks.ts:137:17 
+buildDockerRuntimeStreamInput                                     function  apps/web/src/domains/docker/hooks.ts:419:17 
+buildDockerExceptionalRuntimeStreamInput                          function  apps/web/src/domains/docker/hooks.ts:443:17 
+useDockerRuntimeEventsHub                                         function  apps/web/src/domains/docker/hooks.ts:578:17 
+useRealtimeMetrics                                                function  apps/web/src/domains/docker/hooks.ts:768:17 
+useDockerRuntimeEventSubscription                                 function  apps/web/src/domains/docker/hooks.ts:863:17 
+useDockerContainerInspectStream                                   function  apps/web/src/domains/docker/hooks.ts:1063:17
+useDockerContainerProcesses                                       function  apps/web/src/domains/docker/hooks.ts:1116:17
+useDockerImageInspectStream                                       function  apps/web/src/domains/docker/hooks.ts:1226:17
+useDockerDaemonEventsStream                                       function  apps/web/src/domains/docker/hooks.ts:1320:17
+useDockerServiceEventsStream                                      function  apps/web/src/domains/docker/hooks.ts:1328:17
+useDockerNodeEventsStream                                         function  apps/web/src/domains/docker/hooks.ts:1336:17
+useDockerSecretEventsStream                                       function  apps/web/src/domains/docker/hooks.ts:1344:17
+useDockerConfigEventsStream                                       function  apps/web/src/domains/docker/hooks.ts:1352:17
+useDockerBuilderEventsStream                                      function  apps/web/src/domains/docker/hooks.ts:1360:17
+useDockerMeshEventStreams                                         function  apps/web/src/domains/docker/hooks.ts:1391:17
+useDockerMeshSseState                                             function  apps/web/src/domains/docker/hooks.ts:1400:17
+useDockerLiveEntityKind                                           function  …rc/domains/docker/use-docker-live.ts:273:17
+useDockerLiveEntities                                             function  …rc/domains/docker/use-docker-live.ts:325:17
+useDockerLiveNetworks                                             function  …rc/domains/docker/use-docker-live.ts:636:17
+useDockerLiveVolumes                                              function  …rc/domains/docker/use-docker-live.ts:655:17
+useAvailableDomainsForService                                     function  apps/web/src/domains/domain/hooks.ts:30:17  
+useUpdateGitHubApp                                                function  …/web/src/domains/github-apps/hooks.ts:14:17
+useGitHubOAuthInit                                                function  …/web/src/domains/github-apps/hooks.ts:22:17
+useDetectRunner                                                   function  …/web/src/domains/github-apps/hooks.ts:52:17
+usePlatformInvitations                                            function  …s/web/src/domains/invitation/hooks.ts:27:17
+useCreatePlatformInvitation                                       function  …s/web/src/domains/invitation/hooks.ts:42:17
+useCheckPlatformInvitation                                        function  …s/web/src/domains/invitation/hooks.ts:60:17
+useValidatePlatformInvitation                                     function  …s/web/src/domains/invitation/hooks.ts:73:17
+useCancelInvitation                                               function  …/web/src/domains/invitation/hooks.ts:129:17
+useMeshLocalNode                                                  function  apps/web/src/domains/mesh/hooks.ts:33:17    
+useMeshPeers                                                      function  apps/web/src/domains/mesh/hooks.ts:43:17    
+useMeshPeerSessions                                               function  apps/web/src/domains/mesh/hooks.ts:53:17    
+useMeshEventStreamById                                            function  apps/web/src/domains/mesh/hooks.ts:81:17    
+useMeshMembershipSnapshot                                         function  apps/web/src/domains/mesh/hooks.ts:99:17    
+useReconcileMeshMembership                                        function  apps/web/src/domains/mesh/hooks.ts:125:17   
+useUpsertMeshResourceIndex                                        function  apps/web/src/domains/mesh/hooks.ts:137:17   
+useUpdateOrganizationMemberRole                                   function  …eb/src/domains/organization/hooks.ts:204:17
+useOrganizationPendingInvitations                                 function  …eb/src/domains/organization/hooks.ts:251:17
+useProjectNetwork                                                 function  apps/web/src/domains/project/hooks.ts:72:17 
+useUpdateProjectNetwork                                           function  apps/web/src/domains/project/hooks.ts:79:17 
+useProjectEnvironmentConfig                                       function  apps/web/src/domains/project/hooks.ts:101:17
+useUpdateProjectEnvironmentConfig                                 function  apps/web/src/domains/project/hooks.ts:267:17
+useCompatibleProviders                                            function  …/src/domains/provider-schema/hooks.ts:45:17
+usePushPublicKey                                                  function  apps/web/src/domains/push/hooks.ts:24:17    
+usePushSubscriptions                                              function  apps/web/src/domains/push/hooks.ts:31:17    
+usePushSubscribe                                                  function  apps/web/src/domains/push/hooks.ts:50:17    
+usePushUnsubscribe                                                function  apps/web/src/domains/push/hooks.ts:62:17    
+useSendTestNotification                                           function  apps/web/src/domains/push/hooks.ts:73:17    
+useNotificationPermission                                         function  apps/web/src/domains/push/utils.ts:20:17    
+useReachabilityCheck                                              function  …web/src/domains/reachability/hooks.ts:10:17
+useReachabilityConfig                                             function  …web/src/domains/reachability/hooks.ts:14:17
+useUpdateReachabilityConfig                                       function  …web/src/domains/reachability/hooks.ts:20:17
+usePublicAccessPoint                                              function  …web/src/domains/reachability/hooks.ts:67:17
+useWatchPublicAccessPoint                                         function  …web/src/domains/reachability/hooks.ts:74:17
+filterTopLevelServices                                            function  …/web/src/domains/service/hierarchy.ts:41:17
+useServiceChildren                                                function  apps/web/src/domains/service/hooks.ts:48:17 
+useServiceSubtree                                                 function  apps/web/src/domains/service/hooks.ts:56:17 
+useAddServiceDependency                                           function  apps/web/src/domains/service/hooks.ts:123:17
+useRemoveServiceDependency                                        function  apps/web/src/domains/service/hooks.ts:131:17
+isInitializing                                                    function  apps/web/src/domains/setup/hooks.ts:164:17  
+createCacheOperations                                             function  …c/domains/shared/cache-operations.ts:289:17
+GC_TIME                                                                     apps/web/src/domains/shared/config.ts:22:14 
+RETRY_CONFIG                                                                apps/web/src/domains/shared/config.ts:32:14 
+calculateRetryDelay                                               function  apps/web/src/domains/shared/config.ts:41:17 
+isBetterAuthError                                                 function  …ps/web/src/domains/shared/helpers.ts:133:17
+handleBetterAuthResult                                            function  …ps/web/src/domains/shared/helpers.ts:166:17
+customTyped                                                       function  …ps/web/src/domains/shared/helpers.ts:749:17
+getKeysRetrieval                                                  function  …ps/web/src/domains/shared/helpers.ts:811:17
+isInvalidationRef                                                 function  …s/web/src/domains/shared/helpers.ts:1288:17
+useUser                                                           function  apps/web/src/domains/user/hooks.ts:41:17    
+useCheckEmail                                                     function  apps/web/src/domains/user/hooks.ts:51:17    
+useUserCount                                                      function  apps/web/src/domains/user/hooks.ts:60:17    
+useCreateUser                                                     function  apps/web/src/domains/user/hooks.ts:72:17    
+useUpdateUser                                                     function  apps/web/src/domains/user/hooks.ts:84:17    
+useDeleteUser                                                     function  apps/web/src/domains/user/hooks.ts:96:17    
+useUserActions                                                    function  apps/web/src/domains/user/hooks.ts:111:17   
+getApiUrl                                                         function  apps/web/src/lib/api-url.ts:33:17           
+getAuthUrl                                                        function  apps/web/src/lib/api-url.ts:51:17           
+getRawSessionCookie                                               function  …ps/web/src/lib/auth/cookie-session.ts:60:23
+createORPCClientWithCookies                                       function  apps/web/src/lib/orpc/index.ts:43:17        
+appContract                                                                 apps/web/src/lib/orpc/index.ts:103:10       
+uploadRegistry                                                              …rc/lib/orpc/links/file-upload-link.ts:99:14
+default                                                           variable  …rc/lib/orpc/plugins/context-plugin.ts:25:16
+createRedirectOnUnauthorizedPlugin                                function  …s/redirect-on-unauthorized-plugin.ts:119:17
+default                                                           variable  …s/redirect-on-unauthorized-plugin.ts:127:16
+isDefinedError                                                              apps/web/src/lib/orpc/typed-errors.ts:7:10  
+getDomainErrorPayload                                             function  apps/web/src/lib/orpc/typed-errors.ts:36:17 
+getErrorType                                                      function  apps/web/src/lib/orpc/typed-errors.ts:86:17 
+getTimingHistory                                                  function  apps/web/src/lib/timing/client.tsx:46:17    
+clearTimingHistory                                                function  apps/web/src/lib/timing/client.tsx:53:17    
+useRenderTiming                                                   function  apps/web/src/lib/timing/client.tsx:167:17   
+useNavigationTiming                                               function  apps/web/src/lib/timing/client.tsx:194:17   
+NavigationTimingProvider                                          function  apps/web/src/lib/timing/client.tsx:223:17   
+serverTiming                                                                apps/web/src/lib/timing/index.ts:50:3       
+createPageTimer                                                             apps/web/src/lib/timing/index.ts:51:3       
+withServerTiming                                                            apps/web/src/lib/timing/index.ts:52:3       
+NavigationTimingProvider                                                    apps/web/src/lib/timing/index.ts:59:3       
+useRenderTiming                                                             apps/web/src/lib/timing/index.ts:60:3       
+useNavigationTiming                                                         apps/web/src/lib/timing/index.ts:61:3       
+getTimingHistory                                                            apps/web/src/lib/timing/index.ts:62:3       
+clearTimingHistory                                                          apps/web/src/lib/timing/index.ts:63:3       
+serverTiming                                                      function  apps/web/src/lib/timing/server.ts:24:23     
+createPageTimer                                                   function  apps/web/src/lib/timing/server.ts:48:17     
+withServerTiming                                                  function  apps/web/src/lib/timing/server.ts:75:17     
+matcher                                    AuthMiddleware                   apps/web/src/middlewares/WithAuth.ts:116:14 
+config                                     AuthMiddleware                   apps/web/src/middlewares/WithAuth.ts:132:14 
+matcher                                    EnvMiddleware                    apps/web/src/middlewares/WithEnv.ts:86:14   
+matcher                                                                     …ps/web/src/middlewares/WithHeaders.ts:35:14
+default                                    HealthCheckMiddleware  variable  …/src/middlewares/WithHealthCheck.tsx:176:16
+matcher                                    HealthCheckMiddleware            …/src/middlewares/WithHealthCheck.tsx:178:14
+matcher                                    SetupMiddleware                  apps/web/src/middlewares/WithSetup.ts:84:14 
+config                                     SetupMiddleware                  apps/web/src/middlewares/WithSetup.ts:90:14 
+hasAuthCookie                                                               apps/web/src/routes/configure-auth.ts:51:14 
+serverAuthConfigured                                                        apps/web/src/routes/configure-auth.ts:54:14 
+usePush                                                           function  apps/web/src/routes/hooks.ts:13:17          
+useSearchParams                                                   function  apps/web/src/routes/hooks.ts:41:17          
+useSearchParamState                                               function  apps/web/src/routes/hooks.ts:109:17         
+createGetInfo                                                     function  apps/web/src/routes/makeRoute.tsx:93:17     
+createPostInfo                                                    function  apps/web/src/routes/makeRoute.tsx:103:17    
+createPutInfo                                                     function  apps/web/src/routes/makeRoute.tsx:120:17    
+createDeleteInfo                                                  function  apps/web/src/routes/makeRoute.tsx:137:17    
+makePostRoute                                                     function  apps/web/src/routes/makeRoute.tsx:601:17    
+makePutRoute                                                      function  apps/web/src/routes/makeRoute.tsx:670:17    
+makeGetRoute                                                      function  apps/web/src/routes/makeRoute.tsx:739:17    
+makeDeleteRoute                                                   function  apps/web/src/routes/makeRoute.tsx:785:17    
+makeRoute                                                         function  apps/web/src/routes/makeRoute.tsx:825:17    
+ClientAuthProviders                                                         …AuthProviders/ClientAuthProviders.tsx:28:14
+transformUseParams                                                function  apps/web/src/utils/tanstack-query.ts:32:17  
+transformUseReturn                                                function  apps/web/src/utils/tanstack-query.ts:60:17  
+addUseQueryKey                                                    function  apps/web/src/utils/tanstack-query.ts:109:17 
+toAdvancedUseSuspenseQuery                                        function  apps/web/src/utils/tanstack-query.ts:337:17 
+toUseSuspenseQuery                                                function  apps/web/src/utils/tanstack-query.ts:515:17 
+toAdvancedUseInfiniteQuery                                        function  apps/web/src/utils/tanstack-query.ts:568:17 
+setup                                                             function  …eclarative-routing/src/nextjs/init.ts:38:23
+setup                                                             function  …larative-routing/src/qwikcity/init.ts:28:23
+setup                                                             function  …tive-routing/src/react-router/init.ts:16:23
+Unused exported types (289)
+ConfigTriggerPayload             type       apps/api/src/config/env/config.trigger.service.ts:8:13                      
+AuthHookContext                  type       apps/api/src/core/modules/auth/decorators/decorators.ts:39:13               
+ORPCContextWithAuthAndMesh       type       apps/api/src/core/modules/auth/orpc/types.ts:84:13                          
+InferSession                     type       …re/modules/auth/plugin-utils/middleware/base.middleware-definition.ts:52:13
+AnyMiddlewareDefinition          type       …e/modules/auth/plugin-utils/middleware/base.middleware-definition.ts:205:13
+InferBuilderFromDefinition       type       …e/modules/auth/plugin-utils/middleware/base.middleware-definition.ts:213:13
+InferAuthFromDefinition          type       …e/modules/auth/plugin-utils/middleware/base.middleware-definition.ts:223:13
+InferStatementFromDefinition     type       …e/modules/auth/plugin-utils/middleware/base.middleware-definition.ts:233:13
+InferRolesFromDefinition         type       …e/modules/auth/plugin-utils/middleware/base.middleware-definition.ts:245:13
+MiddlewareErrorCode              type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:61:3        
+CheckResult                      type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:62:3        
+ContextResolver                  type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:66:3        
+SessionCheck                     type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:71:3        
+PermissionCheck                  type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:72:3        
+RoleCheck                        type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:73:3        
+MembershipCheck                  type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:74:3        
+OrganizationRoleCheck            type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:75:3        
+OrganizationPermissionCheck      type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:76:3        
+AuthWithSessionAPI               type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:95:15       
+BaseAuthConstraint               type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:95:35       
+NestGuardOptions                 type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:127:3       
+NestGuardOptionsContext          type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:130:3       
+NestInputResolver                type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:131:3       
+NestValueOrResolver              type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:132:3       
+ORPCContext                      type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:136:3       
+Meta                             type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:137:3       
+OrpcMiddlewareOptions            type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:141:3       
+OrpcInputResolver                type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:144:3       
+OrpcValueOrResolver              type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:145:3       
+MiddlewareDefinitionLike         type       apps/api/src/core/modules/auth/plugin-utils/middleware/index.ts:276:8       
+SessionCheck                     interface  …pi/src/core/modules/auth/plugin-utils/middleware/middleware-check.ts:200:18
+PermissionCheck                  interface  …pi/src/core/modules/auth/plugin-utils/middleware/middleware-check.ts:210:18
+RoleCheck                        interface  …pi/src/core/modules/auth/plugin-utils/middleware/middleware-check.ts:224:18
+MembershipCheck                  interface  …pi/src/core/modules/auth/plugin-utils/middleware/middleware-check.ts:238:18
+OrganizationRoleCheck            interface  …pi/src/core/modules/auth/plugin-utils/middleware/middleware-check.ts:252:18
+OrganizationPermissionCheck      interface  …pi/src/core/modules/auth/plugin-utils/middleware/middleware-check.ts:266:18
+ORPCContext                      type       …rc/core/modules/auth/plugin-utils/middleware/middleware-converter.ts:851:47
+Meta                             type       …rc/core/modules/auth/plugin-utils/middleware/middleware-converter.ts:851:60
+InferPluginsFromRegistry         type       apps/api/src/core/modules/auth/plugin-utils/plugin-wrapper-factory.ts:123:13
+Session                          type       apps/api/src/core/modules/auth/types/auth.ts:5:13                           
+RequestWithSession               type       apps/api/src/core/modules/auth/utils/auth-utils.ts:29:13                    
+DomainEnvironmentVariables       type       …rc/core/modules/configuration/schemas/runtime-configuration.schema.ts:56:13
+RuntimeStorageType               type       …c/core/modules/configuration/schemas/runtime-configuration.schema.ts:146:13
+RuntimeStoragePolicy             type       …c/core/modules/configuration/schemas/runtime-configuration.schema.ts:252:13
+LocalDatabase                    type       apps/api/src/core/modules/database/services/local-database.service.ts:2:15  
+DeploymentProviderKind           type       …t/services/deployment-provider-builder-runner-state-machine.service.ts:5:13
+DeploymentEnvironment            type       …/services/deployment-provider-builder-runner-state-machine.service.ts:51:13
+SubdomainValidationResult        interface  apps/api/src/core/modules/domain/interfaces/conflict.interfaces.ts:58:18    
+BasePathValidationResult         interface  apps/api/src/core/modules/domain/interfaces/conflict.interfaces.ts:68:18    
+VerificationMethod               type       apps/api/src/core/modules/domain/interfaces/index.ts:14:3                   
+SubdomainConflict                type       apps/api/src/core/modules/domain/interfaces/index.ts:23:3                   
+SubdomainValidationResult        type       apps/api/src/core/modules/domain/interfaces/index.ts:25:3                   
+BasePathValidationResult         type       apps/api/src/core/modules/domain/interfaces/index.ts:26:3                   
+SSLProvider                      type       apps/api/src/core/modules/domain/interfaces/index.ts:36:3                   
+SSLConfig                        type       apps/api/src/core/modules/domain/interfaces/index.ts:37:3                   
+ServiceMappingWithServiceName    type       apps/api/src/core/modules/domain/interfaces/index.ts:38:3                   
+RegisterDomainInput              type       apps/api/src/core/modules/domain/interfaces/index.ts:49:3                   
+RegisterDomainResponse           type       apps/api/src/core/modules/domain/interfaces/index.ts:50:3                   
+ListDomainsOptions               type       apps/api/src/core/modules/domain/interfaces/index.ts:51:3                   
+ProjectDomain                    type       apps/api/src/core/modules/domain/interfaces/index.ts:58:3                   
+InsertProjectDomain              type       apps/api/src/core/modules/domain/interfaces/index.ts:59:3                   
+AssignDomainInput                type       apps/api/src/core/modules/domain/interfaces/index.ts:60:3                   
+AssignDomainResponse             type       apps/api/src/core/modules/domain/interfaces/index.ts:61:3                   
+AvailableDomain                  type       apps/api/src/core/modules/domain/interfaces/index.ts:62:3                   
+GranularityCheckResult           type       apps/api/src/core/modules/domain/interfaces/index.ts:63:3                   
+RegisterDomainInput              interface  …/src/core/modules/domain/interfaces/organization-domain.interfaces.ts:51:18
+RegisterDomainResponse           interface  …/src/core/modules/domain/interfaces/organization-domain.interfaces.ts:63:18
+ListDomainsOptions               interface  …/src/core/modules/domain/interfaces/organization-domain.interfaces.ts:82:18
+InsertProjectDomain              type       …s/api/src/core/modules/domain/interfaces/project-domain.interfaces.ts:24:13
+AssignDomainInput                interface  …s/api/src/core/modules/domain/interfaces/project-domain.interfaces.ts:33:18
+AssignDomainResponse             interface  …s/api/src/core/modules/domain/interfaces/project-domain.interfaces.ts:45:18
+AvailableDomain                  interface  …s/api/src/core/modules/domain/interfaces/project-domain.interfaces.ts:63:18
+GranularityCheckResult           interface  …s/api/src/core/modules/domain/interfaces/project-domain.interfaces.ts:79:18
+SSLConfig                        interface  …/api/src/core/modules/domain/interfaces/service-mapping.interfaces.ts:52:18
+ServiceMappingWithServiceName    interface  …/api/src/core/modules/domain/interfaces/service-mapping.interfaces.ts:73:18
+EventContract                    type       apps/api/src/core/modules/events/index.ts:22:3                              
+EventContracts                   type       apps/api/src/core/modules/events/index.ts:23:3                              
+EventInput                       type       apps/api/src/core/modules/events/index.ts:24:3                              
+EventOutput                      type       apps/api/src/core/modules/events/index.ts:25:3                              
+DeploymentTriggerEvent           type       apps/api/src/core/modules/git/github/types/github-events.types.ts:48:13     
+NormalizedGitHubEvent            interface  apps/api/src/core/modules/git/github/types/github-events.types.ts:59:18     
+SharedStream                     interface  apps/api/src/core/modules/mesh/connection/mesh-connection.types.ts:44:18    
+TypedStreamHandle                interface  apps/api/src/core/modules/mesh/connection/mesh-connection.types.ts:135:18   
+MeshWhereValueExpression         type       apps/api/src/core/modules/mesh/filter/mesh-filter.ts:4:26                   
+TypedMeshWhereExpression         type       apps/api/src/core/modules/mesh/filter/mesh-filter.ts:5:26                   
+FieldExpression                  type       apps/api/src/core/modules/mesh/filter/mesh-filter.ts:6:26                   
+MeshResourceOwnership            type       apps/api/src/core/modules/mesh/mesh-entity.ts:14:3                          
+MeshEventSourceConfig            type       apps/api/src/core/modules/mesh/mesh-entity.ts:15:3                          
+MeshEventSourceType              type       apps/api/src/core/modules/mesh/mesh-entity.ts:16:3                          
+MeshEntityItemKey                type       apps/api/src/core/modules/mesh/mesh-entity.ts:91:13                         
+MeshEntityQueryNames             type       apps/api/src/core/modules/mesh/mesh-entity.ts:97:13                         
+MeshEntityMutationNames          type       apps/api/src/core/modules/mesh/mesh-entity.ts:103:13                        
+MeshQueryItem                    type       apps/api/src/core/modules/mesh/mesh-query.ts:51:13                          
+MeshQueryInput                   type       apps/api/src/core/modules/mesh/mesh-resource-definition.ts:373:13           
+MeshQueryOutput                  type       apps/api/src/core/modules/mesh/mesh-resource-definition.ts:379:13           
+MeshMutationInput                type       apps/api/src/core/modules/mesh/mesh-resource-definition.ts:385:13           
+MeshMutationOutput               type       apps/api/src/core/modules/mesh/mesh-resource-definition.ts:391:13           
+MeshResourceEventObservable      type       apps/api/src/core/modules/mesh/mesh-resource-definition.ts:397:13           
+EntityItem                       type       apps/api/src/core/modules/mesh/mesh-type-utils.ts:9:13                      
+EntityItemKey                    type       apps/api/src/core/modules/mesh/mesh-type-utils.ts:15:13                     
+EntityQueryNames                 type       apps/api/src/core/modules/mesh/mesh-type-utils.ts:21:13                     
+EntityMutationNames              type       apps/api/src/core/modules/mesh/mesh-type-utils.ts:27:13                     
+BuilderResult                    type       apps/api/src/core/modules/mesh/mesh-type-utils.ts:35:13                     
+BuilderItem                      type       apps/api/src/core/modules/mesh/mesh-type-utils.ts:41:13                     
+WithJoin                         type       apps/api/src/core/modules/mesh/mesh-type-utils.ts:53:13                     
+AggregateResult                  type       apps/api/src/core/modules/mesh/mesh-type-utils.ts:72:13                     
+SchemaOutput                     type       apps/api/src/core/modules/mesh/mesh-type-utils.ts:79:13                     
+Prettify                         type       apps/api/src/core/modules/mesh/mesh-type-utils.ts:85:13                     
+NonNullableFields                type       apps/api/src/core/modules/mesh/mesh-type-utils.ts:91:13                     
+RequireKeys                      type       apps/api/src/core/modules/mesh/mesh-type-utils.ts:96:13                     
+Awaited                          type       apps/api/src/core/modules/mesh/mesh-type-utils.ts:99:13                     
+MeshRequestResult                type       …ervices/system-mesh-resource-discovery/query/mesh-observable-types.ts:48:13
+MeshStreamResult                 type       …ervices/system-mesh-resource-discovery/query/mesh-observable-types.ts:53:13
+MeshOperation                    interface  …rvices/system-mesh-resource-discovery/query/mesh-observable-types.ts:107:18
+AnyMeshQueryRef                  type       …ces/system-mesh-resource-discovery/query/mesh-query-builder-types.ts:245:13
+BuilderResultShape               type       …ces/system-mesh-resource-discovery/query/mesh-query-builder-types.ts:337:13
+BuilderItemShape                 type       …ces/system-mesh-resource-discovery/query/mesh-query-builder-types.ts:345:13
+MeshSelectResult                 type       …ces/system-mesh-resource-discovery/query/mesh-query-builder-types.ts:356:13
+MeshOrderByField                 type       …ces/system-mesh-resource-discovery/query/mesh-query-builder-types.ts:366:13
+MeshWatchStrategy                type       …esh/services/system-mesh-resource-discovery/query/mesh-watch-types.ts:46:13
+MeshWatchOptions                 interface  …esh/services/system-mesh-resource-discovery/query/mesh-watch-types.ts:51:18
+GlobalResourceRegistryEntry      interface  …ystem-mesh-resource-discovery/subscription/mesh-subscription-types.ts:92:18
+EntityQueryRefs                  type       …tem-mesh-resource-discovery/system-mesh-resource-discovery.service.ts:19:13
+SupervisedRouteSource            type       …e/modules/platform-ingress/services/platform-routes-source.service.ts:52:13
+SupervisedRouteTarget            type       …e/modules/platform-ingress/services/platform-routes-source.service.ts:64:13
+LocalStepId                      type       apps/api/src/core/modules/setup/utils/setup-runner.utils.ts:90:13           
+RemoteStepId                     type       apps/api/src/core/modules/setup/utils/setup-runner.utils.ts:109:13          
+SupervisorProbeMeta              type       apps/api/src/core/modules/supervisors/base-supervisor.service.ts:52:13      
+BaseSupervisorPayload            type       apps/api/src/core/modules/supervisors/base-supervisor.service.ts:56:13      
+GlobalDbSupervisorPayload        type       …src/core/modules/supervisors/database/global-db-supervisor.service.ts:94:13
+GlobalDbProcessInfo              type       …rc/core/modules/supervisors/database/global-db-supervisor.service.ts:117:13
+LocalDbSupervisorPayload         type       …/src/core/modules/supervisors/database/local-db-supervisor.service.ts:49:13
+LocalDbProcessInfo               type       …/src/core/modules/supervisors/database/local-db-supervisor.service.ts:58:13
+DirectPortProxyPayload           type       …/modules/supervisors/platform/direct-port-proxy.supervisor.service.ts:89:13
+DirectPortProxyProcessInfo       type       …modules/supervisors/platform/direct-port-proxy.supervisor.service.ts:101:13
+ManagedWebSupervisorPayload      type       …c/core/modules/supervisors/platform/managed-web-supervisor.service.ts:61:13
+ManagedWebProcessInfo            type       …c/core/modules/supervisors/platform/managed-web-supervisor.service.ts:76:13
+RedisSupervisorPayload           type       …api/src/core/modules/supervisors/platform/redis-supervisor.service.ts:77:13
+RedisProcessInfo                 type       …api/src/core/modules/supervisors/platform/redis-supervisor.service.ts:83:13
+TraefikSupervisorPayload         type       …i/src/core/modules/supervisors/platform/traefik-supervisor.service.ts:82:13
+TraefikProcessInfo               type       …/src/core/modules/supervisors/platform/traefik-supervisor.service.ts:122:13
+BaseSupervisorProcessInfo        type       apps/api/src/core/modules/supervisors/supervisor-process-info.ts:43:13      
+SqliteProcessInfo                type       apps/api/src/core/modules/supervisors/supervisor-process-info.ts:83:13      
+TraefikConfig                    type       apps/api/src/core/modules/traefik/config-builder/builders/index.ts:11:15    
+CompilationOptions               type       apps/api/src/core/modules/traefik/config-builder/builders/index.ts:11:30    
+RuleMatcher                      type       …s/api/src/core/modules/traefik/config-builder/builders/rule-builder.ts:6:13
+VariableType                     type       apps/api/src/core/modules/traefik/config-builder/variables/index.ts:14:8    
+VariableMetadata                 type       apps/api/src/core/modules/traefik/config-builder/variables/index.ts:15:8    
+ValidationError                  type       apps/api/src/core/modules/traefik/config-builder/variables/index.ts:30:8    
+ValidationResult                 type       apps/api/src/core/modules/traefik/config-builder/variables/index.ts:31:8    
+ValidationOptions                type       apps/api/src/core/modules/traefik/config-builder/variables/index.ts:32:8    
+ResolutionOptions                type       apps/api/src/core/modules/traefik/config-builder/variables/index.ts:39:8    
+ResolutionResult                 type       apps/api/src/core/modules/traefik/config-builder/variables/index.ts:40:8    
+TraefikEventContracts            type       apps/api/src/core/modules/traefik/events/traefik-event.contracts.ts:103:13  
+EntrypointConfig                 interface  apps/api/src/core/modules/traefik/interfaces/common.interfaces.ts:135:18    
+ConfigStats                      interface  apps/api/src/core/modules/traefik/interfaces/config.interfaces.ts:96:18     
+IPWhiteListConfig                type       apps/api/src/core/modules/traefik/interfaces/index.ts:23:3                  
+EntrypointConfig                 type       apps/api/src/core/modules/traefik/interfaces/index.ts:24:3                  
+ConfigStats                      type       apps/api/src/core/modules/traefik/interfaces/index.ts:33:3                  
+RuleMatcher                      type       apps/api/src/core/modules/traefik/interfaces/index.ts:40:3                  
+RuleOperator                     type       apps/api/src/core/modules/traefik/interfaces/index.ts:41:3                  
+TcpRouterConfig                  type       apps/api/src/core/modules/traefik/interfaces/index.ts:43:3                  
+UdpRouterConfig                  type       apps/api/src/core/modules/traefik/interfaces/index.ts:44:3                  
+RouterConfig                     type       apps/api/src/core/modules/traefik/interfaces/index.ts:45:3                  
+RoutersConfig                    type       apps/api/src/core/modules/traefik/interfaces/index.ts:46:3                  
+ServicesConfig                   type       apps/api/src/core/modules/traefik/interfaces/index.ts:59:3                  
+AddPrefixConfig                  type       apps/api/src/core/modules/traefik/interfaces/index.ts:66:3                  
+StripPrefixConfig                type       apps/api/src/core/modules/traefik/interfaces/index.ts:67:3                  
+RedirectSchemeConfig             type       apps/api/src/core/modules/traefik/interfaces/index.ts:69:3                  
+RedirectRegexConfig              type       apps/api/src/core/modules/traefik/interfaces/index.ts:70:3                  
+BasicAuthConfig                  type       apps/api/src/core/modules/traefik/interfaces/index.ts:71:3                  
+DigestAuthConfig                 type       apps/api/src/core/modules/traefik/interfaces/index.ts:72:3                  
+ChainConfig                      type       apps/api/src/core/modules/traefik/interfaces/index.ts:74:3                  
+ReplacePathRegexConfig           type       apps/api/src/core/modules/traefik/interfaces/index.ts:76:3                  
+ReplacePathConfig                type       apps/api/src/core/modules/traefik/interfaces/index.ts:77:3                  
+RetryConfig                      type       apps/api/src/core/modules/traefik/interfaces/index.ts:78:3                  
+InFlightReqConfig                type       apps/api/src/core/modules/traefik/interfaces/index.ts:81:3                  
+TcpMiddlewareConfig              type       apps/api/src/core/modules/traefik/interfaces/index.ts:83:3                  
+MiddlewaresConfig                type       apps/api/src/core/modules/traefik/interfaces/index.ts:84:3                  
+ClientAuthType                   type       apps/api/src/core/modules/traefik/interfaces/index.ts:93:3                  
+VariableContext                  type       apps/api/src/core/modules/traefik/interfaces/index.ts:115:3                 
+RegistryStats                    type       apps/api/src/core/modules/traefik/interfaces/index.ts:118:3                 
+CreateConfigFileInput            type       apps/api/src/core/modules/traefik/interfaces/index.ts:144:3                 
+MiddlewareType                   type       apps/api/src/core/modules/traefik/interfaces/index.ts:145:3                 
+HealthStatus                     type       apps/api/src/core/modules/traefik/interfaces/index.ts:147:3                 
+SyncStatus                       type       apps/api/src/core/modules/traefik/interfaces/index.ts:148:3                 
+ServiceTarget                    type       apps/api/src/core/modules/traefik/interfaces/index.ts:157:3                 
+DomainRoute                      type       apps/api/src/core/modules/traefik/interfaces/index.ts:158:3                 
+MiddlewareConfiguration          type       apps/api/src/core/modules/traefik/interfaces/index.ts:160:3                 
+SyncAction                       type       apps/api/src/core/modules/traefik/interfaces/index.ts:161:3                 
+SyncOptions                      type       apps/api/src/core/modules/traefik/interfaces/index.ts:164:3                 
+CleanupResult                    type       apps/api/src/core/modules/traefik/interfaces/index.ts:165:3                 
+ParsedTemplate                   type       apps/api/src/core/modules/traefik/interfaces/index.ts:174:3                 
+TemplateOptions                  type       apps/api/src/core/modules/traefik/interfaces/index.ts:175:3                 
+BuiltInTemplateType              type       apps/api/src/core/modules/traefik/interfaces/index.ts:176:3                 
+TemplateCatalogEntry             type       apps/api/src/core/modules/traefik/interfaces/index.ts:177:3                 
+CreateConfigFileInput            interface  apps/api/src/core/modules/traefik/interfaces/repository.interfaces.ts:153:18
+HealthStatus                     type       apps/api/src/core/modules/traefik/interfaces/repository.interfaces.ts:212:13
+SyncStatus                       type       apps/api/src/core/modules/traefik/interfaces/repository.interfaces.ts:217:13
+RuleMatcher                      type       apps/api/src/core/modules/traefik/interfaces/router.interfaces.ts:18:13     
+RuleOperator                     type       apps/api/src/core/modules/traefik/interfaces/router.interfaces.ts:36:13     
+RouterConfig                     type       apps/api/src/core/modules/traefik/interfaces/router.interfaces.ts:96:13     
+MiddlewareConfiguration          type       apps/api/src/core/modules/traefik/interfaces/sync.interfaces.ts:157:13      
+SyncOptions                      interface  apps/api/src/core/modules/traefik/interfaces/sync.interfaces.ts:227:18      
+CleanupResult                    interface  apps/api/src/core/modules/traefik/interfaces/sync.interfaces.ts:247:18      
+ParsedTemplate                   interface  apps/api/src/core/modules/traefik/interfaces/template.interfaces.ts:41:18   
+TemplateOptions                  interface  apps/api/src/core/modules/traefik/interfaces/template.interfaces.ts:65:18   
+TemplateCatalogEntry             interface  apps/api/src/core/modules/traefik/interfaces/template.interfaces.ts:98:18   
+VariableContext                  type       apps/api/src/core/modules/traefik/interfaces/variable.interfaces.ts:44:13   
+RegistryStats                    interface  apps/api/src/core/modules/traefik/interfaces/variable.interfaces.ts:89:18   
+TriggerPayload                   type       apps/api/src/core/modules/triggers/base-bridge.service.ts:31:13             
+SharedRuntimeOrpcInspector       interface  apps/api/src/e2e/utils/shared-api-runtime/types.ts:148:18                   
+DeploymentSummary                type       …pi/src/modules/deployment/mesh/entities/deployment-resource.entity.ts:52:13
+ListDeploymentsInput             type       …pi/src/modules/deployment/mesh/entities/deployment-resource.entity.ts:53:13
+ResolveDeploymentInput           type       …pi/src/modules/deployment/mesh/entities/deployment-resource.entity.ts:54:13
+SearchDeploymentsInput           type       …pi/src/modules/deployment/mesh/entities/deployment-resource.entity.ts:55:13
+DeploymentStorageUpdateStrategy  type       …api/src/modules/deployment/storage/base/storage-provider.interface.ts:12:13
+DockerEntityKindPayload          type       …es/docker/domains/entity/orchestration/docker-entity-cache.service.ts:92:13
+DockerEntityFlatKindPayload      type       …s/docker/domains/entity/orchestration/docker-entity-cache.service.ts:103:13
+AppInstanceContext               interface  apps/api/src/modules/platform/orpc/middlewares.ts:52:18                     
+RuntimeRunnerKind                type       apps/api/src/modules/providers/base/runtime-runner-options.schema.ts:16:10  
+GithubSourceCheckoutContext      type       apps/api/src/modules/providers/base/source-provider.interface.ts:15:10      
+GitlabSourceCheckoutContext      type       apps/api/src/modules/providers/base/source-provider.interface.ts:16:10      
+UploadSourceCheckoutContext      type       apps/api/src/modules/providers/base/source-provider.interface.ts:17:10      
+CustomSourceCheckoutContext      type       apps/api/src/modules/providers/base/source-provider.interface.ts:18:10      
+DeploymentSourceProvider         interface  apps/api/src/modules/providers/base/source-provider.interface.ts:22:18      
+GithubPushEvent                  interface  …les/providers/code/github/services/github-webhook-dispatch.service.ts:29:18
+RecordListType                   type       …i/src/modules/providers/dns/cloudflare/services/cloudflare.helpers.ts:10:13
+RuntimeRunnerOptions             type       apps/api/src/modules/runners/base/runner-option-policies.schema.ts:26:10    
+DockerfileRunnerOptions          type       apps/api/src/modules/runners/base/runner-option-policies.schema.ts:29:13    
+DockerComposeRunnerOptions       type       apps/api/src/modules/runners/base/runner-option-policies.schema.ts:30:13    
+NixpacksRunnerOptions            type       apps/api/src/modules/runners/base/runner-option-policies.schema.ts:31:13    
+BuildpackRunnerOptions           type       apps/api/src/modules/runners/base/runner-option-policies.schema.ts:32:13    
+RailpackRunnerOptions            type       apps/api/src/modules/runners/base/runner-option-policies.schema.ts:33:13    
+GetUserOutput                    type       apps/api/src/modules/user/repositories/user.repository.ts:18:13             
+LogsViewerProps                  type       apps/web/src/components/atomics/organisms/logs/index.ts:1:31                
+TerminalViewerProfile            type       apps/web/src/components/atomics/organisms/terminal/index.ts:1:15            
+TerminalViewerProps              type       apps/web/src/components/atomics/organisms/terminal/index.ts:1:38            
+StatusTone                       type       apps/web/src/components/dashboard/index.ts:13:94                            
+AdminEndpoints                   type       apps/web/src/domains/admin/endpoints.ts:148:13                              
+DeploymentEndpoints              type       apps/web/src/domains/deployment/endpoints.ts:32:13                          
+DockerEndpoints                  type       apps/web/src/domains/docker/endpoints.ts:79:13                              
+FleetEndpoints                   type       apps/web/src/domains/fleet/endpoints.ts:17:13                               
+GitHubAppEndpoints               type       apps/web/src/domains/github-apps/endpoints.ts:19:13                         
+GitlabAppEndpoints               type       apps/web/src/domains/gitlab/endpoints.ts:9:13                               
+CreatePlatformInvitationInput    type       apps/web/src/domains/invitation/schemas.ts:76:13                            
+ListPlatformInvitationsInput     type       apps/web/src/domains/invitation/schemas.ts:79:13                            
+CheckPlatformInvitationInput     type       apps/web/src/domains/invitation/schemas.ts:82:13                            
+ValidatePlatformInvitationInput  type       apps/web/src/domains/invitation/schemas.ts:85:13                            
+AcceptInvitationInput            type       apps/web/src/domains/invitation/schemas.ts:88:13                            
+RejectInvitationInput            type       apps/web/src/domains/invitation/schemas.ts:89:13                            
+CancelInvitationInput            type       apps/web/src/domains/invitation/schemas.ts:90:13                            
+ManagedWebEndpoints              type       apps/web/src/domains/managed-web/endpoints.ts:28:13                         
+MeshEndpoints                    type       apps/web/src/domains/mesh/endpoints.ts:42:13                                
+Organization                     type       apps/web/src/domains/organization/hooks.ts:299:3                            
+ActiveOrganization               type       apps/web/src/domains/organization/hooks.ts:300:3                            
+OrganizationMember               type       apps/web/src/domains/organization/hooks.ts:301:3                            
+ListOrganizationsInput           type       apps/web/src/domains/organization/schemas.ts:107:13                         
+GetOrganizationInput             type       apps/web/src/domains/organization/schemas.ts:108:13                         
+ListMembersInput                 type       apps/web/src/domains/organization/schemas.ts:109:13                         
+CreateOrganizationInput          type       apps/web/src/domains/organization/schemas.ts:110:13                         
+UpdateOrganizationInput          type       apps/web/src/domains/organization/schemas.ts:111:13                         
+DeleteOrganizationInput          type       apps/web/src/domains/organization/schemas.ts:112:13                         
+InviteMemberInput                type       apps/web/src/domains/organization/schemas.ts:113:13                         
+UpdateMemberRoleInput            type       apps/web/src/domains/organization/schemas.ts:114:13                         
+RemoveMemberInput                type       apps/web/src/domains/organization/schemas.ts:115:13                         
+ListInvitationsInput             type       apps/web/src/domains/organization/schemas.ts:116:13                         
+ListUserInvitationsInput         type       apps/web/src/domains/organization/schemas.ts:117:13                         
+ProjectEndpoints                 type       apps/web/src/domains/project/endpoints.ts:70:13                             
+ProviderSchemaEndpoints          type       apps/web/src/domains/provider-schema/endpoints.ts:19:13                     
+PushEndpoints                    type       apps/web/src/domains/push/endpoints.ts:41:13                                
+ReachabilityEndpoints            type       apps/web/src/domains/reachability/endpoints.ts:29:13                        
+ServiceEndpoints                 type       apps/web/src/domains/service/endpoints.ts:54:13                             
+SetupEndpoints                   type       apps/web/src/domains/setup/endpoints.ts:27:13                               
+UserEndpoints                    type       apps/web/src/domains/user/endpoints.ts:46:13                                
+Context                          type       apps/web/src/lib/orpc/index.ts:105:13                                       
+TimingProps                      type       apps/web/src/lib/timing/index.ts:53:8                                       
+TimingProps                      interface  apps/web/src/lib/timing/server.ts:94:18                                     
+NextPageProps                    interface  apps/web/src/routes/makeRoute.tsx:20:18                                     
+RouteBuilderParams               type       apps/web/src/routes/makeRoute.tsx:257:13                                    
+RouteBuilderSearch               type       apps/web/src/routes/makeRoute.tsx:261:13                                    
+RouteInfo                        type       packages/utils/declarative-routing/src/make-route.tsx:879:5                 
+GetInfo                          type       packages/utils/declarative-routing/src/make-route.tsx:880:5                 
+PostInfo                         type       packages/utils/declarative-routing/src/make-route.tsx:881:5                 
+PutInfo                          type       packages/utils/declarative-routing/src/make-route.tsx:882:5                 
+User                             type       packages/utils/declarative-routing/src/types.ts:11:24                       
+PageComponent                    type       packages/utils/declarative-routing/src/types.ts:195:13                      
+UnwrappedPageComponent           type       packages/utils/declarative-routing/src/types.ts:204:13                      
+CoreRouteElements                type       packages/utils/declarative-routing/src/types.ts:256:13                      
+Duplicate exports (22)
+InternalBaseMeshService|_BaseMeshServiceClass                                …modules/mesh/services/base-mesh.service.ts
+supervisorProbeMetaSchema|baseSupervisorPayloadSchema                        …les/supervisors/base-supervisor.service.ts
+ClientAuthProviders|default                                                  …ders/AuthProviders/ClientAuthProviders.tsx
+defaultConfig|default                                                        packages/configs/vitest/src/base.ts        
+defaultConfig|default                                                        packages/configs/vitest/src/nextjs.ts      
+defaultConfig|default                                                        packages/configs/vitest/src/node.ts        
+defaultConfig|default                                                        packages/configs/vitest/src/react.ts       
+projectBaseEnvironmentConfigSchema|projectPreviewEnvironmentConfigSchema|p…  …onfiguration/project-environment.schema.ts
+meshControlEnvelopeAckSchema|meshControlEnvelopePublishResultSchema          …tities/src/entities/mesh/control.schema.ts
+meshTrustStrictRolloutPlanQuerySchema|meshTrustStrictRolloutPlanInputSchema  …entities/src/entities/mesh/trust.schema.ts
+projectBaseEnvironmentSettingsSchema|projectPreviewEnvironmentSettingsSche…  …es/src/entities/project/settings.schema.ts
+projectDeploymentSettingsSchema|projectDeploymentConfigSchema                …es/src/entities/project/settings.schema.ts
+projectSecuritySettingsSchema|projectSecurityConfigSchema                    …es/src/entities/project/settings.schema.ts
+projectResourceSettingsSchema|projectResourceConfigSchema                    …es/src/entities/project/settings.schema.ts
+projectNotificationSettingsSchema|projectNotificationConfigSchema            …es/src/entities/project/settings.schema.ts
+githubProviderConfigSchema|gitlabProviderConfigSchema|bitbucketProviderCon…  …entities/service/provider-config.schema.ts
+artifactBundleProviderConfigSchema|containerRegistryProviderConfigSchema     …entities/service/provider-config.schema.ts
+MasterTokenProvider|default                                                  …lugins/masterToken/components/provider.tsx
+hasMasterTokenPlugin|default                                                 …th/src/client/plugins/masterToken/guard.ts
+masterTokenClient|default                                                    …th/src/client/plugins/masterToken/index.ts
+DetailedInputBrand|DetailedBrand                                             …ils/orpc/src/builder/core/route-builder.ts
+createListConfig|createFilterConfig                                          …ls/orpc/src/operations/zod/list-builder.ts
+Unused catalog entries (7)
+@types/bun           build     package.json:14:17 
+declarative-routing  next      package.json:42:17 
+zustand              utils     package.json:106:17
+picocolors           utils     package.json:110:17
+drizzle-zod          database  package.json:139:17
+postgres             database  package.json:140:17
+@tanstack/charts     doc       package.json:196:17
+Configuration hints (175)
+**/dist/**                                           knip.config.ts            Remove from ignore                       
+**/.next/**                                          knip.config.ts            Remove from ignore                       
+**/build/**                                          knip.config.ts            Remove from ignore                       
+**/coverage/**                                       knip.config.ts            Remove from ignore                       
+**/.turbo/**                                         knip.config.ts            Remove from ignore                       
+**/node_modules/**                                   knip.config.ts            Remove from ignore                       
+**/*.test.tsx                                        knip.config.ts            Remove from ignore                       
+**/*.spec.tsx                                        knip.config.ts            Remove from ignore                       
+**/.eslintrc.js                                      knip.config.ts            Remove from ignore                       
+**/eslint.config.ts                                  knip.config.ts            Remove from ignore                       
+...12 more similar hints                                                                                                
+@types/node                                          knip.config.ts            Remove from ignoreDependencies           
+@types/react                                         knip.config.ts            Remove from ignoreDependencies           
+@types/react-dom                                     knip.config.ts            Remove from ignoreDependencies           
+typescript                                           knip.config.ts            Remove from ignoreDependencies           
+vite                                                 knip.config.ts            Remove from ignoreDependencies           
+turbo                                                knip.config.ts            Remove from ignoreDependencies           
+eslint                                               knip.config.ts            Remove from ignoreDependencies           
+prettier                                             knip.config.ts            Remove from ignoreDependencies           
+cross-env                                            knip.config.ts            Remove from ignoreDependencies           
+@vitest/ui                                           knip.config.ts            Remove from ignoreDependencies           
+...8 more similar hints                                                                                                 
+docker                                               knip.config.ts            Remove from ignoreBinaries               
+docker-compose                                       knip.config.ts            Remove from ignoreBinaries               
+bun                                                  knip.config.ts            Remove from ignoreBinaries               
+bunx                                                 knip.config.ts            Remove from ignoreBinaries               
+sh                                                   knip.config.ts            Remove from ignoreBinaries               
+src/entrypoint.prod.ts    apps/api                   knip.config.ts            Refine entry pattern (no matches)        
+src/middleware.ts         apps/web                   knip.config.ts            Refine entry pattern (no matches)        
+[src/index.ts, …]         packages/contracts/api     knip.config.ts            Refine entry pattern (no matches)        
+src/index.tsx             …tils/declarative-routing  knip.config.ts            Refine entry pattern (no matches)        
+vitest.config.ts          …tils/declarative-routing  knip.config.ts            Refine entry pattern (no matches)        
+vitest.config.mts         …tils/declarative-routing  knip.config.ts            Refine entry pattern (no matches)        
+src/index.tsx             …kages/contracts/entities  knip.config.ts            Refine entry pattern (no matches)        
+vitest.config.ts          …kages/contracts/entities  knip.config.ts            Refine entry pattern (no matches)        
+src/index.tsx             packages/ui/base           knip.config.ts            Refine entry pattern (no matches)        
+vitest.config.ts          packages/ui/base           knip.config.ts            Refine entry pattern (no matches)        
+...49 more similar hints                                                                                                
+**/*.tsx                                             knip.config.ts            Refine project pattern (no matches)      
+**/*.js                                              knip.config.ts            Refine project pattern (no matches)      
+**/*.jsx                                             knip.config.ts            Refine project pattern (no matches)      
+[src/**/*.ts, …]          packages/contracts/api     knip.config.ts            Refine project pattern (no matches)      
+src/**/*.tsx              …kages/contracts/entities  knip.config.ts            Refine project pattern (no matches)      
+src/**/*.tsx              …/bin/declarative-routing  knip.config.ts            Refine project pattern (no matches)      
+src/**/*.tsx              …es/utils/provider-schema  knip.config.ts            Refine project pattern (no matches)      
+src/**/*.tsx              packages/contracts/common  knip.config.ts            Refine project pattern (no matches)      
+src/**/*.ts               packages/bin/runthenkill   knip.config.ts            Refine project pattern (no matches)      
+src/**/*.tsx              packages/bin/runthenkill   knip.config.ts            Refine project pattern (no matches)      
+...16 more similar hints                                                                                                
+vitest.config.mts                                    knip.config.ts            Remove redundant entry pattern           
+drizzle.config.ts         apps/api                   knip.config.ts            Remove redundant entry pattern           
+vitest.config.mts         apps/api                   knip.config.ts            Remove redundant entry pattern           
+next.config.ts            apps/web                   knip.config.ts            Remove redundant entry pattern           
+vitest.config.mts         apps/web                   knip.config.ts            Remove redundant entry pattern           
+src/index.ts              …tils/declarative-routing  knip.config.ts            Remove redundant entry pattern           
+src/index.ts              …kages/contracts/entities  knip.config.ts            Remove redundant entry pattern           
+vitest.config.mts         …kages/contracts/entities  knip.config.ts            Remove redundant entry pattern           
+src/index.ts              packages/ui/base           knip.config.ts            Remove redundant entry pattern           
+vitest.config.mts         packages/ui/base           knip.config.ts            Remove redundant entry pattern           
+...26 more similar hints                                                                                                
+.css                      apps/web                   knip.config.ts            Compiled extension excluded by project (…
+.css                      packages/ui/base           knip.config.ts            Compiled extension excluded by project (…
+.css                      apps/doc                   knip.config.ts            Compiled extension excluded by project (…
+.css                      packages/configs/tailwind  knip.config.ts            Compiled extension excluded by project (…
+.css                      packages/configs/eslint    knip.config.ts            Compiled extension excluded by project (…
+./src/index.tsx                                      …es/ui/base/package.json  Package entry file not found             
+./src/query/index.ts                                 …utils/orpc/package.json  Package entry file not found             
+./src/hooks/index.ts                                 …utils/orpc/package.json  Package entry file not found             
+./src/test.ts                                        …igs/eslint/package.json  Package entry file not found             

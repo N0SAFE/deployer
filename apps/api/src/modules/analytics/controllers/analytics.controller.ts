@@ -4,6 +4,20 @@ import { appContract } from "@repo/api-contracts";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { AnalyticsService } from "../services/analytics.service";
 
+/**
+ * Analytics controllers.
+ *
+ * ORPC handler input shapes (verified against the contracts + every other
+ * controller in the repo):
+ *   - `.query(schema)`  → `input.query`   (defaults applied by Zod)
+ *   - `.params(...)`    → `input.params.X`
+ *   - `.body(schema)`   → `input.body`
+ *
+ * The previous version destructured `input` directly, which silently ignored
+ * every query param and passed `undefined` for all params/body fields
+ * (e.g. `generateReport(input.period)` crashed because `input` is the
+ * `{ body }` envelope). Each handler below reads the correct slice.
+ */
 @Controller()
 export class AnalyticsController {
     constructor(private readonly analyticsService: AnalyticsService) {}
@@ -13,7 +27,7 @@ export class AnalyticsController {
         return implement(appContract.analytics.getResourceMetrics)
             .use(requireAuth())
             .handler(({ input }) => {
-                const { timeRange = "1d", granularity = "hour", services } = input ?? {};
+                const { timeRange = "1d", granularity = "hour", services } = input.query ?? {};
                 return this.analyticsService.getResourceMetrics(timeRange, granularity, services);
             });
     }
@@ -23,7 +37,7 @@ export class AnalyticsController {
         return implement(appContract.analytics.getApplicationMetrics)
             .use(requireAuth())
             .handler(({ input }) => {
-                const { timeRange = "1d", granularity = "hour", services } = input ?? {};
+                const { timeRange = "1d", granularity = "hour", services } = input.query ?? {};
                 return this.analyticsService.getApplicationMetrics(timeRange, granularity, services);
             });
     }
@@ -33,7 +47,7 @@ export class AnalyticsController {
         return implement(appContract.analytics.getDatabaseMetrics)
             .use(requireAuth())
             .handler(({ input }) => {
-                const { timeRange = "1d", granularity = "hour", services } = input ?? {};
+                const { timeRange = "1d", granularity = "hour", services } = input.query ?? {};
                 return this.analyticsService.getDatabaseMetrics(timeRange, granularity, services);
             });
     }
@@ -43,7 +57,7 @@ export class AnalyticsController {
         return implement(appContract.analytics.getDeploymentMetrics)
             .use(requireAuth())
             .handler(({ input }) => {
-                const { timeRange = "1d", granularity = "hour", services } = input ?? {};
+                const { timeRange = "1d", granularity = "hour", services } = input.query ?? {};
                 return this.analyticsService.getDeploymentMetrics(timeRange, granularity, services);
             });
     }
@@ -52,14 +66,14 @@ export class AnalyticsController {
     getServiceHealth() {
         return implement(appContract.analytics.getServiceHealth)
             .use(requireAuth())
-            .handler(({ input }) => this.analyticsService.getServiceHealth(input?.services));
+            .handler(({ input }) => this.analyticsService.getServiceHealth(input.query?.services));
     }
 
     @Implement(appContract.analytics.getRealTimeMetrics)
     getRealTimeMetrics() {
         return implement(appContract.analytics.getRealTimeMetrics)
             .use(requireAuth())
-            .handler(({ input }) => this.analyticsService.getRealTimeMetrics(input?.services));
+            .handler(({ input }) => this.analyticsService.getRealTimeMetrics(input.query?.services));
     }
 
     @Implement(appContract.analytics.getResourceUsage)
@@ -67,7 +81,7 @@ export class AnalyticsController {
         return implement(appContract.analytics.getResourceUsage)
             .use(requireAuth())
             .handler(({ input }) => {
-                const { timeRange = "1d", resource = "all", aggregation = "average" } = input ?? {};
+                const { timeRange = "1d", resource = "all", aggregation = "average" } = input.query ?? {};
                 return this.analyticsService.getResourceUsage(timeRange, resource, aggregation);
             });
     }
@@ -84,7 +98,7 @@ export class AnalyticsController {
                     resource,
                     limit = 100,
                     offset = 0,
-                } = input ?? {};
+                } = input.query ?? {};
 
                 return this.analyticsService.getUserActivity(
                     timeRange,
@@ -102,7 +116,7 @@ export class AnalyticsController {
         return implement(appContract.analytics.getActivitySummary)
             .use(requireAuth())
             .handler(({ input }) => {
-                const { period = "day", granularity = "day", limit = 30 } = input ?? {};
+                const { period = "day", granularity = "day", limit = 30 } = input.query ?? {};
                 return this.analyticsService.getActivitySummary(period, granularity, limit);
             });
     }
@@ -112,7 +126,7 @@ export class AnalyticsController {
         return implement(appContract.analytics.getApiUsage)
             .use(requireAuth())
             .handler(({ input }) => {
-                const { timeRange = "1d", groupBy = "endpoint", limit = 20 } = input ?? {};
+                const { timeRange = "1d", groupBy = "endpoint", limit = 20 } = input.query ?? {};
                 return this.analyticsService.getApiUsage(timeRange, groupBy, limit);
             });
     }
@@ -122,7 +136,7 @@ export class AnalyticsController {
         return implement(appContract.analytics.getDeploymentUsage)
             .use(requireAuth())
             .handler(({ input }) => {
-                const { timeRange = "30d", projectId, userId } = input ?? {};
+                const { timeRange = "30d", projectId, userId } = input.query ?? {};
                 return this.analyticsService.getDeploymentUsage(timeRange, projectId, userId);
             });
     }
@@ -132,7 +146,7 @@ export class AnalyticsController {
         return implement(appContract.analytics.getStorageUsage)
             .use(requireAuth())
             .handler(({ input }) => {
-                const { timeRange = "30d", breakdown = "project" } = input ?? {};
+                const { timeRange = "30d", breakdown = "project" } = input.query ?? {};
                 return this.analyticsService.getStorageUsage(timeRange, breakdown);
             });
     }
@@ -141,14 +155,16 @@ export class AnalyticsController {
     generateReport() {
         return implement(appContract.analytics.generateReport)
             .use(requireAuth())
-            .handler(({ input }) => this.analyticsService.generateReport(input.period, input.format));
+            .handler(({ input }) =>
+                this.analyticsService.generateReport(input),
+            );
     }
 
     @Implement(appContract.analytics.getReport)
     getReport() {
         return implement(appContract.analytics.getReport)
             .use(requireAuth())
-            .handler(({ input }) => this.analyticsService.getReport(input.reportId));
+            .handler(({ input }) => this.analyticsService.getReport(input.params.reportId));
     }
 
     @Implement(appContract.analytics.listReports)
@@ -156,8 +172,8 @@ export class AnalyticsController {
         return implement(appContract.analytics.listReports)
             .use(requireAuth())
             .handler(({ input }) => {
-                const { limit = 20, offset = 0 } = input ?? {};
-                return this.analyticsService.listReports(limit, offset);
+                const { status, limit = 20, offset = 0 } = input.query ?? {};
+                return this.analyticsService.listReports(limit, offset, status);
             });
     }
 
@@ -165,29 +181,31 @@ export class AnalyticsController {
     deleteReport() {
         return implement(appContract.analytics.deleteReport)
             .use(requireAuth())
-            .handler(({ input }) => this.analyticsService.deleteReport(input.reportId));
+            .handler(({ input }) => this.analyticsService.deleteReport(input.params.reportId));
     }
 
     @Implement(appContract.analytics.downloadReport)
     downloadReport() {
         return implement(appContract.analytics.downloadReport)
             .use(requireAuth())
-            .handler(({ input }) => this.analyticsService.downloadReport(input.reportId));
+            .handler(({ input }) => this.analyticsService.downloadReport(input.params.reportId));
     }
 
     @Implement(appContract.analytics.createReportConfig)
     createReportConfig() {
         return implement(appContract.analytics.createReportConfig)
             .use(requireAuth())
-            .handler(({ input }) => this.analyticsService.createReportConfig(input));
+            .handler(({ input }) =>
+                this.analyticsService.createReportConfig(input),
+            );
     }
 
     @Implement(appContract.analytics.listReportConfigs)
     listReportConfigs() {
         return implement(appContract.analytics.listReportConfigs)
             .use(requireAuth())
-            .handler(({ input }) => {
-                const { limit = 20, offset = 0 } = input ?? {};
+            .handler(({ input: { query } }) => {
+                const { limit = 20, offset = 0 } = query ?? {};
                 return this.analyticsService.listReportConfigs(limit, offset);
             });
     }
@@ -196,16 +214,15 @@ export class AnalyticsController {
     updateReportConfig() {
         return implement(appContract.analytics.updateReportConfig)
             .use(requireAuth())
-            .handler(({ input }) => {
-                const { configId, ...updates } = input;
-                return this.analyticsService.updateReportConfig(configId, updates);
-            });
+            .handler(({ input }) =>
+                this.analyticsService.updateReportConfig(input.params.configId, input.body ?? {}),
+            );
     }
 
     @Implement(appContract.analytics.deleteReportConfig)
     deleteReportConfig() {
         return implement(appContract.analytics.deleteReportConfig)
             .use(requireAuth())
-            .handler(({ input }) => this.analyticsService.deleteReportConfig(input.configId));
+            .handler(({ input }) => this.analyticsService.deleteReportConfig(input.params.configId));
     }
 }

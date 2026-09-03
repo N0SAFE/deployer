@@ -140,8 +140,7 @@ export class SystemMeshConfigService implements OnModuleInit {
      * Source of truth priority for nodeServerUrl:
      *   1. Existing row in NodeMeshConfigRepository (written by setup or admin)
      *   2. APP_URL env var (canonical public URL of this node)
-     *   3. MESH_NODE_SERVER_URL env var (legacy / explicit override)
-     *   4. null (node will be unreachable from peers until configured)
+     *   3. null (node will be unreachable from peers until configured)
      *
      * Source of truth priority for bootstrapPeers:
      *   1. Existing row in NodeMeshConfigRepository
@@ -164,16 +163,9 @@ export class SystemMeshConfigService implements OnModuleInit {
         const now = new Date().toISOString()
 
         // ── nodeServerUrl ────────────────────────────────────────────────────
-        // Prefer APP_URL (canonical), then legacy MESH_NODE_SERVER_URL env var
+        // APP_URL is the canonical public URL of this node.
         const appUrl = this.envService.get('APP_URL')?.trim()
-        const legacyServerUrl = this.envService
-            .get('MESH_NODE_SERVER_URL')
-            ?.trim()
-        const nodeServerUrl = appUrl?.length
-            ? appUrl
-            : legacyServerUrl?.length
-              ? legacyServerUrl
-              : null
+        const nodeServerUrl = appUrl?.length ? appUrl : null
 
         // ── bootstrapPeers ───────────────────────────────────────────────────
         // Prefer meshUrlsSnapshot from NodeConfigRepository (set by setup wizard),

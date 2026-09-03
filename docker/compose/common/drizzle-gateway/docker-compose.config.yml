@@ -1,0 +1,16 @@
+# =====================================================================
+# Drizzle Gateway BASE config — INCLUDE-ONLY (real base: image, ports,
+# store volume). Reaches DBs over the shared network by alias. Host port
+# defaults to 4984 (4983 collides with api-dev drizzle-studio).
+# =====================================================================
+services:
+  drizzle-gateway:
+    image: ghcr.io/drizzle-team/gateway:latest
+    restart: unless-stopped
+    environment:
+      PORT: "4983"
+      MASTERPASS: ${DRIZZLE_GATEWAY_MASTERPASS:-change-me}
+    ports:
+      - "${DRIZZLE_GATEWAY_PORT:-4984}:4983"
+    volumes:
+      - drizzle-gateway:/app

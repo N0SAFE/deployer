@@ -102,7 +102,7 @@ export interface MeshJoinDescriptor<
   /**
    * The actual right-side builder.
    * Typed as MeshQueryBuilder<unknown, TRight> so the executor can call
-   * .execute() and get back TRight[].
+   * .request() and get back TRight[].
    */
   readonly builder: MeshQueryBuilder<unknown, TRight>;
   /**
@@ -210,8 +210,9 @@ export class MeshJoinConfigurator<
     readonly on: (left: TLeft, right: TRight) => boolean;
   } {
     if (this._on === null) {
-      throw new Error(
+      throw new AppError(
         `MeshJoinConfigurator: .on() predicate is required before calling .build().`,
+        "INTERNAL_ERROR",
       );
     }
     return {
@@ -226,6 +227,7 @@ export class MeshJoinConfigurator<
 
 import type { BoundMeshQuery } from "../../../mesh-entity";
 
+import { AppError } from "@repo/errors";
 /**
  * A fully typed query method reference produced by meshEntity().
  * This is an alias for BoundMeshQuery to ensure consistency.
@@ -294,7 +296,6 @@ export interface MeshQueryBuilderState<TItem, TResultShape> {
 // ─── Scope options ────────────────────────────────────────────────────────────
 
 export interface MeshQueryScopeOptions {
-  readonly organizationId?: string | null;
   readonly broadcastAll?: boolean;
   readonly timeoutMs?: number;
   readonly strategy?: MeshQueryStrategy;

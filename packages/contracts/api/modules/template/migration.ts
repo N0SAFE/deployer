@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
     templateVersionMigrationApplyInputSchema,
     templateVersionMigrationApplyResultSchema,
@@ -26,6 +26,7 @@ export const templateListVersionMigrationsContract = templateVersionMigrationLis
     .path("/version-migrations")
     .input((b) => b.query(templateVersionMigrationListInputSchema))
     .output(templateVersionMigrationListResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const templatePreviewVersionMigrationContract = templateVersionMigrationPreviewOps
@@ -33,6 +34,7 @@ export const templatePreviewVersionMigrationContract = templateVersionMigrationP
     .path("/version-migrations/preview")
     .input((b) => b.body(templateVersionMigrationPreviewInputSchema))
     .output(templateVersionMigrationPreviewResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const templateApplyVersionMigrationContract = templateVersionMigrationApplyOps
@@ -40,4 +42,5 @@ export const templateApplyVersionMigrationContract = templateVersionMigrationApp
     .path("/version-migrations/apply")
     .input((b) => b.body(templateVersionMigrationApplyInputSchema))
     .output(templateVersionMigrationApplyResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

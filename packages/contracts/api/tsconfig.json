@@ -25,6 +25,6 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["**/*", "modules", "index.ts", "common"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*", "modules/**/*", "common/**/*", "index.ts", "types.ts"],
+  "exclude": ["node_modules", "dist", ".turbo", "scripts", "*.txt"]
 }

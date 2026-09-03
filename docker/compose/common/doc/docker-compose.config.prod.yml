@@ -1,0 +1,21 @@
+# =====================================================================
+# Doc PROD variant — INCLUDE-ONLY (real base: prod build).
+# =====================================================================
+services:
+  doc:
+    restart: unless-stopped
+    build:
+      context: ../../../../
+      dockerfile: ./docker/builder/doc/Dockerfile.doc.runtime.prod
+      args:
+        - NODE_ENV=production
+        - BUILDKIT_INLINE_CACHE=1
+    ports:
+      - "${NEXT_PUBLIC_DOC_PORT:-3020}:3020"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_DOC_URL: ${NEXT_PUBLIC_DOC_URL:-http://localhost:${NEXT_PUBLIC_DOC_PORT:-3020}}
+      NEXT_PUBLIC_DOC_PORT: ${NEXT_PUBLIC_DOC_PORT:-3020}
+    volumes:
+      - bun_cache_prod:/root/.bun/install/cache
+      - turbo_cache_prod:/root/.cache/turbo

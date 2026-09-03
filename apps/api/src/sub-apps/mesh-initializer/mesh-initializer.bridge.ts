@@ -1,4 +1,4 @@
-import { z } from 'zod/v4';
+import z from 'zod/v4';
 import { createResultBridge } from '@/core/modules/sub-app-runner/bridge.utils';
 import type { BaseTriggerService } from '@/core/modules/triggers/base-bridge.service';
 

@@ -1,6 +1,6 @@
 import z from "zod/v4";
 import { oc } from "@orpc/contract";
-import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
+import { createFilterConfig, standard, standardDomainErrorContracts, type ComputeInputSchema } from "@repo/orpc-utils";
 import {
     coreEventStreamDefinitionSchema,
     coreEventScopeSchema,
@@ -48,10 +48,22 @@ const coreEventStreamListConfig = createFilterConfig(coreEventStreamOps)
     .buildConfig();
 
 export const coreEventStreamListConfigSchemas = coreEventStreamListConfig;
-export const coreEventStreamListContract = coreEventStreamOps.list(coreEventStreamListConfig).build();
+export const coreEventStreamListContract = coreEventStreamOps
+    .list(coreEventStreamListConfig)
+    .errors((e) => [
+        // 403 when the caller lacks stream visibility.
+        ...standardDomainErrorContracts(e),
+    ])
+    .build();
 export type CoreEventStreamListInput = ComputeInputSchema<typeof coreEventStreamListConfigSchemas>;
 
-export const coreEventStreamFindByIdContract = coreEventStreamOps.read().build();
+export const coreEventStreamFindByIdContract = coreEventStreamOps
+    .read()
+    .errors((e) => [
+        // 404 for unknown stream id.
+        ...standardDomainErrorContracts(e),
+    ])
+    .build();
 
 const coreStreamReplayQuerySchema = z.object({
     replay: z.coerce.boolean().default(true),
@@ -68,6 +80,10 @@ export const coreEventSyncStreamContract = coreEventSyncStreamOps
             .query(coreStreamReplayQuerySchema),
     )
     .output((b) => b.observable(coreSyncedEventEnvelopeSchema))
+    .errors((e) => [
+        // 404 for unknown stream id; 403 when not a mesh peer.
+        ...standardDomainErrorContracts(e),
+    ])
     .build();
 
 export const eventSyncContract = oc.tag("Core Event Sync").prefix("/events").router({

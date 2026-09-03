@@ -20,6 +20,7 @@ import {
 import { isExpression, type MeshWhereExpression } from "./mesh-where-expression";
 import { MeshResourceSubQueryBuilder } from "./mesh-resource-sub-query-builder";
 
+import { AppError } from "@repo/errors";
 // ─── Guard interne ────────────────────────────────────────────────────────────
 
 function isMeshResourceOfKind<TKind extends MeshResourceKind>(
@@ -73,9 +74,9 @@ export class MeshResourceQueryBuilder<
     ): MeshResourceQueryBuilder<MeshResourceOfKind<TKind>, MeshResourceOfKind<TKind>> {
         const parser = (candidate: MeshResourceLocation): MeshResourceOfKind<TKind> => {
             if (!isMeshResourceOfKind(candidate, kind)) {
-                throw new Error(
+                throw new AppError(
                     `Mesh candidate kind mismatch: expected '${kind}', got '${candidate.kind}'.`,
-                );
+"INTERNAL_ERROR");
             }
             return candidate;
         };
@@ -137,9 +138,9 @@ export class MeshResourceQueryBuilder<
         ): SchemaRecordOutput<TSchema> & MeshResourceLocation => {
             const parsed = schema.safeParse(candidate);
             if (!parsed.success) {
-                throw new Error(
+                throw new AppError(
                     `Mesh candidate does not satisfy selected schema: ${parsed.error.message}`,
-                );
+"INTERNAL_ERROR");
             }
             return parsed.data as SchemaRecordOutput<TSchema> & MeshResourceLocation;
         };
@@ -283,14 +284,11 @@ export class MeshResourceQueryBuilder<
      */
     autoRegister(input: MeshResourceAutoRegisterInput): this {
         const localNode = this.topologyService.getLocalNode();
-        const organizationId = input.organizationId ?? this.state.organizationId;
 
         this.topologyService.upsertResourceIndex({
-            organizationId,
             sourceNodeId: localNode.nodeId,
             replaceExistingForSource: false,
             resources: [{
-                organizationId,
                 kind: this.kind,
                 key: input.key,
                 ownerNodeId: localNode.nodeId,
@@ -314,14 +312,14 @@ export class MeshResourceQueryBuilder<
 
     lookupRaw(): MeshResourceLookupResult {
         if (!this.state.key) {
-            throw new Error(
+            throw new AppError(
                 "Mesh resource query requires a key. " +
                 "Use where(eq(fields.key, ...)) or where({ key: ... }).",
+                "INTERNAL_ERROR",
             );
         }
 
         const initial = this.topologyService.lookupResource({
-            organizationId: this.state.organizationId,
             kind: this.kind,
             key: this.state.key,
             includeCandidates: this.state.includeCandidates,
@@ -345,7 +343,6 @@ export class MeshResourceQueryBuilder<
         return {
             found: filtered.length > 0,
             query: {
-                organizationId: this.state.organizationId,
                 kind: this.kind,
                 key: this.state.key,
                 includeCandidates: this.state.includeCandidates,

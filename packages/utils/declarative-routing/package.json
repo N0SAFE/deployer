@@ -23,13 +23,13 @@
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix",
-        "type-check": "tsgo --noEmit"
+        "lint": "eslint . --fix --cache --concurrency=auto",
+        "type-check": "tsc --noEmit"
     },
     "dependencies": {
         "@repo/type-guards": "*",
         "nuqs": "catalog:web",
-        "query-string": "^9.0.0",
+        "query-string": "catalog:utils",
         "zod": "catalog:utils"
     },
     "peerDependencies": {
@@ -37,7 +37,7 @@
         "@tanstack/react-query": ">=5.0.0",
         "next": ">=16.1.2",
         "nprogress": ">=0.2.0",
-        "react": ">=18.0.0"
+        "react": ">=19.2.8"
     },
     "peerDependenciesMeta": {
         "@tanstack/react-query": {
@@ -54,10 +54,10 @@
         "@repo/config-eslint": "*",
         "@repo/config-prettier": "*",
         "@repo/config-typescript": "*",
-        "@types/nprogress": "^0.2.3",
+        "@types/nprogress": "catalog:web",
         "@types/react": "catalog:react",
         "eslint": "catalog:linting",
-        "@typescript/native-preview": "catalog:build",
-        "server-only": "^0.0.1"
+        "server-only": "catalog:utils",
+        "typescript": "catalog:build"
     }
 }

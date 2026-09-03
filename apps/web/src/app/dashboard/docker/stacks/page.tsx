@@ -30,7 +30,7 @@ import {
 } from '@repo/ui/components/shadcn/table'
 import { Separator } from '@repo/ui/components/shadcn/separator'
 import { Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
-import { useSafeQueryStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
+import { useSafeQueryParamStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
 
 const STACK_LIST_INPUT = {
   query: {
@@ -73,7 +73,7 @@ function toBadgeVariant(status: string): 'default' | 'secondary' | 'destructive'
 }
 
 export default function DashboardDockerStacksPage() {
-  const [listQuery, setListQuery] = useSafeQueryStatesFromZod(STACK_LIST_QUERY_SCHEMA)
+  const [listQuery, setListQuery] = useSafeQueryParamStatesFromZod(STACK_LIST_QUERY_SCHEMA)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [expandedStackIds, setExpandedStackIds] = useState<Set<string>>(new Set())
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
@@ -206,7 +206,7 @@ export default function DashboardDockerStacksPage() {
                 ]}
               />
 
-              <select
+              <select aria-label="Sort: Services"
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={sortBy}
                 onChange={(event) => {
@@ -219,7 +219,7 @@ export default function DashboardDockerStacksPage() {
                 <option value="name">Sort: Name</option>
               </select>
 
-              <select
+              <select aria-label="Desc"
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={sortDirection}
                 onChange={(event) => {

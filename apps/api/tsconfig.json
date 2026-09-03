@@ -3,21 +3,28 @@
   "compilerOptions": {
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    "jsx": "react-jsx",
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "rootDir": "./",
     "outDir": "./dist",
-    "types": ["node", "bun-types"],
+    "types": [
+      "node",
+      "bun-types",
+      "vitest/globals",
+      "vite/client"
+    ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
   "include": [
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "vitest.config.mts",
-    "node_modules",
-    "dist",
-    "../../packages/**",
-    "../../apps/web/**"
+    "src/**/*.ts",
+    "src/**/*.tsx"
   ]
 }

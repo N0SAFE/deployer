@@ -4,12 +4,14 @@ import { filter, type Observable } from "rxjs";
 import type { SystemMeshTopicService } from "./system-mesh-topic/orchestrator/system-mesh-topic.service";
 import type { MeshTopicNamespaceHandle } from "./system-mesh-topic/domain/mesh-topic-types";
 import type { SystemMeshTopologyService } from "./system-mesh-topology/orchestrator/system-mesh-topology.service";
-import type { EventContracts, EventInput, EventOutput } from "@/core/modules/events/event-contract.builder";
+import type { EventContracts, EventInput, EventOutput } from "@repo/nest-events";
 import type { AnyMeshEntity, MeshEntityItem } from "../mesh-entity";
 import type { AnyMeshQuery } from "../mesh-query";
 import type { AnyMeshMutation } from "../mesh-mutation";
+import type { MeshOperation } from "../primitives";
 import * as z from "zod/v4";
 
+import { AppError } from "@repo/errors";
 // ─── Entity accessor helpers ──────────────────────────────────────────────────
 //
 // Support two entity shapes:
@@ -74,7 +76,6 @@ function buildEntityOperationContracts(
 ): Record<string, { input: z.ZodType; output: z.ZodType }> {
   const prefix = `${namespace}:${entityKey}:${operationKey}`;
   const correlationSchema = z.object({
-    organizationId: z.string().nullable().optional(),
     correlationId: z.string().optional(),
   });
 
@@ -160,7 +161,6 @@ export interface MeshEntityChangeEvent<TItem> {
   readonly item: TItem;
   readonly previous: TItem | null;
   readonly sourceNodeId: string;
-  readonly organizationId: string | null;
   readonly timestamp: string;
 }
 
@@ -168,7 +168,6 @@ export interface MeshEntityChangeEvent<TItem> {
 
 export interface MeshCallManyOptions<TResponse> {
   readonly timeoutMs?: number;
-  readonly organizationId?: string | null;
   readonly stopWhen?: (response: TResponse, collected: readonly TResponse[]) => boolean;
   readonly maxCollectedResponses?: number;
 }
@@ -228,7 +227,7 @@ export abstract class InternalBaseMeshService<
 > {
   protected readonly logger: Logger;
 
-  private handle: RequireHandle<TContracts> | null = null;
+  protected handle: RequireHandle<TContracts> | null = null;
   private readonly cleanupHandlers: UnsubscribeFn[] = [];
   private readonly cancelledCorrelations = new Set<string>();
 
@@ -334,7 +333,7 @@ export abstract class InternalBaseMeshService<
     entityKey: TEntityKey,
     method: TMethod,
     handler: MeshQueryHandler<TRequest, TResponse>,
-    options?: { organizationId?: string | null },
+    options?: Record<string, never>,
   ): void {
     const reqTopic = this.deriveRequestTopic(entityKey, method);
     const resTopic = this.deriveResponseTopic(entityKey, method);
@@ -366,7 +365,7 @@ export abstract class InternalBaseMeshService<
     entityKey: TEntityKey,
     method: TMethod,
     handler: MeshMutationHandler<TInput, TResult>,
-    options?: { organizationId?: string | null },
+    options?: Record<string, never>,
   ): void {
     const reqTopic = this.deriveRequestTopic(entityKey, method);
     const resTopic = this.deriveResponseTopic(entityKey, method);
@@ -396,7 +395,6 @@ export abstract class InternalBaseMeshService<
     payload: {
       readonly item: TItem;
       readonly previous: TItem | null;
-      readonly organizationId?: string | null;
     },
   ): void {
     const changeTopic = this.deriveChangeTopic(entityKey);
@@ -408,17 +406,13 @@ export abstract class InternalBaseMeshService<
       item: payload.item,
       previous: payload.previous,
       sourceNodeId: localNode.nodeId,
-      organizationId: payload.organizationId ?? null,
       timestamp: new Date().toISOString(),
     };
 
     this.requireHandle().publish(
       changeTopic,
-      { organizationId: payload.organizationId ?? null } as EventInput<
-        TContracts[keyof TContracts]
-      >,
+      {} as EventInput<TContracts[keyof TContracts]>,
       event as EventOutput<TContracts[keyof TContracts]>,
-      { organizationId: payload.organizationId ?? null },
     );
   }
 
@@ -431,15 +425,13 @@ export abstract class InternalBaseMeshService<
     TItem extends MeshEntityItem<TEntities[TEntityKey]>,
   >(
     entityKey: TEntityKey,
-    options?: { organizationId?: string | null },
+    options?: Record<string, never>,
   ): Observable<MeshEntityChangeEvent<TItem>> {
     const changeTopic = this.deriveChangeTopic(entityKey);
 
     return this.requireHandle().observe$(
-      changeTopic ,
-      { organizationId: options?.organizationId ?? null } as EventInput<
-        TContracts[keyof TContracts]
-      >,
+      changeTopic,
+      {} as EventInput<TContracts[keyof TContracts]>,
     );
   }
 
@@ -473,7 +465,7 @@ export abstract class InternalBaseMeshService<
 
   // ─── Low-level topic-based callMany ─────────────────────────────────────
 
-  private async callManyOnTopics<TRequest, TResponse>(
+  protected async callManyOnTopics<TRequest, TResponse>(
     requestTopic: keyof TContracts,
     responseTopic: keyof TContracts,
     cancelTopic: keyof TContracts,
@@ -484,7 +476,6 @@ export abstract class InternalBaseMeshService<
     const localNode = this.meshTopologyService.getLocalNode();
 
     const correlationId = randomUUID();
-    const organizationId = options?.organizationId ?? null;
     const timeoutMs = options?.timeoutMs ?? 1_500;
     const maxCollectedResponses =
       typeof options?.maxCollectedResponses === "number" &&
@@ -516,7 +507,7 @@ export abstract class InternalBaseMeshService<
       const responseSubscription = mesh
         .observe$(
           responseTopic,
-          { organizationId, correlationId } as EventInput<TContracts[keyof TContracts]>,
+          { correlationId } as EventInput<TContracts[keyof TContracts]>,
         )
         .pipe(
           filter((event) => {
@@ -553,7 +544,7 @@ export abstract class InternalBaseMeshService<
           if (explicitStop || predicateStop || expectedReached) {
             stoppedEarly = true;
             reason = "killer_switch";
-            this.broadcastCancel(cancelTopic, correlationId, organizationId, "caller_stop");
+            this.broadcastCancel(cancelTopic, correlationId, "caller_stop");
             clearTimeout(timeout);
             responseSubscription.unsubscribe();
             resolve();
@@ -575,9 +566,9 @@ export abstract class InternalBaseMeshService<
 
       mesh.publish(
         requestTopic,
-        { organizationId, correlationId } as EventInput<TContracts[keyof TContracts]>,
+        { correlationId } as EventInput<TContracts[keyof TContracts]>,
         requestEnvelope as unknown as EventOutput<TContracts[keyof TContracts]>,
-        { organizationId },
+        {},
       );
     });
 
@@ -604,17 +595,16 @@ export abstract class InternalBaseMeshService<
     requestTopic: keyof TContracts,
     responseTopic: keyof TContracts,
     cancelTopic: keyof TContracts,
-    options: { organizationId?: string | null },
+    options: Record<string, never>,
     handler: MeshQueryHandler<TRequest, TResponse>,
   ): void {
     const mesh = this.requireHandle();
     const localNode = this.meshTopologyService.getLocalNode();
-    const scopedOrganizationId = options.organizationId ?? null;
 
     const cancelSub = mesh
       .observe$(
         cancelTopic,
-        { organizationId: scopedOrganizationId } as EventInput<TContracts[keyof TContracts]>,
+        {} as EventInput<TContracts[keyof TContracts]>,
       )
       .subscribe((event) => {
         const envelope = event as unknown as MeshCancelEnvelope;
@@ -624,7 +614,7 @@ export abstract class InternalBaseMeshService<
     const requestSub = mesh
       .observe$(
         requestTopic,
-        { organizationId: scopedOrganizationId } as EventInput<TContracts[keyof TContracts]>,
+        {} as EventInput<TContracts[keyof TContracts]>,
       )
       .subscribe((event) => {
         const request = event as unknown as MeshRequestEnvelope<TRequest>;
@@ -652,20 +642,17 @@ export abstract class InternalBaseMeshService<
             mesh.publish(
               responseTopic,
               {
-                organizationId: scopedOrganizationId,
                 correlationId: request.correlationId,
               } as EventInput<TContracts[keyof TContracts]>,
               response as unknown as EventOutput<TContracts[keyof TContracts]>,
-              { organizationId: scopedOrganizationId },
             );
 
             if (result.stopPropagation) {
-              this.broadcastCancel(
-                cancelTopic,
-                request.correlationId,
-                scopedOrganizationId,
-                "handler_stop",
-              );
+            this.broadcastCancel(
+              cancelTopic,
+              request.correlationId,
+              "handler_stop",
+            );
             }
           })
           .catch((err: unknown) => {
@@ -685,7 +672,6 @@ export abstract class InternalBaseMeshService<
   private broadcastCancel(
     cancelTopic: keyof TContracts,
     correlationId: string,
-    organizationId: string | null,
     reason: MeshCancelEnvelope["reason"],
   ): void {
     const mesh = this.requireHandle();
@@ -702,9 +688,9 @@ export abstract class InternalBaseMeshService<
 
     mesh.publish(
       cancelTopic,
-      { organizationId, correlationId } as EventInput<TContracts[keyof TContracts]>,
+      { correlationId } as EventInput<TContracts[keyof TContracts]>,
       envelope as unknown as EventOutput<TContracts[keyof TContracts]>,
-      { organizationId },
+      {},
     );
   }
 
@@ -726,9 +712,10 @@ export abstract class InternalBaseMeshService<
 
   private requireHandle(): RequireHandle<TContracts> {
     if (!this.handle) {
-      throw new Error(
+      throw new AppError(
         `Mesh namespace '${this.namespace}' is not initialized. ` +
         `Ensure onModuleInit() has been called.`,
+        "INTERNAL_ERROR",
       );
     }
     return this.handle;

@@ -45,6 +45,7 @@ import { MeshQueryBuilder } from "../services/system-mesh-resource-discovery/que
 import type { MeshQueryRef } from "../services/system-mesh-resource-discovery/query/mesh-query-builder-types";
 import { MeshResourceDispatcher } from "../dispatcher/mesh-resource-dispatcher.service";
 
+import { NotFoundError } from "@repo/errors";
 @Injectable()
 export abstract class MeshResourceService<
   TEntity extends AnyMeshEntity = AnyMeshEntity,
@@ -84,7 +85,7 @@ export abstract class MeshResourceService<
             this.buildQueryRef(methodName),
           );
           const result = await builder
-            .scope({ organizationId: (input as any)?.organizationId })
+            .scope({})
             .request();
           return result;
         },
@@ -228,7 +229,7 @@ export abstract class MeshResourceService<
     const mutations = this.entity.mutations as unknown as Record<string, MeshQuery<any, any>>;
     const operation = queries[methodName] ?? mutations[methodName];
     if (!operation) {
-      throw new Error(`Operation '${methodName}' not found on entity '${this.entityKey}'`);
+      throw new NotFoundError(`Operation '${methodName}' not found on entity '${this.entityKey}'`);
     }
     return {
       inputSchema: operation.inputSchema,

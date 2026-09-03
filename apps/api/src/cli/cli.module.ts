@@ -23,25 +23,31 @@ const logger = new Logger('CLIModule');
 
 /**
  * Resolve the database URL for CLI commands.
- * CLI reads from SETUP_DATABASE_URL env var first (for setup/bootstrap),
- * then falls back to the local SQLite node_config (populated by Phase 0).
+ *
+ * Priority:
+ *   1. Local SQLite node_config (populated by Phase 0 dev bootstrap or setup-db CLI)
+ *   2. SETUP_DATABASE_URL env var (fallback for first-run CLI bootstrap commands)
+ *   3. Empty string (will fail on first query — the CLI command handles the error)
+ *
+ * The main app NEVER reads SETUP_DATABASE_URL. CLI is the only exception because
+ * bootstrap commands (setup-db, migrate) may need to run before Phase 0 has run.
  */
 function resolveCliDatabaseUrl(envService: EnvService, nodeConfig: NodeConfigRepository): string {
-  // 1. SETUP_DATABASE_URL env var (for CLI bootstrap commands)
-  const envUrl = envService.get('SETUP_DATABASE_URL') ?? process.env.SETUP_DATABASE_URL
-  if (envUrl) {
-    logger.log('📦 Using database URL from SETUP_DATABASE_URL env var')
-    return envUrl
-  }
-
-  // 2. Node config (local SQLite) — Phase 0 or CLI setup-db may have saved the URL there
+  // 1. Node config (local SQLite) — Phase 0 or CLI setup-db may have saved the URL
   const config = nodeConfig.find()
-  if (config?.databaseUrl) {
+  if (config?.databaseUrl?.trim()) {
     logger.log('📦 Using database URL from node config (local SQLite)')
-    return config.databaseUrl
+    return config.databaseUrl.trim()
   }
 
-  // 3. No URL available — return empty (will fail on first query)
+  // 2. SETUP_DATABASE_URL env var (first-run bootstrap)
+  const envUrl = envService.get('SETUP_DATABASE_URL') ?? process.env.SETUP_DATABASE_URL
+  if (envUrl?.trim()) {
+    logger.log('📦 Using database URL from SETUP_DATABASE_URL env var (CLI bootstrap)')
+    return envUrl.trim()
+  }
+
+  // 3. No URL available
   logger.warn('⚠️  No database URL available — CLI commands that need the global DB will fail')
   return ''
 }

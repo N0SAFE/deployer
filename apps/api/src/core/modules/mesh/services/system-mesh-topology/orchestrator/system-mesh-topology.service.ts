@@ -191,8 +191,6 @@ export class SystemMeshTopologyService
             void this.clusterRepository
                 .persistNodeHeartbeat({
                     nodeId: input.peerNodeId,
-                    organizationId:
-                        this.sessions.resolveOrganizationId(sessionId),
                     serverUrl: null,
                     metrics: result.connection.metrics,
                 })
@@ -207,10 +205,8 @@ export class SystemMeshTopologyService
 
     // ─── Membership ───────────────────────────────────────────────────────────
 
-    getMembershipSnapshot(input?: {
-        organizationId?: string | null
-    }): MeshMembershipSnapshot {
-        return this.membership.getSnapshot(input?.organizationId)
+    getMembershipSnapshot(): MeshMembershipSnapshot {
+        return this.membership.getSnapshot()
     }
 
     reconcileMembership(
@@ -417,7 +413,6 @@ export class SystemMeshTopologyService
             'issue bootstrap join grants'
         )
         const issued = await repo.issueJoinGrant({
-            organizationId: input.organizationId ?? null,
             targetNodeId: input.targetNodeId ?? null,
             issuedByUserId: input.issuedByUserId,
             ttlSeconds: input.ttlSeconds,
@@ -441,7 +436,7 @@ export class SystemMeshTopologyService
      */
     async consumeJoinGrant(
         input: MeshJoinGrantConsumeInput
-    ): Promise<Omit<MeshJoinGrantConsumeResult, "peerServiceToken" | "peerServiceTokenExpiresAt">> {
+    ): Promise<Omit<MeshJoinGrantConsumeResult, "peerServiceToken" | "peerServiceTokenExpiresAt" | "meshSharedSecret">> {
         const repo = this.requireClusterRepository(
             'consume bootstrap join grants'
         )
@@ -507,7 +502,6 @@ export class SystemMeshTopologyService
     // ─── Event streams ────────────────────────────────────────────────────────
 
     streamRuntimeEvents(input: {
-        organizationId?: string | null
         replay: boolean
         replayLimit: number
     }): AsyncIterable<MeshRuntimeEvent> {
@@ -515,18 +509,13 @@ export class SystemMeshTopologyService
     }
 
     observeRuntimeEvents(input: {
-        organizationId?: string | null
         replay: boolean
         replayLimit: number
     }): Observable<MeshRuntimeEvent> {
-        const source = this.meshEventService.observeRuntime({
+        return this.meshEventService.observeRuntime({
             replay: input.replay,
             replayLimit: input.replayLimit,
         })
-        return this.applyOrganizationFilterToRuntimeStream(
-            source,
-            input.organizationId ?? null
-        )
     }
 
     /**
@@ -536,22 +525,16 @@ export class SystemMeshTopologyService
      */
     streamRuntimeEventsSince(input: {
         cursor: number
-        organizationId?: string | null
     }): AsyncIterable<MeshRuntimeEvent> {
         return observableToAsyncIterable(this.observeRuntimeEventsSince(input))
     }
 
     observeRuntimeEventsSince(input: {
         cursor: number
-        organizationId?: string | null
     }): Observable<MeshRuntimeEvent> {
-        const source = this.meshEventService.observeRuntimeSince({
+        return this.meshEventService.observeRuntimeSince({
             afterSequence: input.cursor,
         })
-        return this.applyOrganizationFilterToRuntimeStream(
-            source,
-            input.organizationId ?? null
-        )
     }
 
     getRuntimeEventCursor(): number {
@@ -601,22 +584,6 @@ export class SystemMeshTopologyService
 
     // ─── Private helpers ──────────────────────────────────────────────────────
 
-    private applyOrganizationFilterToRuntimeStream(
-        source: Observable<MeshRuntimeEvent>,
-        organizationId: string | null
-    ): Observable<MeshRuntimeEvent> {
-        if (!organizationId) return source
-        if (!this.overlayScope.hasScopedNodes(organizationId)) return source
-        return source.pipe(
-            map((event) =>
-                this.overlayScope.filterRuntimeEventByOrganization(
-                    event,
-                    organizationId
-                )
-            )
-        )
-    }
-
     private isTopologyEventVisible(
         event: MeshTopologyEvent,
         input: MeshTopologyStreamInput
@@ -631,10 +598,7 @@ export class SystemMeshTopologyService
 
         if (!typeAllowed) return false
 
-        return this.overlayScope.isTopologyEventVisibleForOrganization(
-            event,
-            input.organizationId ?? null
-        )
+        return this.overlayScope.isTopologyEventVisibleForOrganization(event)
     }
 
     private resolveExpectedTrustAckPeers(): string[] {

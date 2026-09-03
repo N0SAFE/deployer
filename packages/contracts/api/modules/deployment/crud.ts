@@ -1,12 +1,12 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
     deploymentSchema,
     deploymentStatusSchema,
     deploymentEnvironmentSchema,
-    sourceTypeSchema,
     deploymentLogSchema,
     deploymentRollbackSchema,
+    runtimeRunnerOptionsSchema,
 } from "@repo/contracts-entities";
 
 const deploymentOps = standard.zod(deploymentSchema, "deployment");
@@ -16,29 +16,82 @@ const deploymentOps = standard.zod(deploymentSchema, "deployment");
 export const deploymentFindByIdContract = deploymentOps
     .read()
     .output((b) => b.entitySchema.nullable())
+    .errors((e) => [
+        // 404 when the deployment doesn't exist (or is inaccessible).
+        ...standardDomainErrorContracts(e),
+    ])
     .build();
 
 // ─── delete ──────────────────────────────────────────────────────────────────
 
-export const deploymentDeleteContract = deploymentOps.delete().build();
+export const deploymentDeleteContract = deploymentOps
+    .delete()
+    .errors((e) => [
+        // 404 for unknown id; 409 when the deployment is still running.
+        ...standardDomainErrorContracts(e),
+    ])
+    .build();
 
 // ─── trigger ─────────────────────────────────────────────────────────────────
 
+/**
+ * Deployment trigger SOURCE — discriminated union on `sourceType`.
+ * Every source kind carries exactly its own fields; no loose flat object.
+ */
+export const githubTriggerSourceSchema = z
+    .object({
+        sourceType: z.literal("github"),
+        repositoryUrl: z.string().min(1),
+        branch: z.string().min(1).optional(),
+        commitSha: z.string().min(1).optional(),
+        pullRequestNumber: z.number().int().positive().optional(),
+    })
+    .strict();
+
+export const uploadTriggerSourceSchema = z
+    .object({
+        sourceType: z.literal("upload"),
+        uploadId: z.string().min(1),
+        uploadPath: z.string().min(1).optional(),
+        fileName: z.string().min(1).optional(),
+        fileSize: z.number().optional(),
+        customData: z.record(z.string(), z.unknown()).optional(),
+    })
+    .strict();
+
+export const gitlabTriggerSourceSchema = z
+    .object({
+        sourceType: z.literal("gitlab"),
+        repositoryUrl: z.string().min(1),
+        branch: z.string().min(1).optional(),
+        commitSha: z.string().min(1).optional(),
+        mergeRequestIid: z.number().int().positive().optional(),
+    })
+    .strict();
+
+export const customTriggerSourceSchema = z
+    .object({
+        sourceType: z.literal("custom"),
+        customData: z.record(z.string(), z.unknown()).optional(),
+    })
+    .strict();
+
+export const deploymentTriggerSourceSchema = z.discriminatedUnion("sourceType", [
+    githubTriggerSourceSchema,
+    gitlabTriggerSourceSchema,
+    uploadTriggerSourceSchema,
+    customTriggerSourceSchema,
+]);
+export type DeploymentTriggerSource = z.infer<typeof deploymentTriggerSourceSchema>;
+
 export const deploymentTriggerInputSchema = z.object({
     serviceId: z.uuid(),
+    // The deployment `environment` column is a strict Postgres enum
+    // (`deployment_environment`), so only the canonical environment names are
+    // representable. The server still resolves the matching environment row
+    // via `resolveEnvironmentId`.
     environment: deploymentEnvironmentSchema.default("production"),
-    sourceType: sourceTypeSchema,
-    sourceConfig: z
-        .object({
-            repositoryUrl: z.string().optional(),
-            branch: z.string().optional(),
-            commitSha: z.string().optional(),
-            pullRequestNumber: z.number().int().positive().optional(),
-            fileName: z.string().optional(),
-            fileSize: z.number().optional(),
-            customData: z.record(z.string(), z.unknown()).optional(),
-        })
-        .optional(),
+    source: deploymentTriggerSourceSchema,
     execution: z
         .object({
             builder: z
@@ -47,7 +100,7 @@ export const deploymentTriggerInputSchema = z.object({
             runner: z
                 .enum(["docker", "dockerfile", "docker_compose", "nixpacks", "buildpack", "railpack"])
                 .optional(),
-            runtimeRunnerOptions: z.record(z.string(), z.unknown()).optional(),
+            runtimeRunnerOptions: runtimeRunnerOptionsSchema.optional(),
             customCommands: z
                 .object({
                     cli: z
@@ -103,6 +156,10 @@ export const deploymentTriggerContract = deploymentTriggerOps
     .path("/trigger")
     .input((b) => b.body(deploymentTriggerInputSchema))
     .output(deploymentTriggerOutputSchema)
+    .errors((e) => [
+        // Service/env not found, invalid source, quota/approval gates.
+        ...standardDomainErrorContracts(e),
+    ])
     .build();
 
 // ─── upload bundle ────────────────────────────────────────────────────────────
@@ -153,6 +210,10 @@ export const deploymentCancelContract = deploymentCancelOps
             .body(z.object({ reason: z.string().optional() })),
     )
     .output(deploymentCancelOutputSchema)
+    .errors((e) => [
+        // 404 for unknown id; 409 when the deployment already finished.
+        ...standardDomainErrorContracts(e),
+    ])
     .build();
 
 // ─── rollback ────────────────────────────────────────────────────────────────
@@ -177,6 +238,10 @@ export const deploymentRollbackContract = deploymentRollbackOps
             ),
     )
     .output(deploymentRollbackOutputSchema)
+    .errors((e) => [
+        // 404 for unknown ids; 409 when rollback isn't allowed from this state.
+        ...standardDomainErrorContracts(e),
+    ])
     .build();
 
 // ─── getLogs ─────────────────────────────────────────────────────────────────
@@ -218,6 +283,10 @@ export const deploymentGetLogsContract = deploymentGetLogsOps
             ),
     )
     .output(deploymentGetLogsOutputSchema)
+    .errors((e) => [
+        // 404 for unknown deployment id.
+        ...standardDomainErrorContracts(e),
+    ])
     .build();
 
 // ─── retry ───────────────────────────────────────────────────────────────────
@@ -233,6 +302,10 @@ export const deploymentRetryContract = deploymentRetryOps
     .create()
     .input((b) => b.params((p) => p`/${p("id", z.uuid())}/retry`))
     .output(deploymentRetryOutputSchema)
+    .errors((e) => [
+        // 404 for unknown id; 409 when retry isn't allowed from this state.
+        ...standardDomainErrorContracts(e),
+    ])
     .build();
 
 // ─── rollback history ────────────────────────────────────────────────────────
@@ -250,4 +323,8 @@ export const deploymentGetRollbackHistoryContract = deploymentRollbackHistoryOps
     .read({ idFieldName: "id", idSchema: z.uuid() })
     .input((b) => b.params((p) => p`/${p("id", z.uuid())}/rollbacks`))
     .output(deploymentRollbackHistoryOutputSchema)
+    .errors((e) => [
+        // 404 for unknown deployment id.
+        ...standardDomainErrorContracts(e),
+    ])
     .build();

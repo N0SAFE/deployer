@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { AppError } from "@repo/errors";
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common'
 import { ReplaySubject, firstValueFrom, Observable } from 'rxjs'
 import type {
@@ -6,7 +6,6 @@ import type {
     SetupStreamEvent,
     SetupStateSnapshot,
 } from '@repo/contracts-entities'
-import { EnvService } from '@/config/env/env.service'
 import { NodeConfigRepository } from '../repositories/node-config.repository'
 import { LocalInitializationService } from './local-initialization.service'
 import { RemoteInitializationService } from './remote-initialization.service'
@@ -16,7 +15,6 @@ import type { EmitEvent } from '../utils/setup-runner.utils'
 import { runStep } from '../utils/setup-runner.utils'
 import { ReachabilityService } from '../../reachability/services/reachability.service'
 import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service'
-import { DEPLOYER_VERSION } from '@/core/utils/deployer-version'
 
 
 export interface SetupCompletionStatus {
@@ -41,7 +39,6 @@ export class InitializationService implements OnModuleInit {
         private readonly setupEventService: SetupEventService,
         private readonly meshInitializationService: MeshInitializationService,
         private readonly reachabilityService: ReachabilityService,
-        private readonly envService: EnvService,
     ) {}
 
     // ─── Lifecycle ────────────────────────────────────────────────────────────
@@ -80,99 +77,36 @@ export class InitializationService implements OnModuleInit {
     }
 
     /**
-     * Eagerly check the SQLite node config and emit completion if possible.
+     * Check the SQLite node config and emit completion if the node is configured.
      *
      * This is called from two places:
      * 1. The GLOBAL_DATABASE_POOL factory in GlobalModule (during construction)
      * 2. onModuleInit() (during NestJS lifecycle)
      *
-     * Calling it from the pool factory breaks a deadlock: the factory awaits
-     * waitForSetup() which blocks NestJS from ever reaching onModuleInit().
-     * By checking config here first, we ensure completion is emitted before
-     * the factory ever starts waiting.
+     * "Configured" REQUIRES a real database URL. A row with `configuredAt` but
+     * an empty `databaseUrl` is a stale/partial write (e.g. an interrupted
+     * provisioning attempt) and must NOT unblock dependent modules — the
+     * global database is mandatory. Such rows are treated as needing setup so
+     * the wizard can re-provision from scratch.
      */
     checkConfigAndEmit(): void {
         try {
             const config = this.nodeConfigRepository.find()
-            if (config?.configuredAt) {
+            const storedUrl = config?.databaseUrl?.trim() ?? ''
+            if (config?.configuredAt && storedUrl.length > 0) {
                 this.logger.log(
                     '✅ Node already configured — unblocking dependent modules'
                 )
-                // Persisted config may be missing databaseUrl if the env var
-                // wasn't set during the original auto-setup, or it may have
-                // been written as an empty string. The Phase 0 setup sub-app
-                // should have populated this — if not, proceed without a DB
-                // and let auth/modules handle null gracefully.
-                const storedUrl = config.databaseUrl?.trim() ?? ''
-                const fallbackUrl = process.env.SETUP_DATABASE_URL?.trim() ?? ''
-                const resolvedDatabaseUrl =
-                    storedUrl.length > 0
-                        ? storedUrl
-                        : (fallbackUrl.length > 0 ? fallbackUrl : null)
-                if (
-                    storedUrl.length === 0 &&
-                    resolvedDatabaseUrl &&
-                    config.strategy === 'local'
-                ) {
-                    this.nodeConfigRepository.upsert({
-                        nodeId: config.nodeId,
-                        strategy: config.strategy,
-                        setupState: (config.setupState as string) === 'setup_done' ? 'setup_done' : 'setup_done',
-                        deployerVersion: config.deployerVersion ?? DEPLOYER_VERSION,
-                        databaseUrl: resolvedDatabaseUrl,
-                        configuredAt:
-                            config.configuredAt instanceof Date
-                                ? config.configuredAt.toISOString()
-                                : String(config.configuredAt),
-                        meshUrlsSnapshot: config.meshUrlsSnapshot ?? [],
-                        updatedAt: new Date().toISOString(),
-                    })
-                    this.logger.log(
-                        '🩹 Repaired node_config row from SETUP_DATABASE_URL'
-                    )
-                }
                 this.emitCompleted({
                     nodeId: config.nodeId,
                     connectedAt: new Date(config.configuredAt),
-                    databaseUrl: resolvedDatabaseUrl,
+                    databaseUrl: storedUrl,
                     strategy: config.strategy,
                 })
-            } else if ((process.env.SETUP_AUTO === "true" || this.envService.get("SETUP_AUTO") === true) && process.env.SETUP_DATABASE_URL) {
-                // ── Dev-mode auto-setup with SETUP_DATABASE_URL ──────────────
-                this.logger.log(
-                    '🧪 SETUP_AUTO=true and SETUP_DATABASE_URL set — auto-seeding development config'
+            } else if (config?.configuredAt) {
+                this.logger.warn(
+                    '⚠️ Node config has configuredAt but NO database URL — treating as unconfigured (global DB is mandatory)'
                 )
-                const nodeId = randomUUID()
-                this.nodeConfigRepository.upsert({
-                    nodeId,
-                    strategy: 'local',
-                    setupState: 'setup_done',
-                    deployerVersion: DEPLOYER_VERSION,
-                    databaseUrl: process.env.SETUP_DATABASE_URL,
-                    configuredAt: new Date().toISOString(),
-                    meshUrlsSnapshot: [],
-                    updatedAt: new Date().toISOString(),
-                })
-                this.emitCompleted({
-                    nodeId,
-                    connectedAt: new Date(),
-                    databaseUrl: process.env.SETUP_DATABASE_URL,
-                    strategy: 'local',
-                })
-            } else if (process.env.SETUP_AUTO === "true" || this.envService.get("SETUP_AUTO") === true) {
-                // ── Dev-mode auto-setup WITHOUT SETUP_DATABASE_URL ───────────
-                // Phase 0 should have already written a local-only node_config.
-                // We emit completion so modules unblock (they'll get null pool).
-                this.logger.log(
-                    '🧪 SETUP_AUTO=true (no SETUP_DATABASE_URL) — ' +
-                    'local-only config emitted from Phase 0, unblocking modules'
-                )
-                this.emitCompleted({
-                    nodeId: config?.nodeId ?? randomUUID(),
-                    connectedAt: null,
-                    databaseUrl: null,
-                    strategy: 'local',
-                })
             } else {
                 this.logger.log('⏳ No config found — setup wizard required')
             }
@@ -190,7 +124,9 @@ export class InitializationService implements OnModuleInit {
             return {
                 state: 'not_started',
                 needsSetup: true,
-                strategy: null,
+                hasUsers: false,
+                bootstrapStrategy: null,
+                availableStrategies: ['local', 'remote'],
                 currentStep: 'choose_strategy',
                 progressPercent: 0,
                 steps: [
@@ -206,49 +142,51 @@ export class InitializationService implements OnModuleInit {
                     },
                 ],
                 completedAt: null,
-                availableStrategies: ['local', 'remote'],
             }
         }
 
-        if (!config.configuredAt) {
+        if (config?.configuredAt && config.databaseUrl?.trim()) {
             return {
-                state: 'not_started',
-                needsSetup: true,
-                strategy: null,
-                currentStep: 'choose_strategy',
-                progressPercent: 0,
-                steps: [
-                    {
-                        id: 'choose_strategy',
-                        title: 'Choose bootstrap strategy',
-                        status: 'pending',
-                    },
-                    {
-                        id: 'configure_account',
-                        title: 'Configure account',
-                        status: 'pending',
-                    },
-                ],
-                completedAt: null,
+                state: 'completed',
+                needsSetup: false,
+                hasUsers: true,
+                bootstrapStrategy: config.strategy,
                 availableStrategies: ['local', 'remote'],
+                currentStep: null,
+                progressPercent: 100,
+                steps: [],
+                completedAt: new Date(config.configuredAt),
             }
         }
 
+        // configuredAt without a database URL (or no config) → needs setup.
         return {
-            state: 'completed',
-            needsSetup: false,
-            strategy: config.strategy,
-            currentStep: null,
-            progressPercent: 100,
-            steps: [],
-            completedAt: new Date(config.configuredAt),
+            state: 'not_started',
+            needsSetup: true,
+            hasUsers: false,
+            bootstrapStrategy: null,
             availableStrategies: ['local', 'remote'],
+            currentStep: 'choose_strategy',
+            progressPercent: 0,
+            steps: [
+                {
+                    id: 'choose_strategy',
+                    title: 'Choose bootstrap strategy',
+                    status: 'pending',
+                },
+                {
+                    id: 'configure_account',
+                    title: 'Configure account',
+                    status: 'pending',
+                },
+            ],
+            completedAt: null,
         }
     }
 
     getNodeStatus() {
         const config = this.nodeConfigRepository.find()
-        if (config?.configuredAt) {
+        if (config?.configuredAt && config.databaseUrl?.trim()) {
             return {
                 isConfigured: true,
                 nodeId: config.nodeId,
@@ -363,7 +301,7 @@ export class InitializationService implements OnModuleInit {
             stepLog(`Probing mesh URL ${input.meshUrl}…`)
             const result = await this.reachabilityService.checkMeshUrlReachability(input.meshUrl)
             if (!result.reachable) {
-                throw new Error('Mesh URL is not reachable')
+                throw new AppError('Mesh URL is not reachable', 'INTERNAL_ERROR')
             }
             stepLog('✅ Mesh node is reachable')
         })
@@ -375,7 +313,7 @@ export class InitializationService implements OnModuleInit {
     }
 
     private async runLocalFlow(
-        input: { name: string; email: string; password: string; organizationName: string; existingDatabaseUrl?: string; serverUrl: string },
+        input: { name: string; email: string; password: string; existingDatabaseUrl?: string; serverUrl: string },
         tracker: SetupStepTracker,
         emit: EmitEvent,
     ): Promise<{ nodeId: string; databaseUrl: string }> {

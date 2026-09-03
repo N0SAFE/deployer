@@ -1,8 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { and, asc, eq, gt, inArray } from "drizzle-orm";
 import { coreDomainEventEnvelopeSchema } from "@repo/contracts-entities";
-import { localEventOutbox } from "@/config/drizzle/global/schema/runtime";
-import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
+import { LocalEventOutboxRepository } from "@/core/modules/events/outbox/local-event-outbox.repository";
 import { DeploymentRepository } from "../repositories/deployment.repository";
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
@@ -32,26 +30,16 @@ export class DeploymentReadModelProjectorService {
     private lastProcessedCreatedAt: Date | null = null;
 
     constructor(
-        private readonly databaseService: GlobalDatabaseService,
+        private readonly outboxRepository: LocalEventOutboxRepository,
         private readonly deploymentRepository: DeploymentRepository,
     ) {}
 
     async processOutboxBatch(limit = 200): Promise<number> {
-        const conditions = [
-            eq(localEventOutbox.topic, "deployment.lifecycle"),
-            inArray(localEventOutbox.state, ["pending", "sent"]),
-        ];
-
-        if (this.lastProcessedCreatedAt) {
-            conditions.push(gt(localEventOutbox.createdAt, this.lastProcessedCreatedAt));
-        }
-
-        const rows = await this.databaseService.db
-            .select()
-            .from(localEventOutbox)
-            .where(and(...conditions))
-            .orderBy(asc(localEventOutbox.createdAt), asc(localEventOutbox.id))
-            .limit(limit);
+        const rows = await this.outboxRepository.findByTopic("deployment.lifecycle", {
+            states: ["pending", "sent"],
+            afterCreatedAt: this.lastProcessedCreatedAt,
+            limit,
+        });
 
         let processed = 0;
 

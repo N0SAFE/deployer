@@ -2,11 +2,15 @@ import { Controller } from "@nestjs/common";
 import { Implement, implement } from "@orpc/nest";
 import { appContract } from "@repo/api-contracts";
 import { ServiceService } from "../services/service.service";
+import { ServiceNetworkService } from "../services/service-network.service";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 
 @Controller()
 export class ServiceController {
-    constructor(private readonly serviceService: ServiceService) {}
+    constructor(
+        private readonly serviceService: ServiceService,
+        private readonly serviceNetworkService: ServiceNetworkService,
+    ) {}
 
     @Implement(appContract.service.crud.list)
     list() {
@@ -56,12 +60,30 @@ export class ServiceController {
             });
     }
 
+    @Implement(appContract.service.crud.children)
+    children() {
+        return implement(appContract.service.crud.children)
+            .use(requireAuth())
+            .handler(async ({ input, context }) => {
+                return this.serviceService.listChildren(input.params.id, context.auth.user.id);
+            });
+    }
+
+    @Implement(appContract.service.crud.subtree)
+    subtree() {
+        return implement(appContract.service.crud.subtree)
+            .use(requireAuth())
+            .handler(async ({ input, context }) => {
+                return this.serviceService.getSubtree(input.params.id, context.auth.user.id);
+            });
+    }
+
     @Implement(appContract.service.lifecycle.toggleActive)
     toggleActive() {
         return implement(appContract.service.lifecycle.toggleActive)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
-                return this.serviceService.toggleActive(input.id, input.isActive, context.auth.user.id);
+                return this.serviceService.toggleActive(input.params.id, input.body.isActive, context.auth.user.id);
             });
     }
 
@@ -70,7 +92,7 @@ export class ServiceController {
         return implement(appContract.service.dependencies.list)
             .use(requireAuth())
             .handler(async ({ input }) => {
-                return this.serviceService.getDependencies(input.id);
+                return this.serviceService.getDependencies(input.params.id);
             });
     }
 
@@ -80,9 +102,9 @@ export class ServiceController {
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 return this.serviceService.addDependency(
-                    input.id,
-                    input.dependsOnServiceId,
-                    input.isRequired,
+                    input.params.id,
+                    input.body.dependsOnServiceId,
+                    input.body.isRequired,
                     context.auth.user.id,
                 );
             });
@@ -93,7 +115,7 @@ export class ServiceController {
         return implement(appContract.service.dependencies.remove)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
-                await this.serviceService.removeDependency(input.id, input.dependencyId, context.auth.user.id);
+                await this.serviceService.removeDependency(input.params.id, input.params.dependencyId, context.auth.user.id);
                 return { success: true };
             });
     }
@@ -106,6 +128,47 @@ export class ServiceController {
             .use(requireAuth())
             .handler(({ input }) => {
                 return serviceService.streamQueryEvents(input.query);
+            });
+    }
+
+    @Implement(appContract.servicePreviewTopology.resolve)
+    previewTopologyResolve() {
+        return implement(appContract.servicePreviewTopology.resolve)
+            .use(requireAuth())
+            .handler(async ({ input, context }) => {
+                return this.serviceService.resolvePreviewTopology(
+                    input.params.serviceId,
+                    context.auth.user.id,
+                    input.body,
+                );
+            });
+    }
+
+    @Implement(appContract.service.network.get)
+    networkGet() {
+        return implement(appContract.service.network.get)
+            .use(requireAuth())
+            .handler(async ({ input }) => {
+                return this.serviceNetworkService.getNetwork(input.params.id);
+            });
+    }
+
+    @Implement(appContract.service.network.update)
+    networkUpdate() {
+        return implement(appContract.service.network.update)
+            .use(requireAuth())
+            .handler(async ({ input }) => {
+                // Optional update body — coalesce to {}.
+                return this.serviceNetworkService.updateNetwork(input.params.id, input.body ?? {});
+            });
+    }
+
+    @Implement(appContract.service.network.provisionRecord)
+    networkProvisionRecord() {
+        return implement(appContract.service.network.provisionRecord)
+            .use(requireAuth())
+            .handler(async ({ input }) => {
+                return this.serviceNetworkService.provisionDnsRecord(input.params.id, input.body);
             });
     }
 }

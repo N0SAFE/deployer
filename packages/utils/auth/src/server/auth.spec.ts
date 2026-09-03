@@ -137,21 +137,22 @@ describe('betterAuthFactory', () => {
       expect(result.auth.config.advanced.useSecureCookies).toBe(false);
     });
 
-    it('should enable cross-subdomain cookies with AUTH_BASE_DOMAIN and HTTPS', () => {
+    it('should enable cross-subdomain cookies with AUTH_BASE_DOMAIN (HTTP + HTTPS)', () => {
+      // HTTPS
       mockEnv.BASE_URL = 'https://api.example.com';
       mockEnv.AUTH_BASE_DOMAIN = '.example.com';
-      const result = betterAuthFactory(mockDb, mockEnv);
-
+      let result = betterAuthFactory(mockDb, mockEnv);
       expect(result.auth.config.advanced.crossSubDomainCookies.enabled).toBe(true);
       expect(result.auth.config.advanced.crossSubDomainCookies.domain).toBe('.example.com');
-    });
 
-    it('should not enable cross-subdomain cookies without HTTPS', () => {
-      mockEnv.BASE_URL = 'http://localhost:3001';
-      mockEnv.AUTH_BASE_DOMAIN = '.example.com';
-      const result = betterAuthFactory(mockDb, mockEnv);
-
-      expect(result.auth.config.advanced.crossSubDomainCookies.enabled).toBe(false);
+      // HTTP (dev: api.* + web.* share the session cookie over http)
+      mockEnv.BASE_URL = 'http://api.deployer.localhost';
+      mockEnv.AUTH_BASE_DOMAIN = '.deployer.localhost';
+      result = betterAuthFactory(mockDb, mockEnv);
+      expect(result.auth.config.advanced.crossSubDomainCookies.enabled).toBe(true);
+      expect(result.auth.config.advanced.crossSubDomainCookies.domain).toBe('.deployer.localhost');
+      // …but never Secure over HTTP
+      expect(result.auth.config.advanced.useSecureCookies).toBe(false);
     });
 
     it('should not enable cross-subdomain cookies without AUTH_BASE_DOMAIN', () => {

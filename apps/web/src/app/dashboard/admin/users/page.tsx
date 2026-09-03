@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useForm } from '@tanstack/react-form'
 import type { PlatformRole } from '@repo/auth'
 import { useAdminListUsers, useAdminActions } from '@/domains/admin/hooks'
 import { Button } from '@repo/ui/components/shadcn/button'
@@ -39,6 +40,13 @@ import { Input } from '@repo/ui/components/shadcn/input'
 import { Label } from '@repo/ui/components/shadcn/label'
 import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
 import { Ban, ShieldCheck, UserX, RefreshCw } from 'lucide-react'
+import { PageHeader, PageErrorState } from '@/components/dashboard'
+import { z } from 'zod/v4'
+
+const banSchema = z.object({
+  reason: z.string().optional(),
+  durationDays: z.string().optional(),
+})
 
 export default function AdminUsersPage() {
   const [page, setPage] = useState(0)
@@ -47,12 +55,10 @@ export default function AdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'banned'>('all')
   const [banDialogOpen, setBanDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<{ id: string; name: string } | null>(null)
-  const [banReason, setBanReason] = useState('')
-  const [banDuration, setBanDuration] = useState('')
   
   const pageSize = 20
   
-  const { data: usersData, isLoading, refetch } = useAdminListUsers({
+  const { data: usersData, isLoading, error: usersError, refetch } = useAdminListUsers({
     limit: pageSize,
     offset: page * pageSize,
   })
@@ -65,30 +71,31 @@ export default function AdminUsersPage() {
     isLoading: actionLoading,
   } = useAdminActions()
 
+  const banForm = useForm({
+    defaultValues: { reason: '', durationDays: '' },
+    onSubmit: ({ value }) => {
+      if (!selectedUser) return
+      const parsed = banSchema.safeParse(value)
+      if (!parsed.success) return
+      const expiresIn = parsed.data.durationDays ? parseInt(parsed.data.durationDays) * 24 * 60 * 60 : undefined
+      banUser({
+        userId: selectedUser.id,
+        banReason: parsed.data.reason?.trim() || undefined,
+        banExpiresIn: expiresIn,
+      })
+      setBanDialogOpen(false)
+      banForm.reset()
+    },
+  })
+
   const handleRoleChange = (userId: string, role: PlatformRole) => {
     setRole({ userId, role })
   }
 
   const handleBanClick = (user: { id: string; name: string }) => {
     setSelectedUser(user)
+    banForm.reset()
     setBanDialogOpen(true)
-    setBanReason('')
-    setBanDuration('')
-  }
-
-  const handleBanConfirm = () => {
-    if (!selectedUser) return
-    
-    const expiresIn = banDuration ? parseInt(banDuration) * 24 * 60 * 60 : undefined
-    
-    banUser({
-      userId: selectedUser.id,
-      banReason: banReason.trim() ? banReason : undefined,
-      banExpiresIn: expiresIn,
-    })
-    
-    setBanDialogOpen(false)
-    setSelectedUser(null)
   }
 
   const handleUnban = (userId: string) => {
@@ -122,7 +129,11 @@ export default function AdminUsersPage() {
   }, [roleFilter, search, statusFilter, users])
 
   const surfaceCardClass =
-    'border-slate-200/80 bg-white/85 shadow-sm backdrop-blur supports-backdrop-filter:bg-white/70 dark:border-slate-800 dark:bg-slate-950/45'
+    'border-border/60 bg-card/40 backdrop-blur-xl'
+
+  if (usersError) {
+    return <PageErrorState title="Failed to load users" message={usersError.message} onRetry={() => refetch()} />
+  }
 
   if (isLoading && page === 0) {
     return (
@@ -149,30 +160,30 @@ export default function AdminUsersPage() {
 
   return (
     <div className="container mx-auto max-w-350 py-8 space-y-6">
-      <div className="rounded-xl border border-slate-200/70 bg-linear-to-b from-white to-slate-50/70 p-5 shadow-sm dark:border-slate-800 dark:from-slate-950 dark:to-slate-900/50">
-        <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage platform users, roles, and access permissions
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2 text-xs">
+      <PageHeader
+        eyebrow="Admin"
+        title="User Management"
+        description="Manage platform users, roles, and access permissions"
+        badge={
+          <>
             <Badge variant="secondary">{users.length} loaded</Badge>
             <Badge variant="outline">{filteredUsers.length} visible</Badge>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => {
-            void refetch()
-          }}
-          disabled={isLoading}
-        >
-          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-        </Button>
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              void refetch()
+            }}
+            disabled={isLoading}
+            aria-label="Refresh users"
+          >
+            <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </Button>
+        }
+      />
 
       <Card className={surfaceCardClass}>
         <CardHeader>
@@ -360,50 +371,45 @@ export default function AdminUsersPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="banReason">Reason (optional)</Label>
-              <Input
-                id="banReason"
-                placeholder="e.g., Violation of terms of service"
-                value={banReason}
-                onChange={(e) => {
-                  setBanReason(e.target.value)
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="banDuration">Duration in days (optional)</Label>
-              <Input
-                id="banDuration"
-                type="number"
-                placeholder="Leave empty for permanent ban"
-                value={banDuration}
-                onChange={(e) => {
-                  setBanDuration(e.target.value)
-                }}
-                min="1"
-              />
-              <p className="text-xs text-muted-foreground">
-                Leave empty for a permanent ban
-              </p>
-            </div>
+            <banForm.Field name="reason">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor="banReason">Reason (optional)</Label>
+                  <Input
+                    id="banReason"
+                    placeholder="e.g., Violation of terms of service"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                  />
+                </div>
+              )}
+            </banForm.Field>
+            <banForm.Field name="durationDays">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor="banDuration">Duration in days (optional)</Label>
+                  <Input
+                    id="banDuration"
+                    type="number"
+                    placeholder="Leave empty for permanent ban"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    min="1"
+                  />
+                  <p className="text-xs text-muted-foreground">Leave empty for a permanent ban</p>
+                </div>
+              )}
+            </banForm.Field>
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setBanDialogOpen(false)
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleBanConfirm}
-              disabled={actionLoading.ban}
-            >
-              Ban User
-            </Button>
+            <Button variant="outline" onClick={() => { setBanDialogOpen(false); banForm.reset() }}>Cancel</Button>
+            <banForm.Subscribe selector={(s) => s.isSubmitting}>
+              {(isSubmitting) => (
+                <Button variant="destructive" onClick={banForm.handleSubmit} disabled={isSubmitting || actionLoading.ban}>
+                  Ban User
+                </Button>
+              )}
+            </banForm.Subscribe>
           </DialogFooter>
         </DialogContent>
       </Dialog>

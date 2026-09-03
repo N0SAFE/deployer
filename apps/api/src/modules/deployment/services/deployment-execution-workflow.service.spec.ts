@@ -17,6 +17,12 @@ describe("DeploymentExecutionWorkflowService", () => {
     let deploymentEventService: {
         emit: ReturnType<typeof vi.fn>;
     };
+    let domainRoutingService: {
+        resolveServiceUrls: ReturnType<typeof vi.fn>;
+        resolvePrimaryUrl: ReturnType<typeof vi.fn>;
+        syncServiceRoutes: ReturnType<typeof vi.fn>;
+        buildVariableMap: ReturnType<typeof vi.fn>;
+    };
 
     let service: DeploymentExecutionWorkflowService;
 
@@ -89,10 +95,18 @@ describe("DeploymentExecutionWorkflowService", () => {
             emit: vi.fn(),
         };
 
+        domainRoutingService = {
+            resolveServiceUrls: vi.fn().mockResolvedValue([]),
+            resolvePrimaryUrl: vi.fn().mockResolvedValue(null),
+            syncServiceRoutes: vi.fn().mockResolvedValue({ success: false, reason: "no_domain_mappings", urls: [], primaryUrl: null }),
+            buildVariableMap: vi.fn().mockReturnValue({}),
+        };
+
         service = new DeploymentExecutionWorkflowService(
             deploymentRepository as never,
             runtimeRunnerRegistryService as never,
             deploymentEventService as never,
+            domainRoutingService as never,
         );
     });
 
@@ -190,6 +204,7 @@ describe("DeploymentExecutionWorkflowService", () => {
             runtimeRunner: "docker_compose",
             containerImage: "ghcr.io/acme/web:latest",
             runtimeRunnerOptions: {
+                runner: "docker_compose",
                 containerName: "svc-web-runtime",
                 networkMode: "host",
                 cpuShares: 3,
@@ -198,7 +213,6 @@ describe("DeploymentExecutionWorkflowService", () => {
                 healthCheckMaxRetries: 7,
                 healthCheckRetryIntervalMs: 450,
                 traefikSyncMaxAttempts: 4,
-                loadBalancerSyncMaxAttempts: 5,
                 convergenceRetryBaseDelayMs: 125,
                 dockerCompose: {
                     networkMode: "host",
@@ -212,7 +226,6 @@ describe("DeploymentExecutionWorkflowService", () => {
             healthCheckMaxRetries: 2,
             healthCheckRetryIntervalMs: 100,
             traefikSyncMaxAttempts: 1,
-            loadBalancerSyncMaxAttempts: 1,
             convergenceRetryBaseDelayMs: 1,
         });
 
@@ -232,7 +245,6 @@ describe("DeploymentExecutionWorkflowService", () => {
                 },
                 convergenceConfig: {
                     traefikSyncMaxAttempts: 4,
-                    loadBalancerSyncMaxAttempts: 5,
                     retryBaseDelayMs: 125,
                 },
                 runtimeRunnerOptions: expect.objectContaining({
@@ -253,11 +265,9 @@ describe("DeploymentExecutionWorkflowService", () => {
                 metadata: expect.objectContaining({
                     convergencePolicy: {
                         traefikSyncMaxAttempts: 4,
-                        loadBalancerSyncMaxAttempts: 5,
                         retryBaseDelayMs: 125,
                         source: {
                             traefikSyncMaxAttempts: "runtimeRunnerOptions",
-                            loadBalancerSyncMaxAttempts: "runtimeRunnerOptions",
                             retryBaseDelayMs: "runtimeRunnerOptions",
                         },
                     },
@@ -271,11 +281,9 @@ describe("DeploymentExecutionWorkflowService", () => {
                 step: "convergence_policy",
                 metadata: expect.objectContaining({
                     traefikSyncMaxAttempts: 4,
-                    loadBalancerSyncMaxAttempts: 5,
                     retryBaseDelayMs: 125,
                     source: {
                         traefikSyncMaxAttempts: "runtimeRunnerOptions",
-                        loadBalancerSyncMaxAttempts: "runtimeRunnerOptions",
                         retryBaseDelayMs: "runtimeRunnerOptions",
                     },
                 }),
@@ -283,14 +291,14 @@ describe("DeploymentExecutionWorkflowService", () => {
         );
     });
 
-    it("tracks legacy fallback and default convergence sources", async () => {
+    it("tracks explicit and default convergence sources", async () => {
         await service.persistBuildExecutionResult("deployment-1", {
             runtimeRunner: "docker",
             containerImage: "nginx:alpine",
             runtimeRunnerOptions: {
+                runner: "docker_compose",
                 traefikSyncMaxAttempts: 6,
             },
-            loadBalancerSyncMaxAttempts: 8,
         });
 
         expect(runtimeRunnerRegistryService.execute).toHaveBeenCalledWith(
@@ -298,7 +306,6 @@ describe("DeploymentExecutionWorkflowService", () => {
             expect.objectContaining({
                 convergenceConfig: {
                     traefikSyncMaxAttempts: 6,
-                    loadBalancerSyncMaxAttempts: 8,
                     retryBaseDelayMs: 250,
                 },
             }),
@@ -310,11 +317,9 @@ describe("DeploymentExecutionWorkflowService", () => {
                 metadata: expect.objectContaining({
                     convergencePolicy: {
                         traefikSyncMaxAttempts: 6,
-                        loadBalancerSyncMaxAttempts: 8,
                         retryBaseDelayMs: 250,
                         source: {
                             traefikSyncMaxAttempts: "runtimeRunnerOptions",
-                            loadBalancerSyncMaxAttempts: "legacyResult",
                             retryBaseDelayMs: "default",
                         },
                     },
@@ -328,11 +333,9 @@ describe("DeploymentExecutionWorkflowService", () => {
                 step: "convergence_policy",
                 metadata: expect.objectContaining({
                     traefikSyncMaxAttempts: 6,
-                    loadBalancerSyncMaxAttempts: 8,
                     retryBaseDelayMs: 250,
                     source: {
                         traefikSyncMaxAttempts: "runtimeRunnerOptions",
-                        loadBalancerSyncMaxAttempts: "legacyResult",
                         retryBaseDelayMs: "default",
                     },
                 }),
@@ -443,6 +446,32 @@ describe("DeploymentExecutionWorkflowService", () => {
                     maxRetries: 3,
                     retryIntervalMs: 1,
                 }),
+            }),
+        );
+    });
+
+    it("persists a deploy/retry execution failure on the deployment row (W-Queue Q4)", async () => {
+        await service.persistDeploymentExecutionFailure("deployment-1", "build exhausted retries");
+
+        expect(deploymentRepository.updateStatus).toHaveBeenCalledWith(
+            "deployment-1",
+            "failed",
+            expect.objectContaining({
+                buildExecution: expect.objectContaining({
+                    status: "failed",
+                    error: "build exhausted retries",
+                }),
+                stage: "failed",
+            }),
+        );
+        expect(deploymentRepository.updatePhase).toHaveBeenCalledWith("deployment-1", "failed", 100);
+        expect(deploymentRepository.insertLog).toHaveBeenCalledWith(
+            "deployment-1",
+            expect.objectContaining({
+                level: "error",
+                phase: "failed",
+                step: "execution_fail",
+                metadata: expect.objectContaining({ errorMessage: "build exhausted retries" }),
             }),
         );
     });

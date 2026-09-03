@@ -1,0 +1,76 @@
+# =====================================================================
+# DEV-SUPERVISED profile — development WITHOUT compose-managed services.
+#
+# Same apps as dev (api/web/doc extend their common dev bases) but NO
+# compose services for global-db / redis / drizzle-gateway / traefik —
+# the API SUPERVISES them itself. MANAGED_*_ENABLED are false/absent →
+# supervisors own the lifecycle. SETUP_AUTO=true lets Phase 0 auto-provision.
+# =====================================================================
+
+name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-supervised
+
+services:
+  api-dev:
+    extends:
+      file: ./common/api/docker-compose.config.dev.yml
+      service: api
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-dev
+    environment:
+      SETUP_AUTO: "true"
+      MANAGED_GLOBAL_DB_ENABLED: "false"
+      MANAGED_REDIS_ENABLED: "false"
+      MANAGED_LOCAL_DB_ENABLED: "false"
+      MANAGED_TRAEFIK_ENABLED: "false"
+    networks:
+      app_network_dev:
+        aliases:
+          - api-dev
+          - api
+      deployer_platform:
+        aliases:
+          - api-dev
+          - api
+
+  web-dev:
+    extends:
+      file: ./common/web/docker-compose.config.dev.yml
+      service: web
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-web-dev
+    depends_on:
+      api-dev:
+        condition: service_healthy
+    networks:
+      app_network_dev: {}
+      deployer_platform: {}
+
+  doc-dev:
+    extends:
+      file: ./common/doc/docker-compose.config.dev.yml
+      service: doc
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-doc-dev
+    networks:
+      app_network_dev: {}
+
+networks:
+  deployer_platform:
+    name: deployer-platform
+    driver: bridge
+  app_network_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_app_network_dev
+    driver: bridge
+
+volumes:
+  api_local_db_data_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_local_db_data_dev
+  bun_cache_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_bun_cache_dev
+  turbo_cache_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_turbo_cache_dev
+  api_uploads_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_dev
+  web_instance_token_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_web_instance_token_dev
+  deployer-traefik-config:
+    name: ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}
+  deployer-port-proxy-config:
+    name: ${DIRECT_PROXY_CONFIG_VOLUME:-deployer-port-proxy-config}

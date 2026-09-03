@@ -1,0 +1,21 @@
+# =====================================================================
+# Global Postgres BASE config — INCLUDE-ONLY (real base: image, env,
+# healthcheck, data volume). Extended by orchestrators that compose-manage
+# the global DB (MANAGED_GLOBAL_DB_ENABLED=true); networks are wired there.
+# =====================================================================
+services:
+  global-db:
+    image: ${MANAGED_GLOBAL_DB_IMAGE:-postgres:16-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${MANAGED_GLOBAL_DB_NAME:-deployer}
+      POSTGRES_USER: ${MANAGED_GLOBAL_DB_USER:-deployer}
+      POSTGRES_PASSWORD: ${MANAGED_GLOBAL_DB_PASSWORD:-deployer}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${MANAGED_GLOBAL_DB_USER:-deployer}", "-d", "${MANAGED_GLOBAL_DB_NAME:-deployer}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    volumes:
+      - api_db_data_dev:/var/lib/postgresql/data

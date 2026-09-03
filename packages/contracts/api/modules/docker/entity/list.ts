@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerEntityStreamChunkSchema } from "@repo/contracts-entities";
 import { dockerEntityListInputSchema } from "./shared";
 import z from "zod/v4";
@@ -31,4 +31,8 @@ export const dockerEntityListContract = dockerEntityListOps
   .path("/list")
   .input((b) => b.body(dockerEntityListInputSchema))
   .output((b) => b.body(dockerEntityListResponseSchema))
+  .errors((e) => [
+    // Docker daemon unreachable / permission errors surface here.
+    ...standardDomainErrorContracts(e),
+  ])
   .build()

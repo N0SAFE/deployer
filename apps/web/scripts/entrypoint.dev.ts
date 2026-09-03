@@ -12,6 +12,10 @@ const DECLARATIVE_ROUTING_DIST = join(DECLARATIVE_ROUTING_PKG_DIR, 'dist/index.j
 /**
  * Build local declarative-routing package and ensure dist/index.js exists.
  * Required in container startup to guarantee dr:build/watch use local package only.
+ *
+ * Skips the rebuild when dist/index.js already exists (the Dockerfile's
+ * `turbo run build --filter=web...` stage builds it at image build time).
+ * This avoids a redundant synchronous build on every container start.
  */
 function ensureLocalDeclarativeRoutingBuilt(): void {
   const localCliSourcePath = join(DECLARATIVE_ROUTING_PKG_DIR, 'src/index.ts')
@@ -20,6 +24,12 @@ function ensureLocalDeclarativeRoutingBuilt(): void {
     console.error('❌ declarative-routing local package source is missing')
     console.error(`   Expected at: ${localCliSourcePath}`)
     process.exit(1)
+  }
+
+  // Already built (image build stage or previous run) — skip the rebuild.
+  if (existsSync(DECLARATIVE_ROUTING_DIST)) {
+    console.log('✅ Local declarative-routing package already built — skipping rebuild')
+    return
   }
 
   console.log('🔨 Building local @repo/cli-declarative-routing package...')

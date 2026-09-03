@@ -1,4 +1,5 @@
 import z from "zod/v4";
+import { standardDomainErrorContracts } from "@repo/orpc-utils";
 import { projectEnvironmentOps } from "./shared";
 
 export const projectDeleteEnvironmentContract = projectEnvironmentOps
@@ -10,4 +11,8 @@ export const projectDeleteEnvironmentContract = projectEnvironmentOps
         ),
     )
     .output(z.object({ success: z.boolean(), message: z.string() }))
+    .errors((e) => [
+        // 404 for unknown env; 409 when the env still has service links.
+        ...standardDomainErrorContracts(e),
+    ])
     .build();

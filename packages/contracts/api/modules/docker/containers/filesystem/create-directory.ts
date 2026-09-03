@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
   dockerContainerCreateDirectoryBodySchema,
   dockerContainerTerminalMutationAckSchema,
@@ -14,4 +14,5 @@ export const dockerContainerCreateDirectoryContract = dockerContainerCreateDirec
   .path("/mkdir")
   .input((b) => b.body(dockerContainerCreateDirectoryBodySchema))
   .output((b) => b.body(dockerContainerTerminalMutationAckSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { NotFoundError } from "@repo/errors";
   import { createHash } from "node:crypto";
   import {
       meshQueueTransitionLogEntrySchema,
@@ -70,7 +71,7 @@ import { Inject, Injectable } from "@nestjs/common";
           if (!this.dedupByIdempotency.checkAndRecord(input.idempotencyKey)) {
               const entry = this.findByIdempotency(input.idempotencyKey);
               if (!entry) {
-                    throw new Error("Inconsistent deduplication state: idempotency key marked as seen but entry not found");
+                    throw new NotFoundError("Inconsistent deduplication state: idempotency key marked as seen but entry not found");
                 }
               return { appended: false, duplicate: true, reason: "duplicate_delivery", entry: entry };
           }
@@ -89,7 +90,6 @@ import { Inject, Injectable } from "@nestjs/common";
           };
 
           const entry: MeshQueueTransitionLogEntry = {
-              organizationId: input.organizationId ?? null,
               sourceNodeId,
               sequence: nextSeq,
               payloadHash: this.hashPayload(payload),
@@ -111,7 +111,7 @@ import { Inject, Injectable } from "@nestjs/common";
           if (!this.dedupByIdempotency.checkAndRecord(parsed.payload.idempotencyKey)) {
               const existing = this.findByIdempotency(parsed.payload.idempotencyKey);
               if (!existing) {
-                    throw new Error("Inconsistent deduplication state: idempotency key marked as seen but entry not found");
+                    throw new NotFoundError("Inconsistent deduplication state: idempotency key marked as seen but entry not found");
                 }
               return { applied: false, duplicate: true, reason: "duplicate_delivery", entry: existing };
           }
@@ -134,7 +134,6 @@ import { Inject, Injectable } from "@nestjs/common";
           const raw = this.log.readFrom(afterSeq - 1, (input.limit) + 1);
           const filtered = raw
               .map((e) => e.payload)
-              .filter((e) => !input.organizationId || (e.organizationId ?? null) === input.organizationId)
               .filter((e) => !input.queue || e.payload.queue === input.queue)
               .filter((e) => !input.partitionKey || e.payload.partitionKey === input.partitionKey)
               .filter((e) => !input.sourceNodeId || e.sourceNodeId === input.sourceNodeId);
@@ -150,8 +149,7 @@ import { Inject, Injectable } from "@nestjs/common";
 
       planPartitionOwnership(input: MeshQueuePartitionPlanInput): MeshQueuePartitionPlanResult {
           const nowIso = this.clock.nowIso();
-          const orgId = input.organizationId ?? null;
-          const candidates = this.buildCandidates(orgId);
+          const candidates = this.buildCandidates();
 
           const ranked = candidates
               .map((c) => ({
@@ -199,7 +197,7 @@ import { Inject, Injectable } from "@nestjs/common";
           };
       }
 
-      private buildCandidates(orgId: string | null): QueuePartitionCandidate[] {
+      private buildCandidates(): QueuePartitionCandidate[] {
           const local: QueuePartitionCandidate = {
               nodeId: this.identity.getNodeId(),
               ownerServerUrl: this.resolveServerUrl(this.identity.getNodeId()),
@@ -217,7 +215,7 @@ import { Inject, Injectable } from "@nestjs/common";
 
           const all = [local, ...remotes];
           const allowed = new Set(
-              this.overlayScope.filterForwardedNodeIdsByOrganization(all.map((c) => c.nodeId), orgId),
+              this.overlayScope.filterForwardedNodeIdsByOrganization(all.map((c) => c.nodeId)),
           );
           return all.filter((c) => allowed.has(c.nodeId));
       }

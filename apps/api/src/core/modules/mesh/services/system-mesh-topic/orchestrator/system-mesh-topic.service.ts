@@ -1,5 +1,5 @@
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
-import type { EventContracts } from "@/core/modules/events/event-contract.builder";
+import type { EventContracts } from "@repo/nest-events";
 import type {
     MeshTopicNamespaceDefinition,
     MeshTopicNamespaceHandle,

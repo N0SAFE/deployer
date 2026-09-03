@@ -5,11 +5,12 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { Logger as DrizzleLogger } from "drizzle-orm/logger";
 import { fileURLToPath } from "node:url";
-import { hashPassword } from "better-auth/crypto";
+import { eq } from "drizzle-orm";
 import { Roles } from "@repo/auth/permissions";
 import type { SetupInitializeLocalInput } from "@repo/contracts-entities";
 import * as globalSchema from "@/config/drizzle/global/schema";
-import { member, organization, user } from "@/config/drizzle/global/schema/auth";
+import { user } from "@/config/drizzle/global/schema/auth";
+import { createBetterAuth } from "@/config/auth/auth";
 import { PostgresContainerService } from "@/core/modules/docker/containers/postgres/postgres-container.service";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
 import { generateMeshSharedSecret } from "@repo/auth/mesh";
@@ -25,6 +26,7 @@ import {
 import { resolveDockerHostIp } from "../utils/docker-host.utils";
 import { DEPLOYER_VERSION } from "@/core/utils/deployer-version";
 
+import { AppError, ConflictError } from "@repo/errors";
 /**
  * Local bootstrap flow.
  *
@@ -33,7 +35,7 @@ import { DEPLOYER_VERSION } from "@/core/utils/deployer-version";
  *     container).
  *  2. Verify the database is empty.
  *  3. Apply Drizzle migrations.
- *  4. Seed the initial admin user + organization.
+ *  4. Seed the initial admin user.
  *  5. Persist the node config.
  *  6. Finalize.
  *
@@ -71,6 +73,12 @@ export class LocalInitializationService {
     ): Promise<{ nodeId: string; databaseUrl: string }> {
         const nodeId = randomUUID();
 
+        // How the global DB is provisioned:
+        //   existingDatabaseUrl → operator-supplied ("external", not supervised)
+        //   otherwise           → the API spawns its own Postgres container
+        //                         ("local", supervised by GlobalDbSupervisorService)
+        const databaseProvisioning = input.existingDatabaseUrl?.trim() ? "external" : "local";
+
         const databaseUrl = await runStep(tracker, emit, "provision_database", "Set up the database", async (stepLog) => {
             if (input.existingDatabaseUrl?.trim()) {
                 stepLog("▸ Using existing database URL");
@@ -90,58 +98,59 @@ export class LocalInitializationService {
         const readyEvent = tracker.logEvent("provision_database", readyLine);
         if (readyEvent) emit(readyEvent);
 
-        await runStep(tracker, emit, "ensure_empty", "Ensure database is empty", async (stepLog) => {
+        const existingTables = await runStep(tracker, emit, "ensure_empty", "Ensure database is empty", async (stepLog) => {
             stepLog("▸ Querying information_schema.tables …");
             stepLog("  schema = public");
             stepLog("  type   = BASE TABLE");
-            const existingTables = await this.ensureDatabaseEmpty(databaseUrl);
-            if (existingTables.length === 0) {
+            const tables = await this.ensureDatabaseEmpty(databaseUrl);
+            if (tables.length === 0) {
                 stepLog("  result = 0 tables");
                 stepLog("✅ Database is empty");
             } else {
-                stepLog(`  result = ${String(existingTables.length)} tables`);
-                stepLog(`  tables = ${existingTables.join(", ")}`);
-                stepLog("✅ Database verified");
+                stepLog(`  result = ${String(tables.length)} tables`);
+                stepLog(`  tables = ${tables.join(", ")}`);
+                stepLog("✅ Database already initialized");
             }
+            return tables;
         });
 
-        await runStep(tracker, emit, "run_migrations", "Run migrations", async (stepLog) => {
-            const migrationsFolder = fileURLToPath(
-                new URL("../../../../config/drizzle/global/migrations", import.meta.url),
-            );
-            const migrationNames = listMigrationNames(migrationsFolder);
-            stepLog(`▸ Migration folder: ${migrationsFolder}`);
-            stepLog(`▸ Found ${String(migrationNames.length)} migration file(s):`);
-            for (const [i, name] of migrationNames.entries()) {
-                stepLog(`  [${String(i + 1).padStart(2, "0")}/${String(migrationNames.length)}] ${name}`);
-            }
-            stepLog("▸ Handing off to drizzle migrator (every statement will be streamed below)…");
-            await this.runMigrations(databaseUrl, migrationsFolder, stepLog);
-            stepLog(`✅ All ${String(migrationNames.length)} migration(s) applied successfully`);
-        }, "Connecting to the database and applying every Drizzle migration one statement at a time.");
+        // If the database was already initialized (tables exist), skip migration and seed
+        if (existingTables.length === 0) {
+            await runStep(tracker, emit, "run_migrations", "Run migrations", async (stepLog) => {
+                const migrationsFolder = fileURLToPath(
+                    new URL("../../../../config/drizzle/global/migrations", import.meta.url),
+                );
+                const migrationNames = listMigrationNames(migrationsFolder);
+                stepLog(`▸ Migration folder: ${migrationsFolder}`);
+                stepLog(`▸ Found ${String(migrationNames.length)} migration file(s):`);
+                for (const [i, name] of migrationNames.entries()) {
+                    stepLog(`  [${String(i + 1).padStart(2, "0")}/${String(migrationNames.length)}] ${name}`);
+                }
+                stepLog("▸ Handing off to drizzle migrator (every statement will be streamed below)…");
+                await this.runMigrations(databaseUrl, migrationsFolder, stepLog);
+                stepLog(`✅ All ${String(migrationNames.length)} migration(s) applied successfully`);
+            }, "Connecting to the database and applying every Drizzle migration one statement at a time.");
 
-        await runStep(tracker, emit, "seed_initial_data", "Initialize workspace data", async (stepLog) => {
-            stepLog(`▸ Creating super-admin user: ${input.email}`);
-            stepLog("  name  = " + input.name);
-            stepLog("  role  = super-admin");
-            stepLog("▸ Hashing password (bcrypt, cost 12)…");
-            stepLog("▸ Inserting user record…");
-            stepLog("▸ Inserting credentials account…");
-            stepLog(`▸ Creating organization "${input.organizationName}"…`);
-            stepLog("▸ Linking owner membership…");
-            const seedResult = await this.seedInitialData(databaseUrl, input, stepLog);
-            stepLog(`✅ User ${input.email} created with super-admin role`);
-            stepLog(`  user.id  = ${seedResult.userId}`);
-            stepLog(`✅ Organization "${input.organizationName}" created`);
-            stepLog(`  org.id   = ${seedResult.organizationId}`);
-            stepLog(`  org.slug = ${seedResult.organizationSlug}`);
-            stepLog("✅ Admin membership linked");
-        });
+            await runStep(tracker, emit, "seed_initial_data", "Initialize workspace data", async (stepLog) => {
+                stepLog(`▸ Creating super-admin user: ${input.email}`);
+                stepLog("  name  = " + input.name);
+                stepLog("  role  = super-admin");
+                stepLog("▸ Hashing password (bcrypt, cost 12)…");
+                stepLog("▸ Inserting user record…");
+                stepLog("▸ Inserting credentials account…");
+                const seedResult = await this.seedInitialData(databaseUrl, input, stepLog);
+                stepLog(`✅ User ${input.email} created with super-admin role`);
+                stepLog(`  user.id  = ${seedResult.userId}`);
+            });
+        } else {
+            this.logger.log("⏭️  Database already initialized — skipping migration and seed steps");
+        }
 
         await runStep(tracker, emit, "register_node", "Register this node", (stepLog) => {
             stepLog(`▸ Assigning node ID ${nodeId}…`);
             stepLog("  strategy = local");
             stepLog("  mesh     = (none)");
+            stepLog("  database = " + (databaseProvisioning === "local" ? "locally managed (supervised)" : "external (provided URL)"));
             stepLog("▸ Generating mesh shared secret…");
             const meshSharedSecret = generateMeshSharedSecret();
             stepLog("▸ Persisting node config to global database…");
@@ -155,6 +164,7 @@ export class LocalInitializationService {
                 configuredAt:     now,
                 updatedAt:        now,
                 databaseUrl,
+                databaseProvisioning,
                 meshSharedSecret,
                 meshSharedSecretUpdatedAt: now,
             });
@@ -211,7 +221,6 @@ export class LocalInitializationService {
         log("calling docker.createContainer …");
         const container = await this.postgresContainerService.startPostgresContainer();
         log(`container.id = ${container.id}`);
-        log(`container.name = ${container.name ?? "(unnamed)"}`);
 
         // Replay tail of container logs to give the user some startup context
         // before we attach the live log stream.
@@ -256,7 +265,7 @@ export class LocalInitializationService {
         const healthy = await this.dockerService.waitForContainerHealth(container.id, 30, 2000);
         if (!healthy) {
             liveSubscription.unsubscribe();
-            throw new Error(`Postgres container ${container.id} failed health check after 30 attempts`);
+            throw new AppError(`Postgres container ${container.id} failed health check after 30 attempts`, `INTERNAL_ERROR`);
         }
         log("HEALTHCHECK = healthy");
 
@@ -351,7 +360,7 @@ export class LocalInitializationService {
     }
 
     private async ensureDatabaseEmpty(databaseUrl: string): Promise<string[]> {
-        const pool = new Pool({ connectionString: databaseUrl, max: 1 });
+        const pool = new Pool({ connectionString: databaseUrl, max: 1, connectionTimeoutMillis: 5_000 });
         try {
             const res = await pool.query<{
                 table_name: string
@@ -360,8 +369,18 @@ export class LocalInitializationService {
                 WHERE table_schema = 'public' AND table_type = 'BASE TABLE';
             `);
             const tables = res.rows.map((r) => r.table_name);
+            // If tables exist, check if the database was already initialized
+            // (has __drizzle_migrations or schema_version). If so, this is a
+            // container reuse — not a fresh database. Let the flow proceed.
             if (tables.length > 0) {
-                throw new Error(`Database is not empty. Found tables: ${tables.join(", ")}`);
+                const hasMigrations = tables.includes('__drizzle_migrations') || tables.includes('schema_version');
+                if (hasMigrations) {
+                    // Database was already initialized — allow proceeding
+                    this.logger.log(`Database already initialized (${tables.length} tables found) — skipping fresh setup`);
+                } else {
+                    // Tables exist but no migration tracking — this is a leftover database, block
+                    throw new ConflictError(`Database is not empty. Found tables: ${tables.join(", ")}`);
+                }
             }
             return tables;
         } finally {
@@ -421,61 +440,54 @@ export class LocalInitializationService {
         databaseUrl: string,
         input: SetupInitializeLocalInput,
         log: (message: string) => void,
-    ): Promise<{ userId: string; organizationId: string; organizationSlug: string }> {
+    ): Promise<{ userId: string }> {
         const pool = new Pool({ connectionString: databaseUrl, max: 1 });
         const db = drizzle(pool, { schema: globalSchema });
-        const userId = randomUUID();
-        const organizationId = randomUUID();
-        const memberId = randomUUID();
-        const accountId = randomUUID();
-        const now = new Date();
-        const slug = slugify(input.organizationName);
-        log(`generated user.id      = ${userId}`);
-        log(`generated org.id       = ${organizationId}`);
-        log(`generated member.id    = ${memberId}`);
-        log(`generated account.id   = ${accountId}`);
-        log(`slug                   = ${slug}`);
-
-        const passwordHash = await hashPassword(input.password);
-        log("bcrypt hash computed");
 
         try {
-            log("INSERT user …");
-            await db.insert(user).values({
-                id: userId, name: input.name, email: input.email,
-                emailVerified: true, role: Roles.superAdmin,
-                createdAt: now, updatedAt: now,
+            // Create the super-admin user + credential account through the
+            // Better Auth service-side API. This is the single source of truth
+            // for user/account creation: Better Auth's internal adapter writes
+            // the credential account with `issuer = createLocalAccountIssuer(
+            // "credential")` ("local:credential") and hashes the password with
+            // the configured algorithm. Hardcoding those values here would
+            // drift from what Better Auth actually writes and break
+            // sign-in/email (INVALID_EMAIL_OR_PASSWORD).
+            log("▸ Creating Better Auth instance (service-side API)…");
+            const { auth } = createBetterAuth(db, {
+                DEV_AUTH_KEY: process.env.DEV_AUTH_KEY,
+                DEFAULT_ADMIN_EMAIL: process.env.DEFAULT_ADMIN_EMAIL,
+                NODE_ENV: process.env.NODE_ENV ?? "development",
+                BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET,
+                BASE_URL: process.env.NEXT_PUBLIC_API_URL,
+                APP_URL: process.env.APP_URL,
+                NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+                TRUSTED_ORIGINS: process.env.TRUSTED_ORIGINS,
+                AUTH_BASE_DOMAIN: process.env.AUTH_BASE_DOMAIN,
             });
-            log("  user row written");
 
-            log("INSERT account …");
-            await db.insert(globalSchema.account).values({
-                id: accountId, accountId: input.email,
-                providerId: "credential", userId,
-                password: passwordHash, createdAt: now, updatedAt: now,
+            log("▸ Calling auth.api.signUpEmail …");
+            const signUpResult = await auth.api.signUpEmail({
+                body: {
+                    name: input.name,
+                    email: input.email,
+                    password: input.password,
+                },
             });
-            log("  account row written");
+            const userId = signUpResult.user.id;
+            log(`  user.id  = ${userId}`);
+            log("  user + credential account written (issuer handled by Better Auth)");
 
-            log("INSERT organization …");
-            await db.insert(organization).values({
-                id: organizationId, name: input.organizationName,
-                slug, createdAt: now, metadata: null,
-            });
-            log("  organization row written");
+            log("▸ Promoting role to super-admin + marking email as verified …");
+            await db.update(user)
+                .set({ emailVerified: true, role: Roles.superAdmin })
+                .where(eq(user.id, userId));
+            log("  role = superAdmin, email_verified = true");
 
-            log("INSERT member …");
-            await db.insert(member).values({
-                id: memberId, organizationId, userId,
-                role: "owner", createdAt: now,
-            });
-            log("  member row written");
+            return { userId };
         } finally {
             await pool.end().catch(() => undefined);
         }
-        return {
-            userId,
-            organizationId,
-            organizationSlug: slug,
-        };
     }
 }
+

@@ -16,7 +16,7 @@ export class DockerRegistriesOrchestratorService {
 
   constructor(private readonly dockerRegistriesDomainService: DockerRegistriesDomainService) {}
 
-  listRegistries(input: DockerRegistryListInput) {
+  listRegistries(input: DockerRegistryListInput = {} as DockerRegistryListInput) {
     this.debug("DockerRegistriesOrchestratorService.listRegistries", {
       limit: input.limit,
       offset: input.offset,

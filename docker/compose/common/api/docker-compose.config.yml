@@ -1,0 +1,46 @@
+# =====================================================================
+# Api BASE config — INCLUDE-ONLY. This is the REAL base: everything the
+# api needs regardless of variant (env defaults, volumes, dns). Variant
+# configs (docker-compose.config.{dev,prod}.yml) extend THIS; the
+# orchestrators extend the variant and add only per-project wiring
+# (container_name, networks, depends_on, MANAGED_* flags).
+# =====================================================================
+services:
+  api:
+    restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    environment:
+      DOCKER_HOST: unix:///var/run/docker.sock
+      AUTH_SECRET: ${AUTH_SECRET:-fallback-auth-secret}
+      BETTER_AUTH_SECRET: ${AUTH_SECRET:-fallback-auth-secret}
+      AUTH_BASE_DOMAIN: ${AUTH_BASE_DOMAIN:-.deployer.localhost}
+      DEV_AUTH_KEY: ${DEV_AUTH_KEY:-dev-fallback-key}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-}
+      PASSKEY_RPID: ${PASSKEY_RPID:-localhost}
+      PASSKEY_RPNAME: ${PASSKEY_RPNAME:-NestJS App}
+      PASSKEY_ORIGIN: ${PASSKEY_ORIGIN:-http://localhost:3000}
+      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      UPLOADS_DIR: ${UPLOADS_DIR:-/app/apps/api/uploads}
+      ENABLE_SEEDING: "false"
+      TRAEFIK_CONFIG_VOLUME: ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}
+      DEPLOYER_PREFIX: ${DEPLOYER_PREFIX:-}
+      DEPLOYER_TRAEFIK_IMAGE: ${DEPLOYER_TRAEFIK_IMAGE:-traefik:v3.3}
+      DEPLOYER_TRAEFIK_HTTP_PORT: ${DEPLOYER_TRAEFIK_HTTP_PORT:-80}
+      DEPLOYER_REDIS_URL: ${DEPLOYER_REDIS_URL:-redis://redis:6379}
+      DEPLOYER_DIRECT_PROXY_ENABLED: ${DEPLOYER_DIRECT_PROXY_ENABLED:-true}
+      DEPLOYER_DIRECT_PROXY_IMAGE: ${DEPLOYER_DIRECT_PROXY_IMAGE:-nginx:alpine}
+      DIRECT_PROXY_API_TARGET: ${DIRECT_PROXY_API_TARGET:-}
+      DIRECT_PROXY_WEB_HOST_PORT: ${DIRECT_PROXY_WEB_HOST_PORT:-3000}
+      DIRECT_PROXY_CONFIG_VOLUME: ${DIRECT_PROXY_CONFIG_VOLUME:-deployer-port-proxy-config}
+      TURBO_TOKEN: ${TURBO_TOKEN:-}
+      TURBO_TEAM: ${TURBO_TEAM:-}
+    volumes:
+      # Docker daemon socket for dockerode-backed runtime operations.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Platform config SHARING volume (API writes; Traefik mounts ro).
+      - ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}:/app/traefik-configs
+      # Failover proxy config SHARING volume.
+      - ${DIRECT_PROXY_CONFIG_VOLUME:-deployer-port-proxy-config}:/app/port-proxy-config

@@ -3,12 +3,16 @@ import {
   deploymentStatusSchema as commonDeploymentStatusSchema,
 } from '@repo/contracts-common'
 import { projectSettingsSchema } from './settings.schema'
+import { projectNetworkConfigSchema } from './network.schema'
 
 export const projectSchema = z.object({
   id: z.uuid(),
   name: z.string(),
   description: z.string().nullable(),
+  /** Legacy free-text base domain — derived from network.zoneName when network config is set. */
   baseDomain: z.string().nullable(),
+  /** Provider-backed network configuration (DNS provider + zone). */
+  network: projectNetworkConfigSchema.nullable(),
   ownerId: z.string(),
   settings: projectSettingsSchema.nullable(),
   createdAt: z.string(),

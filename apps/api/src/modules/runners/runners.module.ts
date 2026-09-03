@@ -17,7 +17,6 @@ import { DockerfileRuntimeRunnerService } from "./dockerfile/dockerfile-runtime-
 import { NixpacksRuntimeRunnerService } from "./nixpacks/nixpacks-runtime-runner.service";
 import { RailpackRuntimeRunnerService } from "./railpack/railpack-runtime-runner.service";
 import { RuntimeRunnerRegistryService } from "./runtime-runner-registry.service";
-import { DeploymentLoadBalancerSyncAdapter } from "./adapters/deployment-load-balancer-sync.adapter";
 
 @Module({
     imports: [CoreDockerModule, TraefikCoreModule, ConfigurationCoreModule],
@@ -29,7 +28,6 @@ import { DeploymentLoadBalancerSyncAdapter } from "./adapters/deployment-load-ba
         BuildpackRuntimeRunnerService,
         RailpackRuntimeRunnerService,
         RuntimeRunnerRegistryService,
-        DeploymentLoadBalancerSyncAdapter,
     ],
     exports: [RuntimeRunnerRegistryService],
 })

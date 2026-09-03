@@ -9,4 +9,7 @@ export const projectGetAllEnvironmentStatusesContract = projectEnvironmentStatus
             statuses: z.array(environmentStatusOutputSchema.extend({ environmentName: z.string() })),
         }),
     )
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
+
+import { standardDomainErrorContracts } from "@repo/orpc-utils";

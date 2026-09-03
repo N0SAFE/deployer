@@ -35,7 +35,6 @@ describe("Traefik routing e2e (Testcontainers)", () => {
       .withExposedPorts(80)
       .withEnvironment({
         DOCKER_HOST: "unix:///var/run/docker.sock",
-        DOCKER_API_VERSION: "1.43",
       })
       .withBindMounts([{ source: "/var/run/docker.sock", target: "/var/run/docker.sock" }])
       .withCommand([

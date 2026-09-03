@@ -59,6 +59,7 @@ import { Session } from "better-auth";
 import { PushNotificationSettings } from "@/components/push-notifications/PushNotificationSettings";
 import { usePushStats } from "@/domains/push/hooks";
 
+import type { Metadata } from 'next'
 const ProfilePage: React.FC = () => {
   const { data: session } = useSession();
 
@@ -697,3 +698,8 @@ const ProfilePage: React.FC = () => {
 };
 
 export default ProfilePage;
+
+export const metadata: Metadata = {
+    title: "Account",
+    description: "Your Deployer account",
+}

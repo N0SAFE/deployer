@@ -240,7 +240,7 @@ export const dockerFleetServerSchema = z.object({
   maxMemoryMb: z.number().int().min(0).nullable(),
   metrics: dockerFleetServerMetricsSchema.nullable(),
   allocationSummary: z.object({
-    organizations: z.number().int().min(0),
+    services: z.number().int().min(0),
     cpuMillicores: z.number().int().min(0),
     memoryMb: z.number().int().min(0),
   }),

@@ -17,15 +17,21 @@ import {
   FolderKanban,
   Search,
   Loader2,
+  GitFork,
+  Globe,
+  Network,
+  Activity,
 } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import ModeToggle from '@repo/ui/components/shadcn/mode-toggle'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { Home as HomeRoute, AuthDashboardProfile, AuthDashboardProjects } from '@/routes'
 import { useSession, signOut } from '@/lib/auth'
 import { revalidateAllAction } from '@/components/signout/revalidateAll.action'
 import { useProjectList } from '@/domains/project/hooks'
 import { useServiceList } from '@/domains/service/hooks'
+import { openCommandPalette } from './command-palette-store'
 import {
   Sidebar,
   SidebarContent,
@@ -75,14 +81,27 @@ const mainNavItems: NavItem[] = [
     exact: true,
   },
   {
-    title: 'Deployments',
-    url: '/dashboard/deployments',
-    icon: Rocket,
+    title: 'Analytics',
+    url: '/dashboard/analytics',
+    icon: Activity,
   },
+]
+
+/** Mesh-wide items: projects, services, domains (span all nodes) */
+const meshNavItems: NavItem[] = [
   {
     title: 'Services',
     url: '/dashboard/services',
     icon: Server,
+  },
+]
+
+/** Node-scoped items: deployments, docker, per-node config */
+const nodeNavItems: NavItem[] = [
+  {
+    title: 'Deployments',
+    url: '/dashboard/deployments',
+    icon: Rocket,
   },
   {
     title: 'Docker',
@@ -101,12 +120,19 @@ const mainNavItems: NavItem[] = [
       { title: 'Activity', url: '/dashboard/docker/activity' },
     ],
   },
-  {
-    title: 'Organizations', 
-    url: '/dashboard/admin/organizations',
-    icon: Building2,
-  },
 ]
+
+/** Subtle go-to hints for the primary nav (matched in the command palette). */
+const navShortcuts: Record<string, string> = {
+  Overview: 'g o',
+  Projects: 'g p',
+  Deployments: 'g d',
+  Services: 'g s',
+  Docker: 'g c',
+  Organizations: 'g r',
+  Profile: 'g u',
+  System: 'g a',
+}
 
 const adminNavItems: NavItem[] = [
   { 
@@ -120,9 +146,24 @@ const adminNavItems: NavItem[] = [
     icon: Users,
   },
   { 
-    title: 'Organizations', 
-    url: '/dashboard/admin/organizations',
-    icon: Building2,
+    title: 'Domains', 
+    url: '/dashboard/admin/domains',
+    icon: Globe,
+  },
+  {
+    title: 'Providers',
+    url: '/dashboard/admin/providers',
+    icon: GitFork,
+    items: [
+      { title: 'Code Providers', url: '/dashboard/admin/providers/code' },
+      { title: '▸ GitHub', url: '/dashboard/admin/providers/code/github' },
+      { title: '▸ GitLab', url: '/dashboard/admin/providers/code/gitlab' },
+      { title: '▸ Docker Hub', url: '/dashboard/admin/providers/code/docker-hub' },
+      { title: 'DNS Providers', url: '/dashboard/admin/providers/dns' },
+      { title: '▸ Cloudflare', url: '/dashboard/admin/providers/dns/cloudflare' },
+      { title: '▸ Route53', url: '/dashboard/admin/providers/dns/route53' },
+      { title: '▸ Google DNS', url: '/dashboard/admin/providers/dns/google-dns' },
+    ],
   },
   { 
     title: 'System', 
@@ -170,7 +211,7 @@ function ProjectsSidebarSection() {
   const [serviceFilter, setServiceFilter] = useState('')
   const filterInputRef = useRef<HTMLInputElement>(null)
 
-  const { data: projectsData } = useProjectList(undefined)
+  const { data: projectsData } = useProjectList({ query: { limit: 50, offset: 0 } })
 
   const projects: Array<{ id: string; name: string }> = useMemo(() => {
     const raw = projectsData as { data?: Array<{ id: string; name: string }> } | undefined
@@ -180,17 +221,17 @@ function ProjectsSidebarSection() {
   }, [projectsData, projectFilter])
 
   // Fetch services when a project is expanded
-  const { data: servicesData } = useServiceList(
-    useMemo(() => {
-      if (!expandedProject) return undefined
-      return { projectId: { eq: expandedProject }, sort: { field: "name", dir: "asc" as const }, limit: 50 }
-    }, [expandedProject]),
-  )
+  const { data: servicesData } = useServiceList({ query: { limit: 50, offset: 0 } })
 
+  // Services of the expanded project — TOP-LEVEL only (sub-services appear
+  // inside their parent service's page, never as main nav entries).
   const filteredServices: Array<{ id: string; name: string }> = useMemo(() => {
-    const raw = servicesData as { data?: Array<{ id: string; name: string }> } | undefined
-    const list = raw?.data ?? []
-    if (!serviceFilter || !expandedProject) return list
+    const raw = servicesData as { data?: Array<{ id: string; name: string; parentId?: string | null; parent_id?: string | null; projectId?: string; project_id?: string }> } | undefined
+    const list = (raw?.data ?? []).filter((s) =>
+      (s.projectId === expandedProject || s.project_id === expandedProject) &&
+      (s.parentId == null && s.parent_id == null),
+    )
+    if (!serviceFilter) return list
     return list.filter((s: { name: string }) => fuzzyMatch(s.name, serviceFilter))
   }, [servicesData, serviceFilter, expandedProject])
 
@@ -304,7 +345,20 @@ function ProjectsSidebarSection() {
 
 // ─── Main Sidebar ────────────────────────────────────────────────────────
 
+/**
+ * DashboardSidebar — the sidebar shell.
+ * 
+ * The inner content calls usePathname() (URL data). On routes with dynamic
+ * params not covered by generateStaticParams, the pathname suspends during
+ * prerendering. The Suspense boundary lives in the dashboard layout (server
+ * tree) — it wraps this component so the static shell can commit and the
+ * sidebar streams in behind its skeleton.
+ */
 export function DashboardSidebar() {
+  return <DashboardSidebarInner />
+}
+
+function DashboardSidebarInner() {
   const pathname = usePathname()
   const { data: session } = useSession()
   
@@ -350,12 +404,68 @@ export function DashboardSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
+        {/* Global search — opens the ⌘K palette */}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <button
+                  type="button"
+                  onClick={() => openCommandPalette()}
+                  className="flex h-9 w-full items-center gap-2 rounded-lg border border-border/60 bg-background/40 px-3 text-xs text-muted-foreground transition-colors hover:border-border/80 hover:bg-background/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+                  aria-label="Open command palette"
+                >
+                  <Search className="size-3.5 shrink-0" />
+                  <span className="group-data-[collapsible=icon]:hidden">Search…</span>
+                  <kbd className="ml-auto rounded-md border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] group-data-[collapsible=icon]:hidden">
+                    ⌘K
+                  </kbd>
+                </button>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         {/* Main Navigation */}
         <SidebarGroup>
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNavItems.map((item) => (
+                <Collapsible
+                  key={item.title}
+                  asChild
+                  defaultOpen={isActive(item) || hasActiveChild(item)}
+                  className="group/collapsible"
+                >
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.title}>
+                      <Link href={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                        {navShortcuts[item.title] ? (
+                          <kbd className="ml-auto hidden rounded border border-transparent px-1 font-mono text-[10px] text-muted-foreground/70 group-data-[collapsible=icon]:hidden lg:inline-block">
+                            {navShortcuts[item.title]}
+                          </kbd>
+                        ) : null}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </Collapsible>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Mesh Section: Projects, Services — span all nodes */}
+        <SidebarGroup>
+          <SidebarGroupLabel>
+            <Network className="size-3 mr-1" />
+            Mesh
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {meshNavItems.map((item) => (
                 <Collapsible
                   key={item.title}
                   asChild
@@ -398,6 +508,58 @@ export function DashboardSidebar() {
 
               {/* Inline Projects Section */}
               <ProjectsSidebarSection />
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Node Section: Deployments, Docker — per-node scope */}
+        <SidebarGroup>
+          <SidebarGroupLabel>
+            <Server className="size-3 mr-1" />
+            Node
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {nodeNavItems.map((item) => (
+                <Collapsible
+                  key={item.title}
+                  asChild
+                  defaultOpen={isActive(item) || hasActiveChild(item)}
+                  className="group/collapsible"
+                >
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.title}>
+                      <Link href={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    {item.items?.length ? (
+                      <>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuAction className="group-data-[state=open]/collapsible:rotate-90">
+                            <ChevronRight />
+                            <span className="sr-only">Toggle</span>
+                          </SidebarMenuAction>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
+                            {item.items.map((subItem) => (
+                              <SidebarMenuSubItem key={subItem.title}>
+                                <SidebarMenuSubButton asChild isActive={pathname === subItem.url || pathname.startsWith(`${subItem.url}/`)}>
+                                  <Link href={subItem.url}>
+                                    <span>{subItem.title}</span>
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            ))}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </>
+                    ) : null}
+                  </SidebarMenuItem>
+                </Collapsible>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -516,6 +678,12 @@ export function DashboardSidebar() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          </SidebarMenuItem>
+
+          {/* Theme toggle (W-F12): make the shipped dark mode reachable —
+              the mode-toggle component was orphaned previously. */}
+          <SidebarMenuItem>
+            <ModeToggle />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

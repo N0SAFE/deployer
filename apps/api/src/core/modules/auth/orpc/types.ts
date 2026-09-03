@@ -1,13 +1,8 @@
 import type { Auth } from "@/auth";
-import type { AdminPluginWrapper, OrganizationPluginWrapper } from "../plugin-utils/plugin-wrapper-factory";
-import type { PlatformRole } from "@repo/auth/permissions";
+import type { AdminPluginWrapper } from "../plugin-utils/plugin-wrapper-factory";
+import type { SessionUserWithRole } from "../utils/auth-utils";
 
-type SessionUserWithRole = Auth["$Infer"]["Session"]["user"] & {
-  role?: PlatformRole;
-  banned?: boolean;
-  [key: string]: unknown;
-};
-
+import { AppError } from "@repo/errors";
 /**
  * Brand symbol for authenticated context
  */
@@ -144,12 +139,6 @@ export interface ORPCAuthContext<TLoggedIn extends boolean = boolean> {
   readonly admin: AdminPluginWrapper;
 
   /**
-   * Organization plugin utilities with auto-injected headers
-   * Provides organization-level operations
-   */
-  readonly org: OrganizationPluginWrapper;
-
-  /**
    * Require authentication - throws if user is not logged in
    * 
    * Use this for programmatic auth checks in handlers when you need to
@@ -199,7 +188,7 @@ export interface ORPCAuthenticatedContext extends ORPCAuthContext<true> {
  */
 export function assertAuthenticated(auth: ORPCAuthContext): ORPCAuthenticatedContext {
   if (!auth.isLoggedIn || !auth.session || !auth.user) {
-    throw new Error('Auth context is not authenticated');
+    throw new AppError('Auth context is not authenticated', 'INTERNAL_ERROR');
   }
   return auth as ORPCAuthenticatedContext;
 }

@@ -1,8 +1,16 @@
-import { Injectable, Logger } from "@nestjs/common";
+import {
+    BadRequestException,
+    BadGatewayException,
+    InternalServerErrorException,
+    Injectable,
+    Logger,
+    NotFoundException,
+} from "@nestjs/common";
 import Docker from "dockerode";
 import * as fs from "fs";
 import * as path from "path";
 import { PassThrough } from "stream";
+import { execFile } from "node:child_process";
 import { Observable } from "rxjs";
 import { EnvService } from "@/config/env/env.service";
 import { isRecord, isObjectLike } from "@repo/type-guards"
@@ -315,11 +323,17 @@ export class DockerService {
         options?: {
             dockerfileName?: string;
             autoCreateDockerfile?: boolean;
+            /** Build-time variables forwarded as docker build args (ARG in the Dockerfile). */
+            buildArgs?: Record<string, string>;
         },
     ): Promise<void> {
         this.logger.log(`Building image ${imageTag} from ${sourcePath}`);
         const dockerfileName = options?.dockerfileName ?? "Dockerfile";
-        const autoCreateDockerfile = options?.autoCreateDockerfile ?? true;
+        // Auto-creating a Dockerfile is opt-in ONLY. Defaulting to `true`
+        // silently wrote a bogus `FROM node:18-alpine` Dockerfile whenever the
+        // real one was missing (e.g. a wrong path), masking the real error and
+        // producing images that don't match the intended runtime.
+        const autoCreateDockerfile = options?.autoCreateDockerfile ?? false;
         // Check if Dockerfile exists
         const dockerfilePath = path.join(sourcePath, dockerfileName);
         if (autoCreateDockerfile && !fs.existsSync(dockerfilePath)) {
@@ -335,6 +349,11 @@ CMD ["npm", "start"]
       `.trim();
             fs.writeFileSync(dockerfilePath, basicDockerfile);
         }
+        if (!fs.existsSync(dockerfilePath)) {
+            throw new NotFoundException(
+                `Dockerfile not found at ${dockerfilePath} (context=${sourcePath}, dockerfile=${dockerfileName})`,
+            );
+        }
         const stream = await this.docker.buildImage(
             {
                 context: sourcePath,
@@ -343,11 +362,62 @@ CMD ["npm", "start"]
             {
                 t: imageTag,
                 dockerfile: dockerfileName,
+                ...(options?.buildArgs ? { buildargs: options.buildArgs } : {}),
             }
         );
         await this.followStream(stream);
         this.logger.log(`Image ${imageTag} built successfully`);
     }
+
+    /**
+     * Build all images declared in a docker-compose file via the `docker
+     * compose build` CLI. This is what the `docker_compose` builder/runner
+     * path uses instead of a single-image `docker build`.
+     *
+     * @returns the compose project name and the list of service names built.
+     * @throws if the compose file is absent or the CLI build fails.
+     */
+    async buildCompose(
+        sourcePath: string,
+        options?: {
+            composeFileName?: string;
+            projectName?: string;
+            serviceNames?: string[];
+        },
+    ): Promise<{ projectName: string; services: string[] }> {
+        const composeFileName = options?.composeFileName ?? "docker-compose.yml";
+        const composeFilePath = path.join(sourcePath, composeFileName);
+        if (!fs.existsSync(composeFilePath)) {
+            throw new NotFoundException(`Docker compose file not found at ${composeFilePath}`);
+        }
+        const projectName = options?.projectName ?? `deployer-${Date.now()}`;
+        const args = ["compose", "-f", composeFilePath, "-p", projectName, "build"];
+        if (options?.serviceNames?.length) {
+            args.push(...options.serviceNames);
+        }
+        await this.runComposeCli(args, sourcePath);
+        return { projectName, services: options?.serviceNames ?? [] };
+    }
+
+    /**
+     * Run a `docker compose ...` CLI command and await completion.
+     */
+    private runComposeCli(args: string[], cwd: string): Promise<void> {
+        return new Promise((resolve, reject) => {
+            execFile("docker", args, { cwd }, (error, _stdout, stderr) => {
+                if (error) {
+                    reject(
+                        new Error(
+                            `docker compose failed (${args.join(" ")}): ${stderr || error.message}`,
+                        ),
+                    );
+                    return;
+                }
+                resolve();
+            });
+        });
+    }
+
     async createAndStartContainer(options: {
         image: string;
         name: string;
@@ -473,7 +543,7 @@ CMD ["npm", "start"]
                     }
                 }
                 this.logger.error(`All attempts to pull image ${image} and fallbacks failed`);
-                throw new Error(`Failed to pull image ${image}: ${lastPullErrMsg ?? "unknown error"}`);
+                throw new BadGatewayException(`Failed to pull image ${image}: ${lastPullErrMsg ?? "unknown error"}`);
             }
 
             // Unknown error - rethrow
@@ -872,7 +942,7 @@ CMD ["npm", "start"]
                 this.logger.debug(`Image inspect failed for ${requestedImage}: ${DockerService.getErrMsg(inspectErr)}`);
                 if (imagePullPolicy === "Never") {
                     this.logger.warn(`Image ${requestedImage} not present locally and policy is 'Never' - refusing to pull`);
-                    throw new Error(`Image ${requestedImage} not present locally and imagePullPolicy is 'Never'`);
+                    throw new BadRequestException(`Image ${requestedImage} not present locally and imagePullPolicy is 'Never'`);
                 }
                 this.logger.warn(`Image ${requestedImage} not present locally. Will attempt to pull before creating container (policy=${imagePullPolicy}).`);
                 const imagesToTry = [requestedImage];
@@ -897,7 +967,7 @@ CMD ["npm", "start"]
                 }
                 if (!pulled) {
                     this.logger.error(`Failed to pull requested image ${requestedImage} and fallbacks. Last error: ${lastPullErrMsg ?? "unknown error"}`);
-                    throw new Error(`Image ${requestedImage} missing and pull failed: ${lastPullErrMsg ?? "unknown error"}`);
+                    throw new BadGatewayException(`Image ${requestedImage} missing and pull failed: ${lastPullErrMsg ?? "unknown error"}`);
                 }
             }
         }
@@ -913,7 +983,7 @@ CMD ["npm", "start"]
             const errMsgLower = errMsg.toLowerCase();
             if (errMsgLower.includes("no such image") || errMsgLower.includes("not found") || errMsgLower.includes("manifest unknown")) {
                 if (!requestedImage) {
-                    throw new Error("Cannot create container: no image specified");
+                    throw new BadRequestException("Cannot create container: no image specified");
                 }
                 const imagesToTry: string[] = [requestedImage];
                 if (requestedImage === "nginx:alpine") {
@@ -940,7 +1010,7 @@ CMD ["npm", "start"]
                     }
                 }
                 this.logger.error(`Failed to pull any images for container creation. Last error: ${lastErrMsg ?? "unknown error"}`);
-                throw new Error(`Failed to create container: image ${requestedImage} not available and pull attempts failed. Last error: ${lastErrMsg ?? "unknown error"}`);
+                throw new BadGatewayException(`Failed to create container: image ${requestedImage} not available and pull attempts failed. Last error: ${lastErrMsg ?? "unknown error"}`);
             }
             throw error;
         }
@@ -980,7 +1050,7 @@ CMD ["npm", "start"]
             }
         }
         this.logger.error(`All pull attempts failed for image ${image}`);
-        throw new Error(`Failed to pull image ${image}: ${lastErrMsg ?? "unknown error"}`);
+        throw new BadGatewayException(`Failed to pull image ${image}: ${lastErrMsg ?? "unknown error"}`);
     }
 
     private async followStream(stream: NodeJS.ReadableStream, onProgressLine?: (line: string) => void): Promise<void> {
@@ -1159,7 +1229,7 @@ CMD ["npm", "start"]
                 const exitCode = typeof execInspect.ExitCode === "number" ? execInspect.ExitCode : -1;
                 if (exitCode !== 0) {
                     this.logger.error(`Exec in container ${containerIdOrName} failed (exitCode=${String(exitCode)}): ${inlineOutput}`);
-                    throw new Error(`Command ${cmd.join(" ")} failed with exit code ${String(exitCode)} - output: ${inlineOutput}`);
+                    throw new InternalServerErrorException(`Command ${cmd.join(" ")} failed with exit code ${String(exitCode)} - output: ${inlineOutput}`);
                 }
 
                 this.logger.debug(`Exec in container ${containerIdOrName} completed with inline payload (exitCode=${String(exitCode)})`);
@@ -1167,7 +1237,7 @@ CMD ["npm", "start"]
             }
 
             if (!this.isReadWriteStream(rawStream) && !this.isReadableStream(rawStream)) {
-                throw new Error("exec.start() returned an unexpected non-stream value");
+                throw new InternalServerErrorException("exec.start() returned an unexpected non-stream value");
             }
 
             const stream = rawStream;
@@ -1201,7 +1271,7 @@ CMD ["npm", "start"]
             // If input supplied, write to stdin
             if (input) {
                 if (!this.isReadWriteStream(stream)) {
-                    throw new Error("exec.start() returned a non-writable stream while stdin input was provided");
+                    throw new InternalServerErrorException("exec.start() returned a non-writable stream while stdin input was provided");
                 }
                 try {
                     this.logger.debug(`Writing to exec stdin for container ${containerIdOrName}: ${input}`);
@@ -1235,7 +1305,7 @@ CMD ["npm", "start"]
             const exitCode = typeof execInspect.ExitCode === "number" ? execInspect.ExitCode : -1;
             if (exitCode !== 0) {
                 this.logger.error(`Exec in container ${containerIdOrName} failed (exitCode=${String(exitCode)}): ${output}`);
-                throw new Error(`Command ${cmd.join(" ")} failed with exit code ${String(exitCode)} - output: ${output}`);
+                throw new InternalServerErrorException(`Command ${cmd.join(" ")} failed with exit code ${String(exitCode)} - output: ${output}`);
             }
 
             this.logger.debug(`Exec in container ${containerIdOrName} completed (exitCode=${String(exitCode)})`);
@@ -1272,11 +1342,11 @@ CMD ["npm", "start"]
                         }
 
                         this.logger.warn(`Non-hijack exec retry returned non-zero exit code ${String(retryExit)} - falling back to helper container`);
-                        throw new Error(`Non-hijack exec retry failed with exit code ${String(retryExit)}: ${inlineRetryOutput}`);
+                        throw new InternalServerErrorException(`Non-hijack exec retry failed with exit code ${String(retryExit)}: ${inlineRetryOutput}`);
                     }
 
                     if (!this.isReadWriteStream(rawStreamRetry) && !this.isReadableStream(rawStreamRetry)) {
-                        throw new Error("exec.start() returned an unexpected non-stream value");
+                        throw new InternalServerErrorException("exec.start() returned an unexpected non-stream value");
                     }
 
                     const streamRetry = rawStreamRetry;
@@ -1307,7 +1377,7 @@ CMD ["npm", "start"]
 
                     if (input) {
                         if (!this.isReadWriteStream(streamRetry)) {
-                            throw new Error("exec retry stream is not writable while stdin input was provided");
+                            throw new InternalServerErrorException("exec retry stream is not writable while stdin input was provided");
                         }
                         try {
                             (streamRetry).write(input);
@@ -1387,7 +1457,7 @@ CMD ["npm", "start"]
             }
 
             if (!this.isReadWriteStream(rawStream) && !this.isReadableStream(rawStream)) {
-                throw new Error("exec.start() returned an unexpected non-stream value");
+                throw new InternalServerErrorException("exec.start() returned an unexpected non-stream value");
             }
 
             const stream = rawStream;
@@ -1411,7 +1481,7 @@ CMD ["npm", "start"]
 
             if (input) {
                 if (!this.isReadWriteStream(stream)) {
-                    throw new Error("exec-capture stream is not writable while stdin input was provided");
+                    throw new InternalServerErrorException("exec-capture stream is not writable while stdin input was provided");
                 }
                 try { (stream).write(input); } catch { /* skip */ }
                 try { (stream).end(); } catch { /* skip */ }
@@ -1549,8 +1619,8 @@ CMD ["npm", "start"]
                 timestamps: options.timestamps,
             };
             const rawLogs: unknown = options.follow === true
-                ? await container.logs({ ...opts, follow: true as const })
-                : await container.logs({ ...opts, follow: false as const });
+                ? await (container.logs as (opts: Record<string, unknown>) => unknown)({ ...opts, follow: true })
+                : await (container.logs as (opts: Record<string, unknown>) => unknown)({ ...opts, follow: false });
 
             // Docker API may return non-stream payloads (Buffer/string) for non-follow log requests.
             if (typeof rawLogs === "string") {
@@ -1562,7 +1632,7 @@ CMD ["npm", "start"]
             }
 
             if (!this.isReadableStream(rawLogs)) {
-                throw new Error("container.logs() returned an unexpected non-stream value");
+                throw new InternalServerErrorException("container.logs() returned an unexpected non-stream value");
             }
             const stream = rawLogs;
             const chunks: Buffer[] = [];
@@ -1648,7 +1718,7 @@ CMD ["npm", "start"]
         }
 
         if (!this.isReadableStream(rawLogs)) {
-            throw new Error("container.logs(follow:true) returned an unexpected non-stream value");
+            throw new InternalServerErrorException("container.logs(follow:true) returned an unexpected non-stream value");
         }
 
         const stream = rawLogs;
@@ -1714,7 +1784,7 @@ CMD ["npm", "start"]
                             pending = Buffer.concat([pending, Buffer.from(chunk, "utf8")]);
                         } else if (Buffer.isBuffer(chunk)) {
                             pending = Buffer.concat([pending, chunk]);
-                        } else if (chunk instanceof Uint8Array) {
+                        } else if ((chunk as unknown) instanceof Uint8Array) {
                             pending = Buffer.concat([pending, Buffer.from(chunk)]);
                         }
                         resolve();
@@ -1737,8 +1807,8 @@ CMD ["npm", "start"]
         } finally {
             // Always tear down the underlying socket so we don't leak
             // half-open log streams if the consumer breaks out of the loop.
-            if (typeof (stream as { destroy?: () => void }).destroy === "function") {
-                try { (stream as { destroy: () => void }).destroy(); } catch { /* ignore */ }
+            if (typeof (stream as unknown as { destroy?: () => void }).destroy === "function") {
+                try { (stream as unknown as { destroy: () => void }).destroy(); } catch { /* ignore */ }
             }
             // Suppress unhandled rejection from the `done` promise if we broke out early
             done.catch(() => undefined);
@@ -1879,7 +1949,7 @@ CMD ["npm", "start"]
             }
         }
 
-        throw new Error(`Failed to write file ${filename} into volume ${volumeName} after ${String(retries)} attempts: ${lastErrMsg ?? "unknown error"}`);
+        throw new InternalServerErrorException(`Failed to write file ${filename} into volume ${volumeName} after ${String(retries)} attempts: ${lastErrMsg ?? "unknown error"}`);
     }
 
     /**
@@ -2000,7 +2070,7 @@ CMD ["npm", "start"]
 
                 const extractInspect = await extractExec.inspect();
                 if (extractInspect.ExitCode !== 0) {
-                    throw new Error(`Tar extraction failed with exit code ${String(extractInspect.ExitCode)}: ${extractOutput}`);
+                    throw new InternalServerErrorException(`Tar extraction failed with exit code ${String(extractInspect.ExitCode)}: ${extractOutput}`);
                 }
 
                 this.logger.debug(`Successfully extracted tar to ${finalDestPath} with strip-components=1`);
@@ -2073,7 +2143,7 @@ CMD ["npm", "start"]
                 this.logger.log(`Verification: ${String(filesCount)} files found in ${volumeName}${destPathInVolume} (last line: "${lastLine ?? ""}")`);
 
                 if (filesCount === 0) {
-                    throw new Error("Archive extracted but no files found in destination");
+                    throw new InternalServerErrorException("Archive extracted but no files found in destination");
                 }
             } catch (verifyErr) {
                 this.logger.error(`Post-copy verification failed: ${DockerService.getErrMsg(verifyErr)}`);
@@ -2115,7 +2185,7 @@ CMD ["npm", "start"]
      */
     private async waitForStreamEnd(rawStream: unknown, timeoutMs = 5000): Promise<void> {
         if (!this.isReadableStream(rawStream)) {
-            throw new Error("waitForStreamEnd: provided value is not a readable stream");
+            throw new InternalServerErrorException("waitForStreamEnd: provided value is not a readable stream");
         }
         const stream = rawStream;
         return new Promise((resolve, reject) => {
@@ -2300,7 +2370,7 @@ CMD ["npm", "start"]
 
                     const execRaw: unknown = await exec.start({ hijack: false, stdin: false });
                     if (!this.isReadableStream(execRaw)) {
-                        throw new Error("exec.start() returned an unexpected non-stream value");
+                        throw new InternalServerErrorException("exec.start() returned an unexpected non-stream value");
                     }
                     const stream = execRaw;
 
@@ -2349,7 +2419,7 @@ CMD ["npm", "start"]
 
                         const altRaw: unknown = await altExec.start({ hijack: false, stdin: false });
                         if (!this.isReadableStream(altRaw)) {
-                            throw new Error("altExec.start() returned an unexpected non-stream value");
+                            throw new InternalServerErrorException("altExec.start() returned an unexpected non-stream value");
                         }
                         const altStream = altRaw;
 

@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import z from "zod/v4";
 import {
     templateSetValidationInputSchema,
@@ -24,6 +24,7 @@ export const templateValidateStructuralContract = templateValidationOps
         ),
     )
     .output(templateValidationResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const templateValidateSemanticContract = templateValidationOps
@@ -37,6 +38,7 @@ export const templateValidateSemanticContract = templateValidationOps
         ),
     )
     .output(templateValidationResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const templateValidateContract = templateValidationOps
@@ -44,6 +46,7 @@ export const templateValidateContract = templateValidationOps
     .path("/validate")
     .input((b) => b.body(templateValidationInputSchema))
     .output(templateValidationResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const templateValidateSetContract = templateSetValidationOps
@@ -51,4 +54,5 @@ export const templateValidateSetContract = templateSetValidationOps
     .path("/validate-set")
     .input((b) => b.body(templateSetValidationInputSchema))
     .output(templateSetValidationResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

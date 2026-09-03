@@ -8,7 +8,6 @@ import type {
  * Accumule les contraintes au fil des appels `.where()`.
  */
 export interface MeshResourceQueryState {
-    readonly organizationId: string | null;
     readonly key: string | null;
     readonly includeCandidates: boolean;
     readonly protocol?: MeshDirectProtocol;
@@ -18,7 +17,6 @@ export interface MeshResourceQueryState {
 }
 
 export const defaultQueryState: MeshResourceQueryState = {
-    organizationId: null,
     key: null,
     includeCandidates: true,
     metadata: {},
@@ -28,7 +26,6 @@ export const defaultQueryState: MeshResourceQueryState = {
  * Input de la surcharge `.where(object)` — contraintes déclaratives.
  */
 export interface MeshResourceQueryWhereInput {
-    organizationId?: string | null;
     key?: string;
     includeCandidates?: boolean;
     protocol?: MeshDirectProtocol;
@@ -48,7 +45,6 @@ export function applyWhereInput(
     return {
         ...state,
         metadata: { ...state.metadata, ...(input.metadata ?? {}) },
-        ...(input.organizationId !== undefined ? { organizationId: input.organizationId } : {}),
         ...(input.key !== undefined ? { key: input.key } : {}),
         ...(input.includeCandidates !== undefined ? { includeCandidates: input.includeCandidates } : {}),
         ...(input.protocol !== undefined ? { protocol: input.protocol } : {}),

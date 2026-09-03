@@ -24,7 +24,7 @@ export const environmentStatusOutputSchema = z.object({
     status: environmentStatusSchema,
     servicesCount: z.number(),
     healthyServicesCount: z.number(),
-    lastChecked: z.date(),
+    lastChecked: z.string(),
 });
 
 export const resolvedVariablesOutputSchema = z.object({

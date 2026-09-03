@@ -19,10 +19,11 @@
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
         "dev": "bun --bun run build -- --watch",
-        "lint": "bunx eslint .",
-        "type-check": "tsgo --noEmit"
+        "lint": "bunx eslint . --cache --concurrency=auto",
+        "type-check": "tsc --noEmit"
     },
     "dependencies": {
+        "@octokit/webhooks-types": "catalog:utils",
         "@orpc/contract": "catalog:orpc",
         "@orpc/shared": "catalog:orpc",
         "@repo/auth": "*",
@@ -45,6 +46,6 @@
         "@repo/config-prettier": "*",
         "eslint": "catalog:linting",
         "@repo/config-typescript": "*",
-        "@typescript/native-preview": "catalog:build"
+        "typescript": "catalog:build"
     }
 }

@@ -1,5 +1,4 @@
 import type { DeploymentTriggerInput } from "@repo/api-contracts/modules/deployment/crud";
-import { isRecord } from "@repo/type-guards";
 import z from "zod/v4";
 import { deploymentStorageTypeSchema, type DeploymentStorageType } from "./storage-provider.interface";
 import {
@@ -16,10 +15,7 @@ const storageEnvelopeSchema = z
     .optional();
 
 function asStorageConfigRecord(value: unknown): DeploymentStoragePolicy | undefined {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-        return undefined;
-    }
-
+    // Zod rejects non-objects and malformed shapes — no manual guards needed.
     const parsed = deploymentStoragePolicySchema.safeParse(value);
     return parsed.success ? parsed.data : undefined;
 }
@@ -33,17 +29,9 @@ function mergeStorageConfig(
     }
 
     const mergeNamedSection = (section: "local" | "s3" | "nfs" | "volume") => {
-        const serviceSection = serviceStorageConfig?.[section];
-        const triggerSection = triggerStorageConfig?.[section];
-
-        const serviceRecord =
-            serviceSection && typeof serviceSection === "object" && !Array.isArray(serviceSection)
-                ? (isRecord(serviceSection) ? serviceSection : {})
-                : undefined;
-        const triggerRecord =
-            triggerSection && typeof triggerSection === "object" && !Array.isArray(triggerSection)
-                ? (isRecord(triggerSection) ? triggerSection : {})
-                : undefined;
+        // Sections are Zod-validated object schemas — no runtime shape checks needed.
+        const serviceRecord = serviceStorageConfig?.[section];
+        const triggerRecord = triggerStorageConfig?.[section];
 
         if (!serviceRecord && !triggerRecord) {
             return undefined;
@@ -67,19 +55,18 @@ function mergeStorageConfig(
     return merged;
 }
 
+/** Raw storage hint carried in trigger customData — only `type` is required. */
+const rawStorageHintSchema = z.object({ type: z.string().min(1) }).passthrough();
+
 function extractRawStorageType(input: DeploymentTriggerInput): string | undefined {
-    const parsedEnvelope = storageEnvelopeSchema.safeParse(input.sourceConfig);
+    const parsedEnvelope = storageEnvelopeSchema.safeParse(input.source);
     if (!parsedEnvelope.success) {
         return undefined;
     }
 
-    const storageCandidate = parsedEnvelope.data?.customData?.storage;
-    if (!storageCandidate || typeof storageCandidate !== "object" || Array.isArray(storageCandidate)) {
-        return undefined;
-    }
-
-    const rawType = (isRecord(storageCandidate) ? storageCandidate : {}).type;
-    return typeof rawType === "string" && rawType.length > 0 ? rawType : undefined;
+    // Shape validation through Zod — never manual record guards.
+    const parsedStorage = rawStorageHintSchema.safeParse(parsedEnvelope.data?.customData?.storage);
+    return parsedStorage.success ? parsedStorage.data.type : undefined;
 }
 
 export function extractStorageConfig(
@@ -87,7 +74,7 @@ export function extractStorageConfig(
     serviceStorageConfig?: DeploymentStoragePolicy,
 ): DeploymentStoragePolicy | undefined {
     const normalizedServiceStorageConfig = asStorageConfigRecord(serviceStorageConfig);
-    const parsed = storageEnvelopeSchema.safeParse(input.sourceConfig);
+    const parsed = storageEnvelopeSchema.safeParse(input.source);
     if (!parsed.success || !parsed.data?.customData) {
         return normalizedServiceStorageConfig;
     }

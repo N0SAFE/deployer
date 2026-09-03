@@ -49,61 +49,26 @@ The pool is created AFTER URL resolution (an initial check), but BEFORE all the 
 
 **What happens, in order:**
 
-```
-NestFactory.create(AppModule)
-  │
-  ├── All sync providers created
-  │
-  ├── GLOBAL_DATABASE_POOL (async factory):
-  │     ├── checkConfigAndEmit() → reads local SQLite cache
-  │     │
-  │     ├── CACHED URL EXISTS → try mesh first for latest:
-  │     │     ├── Mesh responds with URL → use mesh URL, update cache
-  │     │     │                           → emitCompleted()
-  │     │     │                           → waitForSetup() resolves
-  │     │     │                           → new Pool(connectionString)  ← POOL CREATED
-  │     │     │
-  │     │     └── Mesh can't resolve¹    → use cached URL
-  │     │                                 → emitCompleted()
-  │     │                                 → waitForSetup() resolves
-  │     │                                 → new Pool(connectionString)  ← POOL CREATED
-  │     │
-  │     ├── NO CACHED URL → try mesh first:
-  │     │     ├── Mesh responds with URL → use mesh URL, persist as cache
-  │     │     │                           → emitCompleted()
-  │     │     │                           → waitForSetup() resolves
-  │     │     │                           → new Pool(connectionString)  ← POOL CREATED
-  │     │     │
-  │     │     └── Mesh can't resolve¹    → does NOT emit
-  │     │                                 → waitForSetup() BLOCKS
-  │     │                                 → NO POOL (needs setup wizard)
-  │     │
-│     ├── DEV_AUTO_SETUP=true:
-│     │     ├── WITH DATABASE_URL env → generate config, persist
-│     │     │                          → emitCompleted()
-│     │     │                          → waitForSetup() resolves
-│     │     │                          → new Pool(connectionString)  ← POOL CREATED
-│     │     │
-│     │     └── WITHOUT DATABASE_URL → log, no emit (setup wizard handles it)
-│     │                                → waitForSetup() BLOCKS
-│     │                                → SetupWizard sub-app auto-triggers
-│     │                                → LocalInitializationService.initialize()
-│     │                                → provision Postgres container (dockerode)
-│     │                                → run migrations → seed data
-│     │                                → emitCompleted()
-│     │                                → Pool created
-  │     │
-  │     └── SETUP WIZARD (HTTP POST /api/setup/initialize):
-  │           → RemoteInitializationService.initialize():
-  │               → Mesh handshake (issue grant + bootstrap)
-  │               → Mesh provides DB URL
-  │               → Cache URL in local SQLite
-  │               → emitCompleted() → waitForSetup() resolves
-  │               → Pool created
-  │
-  └── ¹ Mesh can't resolve when: multiple nodes at same state (no single
-      authoritative URL), or the mesh contains only one node (the node itself).
-      The local SQLite cache stores the last-known-good URL as fallback.
+```mermaid
+flowchart TB
+    CREATE["NestFactory.create(AppModule)<br/>all sync providers created"] --> POOL["GLOBAL_DATABASE_POOL (async factory)<br/>checkConfigAndEmit() → reads local SQLite cache"]
+
+    POOL -->|"cached URL exists"| M1["try mesh first for latest"]
+    M1 -->|"mesh responds with URL"| OK1["use mesh URL, update cache<br/>→ emitCompleted()<br/>→ waitForSetup() resolves<br/>→ new Pool(connectionString) ✅ POOL CREATED"]
+    M1 -->|"mesh can't resolve ¹"| OK2["use cached URL as fallback<br/>→ emitCompleted()<br/>→ waitForSetup() resolves<br/>→ new Pool(connectionString) ✅ POOL CREATED"]
+
+    POOL -->|"no cached URL"| M2["try mesh first"]
+    M2 -->|"mesh responds with URL"| OK3["use mesh URL, persist as cache<br/>→ emitCompleted() → Pool created ✅"]
+    M2 -->|"mesh can't resolve ¹"| BLOCK1["does NOT emit<br/>→ waitForSetup() BLOCKS<br/>→ NO POOL — needs setup wizard"]
+
+    POOL -->|"DEV_AUTO_SETUP=true"| DEV["dev auto-setup branch"]
+    DEV -->|"with DATABASE_URL env"| OK4["generate config, persist<br/>→ emitCompleted() → Pool created ✅"]
+    DEV -->|"without DATABASE_URL"| WIZ1["log, no emit<br/>→ waitForSetup() BLOCKS<br/>→ SetupWizard sub-app auto-triggers<br/>→ LocalInitializationService.initialize()<br/>→ provision Postgres container (dockerode)<br/>→ run migrations → seed data<br/>→ emitCompleted() → Pool created"]
+
+    POOL -->|"setup wizard — HTTP POST /api/setup/initialize"| REMOTE["RemoteInitializationService.initialize():<br/>mesh handshake — issue grant + bootstrap<br/>mesh provides DB URL<br/>cache URL in local SQLite<br/>emitCompleted() → waitForSetup() resolves<br/>Pool created"]
+
+    NOTE["¹ Mesh can't resolve when multiple nodes share the same state,<br/>or the mesh contains only one node. The local SQLite cache stores<br/>the last-known-good URL as fallback."]
+    style NOTE fill:transparent,stroke:none,color:#888
 ```
 
 ### The Pool-As-Result Principle
@@ -288,32 +253,24 @@ If any post-pool check fails, the node exits (in production) — even though the
 
 **The pool exists at this point**, but the global database is **NOT** considered "available" or "initialized". Only the startup orchestrator uses the pool during these phases:
 
-```
-onModuleInit() fires on all modules
-  │
-  ├── Phase 0: Bootstrap (read journal, local config, log version)
-  │     (Does NOT need global DB — uses local SQLite + filesystem)
-  │
-  ├── Phase 1: Update marker (check /tmp/pending-update.json)
-  │     (Does NOT need global DB)
-  │
-  ├── Phase 2: Env validation (validateApiEnvSafe)
-  │     (Does NOT need global DB)
-  │
-  ├── Phase 3: DB connectivity (SELECT 1) ← FIRST USE OF POOL
-  ├── Phase 4: Run Drizzle migrations
-  ├── Phase 5: Read state tables (__drizzle_migrations, cluster_migration_state)
-  ├── Phase 6: Registration guard 🛡️
-  ├── Phase 7: Peer version check + cluster consensus
-  ├── Phase 8: Register this node in the mesh
-  ├── Phase 9: Report schema version
-  ├── Phase 10: Create default admin user
-  ├── Phase 11: Start periodic tasks
-  │
-  └── Phase 12: Signal readiness
-        → isStartupComplete() = true
-        → GLOBAL DB IS NOW AVAILABLE
-        → Feature modules start serving
+```mermaid
+flowchart TD
+    INIT["onModuleInit() fires on all modules"] --> P0["Phase 0: Bootstrap<br/>read journal, local config, log version<br/>(local SQLite + filesystem only)"]
+    P0 --> P1["Phase 1: Update marker<br/>check /tmp/pending-update.json"]
+    P1 --> P2["Phase 2: Env validation<br/>validateApiEnvSafe"]
+    P0 & P1 & P2 -.->|"do NOT need global DB"| SQLITE[("local SQLite")]
+    P2 --> P3["Phase 3: DB connectivity — SELECT 1<br/>⬅ FIRST USE OF POOL"]
+    P3 --> P4["Phase 4: Run Drizzle migrations"]
+    P4 --> P5["Phase 5: Read state tables<br/>__drizzle_migrations · cluster_migration_state"]
+    P5 --> P6["Phase 6: Registration guard 🛡️"]
+    P6 --> P7["Phase 7: Peer version check + cluster consensus"]
+    P7 --> P8["Phase 8: Register this node in the mesh"]
+    P8 --> P9["Phase 9: Report schema version"]
+    P9 --> P10["Phase 10: Create default admin user"]
+    P10 --> P11["Phase 11: Start periodic tasks"]
+    P11 --> P12["Phase 12: Signal readiness<br/>→ isStartupComplete() = true<br/>→ GLOBAL DB IS NOW AVAILABLE<br/>→ Feature modules start serving"]
+    style P3 stroke:#f59e0b,stroke-width:2px
+    style P12 stroke:#10b981,stroke-width:2px
 ```
 
 ```mermaid
@@ -369,7 +326,7 @@ flowchart LR
     CHECK -->|Yes| PASS6["✅ Pass → continue"]
     CHECK -->|No| FAIL6{"Is production?"}
     FAIL6 -->|Yes| EXIT5["❌ process.exit(5)\nNode too old"]
-    FAIL6 -->|No (dev)| WARN6["⚠️ Warn only → continue"]
+    FAIL6 -->|"No (dev)"| WARN6["⚠️ Warn only → continue"]
     
     PHASE7["Phase 7: Peer Check"] --> PEER_CHECK{"Version consensus?"}
     PEER_CHECK -->|same| PASS7["✅ Continue"]
@@ -443,13 +400,13 @@ stateDiagram-v2
                 VERSION_CHECK --> REGISTER: Compatible
                 VERSION_CHECK --> REJECTED: Incompatible
                 REGISTER --> URL_RESOLVED: emitCompleted()
-            end
+            }
             
             URL_RESOLVED --> POOL_CREATED: new Pool(connectionString)
-        end
+        }
         
         POOL_CREATED --> BOOTSTRAP_COMPLETE
-    end
+    }
     
     BOOTSTRAP_COMPLETE --> INITIALIZING: onModuleInit() fires
     
@@ -462,7 +419,7 @@ stateDiagram-v2
             [*] --> SELECT_1: Phase 3
             SELECT_1 --> MIGRATIONS: Phase 4
             MIGRATIONS --> STATE_TABLES: Phase 5
-        end
+        }
         
         PHASES_3_5 --> REGISTRATION_GUARD: Phase 6
         
@@ -474,11 +431,11 @@ stateDiagram-v2
             GUARD_FAIL_PROD --> EXIT_5: process.exit(5)
             GUARD_FAIL_DEV --> PHASES_7_9: Warn only
             GUARD_PASS --> PHASES_7_9
-        end
+        }
         
         PHASES_7_9 --> PHASES_10_11
         PHASES_10_11 --> SIGNAL_READY: Phase 12
-    end
+    }
     
     INITIALIZING --> READY: isStartupComplete() = true
     

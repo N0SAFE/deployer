@@ -34,76 +34,72 @@ const projectInvalidationsConfig: InvalidationConfig<ProjectEndpoints> = {
       : [keys.list()]
   },
 
+  updateNetwork: ({ input, keys }) => {
+    const id = resolveProjectId(input)
+    return id
+      ? [keys.getNetwork({ input: { params: { id } } }), keys.findById({ input: { params: { id } } }), keys.list()]
+      : []
+  },
+
   // Collaborator mutations
   inviteCollaborator: ({ input, keys }) => {
-    const projectId = (input as { projectId?: string } | undefined)?.projectId
+    const projectId = resolveProjectId(input)
     return projectId
-      ? [keys.getCollaborators({ input: { id: projectId } })]
+      ? [keys.getCollaborators({ input: { params: { id: projectId } } })]
       : []
   },
 
   updateCollaborator: ({ input, keys }) => {
-    const projectId = (input as { projectId?: string } | undefined)?.projectId
+    const projectId = resolveProjectId(input)
     return projectId
-      ? [keys.getCollaborators({ input: { id: projectId } })]
+      ? [keys.getCollaborators({ input: { params: { id: projectId } } })]
       : []
   },
 
   removeCollaborator: ({ input, keys }) => {
-    const projectId = (input as { projectId?: string } | undefined)?.projectId
+    const projectId = resolveProjectId(input)
     return projectId
-      ? [keys.getCollaborators({ input: { id: projectId } })]
+      ? [keys.getCollaborators({ input: { params: { id: projectId } } })]
       : []
   },
 
   // Environment mutations
   createEnvironment: ({ input, keys }) => {
-    const projectId = (input as { params?: { id?: string } } | undefined)?.params?.id
+    const projectId = resolveProjectId(input)
     return projectId
-      ? [keys.listEnvironments({ input: { id: projectId } })]
+      ? [keys.listEnvironments({ input: { params: { id: projectId }, query: {} } })]
       : []
   },
 
   updateEnvironment: ({ input, keys }) => {
-    const projectId = (input as { params?: { id?: string } } | undefined)?.params?.id
+    const projectId = resolveProjectId(input)
     return projectId
-      ? [keys.listEnvironments({ input: { id: projectId } })]
+      ? [keys.listEnvironments({ input: { params: { id: projectId }, query: {} } })]
       : []
   },
 
   deleteEnvironment: ({ input, keys }) => {
-    const projectId = (input as { params?: { id?: string } } | undefined)?.params?.id
+    const projectId = resolveProjectId(input)
     return projectId
-      ? [keys.listEnvironments({ input: { id: projectId } })]
+      ? [keys.listEnvironments({ input: { params: { id: projectId }, query: {} } })]
+      : []
+  },
+
+  // Service × environment link mutations
+  upsertServiceEnvironmentLink: ({ input, keys }) => {
+    const projectId = resolveProjectId(input)
+    return projectId
+      ? [
+          keys.listServiceEnvironmentLinks({ input: { params: { id: projectId } } }),
+          keys.listEnvironments({ input: { params: { id: projectId }, query: {} } }),
+        ]
       : []
   },
 
   cloneEnvironment: ({ input, keys }) => {
-    const projectId = (input as { params?: { id?: string } } | undefined)?.params?.id
+    const projectId = resolveProjectId(input)
     return projectId
-      ? [keys.listEnvironments({ input: { id: projectId } })]
-      : []
-  },
-
-  // Variable template mutations
-  createVariableTemplate: ({ input, keys }) => {
-    const projectId = (input as { params?: { id?: string } } | undefined)?.params?.id
-    return projectId
-      ? [keys.listVariableTemplates({ input: { id: projectId } })]
-      : []
-  },
-
-  updateVariableTemplate: ({ input, keys }) => {
-    const projectId = (input as { params?: { id?: string } } | undefined)?.params?.id
-    return projectId
-      ? [keys.listVariableTemplates({ input: { id: projectId } })]
-      : []
-  },
-
-  deleteVariableTemplate: ({ input, keys }) => {
-    const projectId = (input as { params?: { id?: string } } | undefined)?.params?.id
-    return projectId
-      ? [keys.listVariableTemplates({ input: { id: projectId } })]
+      ? [keys.listEnvironments({ input: { params: { id: projectId }, query: {} } })]
       : []
   },
 
@@ -111,42 +107,42 @@ const projectInvalidationsConfig: InvalidationConfig<ProjectEndpoints> = {
   updateGeneralConfig: ({ input, keys }) => {
     const id = resolveProjectId(input)
     return id
-      ? [keys.getGeneralConfig({ input: { id } }), keys.findById({ input: { params: { id } } })]
+      ? [keys.getGeneralConfig({ input: { params: { id } } }), keys.findById({ input: { params: { id } } })]
       : []
   },
 
   updateEnvironmentConfig: ({ input, keys }) => {
     const id = resolveProjectId(input)
     return id
-      ? [keys.getEnvironmentConfig({ input: { id } })]
+      ? [keys.getEnvironmentConfig({ input: { params: { id } } })]
       : []
   },
 
   updateDeploymentConfig: ({ input, keys }) => {
     const id = resolveProjectId(input)
     return id
-      ? [keys.getDeploymentConfig({ input: { id } })]
+      ? [keys.getDeploymentConfig({ input: { params: { id } } })]
       : []
   },
 
   updateSecurityConfig: ({ input, keys }) => {
     const id = resolveProjectId(input)
     return id
-      ? [keys.getSecurityConfig({ input: { id } })]
+      ? [keys.getSecurityConfig({ input: { params: { id } } })]
       : []
   },
 
   updateResourceConfig: ({ input, keys }) => {
     const id = resolveProjectId(input)
     return id
-      ? [keys.getResourceConfig({ input: { id } })]
+      ? [keys.getResourceConfig({ input: { params: { id } } })]
       : []
   },
 
   updateNotificationConfig: ({ input, keys }) => {
     const id = resolveProjectId(input)
     return id
-      ? [keys.getNotificationConfig({ input: { id } })]
+      ? [keys.getNotificationConfig({ input: { params: { id } } })]
       : []
   },
 
@@ -156,9 +152,31 @@ const projectInvalidationsConfig: InvalidationConfig<ProjectEndpoints> = {
     const environmentId = i?.environmentId ?? i?.params?.environmentId
     return id
       ? [
-          ...(environmentId ? [keys.getEnvironmentStatus({ input: { id, environmentId } })] : []),
-          keys.getAllEnvironmentStatuses({ input: { id } }),
+          ...(environmentId ? [keys.getEnvironmentStatus({ input: { params: { id, environmentId } } })] : []),
+          keys.getAllEnvironmentStatuses({ input: { params: { id } } }),
         ]
+      : []
+  },
+
+  // Variable template mutations
+  createVariableTemplate: ({ input, keys }) => {
+    const projectId = resolveProjectId(input)
+    return projectId
+      ? [keys.listVariableTemplates({ input: { params: { id: projectId } } })]
+      : []
+  },
+
+  updateVariableTemplate: ({ input, keys }) => {
+    const projectId = resolveProjectId(input)
+    return projectId
+      ? [keys.listVariableTemplates({ input: { params: { id: projectId } } })]
+      : []
+  },
+
+  deleteVariableTemplate: ({ input, keys }) => {
+    const projectId = resolveProjectId(input)
+    return projectId
+      ? [keys.listVariableTemplates({ input: { params: { id: projectId } } })]
       : []
   },
 }

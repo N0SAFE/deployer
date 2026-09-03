@@ -4,7 +4,7 @@ import {
     useSearchParams as useNextSearchParams,
 } from 'next/navigation'
 import { z } from 'zod'
-import { QueryStateFromZodOptions, useSafeQueryStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
+import { UseSafeQueryParamStatesOptions, useSafeQueryParamStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
 
 import { emptySchema, RouteBuilder } from './makeRoute'
 
@@ -109,9 +109,9 @@ function convertURLSearchParamsToObject(
 export function useSearchParamState<
     Params extends z.ZodType,
     Search extends z.ZodObject<z.ZodRawShape>,
->(routeBuilder: RouteBuilder<Params, Search>, options?: QueryStateFromZodOptions): [
+>(routeBuilder: RouteBuilder<Params, Search>, options?: UseSafeQueryParamStatesOptions): [
     z.infer<Search>,
     (value: Partial<z.infer<Search>> | null) => void
 ] {
-    return useSafeQueryStatesFromZod(routeBuilder.searchSchema, options)
+    return useSafeQueryParamStatesFromZod(routeBuilder.searchSchema, options)
 }

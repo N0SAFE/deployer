@@ -42,6 +42,31 @@ export class DeploymentController {
             });
     }
 
+    @Implement(appContract.deployment.listServicePreviews)
+    listServicePreviews() {
+        return implement(appContract.deployment.listServicePreviews)
+            .use(requireAuth())
+            .handler(async ({ input }) => {
+                return this.deploymentService.listServicePreviews(input.params.serviceId);
+            });
+    }
+
+    @Implement(appContract.deployment.promoteServicePreview)
+    promoteServicePreview() {
+        return implement(appContract.deployment.promoteServicePreview)
+            .use(requireAuth())
+            .handler(async ({ input, context }) => {
+                const userId = (context.auth as { user?: { id?: string } }).user?.id ?? "";
+                const platformRole = this.resolvePlatformRole(context);
+                return this.deploymentService.promoteServicePreview(
+                    input.params.serviceId,
+                    input.body.previewName,
+                    userId,
+                    platformRole,
+                );
+            });
+    }
+
     @Implement(appContract.deployment.findById)
     findById() {
         return implement(appContract.deployment.findById)

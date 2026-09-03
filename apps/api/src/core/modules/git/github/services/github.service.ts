@@ -1,7 +1,17 @@
+import { AppError } from "@repo/errors";
 import { Injectable, Logger } from '@nestjs/common'
 import { Octokit } from '@octokit/rest'
 import { App } from '@octokit/app'
 import { Webhooks } from '@octokit/webhooks'
+import z from 'zod/v4'
+
+/**
+ * Minimal `@octokit/core` client returned by `App.getInstallationOctokit()` —
+ * it has no `rest.*` namespaces; callers must use `octokit.request()` with the
+ * raw endpoint. Derived from the App class so no direct `@octokit/core`
+ * dependency is required.
+ */
+type InstallationOctokit = Awaited<ReturnType<InstanceType<typeof App>['getInstallationOctokit']>>
 
 interface GitHubAppConfig {
   appId: string
@@ -26,6 +36,45 @@ interface GitHubRepository {
   stargazers_count: number
   forks_count: number
 }
+
+/**
+ * Zod schema for the GitHub App Manifest conversion response
+ * (POST /app-manifests/{code}/conversions). The response crosses a trust
+ * boundary — this schema makes the field nullability explicit so the
+ * downstream types are truthful.
+ */
+const githubManifestResponseSchema = z.object({
+  id: z.number(),
+  slug: z.string().optional().default(''),
+  name: z.string().optional().default(''),
+  client_id: z.string().optional().default(''),
+  client_secret: z.string().optional().default(''),
+  pem: z.string().optional().default(''),
+  webhook_secret: z.string().optional().default(''),
+  html_url: z.string().optional().default(''),
+})
+
+// ─── Runner-detection response schemas (octokit crosses a trust boundary) ──
+
+/** Entry of `GET /repos/{owner}/{repo}/contents/{path}` (root listing). */
+const githubContentEntrySchema = z.object({ name: z.string().optional() }).loose()
+
+/** Entry of `GET /repos/{owner}/{repo}/git/trees/{tree_sha}`. */
+const githubTreeEntrySchema = z
+  .object({
+    path: z.string().optional(),
+    type: z.string().optional(),
+  })
+  .loose()
+
+/** Body of `GET /repos/{owner}/{repo}/contents/{path}` for a single file. */
+const githubFileContentSchema = z.object({ content: z.string().nullish() }).loose()
+
+/**
+ * Octokit types entity ids as `number | bigint` (union across response kinds),
+ * but the wire payload is always a JSON number. Parse — never cast.
+ */
+const githubNumericIdSchema = z.number()
 
 /**
  * Installation account information
@@ -120,7 +169,7 @@ export class GitHubService {
   getAppForOrganization(organizationLogin: string): App {
     const app = this.apps.get(organizationLogin)
     if (!app) {
-      throw new Error(`GitHub App not registered for organization: ${organizationLogin}`)
+      throw new AppError(`GitHub App not registered for organization: ${organizationLogin}`, `INTERNAL_ERROR`)
     }
     return app
   }
@@ -160,12 +209,35 @@ export class GitHubService {
   }
 
   /**
-   * Get an Octokit instance authenticated for a specific installation
+   * Get an Octokit instance authenticated for a specific installation.
+   *
+   * `app.getInstallationOctokit()` returns a MINIMAL `@octokit/core` client —
+   * it has no `rest.*` namespaces. Callers must use `octokit.request()` with
+   * the raw endpoint (see listInstallationRepositories).
    */
-  async getInstallationOctokit(organizationLogin: string, installationId: number): Promise<Octokit> {
+  async getInstallationOctokit(organizationLogin: string, installationId: number): Promise<InstallationOctokit> {
     const app = this.getAppForOrganization(organizationLogin)
-    // The app.getInstallationOctokit returns a compatible Octokit instance
-    return await app.getInstallationOctokit(installationId) as unknown as Octokit
+    return app.getInstallationOctokit(installationId)
+  }
+
+  /**
+   * List the installations of a registered GitHub App using its App
+   * credentials (GET /app/installations). Returns `{ id, accountLogin }`
+   * for each installation — used to (re)discover the installation id when
+   * the DB row has none (e.g. before the installation webhook was wired).
+   */
+  async listInstallations(organizationLogin: string): Promise<{ id: number; accountLogin: string; accountType: string }[]> {
+    const app = this.getAppForOrganization(organizationLogin)
+    const result: { id: number; accountLogin: string; accountType: string }[] = []
+    await app.eachInstallation(({ installation }) => {
+      const account = (installation as { account?: { login?: string; type?: string } }).account
+      result.push({
+        id: installation.id,
+        accountLogin: account?.login ?? '',
+        accountType: account?.type ?? '',
+      })
+    })
+    return result
   }
 
   /**
@@ -215,36 +287,72 @@ export class GitHubService {
   }
 
   /**
+   * Exchange a GitHub App Manifest code for app credentials.
+   * Uses Octokit's REST endpoint POST /app-manifests/{code}/conversions
+   * Returns the full app configuration including appId, slug, pem, clientId, clientSecret, webhookSecret.
+   */
+  async createFromManifestCode(code: string): Promise<{
+    id: number
+    slug: string
+    name: string
+    client_id: string
+    client_secret: string
+    pem: string
+    webhook_secret: string
+    html_url: string
+  }> {
+    // Use an unauthenticated Octokit instance (the manifest code API is public)
+    const octokit = new Octokit()
+    const { data } = await octokit.rest.apps.createFromManifest({ code })
+    // GitHub's response crosses a trust boundary — validate it with Zod so the
+    // types below are truthful regardless of octokit's nullable inconsistencies.
+    const parsed = githubManifestResponseSchema.parse(data)
+    return {
+      id: parsed.id,
+      slug: parsed.slug,
+      name: parsed.name,
+      client_id: parsed.client_id,
+      client_secret: parsed.client_secret,
+      pem: parsed.pem,
+      webhook_secret: parsed.webhook_secret,
+      html_url: parsed.html_url,
+    }
+  }
+
+  /**
    * Get installation access token
    */
   async getInstallationAccessToken(organizationLogin: string, installationId: number): Promise<string> {
     const octokit = await this.getInstallationOctokit(organizationLogin, installationId)
-    const { data } = await octokit.apps.createInstallationAccessToken({
+    const { data } = await octokit.request("POST /app/installations/{installation_id}/access_tokens", {
       installation_id: installationId,
     })
-
     return data.token
   }
 
   /**
    * List repositories accessible by installation
+   *
+   * NOTE: `app.getInstallationOctokit()` returns a MINIMAL `@octokit/core`
+   * client — it has no `apps.*` REST namespaces. Use `octokit.request()`
+   * with the raw endpoint instead (works on any octokit instance).
    */
   async listInstallationRepositories(organizationLogin: string, installationId: number): Promise<GitHubRepository[]> {
     const octokit = await this.getInstallationOctokit(organizationLogin, installationId)
-    
+
     const repositories: GitHubRepository[] = []
     let page = 1
     let hasMore = true
 
     while (hasMore) {
-      const { data } = await octokit.apps.listReposAccessibleToInstallation({
+      const { data } = await octokit.request("GET /installation/repositories", {
         per_page: 100,
         page,
       })
 
       for (const repo of data.repositories) {
         repositories.push({
-          id: repo.id,
+          id: githubNumericIdSchema.parse(repo.id),
           name: repo.name,
           full_name: repo.full_name,
           private: repo.private,
@@ -264,6 +372,41 @@ export class GitHubService {
   }
 
   /**
+   * List branches of a repository, authenticated as an installation.
+   */
+  async listRepositoryBranches(
+    organizationLogin: string,
+    installationId: number,
+    owner: string,
+    repo: string,
+  ): Promise<{ name: string; sha: string; protected: boolean }[]> {
+    const octokit = await this.getInstallationOctokit(organizationLogin, installationId)
+    const branches: { name: string; sha: string; protected: boolean }[] = []
+    let page = 1
+    let hasMore = true
+
+    while (hasMore) {
+      const { data } = await octokit.request("GET /repos/{owner}/{repo}/branches", {
+        owner,
+        repo,
+        per_page: 100,
+        page,
+      })
+      for (const b of data) {
+        branches.push({
+          name: b.name,
+          sha: b.commit.sha,
+          protected: b.protected,
+        })
+      }
+      hasMore = data.length === 100
+      page++
+    }
+
+    return branches
+  }
+
+  /**
    * Get repository information
    */
   async getRepository(owner: string, repo: string, organizationLogin?: string, installationId?: number): Promise<GitHubRepository> {
@@ -271,10 +414,10 @@ export class GitHubService {
       ? await this.getInstallationOctokit(organizationLogin, installationId)
       : this.octokit
 
-    const { data } = await octokit.repos.get({ owner, repo })
+    const { data } = await octokit.request("GET /repos/{owner}/{repo}", { owner, repo })
 
     return {
-      id: data.id,
+      id: githubNumericIdSchema.parse(data.id),
       name: data.name,
       full_name: data.full_name,
       private: data.private,
@@ -292,7 +435,7 @@ export class GitHubService {
    */
   async getInstallation(organizationLogin: string, installationId: number): Promise<GitHubInstallation> {
     const octokit = await this.getInstallationOctokit(organizationLogin, installationId)
-    const { data } = await octokit.rest.apps.getInstallation({ installation_id: installationId })
+    const { data } = await octokit.request("GET /app/installations/{installation_id}", { installation_id: installationId })
 
     // data.account can be a User or an Enterprise - handle both cases
     const account = data.account
@@ -329,7 +472,7 @@ export class GitHubService {
       ? await this.getInstallationOctokit(organizationLogin, installationId)
       : this.octokit
 
-    const { data } = await octokit.repos.getCommit({ owner, repo, ref: sha })
+    const { data } = await octokit.request("GET /repos/{owner}/{repo}/commits/{ref}", { owner, repo, ref: sha })
 
     return {
       sha: data.sha,
@@ -360,8 +503,8 @@ export class GitHubService {
     }
   ): Promise<void> {
     const octokit = await this.getInstallationOctokit(organizationLogin, installationId)
-    
-    await octokit.repos.createDeploymentStatus({
+
+    await octokit.request("POST /repos/{owner}/{repo}/deployments/{deployment_id}/statuses", {
       owner,
       repo,
       deployment_id: deploymentId,
@@ -370,5 +513,88 @@ export class GitHubService {
       environment_url: options?.environment_url,
       log_url: options?.log_url,
     })
+  }
+
+  /**
+   * List repository contents (root listing) — used by runner detection.
+   * Works on the minimal installation octokit via octokit.request().
+   */
+  async listRepositoryRoot(organizationLogin: string, installationId: number, owner: string, repo: string): Promise<string[]> {
+    const octokit = await this.getInstallationOctokit(organizationLogin, installationId)
+    const { data } = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+      owner,
+      repo,
+      path: "",
+    })
+    const files = Array.isArray(data) ? data : [data]
+    // Shape validation through Zod — never cast-based field access.
+    const parsed = z.array(githubContentEntrySchema).safeParse(files)
+    if (!parsed.success) return []
+    return parsed.data.map((f) => f.name ?? "")
+  }
+
+  /**
+   * Recursively list ALL file paths in a repository via the git trees API
+   * (`GET /repos/{owner}/{repo}/git/trees/{branch}?recursive=1`). Returns
+   * paths like `docker/compose/docker-compose.prod.yml`. Falls back to
+   * walking the root listing when the tree API fails (e.g. empty repos).
+   * Used by runner detection to find compose files anywhere in the repo.
+   */
+  async listRepositoryFiles(
+    organizationLogin: string,
+    installationId: number,
+    owner: string,
+    repo: string,
+    branch = "HEAD",
+  ): Promise<string[]> {
+    const octokit = await this.getInstallationOctokit(organizationLogin, installationId)
+    try {
+      const { data } = await octokit.request("GET /repos/{owner}/{repo}/git/trees/{tree_sha}", {
+        owner,
+        repo,
+        tree_sha: branch,
+        recursive: "1",
+      })
+      const tree = z.array(githubTreeEntrySchema).safeParse(data.tree)
+      if (!tree.success) return []
+      const paths: string[] = []
+      for (const entry of tree.data) {
+        if (entry.type === "blob" && typeof entry.path === "string") paths.push(entry.path)
+      }
+      return paths
+    } catch {
+      // Fall back to the root listing only (can't recurse without the tree API).
+      return this.listRepositoryRoot(organizationLogin, installationId, owner, repo)
+    }
+  }
+
+  /**
+   * Fetch a single file's decoded content from a repository (base64).
+   * Returns `null` when the file doesn't exist or is a submodule/directory.
+   * Used by runner detection to inspect package.json, Dockerfile, compose, etc.
+   */
+  async getRepositoryFileContent(
+    organizationLogin: string,
+    installationId: number,
+    owner: string,
+    repo: string,
+    path: string,
+  ): Promise<string | null> {
+    const octokit = await this.getInstallationOctokit(organizationLogin, installationId)
+    try {
+      const { data } = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+        owner,
+        repo,
+        path,
+      })
+      if (Array.isArray(data)) return null
+      // Shape validation through Zod — never cast-based field access.
+      const parsed = githubFileContentSchema.safeParse(data)
+      const content = parsed.success ? parsed.data.content : null
+      if (!content) return null
+      return Buffer.from(content, "base64").toString("utf-8")
+    } catch {
+      return null
+    }
   }
 }

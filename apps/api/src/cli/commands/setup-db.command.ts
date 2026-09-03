@@ -68,6 +68,8 @@ export class SetupDbCommand extends CommandRunner {
       strategy: existing?.strategy ?? "local",
       setupState: (existing?.setupState ?? "not_started") as SetupState,
       databaseUrl,
+      // CLI-supplied URL — externally managed, NOT supervised by the API.
+      databaseProvisioning: "external" as const,
       deployerVersion: existing?.deployerVersion ?? null,
       upgradedAtVersion: existing?.upgradedAtVersion ?? null,
       meshUrlsSnapshot: existing?.meshUrlsSnapshot ?? [],

@@ -68,11 +68,19 @@ function serializeSearch(search: UnknownRecord): string {
         if (Array.isArray(value)) {
             for (const item of value) {
                 if (item === null || item === undefined) continue
-                params.append(key, String(item))
+                params.append(
+                    key,
+                    typeof item === 'object' ? JSON.stringify(item) : String(item)
+                )
             }
         } else if (typeof value === 'object') {
             params.set(key, JSON.stringify(value))
-        } else {
+        } else if (
+            typeof value === 'string' ||
+            typeof value === 'number' ||
+            typeof value === 'boolean'
+        ) {
+            // value is a primitive here; String() is safe (no object coercion).
             params.set(key, String(value))
         }
     }
@@ -106,7 +114,7 @@ export function useRouteSearchBuilder<TSearch extends z.ZodObject>(
                 route.searchSchema,
                 patch ? { ...(state as UnknownRecord), ...patch } : (state as UnknownRecord)
             )
-            const query = serializeSearch(merged as UnknownRecord)
+            const query = serializeSearch(merged)
             return query ? `${basePath}?${query}` : basePath
         },
         [route, state, basePath]
@@ -118,7 +126,7 @@ export function useRouteSearchBuilder<TSearch extends z.ZodObject>(
                 route.searchSchema,
                 patch ? { ...(state as UnknownRecord), ...patch } : (state as UnknownRecord)
             )
-            const query = serializeSearch(merged as UnknownRecord)
+            const query = serializeSearch(merged)
             return query ? `?${query}` : ''
         },
         [route, state]
@@ -141,19 +149,19 @@ export function useRouteSearchBuilder<TSearch extends z.ZodObject>(
 
     const push = useCallback(
         (patch?: Partial<z.infer<TSearch>>, navOptions?: { scroll?: boolean }) =>
-            navigate(patch, { ...navOptions, replace: false }),
+            { navigate(patch, { ...navOptions, replace: false }); },
         [navigate]
     )
 
     const replace = useCallback(
         (patch?: Partial<z.infer<TSearch>>, navOptions?: { scroll?: boolean }) =>
-            navigate(patch, { ...navOptions, replace: true }),
+            { navigate(patch, { ...navOptions, replace: true }); },
         [navigate]
     )
 
-    const reset = useCallback(() => setState(null), [setState])
+    const reset = useCallback(() => { setState(null); }, [setState])
     const merge = useCallback(
-        (patch: Partial<z.infer<TSearch>>) => setState(patch),
+        (patch: Partial<z.infer<TSearch>>) => { setState(patch); },
         [setState]
     )
 

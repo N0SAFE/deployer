@@ -16,4 +16,7 @@ export const projectCreateVariableTemplateContract = projectVariableTemplateOps
             ),
     )
     .output(variableTemplateSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
+
+import { standardDomainErrorContracts } from "@repo/orpc-utils";

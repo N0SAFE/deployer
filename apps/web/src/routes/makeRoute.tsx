@@ -493,6 +493,13 @@ export type PageRouteBuilder<
     // Validation helpers
     validateParams: (params: unknown) => z.output<Params>
     validateSearch: (search: unknown) => z.output<Search>
+    
+    // $Infer types for params and search
+    readonly $Infer: {
+        Params: z.output<Params>
+        Search: z.output<Search>
+        Props: UnwrappedPageProps<Params, Search>
+    }
 }
 
 function createPathBuilder<T extends Record<string, string | string[]>>(

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { z } from 'zod/v4';
+import z from 'zod/v4';
 import { RouteBuilder } from '../core/route-builder';
 
 describe('ErrorDefinitionBuilder', () => {

@@ -250,17 +250,17 @@ export function createCompositeNestGuard(
  * ```typescript
  * // Define expected request structure
  * interface MyRequest {
- *   params: { organizationId: string };
+ *   params: { nodeId: string };
  *   query: { filter?: string };
  *   body: { name: string };
  * }
  * 
  * // Create typed resolver
- * const getOrgId = (ctx: NestGuardOptionsContext<MyRequest>) => ctx.params.organizationId;
+ * const getNodeId = (ctx: NestGuardOptionsContext<MyRequest>) => ctx.params.nodeId;
  * ```
  */
 interface NestGuardOptionsContext<TInput = unknown> {
-  /** Route parameters (e.g., /org/:organizationId) */
+  /** Route parameters (e.g., /node/:nodeId) */
   params: TInput extends { params: infer P } ? P : Record<string, string>;
   /** Query parameters (e.g., ?filter=active) */
   query: TInput extends { query: infer Q } ? Q : Record<string, string>;

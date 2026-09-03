@@ -14,6 +14,8 @@ export {
     ListOperationBuilder,
     createListConfig,
     createFilterConfig,
+    createPaginationConfigSchema,
+    createSortingConfigSchema,
     type ZodEntitySchema,
     type ZodEntityOperationOptions,
     type EntityOperationOptions,
@@ -87,9 +89,25 @@ export {
     MESH_ERROR_HTTP_STATUS,
     MESH_ERROR_ORPC_CODE,
     meshDomainErrorContracts,
+    meshDomainErrorPayload,
     meshDomainErrorPayloadSchema,
+    meshErrorActions,
     meshErrorResponseSchema,
     type MeshDomainErrorPayload,
     type MeshErrorCode,
     type MeshErrorResponse,
 } from "./mesh-errors";
+
+// Re-export the generic product-domain error definitions (non-mesh) so
+// every contract that can throw a domain error can declare typed errors.
+export {
+    domainErrorOptions,
+    STANDARD_DOMAIN_ERROR_DEFS,
+    STANDARD_DOMAIN_HTTP_STATUS,
+    STANDARD_DOMAIN_ORPC_CODE,
+    standardDomainErrorContracts,
+    standardDomainErrorPayloadSchema,
+    standardErrorActions,
+    standardErrorOptions,
+    type StandardDomainErrorPayload,
+} from "./standard-errors";

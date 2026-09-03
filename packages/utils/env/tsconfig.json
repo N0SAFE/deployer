@@ -7,6 +7,5 @@
     "moduleResolution": "bundler",
     "noEmit": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*"]
 }

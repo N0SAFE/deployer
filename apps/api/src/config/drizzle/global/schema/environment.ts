@@ -1,13 +1,19 @@
 import { pgTable, text, timestamp, boolean, uuid, jsonb, pgEnum, integer, } from "drizzle-orm/pg-core";
 import {
     envNameSchema,
+    environmentKindSchema,
     environmentStatusSchema,
     variableResolutionStatusSchema,
 } from "@repo/contracts-common";
+import type { EnvironmentRules, EnvironmentTrigger } from "@repo/contracts-entities";
 import { zodEnumToPgEnumValues } from "./utils/zod-enum";
 import { user } from "./auth";
 import { projects, services } from "./deployment";
-// Environment types enum
+// Environment kinds (the primitive TYPE: stable | preview | ephemeral)
+export const environmentKindEnum = pgEnum('environment_kind', [
+    ...zodEnumToPgEnumValues(environmentKindSchema),
+]);
+// Legacy environment "type" (built-in names) — kept for backward-compat
 export const environmentTypeEnum = pgEnum('environment_type', [
     ...zodEnumToPgEnumValues(envNameSchema),
 ]);
@@ -81,6 +87,12 @@ export const environments = pgTable("environments", {
     slug: text("slug").notNull(), // URL-safe identifier
     description: text("description"),
     type: environmentTypeEnum("type").notNull(),
+    /** The primitive KIND: stable | preview | ephemeral (decoupled from name). */
+    kind: environmentKindEnum("kind").default("stable").notNull(),
+    /** Per-env rules (profiles, autoDeploy, strategy, health gate, replicas…). Null when unset. */
+    rules: jsonb("rules").$type<EnvironmentRules | null>(),
+    /** How a preview/ephemeral env is triggered (PR, branch, webhook, schedule). */
+    trigger: jsonb("trigger").$type<EnvironmentTrigger | null>(),
     status: environmentStatusEnum("status").default("pending").notNull(),
     // Optional template association
     templateId: uuid("template_id")
@@ -140,6 +152,31 @@ export const environments = pgTable("environments", {
     createdBy: text("created_by")
         .notNull()
         .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at")
+        .$defaultFn(() => new Date())
+        .notNull(),
+    updatedAt: timestamp("updated_at")
+        .$defaultFn(() => new Date())
+        .notNull(),
+});
+// Service × environment link — a service participates in an env with overrides.
+export const serviceEnvironments = pgTable("service_environments", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    serviceId: uuid("service_id")
+        .notNull()
+        .references(() => services.id, { onDelete: "cascade" }),
+    environmentId: uuid("environment_id")
+        .notNull()
+        .references(() => environments.id, { onDelete: "cascade" }),
+    isEnabled: boolean("is_enabled").default(true).notNull(),
+    overrides: jsonb("overrides").$type<{
+        disabled?: boolean;
+        replicas?: { min?: number; max?: number };
+        strategy?: string;
+        providerRefOverride?: string;
+        runnerRefOverride?: string;
+        dependencyLinkPolicy?: unknown;
+    }>(),
     createdAt: timestamp("created_at")
         .$defaultFn(() => new Date())
         .notNull(),

@@ -1,7 +1,7 @@
 import { relations } from "drizzle-orm";
 import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { encryptedText } from "@/config/drizzle/shared/custom-types/encrypted-text";
-import { organization, user } from "./auth";
+import { user } from "./auth";
 
 /**
  * Shared cluster-control schema.
@@ -62,7 +62,6 @@ export const clusterJoinGrants = pgTable(
     "cluster_join_grants",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        organizationId: text("organization_id").references(() => organization.id, { onDelete: "set null" }),
         grantTokenHash: text("grant_token_hash").notNull(),
         status: clusterJoinGrantStatusEnum("status").default("issued").notNull(),
         issuedByUserId: text("issued_by_user_id").references(() => user.id, { onDelete: "set null" }),
@@ -120,7 +119,6 @@ export const clusterNodeMetrics = pgTable(
         nodeId: uuid("node_id")
             .notNull()
             .references(() => clusterNodes.nodeId, { onDelete: "cascade" }),
-        organizationId: text("organization_id").references(() => organization.id, { onDelete: "set null" }),
         metrics: jsonb("metrics")
             .$type<{
                 cpuUsage: number;
@@ -139,7 +137,6 @@ export const clusterNodeMetrics = pgTable(
     },
     (table) => [
         index("cluster_node_metrics_cluster_node_reported_idx").on(table.nodeId, table.reportedAt),
-        index("cluster_node_metrics_org_reported_idx").on(table.organizationId, table.reportedAt),
     ],
 );
 
@@ -147,7 +144,6 @@ export const resourceOwnershipIndex = pgTable(
     "resource_ownership_index",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        organizationId: text("organization_id").references(() => organization.id, { onDelete: "set null" }),
         resourceKind: text("resource_kind").notNull(),
         resourceKey: text("resource_key").notNull(),
         ownerNodeId: uuid("owner_node_id")
@@ -172,13 +168,11 @@ export const resourceOwnershipIndex = pgTable(
     },
     (table) => [
         uniqueIndex("resource_ownership_index_unique_owner_uidx").on(
-            table.organizationId,
             table.resourceKind,
             table.resourceKey,
             table.ownerNodeId,
         ),
         index("resource_ownership_index_lookup_idx").on(
-            table.organizationId,
             table.resourceKind,
             table.resourceKey,
             table.status,
@@ -187,13 +181,10 @@ export const resourceOwnershipIndex = pgTable(
     ],
 );
 
-export const clusterOrgServerAllocations = pgTable(
-    "cluster_org_server_allocations",
+export const clusterServerAllocations = pgTable(
+    "cluster_server_allocations",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        organizationId: text("organization_id")
-            .notNull()
-            .references(() => organization.id, { onDelete: "cascade" }),
         serverNodeId: uuid("server_node_id")
             .notNull()
             .references(() => clusterNodes.nodeId, { onDelete: "cascade" }),
@@ -211,22 +202,17 @@ export const clusterOrgServerAllocations = pgTable(
             .notNull(),
     },
     (table) => [
-        uniqueIndex("cluster_org_server_allocations_unique_uidx").on(
-            table.organizationId,
+        uniqueIndex("cluster_server_allocations_unique_uidx").on(
             table.serverNodeId,
         ),
-        index("cluster_org_server_allocations_org_idx").on(table.organizationId, table.updatedAt),
-        index("cluster_org_server_allocations_server_idx").on(table.serverNodeId, table.updatedAt),
+        index("cluster_server_allocations_server_idx").on(table.serverNodeId, table.updatedAt),
     ],
 );
 
-export const clusterOrgAdmissionRequests = pgTable(
-    "cluster_org_admission_requests",
+export const clusterAdmissionRequests = pgTable(
+    "cluster_admission_requests",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        organizationId: text("organization_id")
-            .notNull()
-            .references(() => organization.id, { onDelete: "cascade" }),
         status: clusterAdmissionRequestStatusEnum("status").default("pending").notNull(),
         requestedServerNodeId: uuid("requested_server_node_id").references(() => clusterNodes.nodeId, {
             onDelete: "set null",
@@ -250,9 +236,8 @@ export const clusterOrgAdmissionRequests = pgTable(
             .notNull(),
     },
     (table) => [
-        index("cluster_org_admission_requests_org_status_idx").on(table.organizationId, table.status, table.updatedAt),
-        index("cluster_org_admission_requests_status_idx").on(table.status, table.updatedAt),
-        index("cluster_org_admission_requests_cluster_idx").on(table.updatedAt),
+        index("cluster_admission_requests_status_idx").on(table.status, table.updatedAt),
+        index("cluster_admission_requests_cluster_idx").on(table.updatedAt),
     ],
 );
 
@@ -267,10 +252,7 @@ export const clusterNodeMetricsRelations = relations(clusterNodeMetrics, ({ one 
         fields: [clusterNodeMetrics.nodeId],
         references: [clusterNodes.nodeId],
     }),
-    organization: one(organization, {
-        fields: [clusterNodeMetrics.organizationId],
-        references: [organization.id],
-    }),
+
 }));
 
 export const resourceOwnershipIndexRelations = relations(resourceOwnershipIndex, ({ one }) => ({
@@ -284,10 +266,7 @@ export const resourceOwnershipIndexRelations = relations(resourceOwnershipIndex,
         references: [clusterNodes.nodeId],
         relationName: "resourceOwnershipLeaseHolder",
     }),
-    organization: one(organization, {
-        fields: [resourceOwnershipIndex.organizationId],
-        references: [organization.id],
-    }),
+
 }));
 
 export const clusterJoinGrantsRelations = relations(clusterJoinGrants, ({ one }) => ({
@@ -295,46 +274,37 @@ export const clusterJoinGrantsRelations = relations(clusterJoinGrants, ({ one })
         fields: [clusterJoinGrants.issuedByUserId],
         references: [user.id],
     }),
-    organization: one(organization, {
-        fields: [clusterJoinGrants.organizationId],
-        references: [organization.id],
-    }),
+
 }));
 
-export const clusterOrgServerAllocationsRelations = relations(clusterOrgServerAllocations, ({ one }) => ({
-    organization: one(organization, {
-        fields: [clusterOrgServerAllocations.organizationId],
-        references: [organization.id],
-    }),
+export const clusterServerAllocationsRelations = relations(clusterServerAllocations, ({ one }) => ({
+
     serverNode: one(clusterNodes, {
-        fields: [clusterOrgServerAllocations.serverNodeId],
+        fields: [clusterServerAllocations.serverNodeId],
         references: [clusterNodes.nodeId],
     }),
     createdBy: one(user, {
-        fields: [clusterOrgServerAllocations.createdByUserId],
+        fields: [clusterServerAllocations.createdByUserId],
         references: [user.id],
     }),
 }));
 
-export const clusterOrgAdmissionRequestsRelations = relations(clusterOrgAdmissionRequests, ({ one }) => ({
-    organization: one(organization, {
-        fields: [clusterOrgAdmissionRequests.organizationId],
-        references: [organization.id],
-    }),
+export const clusterAdmissionRequestsRelations = relations(clusterAdmissionRequests, ({ one }) => ({
+
     requestedServerNode: one(clusterNodes, {
-        fields: [clusterOrgAdmissionRequests.requestedServerNodeId],
+        fields: [clusterAdmissionRequests.requestedServerNodeId],
         references: [clusterNodes.nodeId],
     }),
     decisionServerNode: one(clusterNodes, {
-        fields: [clusterOrgAdmissionRequests.decisionServerNodeId],
+        fields: [clusterAdmissionRequests.decisionServerNodeId],
         references: [clusterNodes.nodeId],
     }),
     requester: one(user, {
-        fields: [clusterOrgAdmissionRequests.requesterUserId],
+        fields: [clusterAdmissionRequests.requesterUserId],
         references: [user.id],
     }),
     reviewer: one(user, {
-        fields: [clusterOrgAdmissionRequests.reviewedByUserId],
+        fields: [clusterAdmissionRequests.reviewedByUserId],
         references: [user.id],
     }),
 }));

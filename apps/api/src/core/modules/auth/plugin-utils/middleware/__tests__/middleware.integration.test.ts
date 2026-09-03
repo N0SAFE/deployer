@@ -11,7 +11,6 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import {
   AdminMiddlewareDefinition,
-  OrganizationMiddlewareDefinition,
   createNestGuard,
   createCompositeNestGuard,
   createOrpcMiddleware,
@@ -22,7 +21,6 @@ import {
 } from '../index';
 import type {
   AdminPermissionsPlugin,
-  OrganizationsPermissionsPlugin,
   AnyPermissionBuilder,
 } from '@repo/auth/permissions/plugins';
 
@@ -66,18 +64,6 @@ interface MockAdminPlugin {
   assertCheckRole: Mock<(roles: readonly string[], message?: string) => Promise<void>>;
 }
 
-/**
- * Mock organization plugin type
- */
-interface MockOrgPlugin {
-  getSession: Mock<() => MockSession | null>;
-  hasSession: Mock<() => boolean>;
-  getAuth: Mock<() => { api: { getSession: (opts: { headers: Headers }) => Promise<MockSession | null> } }>;
-  assertCheckPermission: Mock<(perms: Record<string, readonly string[]>, message?: string) => Promise<void>>;
-  listMembers: Mock<(orgId: string) => Promise<{ members: Array<{ userId: string; role: string }>; total: number }>>;
-  getOrganization: Mock<(orgId: string) => Promise<{ id: string; name: string; creatorId?: string }>>;
-}
-
 // ============================================================================
 // Test Helpers
 // ============================================================================
@@ -103,30 +89,12 @@ function createMockAdminPlugin(session: MockSession | null = null): MockAdminPlu
 }
 
 /**
- * Create a mock organization plugin with default implementations
- */
-function createMockOrgPlugin(session: MockSession | null = null): MockOrgPlugin {
-  return {
-    getSession: vi.fn(() => session),
-    hasSession: vi.fn(() => session !== null),
-    getAuth: vi.fn(() => ({
-      api: {
-        getSession: vi.fn().mockResolvedValue(session),
-      },
-    })),
-    assertCheckPermission: vi.fn().mockResolvedValue(undefined),
-    listMembers: vi.fn().mockResolvedValue({ members: [], total: 0 }),
-    getOrganization: vi.fn().mockResolvedValue({ id: 'org-1', name: 'Test Org' }),
-  };
-}
-
-/**
  * Create a mock middleware context
  */
 function createMockContext(): MiddlewareContext {
   return {
     headers: new Headers({ 'authorization': 'Bearer test-token' }),
-    params: { organizationId: 'org-123' },
+    params: { nodeId: 'node-123' },
     query: { page: '1' },
     body: { data: 'test' },
   };
@@ -301,183 +269,6 @@ describe('AdminMiddlewareDefinition', () => {
       expect(check).toBeDefined();
       // Check that requiredRoles metadata is set correctly
       expect((check as any).requiredRoles).toEqual(['superadmin', 'admin']);
-    });
-  });
-});
-
-// ============================================================================
-// Organization Middleware Definition Tests
-// ============================================================================
-
-describe('OrganizationMiddlewareDefinition', () => {
-  let mockPlugin: MockOrgPlugin;
-  let middleware: OrganizationMiddlewareDefinition<MockPermissionBuilder, any>;
-  let session: MockSession;
-  let context: MiddlewareContext;
-
-  beforeEach(() => {
-    session = createTestSession();
-    mockPlugin = createMockOrgPlugin(session);
-    middleware = new OrganizationMiddlewareDefinition(
-      (() => mockPlugin) as unknown as (ctx: MiddlewareContext) => OrganizationsPermissionsPlugin<MockPermissionBuilder, any>
-    );
-    context = createMockContext();
-  });
-
-  describe('Check Creation', () => {
-    it('should create hasOrganizationPermission check', () => {
-      const check = middleware.hasOrganizationPermission({ project: ['create'] });
-
-      expect(check).toBeDefined();
-      expect(check.name).toBe('hasOrganizationPermission');
-    });
-
-    it('should create isMemberOf check', () => {
-      const check = middleware.isMemberOf('org-123');
-
-      expect(check).toBeDefined();
-      expect(check.name).toBe('isMemberOf');
-    });
-
-    it('should create hasOrganizationRole check', () => {
-      const check = middleware.hasOrganizationRole('org-123', ['admin', 'owner']);
-
-      expect(check).toBeDefined();
-      expect(check.name).toBe('hasOrganizationRole');
-    });
-
-    it('should create isOrganizationOwner check', () => {
-      const check = middleware.isOrganizationOwner('org-123');
-
-      expect(check).toBeDefined();
-      expect(check.name).toBe('isOrganizationOwner');
-    });
-  });
-
-  describe('hasOrganizationPermission Check Execution', () => {
-    it('should pass when user has organization permission', async () => {
-      mockPlugin.assertCheckPermission.mockResolvedValueOnce(undefined);
-      const check = middleware.hasOrganizationPermission({ project: ['create'] });
-
-      await expect(check.check(context)).resolves.toBeUndefined();
-    });
-
-    it('should throw when user lacks organization permission', async () => {
-      mockPlugin.assertCheckPermission.mockRejectedValueOnce(
-        new Error('Missing organization permission')
-      );
-      const check = middleware.hasOrganizationPermission({ project: ['delete'] });
-
-      await expect(check.check(context)).rejects.toThrow('Missing organization permission');
-    });
-  });
-
-  describe('isMemberOf Check Execution', () => {
-    it('should pass when user is organization member', async () => {
-      mockPlugin.listMembers.mockResolvedValueOnce({
-        members: [{ userId: 'user-123', role: 'member' }],
-        total: 1,
-      });
-      const check = middleware.isMemberOf('org-123');
-
-      await expect(check.check(context)).resolves.toBeUndefined();
-    });
-
-    it('should throw when user is not a member', async () => {
-      mockPlugin.listMembers.mockResolvedValueOnce({
-        members: [{ userId: 'other-user', role: 'member' }],
-        total: 1,
-      });
-      const check = middleware.isMemberOf('org-123');
-
-      await expect(check.check(context)).rejects.toThrow('not a member');
-    });
-
-    it('should throw when session is missing', async () => {
-      mockPlugin.getSession = vi.fn(() => null);
-      const check = middleware.isMemberOf('org-123');
-
-      await expect(check.check(context)).rejects.toThrow('Session required');
-    });
-  });
-
-  describe('hasOrganizationRole Check Execution', () => {
-    it('should pass when user has required role in organization', async () => {
-      mockPlugin.listMembers.mockResolvedValueOnce({
-        members: [{ userId: 'user-123', role: 'admin' }],
-        total: 1,
-      });
-      const check = middleware.hasOrganizationRole('org-123', ['admin', 'owner']);
-
-      await expect(check.check(context)).resolves.toBeUndefined();
-    });
-
-    it('should throw when user role does not match', async () => {
-      mockPlugin.listMembers.mockResolvedValueOnce({
-        members: [{ userId: 'user-123', role: 'viewer' }],
-        total: 1,
-      });
-      const check = middleware.hasOrganizationRole('org-123', ['admin', 'owner']);
-
-      await expect(check.check(context)).rejects.toThrow('does not have required role');
-    });
-  });
-
-  describe('isOrganizationOwner Check Execution', () => {
-    it('should pass when user is organization creator', async () => {
-      mockPlugin.getOrganization.mockResolvedValueOnce({
-        id: 'org-123',
-        name: 'Test Org',
-        creatorId: 'user-123',
-      });
-      const check = middleware.isOrganizationOwner('org-123');
-
-      await expect(check.check(context)).resolves.toBeUndefined();
-    });
-
-    it('should pass when user has owner role', async () => {
-      mockPlugin.getOrganization.mockResolvedValueOnce({
-        id: 'org-123',
-        name: 'Test Org',
-        creatorId: 'other-user',
-      });
-      mockPlugin.listMembers.mockResolvedValueOnce({
-        members: [{ userId: 'user-123', role: 'owner' }],
-        total: 1,
-      });
-      const check = middleware.isOrganizationOwner('org-123');
-
-      await expect(check.check(context)).resolves.toBeUndefined();
-    });
-
-    it('should throw when user is not owner', async () => {
-      mockPlugin.getOrganization.mockResolvedValueOnce({
-        id: 'org-123',
-        name: 'Test Org',
-        creatorId: 'other-user',
-      });
-      mockPlugin.listMembers.mockResolvedValueOnce({
-        members: [{ userId: 'user-123', role: 'member' }],
-        total: 1,
-      });
-      const check = middleware.isOrganizationOwner('org-123');
-
-      await expect(check.check(context)).rejects.toThrow('not the owner');
-    });
-  });
-
-  describe('Dynamic Organization ID Resolution', () => {
-    it('should resolve organization ID from context', async () => {
-      mockPlugin.listMembers.mockResolvedValueOnce({
-        members: [{ userId: 'user-123', role: 'member' }],
-        total: 1,
-      });
-
-      // Use a resolver function
-      const check = middleware.isMemberOf((ctx) => ctx.params?.organizationId ?? '');
-
-      await expect(check.check(context)).resolves.toBeUndefined();
-      expect(mockPlugin.listMembers).toHaveBeenCalledWith('org-123');
     });
   });
 });
@@ -775,36 +566,6 @@ describe('Integration Scenarios', () => {
       }
     });
 
-    it('should chain multiple checks for organization endpoint', async () => {
-      const session = createTestSession();
-      const orgPlugin = createMockOrgPlugin(session);
-
-      // Mock membership
-      orgPlugin.listMembers.mockResolvedValue({
-        members: [{ userId: 'user-123', role: 'admin' }],
-        total: 1,
-      });
-
-      const middleware = new OrganizationMiddlewareDefinition(
-        (() => orgPlugin) as unknown as (
-          ctx: MiddlewareContext
-        ) => OrganizationsPermissionsPlugin<MockPermissionBuilder, any>
-      );
-
-      // Create checks for organization admin endpoint
-      const checks = [
-        middleware.requireSession(),
-        middleware.isMemberOf('org-123'),
-        middleware.hasOrganizationRole('org-123', ['admin', 'owner']),
-      ];
-
-      const context = createMockContext();
-
-      // All checks should pass
-      for (const check of checks) {
-        await expect(check.check(context)).resolves.toBeUndefined();
-      }
-    });
   });
 
   describe('Error Scenarios', () => {
@@ -837,7 +598,6 @@ describe('Integration Scenarios', () => {
 
 import {
   createAdminMiddleware,
-  createOrganizationMiddleware,
 } from '../index';
 
 describe('Convenience Factory Functions', () => {
@@ -887,55 +647,6 @@ describe('Convenience Factory Functions', () => {
     });
   });
 
-  describe('createOrganizationMiddleware', () => {
-    it('should create OrganizationMiddlewareDefinition from plugin', () => {
-      const session = createTestSession();
-      const plugin = createMockOrgPlugin(session);
-
-      const middleware = createOrganizationMiddleware(
-        plugin as unknown as OrganizationsPermissionsPlugin<MockPermissionBuilder, any>
-      );
-
-      expect(middleware).toBeInstanceOf(OrganizationMiddlewareDefinition);
-    });
-
-    it('should preserve plugin functionality through factory', async () => {
-      const session = createTestSession();
-      const plugin = createMockOrgPlugin(session);
-      plugin.assertCheckPermission.mockResolvedValue(undefined);
-
-      const middleware = createOrganizationMiddleware(
-        plugin as unknown as OrganizationsPermissionsPlugin<MockPermissionBuilder, any>
-      );
-
-      const check = middleware.hasOrganizationPermission({
-        organization: ['read'],
-      });
-      const context = createMockContext();
-
-      await expect(check.check(context)).resolves.toBeUndefined();
-      expect(plugin.assertCheckPermission).toHaveBeenCalled();
-    });
-
-    it('should work with isMemberOf check', async () => {
-      const session = createTestSession();
-      const plugin = createMockOrgPlugin(session);
-      plugin.listMembers.mockResolvedValue({
-        members: [{ userId: 'user-123', role: 'member' }],
-        total: 1,
-      });
-
-      const middleware = createOrganizationMiddleware(
-        plugin as unknown as OrganizationsPermissionsPlugin<MockPermissionBuilder, any>
-      );
-
-      const check = middleware.isMemberOf('org-123');
-      const context = createMockContext();
-
-      await expect(check.check(context)).resolves.toBeUndefined();
-      expect(plugin.listMembers).toHaveBeenCalledWith('org-123');
-    });
-  });
 
   describe('Factory function usage patterns', () => {
     it('should work in typical workflow with NestJS guard creation', () => {
@@ -954,18 +665,15 @@ describe('Convenience Factory Functions', () => {
     });
 
     it('should work in typical workflow with ORPC middleware creation', () => {
-      const session = createTestSession();
-      const plugin = createMockOrgPlugin(session);
-      plugin.listMembers.mockResolvedValue({
-        members: [{ userId: 'user-123', role: 'admin' }],
-        total: 1,
-      });
+      const session = createTestSession('admin');
+      const plugin = createMockAdminPlugin(session);
+      plugin.assertCheckRole.mockResolvedValue(undefined);
 
       // Factory -> middleware -> check -> orpc middleware
-      const orgMiddleware = createOrganizationMiddleware(
-        plugin as unknown as OrganizationsPermissionsPlugin<MockPermissionBuilder, any>
+      const adminMiddleware = createAdminMiddleware(
+        plugin as unknown as AdminPermissionsPlugin<MockPermissionBuilder, any>
       );
-      const orpcMiddleware = createOrpcMiddleware(orgMiddleware.isMemberOf('org-123'));
+      const orpcMiddleware = createOrpcMiddleware(adminMiddleware.hasRole(['admin']));
 
       expect(orpcMiddleware).toBeDefined();
       expect(typeof orpcMiddleware).toBe('function');
@@ -974,27 +682,21 @@ describe('Convenience Factory Functions', () => {
     it('should work with composite guards from multiple definitions', () => {
       const session = createTestSession('admin');
       const adminPlugin = createMockAdminPlugin(session);
-      const orgPlugin = createMockOrgPlugin(session);
 
       adminPlugin.assertCheckRole.mockResolvedValue(undefined);
-      orgPlugin.listMembers.mockResolvedValue({
-        members: [{ userId: 'user-123', role: 'admin' }],
-        total: 1,
-      });
 
-      // Create both middlewares via factories
+      // Create middleware via factory
       const adminMiddleware = createAdminMiddleware(
         adminPlugin as unknown as AdminPermissionsPlugin<MockPermissionBuilder, any>
       );
-      const orgMiddleware = createOrganizationMiddleware(
-        orgPlugin as unknown as OrganizationsPermissionsPlugin<MockPermissionBuilder, any>
-      );
 
-      // Combine checks from both
-      const compositeGuard = createCompositeNestGuard([
-        adminMiddleware.hasRole(['admin']),
-        orgMiddleware.isMemberOf('org-123'),
-      ]);
+      // Combine checks from multiple definitions
+      const roleCheck = createAdminMiddleware(
+        adminPlugin as unknown as AdminPermissionsPlugin<MockPermissionBuilder, any>
+      ).hasRole(['admin']);
+      const permissionCheck = adminMiddleware.hasRole(['admin']);
+
+      const compositeGuard = createCompositeNestGuard([roleCheck, permissionCheck]);
 
       expect(compositeGuard).toBeDefined();
     });

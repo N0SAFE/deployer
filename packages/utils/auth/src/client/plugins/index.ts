@@ -5,12 +5,10 @@
  * Use the `use*Client` functions for plugins that require access control configuration.
  */
 
-import { adminClient, organizationClient } from "better-auth/client/plugins";
+import { adminClient } from "better-auth/client/plugins";
 import type { BetterAuthClientPlugin } from "better-auth/client";
 import {
   platformAc,
-  organizationAc,
-  organizationRoles,
   platformRoles,
 } from "../../permissions/index";
 import type { invitePlugin } from "../../server/plugins/invite";
@@ -81,67 +79,6 @@ export function useAdminClient(
 export type AdminClientPlugin = ReturnType<typeof useAdminClient>;
 
 // ============================================================================
-// Organization Client Plugin
-// ============================================================================
-
-/**
- * Client plugin wrapper for the organization plugin
- * 
- * Pre-configures organizationClient with the project's access control and roles.
- * This ensures the client has the same AC configuration as the server.
- * 
- * Provides type-safe methods for:
- * - Creating/updating/deleting organizations
- * - Managing organization members
- * - Managing organization invitations
- * - Checking organization permissions
- * - Teams management (sub-groups within organizations)
- * 
- * @example
- * ```typescript
- * import { useOrganizationClient } from '@repo/auth/client/plugins'
- * 
- * const authClient = createAuthClient({
- *   plugins: [useOrganizationClient()]
- * })
- * 
- * // Create an organization
- * const org = await authClient.organization.create({
- *   name: 'My Organization',
- *   slug: 'my-org'
- * })
- * 
- * // Invite a member
- * await authClient.organization.inviteMember({
- *   organizationId: org.id,
- *   email: 'user@example.com',
- *   role: 'member'
- * })
- * 
- * // Create a team
- * await authClient.organization.createTeam({
- *   name: 'Engineering',
- *   organizationId: org.id
- * })
- * ```
- */
-export function useOrganizationClient(
-  options: Omit<Parameters<typeof organizationClient>[0], "ac" | "roles"> = {}
-) {
-  return organizationClient({
-    ac: organizationAc,
-    roles: organizationRoles,
-    // Enable teams feature for sub-group management within organizations
-    teams: {
-      enabled: true,
-    },
-    ...options,
-  });
-}
-
-export type OrganizationClientPlugin = ReturnType<typeof useOrganizationClient>;
-
-// ============================================================================
 // Invite Client Plugin
 // ============================================================================
 
@@ -186,7 +123,3 @@ export function useInviteClient() {
 }
 
 export type InviteClientPlugin = ReturnType<typeof useInviteClient>;
-
-// Legacy alias for backwards compatibility
-/** @deprecated Use `useInviteClient` instead */
-export const inviteClient = useInviteClient;

@@ -10,7 +10,8 @@
     "api": {
       "type": "application",
       "entryFile": "main",
-      "sourceRoot": "apps/api/src"
+      "root": ".",
+      "sourceRoot": "src"
     },
     "api-contracts": {
       "type": "library",
@@ -21,5 +22,8 @@
         "tsConfigPath": "../../packages/api-contracts/tsconfig.json"
       }
     }
-  }
+  },
+  "exclude": [
+    "**/entry-client.tsx"
+  ]
 }

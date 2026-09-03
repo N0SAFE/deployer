@@ -153,11 +153,11 @@ export function listMigrationNames(migrationsFolder: string): string[] {
 }
 
 /**
- * Slugify a string for use as an organization slug. Falls back to
- * `"organization"` if the result would be empty.
+ * Slugify a string for use as a platform resource slug. Falls back to
+ * `"resource"` if the result would be empty.
  */
 export function slugify(value: string): string {
     return (
-        value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "organization"
+        value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "resource"
     );
 }

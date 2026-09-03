@@ -1,0 +1,34 @@
+{
+    "name": "@repo/nest-events",
+    "version": "1.0.0",
+    "description": "NestJS + RxJS typed event system with Zod validation. Provides BaseEventService, EventContractBuilder, BasePooledEventService, and stream pool utilities.",
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "scripts": {
+        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "format": "bun run prettify",
+        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "lint": "eslint . --fix --cache --concurrency=auto",
+        "type-check": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@nestjs/common": "catalog:api:nest",
+        "@repo/type-guards": "*",
+        "rxjs": "catalog:api:nest",
+        "zod": "catalog:utils"
+    },
+    "peerDependencies": {
+        "@nestjs/common": "catalog:api:nest"
+    },
+    "devDependencies": {
+        "@repo/config-eslint": "*",
+        "@repo/config-prettier": "*",
+        "@repo/config-typescript": "*",
+        "@types/node": "catalog:build",
+        "eslint": "catalog:linting",
+        "typescript": "catalog:build"
+    }
+}

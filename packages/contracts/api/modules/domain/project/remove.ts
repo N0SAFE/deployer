@@ -20,4 +20,7 @@ export const removeProjectDomainContract = projectDomainOps
         ),
     )
     .output(removeProjectDomainOutput)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
+
+import { standardDomainErrorContracts } from "@repo/orpc-utils";

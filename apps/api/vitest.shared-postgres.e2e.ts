@@ -24,6 +24,15 @@ interface SharedPostgresContainer {
 
 let sharedPostgresContainer: SharedPostgresContainer | null = null;
 
+/**
+ * Close the docker client's keep-alive sockets so vitest can exit cleanly.
+ * dockerode v5 removed modem.close(); guard instead of pinning the version.
+ */
+function closeDockerClient(docker: Dockerode): void {
+  const modem = docker.modem as unknown as { close?: () => void };
+  modem.close?.();
+}
+
 async function waitForPostgresReady(connectionUri: string): Promise<void> {
   const deadline = Date.now() + 180_000;
   let lastError: Error | null = null;
@@ -252,7 +261,7 @@ export async function startSharedPostgresContainer(): Promise<void> {
   if (!hostPort) {
     await container.stop({ t: 5 }).catch(() => undefined);
     await container.remove({ force: true }).catch(() => undefined);
-    docker.modem.close();
+    closeDockerClient(docker);
     throw new Error("Could not determine Postgres container host port");
   }
 
@@ -292,7 +301,7 @@ export async function stopSharedPostgresContainer(): Promise<void> {
   delete process.env[SHARED_POSTGRES_CONNECTION_URI_ENV];
 
   // Cleanly disconnect the Docker client to prevent hanging handles
-  docker.modem.close();
+  closeDockerClient(docker);
 
   logSharedPostgres(`globalTeardown post-stop handles: ${describeActiveHandles()}`);
   logSharedPostgres(`globalTeardown post-stop requests: ${describeActiveRequests()}`);

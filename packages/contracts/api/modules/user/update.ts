@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { userSchema } from "@repo/contracts-entities";
 
 // Create standard operations builder for users
@@ -9,4 +9,8 @@ const userOps = standard.zod(userSchema, "user");
 export const userUpdateContract = userOps
     .update()
     .input((b) => b.entitySchema.omit(["image", "id"]).partial().extend({ id: userSchema.shape.id }))
+    .errors((e) => [
+        // 404 for unknown user id.
+        ...standardDomainErrorContracts(e),
+    ])
     .build();

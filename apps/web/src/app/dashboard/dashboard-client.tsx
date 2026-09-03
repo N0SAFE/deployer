@@ -1,8 +1,15 @@
 'use client'
 
-import { useOrganizations, useAllOrganizationPendingInvitations } from '@/domains/organization/hooks'
-import { AuthDashboardAdminOrganizations, AuthDashboardAdminOrganizationsNew, AuthDashboardAdminSystem, AuthDashboardAdminUsers } from '@/routes'
-import { useAcceptInvitation, useRejectInvitation } from '@/domains/invitation/hooks'
+import { useMemo } from 'react'
+import {
+  AuthDashboardAdminSystem,
+  AuthDashboardAdminUsers,
+  AuthDashboardProjects,
+  AuthDashboardDeployments,
+} from '@/routes'
+import { useDeploymentList } from '@/domains/deployment/hooks'
+import { useDockerRuntimeSseState } from '@/domains/docker/hooks'
+import { useRealTimeMetrics } from '@/domains/analytics/hooks'
 import {
   Card,
   CardContent,
@@ -11,8 +18,29 @@ import {
   CardTitle,
 } from '@repo/ui/components/shadcn/card'
 import { Button } from '@repo/ui/components/shadcn/button'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { Building2, Mail, CheckCircle2, XCircle, Users } from 'lucide-react'
+import {
+  StatusBadge,
+  StatusDot,
+  StatusMetric,
+  statusToneFrom,
+  EnvironmentBadge,
+} from '@/components/dashboard'
+import {
+  ArrowRight,
+  Building2,
+  CheckCircle2,
+  Cpu,
+  FolderKanban,
+  HardDrive,
+  Mail,
+  Network,
+  Rocket,
+  ServerCog,
+  Settings,
+  UserCircle2,
+  Users,
+  XCircle,
+} from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -21,216 +49,216 @@ interface DashboardOverviewClientProps {
   userRole: string
 }
 
+function relativeTime(iso: string): string {
+  const parsed = new Date(iso)
+  if (Number.isNaN(parsed.getTime())) return '—'
+  const seconds = Math.round((Date.now() - parsed.getTime()) / 1000)
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${String(minutes)}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${String(hours)}h ago`
+  const days = Math.floor(hours / 24)
+  return `${String(days)}d ago`
+}
+
+interface DeploymentLike {
+  id?: string
+  serviceId?: string
+  status?: string
+  environment?: string
+  createdAt?: string
+}
+
+function projectLabel(serviceId: string): string {
+  return serviceId.replace(/-/g, ' ').slice(0, 22)
+}
+
 /**
- * Client component for dashboard interactivity
- * Fetches and displays real organization and invitation data
+ * Command center — the bento overview.
+ *
+ * Composition (section-first, per web AGENTS.md — no 4-up KPI strip):
+ *  1. At a glance (live metrics + runtime stream)  │  Recent deployments (timeline)
+ *  2. Quick actions
+ *  3. Admin tools
  */
 export function DashboardOverviewClient({ isAdmin, userRole }: DashboardOverviewClientProps) {
-  const { data: organizations, isLoading: orgsLoading } = useOrganizations()
-  const { data: invitations, isLoading: invitesLoading } = useAllOrganizationPendingInvitations()
-  const acceptInvitation = useAcceptInvitation()
-  const rejectInvitation = useRejectInvitation()
+  const { status: runtimeStatus } = useDockerRuntimeSseState()
+  const { data: realtimeMetrics } = useRealTimeMetrics()
 
-  const handleAcceptInvite = (invitationId: string) => {
-    acceptInvitation.mutate({ invitationId })
-  }
+  const { data: deploymentsData, isLoading: deploymentsLoading } = useDeploymentList({ query: { limit: 8, offset: 0 } })
 
-  const handleRejectInvite = (invitationId: string) => {
-    rejectInvitation.mutate({ invitationId })
-  }
+  const recentDeployments = useMemo<DeploymentLike[]>(() => {
+    const raw = (deploymentsData as { data?: unknown[] } | undefined)?.data ?? []
+    return (raw as DeploymentLike[])
+      .filter((d) => d.createdAt)
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+      .slice(0, 6)
+  }, [deploymentsData])
+
+  const quickActions = [
+    { link: AuthDashboardProjects.Link, icon: FolderKanban, title: 'Projects', description: 'Manage services & infrastructure' },
+    { link: AuthDashboardDeployments.Link, icon: Rocket, title: 'Deployments', description: 'Timeline of recent rollouts' },
+    { link: AuthDashboardAdminSystem.Link, icon: ServerCog, title: 'Control plane', description: 'Fleet & runtime health' },
+  ] as const
 
   return (
     <>
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Organizations
-            </CardTitle>
+      {/* ── Bento row 1: at a glance + system health + recent deployments ── */}
+      <div className="grid gap-3 lg:grid-cols-4">
+        {/* At a glance */}
+        <Card className="border-border/60 bg-card/40 backdrop-blur-xl">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm">At a glance</CardTitle>
+              <StatusBadge status={runtimeStatus === 'connected' ? 'live' : runtimeStatus} pulse={runtimeStatus === 'connecting'} />
+            </div>
+            <CardDescription className="text-xs">Your platform state right now</CardDescription>
           </CardHeader>
-          <CardContent>
-            {orgsLoading ? (
-              <Skeleton className="h-8 w-12" />
-            ) : (
-              <div className="text-2xl font-bold">{organizations?.length ?? 0}</div>
-            )}
-            <p className="text-xs text-muted-foreground mt-1">
-              Organizations you belong to
-            </p>
+          <CardContent className="grid gap-2">
+            <StatusMetric
+              label="Your role"
+              value={<span className="capitalize">{userRole}</span>}
+              icon={UserCircle2}
+              hint="Platform permission level"
+              tone="neutral"
+            />
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Mail className="h-4 w-4" />
-              Pending Invites
-            </CardTitle>
+        {/* System health — live from analytics */}
+        <Card className="border-border/60 bg-card/40 backdrop-blur-xl">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">System Health</CardTitle>
+            <CardDescription className="text-xs">Live from Docker</CardDescription>
           </CardHeader>
-          <CardContent>
-            {invitesLoading ? (
-              <Skeleton className="h-8 w-12" />
-            ) : (
-              <div className="text-2xl font-bold">{invitations?.length ?? 0}</div>
-            )}
-            <p className="text-xs text-muted-foreground mt-1">
-              Awaiting your acceptance
-            </p>
+          <CardContent className="grid gap-2">
+            <StatusMetric
+              label="CPU"
+              value={realtimeMetrics?.system.cpu != null ? `${realtimeMetrics.system.cpu.toFixed(1)}%` : '—'}
+              icon={Cpu}
+              hint={`${realtimeMetrics?.services?.length ?? 0} services`}
+              tone={realtimeMetrics && realtimeMetrics.system.cpu > 80 ? 'danger' : realtimeMetrics?.system.cpu != null ? 'live' : 'neutral'}
+            />
+            <StatusMetric
+              label="Memory"
+              value={realtimeMetrics?.system.memory != null ? `${realtimeMetrics.system.memory.toFixed(1)}%` : '—'}
+              icon={HardDrive}
+              hint="Used"
+              tone={realtimeMetrics && realtimeMetrics.system.memory > 80 ? 'danger' : realtimeMetrics?.system.memory != null ? 'live' : 'neutral'}
+            />
+            <StatusMetric
+              label="Network"
+              value={realtimeMetrics?.system.network.inbound != null ? `${(realtimeMetrics.system.network.inbound / 1024 / 1024).toFixed(1)} MB` : '—'}
+              icon={Network}
+              hint="Inbound"
+              tone="neutral"
+            />
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Your Role
-            </CardTitle>
+        {/* Recent deployments — the timeline */}
+        <Card className="border-border/60 bg-card/40 backdrop-blur-xl lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
+            <div>
+              <CardTitle className="text-sm">Recent deployments</CardTitle>
+              <CardDescription className="text-xs">Latest rollouts across environments</CardDescription>
+            </div>
+            <AuthDashboardDeployments.Link>
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]">
+                View all
+                <ArrowRight className="ml-1 size-3" />
+              </Button>
+            </AuthDashboardDeployments.Link>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold capitalize">{userRole}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Platform permission level
-            </p>
+            {deploymentsLoading ? (
+              <div className="space-y-1.5">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-10 animate-pulse rounded-lg bg-muted/40" />
+                ))}
+              </div>
+            ) : recentDeployments.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-1 py-10 text-center">
+                <Rocket className="size-8 text-muted-foreground/40" />
+                <p className="text-sm font-medium text-foreground">No deployments yet</p>
+                <p className="text-xs text-muted-foreground">Rollouts appear here once you deploy a service.</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {recentDeployments.map((dep) => {
+                  const status = dep.status ?? 'unknown'
+                  const tone = statusToneFrom(status)
+                  return (
+                    <AuthDashboardDeployments.Link key={dep.id} className="group block">
+                      <div className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors group-hover:bg-background/50">
+                        <StatusDot tone={tone} pulse={tone === 'pending'} />
+                        <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                          {projectLabel(dep.serviceId ?? dep.id ?? '')}
+                        </p>
+                        <EnvironmentBadge environment={dep.environment} className="hidden sm:inline-flex" />
+                        <StatusBadge status={status} className="shrink-0" />
+                        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                          {relativeTime(dep.createdAt ?? '')}
+                        </span>
+                      </div>
+                    </AuthDashboardDeployments.Link>
+                  )
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Pending Invitations */}
-      {invitations && invitations.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Pending Invitations</CardTitle>
-            <CardDescription>
-              You have {invitations.length} pending invitation{invitations.length !== 1 ? 's' : ''}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {invitations.map((invitation) => (
-                <div
-                  key={invitation.id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
-                >
-                  <div className="flex-1">
-                    <p className="font-medium">
-                      {invitation.organizationId}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Role: {invitation.role} • Expires:{' '}
-                      {new Date(invitation.expiresAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="default"
-                      onClick={() => {handleAcceptInvite(invitation.id)}}
-                      disabled={acceptInvitation.isPending}
-                    >
-                      <CheckCircle2 className="h-4 w-4 mr-1" />
-                      Accept
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {handleRejectInvite(invitation.id)}}
-                      disabled={rejectInvitation.isPending}
-                    >
-                      <XCircle className="h-4 w-4 mr-1" />
-                      Decline
-                    </Button>
-                  </div>
+      {/* ── Quick actions ─────────────────────────────────────────────────── */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {quickActions.map(({ link: Link, icon: Icon, title, description }) => (
+          <Card key={title} className="border-border/60 bg-card/40 backdrop-blur-xl transition-all hover:border-primary/40 hover:bg-card/60">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-sm font-medium">{title}</CardTitle>
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Icon className="size-4" />
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-xs text-muted-foreground">{description}</p>
+              <Link className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                Open
+                <ArrowRight className="size-3" />
+              </Link>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
-      {/* Organizations List */}
-      {organizations && organizations.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Organizations</CardTitle>
-            <CardDescription>
-              Organizations you are a member of
-            </CardDescription>
+      {/* Admin-only actions */}
+      {isAdmin && (
+        <Card className="border-border/60 bg-card/40 backdrop-blur-xl">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Administration</CardTitle>
+            <CardDescription className="text-xs">Platform-wide management tools</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {organizations.map((org) => (
-                <Link
-                  key={org.id}
-                  href={`/dashboard/admin/organizations/${org.id}`}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    {org.logo ? (
-                      <Image
-                        src={org.logo}
-                        alt={org.name}
-                        className="h-10 w-10 rounded-full"
-                      />
-                    ) : (
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Building2 className="h-5 w-5 text-primary" />
-                      </div>
-                    )}
-                    <div>
-                      <p className="font-medium">{org.name}</p>
-                      <p className="text-sm text-muted-foreground">@{org.slug}</p>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm">
-                    View →
-                  </Button>
-                </Link>
-              ))}
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" size="sm">
+                <AuthDashboardAdminUsers.Link>
+                  <Users className="mr-1.5 size-3.5" />
+                  Manage Users
+                </AuthDashboardAdminUsers.Link>
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <AuthDashboardAdminSystem.Link>
+                  <Settings className="mr-1.5 size-3.5" />
+                  System Dashboard
+                </AuthDashboardAdminSystem.Link>
+              </Button>
             </div>
           </CardContent>
         </Card>
       )}
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline">
-              <AuthDashboardAdminOrganizationsNew.Link>
-                <Building2 className="h-4 w-4 mr-2" />
-                Create Organization
-              </AuthDashboardAdminOrganizationsNew.Link>
-            </Button>
-            <Button asChild variant="outline">
-              <AuthDashboardAdminOrganizations.Link>
-                <Users className="h-4 w-4 mr-2" />
-                View All Organizations
-              </AuthDashboardAdminOrganizations.Link>
-            </Button>
-            {isAdmin && (
-              <>
-                <Button asChild variant="outline">
-                  <AuthDashboardAdminUsers.Link>
-                    <Users className="h-4 w-4 mr-2" />
-                    Manage Users
-                  </AuthDashboardAdminUsers.Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <AuthDashboardAdminSystem.Link>
-                    <Users className="h-4 w-4 mr-2" />
-                    System Dashboard
-                  </AuthDashboardAdminSystem.Link>
-                </Button>
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
     </>
   )
 }

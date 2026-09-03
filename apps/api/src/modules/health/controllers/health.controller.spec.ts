@@ -2,7 +2,7 @@ import { Test, type TestingModule } from "@nestjs/testing";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { HealthController } from "./health.controller";
 import { HealthService } from "../services/health.service";
-import { AppLifecyclePhase } from "@/core/modules/lifecycle";
+import { AppLifecyclePhase } from "@repo/nest-lifecycle";
 
 // Mock auth user for requireAuth middleware
 const mockAuthUser = {
@@ -72,16 +72,21 @@ describe("HealthController", () => {
     });
 
     describe("ORPC implementation methods", () => {
+        // @orpc/nest's ImplementedProcedure TYPE omits the runtime-assigned
+        // `handler` member; read it structurally instead of asserting against
+        // an incomplete library declaration.
+        const handlerOf = (impl: object): unknown => (impl as { handler?: unknown }).handler;
+
         it("should have check method that returns implementation handler", () => {
             const implementation = controller.check();
             expect(implementation).toBeDefined();
-            expect(typeof implementation.handler).toBe("function");
+            expect(typeof handlerOf(implementation)).toBe("function");
         });
 
         it("should have detailed method that returns implementation handler", () => {
             const implementation = controller.detailed();
             expect(implementation).toBeDefined();
-            expect(typeof implementation.handler).toBe("function");
+            expect(typeof handlerOf(implementation)).toBe("function");
         });
     });
 
@@ -113,11 +118,34 @@ describe("HealthController", () => {
         it("should be able to call getDetailedHealth service method directly", async () => {
             const mockDetailedHealth = {
                 status: "ok" as const,
-                timestamp: new Date().toISOString(),
+                timestamp: new Date(),
                 service: "nestjs-api",
                 uptime: 123,
                 memory: { used: 1000, free: 2000, total: 3000 },
-                database: { status: "ok" as const, timestamp: "2023-01-01T00:00:00Z", responseTime: 100 },
+                database: { status: "ok" as const, timestamp: new Date("2023-01-01T00:00:00Z"), responseTime: 100 },
+                supervisors: [
+                    {
+                        supervisorId: "platform-ingress-traefik",
+                        description: "Platform Traefik ingress",
+                        healthy: true,
+                        state: "converged" as const,
+                        detail: null,
+                        warnings: [],
+                        checkedAt: "2023-01-01T00:00:00Z",
+                        payload: {
+                            checkedAt: "2023-01-01T00:00:00Z",
+                            latencyMs: 1,
+                            container: null,
+                            entrypoint: null,
+                            config: {
+                                apiHostname: "api.deployer.localhost",
+                                configDir: "/tmp/config",
+                                dynamicApiFile: "/tmp/config/dynamic-api.yml",
+                                fileSizeBytes: null,
+                            },
+                        },
+                    },
+                ],
             };
             vi.mocked(service.getDetailedHealth).mockResolvedValue(mockDetailedHealth);
 

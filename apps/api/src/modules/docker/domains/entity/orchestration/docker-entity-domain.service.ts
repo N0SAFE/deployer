@@ -22,7 +22,7 @@ import { DockerImagesOrchestratorService } from "../../images/orchestration/dock
 import { DockerVolumesOrchestratorService } from "../../volumes/orchestration/docker-volumes-orchestrator.service"
 import { DockerNetworksOrchestratorService } from "../../networks/orchestration/docker-networks-orchestrator.service"
 import { DockerRuntimeEventsStreamService } from "../../../common/events/docker-runtime-events-stream.service"
-import { CoreEventStreamPoolService } from "@/core/modules/events/services/core-event-stream-pool.service"
+import { CoreEventStreamPoolService } from "@repo/nest-events"
 import { DockerEntityCacheService } from "./docker-entity-cache.service"
 import { isRecord, isObjectLike } from "@repo/type-guards"
 

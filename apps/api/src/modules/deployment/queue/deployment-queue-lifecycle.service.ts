@@ -1,5 +1,8 @@
 import { Injectable, NotFoundException, Optional } from "@nestjs/common";
+import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { randomUUID } from "crypto";
+import { Subject } from "rxjs";
+import type { Observable } from "rxjs";
 import type {
     DeploymentDeadLetterJob,
     DeploymentDeadLetterListInput,
@@ -37,9 +40,43 @@ interface QueueListOutput {
 }
 
 @Injectable()
-export class DeploymentQueueLifecycleService {
+export class DeploymentQueueLifecycleService implements OnModuleInit, OnModuleDestroy {
     private readonly queueJobs = new Map<string, DeploymentQueueJob>();
     private readonly deadLetterJobs = new Map<string, DeploymentDeadLetterJob>();
+
+    /** Interval (ms) between abandoned-lease sweeps (W-Queue Q2). */
+    private static readonly LEASE_REAP_INTERVAL_MS = 30_000;
+    /** Delay before a reclaimed job can be claimed again (avoids hot re-claim). */
+    private static readonly REAPED_AVAILABLE_DELAY_MS = 1_000;
+
+    /**
+     * Pending retry re-emit timers (W-Queue, Q1 fix). The retry branch puts a
+     * job back to `queued` with a future `availableAt`; the worker drains on the
+     * `jobQueued$` channel and claim requires `availableAt <= now`, so the re-emit
+     * is DEFERRED to exactly `availableAt` instead of firing immediately (which
+     * would be skipped as "stale"). Timers are tracked for cleanup on destroy.
+     */
+    private readonly retryTimers = new Map<string, NodeJS.Timeout>();
+    private leaseReapTimer: NodeJS.Timeout | null = null;
+
+    onModuleInit(): void {
+        // W-Queue (Q2): periodically return abandoned claims (worker died with an
+        // unextended lease) to the claimable pool. The queue is in-process, so this
+        // sweep is the single authority for lease recovery.
+        this.leaseReapTimer = setInterval(
+            () => this.reapExpiredLeases(),
+            DeploymentQueueLifecycleService.LEASE_REAP_INTERVAL_MS,
+        );
+    }
+
+    /**
+     * Typed job-queued channel (D-6): every NEWLY enqueued job is emitted
+     * here as the typed Zod shape — the SINGLE source of truth the worker
+     * subscribes to. Deduplicated enqueues do NOT re-emit. Mirrors the
+     * typed-observable pattern of the core events module (no external queue
+     * IO — everything stays in-process + typed).
+     */
+    private readonly jobQueued$ = new Subject<DeploymentQueueJob>();
 
     constructor(
         private readonly deploymentQueueEventService: DeploymentQueueEventService,
@@ -52,6 +89,28 @@ export class DeploymentQueueLifecycleService {
 
     getDeadLetterJobsStore(): Map<string, DeploymentDeadLetterJob> {
         return this.deadLetterJobs;
+    }
+
+    /** Observable of newly-enqueued typed jobs (see D-6). */
+    onJobQueued(): Observable<DeploymentQueueJob> {
+        return this.jobQueued$.asObservable();
+    }
+
+    /**
+     * True if any non-terminal job exists for the given deployment — used by
+     * startup reconciliation to avoid failing a deployment with a live job
+     * (e.g. a sibling process or an in-progress execution).
+     */
+    hasLiveJobForDeployment(deploymentId: string): boolean {
+        for (const job of this.queueJobs.values()) {
+            if (job.payload.deploymentId !== deploymentId) {
+                continue;
+            }
+            if (job.status === "queued" || job.status === "claimed" || job.status === "running") {
+                return true;
+            }
+        }
+        return false;
     }
 
     enqueueQueueJob(input: DeploymentQueueEnqueueInput): DeploymentQueueEnqueueResult {
@@ -84,6 +143,9 @@ export class DeploymentQueueLifecycleService {
         };
 
         this.queueJobs.set(job.id, job);
+
+        // D-6: emit the NEW job on the typed channel so the worker executes it.
+        this.jobQueued$.next(job);
 
         this.deploymentQueueEventService.emit(
             "jobEnqueued",
@@ -293,6 +355,12 @@ export class DeploymentQueueLifecycleService {
                 idempotencyKey: `${retryJob.id}:retry-queued:${retryJob.updatedAt}`,
             });
 
+            // W-Queue (Q1): the retried job must RE-EXECUTE. Re-emit it on the
+            // typed channel exactly when it becomes claimable (`availableAt`), so
+            // the worker chain picks it up again — the same path a fresh enqueue
+            // takes. Without this, retried jobs sat `queued` forever (no poller).
+            this.scheduleRetryReEmit(retryJob);
+
             return {
                 transition: { updated: true, job: retryJob },
                 failedJob: retryJob,
@@ -379,7 +447,6 @@ export class DeploymentQueueLifecycleService {
             ? `deployment:${input.job.payload.deploymentId}`
             : `job:${input.job.id}`;
         void this.meshQueueTransitionService.appendAndReplicate({
-            organizationId: null,
             queue: "deployment",
             partitionKey,
             jobId: input.job.id,
@@ -505,6 +572,110 @@ export class DeploymentQueueLifecycleService {
             new Date(job.availableAt).getTime() <= now &&
             (!input.types || input.types.includes(job.type))
         );
+    }
+
+    onModuleDestroy(): void {
+        if (this.leaseReapTimer) {
+            clearInterval(this.leaseReapTimer);
+            this.leaseReapTimer = null;
+        }
+        for (const [, timer] of this.retryTimers) {
+            clearTimeout(timer);
+        }
+        this.retryTimers.clear();
+    }
+
+    /**
+     * W-Queue (Q2): return claims whose lease expired (worker died without
+     * heartbeating) to the claimable pool. `claimed`/`running` jobs with an
+     * expired `leaseExpiresAt` are reset to `queued` (fresh `availableAt`),
+     * clearing the worker + lock token so another execution can claim them.
+     * `attempts` are untouched: an interrupted execution is not a failure.
+     */
+    reapExpiredLeases(now: number = Date.now()): number {
+        let reaped = 0;
+        for (const [jobId, job] of this.queueJobs) {
+            if (job.status !== "claimed" && job.status !== "running") {
+                continue;
+            }
+            if (!job.leaseExpiresAt) {
+                continue;
+            }
+            if (new Date(job.leaseExpiresAt).getTime() > now) {
+                continue;
+            }
+
+            const released: DeploymentQueueJob = {
+                ...job,
+                status: "queued",
+                workerId: null,
+                lockToken: null,
+                leaseExpiresAt: null,
+                lastHeartbeatAt: null,
+                availableAt: new Date(now + DeploymentQueueLifecycleService.REAPED_AVAILABLE_DELAY_MS).toISOString(),
+                updatedAt: new Date(now).toISOString(),
+            };
+            this.queueJobs.set(jobId, released);
+
+            this.deploymentQueueEventService.emit(
+                "jobFailed",
+                { queue: "deployment" },
+                {
+                    jobId: released.id,
+                    workerId: released.workerId,
+                    jobType: released.type,
+                    status: released.status,
+                    deploymentId: released.payload.deploymentId,
+                    serviceId: released.payload.serviceId,
+                    projectId: released.payload.projectId,
+                    error: "Execution lease expired — worker lost; job released for re-execution",
+                    movedToDeadLetter: false,
+                    job: released,
+                    deadLetterJob: null,
+                    timestamp: released.updatedAt,
+                },
+            );
+
+            this.replicateQueueTransition({
+                job: released,
+                fromStatus: job.status,
+                toStatus: released.status,
+                workerId: job.workerId,
+                idempotencyKey: `${released.id}:lease-released:${released.updatedAt}`,
+            });
+
+            reaped += 1;
+        }
+        return reaped;
+    }
+
+    /**
+     * Re-emit a retried job on `jobQueued$` exactly when `availableAt` passes,
+     * so the worker (which drains serially on that channel) re-executes it.
+     * The emit is safe under dedupe: if the job was already claimed/completed by
+     * another path (e.g. DLQ replay), the worker's claim-by-idempotency-key
+     * returns null and it skips as "stale" — idempotent by design.
+     */
+    private scheduleRetryReEmit(retryJob: DeploymentQueueJob): void {
+        const existing = this.retryTimers.get(retryJob.id);
+        if (existing) {
+            clearTimeout(existing);
+        }
+
+        const now = Date.now();
+        const delayMs = Math.max(0, new Date(retryJob.availableAt).getTime() - now);
+
+        const timer = setTimeout(() => {
+            // Ensure the job is still queued-and-not-yet-executed before
+            // re-emitting (guard against a completed/replayed job racing the timer).
+            const current = this.queueJobs.get(retryJob.id);
+            if (current && current.status === "queued" && current.attempts === retryJob.attempts) {
+                this.jobQueued$.next(current);
+            }
+            this.retryTimers.delete(retryJob.id);
+        }, delayMs);
+
+        this.retryTimers.set(retryJob.id, timer);
     }
 
     private claimQueueJob(

@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import type { EventContracts, EventInput, EventOutput } from "@/core/modules/events/event-contract.builder";
+import type { EventContracts, EventInput, EventOutput } from "@repo/nest-events";
 import { SystemMeshTopologyService } from "../../system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { MeshTopicNamespaceRuntime } from "../runtime/mesh-topic-namespace-runtime";
 import {
@@ -58,14 +58,18 @@ export class MeshTopicQueryBusService {
             this.pending.set(queryId, {
                 namespace,
                 responseTopic,
-                resolve,
+                // The Promise resolver is typed for the concrete EventOutput of
+                // this query, while PendingMeshQuery.resolve is a shared
+                // (value: unknown) => void slot across all query types. This is
+                // a trusted cast — the resolver is only ever invoked with the
+                // correct output type when the matching query_response arrives.
+                resolve: resolve as (value: unknown) => void,
                 reject,
                 timeout,
             });
 
             this.meshTopology.publishControlEnvelope({
                 envelopeId: randomUUID(),
-                organizationId: options?.organizationId ?? null,
                 type: "event_publish",
                 sourceNodeId: localNode.nodeId,
                 targetNodeId: null,
@@ -139,7 +143,6 @@ export class MeshTopicQueryBusService {
                 const localNode = this.meshTopology.getLocalNode();
                 this.meshTopology.publishControlEnvelope({
                     envelopeId: randomUUID(),
-                    organizationId: envelope.organizationId ?? null,
                     type: "event_publish",
                     sourceNodeId: localNode.nodeId,
                     targetNodeId: envelope.sourceNodeId,

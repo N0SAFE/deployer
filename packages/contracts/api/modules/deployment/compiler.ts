@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
     deploymentCompileRollbackEdgesInputSchema,
     deploymentCompileRollbackEdgesResultSchema,
@@ -17,6 +17,7 @@ export const deploymentCompilePlanContract = deploymentPlanCompileOps
     .path("/compile-plan")
     .input((b) => b.body(deploymentPlanCompileInputSchema))
     .output(deploymentPlanCompileResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentCompilePlanPreviewContract = deploymentPlanCompileOps
@@ -24,6 +25,7 @@ export const deploymentCompilePlanPreviewContract = deploymentPlanCompileOps
     .path("/compile-plan/preview")
     .input((b) => b.body(deploymentPlanCompileInputSchema))
     .output(deploymentPlanCompileResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentCompileRollbackEdgesContract = deploymentRollbackEdgesCompileOps
@@ -31,4 +33,5 @@ export const deploymentCompileRollbackEdgesContract = deploymentRollbackEdgesCom
     .path("/compile-plan/rollback-edges")
     .input((b) => b.body(deploymentCompileRollbackEdgesInputSchema))
     .output(deploymentCompileRollbackEdgesResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

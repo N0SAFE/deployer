@@ -9,7 +9,7 @@ import {
     type DockerContainerInspectDetail,
     type DockerRuntimeCatalog,
 } from "@repo/contracts-entities";
-import { contractBuilder } from "@/core/modules/events/event-contract.builder";
+import { contractBuilder } from "@repo/nest-events";
 import { InternalBaseMeshService, type MeshCallManyResult } from "@/core/modules/mesh/services/base-mesh.service";
 import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
@@ -103,7 +103,6 @@ const cancelEnvelopeSchema = z.object({
 });
 
 const correlationInputSchema = z.object({
-    organizationId: z.string().nullable().optional(),
     correlationId: z.string().optional(),
 });
 
@@ -193,7 +192,7 @@ export class DockerContainerMeshService
         meshTopicService: SystemMeshTopicService,
         meshTopologyService: SystemMeshTopologyService,
     ) {
-        super(meshTopicService, meshTopologyService, "docker-container-internal", dockerContainerMeshContracts);
+        super(meshTopicService, meshTopologyService, "docker-container-internal", dockerContainerMeshContracts, {});
     }
 
     onModuleInit(): void {
@@ -212,13 +211,12 @@ export class DockerContainerMeshService
         }) =>
             | { payload: DockerContainerListResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerContainerListResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler(
             "listContainersRequest",
             "listContainersResponse",
             "listContainersCancel",
-            { organizationId: options?.organizationId ?? null },
+            {},
             handler,
         );
     }
@@ -231,13 +229,12 @@ export class DockerContainerMeshService
         }) =>
             | { payload: DockerContainerInspectResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerContainerInspectResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler(
             "inspectContainerRequest",
             "inspectContainerResponse",
             "inspectContainerCancel",
-            { organizationId: options?.organizationId ?? null },
+            {},
             handler,
         );
     }
@@ -250,13 +247,12 @@ export class DockerContainerMeshService
         }) =>
             | { payload: DockerRuntimeCatalogResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerRuntimeCatalogResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler(
             "runtimeCatalogRequest",
             "runtimeCatalogResponse",
             "runtimeCatalogCancel",
-            { organizationId: options?.organizationId ?? null },
+            {},
             handler,
         );
     }
@@ -264,18 +260,16 @@ export class DockerContainerMeshService
     listContainersAcrossInstances(
         payload: DockerContainerListRequestPayload,
         options?: {
-            organizationId?: string | null;
             timeoutMs?: number;
             maxCollectedResponses?: number;
         },
     ): Promise<MeshCallManyResult<DockerContainerListResponsePayload>> {
-        return this.callMany(
+        return this.callManyOnTopics(
             "listContainersRequest",
             "listContainersResponse",
             "listContainersCancel",
             payload,
             {
-                organizationId: options?.organizationId ?? null,
                 timeoutMs: options?.timeoutMs ?? 1_500,
                 maxCollectedResponses: options?.maxCollectedResponses,
             },
@@ -285,18 +279,16 @@ export class DockerContainerMeshService
     inspectContainerAcrossInstances(
         payload: DockerContainerInspectRequestPayload,
         options?: {
-            organizationId?: string | null;
             timeoutMs?: number;
             maxCollectedResponses?: number;
         },
     ): Promise<MeshCallManyResult<DockerContainerInspectResponsePayload>> {
-        return this.callMany(
+        return this.callManyOnTopics(
             "inspectContainerRequest",
             "inspectContainerResponse",
             "inspectContainerCancel",
             payload,
             {
-                organizationId: options?.organizationId ?? null,
                 timeoutMs: options?.timeoutMs ?? 1_500,
                 maxCollectedResponses: options?.maxCollectedResponses,
             },
@@ -306,18 +298,16 @@ export class DockerContainerMeshService
     listRuntimeCatalogAcrossInstances(
         payload: DockerRuntimeCatalogRequestPayload,
         options?: {
-            organizationId?: string | null;
             timeoutMs?: number;
             maxCollectedResponses?: number;
         },
     ): Promise<MeshCallManyResult<DockerRuntimeCatalogResponsePayload>> {
-        return this.callMany(
+        return this.callManyOnTopics(
             "runtimeCatalogRequest",
             "runtimeCatalogResponse",
             "runtimeCatalogCancel",
             payload,
             {
-                organizationId: options?.organizationId ?? null,
                 timeoutMs: options?.timeoutMs ?? 2_000,
                 maxCollectedResponses: options?.maxCollectedResponses,
             },

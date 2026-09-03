@@ -10,13 +10,13 @@ order: 1
 
 ## Access hierarchy
 
-```
-Platform super admin
- └── Cluster (1+ nodes)
-      └── Organization (configurable instance allocation)
-           └── Project (logical grouping — independent repos)
-                └── Service (web / worker / cron / one-shot)
-                     └── User (custom role/permission matrix)
+```mermaid
+flowchart TD
+    SA["Platform super admin"] --> CL["Cluster (1+ nodes)"]
+    CL --> ORG["Organization<br/>(configurable instance allocation)"]
+    ORG --> PRJ["Project<br/>(logical grouping — independent repos)"]
+    PRJ --> SVC["Service<br/>(web / worker / cron / one-shot)"]
+    SVC --> USR["User<br/>(custom role/permission matrix)"]
 ```
 
 - **Roles**: predefined set (Owner / Admin / Developer / Viewer) + custom roles via a permission matrix
@@ -157,9 +157,7 @@ Platform manages start order and waits for health check gates between dependent 
 - **Canonical ingress**: Traefik (Swarm provider) + service labels
 - **Default balancing**: Swarm service replicas + Traefik routing (no custom redirect app required for standard HTTP/S)
 - **Replica policy target**: when at least two schedulable nodes exist, critical user-facing services should run with at least two replicas spread across nodes
-- **Optional advanced path**: custom LB redirect/token model for specialized owner-aware stream routing and diagnostics
-
-See [Load Balancer Architecture](/docs/deployment/load-balancer) only when enabling that optional advanced pattern.
+- **No standalone load balancer**: Traefik is the sole reverse proxy for platform and deployment traffic; a direct-proxy supervisor provides temporary failover while Traefik recovers.
 
 ## Storage
 
@@ -322,6 +320,6 @@ Same ORPC contracts exposed externally with **API key authentication** — usabl
 - [Architecture Overview](/docs/architecture/architecture)
 - [Tech Stack](/docs/architecture/tech-stack)
 - [Platform Feature Target](/docs/deployment/platform-feature-target)
-- [Load Balancer Architecture](/docs/deployment/load-balancer) *(optional advanced pattern)*
+- [Instance Ports](/docs/deployment/instance-ports) — port conventions and Traefik routing
 - [Multi-server Operations](/docs/deployment/multi-server-multi-org-operations)
 - [Event System & Streams](/docs/dev/event-system-streams)

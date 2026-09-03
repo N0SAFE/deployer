@@ -16,7 +16,7 @@ import { dockerRuntimeActivities } from "@/config/drizzle/global/schema/docker-r
 import { deployments, projects, services } from "@/config/drizzle/global/schema/deployment";
 import type { DockerContainerListInput } from "@repo/api-contracts/modules/docker/containers/shared";
 import type { DockerImageListInput } from "@repo/api-contracts/modules/docker/images/list";
-import { dockerodeContainerListSchema, dockerodeImageSummarySchema, dockerodeImageInspectSchema, dockerodeNetworkSummarySchema, dockerodeVolumeListResponseSchema, type DockerodeContainerList } from "@repo/contracts-entities";
+import { dockerodeContainerListSchema, dockerodeImageSummarySchema, dockerodeImageInspectSchema, dockerodeNetworkSummarySchema, dockerodeVolumeListResponseSchema, type DockerodeContainerList, type DockerodeImageSummary, type DockerodeImageInspect, type DockerodeNetworkSummary, type DockerodeVolumeEntry } from "@repo/contracts-entities";
 import z from "zod/v4"
 import { isRecord } from "@repo/type-guards"
 import type { DockerNetworkListInput } from "@repo/api-contracts/modules/docker/networks/list";
@@ -530,27 +530,18 @@ export class DockerRepository {
   }
 
   private normalizeEnvironmentVariables(value: unknown): Record<string, string> | null {
-    if (!value || typeof value !== "object") {
+    // Shape validation through Zod — a record keyed by non-empty strings.
+    const parsed = z.record(z.string().min(1), z.string()).safeParse(value);
+    if (!parsed.success || Object.keys(parsed.data).length === 0) {
       return null;
     }
-
-    const entries = Object.entries(value).filter(
-      (entry): entry is [string, string] => typeof entry[1] === "string",
-    );
-
-    if (entries.length === 0) {
-      return null;
-    }
-
-    return Object.fromEntries(entries);
+    return parsed.data;
   }
 
   private normalizeCustomDomains(value: unknown): string[] {
-    if (!Array.isArray(value)) {
-      return [];
-    }
-
-    return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+    // Shape validation through Zod — array of non-empty strings.
+    const parsed = z.array(z.string().min(1)).safeParse(value);
+    return parsed.success ? parsed.data : [];
   }
 
   private shouldIncludeDeployment(includeSet: Set<DockerContainerLinkPath>): boolean {
@@ -2071,7 +2062,7 @@ export class DockerRepository {
 
   private buildImageInspectCandidatesFromImageList(
     imageId: string,
-    images: Record<string, unknown>[],
+    images: DockerodeImageSummary[],
   ): string[] {
     const requested = imageId.trim();
     const candidates = new Set<string>();
@@ -2122,7 +2113,7 @@ export class DockerRepository {
     return [...candidates];
   }
 
-  private async inspectImageWithCandidates(imageId: string): Promise<Record<string, unknown>> {
+  private async inspectImageWithCandidates(imageId: string): Promise<DockerodeImageInspect> {
     const docker = this.dockerService.getDockerClient();
     const candidates = this.buildImageInspectCandidates(imageId);
 
@@ -2130,7 +2121,7 @@ export class DockerRepository {
       try {
         const raw = await docker.getImage(candidate).inspect();
         const parsed = dockerodeImageInspectSchema.safeParse(raw);
-        if (parsed.success) return parsed.data as unknown as Record<string, unknown>;
+        if (parsed.success) return parsed.data;
       } catch {
         // Try next candidate.
       }
@@ -2140,13 +2131,13 @@ export class DockerRepository {
     const parsedImages = z.array(dockerodeImageSummarySchema).safeParse(imageList);
     const images = parsedImages.success ? parsedImages.data : [];
 
-    const resolvedCandidates = this.buildImageInspectCandidatesFromImageList(imageId, images as unknown as Record<string, unknown>[]);
+    const resolvedCandidates = this.buildImageInspectCandidatesFromImageList(imageId, images);
 
     for (const candidate of resolvedCandidates) {
       try {
         const raw = await docker.getImage(candidate).inspect();
         const parsed = dockerodeImageInspectSchema.safeParse(raw);
-        if (parsed.success) return parsed.data as unknown as Record<string, unknown>;
+        if (parsed.success) return parsed.data;
       } catch {
         // Try next candidate.
       }
@@ -3940,11 +3931,11 @@ export class DockerRepository {
     const docker = this.dockerService.getDockerClient();
     const raw = await docker.listNetworks();
     const parsed = z.array(dockerodeNetworkSummarySchema).safeParse(raw);
-    const rawNetworks: Record<string, unknown>[] = parsed.success ? parsed.data as unknown as Record<string, unknown>[] : [];
+    const rawNetworks: DockerodeNetworkSummary[] = parsed.success ? parsed.data : [];
 
     const mapped = rawNetworks.map((network) => {
-      const ipamConfig = ((network.IPAM as { Config?: Record<string, unknown>[] } | undefined)?.Config ?? [])[0] ?? {};
-      const containers = Object.keys((network.Containers as Record<string, unknown> | undefined) ?? {});
+      const ipamConfig = (network.IPAM?.Config ?? [])[0] ?? {};
+      const containers = Object.keys(network.Containers ?? {});
 
       return dockerNetworkSchema.parse({
         id: String(network.Id ?? ""),
@@ -4008,7 +3999,7 @@ export class DockerRepository {
     }
 
     const parsedVolumes = dockerodeVolumeListResponseSchema.safeParse(volumesResult);
-    const rawVolumes: Record<string, unknown>[] = parsedVolumes.success ? parsedVolumes.data.Volumes as unknown as Record<string, unknown>[] : [];
+    const rawVolumes: DockerodeVolumeEntry[] = parsedVolumes.success ? parsedVolumes.data.Volumes : [];
 
     const mapped = rawVolumes.map((volume) =>
       dockerVolumeSchema.parse({

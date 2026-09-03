@@ -18,9 +18,6 @@ describe("DockerRuntimeRunnerService", () => {
         getHealthStatus: ReturnType<typeof vi.fn>;
         createServiceConfiguration: ReturnType<typeof vi.fn>;
     };
-    let loadBalancerSyncAdapter: {
-        syncDeploymentOwnership: ReturnType<typeof vi.fn>;
-    };
     let service: DockerRuntimeRunnerService;
 
     beforeEach(() => {
@@ -46,19 +43,9 @@ describe("DockerRuntimeRunnerService", () => {
             createServiceConfiguration: vi.fn().mockResolvedValue({ id: "cfg-generated" }),
         };
 
-        loadBalancerSyncAdapter = {
-            syncDeploymentOwnership: vi.fn().mockResolvedValue({
-                applied: false,
-                endpoint: null,
-                status: "skipped",
-                reportedAt: null,
-            }),
-        };
-
         service = new DockerRuntimeRunnerService(
             dockerService as never,
             traefikService as never,
-            loadBalancerSyncAdapter as never,
         );
     });
 
@@ -210,45 +197,12 @@ describe("DockerRuntimeRunnerService", () => {
         fs.rmSync(expectedRootPath, { recursive: true, force: true });
     });
 
-    it("syncs load balancer ownership after route and health verification", async () => {
-        await service.executeRuntime({
-            deployment: {
-                deploymentId: "deployment-lb-1",
-                serviceId: "service-lb-1",
-                projectId: "project-lb-1",
-                organizationId: "org-1",
-                deploymentContainerName: null,
-                deploymentContainerImage: null,
-                healthCheckUrl: null,
-            },
-            artifact: {
-                containerImage: "nginx:alpine",
-                containerName: "runtime-container-lb",
-                artifactDigest: null,
-                artifactSizeBytes: null,
-                buildLogsUrl: null,
-            },
-            healthGateConfig: {
-                maxRetries: 3,
-                retryIntervalMs: 200,
-            },
-            storageBinding: null,
-        });
-
-        expect(loadBalancerSyncAdapter.syncDeploymentOwnership).toHaveBeenCalledWith({
-            deploymentId: "deployment-lb-1",
-            serviceId: "service-lb-1",
-            organizationId: "org-1",
-        });
-    });
-
     it("returns managed runtime ownership metadata for DB persistence", async () => {
         const result = await service.executeRuntime({
             deployment: {
                 deploymentId: "deployment-managed-1",
                 serviceId: "service-managed-1",
                 projectId: "project-managed-1",
-                organizationId: "org-managed-1",
                 deploymentContainerName: null,
                 deploymentContainerImage: null,
                 healthCheckUrl: null,
@@ -273,7 +227,6 @@ describe("DockerRuntimeRunnerService", () => {
             deploymentId: "deployment-managed-1",
             serviceId: "service-managed-1",
             projectId: "project-managed-1",
-            organizationId: "org-managed-1",
             imageRef: "nginx:alpine",
             networkMode: "bridge",
         });
@@ -284,7 +237,6 @@ describe("DockerRuntimeRunnerService", () => {
             "deployer.deployment_id": "deployment-managed-1",
             "deployer.service_id": "service-managed-1",
             "deployer.project_id": "project-managed-1",
-            "deployer.organization_id": "org-managed-1",
             "deployer.network_mode": "bridge",
             "deployer.runtime_runner": "docker",
             "deployer.image_ref": "nginx:alpine",
@@ -392,41 +344,6 @@ describe("DockerRuntimeRunnerService", () => {
         );
     });
 
-    it("does not fail deployment when load balancer sync throws", async () => {
-        loadBalancerSyncAdapter.syncDeploymentOwnership.mockRejectedValueOnce(new Error("lb unavailable"));
-
-        const result = await service.executeRuntime({
-            deployment: {
-                deploymentId: "deployment-lb-2",
-                serviceId: "service-lb-2",
-                organizationId: "org-2",
-                deploymentContainerName: null,
-                deploymentContainerImage: null,
-                healthCheckUrl: null,
-            },
-            artifact: {
-                containerImage: "nginx:alpine",
-                containerName: "runtime-container-lb-2",
-                artifactDigest: null,
-                artifactSizeBytes: null,
-                buildLogsUrl: null,
-            },
-            healthGateConfig: {
-                maxRetries: 3,
-                retryIntervalMs: 200,
-            },
-            storageBinding: null,
-        });
-
-        expect(result.loadBalancerSync).toMatchObject({
-            applied: false,
-            status: "skipped",
-            attempts: 2,
-        });
-        expect(loadBalancerSyncAdapter.syncDeploymentOwnership).toHaveBeenCalledTimes(2);
-        expect(dockerService.startContainer).toHaveBeenCalledWith("container-123");
-    });
-
     it("retries Traefik sync on transient failure and succeeds", async () => {
         traefikService.syncServiceConfiguration
             .mockResolvedValueOnce({
@@ -508,7 +425,6 @@ describe("DockerRuntimeRunnerService", () => {
             },
             convergenceConfig: {
                 traefikSyncMaxAttempts: 2,
-                loadBalancerSyncMaxAttempts: 1,
                 retryBaseDelayMs: 1,
             },
             storageBinding: null,
@@ -525,52 +441,6 @@ describe("DockerRuntimeRunnerService", () => {
         expect(traefikService.syncServiceConfiguration).toHaveBeenCalledTimes(2);
         expect(result.routeVerification).toMatchObject({
             applied: true,
-            attempts: 2,
-        });
-    });
-
-    it("retries load balancer sync on transient failure and succeeds", async () => {
-        loadBalancerSyncAdapter.syncDeploymentOwnership
-            .mockRejectedValueOnce(new Error("transient lb timeout"))
-            .mockResolvedValueOnce({
-                applied: true,
-                endpoint: "http://lb.internal/internal/mesh/load-report",
-                status: "synced",
-                reportedAt: new Date().toISOString(),
-            });
-
-        const result = await service.executeRuntime({
-            deployment: {
-                deploymentId: "deployment-lb-retry-1",
-                serviceId: "service-lb-retry-1",
-                organizationId: "org-lb-retry",
-                deploymentContainerName: null,
-                deploymentContainerImage: null,
-                healthCheckUrl: null,
-            },
-            artifact: {
-                containerImage: "nginx:alpine",
-                containerName: "runtime-container-lb-retry-1",
-                artifactDigest: null,
-                artifactSizeBytes: null,
-                buildLogsUrl: null,
-            },
-            healthGateConfig: {
-                maxRetries: 3,
-                retryIntervalMs: 200,
-            },
-            convergenceConfig: {
-                traefikSyncMaxAttempts: 3,
-                loadBalancerSyncMaxAttempts: 3,
-                retryBaseDelayMs: 1,
-            },
-            storageBinding: null,
-        });
-
-        expect(loadBalancerSyncAdapter.syncDeploymentOwnership).toHaveBeenCalledTimes(2);
-        expect(result.loadBalancerSync).toMatchObject({
-            applied: true,
-            status: "synced",
             attempts: 2,
         });
     });
@@ -607,7 +477,6 @@ describe("DockerRuntimeRunnerService", () => {
                 },
                 convergenceConfig: {
                     traefikSyncMaxAttempts: 2,
-                    loadBalancerSyncMaxAttempts: 3,
                     retryBaseDelayMs: 1,
                 },
                 storageBinding: null,

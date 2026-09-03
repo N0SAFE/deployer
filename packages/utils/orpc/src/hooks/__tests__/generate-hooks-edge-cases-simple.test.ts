@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { z } from 'zod/v4';
+import z from 'zod/v4';
 import { createRouterHooks } from '../generate-hooks';
 import { RouteBuilder } from '../../builder/core/route-builder';
 

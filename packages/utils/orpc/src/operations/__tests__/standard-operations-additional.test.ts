@@ -3,7 +3,7 @@
  * Focuses on uncovered lines in standard-operations.ts
  */
 import { describe, it, expect } from 'vitest';
-import { z } from 'zod/v4';
+import z from 'zod/v4';
 import { standard } from '../zod/standard-operations';
 import { voidSchema } from '../../types/standard-schema-helpers';
 

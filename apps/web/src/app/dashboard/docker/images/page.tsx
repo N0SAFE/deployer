@@ -24,7 +24,7 @@ import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
 import { Download, Loader2, Play, RefreshCw, Search, Shield, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { DataTable } from '@repo/ui/components/data-table/data-table'
-import { useSafeQueryStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
+import { useSafeQueryParamStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
 import {
   createImageColumns,
   createImageSubRowColumns,
@@ -145,7 +145,7 @@ function ImagesTableLoadingSkeleton() {
 export default AuthDashboardDockerImages.Route(function DashboardDockerImagesPage({
   searchParams
 }) {
-  const [listQuery, setListQuery] = useSafeQueryStatesFromZod(IMAGE_LIST_QUERY_SCHEMA)
+  const [listQuery, setListQuery] = useSafeQueryParamStatesFromZod(IMAGE_LIST_QUERY_SCHEMA)
   const [inspectImageId, setInspectImageId] = useState<string | null>(null)
   const [inspectInitialTab, setInspectInitialTab] = useState<'overview' | 'layers' | 'security' | 'labels'>('overview')
   const [runImageRef, setRunImageRef] = useState<string | null>(null)
@@ -282,7 +282,7 @@ export default AuthDashboardDockerImages.Route(function DashboardDockerImagesPag
               options={[...imageFilterConfig.savedViewOptions]}
             />
 
-            <select
+            <select aria-label="{option.label}"
               className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
               value={sortBy}
               onChange={(event) => {
@@ -294,7 +294,7 @@ export default AuthDashboardDockerImages.Route(function DashboardDockerImagesPag
               ))}
             </select>
 
-            <select
+            <select aria-label="{option.label}"
               className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
               value={sortDirection}
               onChange={(event) => {

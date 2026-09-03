@@ -5,7 +5,7 @@ import {
   type ServiceTraefikTemplate,
   type CreateProviderTraefikTemplate,
   type CreateServiceTraefikTemplate,
-} from '../../../../config/drizzle/schema';
+} from '@/config/drizzle/global/schema';
 import { nanoid } from 'nanoid';
 import {
   TemplateRenderError,

@@ -1,10 +1,10 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 
 const streamEventMetaShape = {
     sequence: z.number().int().nonnegative().optional(),
     replayed: z.boolean().optional(),
-    emittedAt: z.date().optional(),
+    emittedAt: z.string().optional(),
 } as const;
 
 export const projectStreamEventTypeSchema = z.enum([
@@ -23,7 +23,7 @@ export const projectStreamEventSchema = z.discriminatedUnion("type", [
         projectId: z.uuid(),
         ownerId: z.string(),
         name: z.string(),
-        timestamp: z.date(),
+        timestamp: z.string(),
         ...streamEventMetaShape,
     }),
     z.object({
@@ -31,14 +31,14 @@ export const projectStreamEventSchema = z.discriminatedUnion("type", [
         projectId: z.uuid(),
         ownerId: z.string(),
         changedFields: z.array(z.string()),
-        timestamp: z.date(),
+        timestamp: z.string(),
         ...streamEventMetaShape,
     }),
     z.object({
         type: z.literal("projectDeleted"),
         projectId: z.uuid(),
         ownerId: z.string(),
-        timestamp: z.date(),
+        timestamp: z.string(),
         ...streamEventMetaShape,
     }),
     z.object({
@@ -46,14 +46,14 @@ export const projectStreamEventSchema = z.discriminatedUnion("type", [
         projectId: z.uuid(),
         userId: z.string(),
         role: z.enum(["owner", "admin", "developer", "viewer"]),
-        timestamp: z.date(),
+        timestamp: z.string(),
         ...streamEventMetaShape,
     }),
     z.object({
         type: z.literal("projectCollaboratorRemoved"),
         projectId: z.uuid(),
         userId: z.string(),
-        timestamp: z.date(),
+        timestamp: z.string(),
         ...streamEventMetaShape,
     }),
     z.object({
@@ -61,14 +61,14 @@ export const projectStreamEventSchema = z.discriminatedUnion("type", [
         projectId: z.uuid(),
         environmentId: z.uuid(),
         environmentName: z.string(),
-        timestamp: z.date(),
+        timestamp: z.string(),
         ...streamEventMetaShape,
     }),
     z.object({
         type: z.literal("projectEnvironmentDeleted"),
         projectId: z.uuid(),
         environmentId: z.uuid(),
-        timestamp: z.date(),
+        timestamp: z.string(),
         ...streamEventMetaShape,
     }),
 ]);
@@ -92,7 +92,7 @@ export type ProjectStreamQueryInput = z.infer<typeof projectStreamQueryFiltersSc
 
 const projectStreamEventContractEntitySchema = z.object({
     type: z.string(),
-    timestamp: z.date(),
+    timestamp: z.string(),
 });
 
 const projectStreamEventOps = standard.zod(projectStreamEventContractEntitySchema, "projectStreamEvent");
@@ -102,4 +102,5 @@ export const projectQueryStreamContract = projectStreamEventOps
     .path("/stream/query")
     .input((b) => b.query(projectStreamQueryFiltersSchema))
     .output((b) => b.observable(projectStreamEventSchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

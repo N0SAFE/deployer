@@ -1,0 +1,132 @@
+# =====================================================================
+# Web DEV variant — INCLUDE-ONLY (real base: build, env, develop.watch).
+# =====================================================================
+services:
+  web:
+    restart: always
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    build:
+      context: ../../../../
+      dockerfile: ./docker/builder/web/Dockerfile.web.dev
+      tags:
+        - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-web-dev:latest"
+      args:
+        - NODE_ENV=development
+        - API_PORT=${API_PORT:-3005}
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api.deployer.localhost}
+        - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://web.deployer.localhost}
+        - NEXT_PUBLIC_APP_PORT=${NEXT_PUBLIC_APP_PORT:-3000}
+        - NEXT_PUBLIC_APP_DEBUG_CONTEXT_FILTER=${APP_DEBUG_CONTEXT_FILTER:-}
+        - BUILDKIT_INLINE_CACHE=1
+    environment:
+      NODE_ENV: development
+      NODE_OPTIONS: --dns-result-order=ipv4first
+      # URLs — server-side (internal Docker network)
+      API_URL: http://${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-dev:${API_PORT:-3005}
+      APP_URL: ${APP_URL:-http://web-dev:3000}
+      # App-instance identity (api-centric deployment) — compose-managed web
+      # registers against the API at boot; token persists in the instance volume.
+      DEPLOYER_INSTANCE_LABEL: ${DEPLOYER_INSTANCE_LABEL:-compose-dev-web}
+      DEPLOYER_INSTANCE_EMAIL: ${DEPLOYER_INSTANCE_EMAIL:-}
+      DEPLOYER_INSTANCE_PASSWORD: ${DEPLOYER_INSTANCE_PASSWORD:-}
+      APP_INSTANCE_TOKEN_PATH: /app/.deployer/app-instance-token
+      # URLs — client-side (browser access via the platform ingress)
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api.deployer.localhost}
+      NEXT_PUBLIC_API_PORT: ${API_PORT:-3005}
+      NEXT_PUBLIC_MESH_PEER_NODE_ID: ${NEXT_PUBLIC_MESH_PEER_NODE_ID:-33333333-3333-4333-8333-333333333333}
+      NEXT_PUBLIC_MESH_PEER_ENDPOINT: ${NEXT_PUBLIC_MESH_PEER_ENDPOINT:-ws://api-dev-2:${API_PORT_NODE_2:-3006}/mesh}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://web.deployer.localhost}
+      NEXT_PUBLIC_APP_PORT: ${NEXT_PUBLIC_APP_PORT:-3000}
+      NEXT_PUBLIC_DOC_URL: ${NEXT_PUBLIC_DOC_URL:-http://localhost:${NEXT_PUBLIC_DOC_PORT:-3020}}
+      NEXT_PUBLIC_DOC_PORT: ${NEXT_PUBLIC_DOC_PORT:-3020}
+      # Dev HMR cross-origin allowlist (defined here — compose-managed)
+      NEXT_ALLOWED_DEV_ORIGINS: ${NEXT_ALLOWED_DEV_ORIGINS:-web.deployer.localhost,*.deployer.localhost}
+      # Authentication
+      AUTH_SECRET: ${AUTH_SECRET:-fallback-auth-secret}
+      BETTER_AUTH_SECRET: ${AUTH_SECRET:-fallback-auth-secret}
+      AUTH_BASE_DOMAIN: ${AUTH_BASE_DOMAIN:-.deployer.localhost}
+      DEV_AUTH_KEY: ${DEV_AUTH_KEY:-dev-fallback-key}
+      NEXT_PUBLIC_DEV_AUTH_KEY: ${NEXT_PUBLIC_DEV_AUTH_KEY:-${DEV_AUTH_KEY:-dev-fallback-key}}
+      # Debug
+      NEXT_PUBLIC_DEBUG: ${NEXT_PUBLIC_DEBUG:-}
+      NEXT_PUBLIC_APP_DEBUG_CONTEXT_FILTER: ${APP_DEBUG_CONTEXT_FILTER:-}
+      # Dev tools — hot reloading (keep polling off by default; compose sync)
+      WATCHPACK_POLLING: ${WATCHPACK_POLLING:-false}
+      CHOKIDAR_USEPOLLING: ${CHOKIDAR_USEPOLLING:-false}
+      NEXT_WEBPACK_USEPOLLING: ${NEXT_WEBPACK_USEPOLLING:-0}
+      # Turbo remote cache (empty defaults silence interpolation warnings)
+      TURBO_TOKEN: ${TURBO_TOKEN:-}
+      TURBO_TEAM: ${TURBO_TEAM:-}
+    volumes:
+      # App-instance token persistence (api-centric deployment)
+      - web_instance_token_dev:/app/.deployer
+      # Persistent build caches (named volumes) to speed up installs/builds
+      - bun_cache_dev:/root/.bun/install/cache
+      - turbo_cache_dev:/root/.cache/turbo
+    develop:
+      watch:
+        # Restart when Docker Compose configuration changes
+        - action: restart
+          path: ../../../../
+          target: /app
+          include:
+            - docker/compose/web/docker-compose.config.dev.yml
+            - docker/compose/docker-compose.dev.yml
+        # Rebuild when critical dependency or config files change
+        - action: rebuild
+          path: ../../../../
+          target: /app
+          include:
+            - package.json
+            - bun.lock*
+            - turbo.json
+            - apps/web/package.json
+            - apps/web/tsconfig.json
+            - apps/web/tsconfig.*.json
+            - apps/web/next.config.ts
+            - apps/web/next.config.js
+            - apps/web/next.config.mjs
+            - apps/web/tailwind.config.*
+            - apps/web/postcss.config.*
+            - apps/web/declarative-routing.config.json
+            - docker/builder/web/Dockerfile.web.dev
+            - packages/**/package.json
+        # Sync source code excluding node_modules and build artifacts
+        - action: sync
+          initial_sync: true
+          path: ../../../../
+          target: /app
+          ignore:
+            - node_modules/
+            - "**/node_modules/"
+            - bun.lock*
+            - package-lock.json
+            - yarn.lock
+            - pnpm-lock.yaml
+            - "**/dist/"
+            - "**/build/"
+            - "**/.next/"
+            - "**/out/"
+            - "**/.output/"
+            - "**/.turbo/"
+            - "**/.cache/"
+            - "**/.parcel-cache/"
+            - "**/.vite/"
+            - "**/*.log"
+            - "**/logs/"
+            - .git/
+            - .gitignore
+            - docker/
+            - Dockerfile*
+            - docker-compose*.yml
+            - .dockerignore
+            - "**/.vscode/"
+            - "**/.idea/"
+            - "**/*.swp"
+            - "**/*.swo"
+            - "**/coverage/"
+            - "**/.nyc_output/"
+            - "**/.DS_Store"
+            - "**/Thumbs.db"

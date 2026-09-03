@@ -60,7 +60,6 @@ export const setupStateSnapshotSchema = z.object({
     steps: z.array(setupStepSchema),
     completedAt: z.date().nullable(),
     hasUsers: z.boolean(),
-    hasOrganizations: z.boolean(),
     availableStrategies: z.array(setupBootstrapStrategySchema),
 });
 export type SetupStateSnapshot = z.infer<typeof setupStateSnapshotSchema>;
@@ -72,7 +71,6 @@ export const setupInitializeLocalInputSchema = z.object({
     name: z.string().min(1),
     email: z.email(),
     password: z.string().min(8),
-    organizationName: z.string().min(1),
     existingDatabaseUrl: z.string().optional(),
 });
 export type SetupInitializeLocalInput = z.infer<typeof setupInitializeLocalInputSchema>;
@@ -157,7 +155,6 @@ export const setupInitializeLocalResultSchema = z.object({
     nodeId:       z.uuid(),
     databaseUrl:  z.string(),
     user:         z.object({ id: z.string(), name: z.string(), email: z.string() }),
-    organization: z.object({ id: z.string(), name: z.string(), slug: z.string() }),
 });
 export type SetupInitializeLocalResult = z.infer<typeof setupInitializeLocalResultSchema>;
 

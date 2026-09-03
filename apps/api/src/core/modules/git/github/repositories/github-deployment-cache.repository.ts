@@ -19,6 +19,7 @@ import { GlobalDatabaseService } from '@/core/modules/database/services/global-d
 import { deploymentCache } from '@/config/drizzle/global/schema';
 import { eq, and, desc } from 'drizzle-orm';
 
+import { AppError } from "@repo/errors";
 // Type inference from schema
 type DeploymentCache = typeof deploymentCache.$inferSelect;
 type DeploymentCacheInsert = typeof deploymentCache.$inferInsert;
@@ -41,7 +42,7 @@ export class GithubDeploymentCacheRepository {
       .returning();
 
     if (!entry) {
-      throw new Error('Failed to create deployment cache entry');
+      throw new AppError('Failed to create deployment cache entry', 'INTERNAL_ERROR');
     }
 
     return entry;

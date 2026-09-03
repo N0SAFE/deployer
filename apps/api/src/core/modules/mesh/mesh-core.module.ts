@@ -17,7 +17,7 @@ import { MeshStreamRuntimeService } from './services/mesh-stream-runtime.service
 import { SystemMetricsModule } from '@/core/modules/system-metrics/system-metrics.module'
 import { SystemMeshConfigService } from './services/system-mesh-config.service'
 import { NodeMeshConfigRepository } from './repositories/node-mesh-config.repository'
-import { CoreEventStreamPoolService } from '@/core/modules/events/services/core-event-stream-pool.service'
+import { CoreEventStreamPoolService } from '@repo/nest-events'
 import { MeshInternalRequestService } from './services/mesh-internal-request.service'
 import { MeshRuntimeModule } from './runtime/mesh-runtime.module'
 import { MeshOrchestrationService } from './orchestration/mesh-orchestration.service'
@@ -54,7 +54,12 @@ import { MESH_NODE_CALLER_TOKEN } from './tokens';
 
 /** Stub MeshNodeCaller — replace with real impl at runtime */
 class StubMeshNodeCaller implements MeshNodeCaller {
-    async callMany(): Promise<readonly { nodeId: string; items: readonly unknown[]; durationMs: number }[]> {
+    async callMany<TItem>(
+        _entityKey: string,
+        _methodName: string,
+        _payload: Record<string, unknown>,
+        _options: { organizationId?: string | null; timeoutMs?: number },
+    ): Promise<readonly { nodeId: string; items: readonly TItem[]; durationMs: number }[]> {
         return [];
     }
 }

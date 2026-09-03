@@ -44,6 +44,23 @@ export const signOut = hasMasterTokenPlugin(authClient)
     ? authClient.$masterTokenSignOut(authClient.signOut)
     : authClient.signOut
 
+/**
+ * Typed email/password sign-in via the Better Auth client.
+ *
+ * Single source for the sign-in call — the setup flow used to duplicate a raw
+ * `fetch("/api/auth/sign-in/email", ...)` with an unchecked `(body as
+ * Record<string, unknown>).message as string` assertion. Better Auth returns
+ * `{ data, error }` (it does not throw), so we normalize the failure into a
+ * thrown Error with the server message.
+ */
+export async function signInWithEmail(input: { email: string; password: string }) {
+    const result = await authClient.signIn.email(input)
+    if (result.error) {
+        throw new Error(result.error.message ?? "Sign in failed")
+    }
+    return result.data
+}
+
 // Auth pages configuration for Better Auth
 export const pages = {
     signIn: '/auth/signin',

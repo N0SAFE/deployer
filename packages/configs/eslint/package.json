@@ -4,28 +4,29 @@
     "private": true,
     "type": "module",
     "files": [
-        "src"
+        "src",
+        "dist"
     ],
     "exports": {
         ".": {
             "types": "./src/index.ts",
-            "import": "./src/index.ts"
+            "import": "./dist/index.js"
         },
         "./library": {
             "types": "./src/library.ts",
-            "import": "./src/library.ts"
+            "import": "./dist/library.js"
         },
         "./nextjs": {
             "types": "./src/nextjs.ts",
-            "import": "./src/nextjs.ts"
+            "import": "./dist/nextjs.js"
         },
         "./nestjs": {
             "types": "./src/nestjs.ts",
-            "import": "./src/nestjs.ts"
+            "import": "./dist/nestjs.js"
         },
         "./react": {
             "types": "./src/react.ts",
-            "import": "./src/react.ts"
+            "import": "./dist/react.js"
         },
         "./test": {
             "types": "./src/test.ts",
@@ -37,21 +38,23 @@
         }
     },
     "scripts": {
+        "build": "bun --bun build.ts",
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "type-check": "tsgo --noEmit"
+        "type-check": "tsc --noEmit"
     },
     "devDependencies": {
-        "@types/node": "catalog:build",
+        "@repo/config-eslint-plugins-progress": "*",
         "@darraghor/eslint-plugin-nestjs-typed": "^7.1.22",
         "@eslint/compat": "^2.0.1",
         "@eslint/js": "catalog:linting",
         "@repo/config-prettier": "*",
         "@repo/config-vitest": "*",
         "@tanstack/eslint-plugin-query": "catalog:tanstack",
-        "@typescript-eslint/eslint-plugin": "^8.61.1",
-        "@typescript-eslint/parser": "^8.61.1",
+        "@types/node": "catalog:build",
+        "@typescript-eslint/eslint-plugin": "^8.67.0",
+        "@typescript-eslint/parser": "^8.67.0",
         "@vercel/style-guide": "^6.0.0",
         "babel-plugin-macros": "^3.1.0",
         "chokidar": "catalog:build",
@@ -59,16 +62,16 @@
         "eslint-config-nestjs": "^0.8.0",
         "eslint-config-next": "catalog:next",
         "eslint-config-prettier": "^10.1.8",
-        "eslint-config-turbo": "^2.8.9",
+        "eslint-config-turbo": "^2.10.11",
         "eslint-plugin-mdx": "^3.6.2",
         "eslint-plugin-next": "^0.0.0",
         "eslint-plugin-only-warn": "^1.1.0",
         "eslint-plugin-react": "^7.34.2",
         "eslint-plugin-react-hooks": "^7.0.1",
-        "eslint-plugin-react-refresh": "^0.5.3",
+        "eslint-plugin-react-refresh": "^0.5.4",
         "globals": "^17.0.0",
-        "tailwindcss": "^4.1.16",
-        "@typescript/native-preview": "catalog:build",
+        "tailwindcss": "catalog:styling",
+        "typescript": "^6",
         "typescript-eslint": "^8.61.1",
         "vitest": "catalog:testing"
     }

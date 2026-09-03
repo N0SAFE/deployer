@@ -1,7 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { and, eq, inArray } from "drizzle-orm";
 import { GlobalDatabaseService } from "../../../core/modules/database/services/global-database.service";
-import { member } from "@/config/drizzle/global/schema/auth";
 import { orgRoleRules } from "@/config/drizzle/global/schema/permissions";
 import type { ResourceRule } from "@repo/auth/permissions";
 
@@ -17,55 +16,17 @@ import type { ResourceRule } from "@repo/auth/permissions";
 export class PermissionRepository {
   constructor(private readonly databaseService: GlobalDatabaseService) {}
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // MemberRoleLoader — reads Better Auth's `member` table (read-only)
-  // ─────────────────────────────────────────────────────────────────────────
-
-  /**
-   * Returns the role strings assigned to `userId` within `orgId`.
-   *
-   * Better Auth stores multiple roles as a comma-separated string, so we split
-   * and trim to produce a clean array.
-   */
-  async getMemberRoles(userId: string, orgId: string): Promise<string[]> {
-    const rows = await this.databaseService.db
-      .select({ role: member.role })
-      .from(member)
-      .where(
-        and(eq(member.userId, userId), eq(member.organizationId, orgId)),
-      );
-
-    return rows.flatMap((r) =>
-      r.role
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // OrgRoleLoader — reads our custom `org_role_rules` table
-  // ─────────────────────────────────────────────────────────────────────────
-
-  /**
+/**
    * Returns the merged ResourceRule[] for all of the given role names within
    * an organisation.  Rules from multiple matched rows are concatenated.
    */
-  async getOrgRoleRules(
-    orgId: string,
-    roleNames: string[],
-  ): Promise<ResourceRule[]> {
+  async getRoleRules(roleNames: string[]): Promise<ResourceRule[]> {
     if (roleNames.length === 0) return [];
 
     const rows = await this.databaseService.db
       .select({ resourceRules: orgRoleRules.resourceRules })
       .from(orgRoleRules)
-      .where(
-        and(
-          eq(orgRoleRules.organizationId, orgId),
-          inArray(orgRoleRules.roleName, roleNames),
-        ),
-      );
+      .where(inArray(orgRoleRules.roleName, roleNames));
 
     return rows.flatMap((r) => r.resourceRules);
   }
@@ -75,7 +36,6 @@ export class PermissionRepository {
   // ─────────────────────────────────────────────────────────────────────────
 
   async upsertRoleRules(
-    orgId: string,
     roleName: string,
     rules: ResourceRule[],
   ): Promise<void> {
@@ -85,12 +45,11 @@ export class PermissionRepository {
       .insert(orgRoleRules)
       .values({
         id: randomUUID(),
-        organizationId: orgId,
         roleName,
         resourceRules: rules,
       })
       .onConflictDoUpdate({
-        target: [orgRoleRules.organizationId, orgRoleRules.roleName],
+        target: [orgRoleRules.roleName],
         set: {
           resourceRules: rules,
           updatedAt: new Date(),
@@ -98,21 +57,15 @@ export class PermissionRepository {
       });
   }
 
-  async deleteRoleRules(orgId: string, roleName: string): Promise<void> {
+  async deleteRoleRules(roleName: string): Promise<void> {
     await this.databaseService.db
       .delete(orgRoleRules)
-      .where(
-        and(
-          eq(orgRoleRules.organizationId, orgId),
-          eq(orgRoleRules.roleName, roleName),
-        ),
-      );
+      .where(eq(orgRoleRules.roleName, roleName));
   }
 
-  async listRoleRules(orgId: string) {
+  async listRoleRules() {
     return this.databaseService.db
       .select()
-      .from(orgRoleRules)
-      .where(eq(orgRoleRules.organizationId, orgId));
+      .from(orgRoleRules);
   }
 }

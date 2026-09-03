@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
   dockerContainerTerminalInputBodySchema,
   dockerContainerTerminalMutationAckSchema,
@@ -14,4 +14,5 @@ export const dockerContainerTerminalInputContract = dockerContainerTerminalInput
   .path("/input")
   .input((b) => b.body(dockerContainerTerminalInputBodySchema))
   .output((b) => b.body(dockerContainerTerminalMutationAckSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

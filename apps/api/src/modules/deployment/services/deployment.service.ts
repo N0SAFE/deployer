@@ -18,18 +18,19 @@ import { CoreEventSyncService } from "@/core/modules/events";
 import { createHash, randomUUID } from "crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { SourceProviderRegistryService } from "../providers/source-provider-registry.service";
+import { CodeProviderRegistryService } from "@/modules/providers/code/shared/code-provider-registry.service";
 import { DeploymentExecutionWorkflowService } from "./deployment-execution-workflow.service";
+import { DomainRoutingService } from "@/core/modules/domain/services/domain-routing.service";
 import { DeploymentQueueLifecycleService } from "../queue/deployment-queue-lifecycle.service";
-import { DeploymentBullQueueService } from "../queue/deployment-bull-queue.service";
 import { StorageProviderRegistryService } from "../storage/storage-provider-registry.service";
 import { StoragePolicyResolverRegistryService } from "../storage/policy/storage-policy-resolver-registry.service";
-import { runtimeConfigurationAccessor } from "@/core/modules/configuration/services/runtime-configuration-accessor";
+import { RuntimeConfigurationAccessorService } from "@/core/modules/configuration/services/runtime-configuration-accessor.service";
+import { TraefikConfigRefresher } from "@/core/modules/traefik/services/traefik-config-refresher.service";
 import { DeploymentProviderBuilderRunnerStateMachineService } from "@/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import type { DeploymentStateMachineScopeConfigInput } from "@/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import { deploymentRunnerKindSchema } from "@/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import type { ResolvedRuntimeConfiguration } from "@/core/modules/configuration/schemas/runtime-configuration.schema";
-import { UploadBundleRegistryService } from "../providers/upload/upload-bundle-registry.service";
+import { UploadBundleRegistryService } from "@/modules/providers/code/upload/services/upload-bundle-registry.service";
 import { isRecord } from "@repo/type-guards"
 import type { DeploymentListInput } from "@repo/api-contracts/modules/deployment/list";
 import type { DeploymentTriggerInput } from "@repo/api-contracts/modules/deployment/crud";
@@ -187,15 +188,20 @@ export class DeploymentService implements OnModuleInit {
         private readonly deploymentRepository: DeploymentRepository,
         private readonly deploymentEventService: DeploymentEventService,
         private readonly coreEventSyncService: CoreEventSyncService,
-        private readonly sourceProviderRegistryService: SourceProviderRegistryService,
+        private readonly sourceProviderRegistryService: CodeProviderRegistryService,
         private readonly storageProviderRegistryService: StorageProviderRegistryService,
         private readonly storagePolicyResolverRegistryService: StoragePolicyResolverRegistryService,
         private readonly deploymentExecutionWorkflowService: DeploymentExecutionWorkflowService,
         private readonly deploymentQueueLifecycleService: DeploymentQueueLifecycleService,
-        private readonly deploymentBullQueueService: DeploymentBullQueueService,
         private readonly deploymentStateMachineService: DeploymentProviderBuilderRunnerStateMachineService,
         private readonly uploadBundleRegistryService: UploadBundleRegistryService,
         private readonly projectAccessService: ProjectAccessService,
+        private readonly domainRoutingService: DomainRoutingService,
+        private readonly runtimeConfigurationAccessor: RuntimeConfigurationAccessorService,
+        /** Fires a re-converge of the platform ingress when the route table may
+         *  have changed (a deployment/preview became live, a rollback moved
+         *  the backend container). */
+        private readonly ingressRefresher: TraefikConfigRefresher,
     ) {
         this.queueJobs = this.deploymentQueueLifecycleService.getQueueJobsStore();
         this.deadLetterJobs = this.deploymentQueueLifecycleService.getDeadLetterJobsStore();
@@ -247,8 +253,38 @@ export class DeploymentService implements OnModuleInit {
         };
     }
 
-    async listDeployments(input: DeploymentListInput) {
+    async listDeployments(input: DeploymentListInput = {} as DeploymentListInput) {
         return this.deploymentRepository.findMany(input);
+    }
+
+    /**
+     * List preview environments for a service from the `preview_environments`
+     * table (populated by PreviewProvisioningService). Read-only projection.
+     */
+    async listServicePreviews(serviceId: string) {
+        const rows = await this.deploymentRepository.findPreviewsByServiceId(serviceId);
+        return {
+            previews: rows.map((r) => ({
+                id: r.id,
+                subdomain: r.subdomain,
+                fullDomain: r.fullDomain,
+                sslEnabled: r.sslEnabled !== false,
+                isActive: r.isActive !== false,
+                webhookTriggered: r.webhookTriggered !== false,
+                expiresAt: r.expiresAt ? r.expiresAt.toISOString() : null,
+                deploymentId: r.deploymentId,
+                metadata: r.metadata
+                    ? {
+                          pullRequestUrl: r.metadata.pullRequestUrl ?? null,
+                          branchName: r.metadata.branchName ?? null,
+                          lastAccessedAt: r.metadata.lastAccessedAt ?? null,
+                          accessCount: r.metadata.accessCount ?? null,
+                      }
+                    : null,
+                createdAt: r.createdAt.toISOString(),
+                updatedAt: r.updatedAt.toISOString(),
+            })),
+        };
     }
 
     async getDeploymentById(id: string) {
@@ -257,6 +293,42 @@ export class DeploymentService implements OnModuleInit {
             throw new NotFoundException(`Deployment with id '${id}' not found`);
         }
         return deployment;
+    }
+
+    /**
+     * B5: promote a preview environment to a stable domain mapping. Requires
+     * owner/maintainer/deployer access on the service. Delegates to
+     * DomainRoutingService.promotePreviewToStable (idempotent).
+     */
+    async promoteServicePreview(
+        serviceId: string,
+        previewName: string,
+        requesterId: string,
+        actorPlatformRole: PlatformRole | null = null,
+    ) {
+        await this.assertDeploymentServiceAccess(serviceId, requesterId, [
+            "owner",
+            "maintainer",
+            "deployer",
+        ], actorPlatformRole);
+
+        const result = await this.domainRoutingService.promotePreviewToStable(serviceId, previewName);
+        if (!result.promoted) {
+            throw new BadRequestException(
+                result.reason === "subdomain_already_stable"
+                    ? `Preview '${previewName}' is already promoted to a stable domain`
+                    : result.reason === "no_domain_mapping"
+                      ? "Service has no configured domain to promote the preview under"
+                      : `Preview promotion failed: ${result.reason ?? "unknown"}`,
+            );
+        }
+
+        return {
+            promoted: true,
+            host: result.host,
+            reason: null,
+            mappingId: result.mappingId ?? null,
+        };
     }
 
     private async assertDeploymentServiceAccess(
@@ -320,11 +392,11 @@ export class DeploymentService implements OnModuleInit {
             );
         }
 
-        const resolvedRuntimeConfiguration = runtimeConfigurationAccessor.resolveForDeployment({
+        const resolvedRuntimeConfiguration = this.runtimeConfigurationAccessor.resolveForDeployment({
             serviceId: input.serviceId,
             projectId: runtimeConfigurationSeed.projectId,
             environment: input.environment,
-            sourceType: input.sourceType,
+            sourceType: input.source.sourceType,
             projectSettings: runtimeConfigurationSeed.projectSettings,
             serviceRecord: runtimeConfigurationSeed.service,
         });
@@ -366,7 +438,7 @@ export class DeploymentService implements OnModuleInit {
         const serviceStorageConfig = this.storagePolicyResolverRegistryService.resolveServiceStorageConfig({
             serviceId: input.serviceId,
             serviceMetadata: resolvedRuntimeConfiguration.service.metadata,
-            sourceConfig: input.sourceConfig,
+            source: input.source,
             runtimeConfiguration: resolvedRuntimeConfiguration,
         });
         const storageBinding = await this.storageProviderRegistryService.resolveStorageBinding(
@@ -408,7 +480,7 @@ export class DeploymentService implements OnModuleInit {
             (!requestedContainerImage || requestedContainerImage.trim().length === 0) &&
             !resolvedBuilder
         ) {
-            const sourceProvider = sourceCheckout?.provider ?? input.sourceType;
+            const sourceProvider = sourceCheckout?.provider ?? input.source.sourceType;
             throw new BadRequestException(
                 `${sourceProvider} source with runtimeRunner 'dockerfile' requires either an explicit containerImage or compatible execution.builder`,
             );
@@ -420,8 +492,9 @@ export class DeploymentService implements OnModuleInit {
             serviceId: input.serviceId,
             triggeredBy: userId,
             environment: input.environment,
-            sourceType: input.sourceType,
-            sourceConfig: input.sourceConfig,
+            environmentId: await this.deploymentRepository.resolveEnvironmentId(input.serviceId, input.environment),
+            sourceType: input.source.sourceType,
+            sourceConfig: input.source,
         });
 
         await this.deploymentRepository.insertLog(deployment.id, {
@@ -432,7 +505,7 @@ export class DeploymentService implements OnModuleInit {
             stage: "provider",
             correlationId,
             metadata: {
-                provider: sourceCheckout?.provider ?? input.sourceType,
+                provider: sourceCheckout?.provider ?? input.source.sourceType,
                 resolvedBuilder,
                 resolvedRuntimeRunner,
                 hasStorageBinding: Boolean(storageBinding),
@@ -819,7 +892,53 @@ export class DeploymentService implements OnModuleInit {
             sourceConfig: deployment.sourceConfig ?? undefined,
         });
         await this.emitLifecycleQueued(retry, null, "Retry deployment queued");
-        // TODO: Queue retry job via orchestration module (not yet migrated)
+
+        // W10: enqueue the retry into the REAL queue (was a documented no-op).
+        // The job runs through the same claim → build → complete flow as a
+        // fresh deploy; its context carries the original deployment's source
+        // (re-resolved to a checkout so the builder can rebuild without
+        // re-triggering provider discovery).
+        const projectId = await this.deploymentRepository.getServiceProjectId(
+            deployment.serviceId,
+        );
+        const correlationId = randomUUID();
+
+        const retrySource = deployment.sourceConfig as DeploymentTriggerInput["source"] | null;
+        const sourceCheckout =
+            retrySource && "sourceType" in retrySource && retrySource.sourceType
+                ? await this.sourceProviderRegistryService.resolveSourceCheckout({
+                      serviceId: deployment.serviceId,
+                      environment: deployment.environment,
+                      source: retrySource,
+                  })
+                : null;
+
+        this.enqueueQueueJob({
+            type: "retry",
+            idempotencyKey: `retry:${retry.id}`,
+            payload: {
+                deploymentId: retry.id,
+                serviceId: deployment.serviceId,
+                projectId: projectId ?? undefined,
+                environment: deployment.environment,
+                observability: {
+                    correlationId,
+                    source: "deployment.retry",
+                },
+                context: {
+                    sourceType: deployment.sourceType,
+                    sourceConfig: deployment.sourceConfig ?? null,
+                    retryOf: id,
+                    triggeredBy: userId,
+                    correlationId,
+                    ...(sourceCheckout ? { sourceCheckout } : {}),
+                    ...(sourceCheckout && "runtimeRunner" in sourceCheckout && sourceCheckout.runtimeRunner
+                        ? { runtimeRunner: sourceCheckout.runtimeRunner }
+                        : {}),
+                },
+            },
+            maxAttempts: 5,
+        });
         return retry;
     }
 
@@ -977,7 +1096,7 @@ export class DeploymentService implements OnModuleInit {
         return this.deploymentRepository.findServiceIdsByProject(projectId);
     }
 
-    async listStreamDefinitions(input: DeploymentStreamListInput) {
+    async listStreamDefinitions(input: DeploymentStreamListInput | undefined) {
         return this.deploymentRepository.findStreamMany(input);
     }
 
@@ -1202,24 +1321,11 @@ export class DeploymentService implements OnModuleInit {
     enqueueQueueJob(input: DeploymentQueueEnqueueInput): DeploymentQueueEnqueueResult {
         const enqueued = this.deploymentQueueLifecycleService.enqueueQueueJob(input);
 
-        void this.deploymentBullQueueService
-            .enqueueFromQueueJob(enqueued.job)
-            .then((bullJobId) => {
-                const updated: DeploymentQueueJob = {
-                    ...enqueued.job,
-                    metadata: {
-                        ...(enqueued.job.metadata ?? {}),
-                        bullJobId: bullJobId.bullJobId,
-                        bullQueueName: bullJobId.bullQueueName,
-                        bullJobName: bullJobId.bullJobName,
-                    },
-                };
-                this.queueJobs.set(updated.id, updated);
-            })
-            .catch(() => {
-                // Bull enqueue failure should not block current in-memory queue lifecycle.
-            });
-
+        // D-6: the typed channel (`onJobQueued`) fires inside the lifecycle
+        // enqueue → DeploymentQueueWorkerService claims and executes this job.
+        // No external queue IO, no silent swallow: the in-process typed queue
+        // IS the execution path (previously Bull enqueue failed silently
+        // against a missing Redis and deploys stayed queued forever).
         return enqueued;
     }
 
@@ -1282,6 +1388,14 @@ export class DeploymentService implements OnModuleInit {
             );
         }
 
+        if (existing.type === "retry" && existing.payload.deploymentId) {
+            await this.deploymentExecutionWorkflowService.persistBuildExecutionResult(
+                existing.payload.deploymentId,
+                input.result,
+                existing.payload.observability ?? null,
+            );
+        }
+
         if (existing.type === "rollback" && existing.payload.deploymentId) {
             await this.deploymentExecutionWorkflowService.persistRollbackExecutionResult(
                 existing.payload.deploymentId,
@@ -1301,6 +1415,11 @@ export class DeploymentService implements OnModuleInit {
         if (!completion) {
             throw new BadRequestException("Invalid worker/lock token for queue completion");
         }
+        // A deploy, retry, or rollback finished → its container/domain routing
+        // may have changed → the ingress must publish the new Host rules.
+        if (existing.type === "deploy" || existing.type === "rollback" || existing.type === "retry") {
+            this.ingressRefresher.refresh();
+        }
         return completion;
     }
 
@@ -1310,7 +1429,7 @@ export class DeploymentService implements OnModuleInit {
     }
 
     private async handleClaimedQueueJob(job: DeploymentQueueJob, claimedAtMs: number): Promise<void> {
-        if (job.type !== "deploy" || !job.payload.deploymentId) {
+        if ((job.type !== "deploy" && job.type !== "retry") || !job.payload.deploymentId) {
             if (job.type === "rollback" && job.payload.deploymentId) {
                 await this.deploymentExecutionWorkflowService.markRollbackExecutionStarted(
                     job.payload.deploymentId,
@@ -1340,6 +1459,14 @@ export class DeploymentService implements OnModuleInit {
                 failure.failedJob.payload.deploymentId,
                 this.getResultString(failure.failedJob.payload.context, "rollbackId"),
                 this.getResultString(failure.failedJob.payload.context, "fromDeploymentId"),
+                input.error,
+            );
+        } else if (failure.failedJob.payload.deploymentId) {
+            // W-Queue (Q4): deploy/retry failures now persist to the deployment
+            // row (previously only rollback was persisted, leaving deploys stuck
+            // at "building" after queue exhaust).
+            void this.deploymentExecutionWorkflowService.persistDeploymentExecutionFailure(
+                failure.failedJob.payload.deploymentId,
                 input.error,
             );
         }
@@ -2304,8 +2431,8 @@ export class DeploymentService implements OnModuleInit {
         resolvedRuntimeConfiguration: ResolvedRuntimeConfiguration,
     ): DeploymentStateMachineScopeConfigInput {
         return {
-            organization: this.extractStateMachinePolicyPatch(
-                resolvedRuntimeConfiguration.organization.metadata,
+            mesh: this.extractStateMachinePolicyPatch(
+                resolvedRuntimeConfiguration.mesh.metadata,
             ),
             project: this.extractStateMachinePolicyPatch(resolvedRuntimeConfiguration.project.metadata),
             service: this.extractStateMachinePolicyPatch(resolvedRuntimeConfiguration.service.metadata),
@@ -2326,7 +2453,7 @@ export class DeploymentService implements OnModuleInit {
             return undefined;
         }
 
-        const resolvedRuntimeConfiguration = runtimeConfigurationAccessor.resolveForDeployment({
+        const resolvedRuntimeConfiguration = this.runtimeConfigurationAccessor.resolveForDeployment({
             serviceId: input.serviceId,
             projectId: runtimeConfigurationSeed.projectId,
             environment: input.environment,

@@ -40,10 +40,14 @@ RUN curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh \
 
 # ---------------------------------------------------------------------------
 # Install Dive
+# Pinned release tarball: upstream removed its install.sh from the repo, so
+# the old `curl | sh -s -- -b …` pattern now 404s and silently installed
+# nothing (`|| true` swallowed it) — which later broke the binary-rename step.
 # ---------------------------------------------------------------------------
-RUN curl -sSfL https://raw.githubusercontent.com/wagoodman/dive/main/install.sh \
-    | sh -s -- -b /usr/local/bin \
-    && dive --version 2>&1 || true
+ARG DIVE_VERSION=0.13.1
+RUN curl -sSfL "https://github.com/wagoodman/dive/releases/download/v${DIVE_VERSION}/dive_${DIVE_VERSION}_linux_amd64.tar.gz" \
+    | tar -xz -C /usr/local/bin dive \
+    && dive --version
 
 # ---------------------------------------------------------------------------
 # Rename real scanner binaries and install timestamp-logging wrappers

@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 
 const testAuthenticatedOps = standard.zod(
   z.object({ ok: z.boolean(), userId: z.string().optional(), message: z.string().optional() }),
@@ -21,6 +21,7 @@ export const testAuthenticatedContract = testAuthenticatedOps
       message: z.string().optional(),
     })
   )
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();
 
 // Define types based on schemas

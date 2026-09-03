@@ -10,13 +10,13 @@ import { os } from "@orpc/server";
 import { AuthUtils, AuthUtilsEmpty } from "../orpc/auth-utils";
 import type { ORPCContextWithAuthOnly } from "../orpc";
 import type { UserSession } from "../utils/auth-utils";
+import { AppError } from "@repo/errors";
 import {
 	createPluginRegistry,
 	createPluginMiddlewares,
 	type AppPluginRegistry,
 	type PluginRegistry,
 	type PlatformBuilder,
-	type OrganizationBuilder,
 	type AppMiddlewares,
 } from "../plugin-utils/plugin-wrapper-factory";
 import {
@@ -83,17 +83,14 @@ type AdminRoles = InferRoleNamesFromBuilder<PlatformBuilder>;
  * Strict permission statement type for organization context
  * Used internally when calling underlying middleware methods
  */
-type StrictOrgPermissions = InferStatementFromBuilder<OrganizationBuilder>;
 
 /** 
  * Flexible permission statement type for organization context 
  * Accepts both strictly typed permissions AND loose PermissionObject for flexibility
  * Use this in public API methods
  */
-type OrgPermissions = StrictOrgPermissions | PermissionObject;
 
 /** Role name type for organization context (string union: 'owner' | 'admin' | 'member') */
-type OrgRoles = InferRoleNamesFromBuilder<OrganizationBuilder>;
 
 // ============================================================================
 // ORPC Middleware Builder (Using Typed Wrappers)
@@ -104,16 +101,10 @@ type OrgRoles = InferRoleNamesFromBuilder<OrganizationBuilder>;
  */
 type AdminMiddlewareDefinition = ReturnType<typeof createPluginMiddlewares>['admin'];
 
-/**
- * Type for the organization middleware definition returned by createPluginMiddlewares().organization
- */
-type OrganizationMiddlewareDefinition = ReturnType<typeof createPluginMiddlewares>['organization'];
-
 /** Internal proxy type for raw admin middleware */
 type AdminOrpcProxy = OrpcMiddlewareProxy<AdminMiddlewareDefinition>;
 
 /** Internal proxy type for raw organization middleware */
-type OrgOrpcProxy = OrpcMiddlewareProxy<OrganizationMiddlewareDefinition>;
 
 // ============================================================================
 // Type Utilities for Widening Permission Parameters
@@ -125,7 +116,6 @@ type OrgOrpcProxy = OrpcMiddlewareProxy<OrganizationMiddlewareDefinition>;
  */
 type WidenPermission<T> = 
 	T extends StrictAdminPermissions ? AdminPermissions :
-	T extends StrictOrgPermissions ? OrgPermissions :
 	T extends Record<string, readonly string[]> ? T | PermissionObject :
 	T;
 
@@ -218,7 +208,6 @@ type WidenedOrpcProxy<T> = {
 type RelaxedAdminProxy = WidenedOrpcProxy<AdminOrpcProxy>;
 
 /** Organization proxy with widened permission types */
-type RelaxedOrgProxy = WidenedOrpcProxy<OrgOrpcProxy>;
 
 /**
  * ORPC middleware builder - provides access to admin and organization middlewares
@@ -243,18 +232,15 @@ type RelaxedOrgProxy = WidenedOrpcProxy<OrgOrpcProxy>;
  */
 class OrpcMiddlewareBuilder {
 	readonly admin: RelaxedAdminProxy;
-	readonly org: RelaxedOrgProxy;
 
 	constructor(
 		getMiddlewares: () => ReturnType<typeof createPluginMiddlewares>,
 		_getRegistry: () => ReturnType<typeof createPluginRegistry>
 	) {
 		const adminProxy = createOrpcMiddlewareProxy(getMiddlewares().admin);
-		const orgProxy = createOrpcMiddlewareProxy(getMiddlewares().organization);
 		
 		// Cast to widened types - safe because the widened types accept a superset of the strict types
 		this.admin = adminProxy as unknown as RelaxedAdminProxy;
-		this.org = orgProxy as unknown as RelaxedOrgProxy;
 	}
 }
 
@@ -292,44 +278,13 @@ class AdminChecksBuilder {
 }
 
 /**
- * Organization checks builder - provides raw middleware checks for advanced composition
- */
-class OrganizationChecksBuilder {
-	constructor(
-		private readonly getMiddlewares: () => ReturnType<typeof createPluginMiddlewares>
-	) {}
-
-	requireSession(): MiddlewareCheck {
-		return this.getMiddlewares().organization.requireSession();
-	}
-
-	isMemberOf(organizationId: ValueOrResolver<string>): MiddlewareCheck {
-		return this.getMiddlewares().organization.isMemberOf(organizationId);
-	}
-
-	hasOrganizationRole(organizationId: ValueOrResolver<string>, roles: readonly OrgRoles[]): MiddlewareCheck {
-		return this.getMiddlewares().organization.hasOrganizationRole(organizationId, roles);
-	}
-
-	isOrganizationOwner(organizationId: ValueOrResolver<string>): MiddlewareCheck {
-		return this.getMiddlewares().organization.isOrganizationOwner(organizationId);
-	}
-
-	hasOrganizationPermission(permissions: OrgPermissions): MiddlewareCheck {
-		return this.getMiddlewares().organization.hasOrganizationPermission(permissions as StrictOrgPermissions);
-	}
-}
-
-/**
  * Checks builder - provides access to raw middleware checks
  */
 class ChecksBuilder {
 	readonly admin: AdminChecksBuilder;
-	readonly org: OrganizationChecksBuilder;
 
 	constructor(getMiddlewares: () => ReturnType<typeof createPluginMiddlewares>) {
 		this.admin = new AdminChecksBuilder(getMiddlewares);
-		this.org = new OrganizationChecksBuilder(getMiddlewares);
 	}
 }
 
@@ -414,7 +369,7 @@ export class AuthCoreService<T extends AuthWithPlugins = Auth> {
 
 	static getLatestModuleOptions(): AuthModuleOptions<AuthWithPlugins> {
 		if (!AuthCoreService.latestModuleOptions) {
-			throw new Error("AuthModuleOptions are not available yet.");
+			throw new AppError("AuthModuleOptions are not available yet.", "INTERNAL_ERROR");
 		}
 
 		return AuthCoreService.latestModuleOptions;
@@ -703,7 +658,7 @@ export class AuthCoreService<T extends AuthWithPlugins = Auth> {
 		};
 
 		if (!api.generateOpenAPISchema) {
-			throw new Error("Better Auth OpenAPI generator is not available on the configured auth instance.");
+			throw new AppError("Better Auth OpenAPI generator is not available on the configured auth instance.", "INTERNAL_ERROR");
 		}
 
 		// Delegates to Better Auth's API method
@@ -712,4 +667,4 @@ export class AuthCoreService<T extends AuthWithPlugins = Auth> {
 }
 
 // Re-export types that consumers might need
-export type { AdminPermissions, OrgPermissions, AdminRoles, OrgRoles };
+export type { AdminPermissions, AdminRoles };

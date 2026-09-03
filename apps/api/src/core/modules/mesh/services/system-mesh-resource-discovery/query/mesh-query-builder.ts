@@ -319,17 +319,6 @@ export class MeshQueryBuilder<TItem, TResultShape = TItem> {
     };
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Legacy async API (deprecated, use Promise-based request() instead)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /**
-   * @deprecated Use `.request()` instead for Promise-based API.
-   */
-  async execute(): Promise<MeshQueryResult<TResultShape>> {
-    return this.executor.execute<TItem, TResultShape>(this);
-  }
-
   // ─── Internal helpers (used by executor) ─────────────────────────────────
 
   _applyWhereClauses(item: TItem): boolean {

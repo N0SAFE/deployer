@@ -24,7 +24,8 @@ import { DataTable } from '@repo/ui/components/data-table/data-table'
 import { AlertTriangle, Plus, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import type { DockerContainer } from '@repo/contracts-entities'
 import { cn } from '@/lib/utils'
-import { useSafeQueryStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
+import { StatusDot } from '@/components/dashboard'
+import { useSafeQueryParamStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
 import { toast } from 'sonner'
 import {
   createContainerColumns,
@@ -93,7 +94,7 @@ function deriveRuntimeUrlFromPorts(ports: DockerContainer['ports']): string | nu
 export default AuthDashboardDockerContainers.Route(function DashboardDockerContainersPage({
   
 }) {
-  const [listQuery, setListQuery] = useSafeQueryStatesFromZod(CONTAINER_LIST_QUERY_SCHEMA)
+  const [listQuery, setListQuery] = useSafeQueryParamStatesFromZod(CONTAINER_LIST_QUERY_SCHEMA)
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
   const [refreshTick, setRefreshTick] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -128,9 +129,7 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
 
   // In-memory live store for containers, driven by the docker runtime SSE
   // stream and reconciled every minute via the `docker.containers.list`
-  // endpoint. The legacy `useContainerLiveUpdate` + `cooldownMs: 900` and
-  // the `useDockerRuntimeRefetchOnStream` patterns are no longer needed
-  // here: events are batched and applied to the in-memory store directly,
+  // endpoint. Events are batched and applied to the in-memory store directly,
   // and a full snapshot is fetched periodically to heal any drift.
   const liveContainers = useDockerLiveContainers({
     debounceMs: 200,
@@ -466,11 +465,14 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
       enableUrlState: false,
       enableColumnResizing: true,
       enableKeyboardNavigation: true,
+      enableToolbar: true,
+      enablePagination: true,
+      allowExportNewColumns: true,
       defaultSortBy: 'updatedAt',
-      defaultSortOrder: 'desc',
+      defaultSortOrder: 'desc' as const,
       searchPlaceholder: 'Search containers, image, service…',
       columnResizingTableId: 'docker-containers-enhanced-table',
-      size: 'sm',
+      size: 'sm' as const,
     }),
     [],
   )
@@ -670,7 +672,7 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
                 />
               </div>
 
-              <select
+              <select aria-label="All statuses"
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={statusFilter}
                 onChange={(event) => {
@@ -683,7 +685,7 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
                 ))}
               </select>
 
-              <select
+              <select aria-label="All environments"
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={environmentFilter}
                 onChange={(event) => {
@@ -696,7 +698,7 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
                 ))}
               </select>
 
-              <select
+              <select aria-label="All ownership"
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={ownershipFilter}
                 onChange={(event) => {
@@ -708,7 +710,7 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
                 <option value="orphan">Orphan</option>
               </select>
 
-              <select
+              <select aria-label="Sort: Updated"
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={sortBy}
                 onChange={(event) => {
@@ -721,7 +723,7 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
                 <option value="environment">Sort: Environment</option>
               </select>
 
-              <select
+              <select aria-label="Desc"
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={sortDirection}
                 onChange={(event) => {
@@ -885,19 +887,25 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
           <div className="grid gap-2 sm:grid-cols-4">
             <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
               <p className="text-muted-foreground">Visible</p>
-              <p className="text-base font-semibold">{filteredContainers.length}</p>
+              <p className="text-base font-semibold tabular-nums">{filteredContainers.length}</p>
             </div>
             <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
               <p className="text-muted-foreground">Selected</p>
-              <p className="text-base font-semibold">{selectedContainers.length}</p>
+              <p className="text-base font-semibold tabular-nums">{selectedContainers.length}</p>
             </div>
             <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
               <p className="text-muted-foreground">Healthy</p>
-              <p className="text-base font-semibold">{healthyCount}</p>
+              <p className="flex items-center gap-1.5 text-base font-semibold tabular-nums">
+                <StatusDot tone="live" />
+                {healthyCount}
+              </p>
             </div>
             <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
               <p className="text-muted-foreground">Failed</p>
-              <p className="text-base font-semibold">{failedCount}</p>
+              <p className="flex items-center gap-1.5 text-base font-semibold tabular-nums">
+                <StatusDot tone={failedCount > 0 ? 'danger' : 'neutral'} />
+                {failedCount}
+              </p>
             </div>
           </div>
 

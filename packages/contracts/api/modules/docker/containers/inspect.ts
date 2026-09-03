@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerContainerInspectDetailSchema } from "@repo/contracts-entities";
 import { dockerContainerInspectQuerySchema } from "./shared";
 
@@ -12,4 +12,5 @@ export const dockerContainerInspectContract = dockerContainerInspectOps
   .path("/inspect")
   .input((b) => b.query(dockerContainerInspectQuerySchema))
   .output((b) => b.body(dockerContainerInspectDetailSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

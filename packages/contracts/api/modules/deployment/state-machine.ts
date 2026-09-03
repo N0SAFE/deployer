@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
     deploymentPhaseTransitionApplyInputSchema,
     deploymentPhaseTransitionApplyResultSchema,
@@ -33,6 +33,7 @@ export const deploymentListPhaseTransitionsContract = deploymentPhaseTransitions
         ),
     )
     .output(deploymentPhaseTransitionsCatalogSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentValidatePhaseTransitionContract = deploymentPhaseTransitionValidationOps
@@ -40,6 +41,7 @@ export const deploymentValidatePhaseTransitionContract = deploymentPhaseTransiti
     .path("/phase-machine/validate")
     .input((b) => b.body(deploymentPhaseTransitionValidationInputSchema))
     .output(deploymentPhaseTransitionValidationResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentApplyPhaseTransitionContract = deploymentPhaseTransitionApplyOps
@@ -50,4 +52,5 @@ export const deploymentApplyPhaseTransitionContract = deploymentPhaseTransitionA
             .body(deploymentPhaseTransitionApplyInputSchema),
     )
     .output(deploymentPhaseTransitionApplyResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

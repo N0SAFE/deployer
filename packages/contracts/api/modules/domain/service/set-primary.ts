@@ -14,4 +14,7 @@ export const setPrimaryServiceDomainContract = serviceDomainOps
         ),
     )
     .output((b) => b.entitySchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
+
+import { standardDomainErrorContracts } from "@repo/orpc-utils";

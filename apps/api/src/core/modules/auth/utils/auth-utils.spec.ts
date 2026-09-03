@@ -84,12 +84,10 @@ describe('AuthUtils', () => {
     });
   });
 
-  describe('org plugin access', () => {
-    it('should provide org plugin wrapper', () => {
+  describe('session access', () => {
+    it('should expose the session user', () => {
       const utils = new AuthUtils(mockSession, mockAuth);
-      
-      // org is a getter that returns OrganizationPluginWrapper
-      expect(utils.org).toBeDefined();
+      expect(utils.user).toBeDefined();
     });
   });
 });
@@ -133,8 +131,7 @@ describe('AuthUtilsEmpty', () => {
 
   describe('org plugin access', () => {
     it('should provide org plugin wrapper', () => {
-      // org is a getter that returns OrganizationPluginWrapper
-      expect(utils.org).toBeDefined();
+      expect(utils.admin).toBeDefined();
     });
   });
 });

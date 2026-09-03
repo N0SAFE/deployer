@@ -18,4 +18,7 @@ export const updateServiceDomainContract = serviceDomainOps
             .body(z.object(updateServiceDomainSchema.shape)),
     )
     .output((b) => b.entitySchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
+
+import { standardDomainErrorContracts } from "@repo/orpc-utils";

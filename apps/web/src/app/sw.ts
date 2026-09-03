@@ -1,20 +1,18 @@
 /// <reference lib="webworker" />
-import { createSerwist, addEventListeners } from 'serwist';
+import { Serwist } from 'serwist';
 
 declare const self: ServiceWorkerGlobalScope & {
   __SW_MANIFEST: { url: string; revision: string | null }[];
 };
 
-const serwist = createSerwist({
-  precache: {
-    entries: self.__SW_MANIFEST,
-  },
+const serwist = new Serwist({
+  precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
 });
 
-addEventListeners(serwist);
+serwist.addEventListeners();
 
 
 // Auto-activate on message

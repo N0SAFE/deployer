@@ -48,6 +48,23 @@ Cross-domain code must call another **service**, not another domain’s reposito
 
 This avoids bypassing business invariants in domain B.
 
+### Enforcement status (2026-08-22 audit)
+
+Every controller and service now satisfies the rule — zero production
+controllers/services hold a `DatabaseService` handle. Canonical repositories:
+
+| Domain | Repository |
+|--------|------------|
+| GitHub apps + webhook config | `modules/providers/code/github/repositories/github-apps.repository.ts` |
+| GitLab accounts | `modules/providers/code/gitlab/repositories/gitlab-apps.repository.ts` |
+| DNS provider apps | `modules/providers/dns/shared/repositories/dns-providers.repository.ts` |
+| Node network config (core) | `core/modules/reachability/repositories/node-network-config.repository.ts` |
+| Project access checks (core) | `core/modules/project/repositories/project-access.repository.ts` |
+| Transactional outbox (core) | `core/modules/events/outbox/local-event-outbox.repository.ts` |
+
+Core repositories read the global Drizzle schema directly (never import product
+modules) to keep the core → product dependency direction intact.
+
 ## Practical controller flow
 
 1. ORPC handler receives validated input.

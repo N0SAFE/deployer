@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 
 const testFileDownloadOps = standard.zod(z.object({ file: z.file() }), "testFileDownload");
 
@@ -23,6 +23,7 @@ export const testFileDownloadContract = testFileDownloadOps
       file: z.file(),
     })
   )
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();
 
 // Define types based on schemas

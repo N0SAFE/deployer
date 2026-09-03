@@ -34,41 +34,16 @@ export class RolesConfig<TRoles extends Record<string, Record<string, readonly s
    * Get multiple roles as a RoleConfig instances (legacy method)
    * For batch operations, use getMany().getAll() with RoleConfigCollection
    */
-  getMany<K extends keyof TRoles>(keys: K[]): Record<K, RoleConfig<TRoles[K]>>;
-  
-  /**
-   * Get multiple roles as a RoleConfigCollection for batch operations
-   * 
-   * @example
-   * // Get admin and manager roles as collection
-   * rolesConfig.getMany(['admin', 'manager'] as const)
-   *   .withAction('delete')
-   */
   getMany<K extends keyof TRoles>(
-    keys: K[],
-    asCollection: true
-  ): RoleConfigCollection<Pick<TRoles, K>>;
-
-  getMany<K extends keyof TRoles>(
-    keys: K[],
-    asCollection?: boolean
-  ): Record<K, RoleConfig<TRoles[K]>> | RoleConfigCollection<Pick<TRoles, K>> {
-    if (asCollection) {
-      const picked = {} as Pick<TRoles, K>;
-      for (const key of keys) {
-        if (key in this._roles) {
-          picked[key] = this._roles[key];
-        }
-      }
-      return new RoleConfigCollection(picked);
-    }
-
-    // Legacy behavior: return Record of RoleConfigs
-    const result = {} as Record<K, RoleConfig<TRoles[K]>>;
+    keys: readonly K[]
+  ): RoleConfigCollection<Pick<TRoles, K>> {
+    const picked = {} as Pick<TRoles, K>;
     for (const key of keys) {
-      result[key] = new RoleConfig(this._roles[key]);
+      if (key in this._roles) {
+        picked[key] = this._roles[key];
+      }
     }
-    return result;
+    return new RoleConfigCollection(picked);
   }
 
   /**
@@ -104,7 +79,7 @@ export class RolesConfig<TRoles extends Record<string, Record<string, readonly s
       ...this._roles,
       [key]: role
        
-    } as TRoles & Record<K, Record<string, readonly string[]>>);
+    });
   }
 
   /**
@@ -114,7 +89,7 @@ export class RolesConfig<TRoles extends Record<string, Record<string, readonly s
     return new RolesConfig({
       ...this._roles,
       ...roles
-    } as TRoles & T);
+    });
   }
 
   /**
@@ -143,7 +118,7 @@ export class RolesConfig<TRoles extends Record<string, Record<string, readonly s
       // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
       delete filtered[key];
     }
-    return new RolesConfig(filtered as Omit<TRoles, K>);
+    return new RolesConfig(filtered) as unknown as RolesConfig<Omit<TRoles, K>>;
   }
 
   /**
@@ -188,7 +163,7 @@ export class RolesConfig<TRoles extends Record<string, Record<string, readonly s
     return new RolesConfig({
       ...this._roles,
       [key]: updater(this._roles[key])
-    } as TRoles);
+    }) as unknown as RolesConfig<TRoles>;
   }
 
   /**
@@ -198,7 +173,7 @@ export class RolesConfig<TRoles extends Record<string, Record<string, readonly s
     return new RolesConfig({
       ...this._roles,
       ...other.build()
-    } as TRoles & T);
+    });
   }
 
   /**

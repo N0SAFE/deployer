@@ -1,6 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement, implement } from "@orpc/nest";
 import { appContract } from "@repo/api-contracts";
+import { standardErrorOptions } from "@repo/orpc-utils";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { MeshInternalRequestService } from "@/core/modules/mesh/services/mesh-internal-request.service";
 import { DockerContainersOrchestratorService } from "../domains/containers/orchestration/docker-containers-orchestrator.service";
@@ -383,7 +384,7 @@ export class DockerController {
   entityList() {
     return implement(appContract.docker.entity.list)
       .use(requireAuth())
-      .handler(async ({ input }) => {
+      .handler(async ({ input, errors }) => {
         switch (input.kind) {
           case "container":
             return this.dockerEntityOrchestratorService.listContainers(input)
@@ -394,7 +395,9 @@ export class DockerController {
           case "volume":
             return this.dockerEntityOrchestratorService.listVolumes(input)
           default:
-            throw new Error(`Unsupported entity kind: ${String((input as { kind?: string }).kind)}`)
+            throw errors.BAD_REQUEST(
+              standardErrorOptions("validation", `Unsupported entity kind: ${String(input.kind)}`),
+            )
         }
       })
   }
@@ -403,7 +406,7 @@ export class DockerController {
   entityInspect() {
     return implement(appContract.docker.entity.inspect)
       .use(requireAuth())
-      .handler(async ({ input }) => {
+      .handler(async ({ input, errors }) => {
         switch (input.kind) {
           case "container":
             return this.dockerEntityOrchestratorService.inspectContainer(input)
@@ -414,7 +417,9 @@ export class DockerController {
           case "volume":
             return this.dockerEntityOrchestratorService.inspectVolume(input)
           default:
-            throw new Error(`Unsupported entity kind: ${String((input as { kind?: string }).kind)}`)
+            throw errors.BAD_REQUEST(
+              standardErrorOptions("validation", `Unsupported entity kind: ${String(input.kind)}`),
+            )
         }
       })
   }

@@ -36,13 +36,11 @@ export interface MeshResourceDiscoveryResult<TOutput> {
 export interface MeshResourceTopologyAccessor {
     getLocalNode(): { nodeId: string };
     lookupResource(input: {
-        organizationId?: string | null;
         kind: MeshResourceKind;
         key: string;
         includeCandidates: boolean;
     }): MeshResourceLookupResult;
     upsertResourceIndex(input: {
-        organizationId?: string | null;
         sourceNodeId: string;
         replaceExistingForSource: boolean;
         resources: MeshResourceLocation[];
@@ -52,7 +50,6 @@ export interface MeshResourceTopologyAccessor {
 // ─── Inputs ───────────────────────────────────────────────────────────────────
 
 export interface MeshResourceAutoRegisterInput {
-    organizationId?: string | null;
     key: string;
     ownerServerUrl: string;
     endpointPath: string;

@@ -9,10 +9,12 @@ import {
     Injectable,
     NotFoundException,
 } from "@nestjs/common";
+import { environmentRulesSchema } from "@repo/contracts-entities";
+import { environmentTriggerSchema } from "@repo/contracts-common";
 import { EMPTY, type Observable, concat, defer, from, map, mergeMap } from "rxjs";
 import { filter as rxFilter } from "rxjs/operators";
 import { CoreEventSyncService } from "@/core/modules/events";
-import { runtimeConfigurationAccessor } from "@/core/modules/configuration/services/runtime-configuration-accessor";
+import { RuntimeConfigurationAccessorService } from "@/core/modules/configuration/services/runtime-configuration-accessor.service";
 import { ProjectRepository } from "../repositories/project.repository";
 import { ProjectEventService } from "./project-event.service";
 import type { ProjectListInput } from "@repo/api-contracts/modules/project/list";
@@ -24,55 +26,22 @@ import type {
 // ---------------------------------------------------------------------------
 // Typed settings stored in project.settings JSONB
 // ---------------------------------------------------------------------------
+// The FLAT storage shape — sourced from the contract package (single source of
+// truth) so the DB/API shape and the contract output schema can never drift.
 
+type ProjectSettings = import("@repo/contracts-entities").ProjectSettings;
 
-
-interface ProjectSettings {
-    // General config (supplementary fields; name/description/baseDomain are top-level columns)
-    defaultBranch?: string;
-    autoDeployEnabled?: boolean;
-    enablePreviewEnvironments?: boolean;
-    // Environment config
-    defaultEnvironmentVariables?: Record<string, string>;
-    productionEnvironmentVariables?: Record<string, string>;
-    stagingEnvironmentVariables?: Record<string, string>;
-    developmentEnvironmentVariables?: Record<string, string>;
-    // Deployment config
-    autoCleanupDays?: number;
-    maxPreviewEnvironments?: number;
-    deploymentStrategy?: "rolling" | "blue_green" | "canary";
-    healthCheckTimeout?: number;
-    deploymentTimeout?: number;
-    enableRollback?: boolean;
-    requireApprovalForProduction?: boolean;
-    // Security config
-    webhookSecret?: string;
-    enableHttpsRedirect?: boolean;
-    allowedDomains?: string[];
-    ipWhitelist?: string[];
-    enableBasicAuth?: boolean;
-    basicAuthUsername?: string;
-    basicAuthPassword?: string;
-    // Resource config
-    defaultCpuLimit?: string;
-    defaultMemoryLimit?: string;
-    defaultStorageLimit?: string;
-    maxServicesPerProject?: number;
-    // Notification config
-    enableEmailNotifications?: boolean;
-    enableSlackNotifications?: boolean;
-    slackWebhookUrl?: string;
-    emailRecipients?: string[];
-    notifyOnDeploymentSuccess?: boolean;
-    notifyOnDeploymentFailure?: boolean;
-    notifyOnServiceDown?: boolean;
-}
+/** Collaborator permissions — SSOT is the `collaboratorSchema` (contracts-entities). */
+type CollaboratorPermissions = import("zod/v4").infer<
+    typeof import("@repo/contracts-entities").collaboratorSchema
+>["permissions"];
 
 @Injectable()
 export class ProjectService {
     constructor(
         private readonly projectRepository: ProjectRepository,
         private readonly projectEventService: ProjectEventService,
+        private readonly runtimeConfigurationAccessor: RuntimeConfigurationAccessorService,
         @Optional() private readonly coreEventSyncService?: CoreEventSyncService,
     ) {
         this.coreEventSyncService?.registerNamespaceAdapter(
@@ -86,7 +55,7 @@ export class ProjectService {
     // PROJECT CRUD
     // ========================================
 
-    async listProjects(query: ProjectListInput) {
+    async listProjects(query: ProjectListInput = {} as ProjectListInput) {
         return this.projectRepository.findMany(query);
     }
 
@@ -142,9 +111,10 @@ export class ProjectService {
         });
         if (!updated) throw new NotFoundException(`Project ${id} not found`);
 
-        const changedFields = Object.keys(data).filter(
-            (key) => Reflect.get(isRecord(data) ? data : {}, "key") !== undefined,
-        );
+        const changedFields = Object.keys(data).filter((key) => {
+            const value = (data as Record<string, unknown>)[key];
+            return value !== undefined && value !== null;
+        });
         this.projectEventService.emit(
             "projectUpdated",
             { projectId: id },
@@ -190,7 +160,7 @@ export class ProjectService {
     async inviteCollaborator(
         projectId: string,
         requesterId: string,
-        data: { email: string; role: string; permissions?: Record<string, boolean> | null },
+        data: { email: string; role: string; permissions?: CollaboratorPermissions | null },
     ) {
         await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
 
@@ -236,7 +206,7 @@ export class ProjectService {
         projectId: string,
         requesterId: string,
         targetUserId: string,
-        data: { role?: string; permissions?: Record<string, boolean> | null },
+        data: { role?: string; permissions?: CollaboratorPermissions | null },
     ) {
         await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
 
@@ -287,9 +257,9 @@ export class ProjectService {
     // ENVIRONMENTS
     // ========================================
 
-    async listEnvironments(projectId: string, requesterId: string, type?: string) {
+    async listEnvironments(projectId: string, requesterId: string, kind?: string) {
         await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
-        return this.projectRepository.findEnvironmentsByProject(projectId, type);
+        return this.projectRepository.findEnvironmentsByProject(projectId, kind);
     }
 
     async getEnvironment(projectId: string, requesterId: string, environmentId: string) {
@@ -306,8 +276,10 @@ export class ProjectService {
         requesterId: string,
         data: {
             name: string;
-            type: "production" | "staging" | "preview" | "development";
+            kind: "stable" | "preview" | "ephemeral";
             description?: string | null;
+            rules?: Record<string, unknown>;
+            trigger?: Record<string, unknown> | null;
             domainConfig?: unknown;
             deploymentConfig?: unknown;
             metadata?: unknown;
@@ -317,7 +289,12 @@ export class ProjectService {
         const created = await this.projectRepository.createEnvironment({
             projectId,
             name: data.name,
-            type: data.type,
+            kind: data.kind,
+            // Parse loose input rules through the SSOT schema so the DB always
+            // stores the full canonical EnvironmentRules (defaults filled).
+            rules: data.rules ? environmentRulesSchema.parse(data.rules) : null,
+            // Parse trigger the same way (source required by the schema).
+            trigger: data.trigger ? environmentTriggerSchema.parse(data.trigger) : null,
             description: data.description ?? null,
             domainConfig: data.domainConfig as Parameters<typeof this.projectRepository.createEnvironment>[0]["domainConfig"],
             deploymentConfig: data.deploymentConfig as Parameters<typeof this.projectRepository.createEnvironment>[0]["deploymentConfig"],
@@ -378,7 +355,7 @@ export class ProjectService {
         projectId: string,
         requesterId: string,
         sourceEnvironmentId: string,
-        data: { name: string; type?: "production" | "staging" | "preview" | "development" },
+        data: { name: string; kind?: "stable" | "preview" | "ephemeral" },
     ) {
         await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
 
@@ -390,13 +367,42 @@ export class ProjectService {
         return this.projectRepository.createEnvironment({
             projectId,
             name: data.name,
-            type: data.type ?? source.type,
+            kind: data.kind ?? source.kind,
+            type: source.type,
+            rules: source.rules,
+            trigger: source.trigger,
             description: source.description,
             domainConfig: source.domainConfig,
             deploymentConfig: source.deploymentConfig,
             metadata: null, // do not copy runtime metadata
             createdBy: requesterId,
         });
+    }
+
+    // ========================================
+    // SERVICE × ENVIRONMENT LINKS
+    // ========================================
+
+    async listServiceEnvironmentLinks(projectId: string, requesterId: string) {
+        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
+        return this.projectRepository.findServiceEnvironmentLinksByProject(projectId);
+    }
+
+    async upsertServiceEnvironmentLink(
+        projectId: string,
+        requesterId: string,
+        data: { serviceId: string; environmentId: string; isEnabled: boolean; overrides?: Record<string, unknown> | null },
+    ) {
+        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        const serviceProject = await this.projectRepository.findServiceProjectId(data.serviceId);
+        if (serviceProject !== projectId) {
+            throw new NotFoundException(`Service ${data.serviceId} not found in project`);
+        }
+        const env = await this.projectRepository.findEnvironmentById(data.environmentId);
+        if (env?.projectId !== projectId) {
+            throw new NotFoundException(`Environment ${data.environmentId} not found in project`);
+        }
+        return this.projectRepository.upsertServiceEnvironmentLink(data);
     }
 
     // ========================================
@@ -540,12 +546,12 @@ export class ProjectService {
     async getDeploymentConfig(projectId: string, requesterId: string) {
         const project = await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
         const s = (project.settings ?? {}) as ProjectSettings;
-        const resolved = runtimeConfigurationAccessor.resolveStrict({
+        const resolved = this.runtimeConfigurationAccessor.resolveStrict({
             scope: "project",
             context: {
                 projectId
             },
-            project: runtimeConfigurationAccessor.projectConfigFromSettings(project.settings ?? null),
+            project: this.runtimeConfigurationAccessor.projectConfigFromSettings(project.settings ?? null),
         });
 
         return {
@@ -586,12 +592,12 @@ export class ProjectService {
     async getSecurityConfig(projectId: string, requesterId: string) {
         const project = await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
         const s = (project.settings ?? {}) as ProjectSettings;
-        const resolved = runtimeConfigurationAccessor.resolveStrict({
+        const resolved = this.runtimeConfigurationAccessor.resolveStrict({
             scope: "project",
             context: {
                 projectId,
             },
-            project: runtimeConfigurationAccessor.projectConfigFromSettings(project.settings ?? null),
+            project: this.runtimeConfigurationAccessor.projectConfigFromSettings(project.settings ?? null),
         });
 
         return {

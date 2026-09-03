@@ -1,10 +1,10 @@
 import { Injectable } from "@nestjs/common";
-import { BasePooledEventService } from "@/core/modules/events/services/base-pooled-event.service";
+import { BasePooledEventService } from "@repo/nest-events";
 import {
     deploymentQueueEventContracts,
     type DeploymentQueueEventContracts,
 } from "./deployment-queue-event.contracts";
-import { CoreEventStreamPoolService } from "@/core/modules/events/services/core-event-stream-pool.service";
+import { CoreEventStreamPoolService } from "@repo/nest-events";
 
 @Injectable()
 export class DeploymentQueueEventService extends BasePooledEventService<DeploymentQueueEventContracts> {

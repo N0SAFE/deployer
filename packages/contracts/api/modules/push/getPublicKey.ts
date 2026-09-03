@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 
 export const getPublicKeyOutputSchema = z.object({
   publicKey: z.string(),
@@ -12,4 +12,5 @@ export const getPublicKeyContract = pushPublicKeyOps
   .path("/public-key")
   .input(z.object({}))
   .output(getPublicKeyOutputSchema)
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

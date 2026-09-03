@@ -21,6 +21,7 @@ import { PageTimingLogger } from '@/lib/timing'
 
 import type { JSX } from 'react'
 
+import type { Metadata } from 'next'
 function FeatureCard({
     icon: Icon,
     title,
@@ -106,7 +107,7 @@ export default function Page(): JSX.Element {
                     <FeatureCard
                         icon={Layers}
                         title="Multi-Service Projects"
-                        description="Compose services with environment-aware workflows and organization ownership boundaries."
+                        description="Compose services with environment-aware workflows and mesh-wide deployments."
                         iconClassName="text-blue-500"
                     />
                     <FeatureCard
@@ -118,7 +119,7 @@ export default function Page(): JSX.Element {
                     <FeatureCard
                         icon={Shield}
                         title="Role-Based Access"
-                        description="Platform, organization, and project-level permission boundaries for safe team collaboration."
+                        description="Platform and project-level permission boundaries for safe team collaboration."
                         iconClassName="text-amber-500"
                     />
                     <FeatureCard
@@ -134,4 +135,9 @@ export default function Page(): JSX.Element {
             <PageTimingLogger pageName="Home" />
         </div>
     )
+}
+
+export const metadata: Metadata = {
+    title: "Deployer",
+    description: "Self-hosted deployment platform for containers, services and providers",
 }

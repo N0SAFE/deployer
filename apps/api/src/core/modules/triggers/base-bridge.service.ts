@@ -21,10 +21,9 @@
  */
 
 import { type Observable, type Subscription } from 'rxjs';
-import { z } from 'zod/v4';
-import { BaseEventService } from '@/core/modules/events/base-event.service';
-import { contractBuilder } from '@/core/modules/events/event-contract.builder';
-import type { EventContract } from '@/core/modules/events/event-contract.builder';
+import z from 'zod/v4';
+import { BaseEventService, contractBuilder } from '@repo/nest-events';
+import type { EventContract } from '@repo/nest-events';
 
 /**
  * Convenience: extract the output (payload) type from a trigger schema.
@@ -44,6 +43,12 @@ export type TriggerPayload<TSchema extends z.ZodType> = z.output<TSchema>;
 export class BaseTriggerService<TSchema extends z.ZodType> extends BaseEventService<{
   emit: EventContract<Record<string, never>, z.output<TSchema>>;
 }> {
+  /**
+   * Unique bridge identifier. Set via `static readonly bridgeId` on subclasses
+   * (see `bridge.utils.ts`). Falls back to the class name when not set.
+   */
+  static readonly bridgeId?: string;
+
   /**
    * Static registry keyed by bridge class name. Enables cross-context sharing:
    * even when different DI containers create separate instances, they all

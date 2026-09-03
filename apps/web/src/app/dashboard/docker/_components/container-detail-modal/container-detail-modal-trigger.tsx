@@ -1,5 +1,6 @@
 'use client'
 
+import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   useDockerCloseContainerTerminalSession,
@@ -898,7 +899,7 @@ function DockerContainerDetailModalContent({
           void filesQuery.refetch()
         },
         onError: (error) => {
-          setFileActionNotice(`Delete failed: ${error instanceof Error ? error.message : String(error)}`)
+          setFileActionNotice(`Delete failed: ${isDefinedORPCError(error) ? getErrorMessage(error) : String(error)}`)
         },
       },
     )
@@ -954,7 +955,7 @@ function DockerContainerDetailModalContent({
           void filesQuery.refetch()
         },
         onError: (error) => {
-          setFileActionNotice(`Rename failed: ${error instanceof Error ? error.message : String(error)}`)
+          setFileActionNotice(`Rename failed: ${isDefinedORPCError(error) ? getErrorMessage(error) : String(error)}`)
         },
       },
     )
@@ -992,7 +993,7 @@ function DockerContainerDetailModalContent({
           void filesQuery.refetch()
         },
         onError: (error) => {
-          setFileActionNotice(`Create folder failed: ${error instanceof Error ? error.message : String(error)}`)
+          setFileActionNotice(`Create folder failed: ${isDefinedORPCError(error) ? getErrorMessage(error) : String(error)}`)
         },
       },
     )
@@ -1023,7 +1024,7 @@ function DockerContainerDetailModalContent({
           void filesQuery.refetch()
         },
         onError: (error) => {
-          setFileActionNotice(`Save failed: ${error instanceof Error ? error.message : String(error)}`)
+          setFileActionNotice(`Save failed: ${isDefinedORPCError(error) ? getErrorMessage(error) : String(error)}`)
         },
       },
     )
@@ -1054,7 +1055,7 @@ function DockerContainerDetailModalContent({
         void filesQuery.refetch()
       })
       .catch((error) => {
-        setFileActionNotice(`Upload failed: ${error instanceof Error ? error.message : String(error)}`)
+        setFileActionNotice(`Upload failed: ${isDefinedORPCError(error) ? getErrorMessage(error) : String(error)}`)
       })
   }
 
@@ -1077,7 +1078,7 @@ function DockerContainerDetailModalContent({
           ])
         },
         onError: (error) => {
-          const message = error instanceof Error ? error.message : String(error)
+          const message = isDefinedORPCError(error) ? getErrorMessage(error) : String(error)
           setOpsNotice(`${action} failed for ${detail?.name ?? id}: ${message}`)
           toast.error(`${action} failed`, {
             description: message,
@@ -1140,7 +1141,7 @@ function DockerContainerDetailModalContent({
           setActiveTerminalSessionId(nextSession.sessionId)
         },
         onError: (error) => {
-          const message = error instanceof Error ? error.message : String(error)
+          const message = isDefinedORPCError(error) ? getErrorMessage(error) : String(error)
           toast.error('Failed to open terminal session', { description: message })
         },
       },
@@ -1173,7 +1174,7 @@ function DockerContainerDetailModalContent({
       },
       {
         onError: (error) => {
-          appendTerminalChunk(sessionId, `\r\n[error] ${error instanceof Error ? error.message : String(error)}\r\n`)
+          appendTerminalChunk(sessionId, `\r\n[error] ${isDefinedORPCError(error) ? getErrorMessage(error) : String(error)}\r\n`)
         },
       },
     )
@@ -1383,7 +1384,7 @@ function DockerContainerDetailModalContent({
     ]
   }, [inspectDetail?.composeConfig, orchestrator])
 
-  const containerLayers = useMemo(() => {
+  const containerLayers = useMemo<Array<{ id: string; instruction: string; size: string; createdAt: string }>>(() => {
     if (inspectDetail?.layers && inspectDetail.layers.length > 0) {
       return inspectDetail.layers
     }
@@ -1392,6 +1393,7 @@ function DockerContainerDetailModalContent({
       return securityImageInspectDetail.layers
     }
 
+    return []
   }, [detail?.imageId, id, inspectDetail?.layers, securityImageInspectDetail?.layers])
 
   function layerStatus(layerId: string): 'verified' | 'cached' | 'warning' | 'pending' {
@@ -2081,7 +2083,7 @@ function DockerContainerDetailModalContent({
                   imageId={detail?.imageId}
                   isFetching={securityImageInspectQuery.isFetching}
                   hasScannerDetail={Boolean(securityImageInspectDetail)}
-                  errorMessage={securityImageInspectQuery.error instanceof Error ? securityImageInspectQuery.error.message : securityImageInspectQuery.error ? String(securityImageInspectQuery.error) : null}
+                  errorMessage={isDefinedORPCError(securityImageInspectQuery.error) ? getErrorMessage(securityImageInspectQuery.error) : securityImageInspectQuery.error ? UNKNOWN_ORPC_ERROR_MESSAGE : null}
                   scanSummary={securityImageInspectDetail?.scanSummary ?? null}
                   scanEvents={securityScanEvents}
                   scanStreamStatus={

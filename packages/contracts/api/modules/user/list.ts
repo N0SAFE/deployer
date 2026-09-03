@@ -1,4 +1,4 @@
-import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
+import { createFilterConfig, standard, type ComputeInputSchema, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { userSchema } from "@repo/contracts-entities";
 
 // Create standard operations builder for users
@@ -37,7 +37,7 @@ const userListConfig = createFilterConfig(userOps)
 export const userListConfigSchemas = userListConfig;
 
 // Build the list contract
-export const userListContract = userOps.list(userListConfig).build();
+export const userListContract = userOps.list(userListConfig).errors((e) => [...standardDomainErrorContracts(e)]).build();
 
 // Export input type helper - computed from the config
 export type UserListInput = ComputeInputSchema<typeof userListConfigSchemas>;

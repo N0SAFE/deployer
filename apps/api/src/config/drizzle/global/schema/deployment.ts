@@ -1,6 +1,7 @@
-import { pgTable, text, timestamp, boolean, integer, uuid, jsonb, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, uuid, jsonb, pgEnum, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { user } from "./auth";
+import { environments } from "./environment";
 import { encryptedText } from "@/config/drizzle/shared/custom-types/encrypted-text";
 import { traefikConfigBuilder } from "@/config/drizzle/shared/custom-types/traefik-config-builder";
 import {
@@ -9,22 +10,43 @@ import {
     deploymentStatusSchema,
     logLevelSchema,
     rollbackStatusSchema,
+    serviceProviderTypeSchema,
+    serviceRunnerTypeSchema,
+    serviceTypeSchema,
     sourceTypeSchema,
 } from "@repo/contracts-common";
+import type { NetworkDnsRecordType } from "@repo/contracts-entities";
 import { zodEnumToPgEnumValues } from "./utils/zod-enum";
+import { PROJECT_ROLES } from "@repo/auth";
 // Enums for deployment-related types
-export const projectRoleEnum = pgEnum("project_role", ["owner", "admin", "developer", "viewer"]);
+// project_role is the SSOT PROJECT_ROLES (owner/maintainer/deployer/viewer) —
+// the canonical project roles from the permission system.
+export const projectRoleEnum = pgEnum("project_role", [...PROJECT_ROLES] as [string, ...string[]]);
 export const deploymentStatusEnum = pgEnum("deployment_status", [...zodEnumToPgEnumValues(deploymentStatusSchema)]);
 export const deploymentPhaseEnum = pgEnum("deployment_phase", [...zodEnumToPgEnumValues(deploymentPhaseSchema)]);
 export const deploymentEnvironmentEnum = pgEnum("deployment_environment", [...zodEnumToPgEnumValues(deploymentEnvironmentSchema)]);
 export const sourceTypeEnum = pgEnum("source_type", [...zodEnumToPgEnumValues(sourceTypeSchema)]);
 export const logLevelEnum = pgEnum("log_level", [...zodEnumToPgEnumValues(logLevelSchema)]);
+export const serviceTypeEnum = pgEnum("service_type", [...zodEnumToPgEnumValues(serviceTypeSchema)]);
+export const serviceProviderTypeEnum = pgEnum("service_provider_type", [...zodEnumToPgEnumValues(serviceProviderTypeSchema)]);
+export const serviceRunnerTypeEnum = pgEnum("service_runner_type", [...zodEnumToPgEnumValues(serviceRunnerTypeSchema)]);
 // Projects table - main container for all services and deployments
 export const projects = pgTable("projects", {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
     description: text("description"),
     baseDomain: text("base_domain"), // e.g., "myapp.example.com"
+    /** Provider-backed network config (DNS provider + zone + record policy). */
+    network: jsonb("network").$type<{
+        dnsProviderId?: string | null;
+        zoneId?: string | null;
+        zoneName?: string | null;
+        autoProvisionRecords?: boolean;
+        proxiedDefault?: boolean;
+        wildcardSubdomains?: boolean;
+        recordType?: NetworkDnsRecordType;
+        recordContent?: string | null;
+    } | null>(),
     ownerId: text("owner_id")
         .notNull()
         .references(() => user.id, { onDelete: "cascade" }),
@@ -61,13 +83,13 @@ export const services = pgTable("services", {
         .references(() => projects.id, { onDelete: "cascade" }),
     name: text("name").notNull(), // Service name, e.g., "web", "api", "docs"
     description: text("description"), // Optional service description
-    type: text("type").notNull(), // Service type: "web", "worker", "database", "cron"
+    type: serviceTypeEnum("type").notNull(), // dokploy-style service type
 
     // ==========================================
     // SOURCE PROVIDER CONFIGURATION
     // Dynamic configuration based on provider registry
     // ==========================================
-    providerId: text("provider_id").notNull(), // Provider ID from registry: "github", "static", etc.
+    providerId: serviceProviderTypeEnum("provider_id").notNull(), // Provider ID from registry: "github", "static", etc.
     // Dynamic provider configuration - validated against provider's ConfigSchema
     // Structure defined by the provider's getConfigSchema() method
     providerConfig: jsonb("provider_config").$type<Record<string, any>>(),
@@ -76,7 +98,7 @@ export const services = pgTable("services", {
     // BUILD SYSTEM CONFIGURATION
     // Dynamic configuration based on builder registry
     // ==========================================
-    builderId: text("builder_id").notNull(), // Builder ID from registry: "dockerfile", "nixpack", etc.
+    builderId: serviceRunnerTypeEnum("builder_id").notNull(), // Builder ID from registry: "dockerfile", "nixpack", etc.
     // Dynamic builder configuration - validated against builder's ConfigSchema
     // Structure defined by the builder's getConfigSchema() method
     builderConfig: jsonb("builder_config").$type<Record<string, any>>(),
@@ -123,13 +145,51 @@ export const services = pgTable("services", {
     // Variables are resolved during Traefik sync, not during storage
     traefikConfig: traefikConfigBuilder("traefik_config"),
     customDomains: jsonb("custom_domains").$type<string[]>(), // Additional custom domains
+    /** Provider-backed network config (DNS provider + zone + record policy). */
+    network: jsonb("network").$type<{
+        dnsProviderId?: string | null;
+        zoneId?: string | null;
+        zoneName?: string | null;
+        recordType?: string;
+        recordContent?: string | null;
+        proxied?: boolean;
+        autoProvision?: boolean;
+        expose?: boolean;
+        tls?: { enabled?: boolean; httpRedirect?: boolean };
+    } | null>(),
+
+    // ==========================================
+    // PREVIEW & MOCK CONFIGURATION (POC)
+    // ==========================================
+    // Contract this service implements (DI semantics — mocks must match the
+    // replaced service's contractRef). See mock-config.schema.ts.
+    implementsContract: jsonb("implements_contract").$type<{
+        contractRef: string
+        compatibility?: "http" | "grpc" | "events"
+    }>(),
+    // Per-service preview resolution template (how previews of THIS service
+    // resolve their backend dependencies). See preview-template.schema.ts.
+    preview: jsonb("preview").$type<{
+        backendResolution:
+            | { mode: "linked-preview" }
+            | { mode: "fixed"; targetEnvironment: string }
+            | { mode: "mock"; mockRef: string; engine?: string }
+            | { mode: "derive"; fromInputKey: string; fallbackEnvironment: string }
+        linkedServices?: Array<{
+            serviceId: string
+            mode?: "inherit" | "mock" | "fixed"
+            mockRef?: string
+            fixedEnvironment?: string
+        }>
+        subdomainTemplate?: string
+    }>(),
 
     // ==========================================
     // METADATA & STATE
     // ==========================================
     isActive: boolean("is_active").default(true).notNull(),
     metadata: jsonb("metadata").$type<{
-        tags?: string[]; // Service tags for organization
+        tags?: string[]; // Service tags
         category?: string; // Service category
         icon?: string; // Service icon URL or emoji
         color?: string; // UI color for the service
@@ -138,6 +198,22 @@ export const services = pgTable("services", {
         deploymentCount?: number; // Total number of deployments
         customData?: Record<string, any>; // Additional custom metadata
     }>(),
+
+    // ==========================================
+    // HIERARCHY (sub-services)
+    // A sub-service is a REAL service row linked to its parent. Any service
+    // may have children (they become orchestrators); a child may itself have
+    // children — full nesting. parentPath is a materialized ancestor path
+    // (e.g. "root/child/grandchild") for cheap subtree queries; depth is the
+    // nesting level (root = 0).
+    //
+    // NOTE: `(): AnyPgColumn` is required for the self-referencing FK —
+    // without it, TypeScript resolves `services` to `any` inside its own
+    // definition (circular inference).
+    // ==========================================
+    parentId: uuid("parent_id").references((): AnyPgColumn => services.id, { onDelete: "cascade" }),
+    parentPath: text("parent_path"),
+    depth: integer("depth").default(0).notNull(),
 
     // ==========================================
     // TIMESTAMPS
@@ -172,18 +248,27 @@ export const deployments = pgTable("deployments", {
     triggeredBy: text("triggered_by").references(() => user.id, { onDelete: "set null" }), // Can be null for webhook triggers
     status: deploymentStatusEnum("status").default("pending").notNull(),
     environment: deploymentEnvironmentEnum("environment").default("production").notNull(),
+    /** The environment this deployment was created FROM (its rules were active). */
+    environmentId: uuid("environment_id").references((): AnyPgColumn => environments.id, { onDelete: "set null" }),
     sourceType: sourceTypeEnum("source_type").notNull(),
     sourceConfig: jsonb("source_config").$type<{
-        // GitHub/GitLab
+        // Discriminated union shape — see DeploymentTriggerSourceSchema.
+        sourceType: "github" | "gitlab" | "upload" | "custom";
+        // GitHub / GitLab
         repositoryUrl?: string;
         branch?: string;
         commitSha?: string;
+        // GitHub
         pullRequestNumber?: number;
-        // File upload
+        // GitLab
+        mergeRequestIid?: number;
+        // Upload
+        uploadId?: string;
+        uploadPath?: string;
         fileName?: string;
         fileSize?: number;
         // Custom
-        customData?: Record<string, any>;
+        customData?: Record<string, unknown>;
     }>(),
     buildStartedAt: timestamp("build_started_at"),
     buildCompletedAt: timestamp("build_completed_at"),
@@ -276,6 +361,9 @@ export const deploymentLogs = pgTable("deployment_logs", {
         exitCode?: number;
         containerLogs?: string;
         errorStack?: string;
+        correlationId?: string;
+        traceId?: string;
+        spanId?: string;
     }>(),
     timestamp: timestamp("timestamp")
         .$defaultFn(() => new Date())
@@ -314,7 +402,7 @@ export const projectCollaborators = pgTable("project_collaborators", {
     userId: text("user_id")
         .notNull()
         .references(() => user.id, { onDelete: "cascade" }),
-    role: projectRoleEnum("role").default("developer").notNull(),
+    role: projectRoleEnum("role").default("viewer").notNull(),
     permissions: jsonb("permissions").$type<{
         canDeploy?: boolean;
         canManageServices?: boolean;
@@ -416,7 +504,7 @@ export const deploymentRollbacks = pgTable("deployment_rollbacks", {
         .notNull(),
 });
 
-// GitHub App Installations - store GitHub app connection per user/organization
+// GitHub App Installations - store GitHub app connection per user
 export const githubInstallations = pgTable("github_installations", {
     id: uuid("id").primaryKey().defaultRandom(),
     userId: text("user_id")
@@ -558,6 +646,15 @@ export const servicesRelations = relations(services, ({ one, many }) => ({
     project: one(projects, {
         fields: [services.projectId],
         references: [projects.id],
+    }),
+    // Sub-service hierarchy: parent ↔ children.
+    parent: one(services, {
+        fields: [services.parentId],
+        references: [services.id],
+        relationName: "serviceChildren",
+    }),
+    children: many(services, {
+        relationName: "serviceChildren",
     }),
     deployments: many(deployments),
     dependencies: many(serviceDependencies, {

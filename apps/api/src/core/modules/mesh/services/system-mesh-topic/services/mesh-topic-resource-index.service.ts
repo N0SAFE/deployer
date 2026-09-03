@@ -15,14 +15,12 @@ export class MeshTopicResourceIndexService {
     indexTopics(
         namespace: string,
         topics: string[],
-        organizationId: string | null,
     ): void {
         const localNode = this.meshTopology.getLocalNode();
         const now = new Date().toISOString();
         const serverUrl = this.resolveLocalServerUrl();
 
         const resources: MeshResourceLocation[] = topics.map((topic) => ({
-            organizationId,
             kind: "topic",
             key: this.buildKey(namespace, topic),
             ownerNodeId: localNode.nodeId,
@@ -38,7 +36,6 @@ export class MeshTopicResourceIndexService {
         }));
 
         this.meshTopology.upsertResourceIndex({
-            organizationId,
             sourceNodeId: localNode.nodeId,
             resources,
             replaceExistingForSource: false,
@@ -51,7 +48,6 @@ export class MeshTopicResourceIndexService {
         options?: { organizationId?: string | null; includeCandidates?: boolean },
     ): MeshResourceLookupResult {
         return this.meshTopology.lookupResource({
-            organizationId: options?.organizationId ?? null,
             kind: "topic",
             key: this.buildKey(namespace, topic),
             includeCandidates: options?.includeCandidates ?? true,

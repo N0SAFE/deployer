@@ -197,7 +197,7 @@ export function createImageSubRowColumns({ onOpenImageDetail }: ImageSubRowColum
 }
 
 export function createImageTableFetchData(rows: ImageGroupRow[]) {
-  return (params: ImageTableFetchParams) => {
+  return async (params: ImageTableFetchParams) => {
     const { page, limit, search, sort_by, sort_order } = params
     const normalizedSearch = search.trim().toLowerCase()
 

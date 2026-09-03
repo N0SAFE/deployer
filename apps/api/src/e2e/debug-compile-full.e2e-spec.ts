@@ -38,7 +38,7 @@ describe('debug appmodule compile', () => {
         databaseUrl: patch.SETUP_DATABASE_URL,
         strategy: 'local' as const,
       }),
-      getSetupState: () => ({ state: 'completed', needsSetup: false, strategy: 'local', currentStep: null, progressPercent: 100, steps: [], completedAt: new Date(), hasUsers: false, hasOrganizations: false, availableStrategies: ['local'] }),
+      getSetupState: () => ({ state: 'completed', needsSetup: false, strategy: 'local', currentStep: null, progressPercent: 100, steps: [], completedAt: new Date(), hasUsers: false, availableStrategies: ['local'] }),
       getStateMachine: () => ({ initialState: 'not_started', terminalStates: ['completed'], states: [], transitions: [] }),
       getNodeStatus: () => ({ isConfigured: true, nodeId: 'mock-node', strategy: 'local', meshUrlsSnapshot: [], configuredAt: new Date() }),
       initialize: () => ({ subscribe: () => {} }),

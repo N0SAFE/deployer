@@ -1,6 +1,95 @@
-# Production orchestrator - imports all production service definitions
-include:
-  - path: ./api/docker-compose.api.prod.yml
-  - path: ./web/docker-compose.web.prod.yml
-  - path: ./doc/docker-compose.doc.prod.yml
-  - path: ./load-balancer/docker-compose.load-balancer.prod.yml
+# =====================================================================
+# PROD profile — production build, EVERYTHING API-managed (final build).
+#
+# ONLY the API is orchestrated. api-prod extends the common api PROD base
+# (build + prod env); web-prod extends the common web PROD base. The API
+# supervises all platform services at runtime (Postgres, Redis, Traefik,
+# local SQLite, managed web). No compose-managed services here
+# (MANAGED_*_ENABLED absent → supervisors own the lifecycle).
+# =====================================================================
+
+name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}
+
+services:
+  api-prod:
+    extends:
+      file: ./common/api/docker-compose.config.prod.yml
+      service: api
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-prod
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: warn
+      DEV_AUTH_KEY: ""
+      SETUP_AUTO: ${SETUP_AUTO:-true}
+      API_PORT: ${API_PORT:-3001}
+    ports:
+      - "${API_PORT:-3001}:${API_PORT:-3001}"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    networks:
+      app_network_prod:
+        aliases:
+          - api-prod
+          - api
+      deployer_platform:
+        aliases:
+          - api-prod
+          - api
+
+  web-prod:
+    extends:
+      file: ./common/web/docker-compose.config.prod.yml
+      service: web
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-web-prod
+    depends_on:
+      api-prod:
+        condition: service_healthy
+    networks:
+      app_network_prod: {}
+
+  doc-prod:
+    extends:
+      file: ./common/doc/docker-compose.config.prod.yml
+      service: doc
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-doc-prod
+    networks:
+      app_network_prod: {}
+
+networks:
+  deployer_platform:
+    name: deployer-platform
+    driver: bridge
+  app_network_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_app_network_prod
+    driver: bridge
+
+volumes:
+  api_local_db_data_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_local_db_data_prod
+  api_db_data_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_db_data_prod
+  redis_data_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-redis-data
+  bun_cache_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_bun_cache_prod
+  turbo_cache_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_turbo_cache_prod
+  api_uploads_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_prod
+  web_instance_token_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_web_instance_token_prod
+  deployer-traefik-config:
+    name: ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}
+  deployer-port-proxy-config:
+    name: ${DIRECT_PROXY_CONFIG_VOLUME:-deployer-port-proxy-config}

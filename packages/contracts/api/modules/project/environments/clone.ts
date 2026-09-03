@@ -1,5 +1,6 @@
 import z from "zod/v4";
-import { environmentTypeSchema } from "@repo/contracts-entities";
+import { standardDomainErrorContracts } from "@repo/orpc-utils";
+import { environmentKindSchema } from "@repo/contracts-entities";
 import { projectEnvironmentOps } from "./shared";
 
 export const projectCloneEnvironmentContract = projectEnvironmentOps
@@ -13,9 +14,13 @@ export const projectCloneEnvironmentContract = projectEnvironmentOps
             .body(
                 z.object({
                     name: z.string().min(1).max(100),
-                    type: environmentTypeSchema.optional(),
+                    kind: environmentKindSchema.optional(),
                 }),
             ),
     )
     .output((b) => b.entitySchema)
+    .errors((e) => [
+        // 404 for unknown source env; 409 duplicate target name.
+        ...standardDomainErrorContracts(e),
+    ])
     .build();

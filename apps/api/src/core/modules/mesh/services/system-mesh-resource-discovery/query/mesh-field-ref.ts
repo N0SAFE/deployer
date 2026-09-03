@@ -1,6 +1,7 @@
 import z from "zod/v4";
 import type { AnyRecord, SchemaRecordOutput } from "../types/mesh-resource-discovery-types";
 
+import { AppError } from "@repo/errors";
 // ─── Symboles ─────────────────────────────────────────────────────────────────
 
 export const meshFieldRefSymbol = Symbol("mesh-field-ref");
@@ -48,7 +49,7 @@ export function meshFields<TSchema extends z.ZodType>(
     schema: TSchema,
 ): MeshFieldMap<SchemaRecordOutput<TSchema>> {
     if (!(schema instanceof z.ZodObject)) {
-        throw new Error("meshFields(schema) requires a Zod object schema.");
+        throw new AppError("meshFields(schema) requires a Zod object schema.", "INTERNAL_ERROR");
     }
 
     const shape = (schema as z.ZodObject<z.ZodRawShape>).shape;

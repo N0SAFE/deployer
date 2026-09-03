@@ -157,6 +157,7 @@ describe("Dedicated runtime runner preparation", () => {
         await new DockerfileRuntimeRunnerService({ executeRuntime } as never).executeRuntime(
             makeInput({
                 runtimeRunnerOptions: {
+                    runner: "dockerfile",
                     containerName: "dockerfile-override",
                 },
             }),
@@ -172,6 +173,7 @@ describe("Dedicated runtime runner preparation", () => {
         await new DockerComposeRuntimeRunnerService({ executeRuntime } as never).executeRuntime(
             makeInput({
                 runtimeRunnerOptions: {
+                    runner: "docker_compose",
                     networkMode: "bridge",
                     dockerCompose: {
                         networkMode: "host",
@@ -198,6 +200,7 @@ describe("Dedicated runtime runner preparation", () => {
         await new NixpacksRuntimeRunnerService({ executeRuntime } as never).executeRuntime(
             makeInput({
                 runtimeRunnerOptions: {
+                    runner: "nixpacks",
                     nixpacks: {
                         cpuShares: 4,
                     },
@@ -215,6 +218,7 @@ describe("Dedicated runtime runner preparation", () => {
         await new BuildpackRuntimeRunnerService({ executeRuntime } as never).executeRuntime(
             makeInput({
                 runtimeRunnerOptions: {
+                    runner: "buildpack",
                     buildpack: {
                         memoryLimitBytes: 1024 * 1024 * 1024,
                         builder: "paketo-buildpacks/builder-jammy-base",
@@ -263,11 +267,13 @@ describe("Dedicated runtime runner preparation", () => {
 
         expect(() =>
             new NixpacksRuntimeRunnerService({ executeRuntime } as never).executeRuntime(
+                // Negative fixture: options mismatch the runner type at RUNTIME
+                // (the strict union can't express it — cast at the spec boundary).
                 makeInput({
                     runtimeRunnerOptions: {
                         runner: "nixpacks",
                         buildpack: { builder: "paketo-buildpacks/builder-jammy-base" },
-                    },
+                    } as never,
                 }),
             ),
         ).toThrow("Nixpacks runner options are invalid for runner type 'nixpacks'");
@@ -278,7 +284,7 @@ describe("Dedicated runtime runner preparation", () => {
                     runtimeRunnerOptions: {
                         runner: "buildpack",
                         nixpacks: { cpuShares: 4 },
-                    },
+                    } as never,
                 }),
             ),
         ).toThrow("Buildpack runner options are invalid for runner type 'buildpack'");

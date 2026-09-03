@@ -8,10 +8,10 @@ In NextJS applications, Declarative Routes also handles API routes, so you'll ha
 
 # Route List
 
-Routes are generated from `src/app/**/page.info.ts` and `src/app/**/route.info.ts`.
+Routes are generated from `src/app/**/route.info.ts` and `src/app/**/route.info.ts`.
 
 - Source of truth for generated exports: `src/routes/index.ts`
-- Route metadata source: `src/app/**/page.info.ts`
+- Route metadata source: `src/app/**/route.info.ts`
 - API route metadata source: `src/app/**/route.info.ts`
 
 To use routes, import from `@/routes` and use the generated route objects/helpers.
@@ -99,7 +99,7 @@ You can also run the build command in watch mode using `bun --bun dr:build:watch
 
 After initial setup:
 
-1. Ensure each page route has a corresponding `page.info.ts` with accurate `params`/`search` schemas.
+1. Ensure each page route has a corresponding `route.info.ts` with accurate `params`/`search` schemas.
 2. Run `bun run web -- dr:build` after route structure or route metadata changes.
 3. Prefer generated `@/routes` helpers over hardcoded links/paths.
 

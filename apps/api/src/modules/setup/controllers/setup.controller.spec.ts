@@ -5,6 +5,7 @@ import { ORPCError } from "@orpc/server";
 import { SetupController } from "./setup.controller";
 import { InitializationService } from "@/core/modules/setup/services/initialization.service";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
+import { NodeConfigRepository } from "@/core/modules/setup/repositories/node-config.repository";
 
 function createImplementMock() {
     const chainable = {
@@ -15,14 +16,34 @@ function createImplementMock() {
     return chainable;
 }
 
+/**
+ * Singleton chainable shared by every `implement()` call so handler fns
+ * registered by the controller are observable via `handler.mock.calls`.
+ */
+const implementChainable = createImplementMock();
+
 vi.mock("@orpc/nest", () => ({
-    implement: vi.fn(() => createImplementMock()),
+    implement: vi.fn(() => implementChainable),
     Implement: vi.fn(() => () => {}),
 }));
 
 vi.mock("@/core/modules/auth/orpc/middlewares", () => ({
     publicAccess: vi.fn(() => ({})),
 }));
+
+/**
+ * Test double for the ORPC typed-errors parameter. Mirrors the runtime
+ * behavior of `createORPCErrorConstructorMap`: accessing any code returns a
+ * factory producing a real `ORPCError` so `instanceof` / `code` assertions
+ * keep working.
+ */
+function makeErrorsParam(): Record<string, (options?: { message?: string; data?: unknown }) => ORPCError<string, unknown>> {
+    return new Proxy({}, {
+        get: (_target, code: string) =>
+            (options?: { message?: string; data?: unknown }) =>
+                new ORPCError(code, options ?? {}),
+    });
+}
 
 describe("SetupController", () => {
     let controller: SetupController;
@@ -54,6 +75,10 @@ describe("SetupController", () => {
                     provide: ReachabilityService,
                     useFactory: () => mockReachabilityService,
                 },
+                {
+                    provide: NodeConfigRepository,
+                    useValue: { find: vi.fn(), upsert: vi.fn() },
+                },
             ],
         }).compile();
 
@@ -64,7 +89,7 @@ describe("SetupController", () => {
         expect(controller).toBeDefined();
     });
 
-    it("should expose getStatus REST fallback delegating to InitializationService.getSetupState", () => {
+    it("should expose getStatus REST fallback delegating to InitializationService.getSetupState", async () => {
         const mockState = {
             state: "not_started",
             needsSetup: true,
@@ -75,7 +100,9 @@ describe("SetupController", () => {
             completedAt: null,
         };
         mockInitializationService.getSetupState.mockReturnValue(mockState);
-        expect(controller.getState()).toEqual(mockState);
+        controller.getState();
+        const handler = implementChainable.handler.mock.calls.at(-1)?.[0] as () => unknown;
+        expect(handler()).toBe(mockState);
     });
 
     // ─── remoteAuth ───────────────────────────────────────────────────────────
@@ -85,13 +112,12 @@ describe("SetupController", () => {
         // `controller.remoteAuth().handler(fn)`. The mock chainable stores
         // the underlying fn and we invoke it directly.
         const getRemoteAuthHandler = () => {
-            // Re-create the handler chain (the implement mock is shared
-            // across all `.remoteAuth()` invocations so the latest call wins).
+            // Re-register the handler (the implement mock is a singleton, so
+            // this appends to `handler.mock.calls`; the latest call wins).
             controller.remoteAuth();
             // Grab the most recent handler fn registered with the chainable.
-            const impl = createImplementMock();
-            return impl.handler.mock.calls.at(-1)?.[0] as (
-                args: { input: { meshUrl: string; username: string; password: string } },
+            return implementChainable.handler.mock.calls.at(-1)?.[0] as (
+                args: { input: { meshUrl: string; username: string; password: string }; errors: Record<string, (options?: { message?: string }) => ORPCError<string, unknown>> },
             ) => Promise<{ status: number; headers: Record<string, string>; body: unknown }>;
         };
 
@@ -119,6 +145,7 @@ describe("SetupController", () => {
 
             const handler = getRemoteAuthHandler();
             const result = await handler({
+                errors: makeErrorsParam(),
                 input: {
                     meshUrl: "https://mesh.example.com",
                     username: "admin@example.com",
@@ -159,6 +186,7 @@ describe("SetupController", () => {
 
             const handler = getRemoteAuthHandler();
             const result = await handler({
+                errors: makeErrorsParam(),
                 input: {
                     meshUrl: "https://mesh.example.com",
                     username: "admin@example.com",
@@ -180,19 +208,25 @@ describe("SetupController", () => {
 
             const handler = getRemoteAuthHandler();
 
-            await expect(
-                handler({
-                    input: {
-                        meshUrl: "https://mesh.example.com",
-                        username: "admin@example.com",
-                        password: "wrong",
-                    },
-                }),
-            ).rejects.toMatchObject({
-                name: "ORPCError",
-                code: "UNAUTHORIZED",
-                message: "Invalid email",
-            });
+            const error: unknown = await handler({
+                errors: makeErrorsParam(),
+                input: {
+                    meshUrl: "https://mesh.example.com",
+                    username: "admin@example.com",
+                    password: "wrong",
+                },
+            }).then(
+                () => {
+                    throw new Error("expected the handler to reject");
+                },
+                (e: unknown) => e,
+            );
+
+            expect(error).toBeInstanceOf(ORPCError);
+            if (error instanceof ORPCError) {
+                expect(error.code).toBe("UNAUTHORIZED");
+                expect(error.message).toBe("Invalid email");
+            }
         });
 
         it("throws ORPCError UNAUTHORIZED on 400 with a default message", async () => {
@@ -204,6 +238,7 @@ describe("SetupController", () => {
 
             await expect(
                 handler({
+                    errors: makeErrorsParam(),
                     input: {
                         meshUrl: "https://mesh.example.com",
                         username: "admin@example.com",
@@ -218,6 +253,7 @@ describe("SetupController", () => {
 
             await expect(
                 handler({
+                    errors: makeErrorsParam(),
                     input: {
                         meshUrl: "not-a-url",
                         username: "admin@example.com",
@@ -241,6 +277,7 @@ describe("SetupController", () => {
 
             await expect(
                 handler({
+                    errors: makeErrorsParam(),
                     input: {
                         meshUrl: "https://mesh.example.com",
                         username: "admin@example.com",

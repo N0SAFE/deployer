@@ -1,11 +1,12 @@
 'use client'
 
+import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { useDockerImageEventsStream, useDockerImageInspect, useDockerImageList, useDockerImageSecurityScanStream, useDockerNetworkList } from '@/domains/docker/hooks'
 import { dockerImageInspectDetailSchema } from '@repo/contracts-entities'
 import { DockerImagePullProgressPanel } from './docker-image-pull-progress-panel'
 import { DockerRuntimeStackOverview } from './docker-runtime-stack-overview'
-import { DockerScanStackPanel } from './docker-scan-stack-panel'
+import { DockerScanStackPanel, type DockerScannerPullRow } from './docker-scan-stack-panel'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
@@ -211,7 +212,7 @@ function toClock(iso: string): string {
   return iso.slice(11, 19)
 }
 
-function titleCaseStage(stage: ScanTimelineEventRow['stage']): string {
+function titleCaseStage(stage: string): string {
   if (stage === 'pulling-scanner') {
     return 'Pulling scanner'
   }
@@ -510,9 +511,7 @@ export function DockerCreateContainerModal({
       const parsedInspect = dockerImageInspectDetailSchema.safeParse(inspectResult.data)
 
       if (inspectResult.error || !parsedInspect.success) {
-        const message = inspectResult.error instanceof Error
-          ? inspectResult.error.message
-          : 'Unable to inspect image metadata for pull stage.'
+        const message = isDefinedORPCError(inspectResult.error) ? getErrorMessage(inspectResult.error, 'Unable to inspect image metadata for pull stage.') : 'Unable to inspect image metadata for pull stage.'
         setPullStatus('error')
         setPullProgress(0)
         setPullErrorMessage(message)
@@ -535,7 +534,7 @@ export function DockerCreateContainerModal({
         setActiveStage('container')
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unexpected error during pull preparation.'
+      const message = isDefinedORPCError(error) ? getErrorMessage(error) : 'Unexpected error during pull preparation.'
       setPullStatus('error')
       setPullProgress(0)
       setPullErrorMessage(message)
@@ -811,9 +810,7 @@ export function DockerCreateContainerModal({
 
     setScanStatus('error')
     setScanErrorMessage(
-      liveScanQuery.error instanceof Error
-        ? liveScanQuery.error.message
-        : 'Security scan stream failed before completion.',
+      isDefinedORPCError(liveScanQuery.error) ? getErrorMessage(liveScanQuery.error, 'Security scan stream failed before completion.') : 'Security scan stream failed before completion.',
     )
   }, [liveScanQuery.error, liveScanQuery.isError, scanStatus, selectedImageEntity?.id])
 
@@ -946,7 +943,7 @@ export function DockerCreateContainerModal({
     })
   }, [scanTimelineEvents])
 
-  const scannerPullRows = useMemo(() => {
+  const scannerPullRows = useMemo<DockerScannerPullRow[]>(() => {
     return SCANNER_ORDER.map((scanner) => {
       const allScannerEvents = scanTimelineEvents.filter((event) => event.scanner === scanner)
       const pullEvents = allScannerEvents.filter((event) => event.stage === 'pulling-scanner')
@@ -958,14 +955,14 @@ export function DockerCreateContainerModal({
       return {
         scanner,
         status: hasScannerError
-          ? 'failed'
+          ? 'failed' as const
           : hasAdvancedPastPull
-            ? 'completed'
+            ? 'completed' as const
             : pullEvents.length > 0
-              ? 'running'
-              : 'queued',
+              ? 'running' as const
+              : 'queued' as const,
         progress,
-        latestPull,
+        latestPull: latestPull ? { message: latestPull.message } : null,
       }
     })
   }, [scanTimelineEvents])
@@ -1297,7 +1294,7 @@ export function DockerCreateContainerModal({
 
               <div className="rounded border p-3 space-y-2">
                 <p className="text-xs text-muted-foreground">Config set</p>
-                <select
+                <select aria-label="Select a config set…"
                   className="h-9 w-full rounded border bg-background px-2 text-sm"
                   value={selectedConfigSetId}
                   onChange={(event) => applyConfigSet(event.target.value)}
@@ -1327,7 +1324,7 @@ export function DockerCreateContainerModal({
               <div className="grid gap-3 md:grid-cols-3">
                 <div>
                   <label className="text-xs text-muted-foreground">Restart policy</label>
-                  <select className="h-9 w-full rounded border bg-background px-2 text-sm" value={restartPolicy} onChange={(event) => setRestartPolicy(event.target.value as 'no' | 'always' | 'unless-stopped' | 'on-failure')}>
+                  <select aria-label="Restart policy" className="h-9 w-full rounded border bg-background px-2 text-sm" value={restartPolicy} onChange={(event) => setRestartPolicy(event.target.value as 'no' | 'always' | 'unless-stopped' | 'on-failure')}>
                     <option value="no">No</option>
                     <option value="always">Always</option>
                     <option value="unless-stopped">Unless stopped</option>
@@ -1336,7 +1333,7 @@ export function DockerCreateContainerModal({
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Network mode</label>
-                  <select className="h-9 w-full rounded border bg-background px-2 text-sm" value={networkMode} onChange={(event) => setNetworkMode(event.target.value)}>
+                  <select aria-label="Network mode" className="h-9 w-full rounded border bg-background px-2 text-sm" value={networkMode} onChange={(event) => setNetworkMode(event.target.value)}>
                     <option value="bridge">bridge</option>
                     <option value="host">host</option>
                     <option value="none">none</option>
@@ -1368,7 +1365,7 @@ export function DockerCreateContainerModal({
                   <div key={`port-${String(index)}`} className="grid gap-2 md:grid-cols-[1fr_1fr_120px_auto]">
                     <Input value={port.hostPort} onChange={(event) => updateArrayItem(setPorts, index, { ...port, hostPort: event.target.value })} placeholder="host" />
                     <Input value={port.containerPort} onChange={(event) => updateArrayItem(setPorts, index, { ...port, containerPort: event.target.value })} placeholder="container" />
-                    <select className="h-9 rounded border bg-background px-2 text-sm" value={port.protocol} onChange={(event) => updateArrayItem(setPorts, index, { ...port, protocol: event.target.value as 'tcp' | 'udp' })}>
+                    <select aria-label="tcp" className="h-9 rounded border bg-background px-2 text-sm" value={port.protocol} onChange={(event) => updateArrayItem(setPorts, index, { ...port, protocol: event.target.value as 'tcp' | 'udp' })}>
                       <option value="tcp">tcp</option>
                       <option value="udp">udp</option>
                     </select>
@@ -1388,7 +1385,7 @@ export function DockerCreateContainerModal({
                   <div key={`volume-${String(index)}`} className="grid gap-2 md:grid-cols-[1fr_1fr_120px_auto]">
                     <Input value={volume.hostPath} onChange={(event) => updateArrayItem(setVolumes, index, { ...volume, hostPath: event.target.value })} placeholder="/host/path" />
                     <Input value={volume.containerPath} onChange={(event) => updateArrayItem(setVolumes, index, { ...volume, containerPath: event.target.value })} placeholder="/container/path" />
-                    <select className="h-9 rounded border bg-background px-2 text-sm" value={volume.mode} onChange={(event) => updateArrayItem(setVolumes, index, { ...volume, mode: event.target.value as 'rw' | 'ro' })}>
+                    <select aria-label="rw" className="h-9 rounded border bg-background px-2 text-sm" value={volume.mode} onChange={(event) => updateArrayItem(setVolumes, index, { ...volume, mode: event.target.value as 'rw' | 'ro' })}>
                       <option value="rw">rw</option>
                       <option value="ro">ro</option>
                     </select>
@@ -1675,7 +1672,7 @@ export function DockerCreateContainerModal({
                   <div className="border-t p-3 space-y-2">
                     {ulimits.map((item, index) => (
                       <div key={`ulimit-${String(index)}`} className="grid gap-2 md:grid-cols-[160px_1fr_1fr_auto]">
-                        <select className="h-9 rounded border bg-background px-2 text-sm" value={item.name} onChange={(event) => updateArrayItem(setUlimits, index, { ...item, name: event.target.value })}>
+                        <select aria-label="{name}" className="h-9 rounded border bg-background px-2 text-sm" value={item.name} onChange={(event) => updateArrayItem(setUlimits, index, { ...item, name: event.target.value })}>
                           {COMMON_ULIMITS.map((name) => <option key={name} value={name}>{name}</option>)}
                         </select>
                         <Input value={item.soft} onChange={(event) => updateArrayItem(setUlimits, index, { ...item, soft: event.target.value })} placeholder="soft" />

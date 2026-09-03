@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { eq, and, ne, isNull } from 'drizzle-orm';
 import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service';
+import { AppError } from "@repo/errors";
 import {
   serviceDomainMappings,
   projectDomains,
-  organizationDomains,
 } from '@/config/drizzle/global/schema/domain';
+import { previewEnvironments } from '@/config/drizzle/global/schema/deployment';
 
 type ServiceDomainMapping = typeof serviceDomainMappings.$inferSelect;
 type InsertServiceDomainMapping = typeof serviceDomainMappings.$inferInsert;
@@ -26,7 +27,7 @@ export class ServiceDomainMappingRepository {
       .returning();
     
     if (!mapping) {
-      throw new Error('Failed to create service domain mapping');
+      throw new AppError('Failed to create service domain mapping', 'INTERNAL_ERROR');
     }
     
     this.logger.debug(
@@ -121,6 +122,18 @@ export class ServiceDomainMappingRepository {
   }
 
   /**
+   * True when the project domain has at least one service mapping
+   */
+  async hasProjectDomainMappings(projectDomainId: string): Promise<boolean> {
+    const [result] = await this.databaseService.db
+      .select({ id: serviceDomainMappings.id })
+      .from(serviceDomainMappings)
+      .where(eq(serviceDomainMappings.projectDomainId, projectDomainId))
+      .limit(1);
+    return !!result;
+  }
+
+  /**
    * Get full URL for a service domain mapping
    */
   async getFullUrl(mappingId: string): Promise<string | null> {
@@ -128,11 +141,10 @@ export class ServiceDomainMappingRepository {
       .select({
         subdomain: serviceDomainMappings.subdomain,
         basePath: serviceDomainMappings.basePath,
-        orgDomain: organizationDomains.domain,
+        orgDomain: projectDomains.domain,
       })
       .from(serviceDomainMappings)
       .innerJoin(projectDomains, eq(serviceDomainMappings.projectDomainId, projectDomains.id))
-      .innerJoin(organizationDomains, eq(projectDomains.organizationDomainId, organizationDomains.id))
       .where(eq(serviceDomainMappings.id, mappingId))
       .limit(1);
 
@@ -252,6 +264,51 @@ export class ServiceDomainMappingRepository {
             : eq(serviceDomainMappings.subdomain, subdomain)
         )
       );
+  }
+
+  /**
+   * Joined mapping + project-domain rows for a service,
+   * ordered by mapping creation (oldest first). Used by URL resolution.
+   */
+  async findServiceUrlRows(serviceId: string) {
+    return this.databaseService.db
+      .select({
+        mappingId: serviceDomainMappings.id,
+        subdomain: serviceDomainMappings.subdomain,
+        basePath: serviceDomainMappings.basePath,
+        isPrimary: serviceDomainMappings.isPrimary,
+        sslEnabled: serviceDomainMappings.sslEnabled,
+        sslProvider: serviceDomainMappings.sslProvider,
+        orgDomain: projectDomains.domain,
+      })
+      .from(serviceDomainMappings)
+      .innerJoin(projectDomains, eq(serviceDomainMappings.projectDomainId, projectDomains.id))
+      .where(eq(serviceDomainMappings.serviceId, serviceId))
+      .orderBy(serviceDomainMappings.createdAt);
+  }
+
+  /** The project-domain id a mapping belongs to (or null when the mapping is gone). */
+  async findProjectDomainIdByMappingId(mappingId: string): Promise<string | null> {
+    const [row] = await this.databaseService.db
+      .select({ projectDomainId: serviceDomainMappings.projectDomainId })
+      .from(serviceDomainMappings)
+      .where(eq(serviceDomainMappings.id, mappingId))
+      .limit(1);
+    return row?.projectDomainId ?? null;
+  }
+
+  /**
+   * Mark every preview-environment row pointing at `fullDomain` inactive.
+   * Part of the promote-preview-to-stable flow: once a stable mapping exists,
+   * the superseded preview row must not linger as active. Reads/writes the
+   * global schema directly — this repository is the routing domain's
+   * data-access layer and must not import product modules.
+   */
+  async deactivatePreviewEnvironmentsByFullDomain(fullDomain: string): Promise<void> {
+    await this.databaseService.db
+      .update(previewEnvironments)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(previewEnvironments.fullDomain, fullDomain));
   }
 
   /**

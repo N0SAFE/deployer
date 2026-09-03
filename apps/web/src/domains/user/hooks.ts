@@ -19,6 +19,13 @@ const enhancedUser = wrapWithInvalidations(userEndpoints, userInvalidations);
 // QUERY HOOKS (Read Operations)
 // ============================================================================
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+/** Only fetch when the id is a real UUID — never a `:id` route-template placeholder. */
+function isIdUsable(id: string | undefined | null): id is string {
+  return typeof id === 'string' && UUID_RE.test(id)
+}
+
 /**
  * List users with filters
  */
@@ -32,9 +39,10 @@ export function useUserList(
  * Get user by ID
  */
 export function useUser(userId: string) {
-  return useQuery(
-    userEndpoints.findById.queryOptions({ input: { params: { id: userId } } }),
-  );
+  return useQuery({
+    ...userEndpoints.findById.queryOptions({ input: { params: { id: userId } } }),
+    enabled: isIdUsable(userId),
+  });
 }
 
 /**

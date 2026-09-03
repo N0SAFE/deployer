@@ -67,10 +67,13 @@ import {
     deploymentListNodeLifecycleEventsContract,
     deploymentNodeLifecycleEventsStreamContract,
 } from "./lifecycle-events";
+import { listServicePreviewsContract, promoteServicePreviewContract } from "./previews";
 
 export const deploymentContract = oc.tag("Deployment").prefix("/deployments").router({
     list: deploymentListContract,
     findById: deploymentFindByIdContract,
+    listServicePreviews: listServicePreviewsContract,
+    promoteServicePreview: promoteServicePreviewContract,
     trigger: deploymentTriggerContract,
     uploadBundle: deploymentUploadBundleContract,
     cancel: deploymentCancelContract,
@@ -123,6 +126,7 @@ export type DeploymentContract = typeof deploymentContract;
 
 export * from "./list";
 export * from "./crud";
+export * from "./previews";
 export * from "./stream";
 export * from "./provenance";
 export * from "./plan-snapshot";

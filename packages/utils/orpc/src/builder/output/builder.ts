@@ -1,3 +1,4 @@
+ 
 /**
  * Output builders for route-builder-v2.
  *
@@ -11,14 +12,24 @@
  * - `body`
  * - `streamed` output wrappers
  * - response `union` composition
+ *
+ * Schema construction is INJECTED through a plugin (default: Standard Schema,
+ * opt-in: Zod) — the builder never calls the schema factories directly.
  */
 
 import { eventIterator, type Schema } from "@orpc/contract";
 import { DetailedOutputBrand, type DetailedOutput } from "../core/route-builder";
 import type { AnySchema, HTTPMethod, ErrorMap, UnionTuple } from "../../types/types";
-import type { ObjectSchema, LiteralSchema, VoidSchema, SchemaShape } from "../../types/standard-schema-helpers";
-import { objectSchema, voidSchema, literalSchema, unionSchema, emptyObjectSchema, getSchemaShape, optionalSchema } from "../../types/standard-schema-helpers";
+import type { ObjectSchema, VoidSchema, SchemaShape } from "../../types/standard-schema-helpers";
 import { ProxyBuilderBase } from "../core/proxy-builder.base";
+import {
+    BasePluginTransformer,
+    StandardPluginTransformer,
+    type PluginExtractOutputBody,
+    type PluginExtractOutputStatus,
+    type PluginExtractOutputHeaders,
+    type PluginOutputProxySchema,
+} from "../plugin";
 import type { OutputSchemaProxy } from "./proxy";
 import { observable, type Observable } from "../../observable/contract";
 
@@ -27,28 +38,26 @@ import { observable, type Observable } from "../../observable/contract";
  * - If detailed output shape exists, returns `body` schema.
  * - Otherwise returns the schema itself.
  */
-export type ExtractOutputBody<T> = T extends ObjectSchema<infer S> ? (S extends { body: infer B extends AnySchema } ? B : T) : T;
+export type ExtractOutputBody<TP extends BasePluginTransformer, T extends AnySchema> = PluginExtractOutputBody<TP, T>;
 
 /**
  * Extract numeric status code from output type.
  * Defaults to `200` when no detailed status exists.
  */
-export type ExtractOutputStatus<T> = T extends ObjectSchema<infer S> ? (S extends { status: LiteralSchema<infer N extends number> } ? N : 200) : 200;
+export type ExtractOutputStatus<TP extends BasePluginTransformer, T extends AnySchema> = PluginExtractOutputStatus<TP, T>;
 
 /**
  * Extract headers schema from output type.
- * Defaults to empty object schema when not in detailed mode.
+ * Defaults to the plugin's empty object schema when not in detailed mode.
  */
-export type ExtractOutputHeaders<T> =
-    T extends ObjectSchema<infer S> ? (S extends { headers: infer H extends AnySchema } ? H : ObjectSchema<Record<never, never>>) : ObjectSchema<Record<never, never>>;
+export type ExtractOutputHeaders<TP extends BasePluginTransformer, T extends AnySchema> = PluginExtractOutputHeaders<TP, T>;
 
 /**
  * Public schema view for output proxy/builder consumers:
  * - returns direct body schema for common case (`status=200` and no headers),
  * - otherwise returns the detailed output schema.
  */
-export type OutputSchemaProxySchema<TData extends AnySchema | DetailedOutput> =
-    TData extends DetailedOutput<infer S, infer H, infer B> ? (S extends 200 ? (H extends ObjectSchema<Record<never, never>> ? B : TData) : TData) : TData;
+export type OutputSchemaProxySchema<TP extends BasePluginTransformer, TData extends AnySchema | DetailedOutput> = PluginOutputProxySchema<TP, TData>;
 
 type ObservableContractSchema<TSchema extends AnySchema> =
     TSchema extends Schema<infer TIn, infer TOut>
@@ -73,20 +82,24 @@ export abstract class DetailedOutputBuilder<
     TMethod extends HTTPMethod = "GET",
     TEntitySchema extends AnySchema = VoidSchema,
     TErrors extends ErrorMap = Record<string, never>,
-> extends ProxyBuilderBase<OutputSchemaProxySchema<TData>> {
+    TPlugin extends BasePluginTransformer = StandardPluginTransformer,
+> extends ProxyBuilderBase<OutputSchemaProxySchema<TPlugin, TData>> {
     /** Internal accumulated output schema state. */
     readonly $data: TData;
+    /** @internal Schema transformer plugin — drives ALL schema construction. */
+    protected readonly _plugin: TPlugin;
 
-    constructor(data: TData) {
+    constructor(data: TData, plugin?: TPlugin) {
         super();
         this.$data = data;
+        this._plugin = plugin ?? (new StandardPluginTransformer() as unknown as TPlugin);
     }
 
     /**
      * Factory hook implemented by proxy layer.
      * Must return a new immutable proxy instance with updated data.
      */
-    protected abstract _create<TNewData extends AnySchema | DetailedOutput>(data: TNewData): OutputSchemaProxy<TNewData, TMethod, TEntitySchema, TErrors>;
+    protected abstract _create<TNewData extends AnySchema | DetailedOutput>(data: TNewData): OutputSchemaProxy<TNewData, TMethod, TEntitySchema, TErrors, TPlugin>;
 
     /**
      * Entity schema hook delegated to proxy layer (RouteBuilder context).
@@ -105,83 +118,100 @@ export abstract class DetailedOutputBuilder<
      * - Detailed mode with 200/no-headers => direct body schema
      * - Otherwise => full detailed schema
      */
-    get schema(): OutputSchemaProxySchema<TData> {
+    get schema(): OutputSchemaProxySchema<TPlugin, TData> {
         const detailed = isDetailedMode(this.$data);
         if (!detailed) {
-            return this.$data as OutputSchemaProxySchema<TData>;
+            return this.$data as unknown as OutputSchemaProxySchema<TPlugin, TData>;
         }
 
         const status = this._extractStatus();
         const headers = this._extractHeaders();
-        const headerShape = getSchemaShape(headers as AnySchema);
-        const hasHeaders = Object.keys(headerShape).length > 0;
+        const headerShape = this._plugin.getShape(headers as AnySchema);
+        const hasHeaders = headerShape !== null && Object.keys(headerShape).length > 0;
 
         if (status === 200 && !hasHeaders) {
-            return this._extractBody() as unknown as OutputSchemaProxySchema<TData>;
+            return this._extractBody() as unknown as OutputSchemaProxySchema<TPlugin, TData>;
         }
 
-        return this.$data as OutputSchemaProxySchema<TData>;
+        return this.$data as unknown as OutputSchemaProxySchema<TPlugin, TData>;
     }
 
     /** Extract body from detailed schema (guarded). */
-    protected _extractBody(): ExtractOutputBody<TData> {
+    protected _extractBody(): ExtractOutputBody<TPlugin, TData> {
         if (!isDetailedMode(this.$data)) {
             throw new Error("DetailedOutputBuilder._extractBody: not in detailed mode.");
         }
-        const shape = getSchemaShape(this.$data);
-        return shape.body as ExtractOutputBody<TData>;
+        const shape = this._plugin.getShape(this.$data);
+        const body = shape?.body as ExtractOutputBody<TPlugin, TData> | undefined;
+        // Zod mode omits empty parts — absent body falls back to the plugin void sentinel.
+        if (body === undefined) {
+            return this._plugin.voidSchema() as unknown as ExtractOutputBody<TPlugin, TData>;
+        }
+        return body;
     }
 
     /** Extract status from detailed schema (guarded). */
-    protected _extractStatus(): ExtractOutputStatus<TData> {
+    protected _extractStatus(): ExtractOutputStatus<TPlugin, TData> {
         if (!isDetailedMode(this.$data)) {
             throw new Error("DetailedOutputBuilder._extractStatus: not in detailed mode.");
         }
-        const shape = getSchemaShape(this.$data);
-        const statusSchema = shape.status as LiteralSchema<number>;
-        return statusSchema._value as ExtractOutputStatus<TData>;
+        const shape = this._plugin.getShape(this.$data);
+        const statusSchema = shape?.status;
+        const value = statusSchema !== undefined ? this._plugin.getLiteralValue(statusSchema) : null;
+        return (value ?? 200) as ExtractOutputStatus<TPlugin, TData>;
     }
 
     /** Extract headers from detailed schema (guarded). */
-    protected _extractHeaders(): ExtractOutputHeaders<TData> {
+    protected _extractHeaders(): ExtractOutputHeaders<TPlugin, TData> {
         if (!isDetailedMode(this.$data)) {
             throw new Error("DetailedOutputBuilder._extractHeaders: not in detailed mode.");
         }
-        const shape = getSchemaShape(this.$data);
-        return shape.headers as ExtractOutputHeaders<TData>;
+        const shape = this._plugin.getShape(this.$data);
+        const headers = shape?.headers as ExtractOutputHeaders<TPlugin, TData> | undefined;
+        // Zod mode omits empty parts — absent headers fall back to the plugin empty object.
+        if (headers === undefined) {
+            return this._plugin.emptyObject() as unknown as ExtractOutputHeaders<TPlugin, TData>;
+        }
+        return headers as unknown as ExtractOutputHeaders<TPlugin, TData>;
     }
 
     /** Default status for non-detailed mode. */
-    protected _defaultStatus(): ExtractOutputStatus<TData> {
-        return 200 as ExtractOutputStatus<TData>;
+    protected _defaultStatus(): ExtractOutputStatus<TPlugin, TData> {
+        return 200 as ExtractOutputStatus<TPlugin, TData>;
     }
 
     /** Default headers for non-detailed mode. */
-    protected _defaultHeaders(): ExtractOutputHeaders<TData> {
-        return emptyObjectSchema() as unknown as ExtractOutputHeaders<TData>;
+    protected _defaultHeaders(): ExtractOutputHeaders<TPlugin, TData> {
+        return this._plugin.emptyObject() as unknown as ExtractOutputHeaders<TPlugin, TData>;
     }
 
     /** Default body for non-detailed mode. */
-    protected _defaultBody(): ExtractOutputBody<TData> {
-        return this.$data as unknown as ExtractOutputBody<TData>;
+    protected _defaultBody(): ExtractOutputBody<TPlugin, TData> {
+        return this.$data as unknown as ExtractOutputBody<TPlugin, TData>;
     }
 
-    /** Build branded detailed output schema object. */
+    /** Build branded detailed output schema object through the injected plugin. */
     protected _buildDetailedSchema<TStatus extends number, THeaders extends AnySchema, TBody extends AnySchema>(
         status: TStatus,
         headers: THeaders,
         body: TBody,
-    ): DetailedOutput<TStatus, THeaders, TBody> {
-        const headersShape = getSchemaShape(headers);
-        const headersField = Object.keys(headersShape).length === 0 ? optionalSchema(headers) : headers;
-        const shape = {
-            status: literalSchema(status),
-            headers: headersField,
+    ): DetailedOutput<TStatus, THeaders, TBody, TPlugin> {
+        // "Empty headers" = no shape fields (Standard getShape returns null for
+        // non-our schemas, mirroring today's getSchemaShape-key check).
+        const headersShape = this._plugin.getShape(headers);
+        const headersEmpty = headersShape === null || Object.keys(headersShape).length === 0;
+
+        const shape: SchemaShape = {
+            status: this._plugin.literalSchema(status),
             body,
         };
-        const schema = objectSchema(shape);
-        Object.defineProperty(schema, DetailedOutputBrand, { value: true, writable: false });
-        return schema as unknown as DetailedOutput<TStatus, THeaders, TBody>;
+        if (!(this._plugin.omitEmptyParts() && headersEmpty)) {
+            shape.headers = headersEmpty ? this._plugin.optional(headers) : headers;
+        }
+
+        const schema = this._plugin.object(shape);
+        Object.defineProperty(schema, DetailedOutputBrand, { value: true });
+        return schema as unknown as DetailedOutput<TStatus, THeaders, TBody, TPlugin>;
     }
 
     /**
@@ -189,21 +219,21 @@ export abstract class DetailedOutputBuilder<
      */
     get body() {
         type BodyCallable = {
-            <TNewBody extends AnySchema>(schema: TNewBody): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, ExtractOutputHeaders<TData>, TNewBody>, TMethod, TEntitySchema, TErrors>;
+            <TNewBody extends AnySchema>(schema: TNewBody): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TPlugin, TData>, ExtractOutputHeaders<TPlugin, TData>, TNewBody, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin>;
             <TNewBody extends AnySchema>(
-                builder: (current: ExtractOutputBody<TData>) => TNewBody,
-            ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, ExtractOutputHeaders<TData>, TNewBody>, TMethod, TEntitySchema, TErrors>;
+                builder: (current: ExtractOutputBody<TPlugin, TData>) => TNewBody,
+            ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TPlugin, TData>, ExtractOutputHeaders<TPlugin, TData>, TNewBody, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin>;
             streamed: {
-                <TNewBody extends AnySchema>(schema: TNewBody): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, ExtractOutputHeaders<TData>>, TMethod, TEntitySchema, TErrors>;
+                <TNewBody extends AnySchema>(schema: TNewBody): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TPlugin, TData>, ExtractOutputHeaders<TPlugin, TData>, AnySchema, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin>;
                 <TNewBody extends AnySchema>(
-                    builder: (current: ExtractOutputBody<TData>) => TNewBody,
-                ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, ExtractOutputHeaders<TData>>, TMethod, TEntitySchema, TErrors>;
+                    builder: (current: ExtractOutputBody<TPlugin, TData>) => TNewBody,
+                ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TPlugin, TData>, ExtractOutputHeaders<TPlugin, TData>, AnySchema, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin>;
             };
         };
 
         const callable = (<TNewBody extends AnySchema>(
-            schemaOrBuilder: TNewBody | ((current: ExtractOutputBody<TData>) => TNewBody),
-        ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, ExtractOutputHeaders<TData>, TNewBody>, TMethod, TEntitySchema, TErrors> => {
+            schemaOrBuilder: TNewBody | ((current: ExtractOutputBody<TPlugin, TData>) => TNewBody),
+        ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TPlugin, TData>, ExtractOutputHeaders<TPlugin, TData>, TNewBody, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin> => {
             const detailed = isDetailedMode(this.$data);
             const currentBody = detailed ? this._extractBody() : this._defaultBody();
             const newBody = typeof schemaOrBuilder === "function" ? (schemaOrBuilder)(currentBody) : schemaOrBuilder;
@@ -213,7 +243,7 @@ export abstract class DetailedOutputBuilder<
             return this._create(built);
         }) as BodyCallable;
 
-        callable.streamed = <TNewBody extends AnySchema>(schemaOrBuilder: TNewBody | ((current: ExtractOutputBody<TData>) => TNewBody)) => {
+        callable.streamed = <TNewBody extends AnySchema>(schemaOrBuilder: TNewBody | ((current: ExtractOutputBody<TPlugin, TData>) => TNewBody)) => {
             const detailed = isDetailedMode(this.$data);
             const currentBody = detailed ? this._extractBody() : this._defaultBody();
             const baseSchema = typeof schemaOrBuilder === "function" ? (schemaOrBuilder)(currentBody) : schemaOrBuilder;
@@ -232,15 +262,15 @@ export abstract class DetailedOutputBuilder<
      */
     status<TNewStatus extends number>(
         statusCode: TNewStatus,
-    ): OutputSchemaProxy<DetailedOutput<TNewStatus, ExtractOutputHeaders<TData>, ExtractOutputBody<TData>>, TMethod, TEntitySchema, TErrors>;
+    ): OutputSchemaProxy<DetailedOutput<TNewStatus, ExtractOutputHeaders<TPlugin, TData>, ExtractOutputBody<TPlugin, TData>, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin>;
     status<TNewStatus extends number, TNewBody extends AnySchema>(
         statusCode: TNewStatus,
         bodySchema: TNewBody,
-    ): OutputSchemaProxy<DetailedOutput<TNewStatus, ExtractOutputHeaders<TData>, TNewBody>, TMethod, TEntitySchema, TErrors>;
+    ): OutputSchemaProxy<DetailedOutput<TNewStatus, ExtractOutputHeaders<TPlugin, TData>, TNewBody, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin>;
     status<TNewStatus extends number, TNewBody extends AnySchema = never>(
         statusCode: TNewStatus,
         bodySchema?: TNewBody,
-    ): OutputSchemaProxy<DetailedOutput<TNewStatus, ExtractOutputHeaders<TData>, ExtractOutputBody<TData> | TNewBody>, TMethod, TEntitySchema, TErrors> {
+    ): OutputSchemaProxy<DetailedOutput<TNewStatus, ExtractOutputHeaders<TPlugin, TData>, ExtractOutputBody<TPlugin, TData> | TNewBody, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin> {
         const detailed = isDetailedMode(this.$data);
         const body = bodySchema ?? (detailed ? this._extractBody() : this._defaultBody());
         const headers = detailed ? this._extractHeaders() : this._defaultHeaders();
@@ -251,23 +281,23 @@ export abstract class DetailedOutputBuilder<
     /**
      * Set response headers using schema, shape, or transform callback.
      */
-    headers<TNewHeaders extends AnySchema>(schema: TNewHeaders): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, TNewHeaders, ExtractOutputBody<TData>>, TMethod, TEntitySchema, TErrors>;
+    headers<TNewHeaders extends AnySchema>(schema: TNewHeaders): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TPlugin, TData>, TNewHeaders, ExtractOutputBody<TPlugin, TData>, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin>;
     headers<TNewShape extends SchemaShape>(
         shape: TNewShape,
-    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, ObjectSchema<TNewShape>, ExtractOutputBody<TData>>, TMethod, TEntitySchema, TErrors>;
+    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TPlugin, TData>, ObjectSchema<TNewShape>, ExtractOutputBody<TPlugin, TData>, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin>;
     headers<TNewHeaders extends AnySchema>(
-        builder: (current: ExtractOutputHeaders<TData>) => TNewHeaders,
-    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, TNewHeaders, ExtractOutputBody<TData>>, TMethod, TEntitySchema, TErrors>;
+        builder: (current: ExtractOutputHeaders<TPlugin, TData>) => TNewHeaders,
+    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TPlugin, TData>, TNewHeaders, ExtractOutputBody<TPlugin, TData>, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin>;
     headers<TNewHeaders extends AnySchema>(
-        schemaOrBuilder: TNewHeaders | ((current: ExtractOutputHeaders<TData>) => TNewHeaders),
-    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, TNewHeaders, ExtractOutputBody<TData>>, TMethod, TEntitySchema, TErrors> {
+        schemaOrBuilder: TNewHeaders | ((current: ExtractOutputHeaders<TPlugin, TData>) => TNewHeaders),
+    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TPlugin, TData>, TNewHeaders, ExtractOutputBody<TPlugin, TData>, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin> {
         const detailed = isDetailedMode(this.$data);
         const currentHeaders = detailed ? this._extractHeaders() : this._defaultHeaders();
         const newHeaders =
             typeof schemaOrBuilder === "function"
                 ? (schemaOrBuilder)(currentHeaders)
                 : typeof schemaOrBuilder === "object" && !("~standard" in schemaOrBuilder)
-                  ? (objectSchema(schemaOrBuilder as SchemaShape) as unknown as TNewHeaders)
+                  ? (this._plugin.object(schemaOrBuilder) as unknown as TNewHeaders)
                   : schemaOrBuilder;
 
         const status = detailed ? this._extractStatus() : this._defaultStatus();
@@ -279,13 +309,13 @@ export abstract class DetailedOutputBuilder<
     /**
      * Wrap body as streamed `EventIterator` output.
      */
-    streamed<TNewBody extends AnySchema>(schema: TNewBody): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, ExtractOutputHeaders<TData>>, TMethod, TEntitySchema, TErrors>;
+    streamed<TNewBody extends AnySchema>(schema: TNewBody): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TPlugin, TData>, ExtractOutputHeaders<TPlugin, TData>, AnySchema, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin>;
     streamed<TNewBody extends AnySchema>(
-        builder: (current: ExtractOutputBody<TData>) => TNewBody,
-    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, ExtractOutputHeaders<TData>>, TMethod, TEntitySchema, TErrors>;
+        builder: (current: ExtractOutputBody<TPlugin, TData>) => TNewBody,
+    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TPlugin, TData>, ExtractOutputHeaders<TPlugin, TData>, AnySchema, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin>;
     streamed<TNewBody extends AnySchema>(
-        schemaOrBuilder: TNewBody | ((current: ExtractOutputBody<TData>) => TNewBody),
-    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, ExtractOutputHeaders<TData>>, TMethod, TEntitySchema, TErrors> {
+        schemaOrBuilder: TNewBody | ((current: ExtractOutputBody<TPlugin, TData>) => TNewBody),
+    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TPlugin, TData>, ExtractOutputHeaders<TPlugin, TData>, AnySchema, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin> {
         const detailed = isDetailedMode(this.$data);
         const currentBody = detailed ? this._extractBody() : this._defaultBody();
         const baseSchema = typeof schemaOrBuilder === "function" ? (schemaOrBuilder)(currentBody) : schemaOrBuilder;
@@ -301,13 +331,13 @@ export abstract class DetailedOutputBuilder<
      */
     observable<TNewBody extends AnySchema>(
         schema: TNewBody,
-    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, ExtractOutputHeaders<TData>, ObservableContractSchema<TNewBody>>, TMethod, TEntitySchema, TErrors>;
+    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TPlugin, TData>, ExtractOutputHeaders<TPlugin, TData>, ObservableContractSchema<TNewBody>, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin>;
     observable<TNewBody extends AnySchema>(
-        builder: (current: ExtractOutputBody<TData>) => TNewBody,
-    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, ExtractOutputHeaders<TData>, ObservableContractSchema<TNewBody>>, TMethod, TEntitySchema, TErrors>;
+        builder: (current: ExtractOutputBody<TPlugin, TData>) => TNewBody,
+    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TPlugin, TData>, ExtractOutputHeaders<TPlugin, TData>, ObservableContractSchema<TNewBody>, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin>;
     observable<TNewBody extends AnySchema>(
-        schemaOrBuilder: TNewBody | ((current: ExtractOutputBody<TData>) => TNewBody),
-    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, ExtractOutputHeaders<TData>, ObservableContractSchema<TNewBody>>, TMethod, TEntitySchema, TErrors> {
+        schemaOrBuilder: TNewBody | ((current: ExtractOutputBody<TPlugin, TData>) => TNewBody),
+    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TPlugin, TData>, ExtractOutputHeaders<TPlugin, TData>, ObservableContractSchema<TNewBody>, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin> {
         const detailed = isDetailedMode(this.$data);
         const currentBody = detailed ? this._extractBody() : this._defaultBody();
         const baseSchema = typeof schemaOrBuilder === "function" ? (schemaOrBuilder)(currentBody) : schemaOrBuilder;
@@ -330,8 +360,8 @@ export abstract class DetailedOutputBuilder<
      * Apply custom body transformation.
      */
     custom<TNewBody extends AnySchema>(
-        modifier: (body: ExtractOutputBody<TData>) => TNewBody,
-    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TData>, ExtractOutputHeaders<TData>, TNewBody>, TMethod, TEntitySchema, TErrors> {
+        modifier: (body: ExtractOutputBody<TPlugin, TData>) => TNewBody,
+    ): OutputSchemaProxy<DetailedOutput<ExtractOutputStatus<TPlugin, TData>, ExtractOutputHeaders<TPlugin, TData>, TNewBody, TPlugin>, TMethod, TEntitySchema, TErrors, TPlugin> {
         const detailed = isDetailedMode(this.$data);
         const currentBody = detailed ? this._extractBody() : this._defaultBody();
         const newBody = modifier(currentBody);
@@ -346,16 +376,16 @@ export abstract class DetailedOutputBuilder<
      */
     union<
         TItems extends readonly [
-            AnySchema | OutputSchemaProxy<AnySchema | DetailedOutput, TMethod, TEntitySchema, TErrors>,
-            ...(AnySchema | OutputSchemaProxy<AnySchema | DetailedOutput, TMethod, TEntitySchema, TErrors>)[],
+            AnySchema | OutputSchemaProxy<AnySchema | DetailedOutput, TMethod, TEntitySchema, TErrors, TPlugin>,
+            ...(AnySchema | OutputSchemaProxy<AnySchema | DetailedOutput, TMethod, TEntitySchema, TErrors, TPlugin>)[],
         ],
-    >(items: TItems): OutputSchemaProxy<AnySchema, TMethod, TEntitySchema, TErrors>;
+    >(items: TItems): OutputSchemaProxy<AnySchema, TMethod, TEntitySchema, TErrors, TPlugin>;
     union(
         items: readonly [
-            AnySchema | OutputSchemaProxy<AnySchema | DetailedOutput, TMethod, TEntitySchema, TErrors>,
-            ...(AnySchema | OutputSchemaProxy<AnySchema | DetailedOutput, TMethod, TEntitySchema, TErrors>)[],
+            AnySchema | OutputSchemaProxy<AnySchema | DetailedOutput, TMethod, TEntitySchema, TErrors, TPlugin>,
+            ...(AnySchema | OutputSchemaProxy<AnySchema | DetailedOutput, TMethod, TEntitySchema, TErrors, TPlugin>)[],
         ],
-    ): OutputSchemaProxy<AnySchema, TMethod, TEntitySchema, TErrors> {
+    ): OutputSchemaProxy<AnySchema, TMethod, TEntitySchema, TErrors, TPlugin> {
         const schemas = items.map((item) => {
             const maybeBuilder = item as { _build?: () => AnySchema };
             if (typeof maybeBuilder._build === "function") {
@@ -365,12 +395,12 @@ export abstract class DetailedOutputBuilder<
         }) as AnySchema[];
 
         if (schemas.length < 2) {
-            const single = schemas[0] ?? voidSchema();
+            const single = schemas[0] ?? this._plugin.voidSchema();
             return this._create(single);
         }
 
-        const unified = unionSchema(schemas as unknown as UnionTuple);
-        return this._create(unified) as OutputSchemaProxy<AnySchema, TMethod, TEntitySchema, TErrors>;
+        const unified = this._plugin.union(schemas as unknown as UnionTuple);
+        return this._create(unified);
     }
 
     /** @internal Final schema emission for route builder wiring. */

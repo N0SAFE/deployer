@@ -9,6 +9,5 @@
     "lib": ["ES2022", "dom", "dom.iterable"],
     "noEmit": true
   },
-  "include": ["src/**/*", "eslint.config.ts"],
-  "exclude": ["node_modules"]
+  "include": ["src/**/*", "eslint.config.ts"]
 }

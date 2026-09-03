@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerImageSecurityScanEventSchema } from "@repo/contracts-entities";
 import z from "zod/v4";
 
@@ -22,6 +22,7 @@ export const dockerImageSecurityScanStreamContract = dockerImageSecurityScanEven
   .path("/stream")
   .input((b) => b.query(dockerImageSecurityScanStreamQuerySchema))
   .output((b) => b.observable(dockerImageSecurityScanEventSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();
 
 export type DockerImageSecurityScanStreamQueryInput = z.infer<typeof dockerImageSecurityScanStreamQuerySchema>;

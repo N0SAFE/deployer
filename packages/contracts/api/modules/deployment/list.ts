@@ -1,4 +1,4 @@
-import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
+import { createFilterConfig, standard, type ComputeInputSchema, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { deploymentSchema, deploymentStatusSchema, deploymentEnvironmentSchema, sourceTypeSchema } from "@repo/contracts-entities";
 import z from "zod/v4";
 
@@ -31,9 +31,13 @@ const deploymentListConfig = createFilterConfig(deploymentOps)
             schema: sourceTypeSchema,
             operators: ["eq"] as const,
         },
+        nodeId: {
+            schema: z.uuid(),
+            operators: ["eq"] as const,
+        },
     })
     .buildConfig();
 
 export const deploymentListConfigSchemas = deploymentListConfig;
-export const deploymentListContract = deploymentOps.list(deploymentListConfig).build();
+export const deploymentListContract = deploymentOps.list(deploymentListConfig).errors((e) => [...standardDomainErrorContracts(e)]).build();
 export type DeploymentListInput = ComputeInputSchema<typeof deploymentListConfigSchemas>;

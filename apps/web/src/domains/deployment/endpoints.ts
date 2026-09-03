@@ -19,6 +19,10 @@ export const deploymentEndpoints = {
   getLogs: orpc.deployment.getLogs,
   getRollbackHistory: orpc.deployment.getRollbackHistory,
 
+  // Previews (preview_environments read model)
+  listServicePreviews: orpc.deployment.listServicePreviews,
+  promoteServicePreview: orpc.deployment.promoteServicePreview,
+
   // Streaming
   stream: orpc.deployment.stream,
   streamService: orpc.deployment.streamService,

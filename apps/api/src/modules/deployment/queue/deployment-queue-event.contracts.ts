@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { contractBuilder } from "@/core/modules/events/event-contract.builder";
+import { contractBuilder } from "@repo/nest-events";
 import {
     deploymentQueueJobSchema,
     deploymentDeadLetterJobSchema,

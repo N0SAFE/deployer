@@ -6,6 +6,9 @@ export { DetailedOutputBuilder } from "./output/builder";
 export { OutputSchemaProxy, type OutputSchemaProxySchema } from "./output/proxy";
 export { ErrorDefinitionBuilder, error } from "./core/error-builder";
 export { createPathParamBuilder, type PathParam, type PathParamBuilder, type PathParamBuilderWithExisting } from "./core/params-builder";
+// Schema transformer plugin system
+// RouteBuilder({ use: new ZodPluginTransformer(), ... }) → real Zod contracts from the start.
+export * from "./plugin";
 export * from "../types/types";
 export * from "../types/standard-schema-helpers";
 export * from "../types/route-method-meta";

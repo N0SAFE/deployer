@@ -74,47 +74,14 @@ import {
 
 const meshEventStreamOps = standard.zod(coreEventStreamDefinitionSchema, "meshEventStream");
 
-const meshEventStreamListConfig = createFilterConfig(meshEventStreamOps)
-    .withPagination({
-        defaultLimit: 20,
-        maxLimit: 100,
-        includeOffset: true,
-    } as const)
-    .withSorting(["createdAt", "updatedAt", "name", "namespace"] as const, {
-        defaultField: "createdAt",
-        defaultDirection: "desc",
-    })
-    .withFiltering({
-        name: {
-            schema: coreEventStreamDefinitionSchema.shape.name,
-            operators: ["eq", "like", "ilike"] as const,
-        },
-        namespace: {
-            schema: coreEventStreamDefinitionSchema.shape.namespace,
-            operators: ["eq", "like", "ilike"] as const,
-        },
-        isActive: {
-            schema: coreEventStreamDefinitionSchema.shape.isActive,
-            operators: ["eq"] as const,
-        },
-        scope: {
-            schema: coreEventScopeSchema,
-            operators: ["eq"] as const,
-        },
-        scopeId: {
-            schema: coreEventStreamDefinitionSchema.shape.scopeId,
-            operators: ["eq"] as const,
-        },
-        createdBy: {
-            schema: coreEventStreamDefinitionSchema.shape.createdBy,
-            operators: ["eq"] as const,
-        },
-    })
-    .buildConfig();
+// Reuse the CANONICAL event-stream list config from the events module — the
+// mesh surface exposes the same streams, and re-declaring the config here
+// created a structurally-identical but nominally-distinct input type (the
+// mesh controller passes `input.query` straight into CoreEventSyncService,
+// which expects CoreEventStreamListInput).
+import { coreEventStreamListConfigSchemas as meshEventStreamListConfigSchemas } from "../events";
 
-export type MeshEventStreamListInput = ComputeInputSchema<typeof meshEventStreamListConfig>;
-
-export const meshEventStreamListConfigSchemas = meshEventStreamListConfig;
+export type MeshEventStreamListInput = ComputeInputSchema<typeof meshEventStreamListConfigSchemas>;
 
 const meshNodeStateOps = standard.zod(meshNodeStateSchema, "meshNodeState");
 const meshSystemMetricsOps = standard.zod(systemMetricsSnapshotSchema, "meshSystemMetrics");
@@ -207,33 +174,33 @@ export const meshGetLocalNodeContract = meshNodeStateOps
 export const meshPingContract = meshPingOps
     .list()
     .path("/ping")
-    .output((b) => b.body(meshPingResultSchema))
+    .output(meshPingResultSchema)
     .build();
 
 export const meshGetNodeMetricsContract = meshSystemMetricsOps
     .list()
     .path("/node/metrics")
-    .output((b) => b.body(systemMetricsSnapshotSchema))
+    .output(systemMetricsSnapshotSchema)
     .build();
 
 export const meshListPeersContract = meshPeersListOps
     .list()
     .path("/peers")
-    .output((b) => b.body(meshPeersListResultSchema))
+    .output(meshPeersListResultSchema)
     .build();
 
 export const meshListPeerSessionsContract = meshPeerSessionsListOps
     .list()
     .path("/peers/sessions")
-    .output((b) => b.body(meshPeerSessionsListResultSchema))
+    .output(meshPeerSessionsListResultSchema)
     .build();
 
-export const meshListEventStreamsContract = meshEventStreamOps.list(meshEventStreamListConfig).build();
+export const meshListEventStreamsContract = meshEventStreamOps.list(meshEventStreamListConfigSchemas).build();
 
 export const meshFindEventStreamByIdContract = meshEventStreamByIdOps
     .read({ idFieldName: "id", idSchema: z.uuid() })
     .input((b) => b.params((p) => p`/streams/${p("id", z.uuid())}`))
-    .output((b) => b.body(coreEventStreamDefinitionSchema))
+    .output(coreEventStreamDefinitionSchema)
     .build();
 
 export const meshStreamSubscribeContract = meshStreamSubscribeOps
@@ -250,14 +217,14 @@ export const meshPlanStreamRouteContract = meshStreamRoutePlanOps
     .create()
     .path("/streams/plan")
     .input((b) => b.body(meshStreamRoutePlanInputSchema))
-    .output((b) => b.body(meshStreamRoutePlanResultSchema))
+    .output(meshStreamRoutePlanResultSchema)
     .build();
 
 export const meshConnectPeerContract = meshPeerConnectOps
     .create()
     .path("/peers/connect")
     .input((b) => b.body(meshPeerConnectInputSchema))
-    .output((b) => b.body(meshPeerConnectResultSchema))
+    .output(meshPeerConnectResultSchema)
     .build();
 
 export const meshDisconnectPeerContract = meshPeerDisconnectOps
@@ -267,7 +234,7 @@ export const meshDisconnectPeerContract = meshPeerDisconnectOps
             .params((p) => p`/peers/${p("sessionId", z.uuid())}/disconnect`)
             .body(meshPeerDisconnectInputSchema),
     )
-    .output((b) => b.body(meshPeerDisconnectResultSchema))
+    .output(meshPeerDisconnectResultSchema)
     .build();
 
 export const meshPeerHeartbeatContract = meshPeerHeartbeatOps
@@ -277,20 +244,20 @@ export const meshPeerHeartbeatContract = meshPeerHeartbeatOps
             .params((p) => p`/peers/${p("sessionId", z.uuid())}/heartbeat`)
             .body(meshPeerHeartbeatInputSchema),
     )
-    .output((b) => b.body(meshPeerHeartbeatResultSchema))
+    .output(meshPeerHeartbeatResultSchema)
     .build();
 
 export const meshMembershipSnapshotContract = meshMembershipSnapshotOps
     .list()
     .path("/membership/snapshot")
-    .output((b) => b.body(meshMembershipSnapshotSchema))
+    .output(meshMembershipSnapshotSchema)
     .build();
 
 export const meshMembershipReconcileContract = meshMembershipReconcileOps
     .create()
     .path("/membership/reconcile")
     .input((b) => b.body(meshMembershipReconcileInputSchema))
-    .output((b) => b.body(meshMembershipReconcileResultSchema))
+    .output(meshMembershipReconcileResultSchema)
     .build();
 
 export const meshTopologyStreamContract = meshTopologyEventOps
@@ -311,7 +278,7 @@ export const meshControlEnvelopePublishContract = meshControlEnvelopePublishOps
     .create()
     .path("/control/publish")
     .input((b) => b.body(meshControlEnvelopeSchema))
-    .output((b) => b.body(meshControlEnvelopePublishResultSchema))
+    .output(meshControlEnvelopePublishResultSchema)
     .build();
 
 export const meshSessionStreamContract = meshSessionStreamOps
@@ -325,21 +292,21 @@ export const meshLookupResourceContract = meshResourceLookupOps
     .create()
     .path("/lookup")
     .input((b) => b.body(meshResourceLookupInputSchema))
-    .output((b) => b.body(meshResourceLookupResultSchema))
+    .output(meshResourceLookupResultSchema)
     .build();
 
 export const meshUpsertResourceIndexContract = meshResourceIndexUpsertOps
     .create()
     .path("/index/upsert")
     .input((b) => b.body(meshResourceIndexUpsertInputSchema))
-    .output((b) => b.body(meshResourceIndexUpsertResultSchema))
+    .output(meshResourceIndexUpsertResultSchema)
     .build();
 
 export const meshPlanQueuePartitionContract = meshQueuePartitionPlanOps
     .create()
     .path("/queue/partitions/plan")
     .input((b) => b.body(meshQueuePartitionPlanInputSchema))
-    .output((b) => b.body(meshQueuePartitionPlanResultSchema))
+    .output(meshQueuePartitionPlanResultSchema)
     .build();
 
 export const meshIssueJoinGrantContract = meshJoinGrantIssueOps
@@ -386,81 +353,81 @@ export const meshRevokeJoinGrantContract = meshJoinGrantRevokeOps
 export const meshTrustKeyringStatusContract = meshTrustKeyringStatusOps
     .list()
     .path("/trust/keyring")
-    .output((b) => b.body(meshTrustKeyringStatusResultSchema))
+    .output(meshTrustKeyringStatusResultSchema)
     .build();
 
 export const meshTrustKeyringSecretsContract = meshTrustKeyringSecretsOps
     .list()
     .path("/trust/keyring/secrets")
-    .output((b) => b.body(meshTrustKeyringSecretsResultSchema))
+    .output(meshTrustKeyringSecretsResultSchema)
     .build();
 
 export const meshTrustKeyringRotateContract = meshTrustKeyringRotateOps
     .create()
     .path("/trust/keyring/rotate")
     .input((b) => b.body(meshTrustKeyringRotateInputSchema))
-    .output((b) => b.body(meshTrustKeyringRotateResultSchema))
+    .output(meshTrustKeyringRotateResultSchema)
     .build();
 
 export const meshTrustKeyringConvergenceStatusContract = meshTrustKeyringConvergenceStatusOps
     .list()
     .path("/trust/keyring/convergence")
-    .output((b) => b.body(meshTrustKeyringConvergenceStatusResultSchema))
+    .output(meshTrustKeyringConvergenceStatusResultSchema)
     .build();
 
 export const meshTrustStrictReadinessContract = meshTrustStrictReadinessOps
     .list()
     .path("/trust/strict/readiness")
-    .output((b) => b.body(meshTrustStrictReadinessResultSchema))
+    .output(meshTrustStrictReadinessResultSchema)
     .build();
 
 export const meshTrustStrictModeSetContract = meshTrustStrictModeSetOps
     .create()
     .path("/trust/strict/mode")
     .input((b) => b.body(meshTrustStrictModeSetInputSchema))
-    .output((b) => b.body(meshTrustStrictModeSetResultSchema))
+    .output(meshTrustStrictModeSetResultSchema)
     .build();
 
 export const meshTrustStrictRolloutPlanContract = meshTrustStrictRolloutPlanOps
     .list()
     .path("/trust/strict/rollout-plan")
     .input((b) => b.query(meshTrustStrictRolloutPlanQuerySchema))
-    .output((b) => b.body(meshTrustStrictRolloutPlanResultSchema))
+    .output(meshTrustStrictRolloutPlanResultSchema)
     .build();
 
 export const meshTrustStrictRollbackContract = meshTrustStrictRollbackOps
     .create()
     .path("/trust/strict/rollback")
     .input((b) => b.body(meshTrustStrictRollbackInputSchema))
-    .output((b) => b.body(meshTrustStrictRollbackResultSchema))
+    .output(meshTrustStrictRollbackResultSchema)
     .build();
 
 export const meshGetNodeConfigContract = meshNodeConfigOps
     .list()
     .path("/node/config")
     .input((b) => b.body(z.object({}).optional()))
-    .output((b) => b.body(meshNodeConfigSchema))
+    .output(meshNodeConfigSchema)
     .build();
 
 export const meshUpdateNodeConfigContract = meshNodeConfigUpdateOps
     .create()
     .path("/node/config")
     .input((b) => b.body(meshNodeConfigUpdateInputSchema))
-    .output((b) => b.body(meshNodeConfigUpdateResultSchema))
+    .output(meshNodeConfigUpdateResultSchema)
     .build();
 
 export const meshRegenerateNodeConfigSecretContract = meshNodeConfigRegenerateSecretOps
     .create()
     .path("/node/config/regenerate-secret")
     .input((b) => b.body(z.object({}).optional()))
-    .output((b) => b.body(meshNodeConfigRegenerateSecretResultSchema))
+    .output(meshNodeConfigRegenerateSecretResultSchema)
     .build();
 
 export const meshTestNodeConfigDbContract = meshNodeConfigTestDbOps
     .create()
     .path("/node/config/test-db")
     .input((b) => b.body(meshNodeConfigTestDbInputSchema))
-    .output((b) => b.body(meshNodeConfigTestDbResultSchema))
+    .output(meshNodeConfigTestDbResultSchema)
     .build();
 
 export const meshContract = oc.tag("Core Mesh").prefix("/mesh").router({
@@ -480,14 +447,9 @@ export const meshContract = oc.tag("Core Mesh").prefix("/mesh").router({
     reconcileMembership: meshMembershipReconcileContract,
     streamTopology: meshTopologyStreamContract,
     streamEvents: meshRuntimeStreamContract,
-    publishControlEnvelope: meshControlEnvelopePublishContract,
-    streamSession: meshSessionStreamContract,
     lookupResource: meshLookupResourceContract,
     upsertResourceIndex: meshUpsertResourceIndexContract,
-    planQueuePartition: meshPlanQueuePartitionContract,
     issueJoinGrant: meshIssueJoinGrantContract,
-    consumeJoinGrant: meshConsumeJoinGrantContract,
-    registerNode: meshRegisterNodeContract,
     revokeJoinGrant: meshRevokeJoinGrantContract,
     trustKeyringStatus: meshTrustKeyringStatusContract,
     trustKeyringSecrets: meshTrustKeyringSecretsContract,
@@ -504,3 +466,23 @@ export const meshContract = oc.tag("Core Mesh").prefix("/mesh").router({
 });
 
 export type MeshContract = typeof meshContract;
+
+/**
+ * `meshInternalContract` (PRIVATE) — mesh-to-mesh transport surface.
+ *
+ * These endpoints are ONLY callable inside the mesh (peer service token /
+ * internal key via `requireMesh()`), never by dashboard users. They are
+ * deliberately NOT part of `appContract` (see `packages/contracts/api/index.ts`)
+ * and NOT reachable through the public web client. The mesh-to-mesh client in
+ * `mesh-initialization.service.ts` merges this router with `meshContract` to
+ * get one typed client for the whole mesh API.
+ */
+export const meshInternalContract = oc.tag("Core Mesh Internal").prefix("/mesh").router({
+    publishControlEnvelope: meshControlEnvelopePublishContract,
+    streamSession: meshSessionStreamContract,
+    planQueuePartition: meshPlanQueuePartitionContract,
+    registerNode: meshRegisterNodeContract,
+    consumeJoinGrant: meshConsumeJoinGrantContract,
+});
+
+export type MeshInternalContract = typeof meshInternalContract;

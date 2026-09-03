@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { z } from 'zod';
+import z from 'zod';
 import { RouteBuilder } from '../core/route-builder';
 
 describe('Unified Input/Output API', () => {

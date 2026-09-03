@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerRuntimeActivityEntitySchema } from "@repo/contracts-entities";
 import z from "zod/v4";
 
@@ -31,4 +31,5 @@ export const dockerRuntimeActivityStreamContract = dockerRuntimeActivityStreamOp
   .path("/activity/stream")
   .input((b) => b.query(dockerRuntimeActivityStreamQuerySchema))
   .output((b) => b.observable(dockerRuntimeActivityEntitySchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build()

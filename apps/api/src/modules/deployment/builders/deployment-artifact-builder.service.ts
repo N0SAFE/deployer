@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from "@nestjs/common";
 import { stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import type { DeploymentSourceCheckoutContext } from "../providers/base/source-provider.interface";
+import type { DeploymentSourceCheckoutContext } from "@/modules/providers/base/source-provider.interface";
 import { GitService } from "@/core/modules/git/git/services/git.service";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
 import { DeploymentProviderBuilderRunnerStateMachineService } from "@/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
@@ -82,24 +82,39 @@ export class DeploymentArtifactBuilderService {
         }
 
         const sourceCheckout = input.sourceCheckout;
-        if (sourceCheckout?.provider !== "upload") {
+
+        // Resolve build context from source provider
+        let buildContextPath: string;
+
+        if (sourceCheckout?.provider === "github") {
+            // Clone the GitHub repository as the build context
+            buildContextPath = await this.gitService.cloneRepository({
+                url: sourceCheckout.repositoryUrl,
+                branch: sourceCheckout.branch,
+                commit: sourceCheckout.commitSha,
+                deploymentId: input.deploymentId,
+            });
+        } else if (sourceCheckout?.provider === "upload") {
+            if (!sourceCheckout.uploadPath?.trim()) {
+                throw new BadRequestException(
+                    "Upload source checkout must include uploadPath for build stage",
+                );
+            }
+
+            const uploadPath = sourceCheckout.uploadPath;
+            const uploadStat = await stat(uploadPath);
+            buildContextPath = uploadStat.isFile()
+                ? await this.gitService.extractUploadedFile({
+                      filePath: uploadPath,
+                      deploymentId: input.deploymentId,
+                  })
+                : uploadPath;
+        } else {
             throw new BadRequestException(
-                `Builder '${effectiveBuilder}' currently supports upload source provider only`,
+                `Provider '${sourceCheckout?.provider ?? "none"}' is not supported for builder '${effectiveBuilder}'. ` +
+                    "Supported providers: github, upload",
             );
         }
-
-        if (!sourceCheckout.uploadPath?.trim()) {
-            throw new BadRequestException("Upload source checkout must include uploadPath for build stage");
-        }
-
-        const uploadPath = sourceCheckout.uploadPath;
-        const uploadStat = await stat(uploadPath);
-        const buildContextPath = uploadStat.isFile()
-            ? await this.gitService.extractUploadedFile({
-                  filePath: uploadPath,
-                  deploymentId: input.deploymentId,
-              })
-            : uploadPath;
 
         this.assertBuilderContextGuards(effectiveBuilder, buildContextPath, {
             allowDockerfileGuardBypass: isCustomManagedBuilder,
@@ -117,10 +132,38 @@ export class DeploymentArtifactBuilderService {
             builder: effectiveBuilder,
         });
 
+        // For the docker_compose builder, build every image declared in the
+        // compose file (instead of a single `docker build` of the repo root).
+        if (effectiveBuilder === "docker_compose") {
+            const composeFile = this.findComposeFile(buildContextPath);
+            if (!composeFile) {
+                // Guard already validated one exists, but be defensive.
+                throw new BadRequestException(
+                    "Builder 'docker_compose' requires a compose file in the source context",
+                );
+            }
+            const { projectName } = await this.dockerService.buildCompose(buildContextPath, {
+                composeFileName: composeFile,
+                projectName: `deployer-${input.deploymentId.slice(0, 12)}`,
+            });
+            // Defer to the compose project for the runtime, not a single tag.
+            return null;
+        }
+
         await this.dockerService.buildImage(buildContextPath, imageTag, {
             ...(customDockerfileName ? { dockerfileName: customDockerfileName, autoCreateDockerfile: false } : {}),
         });
         return imageTag;
+    }
+
+    private findComposeFile(contextPath: string): string | null {
+        const candidates = [
+            "docker-compose.yml",
+            "docker-compose.yaml",
+            "compose.yml",
+            "compose.yaml",
+        ];
+        return candidates.find((candidate) => existsSync(path.join(contextPath, candidate))) ?? null;
     }
 
     private hasCustomCommands(customCommands: CustomCommandsConfig | null): boolean {
@@ -255,7 +298,7 @@ export class DeploymentArtifactBuilderService {
             const dockerfilePath = path.join(contextPath, "Dockerfile");
             if (!existsSync(dockerfilePath)) {
                 throw new BadRequestException(
-                    "Builder 'dockerfile' requires a Dockerfile in upload context",
+                    "Builder 'dockerfile' requires a Dockerfile in the source context",
                 );
             }
             return;

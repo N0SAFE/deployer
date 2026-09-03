@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as tar from 'tar-stream';
 import { simpleGit } from 'simple-git';
+import { AppError } from "@repo/errors";
 @Injectable()
 export class GitService {
     private readonly logger = new Logger(GitService.name);
@@ -69,7 +70,7 @@ export class GitService {
                 await this.extractTar(filePath, extractPath);
             }
             else {
-                throw new Error(`Unsupported file type: ${fileExtension}`);
+                throw new AppError(`Unsupported file type: ${fileExtension}`, `INTERNAL_ERROR`);
             }
             this.logger.log(`File extracted successfully to ${extractPath}`);
             return extractPath;
@@ -94,7 +95,7 @@ export class GitService {
             const log = await git.log({ maxCount: 1 });
             const latestCommit = log.latest;
             if (!latestCommit) {
-                throw new Error('No commits found in repository');
+                throw new AppError('No commits found in repository', 'INTERNAL_ERROR');
             }
             return {
                 sha: latestCommit.hash,
@@ -134,7 +135,7 @@ export class GitService {
             execSync(`unzip -q "${filePath}" -d "${extractPath}"`, { stdio: 'pipe' });
         }
         catch (error) {
-            throw new Error(`Failed to extract ZIP file: ${error instanceof Error ? error.message : String(error)}`);
+            throw new AppError(`Failed to extract ZIP file: ${error instanceof Error ? error.message : String(error)}`, `INTERNAL_ERROR`);
         }
     }
     private async extractTar(filePath: string, extractPath: string): Promise<void> {

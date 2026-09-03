@@ -1,7 +1,7 @@
 /**
  * Custom permission schema — NOT managed by Better Auth.
  *
- * Better Auth manages coarse-grained org roles via its own `organization_role`
+ * Better Auth manages coarse-grained roles via its own plugins
  * table (enabled via `dynamicAccessControl: { enabled: true }`).  That table
  * stores `{ role, permission }` pairs where `permission` is a flat capability
  * map like `{ project: ["create", "update"] }`.
@@ -12,7 +12,7 @@
  * ResourceRule objects that drive WHERE-clause generation.
  *
  * Table name `org_role_rules` is intentionally distinct from BA's
- * `organization_role` to avoid any collision on re-generation.
+ * to avoid any collision on re-generation.
  */
 import { relations } from "drizzle-orm";
 import {
@@ -24,13 +24,11 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { ResourceRule } from "@repo/auth/permissions";
-import { organization } from "./auth";
 
 /**
- * Stores fine-grained ResourceRule[] per (org, role-name) pair.
+ * Stores fine-grained ResourceRule[] per role-name, mesh-wide.
  *
- * - `roleName` must match the value stored in `member.role` (or BA's
- *   `organization_role.role` for dynamic roles).
+ * - `roleName` matches the platform role (`platformRoles`).
  * - `resourceRules` is a JSONB array of ResourceRule objects consumed by
  *   PermissionEngine to build WHERE clauses and evaluate row-level access.
  */
@@ -38,10 +36,7 @@ export const orgRoleRules = pgTable(
   "org_role_rules",
   {
     id: text("id").primaryKey(),
-    organizationId: text("organization_id")
-      .notNull()
-      .references(() => organization.id, { onDelete: "cascade" }),
-    /** Role name — matches `member.role` or `organization_role.role`. */
+    /** Role name — matches the platform role. */
     roleName: text("role_name").notNull(),
     resourceRules: jsonb("resource_rules")
       .$type<ResourceRule[]>()
@@ -54,20 +49,13 @@ export const orgRoleRules = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [
-    uniqueIndex("org_role_rules_orgId_roleName_uidx").on(
-      table.organizationId,
+    uniqueIndex("org_role_rules_roleName_uidx").on(
       table.roleName,
     ),
-    index("org_role_rules_orgId_idx").on(table.organizationId),
   ],
 );
 
 export type OrgRoleRules = typeof orgRoleRules.$inferSelect;
 export type NewOrgRoleRules = typeof orgRoleRules.$inferInsert;
 
-export const orgRoleRulesRelations = relations(orgRoleRules, ({ one }) => ({
-  organization: one(organization, {
-    fields: [orgRoleRules.organizationId],
-    references: [organization.id],
-  }),
-}));
+

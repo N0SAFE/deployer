@@ -20,6 +20,16 @@ export const projectBaseEnvironmentConfigSchema = z.object({
     maxLatencyMs: z.number().nonnegative(),
     allowCrossRegionFailover: z.boolean(),
   }),
+  /**
+   * Compose-profile style environment gating: optional services (mocks,
+   * debug tools) declare a profile and only participate in an environment
+   * whose `profiles` list includes it. Prod keeps `[]` → mocks absent.
+   */
+  profiles: z.array(z.string()).default([]),
+  /** TTL for auto-created preview infrastructure (Railway/GitLab auto_stop_in). */
+  previewTtlHours: z.number().int().positive().default(72),
+  /** Whether previews of this environment auto-destroy when their PR closes/merges. */
+  destroyOnMerge: z.boolean().default(true),
 })
 export type ProjectBaseEnvironmentConfig = z.infer<typeof projectBaseEnvironmentConfigSchema>
 
@@ -60,6 +70,9 @@ export const projectEnvironmentConfigOverrideSchema = z.object({
       allowCrossRegionFailover: z.boolean().optional(),
     })
     .optional(),
+  profiles: z.array(z.string()).optional(),
+  previewTtlHours: z.number().int().positive().optional(),
+  destroyOnMerge: z.boolean().optional(),
 })
 export type ProjectEnvironmentConfigOverride = z.infer<typeof projectEnvironmentConfigOverrideSchema>
 

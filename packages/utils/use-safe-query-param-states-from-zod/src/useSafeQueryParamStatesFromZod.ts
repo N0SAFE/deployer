@@ -21,7 +21,6 @@ import { mergeWithDefaults } from './merge'
 import { createParserForZodField } from './parsers'
 import type { UnknownRecord, UseSafeQueryParamStatesOptions } from './types'
 import { useDebouncedCallback } from './useDebouncedCallback'
-import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
  * Build a `nuqs` parser map from a Zod object schema. The result is
@@ -177,7 +176,7 @@ export function useSafeQueryParamStatesFromZod<T extends z.ZodObject>(
  */
 function stableStringify(value: unknown): string {
     if (value === null || typeof value !== 'object') {
-        return JSON.stringify(value) ?? String(value)
+        return JSON.stringify(value)
     }
     if (Array.isArray(value)) {
         return `[${value.map(stableStringify).join(',')}]`

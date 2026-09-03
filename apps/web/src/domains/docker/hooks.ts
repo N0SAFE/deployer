@@ -1,5 +1,6 @@
 "use client"
 
+import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import {
   createContext,
   createElement,
@@ -17,8 +18,6 @@ import { useDeploymentList } from '@/domains/deployment/hooks'
 import { useServiceList } from '@/domains/service/hooks'
 import { useFleetServers } from '@/domains/fleet/hooks'
 import { useMeshEventStreams, useMeshSseState } from '@/domains/mesh/hooks'
-import {
-} from "@repo/contracts-entities";
 import { isRecord, isObjectLike } from "@repo/type-guards";
 import {
   dockerContainerRuntimeEventSchema,
@@ -26,6 +25,7 @@ import {
   dockerContainerMetricPointSchema,
   dockerImageInspectDetailSchema,
   dockerRuntimeEventSchema,
+  type DockerContainer,
   type DockerContainerMetricPoint,
   type DockerImageSecurityScanEvent,
   type DockerRuntimeCatalog,
@@ -46,12 +46,31 @@ type QueryInput = {
   query?: QueryPagination
 }
 
+/**
+ * Container list filter — mirrors the contract's filtering config
+ * (`dockerContainerListBuilder.withFiltering`). Uses the `{ operator, value }`
+ * discriminated-union form the schema accepts (the `{ eq: string }` shorthand
+ * is NOT part of the contract input type). Enum-typed fields (status,
+ * managedBy) use the contract's literal unions so the object stays assignable
+ * to the strict schema output type.
+ */
+type DockerContainerListFilter = {
+  name?: { operator: 'eq' | 'like' | 'ilike'; value: string }
+  status?: { operator: 'eq'; value: DockerContainer['status'] }
+  projectId?: { operator: 'eq'; value: string }
+  serviceId?: { operator: 'eq'; value: string }
+  managedBy?: { operator: 'eq'; value: DockerContainer['managedBy'] }
+  managedDeploymentId?: { operator: 'eq'; value: string }
+  managedServiceId?: { operator: 'eq'; value: string }
+  managedProjectId?: { operator: 'eq'; value: string }
+}
+
 type DockerContainerListQueryInput = {
   limit?: number
   offset?: number
-  sortBy?: string
+  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'status'
   sortDirection?: 'asc' | 'desc'
-  filter?: Record<string, unknown>
+  filter?: DockerContainerListFilter
 }
 
 type DockerContainerGroupedListQueryInput = DockerContainerListQueryInput
@@ -78,9 +97,12 @@ export function useDockerContainerList(input?: DockerContainerListContractInput 
         query: {
           limit: query?.limit ?? 100,
           offset: query?.offset ?? 0,
-          ...(query?.sortBy ? { sortBy: query.sortBy } : {}),
-          ...(query?.sortDirection ? { sortDirection: query.sortDirection } : {}),
-          ...(query?.filter ? { filter: { ...query.filter, ...(input?.projectId ? { projectId: { eq: input.projectId } } : {}) } } : {}),
+          sortBy: query?.sortBy,
+          sortDirection: query?.sortDirection,
+          filter: {
+            ...(query?.filter ?? {}),
+            ...(input?.projectId ? { projectId: { operator: 'eq', value: input.projectId } } : {}),
+          },
         },
       },
       enabled: options?.enabled ?? true,
@@ -135,7 +157,7 @@ export function useDockerImageList(input?: QueryInput & { projectId?: string }) 
         query: {
           limit: input?.query?.limit ?? 100,
           offset: input?.query?.offset ?? 0,
-          ...(input?.projectId ? { filter: { projectId: { eq: input.projectId } } } : {}),
+          ...(input?.projectId ? { filter: { projectId: { operator: 'eq', value: input.projectId } } } : {}),
         },
       },
       staleTime: 0,
@@ -537,7 +559,7 @@ interface DockerRuntimeEventsContextValue {
 const DockerRuntimeEventsContext = createContext<DockerRuntimeEventsContextValue | null>(null)
 
 function buildRuntimeEventFingerprint(event: DockerRuntimeEvent): string {
-  const payload = isRecord(event.payload) ? event.payload : {}
+  const payload: Record<string, unknown> = isRecord(event.payload) ? event.payload : {}
   const containerId =
     typeof payload.containerId === 'string' ? payload.containerId : ''
   const containerName =
@@ -642,9 +664,9 @@ export function  DockerRuntimeEventsProvider({
     return {
       status,
       lastError: runtimeEventsHub.isError
-        ? runtimeEventsHub.error instanceof Error
-          ? runtimeEventsHub.error.message
-          : 'Docker runtime stream connection error'
+        ? (isDefinedORPCError(runtimeEventsHub.error)
+            ? getErrorMessage(runtimeEventsHub.error, 'Docker runtime stream connection error')
+            : UNKNOWN_ORPC_ERROR_MESSAGE)
         : null,
       event,
     }
@@ -737,10 +759,8 @@ interface UseDockerRuntimeRefetchOnStreamOptions {
  * Subscribe to the docker runtime SSE stream and invoke `onData` once after
  * a quiet period (debounced) following any matching event.
  *
- * This is the recommended replacement for the legacy
- * `useContainerLiveUpdate` + `cooldownMs` pattern when the goal is simply
- * to refetch another query (container list, image list, ...) in response to
- * docker runtime activity.
+ * This refetches another query (container list, image list, ...) in response
+ * to docker runtime activity.
  *
  * Internally it leverages the new `queryFnOptions.pipe` parameter from
  * `@repo/orpc-utils` so that consumers can pass `pipe(obs) => obs.pipe(...)`
@@ -886,7 +906,7 @@ export function useDockerRuntimeEventSubscription<
 export function useDockerRuntimeSnapshot(options?: { enabled?: boolean }) {
   return useQuery(
     dockerEndpoints.runtime.snapshot.queryOptions({
-      input: {},
+      input: undefined,
       enabled: options?.enabled ?? true,
       refetchInterval: false,
     }),
@@ -955,9 +975,9 @@ export function useDockerRuntimeSseState(
   return {
     status,
     lastError: streamQuery.isError
-      ? streamQuery.error instanceof Error
-        ? streamQuery.error.message
-        : 'Docker runtime stream connection error'
+      ? (isDefinedORPCError(streamQuery.error)
+          ? getErrorMessage(streamQuery.error, 'Docker runtime stream connection error')
+          : UNKNOWN_ORPC_ERROR_MESSAGE)
       : null,
     event,
   }

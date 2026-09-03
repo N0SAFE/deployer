@@ -1,8 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
 'use client'
 
+import { getErrorMessage } from "@/lib/orpc/typed-errors";
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
+import { Label } from '@repo/ui/components/shadcn/label'
 import { Alert, AlertDescription } from '@repo/ui/components/shadcn/alert'
 import {
     Card,
@@ -11,7 +13,6 @@ import {
     CardHeader,
     CardTitle,
 } from '@repo/ui/components/shadcn/card'
-import { z } from 'zod'
 import { useForm } from '@tanstack/react-form'
 import React from 'react'
 import redirect from '@/actions/redirect'
@@ -22,15 +23,12 @@ import { UserPlus } from 'lucide-react'
 import { authClient } from '@/lib/auth'
 import { useSetupState } from '@/domains/setup/hooks'
 import { useRouter } from 'next/navigation'
-import { zodFieldErrors } from '@/lib/forms/zod-field-errors'
 
 // Use the Route wrapper to get type-safe, Suspense-wrapped search params
 export default AuthSignup.Route(({ searchParams }) => {
     // ─── Hooks (must always be called in the same order — no early return before) ───
-    const [isLoading, setIsLoading] = React.useState<boolean>(false)
-    const [error, setError] = React.useState<string>('')
-    const [success, setSuccess] = React.useState<string>('')
-    const [fieldErrors, setFieldErrors] = React.useState<Partial<Record<keyof z.infer<typeof signupSchema>, string>>>({})
+    const [authError, setAuthError] = React.useState<string | null>(null)
+    const [success, setSuccess] = React.useState<string | null>(null)
     const router = useRouter()
     const setupStatus = useSetupState()
 
@@ -41,51 +39,43 @@ export default AuthSignup.Route(({ searchParams }) => {
             password: '',
             confirmPassword: '',
         },
+        // Native TanStack Form validation: zod schema runs as fields change
+        // AND on submit; issues land in each field's `meta.errors` (the
+        // confirmPassword `.refine()` path maps to its own field too).
+        validators: {
+            onChange: signupSchema,
+        },
         onSubmit: async ({ value }) => {
-            setError('')
-            setSuccess('')
-            setFieldErrors({})
+            setAuthError(null)
+            setSuccess(null)
 
-            const parsed = signupSchema.safeParse(value)
-            if (!parsed.success) {
-                setFieldErrors(zodFieldErrors(parsed.error))
-                return
-            }
+            try {
+                const res = await authClient.signUp.email({
+                    email: value.email,
+                    password: value.password,
+                    name: value.name,
+                })
 
-            setIsLoading(true)
-
-            const res = await authClient.signUp.email({
-                email: parsed.data.email,
-                password: parsed.data.password,
-                name: parsed.data.name,
-            })
-
-            if (res?.error) {
-                const errorMessage = res.error.message ?? 'Registration failed'
-                setError(errorMessage)
-                setIsLoading(false)
+                if (res?.error) {
+                    setAuthError(res.error.message ?? 'Registration failed')
+                    return
+                }
+            } catch (error) {
+                // Network failure / unreachable API. Without this catch the
+                // rejection was unhandled and `isSubmitting` stayed true,
+                // leaving the submit button disabled forever.
+                setAuthError(
+getErrorMessage(error, 'Unable to reach the authentication service'),
+                )
                 return
             }
 
             setSuccess('Account created successfully! Redirecting...')
             setTimeout(() => {
-                setIsLoading(false)
                 void redirect(searchParams.redirectTo ?? searchParams.callbackUrl ?? '/')
             }, 1500)
         },
     })
-
-    const clearFieldError = React.useCallback((key: keyof z.infer<typeof signupSchema>) => {
-        setFieldErrors((previous) => {
-            if (!previous[key]) {
-                return previous
-            }
-
-            const next = { ...previous }
-            delete next[key]
-            return next
-        })
-    }, [])
 
     React.useEffect(() => {
         if (setupStatus.data?.needsSetup) {
@@ -132,135 +122,150 @@ export default AuthSignup.Route(({ searchParams }) => {
                         </div>
                     </CardHeader>
                     <CardContent>
-                            <form
-                                onSubmit={(e) => {
-                                    e.preventDefault()
-                                    void form.handleSubmit()
-                                }}
-                                className="space-y-6"
-                            >
-                                <div className="space-y-4">
-                                    <form.Field name="name">
-                                        {(field) => (
-                                            <div className="space-y-2">
-                                                <label htmlFor="name" className="text-sm font-medium leading-none">
-                                                    Full Name
-                                                </label>
-                                                <Input
-                                                    placeholder="John Doe"
-                                                    id="name"
-                                                    type="text"
-                                                    className="h-12"
-                                                    value={field.state.value}
-                                                    onChange={(event) => {
-                                                        clearFieldError('name')
-                                                        field.handleChange(event.target.value)
-                                                    }}
-                                                />
-                                                {fieldErrors.name ? (
-                                                    <p className="text-sm font-medium text-destructive">{fieldErrors.name}</p>
-                                                ) : null}
-                                            </div>
-                                        )}
-                                    </form.Field>
-
-                                    <form.Field name="email">
-                                        {(field) => (
-                                            <div className="space-y-2">
-                                                <label htmlFor="email" className="text-sm font-medium leading-none">
-                                                    Email Address
-                                                </label>
-                                                <Input
-                                                    placeholder="john@example.com"
-                                                    id="email"
-                                                    type="email"
-                                                    className="h-12"
-                                                    value={field.state.value}
-                                                    onChange={(event) => {
-                                                        clearFieldError('email')
-                                                        field.handleChange(event.target.value)
-                                                    }}
-                                                />
-                                                {fieldErrors.email ? (
-                                                    <p className="text-sm font-medium text-destructive">{fieldErrors.email}</p>
-                                                ) : null}
-                                            </div>
-                                        )}
-                                    </form.Field>
-
-                                    <form.Field name="password">
-                                        {(field) => (
-                                            <div className="space-y-2">
-                                                <label htmlFor="password" className="text-sm font-medium leading-none">
-                                                    Password
-                                                </label>
-                                                <Input
-                                                    id="password"
-                                                    type="password"
-                                                    className="h-12"
-                                                    value={field.state.value}
-                                                    onChange={(event) => {
-                                                        clearFieldError('password')
-                                                        field.handleChange(event.target.value)
-                                                    }}
-                                                />
-                                                {fieldErrors.password ? (
-                                                    <p className="text-sm font-medium text-destructive">{fieldErrors.password}</p>
-                                                ) : null}
-                                            </div>
-                                        )}
-                                    </form.Field>
-
-                                    <form.Field name="confirmPassword">
-                                        {(field) => (
-                                            <div className="space-y-2">
-                                                <label htmlFor="confirmPassword" className="text-sm font-medium leading-none">
-                                                    Confirm Password
-                                                </label>
-                                                <Input
-                                                    id="confirmPassword"
-                                                    type="password"
-                                                    className="h-12"
-                                                    value={field.state.value}
-                                                    onChange={(event) => {
-                                                        clearFieldError('confirmPassword')
-                                                        field.handleChange(event.target.value)
-                                                    }}
-                                                />
-                                                {fieldErrors.confirmPassword ? (
-                                                    <p className="text-sm font-medium text-destructive">{fieldErrors.confirmPassword}</p>
-                                                ) : null}
-                                            </div>
-                                        )}
-                                    </form.Field>
-
-                                    {error && (
-                                        <Alert variant="destructive">
-                                            <AlertCircle className="h-4 w-4" />
-                                            <AlertDescription>
-                                                {error}
-                                            </AlertDescription>
-                                        </Alert>
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                void form.handleSubmit()
+                            }}
+                            className="space-y-6"
+                        >
+                            <div className="space-y-4">
+                                <form.Field name="name">
+                                    {(field) => (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="name">Full Name</Label>
+                                            <Input
+                                                placeholder="John Doe"
+                                                id="name"
+                                                type="text"
+                                                className="h-12"
+                                                autoComplete="name"
+                                                value={field.state.value}
+                                                onBlur={field.handleBlur}
+                                                onChange={(event) => field.handleChange(event.target.value)}
+                                                aria-invalid={field.state.meta.errors.length > 0}
+                                                aria-describedby={field.state.meta.errors.length > 0 ? 'name-error' : undefined}
+                                            />
+                                            {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
+                                                <p id="name-error" role="alert" className="text-sm font-medium text-destructive">
+                                                    {field.state.meta.errors[0]?.message}
+                                                </p>
+                                            )}
+                                        </div>
                                     )}
+                                </form.Field>
 
-                                    {success && (
-                                        <Alert>
-                                            <AlertDescription>
-                                                {success}
-                                            </AlertDescription>
-                                        </Alert>
+                                <form.Field name="email">
+                                    {(field) => (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="email">Email Address</Label>
+                                            <Input
+                                                placeholder="john@example.com"
+                                                id="email"
+                                                type="email"
+                                                className="h-12"
+                                                autoComplete="username"
+                                                value={field.state.value}
+                                                onBlur={field.handleBlur}
+                                                onChange={(event) => field.handleChange(event.target.value)}
+                                                aria-invalid={field.state.meta.errors.length > 0}
+                                                aria-describedby={field.state.meta.errors.length > 0 ? 'email-error' : undefined}
+                                            />
+                                            {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
+                                                <p id="email-error" role="alert" className="text-sm font-medium text-destructive">
+                                                    {field.state.meta.errors[0]?.message}
+                                                </p>
+                                            )}
+                                        </div>
                                     )}
+                                </form.Field>
 
-                                    <Button
-                                        disabled={isLoading}
-                                        type="submit"
-                                        className="h-12 w-full text-base"
-                                    >
-                                        {isLoading && <Spinner />}
-                                        Create Account
-                                    </Button>
-                                </div>
-                            </form>
+                                <form.Field name="password">
+                                    {(field) => (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="password">Password</Label>
+                                            <Input
+                                                id="password"
+                                                type="password"
+                                                className="h-12"
+                                                autoComplete="new-password"
+                                                value={field.state.value}
+                                                onBlur={field.handleBlur}
+                                                onChange={(event) => field.handleChange(event.target.value)}
+                                                aria-invalid={field.state.meta.errors.length > 0}
+                                                aria-describedby={field.state.meta.errors.length > 0 ? 'password-error' : undefined}
+                                            />
+                                            {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
+                                                <p id="password-error" role="alert" className="text-sm font-medium text-destructive">
+                                                    {field.state.meta.errors[0]?.message}
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+                                </form.Field>
+
+                                <form.Field name="confirmPassword">
+                                    {(field) => (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="confirmPassword">Confirm Password</Label>
+                                            <Input
+                                                id="confirmPassword"
+                                                type="password"
+                                                className="h-12"
+                                                autoComplete="new-password"
+                                                value={field.state.value}
+                                                onBlur={field.handleBlur}
+                                                onChange={(event) => field.handleChange(event.target.value)}
+                                                aria-invalid={field.state.meta.errors.length > 0}
+                                                aria-describedby={field.state.meta.errors.length > 0 ? 'confirmPassword-error' : undefined}
+                                            />
+                                            {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
+                                                <p id="confirmPassword-error" role="alert" className="text-sm font-medium text-destructive">
+                                                    {field.state.meta.errors[0]?.message}
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+                                </form.Field>
+
+                                {authError && (
+                                    <Alert variant="destructive">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <AlertDescription>
+                                            {authError}
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
+
+                                {success && (
+                                    <Alert>
+                                        <AlertDescription>
+                                            {success}
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
+
+                                {/* Form-native submit state — replaces manual isLoading */}
+                                <form.Subscribe
+                                    selector={(state) => ({
+                                        canSubmit: state.canSubmit,
+                                        isSubmitting: state.isSubmitting,
+                                    })}
+                                >
+                                    {({ canSubmit, isSubmitting }) => (
+                                        <Button
+                                            disabled={!canSubmit}
+                                            type="submit"
+                                            className="h-12 w-full text-base"
+                                        >
+                                            {isSubmitting && <Spinner />}
+                                            Create Account
+                                        </Button>
+                                    )}
+                                </form.Subscribe>
+                            </div>
+                        </form>
                     </CardContent>
                 </Card>
                 <div className="text-muted-foreground text-center text-sm">

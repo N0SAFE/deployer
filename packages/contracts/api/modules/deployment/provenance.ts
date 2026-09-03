@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
     deploymentTemplateProvenanceByRunResultSchema,
     deploymentTemplateProvenanceSchema,
@@ -24,6 +24,7 @@ export const deploymentGetTemplateProvenanceContract = deploymentTemplateProvena
     .read({ idFieldName: "id", idSchema: z.uuid() })
     .input((b) => b.params((p) => p`/${p("id", z.uuid())}/template-provenance`))
     .output(deploymentTemplateProvenanceSchema.nullable())
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentUpsertTemplateProvenanceContract = deploymentTemplateProvenanceUpsertOps
@@ -34,10 +35,12 @@ export const deploymentUpsertTemplateProvenanceContract = deploymentTemplateProv
             .body(deploymentTemplateProvenanceUpsertInputSchema),
     )
     .output(deploymentTemplateProvenanceUpsertResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentGetTemplateProvenanceByRunContract = deploymentTemplateProvenanceByRunOps
     .list()
     .input((b) => b.params((p) => p`/runs/${p("runId", z.uuid())}/template-provenance`))
     .output(deploymentTemplateProvenanceByRunResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

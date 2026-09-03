@@ -7,10 +7,12 @@ import type { CaseFormatConfig } from "./utils/case-utils";
 import type { DataTransformFunction, ExportableData } from "./utils/export-utils";
 
 /** Column definition extended with meta and accessorKey for header rendering. */
-interface ColumnDefWithMeta<TData = unknown> extends ColumnDef<TData> {
+// NOTE: type alias, not interface — `ColumnDef<TData>` is a complex
+// intersection type that interfaces cannot extend.
+type ColumnDefWithMeta<TData = unknown> = ColumnDef<TData> & {
   meta?: { title?: string };
   accessorKey?: string;
-}
+};
 
 // ** import core packages
 import {
@@ -36,15 +38,15 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/shadcn/table";
-import { Skeleton } from "@/components/shadcn/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/shadcn/alert";
+} from "../shadcn/table";
+import { Skeleton } from "../shadcn/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "../shadcn/alert";
 import { DataTablePagination } from "./pagination";
 import { DataTableToolbar } from "./toolbar";
 import { DataTableResizer } from "./data-table-resizer";
 
 // ** import utils
-import { cn } from "@/lib/utils";
+import { cn } from "../../lib/utils";
 import { useTableConfig } from "./utils/table-config";
 import { useTableColumnResize } from "./hooks/use-table-column-resize";
 import { preprocessSearch } from "./utils/search";

@@ -1,9 +1,5 @@
 import * as z from "zod";
-import { standard } from "@repo/orpc-utils";
-
-const serviceDependencyAddParamsSchema = z.object({
-  id: z.uuid(),
-});
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 
 const serviceDependencyAddBodySchema = z.object({
   dependsOnServiceId: z.uuid(),
@@ -15,7 +11,8 @@ const serviceDependencyAddOutputSchema = z.object({
   serviceId: z.uuid(),
   dependsOnServiceId: z.uuid(),
   isRequired: z.boolean(),
-  createdAt: z.date(),
+  // The API returns ISO-8601 strings, not Date objects.
+  createdAt: z.string(),
 });
 
 const serviceDependencyAddOps = standard.zod(serviceDependencyAddOutputSchema, "serviceDependencyAdd");
@@ -23,11 +20,13 @@ const serviceDependencyAddOps = standard.zod(serviceDependencyAddOutputSchema, "
 export const serviceAddDependencyContract = serviceDependencyAddOps
   .create()
   .summary("Add service dependency")
-  .path("/:id/dependencies")
-  .input((input) =>
-    input
-      .params(serviceDependencyAddParamsSchema)
+  // path-template params form (schema-only `.input(params(schema))` does not
+  // wire URL substitution in the OpenAPI client).
+  .input((b) =>
+    b
+      .params((p) => p`/${p("id", z.uuid())}/dependencies`)
       .body(serviceDependencyAddBodySchema),
   )
   .output(serviceDependencyAddOutputSchema)
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

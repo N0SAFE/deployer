@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
     deploymentNodeLifecycleEventEmitInputSchema,
     deploymentNodeLifecycleEventEmitResultSchema,
@@ -29,6 +29,7 @@ export const deploymentEmitNodeLifecycleEventContract = deploymentLifecycleEvent
             .body(deploymentNodeLifecycleEventEmitInputSchema),
     )
     .output(deploymentNodeLifecycleEventEmitResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentListNodeLifecycleEventsContract = deploymentLifecycleEventListOps
@@ -39,6 +40,7 @@ export const deploymentListNodeLifecycleEventsContract = deploymentLifecycleEven
             .query(deploymentNodeLifecycleEventListInputSchema.omit({ runId: true })),
     )
     .output(deploymentNodeLifecycleEventListResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentNodeLifecycleEventsStreamContract = deploymentLifecycleEventStreamOps
@@ -55,4 +57,5 @@ export const deploymentNodeLifecycleEventsStreamContract = deploymentLifecycleEv
             ),
     )
     .output((b) => b.observable(deploymentNodeLifecycleEventSchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

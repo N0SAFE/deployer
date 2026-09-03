@@ -7,13 +7,14 @@ import { HealthService } from '@/modules/health/services/health.service';
 import { HealthRepository } from '@/modules/health/repositories/health.repository';
 import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service';
 import { GLOBAL_DATABASE_CONNECTION } from '@/core/modules/database/database-connection';
+import { SupervisorsModule } from '@/core/modules/supervisors/supervisors.module';
 
 describe('HealthModule', () => {
   let module: TestingModule;
 
   beforeEach(async () => {
     module = await Test.createTestingModule({
-      imports: [HealthModule],
+      imports: [HealthModule, SupervisorsModule],
     })
     .overrideProvider(ConfigService)
     .useValue({

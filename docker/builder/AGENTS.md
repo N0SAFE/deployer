@@ -62,7 +62,7 @@ flowchart TB
 Common system dependencies for all subsequent stages.
 
 ```dockerfile
-FROM oven/bun:1.3.14-alpine AS base
+FROM oven/bun:1.4.0-alpine AS base
 RUN apk add --no-cache libc6-compat curl bash python3 make g++ gcc musl-dev tar
 RUN --mount=type=cache,target=/root/.bun bun install -g turbo@^2
 WORKDIR /app
@@ -241,12 +241,18 @@ COPY --from=pruner-full /app/package.json ./package.json
 COPY --from=pruner-full /app/turbo.json ./turbo.json
 
 # Copy node_modules via tar to preserve symlinks
+# IMPORTANT: `cd /mnt/installer` MUST happen BEFORE the globs are expanded.
+# The globs `apps/*/node_modules` etc. are expanded by the shell relative to
+# the current working directory. If they run from /app (the runner's dir), they
+# only match node_modules dirs that already exist in the pruned source — and
+# apps/<app>/node_modules is NOT part of the source, so it would be silently
+# skipped and never copied, breaking module resolution at runtime.
 RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
+    cd /mnt/installer && \
     PATHS="node_modules"; \
     for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules; do \
-        [ -d "/mnt/installer/$d" ] && PATHS="$PATHS $d"; \
+        [ -d "$d" ] && PATHS="$PATHS $d"; \
     done && \
-    cd /mnt/installer && \
     tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
     tar -xf - -C /app --owner=root --group=root
 ```
@@ -442,15 +448,21 @@ The fix is to pass ALL paths as arguments to ONE `tar -cf -` invocation, so a si
 
 ````dockerfile
 RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
+    # IMPORTANT: `cd /mnt/installer` MUST happen BEFORE the globs are expanded.
+    # The globs `apps/*/node_modules` etc. are expanded by the shell relative to
+    # the current working directory. If they run from /app (the runner's dir),
+    # they only match node_modules dirs that already exist in the pruned source
+    # — and apps/<app>/node_modules is NOT part of the source, so it would be
+    # silently skipped and never copied, breaking module resolution at runtime.
+    cd /mnt/installer && \
     # Build the path list first, only including existing directories
     # (avoids shell glob errors when no matches at a given depth)
     PATHS="node_modules"; \
     for d in apps/*/node_modules \
              packages/*/node_modules \
              packages/*/*/node_modules; do \
-        [ -d "/mnt/installer/$d" ] && PATHS="$PATHS $d"; \
+        [ -d "$d" ] && PATHS="$PATHS $d"; \
     done && \
-    cd /mnt/installer && \
     # Single tar -cf with all paths as args → single tar archive
     # Excludes *.map source maps, .cache and .turbo noise
     tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
@@ -526,9 +538,9 @@ this line.
 
 ### Resulting stage count
 
-- `api` / `web` / `load-balancer` dev: 5 stages (`base → pruner-json → pruner-full → installer → runner`)
+- `api` / `web` / `doc` dev: 5 stages (`base → pruner-json → pruner-full → installer → runner`)
 - `api.cli` dev: 5 stages (`base → pruner-json → pruner-full → installer → runner`)
-- `api` / `web` / `load-balancer` prod: 6 stages (`base → pruner-json → pruner-full → installer → builder → runner`)
+- `api` / `web` / `doc` prod: 6 stages (`base → pruner-json → pruner-full → installer → builder → runner`)
 - `doc` dev: 5 stages (with the extra `source.config.ts` copy in the installer)
 - `doc` prod: 6 stages (no extra copy needed)
 
@@ -564,7 +576,7 @@ RUN --mount=type=cache,target=/app/.turbo,sharing=locked,id=turbo-api-dev \
     bun x turbo run build --filter=api... --filter=!api
 ````
 
-Use a distinct `id` per service (`turbo-api-dev`, `turbo-web-dev`, `turbo-doc-dev`, `turbo-load-balancer-dev`) so each service has its own persistent cache.
+Use a distinct `id` per service (`turbo-api-dev`, `turbo-web-dev`, `turbo-doc-dev`) so each service has its own persistent cache.
 
 ---
 
@@ -589,9 +601,6 @@ docker/builder/
 │   ├── Dockerfile.doc.dev                   # Doc dev build
 │   ├── Dockerfile.doc.build-time.prod       # Doc prod, build at build-time
 │   └── Dockerfile.doc.runtime.prod          # Doc prod, build at container start
-└── load-balancer/
-    ├── Dockerfile.load-balancer.dev         # Load balancer dev build
-    └── Dockerfile.load-balancer.prod        # Load balancer prod build
 ```
 
 ---

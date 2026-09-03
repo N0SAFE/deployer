@@ -40,6 +40,10 @@ export class LoggerMiddleware implements NestMiddleware {
             })()
             if (statusCode >= 500) {
                 this.logger.error(`[${hostname}] "${method} ${greenPath}" ${statusCodeColorized} ${statusMessage} ${String(contentLength)} "${referer}" "${userAgent}" "${String(ip)}"`);
+            } else if (statusCode >= 400) {
+                // 4xx are actionable (validation/auth/not-found) — log at warn
+                // so they're visible without enabling full debug logging.
+                this.logger.warn(`[${hostname}] "${method} ${greenPath}" ${statusCodeColorized} ${statusMessage} ${String(contentLength)} "${referer}" "${userAgent}" "${String(ip)}"`);
             } else {
                 this.logger.debug(`[${hostname}] "${method} ${greenPath}" ${statusCodeColorized} ${statusMessage} ${String(contentLength)} "${referer}" "${userAgent}" "${String(ip)}"`);
             }

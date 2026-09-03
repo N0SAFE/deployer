@@ -99,8 +99,8 @@ describe("DockerRuntimeStreamOrchestratorService", () => {
 
         const events = await firstValueFrom(
             service.stream({
-                since: "2026-01-01T10:00:30.000Z",
-                until: "2026-01-01T10:01:30.000Z",
+                since: new Date("2026-01-01T10:00:30.000Z"),
+                until: new Date("2026-01-01T10:01:30.000Z"),
                 filter: {
                     source: {
                         operator: "eq",
@@ -557,10 +557,12 @@ describe("DockerRuntimeStreamOrchestratorService", () => {
                         {
                             action: {
                                 operator: "in",
+                                // Legacy JSON-safe wire encoding: indexed-object
+                                // in-values (runtime normalizes via toUnknownArray).
                                 value: {
                                     "0": "metrics",
                                     "1": "start",
-                                },
+                                } as unknown as string[],
                             },
                         },
                     ],
@@ -634,23 +636,25 @@ describe("DockerRuntimeStreamOrchestratorService", () => {
         const events = await firstValueFrom(
             service.stream({
                 filter: {
-                    _and: {
-                        "0": {
+                    _and: [
+                        {
                             source: {
                                 operator: "eq",
                                 value: "container",
                             },
                         },
-                        "1": {
+                        {
                             action: {
                                 operator: "in",
+                                // Legacy JSON-safe wire encoding: indexed-object
+                                // in-values (runtime normalizes via toUnknownArray).
                                 value: {
                                     "0": "metrics",
                                     "1": "start",
-                                },
+                                } as unknown as string[],
                             },
                         },
-                    },
+                    ],
                 },
             }).pipe(toArray()),
         );
@@ -804,7 +808,12 @@ describe("DockerRuntimeStreamOrchestratorService", () => {
         );
 
         expect(events).toHaveLength(1);
-        expect(events[0]?.payload.containerId).toBe("0123456789abcdef");
+        const payload = events[0]?.payload;
+        if (payload && "containerId" in payload) {
+            expect(payload.containerId).toBe("0123456789abcdef");
+        } else {
+            throw new Error("expected a container runtime payload");
+        }
     });
 
     it("streams image inspect details with runtime-trigger and polling inputs", async () => {

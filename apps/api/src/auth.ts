@@ -1,9 +1,11 @@
+import { drizzle } from "drizzle-orm/node-postgres";
 import { createBetterAuth } from "./config/auth/auth";
+import * as authSchema from "./config/drizzle/global/schema/auth";
 
 export type Auth = ReturnType<typeof createBetterAuth>["auth"];
 
 // Export an auth instance using the factory with config object directly
-export const auth = createBetterAuth(null, {
+export const auth = createBetterAuth(drizzle.mock({ schema: authSchema }), {
   DEV_AUTH_KEY: process.env.DEV_AUTH_KEY,
   DEFAULT_ADMIN_EMAIL: process.env.DEFAULT_ADMIN_EMAIL,
   NODE_ENV: process.env.NODE_ENV ?? 'development',

@@ -9,11 +9,9 @@ import type {
     CoreEventStreamDefinition,
     CoreSyncedEventEnvelope,
 } from "@repo/contracts-entities";
-import type { BaseEventService } from "../base-event.service";
-import type { EventContracts, EventInput, EventOutput } from "../event-contract.builder";
+import type { BaseEventService, EventContracts, EventInput, EventOutput } from "@repo/nest-events";
+import { AbstractDomainEventStreamService, CoreEventStreamPoolService } from "@repo/nest-events";
 import { CoreEventStreamRepository } from "../repositories/core-event-stream.repository";
-import { AbstractDomainEventStreamService } from "./abstract-domain-event-stream.service";
-import { CoreEventStreamPoolService } from "./core-event-stream-pool.service";
 
 export interface CoreEventAdapterEvent {
     eventName: string;
@@ -179,9 +177,7 @@ export class CoreEventServiceQueryBuilder<TRow extends CoreEventQueryRow> {
                 };
             }),
             rxFilter(
-                (
-                    value,
-                ): value is TRow & Record<AliasForService<TService, TAlias>, SelectedServiceEnvelope<TService, K> | null> =>
+                (value): value is NonNullable<typeof value> =>
                     value !== null,
             ),
         );
@@ -464,9 +460,13 @@ export class CoreEventNamespaceBuilder<TService extends BaseEventService<any> | 
         return this;
     }
 
-    fromEventService<T extends BaseEventService<any>>(eventService: T): this {
+    fromEventService<T extends BaseEventService<any>>(eventService: T): CoreEventNamespaceBuilder<T> {
         this.eventService = eventService;
-        return this;
+        // Re-type the builder with the concrete event service so later
+        // `.select(name, input)` is checked against the REAL contracts of that
+        // service (previously the class generic stayed `null` → select's input
+        // resolved to never and every typed selection failed to compile).
+        return this as unknown as CoreEventNamespaceBuilder<T>;
     }
 
     select<K extends EventNamesOf<NonNullable<TService>>>(
@@ -684,7 +684,7 @@ export class CoreEventSyncService extends AbstractDomainEventStreamService {
         );
     }
 
-    async listStreams(input: CoreEventStreamListInput) {
+    async listStreams(input: CoreEventStreamListInput | undefined) {
         return this.repository.findMany(input);
     }
 

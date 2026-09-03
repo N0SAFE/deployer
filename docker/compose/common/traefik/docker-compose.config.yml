@@ -1,0 +1,25 @@
+# =====================================================================
+# Traefik BASE config — INCLUDE-ONLY (real base: image, command, ports,
+# shared volume + docker socket). Extended by orchestrators that
+# compose-manage the ingress (MANAGED_TRAEFIK_ENABLED); the API still
+# WRITES the dynamic config into the shared volume.
+# =====================================================================
+services:
+  traefik:
+    image: ${MANAGED_TRAEFIK_IMAGE:-traefik:v3.6}
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.file.directory=/config
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+    ports:
+      - "${MANAGED_TRAEFIK_HTTP_PORT:-80}:80"
+    volumes:
+      # Config files are shared via a NAMED VOLUME: the API writes them under
+      # /app/traefik-configs (mounted from the volume by compose) and this
+      # container mounts the same volume ro at /config.
+      - ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}:/config:ro
+      # Container discovery / routing.
+      - /var/run/docker.sock:/var/run/docker.sock:ro

@@ -380,8 +380,11 @@ export class DockerRuntimeStreamOrchestratorService {
             }));
         }
 
-        if (query.filter && this.isRuntimeEventFilterNode(query.filter)) {
-            stream$ = stream$.pipe(filter((event) => this.matchesRuntimeEventFilter(event, query.filter)));
+        if (query.filter) {
+            const filterNode = query.filter;
+            if (this.isRuntimeEventFilterNode(filterNode)) {
+                stream$ = stream$.pipe(filter((event) => this.matchesRuntimeEventFilter(event, filterNode)));
+            }
         }
 
         const sinceEpoch = this.parseTimestamp(query.since);

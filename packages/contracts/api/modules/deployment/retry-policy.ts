@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
     deploymentRetryPolicyCatalogResultSchema,
     deploymentRetryPolicyListInputSchema,
@@ -20,6 +20,7 @@ export const deploymentListRetryPoliciesContract = deploymentRetryPolicyCatalogO
     .path("/retry-policies")
     .input((b) => b.query(deploymentRetryPolicyListInputSchema))
     .output(deploymentRetryPolicyCatalogResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentResolveRetryPolicyContract = deploymentRetryPolicyResolveOps
@@ -27,4 +28,5 @@ export const deploymentResolveRetryPolicyContract = deploymentRetryPolicyResolve
     .path("/retry-policies/resolve")
     .input((b) => b.body(deploymentRetryPolicyResolveInputSchema))
     .output(deploymentRetryPolicyResolveResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

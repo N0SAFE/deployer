@@ -12,6 +12,7 @@ import { DockerKeyValueGrid } from './docker-key-value-grid'
 import { DockerDetailLoadingState } from './docker-loading-states'
 import { DockerModalQuickActions } from './docker-modal-quick-actions'
 import { toast } from 'sonner'
+import type { DockerFileEntry } from '@repo/contracts-entities'
 
 interface DockerVolumeDetailModalTriggerProps {
   id: string
@@ -29,6 +30,12 @@ export function DockerVolumeDetailModalTrigger({ id, children, className, initia
   const detailQuery = useDockerRuntimeEntityDetail('volumes', id, { enabled: open })
   const detail = detailQuery.data
   const isDetailLoading = detailQuery.isLoading && !detail
+
+  const files = useMemo<DockerFileEntry[]>(() => {
+    if (!detail) return []
+    const rawFiles = (detail as { files?: unknown }).files ?? []
+    return Array.isArray(rawFiles) ? (rawFiles as DockerFileEntry[]) : []
+  }, [detail])
 
   const selectedFile = useMemo(() => {
     if (!selectedFilePath) return null
@@ -153,23 +160,16 @@ export function DockerVolumeDetailModalTrigger({ id, children, className, initia
                   selectedFilePath={selectedFilePath}
                   notice={`Volume root: ${detail.mountpoint ?? '/'}`}
                   onCurrentPathChange={setCurrentPath}
-                  onSelectedFilePathChange={setSelectedFilePath}
-                    if (selectedFile?.path === file.path) return selectedFilePreview
-                    const name = file.path.split('/').pop() ?? file.path
-                    return [
-                      `# ${name}`,
-                      '',
-                      `Path: ${file.path}`,
-                      `Owner: ${file.owner}`,
-                      `Permissions: ${file.permissions}`,
-                      `Updated: ${file.updatedAt}`,
-                    ].join('\n')
+                  onSelectedFilePathChange={(path) => {
+                    if (selectedFile?.path === path) return
+                    setSelectedFilePath(path)
                   }}
+                  getFilePreviewContent={(_file) => selectedFilePreview}
                 />
               </TabsContent>
 
               <TabsContent value="labels" className="space-y-2 text-sm">
-                {Object.entries(detail.labels).length > 0 ? Object.entries(detail.labels).map(([key, value]) => (
+                {Object.entries(detail.labels ?? {}).length > 0 ? Object.entries(detail.labels).map(([key, value]) => (
                   <div key={key} className="rounded border p-3 flex items-center justify-between gap-3">
                     <span className="text-muted-foreground">{key}</span>
                     <code className="text-xs font-mono break-all">{value}</code>

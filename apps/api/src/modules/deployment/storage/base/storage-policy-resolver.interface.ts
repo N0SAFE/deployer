@@ -5,7 +5,7 @@ import type { DeploymentStoragePolicy } from "./storage-policy.schema";
 export interface ResolveDeploymentStoragePolicyInput {
     serviceId: string;
     serviceMetadata: Record<string, unknown> | null | undefined;
-    sourceConfig: DeploymentTriggerInput["sourceConfig"];
+    source: DeploymentTriggerInput["source"];
     runtimeConfiguration: ResolvedRuntimeConfiguration;
 }
 

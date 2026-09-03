@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { z } from "zod/v4";
+import z from "zod/v4";
 import { meshBaseResourceContract } from "@repo/api-contracts/modules/mesh/resource/mesh-base-resource.contract";
 
 describe("MeshBaseResourceContract", () => {

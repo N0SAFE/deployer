@@ -12,7 +12,7 @@
         "./validation": "./src/validation/index.ts"
     },
     "scripts": {
-        "type-check": "tsgo --noEmit",
+        "type-check": "tsc --noEmit",
         "test": "vitest run"
     },
     "dependencies": {
@@ -21,8 +21,8 @@
     },
     "devDependencies": {
         "@repo/config-typescript": "*",
-        "@typescript/native-preview": "catalog:build",
         "vitest": "catalog:testing",
-        "@vitest/coverage-v8": "catalog:testing"
+        "@vitest/coverage-v8": "catalog:testing",
+        "typescript": "catalog:build"
     }
 }

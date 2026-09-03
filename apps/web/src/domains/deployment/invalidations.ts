@@ -2,7 +2,7 @@
  * Deployment Domain - Cache Invalidation Configuration
  */
 
-import { defineInvalidations } from '../shared/helpers'
+import { defineInvalidations, type InvalidationConfig } from '../shared/helpers'
 import { deploymentEndpoints } from './endpoints'
 
 function resolveDeploymentId(input: unknown): string | undefined {
@@ -11,7 +11,9 @@ function resolveDeploymentId(input: unknown): string | undefined {
   return c.id ?? c.params?.id
 }
 
-export const deploymentInvalidations = defineInvalidations(deploymentEndpoints, {
+export const deploymentInvalidations: ReturnType<
+  typeof defineInvalidations<typeof deploymentEndpoints, InvalidationConfig<typeof deploymentEndpoints>>
+> = defineInvalidations(deploymentEndpoints, {
   trigger: ({ keys }) => [keys.list()],
 
   cancel: ({ input, keys }) => {
@@ -35,5 +37,11 @@ export const deploymentInvalidations = defineInvalidations(deploymentEndpoints, 
     return id
       ? [keys.findById({ input: { params: { id } } }), keys.list()]
       : [keys.list()]
+  },
+
+  promoteServicePreview: ({ input, keys }) => {
+    const serviceId = (input as { params?: { serviceId?: string } }).params?.serviceId
+    if (!serviceId) return []
+    return [keys.listServicePreviews({ input: { params: { serviceId } } })]
   },
 })

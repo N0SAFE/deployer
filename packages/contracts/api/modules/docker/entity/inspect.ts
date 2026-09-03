@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerEntityStreamChunkSchema } from "@repo/contracts-entities";
 import { dockerEntityInspectInputSchema } from "./shared";
 import z from "zod/v4";
@@ -19,4 +19,8 @@ export const dockerEntityInspectContract = dockerEntityInspectOps
   .path("/inspect")
   .input((b) => b.body(dockerEntityInspectInputSchema))
   .output((b) => b.body(dockerEntityInspectResponseSchema))
+  .errors((e) => [
+    // 400 unsupported entity kind.
+    ...standardDomainErrorContracts(e),
+  ])
   .build()

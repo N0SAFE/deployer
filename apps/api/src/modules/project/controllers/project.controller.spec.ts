@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ProjectController } from '@/modules/project/controllers/project.controller';
 import { ProjectService } from '@/modules/project/services/project.service';
+import { ProjectNetworkService } from '@/modules/project/services/project-network.service';
 
 // Create a chainable mock for implement().use().handler()
 function createImplementMock() {
@@ -86,6 +87,13 @@ describe('ProjectController', () => {
                 {
                     provide: ProjectService,
                     useFactory: () => mockProjectService,
+                },
+                {
+                    provide: ProjectNetworkService,
+                    useFactory: () => ({
+                        getNetwork: vi.fn(),
+                        saveNetwork: vi.fn(),
+                    }),
                 },
             ],
         }).compile();

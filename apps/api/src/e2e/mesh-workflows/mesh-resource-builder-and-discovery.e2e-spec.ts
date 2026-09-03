@@ -86,13 +86,13 @@ describe('real mesh resource builder and discovery e2e', () => {
     expect(typeof builder.where).toBe('function')
     expect(typeof builder.select).toBe('function')
     expect(typeof builder.orderBy).toBe('function')
-    expect(typeof builder.execute).toBe('function')
+    expect(typeof builder.request).toBe('function')
 
     const result = await builder
       .where({ environment: 'prod', status: 'running' })
       .orderBy('createdAt', 'desc')
       .limit(50)
-      .execute()
+      .request()
 
     expect(Array.isArray(result.items)).toBe(true)
     expect(typeof result.total).toBe('number')

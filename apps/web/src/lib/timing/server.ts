@@ -36,7 +36,7 @@ export async function serverTiming<T>(
     return result
   } catch (error) {
     const duration = performance.now() - start
-    timingLogger.error(`[Server] ${label}: FAILED after ${duration.toFixed(2)}ms`)
+    timingLogger.log.error(`[Server] ${label}: FAILED after ${duration.toFixed(2)}ms`)
     throw error
   }
 }

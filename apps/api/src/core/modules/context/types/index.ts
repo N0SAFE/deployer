@@ -1,5 +1,6 @@
 import type { EnvName } from '@repo/contracts-common';
 
+import { AppError } from "@repo/errors";
 /**
  * Service Context System
  * 
@@ -31,12 +32,8 @@ export interface ServiceDomainMapping {
   /** Computed full URL (e.g., "https://api.example.com/path") */
   fullUrl: string;
   
-  /** Organization domain details */
-  organizationDomain: {
-    id: string;
-    domain: string;
-    verificationStatus: 'verified' | 'pending' | 'failed';
-  };
+  /** The project domain (direct-domain model) */
+  domain: string;
 }
 
 /**
@@ -236,7 +233,7 @@ export class ServiceContextBuilder {
   
   build(): ServiceContext {
     if (!this.serviceData.service) {
-      throw new Error('Service information is required');
+      throw new AppError('Service information is required', 'INTERNAL_ERROR');
     }
     
     const context: ServiceContext = {
@@ -265,7 +262,7 @@ export class ServiceContextBuilder {
       
       getProjectContext: () => {
         if (!this.projectContextRef) {
-          throw new Error('Project context not available');
+          throw new AppError('Project context not available', 'INTERNAL_ERROR');
         }
         return this.projectContextRef;
       },
@@ -309,7 +306,7 @@ export class ProjectContextBuilder {
   
   build(): ProjectContext {
     if (!this.projectData.project) {
-      throw new Error('Project information is required');
+      throw new AppError('Project information is required', 'INTERNAL_ERROR');
     }
     
     const projectContext: ProjectContext = {

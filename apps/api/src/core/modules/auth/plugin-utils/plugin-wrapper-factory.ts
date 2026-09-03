@@ -16,16 +16,12 @@
 import {
   PluginWrapperRegistry,
   AdminPermissionsPlugin,
-  OrganizationsPermissionsPlugin,
   // Import builders for type inference
   platformBuilder,
-  organizationBuilder,
   type InferSessionFromAuth,
   type ApiMethodsWithAdminPlugin,
-  type ApiMethodsWithOrganizationPlugin,
 } from "@repo/auth/permissions";
 import { AdminMiddlewareDefinition } from "./middleware/admin.middleware-definition";
-import { OrganizationMiddlewareDefinition } from "./middleware/organization.middleware-definition";
 
 // ============================================================================
 // Type Exports for Plugin Wrappers
@@ -38,9 +34,6 @@ import { OrganizationMiddlewareDefinition } from "./middleware/organization.midd
 /** Platform permission builder type */
 export type PlatformBuilder = typeof platformBuilder;
 
-/** Organization permission builder type */
-export type OrganizationBuilder = typeof organizationBuilder;
-
 /**
  * Typed AdminPermissionsPlugin configured with our platform permissions
  * Use this type when you need to annotate admin plugin parameters or returns
@@ -51,21 +44,11 @@ export type AdminPluginWrapper<TAuth extends ApiMethodsWithAdminPlugin<PlatformB
 >;
 
 /**
- * Typed OrganizationsPermissionsPlugin configured with our organization permissions
- * Use this type when you need to annotate organization plugin parameters or returns
- */
-export type OrganizationPluginWrapper<TAuth extends ApiMethodsWithOrganizationPlugin<OrganizationBuilder> = ApiMethodsWithOrganizationPlugin<OrganizationBuilder>> = OrganizationsPermissionsPlugin<
-  OrganizationBuilder,
-  TAuth
->;
-
-/**
  * Plugin registry interface - the record of all available plugins
  * Returned by getAll() method
  */
 export interface PluginRegistry {
   admin: AdminPluginWrapper;
-  organization: OrganizationPluginWrapper;
 }
 
 // ============================================================================
@@ -91,22 +74,17 @@ export interface PluginRegistry {
  * // Get all plugins at once (typed as PluginRegistry)
  * const plugins = registry.getAll(headers);
  * await plugins.admin.createUser({ ... });
- * await plugins.organization.createOrganization({ ... });
  * 
  * // Or get single plugin
  * const admin = registry.create('admin', headers);
  * await admin.setRole(userId, 'admin');
  * ```
  */
-export function createPluginRegistry<TAuth extends ApiMethodsWithAdminPlugin<PlatformBuilder> & ApiMethodsWithOrganizationPlugin<OrganizationBuilder>>(auth: TAuth) {
+export function createPluginRegistry<TAuth extends ApiMethodsWithAdminPlugin<PlatformBuilder>>(auth: TAuth) {
   return new PluginWrapperRegistry<TAuth>(auth)
     .register(
       'admin',
       createAdminWrapper
-    )
-    .register(
-      'organization',
-      createOrganizationWrapper
     );
 }
 
@@ -155,34 +133,6 @@ export function createAdminWrapper<TAuth extends ApiMethodsWithAdminPlugin<Platf
 }
 
 /**
- * Create an OrganizationPluginWrapper instance directly
- * Convenience function for when you don't need the full registry
- * 
- * @param auth - Better Auth instance
- * @param headers - Request headers for API calls
- * @param session - Optional cached session to avoid redundant getSession() calls
- * @returns Typed OrganizationPluginWrapper
- * 
- * @example
- * ```typescript
- * const orgPlugin = createOrganizationWrapper(auth, context.headers, session);
- * await orgPlugin.createOrganization({ ... });
- * ```
- */
-export function createOrganizationWrapper<TAuth extends ApiMethodsWithOrganizationPlugin<OrganizationBuilder>>(
-  auth: TAuth,
-  headers: Headers,
-  session?: InferSessionFromAuth<TAuth> | null
-) {
-  return new OrganizationsPermissionsPlugin({
-    auth,
-    headers,
-    permissionBuilder: organizationBuilder,
-    session: session ?? undefined,
-  });
-}
-
-/**
  * Creates middleware definitions with lazy plugin instantiation.
  * 
  * The plugin is NOT created upfront. Instead, a factory function is provided
@@ -191,7 +141,7 @@ export function createOrganizationWrapper<TAuth extends ApiMethodsWithOrganizati
  * 
  * @param auth - The Better Auth instance
  * @param registry - The plugin registry for creating plugin instances
- * @returns Middleware definitions for admin and organization plugins
+ * @returns Middleware definitions for admin plugins
  * 
  * @example
  * ```typescript
@@ -207,19 +157,12 @@ export function createOrganizationWrapper<TAuth extends ApiMethodsWithOrganizati
  * ```
  */
 export function createPluginMiddlewares<
-  TAuth extends ApiMethodsWithAdminPlugin<PlatformBuilder> & ApiMethodsWithOrganizationPlugin<OrganizationBuilder>
+  TAuth extends ApiMethodsWithAdminPlugin<PlatformBuilder>
 >(auth: TAuth, registry: ReturnType<typeof createPluginRegistry<TAuth>>) {
   return {
     admin: new AdminMiddlewareDefinition<typeof platformBuilder, TAuth>(
       (context) => registry.create(
         'admin',
-        context.headers,
-        context.session
-      )
-    ),
-    organization: new OrganizationMiddlewareDefinition<typeof organizationBuilder, TAuth>(
-      (context) => registry.create(
-        'organization',
         context.headers,
         context.session
       )

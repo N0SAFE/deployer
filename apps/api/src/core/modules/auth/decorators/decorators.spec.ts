@@ -1,8 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { ExecutionContext } from "@nestjs/common";
 import {
-    Public,
-    Optional,
     AllowAnonymous,
     OptionalAuth,
     BeforeHook,
@@ -38,23 +36,6 @@ describe("Auth Decorators", () => {
         });
     });
 
-    describe("Public (deprecated alias)", () => {
-        it("should set PUBLIC metadata to true", () => {
-            const decorator = Public();
-
-            expect(decorator).toBeDefined();
-            expect(typeof decorator).toBe("function");
-        });
-    });
-
-    describe("Optional (deprecated alias)", () => {
-        it("should set OPTIONAL metadata to true", () => {
-            const decorator = Optional();
-
-            expect(decorator).toBeDefined();
-            expect(typeof decorator).toBe("function");
-        });
-    });
 
     describe("Session", () => {
         it("should extract session from request", () => {

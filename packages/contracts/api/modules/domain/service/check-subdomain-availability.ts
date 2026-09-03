@@ -12,4 +12,7 @@ export const checkSubdomainAvailabilityContract = checkSubdomainAvailabilityOps
         }),
     )
     .output(subdomainAvailabilityResponseSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
+
+import { standardDomainErrorContracts } from "@repo/orpc-utils";

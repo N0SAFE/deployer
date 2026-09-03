@@ -16,7 +16,6 @@ import {
 import { useDockerLiveRefetch } from '@/domains/docker/use-docker-live'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
 import {
   Table,
   TableBody,
@@ -25,8 +24,10 @@ import {
   TableHeader,
   TableRow,
 } from '@repo/ui/components/shadcn/table'
-import { Bot, Boxes, Cpu, HardDrive, Network, Shield } from 'lucide-react'
+import { Bot, Boxes } from 'lucide-react'
 import type { DockerContainer } from '@repo/contracts-entities'
+import { cn } from '@/lib/utils'
+import { EnvironmentBadge, StatusBadge } from '@/components/dashboard'
 
 const DOCKER_LIST_INPUT = {
   query: {
@@ -50,16 +51,6 @@ function formatDate(value: string | null | undefined): string {
 
 function shortId(id: string): string {
   return id.slice(0, 8)
-}
-
-function toBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-  const normalized = status.toLowerCase()
-  if (normalized === 'success' || normalized === 'active' || normalized === 'healthy') return 'default'
-  if (normalized === 'failed' || normalized === 'error' || normalized === 'down') return 'destructive'
-  if (normalized === 'pending' || normalized === 'queued' || normalized === 'building' || normalized === 'deploying') {
-    return 'secondary'
-  }
-  return 'outline'
 }
 
 interface ContainerProjection {
@@ -153,58 +144,6 @@ export default function DashboardDockerPage() {
     return new Set(services.map((service) => service.projectId)).size
   }, [services])
 
-  const dockerNodeDiagnostics = useMemo(() => {
-    return fleetServers.map((server, index) => {
-      const cpuMillicores = server.maxCpuMillicores ?? 1000
-      const memoryMb = server.maxMemoryMb ?? 1024
-      const cores = Math.max(1, Math.round(cpuMillicores / 1000))
-      const memoryGb = (memoryMb / 1024).toFixed(1)
-      const engineMinor = 6 + (index % 3)
-      const apiMinor = 44 + (index % 2)
-
-      return {
-        nodeId: server.nodeId,
-        displayName: server.displayName,
-        engineVersion: `24.0.${String(engineMinor)}`,
-        apiVersion: `1.${String(apiMinor)}`,
-        containerdVersion: `1.7.${String(11 + (index % 4))}`,
-        runcVersion: `1.1.${String(12 + (index % 3))}`,
-        kernelVersion: `6.${String(5 + index)}.0`,
-        os: 'Ubuntu 24.04 LTS',
-        arch: 'x86_64',
-        cgroupVersion: index % 2 === 0 ? 'v2' : 'v1',
-        storageDriver: index % 2 === 0 ? 'overlay2' : 'fuse-overlayfs',
-        loggingDriver: index % 2 === 0 ? 'json-file' : 'local',
-        securityProfile: index % 2 === 0 ? 'AppArmor + seccomp' : 'seccomp',
-        rootless: index % 3 === 0,
-        cpus: cores,
-        memoryGb,
-        queueDepth: server.metrics?.queueDepth ?? 0,
-      }
-    })
-  }, [fleetServers])
-
-  const dockerOverviewFacts = useMemo(() => {
-    const totalCpu = fleetServers.reduce((sum, server) => sum + (server.maxCpuMillicores ?? 0), 0)
-    const totalMemory = fleetServers.reduce((sum, server) => sum + (server.maxMemoryMb ?? 0), 0)
-    const swarmMode = fleetServers.length > 1 ? 'active' : 'inactive'
-    const liveRestore = fleetServers.some((server) => server.healthy)
-
-    return {
-      engine: dockerNodeDiagnostics[0]?.engineVersion ?? '24.0.7',
-      api: dockerNodeDiagnostics[0]?.apiVersion ?? '1.45',
-      containerd: dockerNodeDiagnostics[0]?.containerdVersion ?? '1.7.14',
-      runc: dockerNodeDiagnostics[0]?.runcVersion ?? '1.1.12',
-      swarmMode,
-      liveRestore,
-      pluginAuthz: 'enabled',
-      pluginVolume: 'enabled',
-      defaultAddressPools: '10.20.0.0/16, 10.30.0.0/16',
-      cpuTotal: `${(totalCpu / 1000).toFixed(0)} cores`,
-      memoryTotal: `${(totalMemory / 1024).toFixed(1)} GiB`,
-    }
-  }, [dockerNodeDiagnostics, fleetServers])
-
   const hasErrors = containersError ?? imagesError ?? servicesError ?? fleetServersError
   const isOverviewLoading = containerListQuery.isLoading
     || imageListQuery.isLoading
@@ -250,33 +189,6 @@ export default function DashboardDockerPage() {
         </div>
 
         <div className="p-4">
-          <div className="mb-3 flex flex-wrap gap-2">
-            <Button asChild variant="outline" size="sm" className="h-8">
-              <AuthDashboardDockerContainers.Link>Containers</AuthDashboardDockerContainers.Link>
-            </Button>
-            <Button asChild variant="outline" size="sm" className="h-8">
-              <AuthDashboardDockerLogs.Link>Logs</AuthDashboardDockerLogs.Link>
-            </Button>
-            <Button asChild variant="outline" size="sm" className="h-8">
-              <AuthDashboardDockerImages.Link>Images</AuthDashboardDockerImages.Link>
-            </Button>
-            <Button asChild variant="outline" size="sm" className="h-8">
-              <AuthDashboardDockerNetworks.Link>Networks</AuthDashboardDockerNetworks.Link>
-            </Button>
-            <Button asChild variant="outline" size="sm" className="h-8">
-              <AuthDashboardDockerVolumes.Link>Volumes</AuthDashboardDockerVolumes.Link>
-            </Button>
-            <Button asChild variant="outline" size="sm" className="h-8">
-              <AuthDashboardDockerStacks.Link>Stacks</AuthDashboardDockerStacks.Link>
-            </Button>
-            <Button asChild variant="outline" size="sm" className="h-8">
-              <AuthDashboardDockerRegistry.Link>Registry</AuthDashboardDockerRegistry.Link>
-            </Button>
-            <Button asChild variant="outline" size="sm" className="h-8">
-              <AuthDashboardDockerActivity.Link>Activity</AuthDashboardDockerActivity.Link>
-            </Button>
-          </div>
-
           <div className="border-b border-border/60 px-5 py-3">
             <h2 className="text-sm font-semibold">Recent container snapshots</h2>
             <p className="text-xs text-muted-foreground">Latest runtime container snapshots from Docker.</p>
@@ -307,9 +219,9 @@ export default function DashboardDockerPage() {
                     </TableCell>
                     <TableCell className="font-mono text-xs break-all">{container.image}</TableCell>
                     <TableCell>
-                      <Badge variant={toBadgeVariant(container.status)}>{container.status}</Badge>
+                      <StatusBadge status={container.status} />
                     </TableCell>
-                    <TableCell>{container.environment}</TableCell>
+                    <TableCell><EnvironmentBadge environment={container.environment} /></TableCell>
                     <TableCell>{formatDate(container.updatedAt)}</TableCell>
                   </TableRow>
                 ))}
@@ -337,58 +249,47 @@ export default function DashboardDockerPage() {
                   <Boxes className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold">Docker system details</h3>
-                  <p className="text-xs text-muted-foreground">Engine, runtime, storage, networking and security posture.</p>
+                  <h3 className="text-sm font-semibold">Fleet nodes</h3>
+                  <p className="text-xs text-muted-foreground">Live capacity and queue metrics from control-plane nodes.</p>
                 </div>
               </div>
-              <Badge variant="outline">{dockerNodeDiagnostics.length} nodes</Badge>
+              <Badge variant="outline">{fleetServers.length} nodes</Badge>
             </div>
 
-            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-lg border border-border/60 bg-card/60 p-2.5">
-                <p className="mb-1 text-[11px] text-muted-foreground">Engine stack</p>
-                <p className="text-xs font-medium">Docker {dockerOverviewFacts.engine}</p>
-                <p className="text-xs text-muted-foreground">API {dockerOverviewFacts.api} · containerd {dockerOverviewFacts.containerd}</p>
-                <p className="text-xs text-muted-foreground">runc {dockerOverviewFacts.runc}</p>
-              </div>
-              <div className="rounded-lg border border-border/60 bg-card/60 p-2.5">
-                <p className="mb-1 text-[11px] text-muted-foreground">Capacity</p>
-                <p className="text-xs font-medium inline-flex items-center gap-1"><Cpu className="h-3.5 w-3.5" /> {dockerOverviewFacts.cpuTotal}</p>
-                <p className="text-xs text-muted-foreground inline-flex items-center gap-1"><HardDrive className="h-3.5 w-3.5" /> {dockerOverviewFacts.memoryTotal}</p>
-              </div>
-              <div className="rounded-lg border border-border/60 bg-card/60 p-2.5">
-                <p className="mb-1 text-[11px] text-muted-foreground">Networking</p>
-                <p className="text-xs font-medium inline-flex items-center gap-1"><Network className="h-3.5 w-3.5" /> Swarm {dockerOverviewFacts.swarmMode}</p>
-                <p className="text-xs text-muted-foreground">Address pools: {dockerOverviewFacts.defaultAddressPools}</p>
-              </div>
-              <div className="rounded-lg border border-border/60 bg-card/60 p-2.5">
-                <p className="mb-1 text-[11px] text-muted-foreground">Security</p>
-                <p className="text-xs font-medium inline-flex items-center gap-1"><Shield className="h-3.5 w-3.5" /> authz: {dockerOverviewFacts.pluginAuthz}</p>
-                <p className="text-xs text-muted-foreground">volume plugin: {dockerOverviewFacts.pluginVolume} · live-restore: {dockerOverviewFacts.liveRestore ? 'on' : 'off'}</p>
-              </div>
-            </div>
-
-            <div className="mt-3 space-y-2">
-              {dockerNodeDiagnostics.map((node) => (
-                <div key={node.nodeId} className="rounded-lg border border-border/60 bg-card/60 p-2.5">
-                  <div className="mb-1.5 flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-medium">{node.displayName}</p>
-                      <p className="text-[11px] text-muted-foreground">{shortId(node.nodeId)} · {node.os} · {node.kernelVersion}</p>
+            {fleetServers.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-border/70 bg-background/30 px-3 py-6 text-center text-xs text-muted-foreground">
+                No fleet nodes registered yet.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {fleetServers.map((server) => (
+                  <div key={server.nodeId} className="rounded-lg border border-border/60 bg-card/60 p-2.5">
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span
+                          className={cn('size-2 shrink-0 rounded-full', server.healthy ? 'bg-emerald-400' : 'bg-rose-400')}
+                          aria-hidden="true"
+                        />
+                        <p className="truncate text-xs font-medium">{server.displayName}</p>
+                      </div>
+                      <Badge variant={server.healthy ? 'outline' : 'destructive'} className="text-[10px]">
+                        {server.healthy ? 'healthy' : 'degraded'}
+                      </Badge>
                     </div>
-                    <Badge variant="outline">queue {node.queueDepth}</Badge>
+                    <div className="grid gap-1 text-[11px] md:grid-cols-3">
+                      <p className="font-mono text-muted-foreground">{shortId(server.nodeId)}</p>
+                      <p>
+                        <span className="text-muted-foreground">CPU:</span> {(server.maxCpuMillicores ?? 0) / 1000} cores ·{' '}
+                        <span className="text-muted-foreground">RAM:</span> {((server.maxMemoryMb ?? 0) / 1024).toFixed(1)} GiB
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">Queue:</span> {server.metrics?.queueDepth ?? 0}
+                      </p>
+                    </div>
                   </div>
-                  <div className="grid gap-1 md:grid-cols-3 text-[11px]">
-                    <p><span className="text-muted-foreground">Engine:</span> {node.engineVersion} (API {node.apiVersion})</p>
-                    <p><span className="text-muted-foreground">Runtime:</span> containerd {node.containerdVersion} · runc {node.runcVersion}</p>
-                    <p><span className="text-muted-foreground">Storage:</span> {node.storageDriver} · logs {node.loggingDriver}</p>
-                    <p><span className="text-muted-foreground">cgroup:</span> {node.cgroupVersion}</p>
-                    <p><span className="text-muted-foreground">CPU/RAM:</span> {node.cpus} cores · {node.memoryGb} GiB</p>
-                    <p><span className="text-muted-foreground">Security:</span> {node.securityProfile} · rootless {node.rootless ? 'yes' : 'no'}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </section>

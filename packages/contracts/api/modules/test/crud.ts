@@ -6,7 +6,7 @@ import {
   createSortingConfigSchema,
   type ComputeInputSchema,
   type ComputeOutputSchema,
-} from "@repo/orpc-utils";
+  standardDomainErrorContracts,} from "@repo/orpc-utils";
 import { testEntitySchema, testEntityInputSchema } from "./entity";
 
 // ============================================================================
@@ -70,7 +70,7 @@ const listConfigSchemas = createFilterConfig(testOps)
   })
   .buildConfig();
 
-export const testEntityListContract = testOps.list(listConfigSchemas).build();
+export const testEntityListContract = testOps.list(listConfigSchemas).errors((e) => [...standardDomainErrorContracts(e)]).build();
 export type TestEntityListInput = ComputeInputSchema<typeof listConfigSchemas>;
 export type TestEntityListOutput = ComputeOutputSchema<typeof listConfigSchemas, typeof testEntitySchema>;
 
@@ -78,7 +78,7 @@ export type TestEntityListOutput = ComputeOutputSchema<typeof listConfigSchemas,
  * Find a single test entity by ID
  * Uses the `read()` method which creates a GET /{id} endpoint
  */
-export const testEntityFindByIdContract = testOps.read().build();
+export const testEntityFindByIdContract = testOps.read().errors((e) => [...standardDomainErrorContracts(e)]).build();
 export type TestEntityFindByIdInput = { id: string };
 export type TestEntityFindByIdOutput = z.infer<typeof testEntitySchema>;
 
@@ -89,6 +89,7 @@ export type TestEntityFindByIdOutput = z.infer<typeof testEntitySchema>;
 export const testEntityCreateContract = testOps
   .create()
   .input(testEntityInputSchema)
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();
 export type TestEntityCreateInput = z.infer<typeof testEntityInputSchema>;
 export type TestEntityCreateOutput = z.infer<typeof testEntitySchema>;
@@ -100,6 +101,7 @@ export type TestEntityCreateOutput = z.infer<typeof testEntitySchema>;
 export const testEntityUpdateContract = testOps
   .update()
   .input(testEntityInputSchema.partial())
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();
 export type TestEntityUpdateInput = Partial<z.infer<typeof testEntityInputSchema>>;
 export type TestEntityUpdateOutput = z.infer<typeof testEntitySchema>;
@@ -107,14 +109,14 @@ export type TestEntityUpdateOutput = z.infer<typeof testEntitySchema>;
 /**
  * Delete a test entity by ID
  */
-export const testEntityDeleteContract = testOps.delete().build();
+export const testEntityDeleteContract = testOps.delete().errors((e) => [...standardDomainErrorContracts(e)]).build();
 export type TestEntityDeleteInput = { id: string };
 export type TestEntityDeleteOutput = { success: boolean };
 
 /**
  * Count test entities (with optional filtering)
  */
-export const testEntityCountContract = testOps.count().build();
+export const testEntityCountContract = testOps.count().errors((e) => [...standardDomainErrorContracts(e)]).build();
 export type TestEntityCountOutput = { count: number };
 
 // ============================================================================
@@ -132,6 +134,7 @@ export const testEntityStreamingListContract = testOps
     sorting: sortingConfigSchema,
     path: "/streaming",
   })
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();
 
 /**
@@ -143,6 +146,7 @@ export const testEntityStreamingListContract = testOps
 export const testEntityStreamingReadContract = testOps
   .streamingRead()
   .input(b => b.params(p => p`/${p("id", z.string())}/streaming`))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();
 export type TestEntityStreamingReadInput = { id: string };
 export type TestEntityStreamingReadOutput = z.infer<typeof testEntitySchema>;
@@ -156,6 +160,7 @@ export type TestEntityStreamingReadOutput = z.infer<typeof testEntitySchema>;
  */
 export const testEntityCheckNameContract = testOps
   .check("name", z.string().min(1))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();
 export type TestEntityCheckNameInput = { name: string };
 export type TestEntityCheckNameOutput = { exists: boolean };
@@ -172,4 +177,5 @@ export const testEntitySearchContract = testOps
     searchFields: ["name", "description"] as const,
     pagination: paginationConfigSchema,
   })
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

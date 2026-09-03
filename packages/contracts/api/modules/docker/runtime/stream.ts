@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerRuntimeEventSchema } from "@repo/contracts-entities";
 import { dockerRuntimeEventsStreamQuerySchema } from "./shared";
 import z from "zod/v4";
@@ -15,4 +15,5 @@ export const dockerRuntimeEventsStreamContract = dockerRuntimeEventOps
   .path("/events/stream")
   .input((b) => b.query(dockerRuntimeEventsStreamQuerySchema))
   .output((b) => b.observable(dockerRuntimeEventSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

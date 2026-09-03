@@ -1,0 +1,25 @@
+import { orpc } from '@/lib/orpc'
+
+export const analyticsEndpoints = {
+  getResourceMetrics: orpc.analytics.getResourceMetrics,
+  getApplicationMetrics: orpc.analytics.getApplicationMetrics,
+  getDatabaseMetrics: orpc.analytics.getDatabaseMetrics,
+  getDeploymentMetrics: orpc.analytics.getDeploymentMetrics,
+  getServiceHealth: orpc.analytics.getServiceHealth,
+  getRealTimeMetrics: orpc.analytics.getRealTimeMetrics,
+  getResourceUsage: orpc.analytics.getResourceUsage,
+  getUserActivity: orpc.analytics.getUserActivity,
+  getActivitySummary: orpc.analytics.getActivitySummary,
+  getApiUsage: orpc.analytics.getApiUsage,
+  getDeploymentUsage: orpc.analytics.getDeploymentUsage,
+  getStorageUsage: orpc.analytics.getStorageUsage,
+  generateReport: orpc.analytics.generateReport,
+  getReport: orpc.analytics.getReport,
+  listReports: orpc.analytics.listReports,
+  deleteReport: orpc.analytics.deleteReport,
+  downloadReport: orpc.analytics.downloadReport,
+  createReportConfig: orpc.analytics.createReportConfig,
+  listReportConfigs: orpc.analytics.listReportConfigs,
+  updateReportConfig: orpc.analytics.updateReportConfig,
+  deleteReportConfig: orpc.analytics.deleteReportConfig,
+}

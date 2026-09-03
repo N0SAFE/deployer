@@ -1,0 +1,145 @@
+---
+title: Environment-Primitive Architecture (UML)
+description: Complete domain model — org → project → service → environment → deployment. Environments are first-class primitives with kinds (stable/preview/ephemeral), per-env rules, and triggers.
+order: 27
+---
+
+<DocCallout title="Model shift" tone="info">
+Environments are NO LONGER built-in names on projects/services. They are
+**first-class entities** (`environments` table) linked to a project, with a
+**KIND** (stable | preview | ephemeral), **per-env rules**, and an optional
+**TRIGGER** (how preview/ephemeral envs are brought to life). A deployment is
+created FROM an environment, which belongs to a service, which belongs to a
+project, which belongs to an organization.
+</DocCallout>
+
+## Complete UML class diagram
+
+```mermaid
+classDiagram
+    class Organization {
+        +id: text
+        +name: string
+        +slug: string
+        +metadata
+    }
+    class Project {
+        +id: uuid
+        +name: string
+        +ownerId: text
+        +organizationId: text
+        +settings: jsonb
+    }
+    class Service {
+        +id: uuid
+        +projectId: uuid
+        +name: string
+        +type: service_type
+        +builderId: runner_type
+        +parentId: uuid
+        +implementsContract: jsonb
+        +preview: jsonb
+    }
+    class Environment {
+        +id: uuid
+        +projectId: uuid
+        +name: string
+        +slug: string
+        +kind: environment_kind
+        +type: env_name
+        +rules: jsonb
+        +trigger: jsonb
+        +status: environment_status
+    }
+    class ServiceEnvironmentLink {
+        +id: uuid
+        +serviceId: uuid
+        +environmentId: uuid
+        +isEnabled: boolean
+        +overrides: jsonb
+    }
+    class Deployment {
+        +id: uuid
+        +serviceId: uuid
+        +environmentId: uuid
+        +environment: env_name
+        +status: deployment_status
+        +sourceType: source_type
+    }
+    class EnvironmentVariable {
+        +id: uuid
+        +environmentId: uuid
+        +key: string
+        +value: string
+        +isSecret: boolean
+    }
+
+    Organization "1" --> "0..*" Project : owns
+    Project "1" --> "0..*" Service : contains
+    Project "1" --> "0..*" Environment : scopes
+    Service "1" --> "0..1" Service : parent (hierarchy)
+    Service "1" --> "0..*" ServiceEnvironmentLink : linked to envs
+    Environment "1" --> "0..*" ServiceEnvironmentLink : linked to services
+    Service "1" --> "0..*" Deployment : deployed as
+    Environment "1" --> "0..*" Deployment : deployment source
+    Environment "1" --> "0..*" EnvironmentVariable : holds
+```
+
+## The full containment chain
+
+```mermaid
+flowchart TD
+    ORG["Organization"] -->|owns| PROJ["Project"]
+    PROJ -->|contains| SVC["Service (parent or sub-service)"]
+    PROJ -->|scopes| ENV["Environment (kind: stable | preview | ephemeral)"]
+    SVC -->|linked via| LINK["service_environments (isEnabled + overrides)"]
+    ENV -->|linked via| LINK
+    SVC -->|deployed as| DEP["Deployment"]
+    ENV -->|deployment source| DEP
+    ENV -->|holds| VAR["environment_variables"]
+```
+
+**Reading a deployment**: `Deployment.environmentId → Environment` (what rules
+were active), `Deployment.serviceId → Service → Project → Organization`. The
+legacy `Deployment.environment` string stays as a display snapshot.
+
+## Environment kinds & triggers
+
+| Kind | Behavior | Trigger |
+|------|----------|---------|
+| `stable` | Persistent, shared, long-lived (production, staging, dev, qa) | none (always exists) |
+| `preview` | Ephemeral per-PR/branch; auto-created + auto-destroyed | `pull-request` / `branch` / `webhook` |
+| `ephemeral` | Short-lived test env (manual or scheduled) | `manual` / `schedule` / `webhook` |
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending : created (manual/PR/branch/webhook/schedule)
+    Pending --> Provisioning : trigger fires
+    Provisioning --> Active : deploy ready
+    Active --> Active : updates (PR push / branch push)
+    Active --> Destroying : PR closed / TTL expired / manual
+    Destroying --> [*]
+    Active --> Failed : provision error
+    Failed --> Provisioning : retry
+```
+
+## Per-environment rules (each env has its own)
+
+```ts
+environmentRules = {
+  profiles: string[],              // compose-profile style optional services
+  autoDeployEnabled: boolean,
+  deploymentStrategy: 'rolling'|'canary'|'blue-green'|'manual',
+  healthGate: 'strict'|'warn'|'ignore',
+  startupMode: 'before'|'parallel'|'after',
+  replicas: { min, max },
+  trafficPolicy: { maxErrorRatePercent, maxLatencyMs, allowCrossRegionFailover },
+}
+```
+
+## Implementation plan
+
+1. **DB migration 0021**: `projects.organization_id` FK, `deployments.environment_id` FK.
+2. **Contracts**: env entity already has `kind`/`rules`/`trigger`; add `organizationId` to project.
+3. **API**: env CRUD (create any env with kind+trigger), service×env link CRUD.
+4. **Seed**: built-in envs per project (production=stable, staging=stable, preview=preview+PR trigger, development=stable) + links to each service.

@@ -4,35 +4,35 @@ description: Complete specification of the phase-based startup where modules loa
 order: 15
 ---
 
-import { Callout } from 'nextra/components'
-
 ## Core Principle
 
-<Callout type="warning">
-**Key Rule**: A module that requires data or a service that is not finished should **NOT start at all**. Do NOT use null providers to hide the problem — use proper dependency waiting patterns.
-</Callout>
+<DocCallout title="Key Rule" tone="warning">
+A module that requires data or a service that is not finished should **NOT start at all**. Do NOT use null providers to hide the problem — use proper dependency waiting patterns.
+</DocCallout>
 
 **The application startup is driven by a lifecycle state machine.** Each phase loads only the modules whose dependencies are satisfied. Modules are not loaded eagerly — they are loaded **when their dependencies are ready**.
 
-```
-Phase 0: HTTP Server (raw Express)     → /health, CORS
-Phase 1: Setup Wizard                  → LocalDatabaseModule + SetupWizardApiModule
-Phase 2: Mesh Initializer              → MeshInitializationModule
-Phase 3: Global Database               → GlobalDatabaseModule (real connection)
-Phase 4: Auth                          → AuthModule
-Phase 5: Feature Modules               → All domain modules
-Phase 6: READY                         → Full functionality
+```mermaid
+flowchart LR
+    P0["Phase 0: HTTP Server (raw Express)<br/>→ /health, CORS"] --> P1["Phase 1: Setup Wizard<br/>→ LocalDatabaseModule + SetupWizardApiModule"]
+    P1 --> P2["Phase 2: Mesh Initializer<br/>→ MeshInitializationModule"]
+    P2 --> P3["Phase 3: Global Database<br/>→ GlobalDatabaseModule (real connection)"]
+    P3 --> P4["Phase 4: Auth<br/>→ AuthModule"]
+    P4 --> P5["Phase 5: Feature Modules<br/>→ All domain modules"]
+    P5 --> P6["Phase 6: READY<br/>→ Full functionality"]
 ```
 
 **Dependency chain:**
 
-```
-SetupWizardSubApp ──► MeshInitializerSubApp ──► GlobalDatabase ──► Auth ──► Features
-       │                      │                       │              │            │
-       │  needs:              │  needs:                │  needs:      │  needs:    │  needs:
-       │  - LocalDatabase     │  - SetupWizard result  │  - MeshInit  │  - DB      │  - DB
-       │  - Env               │  - MeshInitModule      │    result    │  - Auth    │  - Auth
-       │                      │                        │              │            │
+```mermaid
+flowchart LR
+    SETUP["SetupWizardSubApp"] --> MESH["MeshInitializerSubApp"] --> GDB["GlobalDatabase"] --> AUTH["Auth"] --> FEAT["Features"]
+
+    N1["needs:<br/>LocalDatabase, Env"] -.-> SETUP
+    N2["needs:<br/>SetupWizard result,<br/>MeshInitModule"] -.-> MESH
+    N3["needs:<br/>MeshInit result"] -.-> GDB
+    N4["needs:<br/>DB, Auth"] -.-> AUTH
+    N5["needs:<br/>DB, Auth"] -.-> FEAT
 ```
 
 ---
@@ -481,22 +481,22 @@ export class AppModule {}
 
 ### Dependency Graph (DI-Driven)
 
-```
-main.ts
-  │
-  ├── BootstrapOrchestratorService (OnApplicationBootstrap)
-  │     ├── Phase 1: Setup Wizard sub-app
-  │     ├── Phase 2: Mesh Initializer sub-app
-  │     ├── Phase 3: GlobalDatabaseService.initialize()
-  │     └── Phase 3: DatabaseReadyTrigger.emit({ initialized, url })
-  │
-  ├── FeatureModuleLoader (OnApplicationBootstrap)
-  │     └── injects: DatabaseReadyResult ← DI resolves via bridge.waitFor()
-  │     └── Phase 5: LazyModuleLoader → HealthModule, UserModule, ...
-  │
-  └── AuthModuleLoader (OnApplicationBootstrap)
-        └── injects: DatabaseReadyResult ← DI resolves via bridge.waitFor()
-        └── Phase 4: LazyModuleLoader → AuthModule
+```mermaid
+flowchart TB
+    MAIN["main.ts"] --> BOOT["BootstrapOrchestratorService<br/>(OnApplicationBootstrap)"]
+    MAIN --> FML["FeatureModuleLoader<br/>(OnApplicationBootstrap)"]
+    MAIN --> AML["AuthModuleLoader<br/>(OnApplicationBootstrap)"]
+
+    BOOT --> B1["Phase 1: Setup Wizard sub-app"]
+    BOOT --> B2["Phase 2: Mesh Initializer sub-app"]
+    BOOT --> B3["Phase 3: GlobalDatabaseService.initialize()"]
+    BOOT --> B4["Phase 3: DatabaseReadyTrigger.emit(initialized, url)"]
+
+    FML --> F1["injects: DatabaseReadyResult<br/>← DI resolves via bridge.waitFor()"]
+    F1 --> F2["Phase 5: LazyModuleLoader →<br/>HealthModule, UserModule, ..."]
+
+    AML --> A1["injects: DatabaseReadyResult<br/>← DI resolves via bridge.waitFor()"]
+    A1 --> A2["Phase 4: LazyModuleLoader → AuthModule"]
 ```
 
 **Key insight**: Both `FeatureModuleLoader` and `AuthModuleLoader` inject `DatabaseReadyResult`. NestJS's DI container sees that this token depends on `DatabaseReadyTrigger.waitFor()`. The container **blocks injection** until the trigger fires. No polling, no `setInterval`, no lifecycle phase checks — pure DI resolution.

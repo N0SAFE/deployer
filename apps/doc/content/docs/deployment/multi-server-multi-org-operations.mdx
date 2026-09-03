@@ -459,7 +459,7 @@ Use this only when you explicitly need redirect/token-based owner-aware routing 
 Each server runs the same components:
 
 - `apps/api` (runtime owner for workloads it currently owns)
-- `apps/load-balancer` (org-aware stream routing + proxy continuation)
+- Traefik ingress as the sole reverse proxy (org-aware routing; direct-proxy supervisor for Traefik downtime)
 - mesh membership + ownership index consumer/producer
 - metrics reporter (`cpu`, `memory`, active streams, queue depth)
 

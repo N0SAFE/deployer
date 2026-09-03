@@ -10,9 +10,6 @@
  * - `guards.admin.hasRole(['admin', 'superAdmin'])` - Check admin roles
  * - `guards.admin.hasPermission({ user: ['read'] })` - Check admin permissions
  * - `guards.admin.requireAdminRole()` - Require admin role
- * - `guards.org.isMemberOf(orgIdResolver)` - Check organization membership
- * - `guards.org.hasOrganizationRole(orgIdResolver, ['owner', 'admin'])` - Check org role
- * - `guards.org.isOrganizationOwner(orgIdResolver)` - Check organization ownership
  * - `guards.admin.composite([checks])` - Combine multiple checks
  * 
  * ### ORPC Middlewares (`authService.middleware.*`)
@@ -21,13 +18,11 @@
  * 
  * 1. **Static values** - Direct call with values:
  *    ```typescript
- *    .use(middleware.org.isMemberOf('org-123'))
  *    .use(middleware.admin.hasPermission({ user: ['list'] }))
  *    ```
  * 
  * 2. **Dynamic with `.forInput()`** (RECOMMENDED) - Uses ORPC's mapInput for auto-typed input:
  *    ```typescript
- *    .use(middleware.org.isMemberOf.forInput(), input => input.organizationId)
  *    .use(middleware.admin.hasPermission.forInput(), input => ({ [input.resource]: [input.action] }))
  *    ```
  *    The `.forInput()` method is available on ALL middlewares and returns a middleware
@@ -38,10 +33,6 @@
  * - `middleware.admin.hasRole(roles)` / `.forInput()` → extracts roles type
  * - `middleware.admin.requireAdminRole()` - Static only (no input needed)
  * - `middleware.admin.hasPermissionByRole(role, permissions)` / `.forInput()` → extracts role type
- * - `middleware.org.isMemberOf(organizationId)` / `.forInput()` → extracts organizationId type
- * - `middleware.org.hasOrganizationRole(organizationId, roles)` / `.forInput()` → extracts organizationId type
- * - `middleware.org.isOrganizationOwner(organizationId)` / `.forInput()` → extracts organizationId type
- * - `middleware.org.hasOrganizationPermission(permissions)` / `.forInput()` → extracts permissions type
  * 
  * ### Raw Checks (`authService.checks.*`)
  * - Used for advanced composition with `guards.admin.composite()` or `middleware.admin.composite()`
@@ -56,17 +47,9 @@
  * ### Pattern 2: Dynamic with .forInput() + mapInput (RECOMMENDED)
  * ```typescript
  * .use(
- *   middleware.org.isMemberOf.forInput(),  // Middleware expects string input
- *   input => input.organizationId          // ORPC auto-types input from schema
+ *   middleware.admin.hasPermission.forInput(),  // Middleware expects input
+ *   input => ({ user: [input.action] })        // ORPC auto-types input from schema
  * )
- * ```
- * 
- * ### Pattern 3: Generic resolver (for multi-param methods)
- * ```typescript
- * .use(middleware.org.hasOrganizationRole<Input>(
- *   ctx => ctx.input.organizationId,
- *   ['owner', 'admin']  // Static second param
- * ))
  * ```
  */
 
@@ -209,11 +192,9 @@ const testContracts = oc.prefix("/test/orpc").router({
         method: "GET",
         path: "/org/{organizationId}/membership",
     }).input(z.object({
-        organizationId: z.string(),
     })).output(
         z.object({
             message: z.string(),
-            organizationId: z.string(),
             userId: z.string(),
         })
     ),
@@ -223,11 +204,9 @@ const testContracts = oc.prefix("/test/orpc").router({
         method: "GET",
         path: "/org/{organizationId}/role",
     }).input(z.object({
-        organizationId: z.string(),
     })).output(
         z.object({
             message: z.string(),
-            organizationId: z.string(),
             userId: z.string(),
         })
     ),
@@ -237,11 +216,9 @@ const testContracts = oc.prefix("/test/orpc").router({
         method: "GET",
         path: "/org/{organizationId}/owner",
     }).input(z.object({
-        organizationId: z.string(),
     })).output(
         z.object({
             message: z.string(),
-            organizationId: z.string(),
             userId: z.string(),
         })
     ),
@@ -282,11 +259,9 @@ const testContracts = oc.prefix("/test/orpc").router({
         method: "GET",
         path: "/context-access/{organizationId}",
     }).input(z.object({
-        organizationId: z.string(),
     })).output(
         z.object({
             message: z.string(),
-            organizationId: z.string(),
             userId: z.string(),
             userRole: z.string(),
         })
@@ -588,11 +563,10 @@ export class TestController {
         return implement(testContracts.orgMembershipStaticEndpoint)
             .use(requireAuth())
             // Static org ID - no generic needed
-            .use(this.authService.middleware.org.isMemberOf('org_static_123'))
-            .handler(({ context }) => {
+                        .handler(({ context }) => {
                 const auth = assertAuthenticated(context.auth);
                 return {
-                    message: "Organization membership granted via authService.middleware.org.isMemberOf('static')",
+                    message: "Authenticated access (membership endpoint)",
                     userId: auth.user.id,
                 };
             });
@@ -603,15 +577,10 @@ export class TestController {
         return implement(testContracts.orgMembershipDynamicEndpoint)
             .use(requireAuth())
             // Dynamic org ID from input - uses .forInput() + mapInput for auto-typed input
-            .use(
-                this.authService.middleware.org.isMemberOf.forInput(),
-                input => input.organizationId
-            )
-            .handler(({ context, input }) => {
+                        .handler(({ context, input }) => {
                 const auth = assertAuthenticated(context.auth);
                 return {
-                    message: "Organization membership granted via authService.middleware.org.isMemberOf(input => input.organizationId)",
-                    organizationId: input.organizationId,
+                    message: "Authenticated access (membership endpoint)",
                     userId: auth.user.id,
                 };
             });
@@ -624,16 +593,11 @@ export class TestController {
         
         return implement(testContracts.orgRoleEndpoint)
             .use(requireAuth())
-            // Dynamic org ID with static roles - multi-param method uses generic resolver
-            .use(this.authService.middleware.org.hasOrganizationRole<Input>(
-                ctx => ctx.input.organizationId,
-                ['owner', 'admin', 'member'] as const  // Static roles
-            ))
+            // Test surface: org plugins removed with the organization concept.
             .handler(({ context, input }) => {
                 const auth = assertAuthenticated(context.auth);
                 return {
-                    message: "Organization role access granted via authService.middleware.org.hasOrganizationRole()",
-                    organizationId: input.organizationId,
+                    message: "Authenticated access (role endpoint)",
                     userId: auth.user.id,
                 };
             });
@@ -643,16 +607,10 @@ export class TestController {
     orgOwnerOrpc() {
         return implement(testContracts.orgOwnerEndpoint)
             .use(requireAuth())
-            // Dynamic org ID - uses .forInput() + mapInput for auto-typed input
-            .use(
-                this.authService.middleware.org.isOrganizationOwner.forInput(),
-                input => input.organizationId
-            )
             .handler(({ context, input }) => {
                 const auth = assertAuthenticated(context.auth);
                 return {
-                    message: "Organization owner access granted via authService.middleware.org.isOrganizationOwner.forInput()",
-                    organizationId: input.organizationId,
+                    message: "Authenticated access (owner endpoint)",
                     userId: auth.user.id,
                 };
             });
@@ -662,12 +620,10 @@ export class TestController {
     orgPermissionOrpc() {
         return implement(testContracts.orgPermissionEndpoint)
             .use(requireAuth())
-            // Static organization permission check - accepts relaxed PermissionObject type
-            .use(this.authService.middleware.org.hasOrganizationPermission({ orgMember: ['list'] }))
             .handler(({ context }) => {
                 const auth = assertAuthenticated(context.auth);
                 return {
-                    message: "Organization permission granted via authService.middleware.org.hasOrganizationPermission()",
+                    message: "Authenticated access (permission endpoint)",
                     userId: auth.user.id,
                 };
             });
@@ -712,21 +668,11 @@ export class TestController {
         return implement(testContracts.contextAccessEndpoint)
             .use(requireAuth())
             // Use TInput for type-safe input access
-            .use(this.authService.middleware.org.isMemberOf<Input>(
-                // Type-safe access to input with context.auth 
-                // properly typed
-                ctx => {
-                    // ctx.input.organizationId - from TInput
-                    // ctx.context.auth.user.id - properly typed from ORPCContextWithAuthOnly<true>
-                    this.logger.log('User ID from context', { userId: ctx.context.auth.user.id });
-                    return ctx.input.organizationId;
-                }
-            ))
+
             .handler(({ context, input }) => {
                 const auth = assertAuthenticated(context.auth);
                 return {
-                    message: "Type-safe context access demonstrated via <TInput, TContext> generics",
-                    organizationId: input.organizationId,
+                    message: "Authenticated context access",
                     userId: auth.user.id,
                     userRole: auth.user.role ?? "unknown",
                 };

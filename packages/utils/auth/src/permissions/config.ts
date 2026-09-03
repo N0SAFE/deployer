@@ -1,7 +1,6 @@
 import z from "zod/v4";
 import { PermissionBuilder } from "./system/builder/builder";
 import { defaultStatements as adminDefaultStatements } from "better-auth/plugins/admin/access";
-import { defaultStatements as organizationDefaultStatements } from 'better-auth/plugins/organization/access';
 
 
 /**
@@ -9,10 +8,6 @@ import { defaultStatements as organizationDefaultStatements } from 'better-auth/
  * 
  * This configuration defines platform + scope permission systems.
  *
- * Temporary migration scope (T254): runtime execution paths should prioritize
- * platform roles + project roles. Organization role complexity remains available
- * but is intentionally deferred for deployment runtime-critical flows.
- * 
  * ============================================================================
  * LAYER 1: PLATFORM ROLES (User's global role)
  * ============================================================================
@@ -25,30 +20,10 @@ import { defaultStatements as organizationDefaultStatements } from 'better-auth/
  * - viewer: Read-only platform visibility
  * 
  * ============================================================================
- * LAYER 2: ORGANIZATION ROLES (User's role within an organization)
+ * LAYER 2: MESH-WIDE PROJECT ROLES (User's role within a project)
  * ============================================================================
- * These roles define what a member can do within a specific organization.
- * Stored in the organization membership `role` field.
- * 
- * - owner: Full organization access including deletion and ownership transfer
- * - admin: Organization management, member management, cannot delete org
- * - member: Standard member access to organization resources
- * 
- * ============================================================================
- * HOW THEY WORK TOGETHER
- * ============================================================================
- * 
- * Example scenarios:
- * 1. User with platform role "viewer" + org role "owner" in Org A:
- *    - Can manage Org A fully (owner permissions)
- *    - Has read-only platform visibility
- * 
- * 2. User with platform role "admin" + org role "member" in Org B:
- *    - Has limited access within Org B (member permissions)
- *    - Can access admin panel for platform management
- * 
- * 3. User with platform role "superAdmin":
- *    - Full access to everything regardless of org membership
+ * These roles define what a collaborator can do within a specific project.
+ * Stored in the project collaborators `role` field.
  */
 
 // ============================================================================
@@ -186,110 +161,6 @@ export const {
     rolesConfig: platformRolesConfig,
     roleMeta: platformRoleMeta,
 } = platformPermissionConfig;
-
-// ============================================================================
-// ORGANIZATION PERMISSION SYSTEM
-// ============================================================================
-
-/**
- * Organization-level permission builder
- * Defines resources and roles for organization-scoped access control
- * 
- * These permissions apply to resources WITHIN an organization.
- * The user's organization role (owner/admin/member) determines access.
- */
-const organizationRoleMetaShape = z.object({
-    label: z.string(),
-    description: z.string(),
-    color: z.string(),
-    icon: z.string(),
-});
-
-const organizationBuilder = new PermissionBuilder({ metaShape: organizationRoleMetaShape })
-    .resources(({ actions }) => ({
-        // ========================================
-        // ORGANIZATION SETTINGS & MEMBERS
-        // ========================================
-        organization: actions(organizationDefaultStatements.organization),
-        member: actions(organizationDefaultStatements.member),
-        team: actions(organizationDefaultStatements.team),
-        invitation: actions(organizationDefaultStatements.invitation),
-        ac: actions(organizationDefaultStatements.ac),
-    }))
-    // ==========================================
-    // ORGANIZATION ROLES
-    // ==========================================
-    /**
-     * Owner - Full organization access
-     * Can do everything including delete org and transfer ownership
-     */
-    .role('owner').allPermissions().meta({ label: 'Owner', description: 'Full organization access including deletion and ownership transfer', color: 'amber', icon: 'crown' })
-    .roles(({ permissions }) => ({
-        /**
-         * Admin - Organization administrator
-         * Can manage most things except delete org or transfer ownership
-         */
-        admin: permissions({
-            organization: ['update', 'delete'],
-            invitation: ['cancel', 'create'],
-            member: ['create', 'delete', 'update'],
-            team: ['create', 'delete', 'update'],
-        }).meta({ label: 'Admin', description: 'Organization management without delete or transfer capabilities', color: 'purple', icon: 'shield' }),
-        
-        /**
-         * Member - Standard organization member
-         * Can work on projects and services but limited management access
-         */
-        member: permissions({}).meta({ label: 'Member', description: 'Standard member with project and service access', color: 'slate', icon: 'user' }),
-    }));
-
-// Export the builder for type inference in generic plugins
-export { organizationBuilder };
-
-// Build and export organization permissions
-export const organizationPermissionConfig = organizationBuilder.build();
-export const { 
-    statement: organizationStatement, 
-    ac: organizationAc, 
-    roles: organizationRoles, 
-    schemas: organizationSchemas,
-    rolesConfig: organizationRolesConfig,
-    roleMeta: organizationRoleMeta,
-} = organizationPermissionConfig;
-
-
-
-// ============================================================================
-// PLATFORM ROLE EXPORTS
-// ============================================================================
-
-/**
- * Platform role names derived from the builder configuration
- * This ensures the role list stays in sync with the builder definition
- */
-export const PLATFORM_ROLES = platformBuilder.getRoleNames();
-
-/**
- * Type representing valid platform role names
- */
-export type PlatformRole = typeof PLATFORM_ROLES[number];
-
-
-
-// ============================================================================
-// ORGANIZATION ROLE EXPORTS
-// ============================================================================
-
-/**
- * Organization membership roles derived from the builder configuration
- * These define a user's role within a specific organization
- */
-export const ORGANIZATION_ROLES = organizationBuilder.getRoleNames();
-
-/**
- * Type representing valid organization membership roles
- */
-export type OrganizationRole = typeof ORGANIZATION_ROLES[number];
 
 // ============================================================================
 // PROJECT PERMISSION SYSTEM
@@ -435,6 +306,21 @@ export const {
 export type ProjectResource = keyof typeof projectStatement;
 
 // ============================================================================
+// PLATFORM ROLE EXPORTS
+// ============================================================================
+
+/**
+ * Platform role names derived from the builder configuration
+ * This ensures the role list stays in sync with the builder definition
+ */
+export const PLATFORM_ROLES = platformBuilder.getRoleNames();
+
+/**
+ * Type representing valid platform role names
+ */
+export type PlatformRole = typeof PLATFORM_ROLES[number];
+
+// ============================================================================
 // PROJECT ROLE EXPORTS
 // ============================================================================
 
@@ -459,12 +345,6 @@ export type PlatformResource = keyof typeof platformStatement;
 export const PLATFORM_RESOURCES = platformBuilder.getStatementNames();
 
 /**
- * Organization resource names derived from the builder configuration
- */
-export type OrganizationResource = keyof typeof organizationStatement;
-export const ORGANIZATION_RESOURCES = organizationBuilder.getStatementNames();
-
-/**
  * Project resource names derived from the builder configuration
  */
 export const PROJECT_RESOURCES = projectBuilder.getStatementNames();
@@ -473,11 +353,6 @@ export const PROJECT_RESOURCES = projectBuilder.getStatementNames();
  * Type representing all valid actions for a specific platform resource
  */
 export type PlatformActionsForResource<R extends PlatformResource> = typeof platformStatement[R][number];
-
-/**
- * Type representing all valid actions for a specific organization resource
- */
-export type OrganizationActionsForResource<R extends OrganizationResource> = typeof organizationStatement[R][number];
 
 /**
  * Type representing all valid actions for a specific project resource

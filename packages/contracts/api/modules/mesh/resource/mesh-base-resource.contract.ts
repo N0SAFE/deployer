@@ -12,7 +12,7 @@
  * @see mesh-resource-dispatcher.service.ts — runtime dispatch
  */
 
-import { z } from "zod/v4";
+import z from "zod/v4";
 import { standard, meshDomainErrorContracts } from "@repo/orpc-utils";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────

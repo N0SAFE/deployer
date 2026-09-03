@@ -16,7 +16,7 @@ export class DockerStacksOrchestratorService {
 
   constructor(private readonly dockerStacksDomainService: DockerStacksDomainService) {}
 
-  listStacks(input: DockerStackListInput) {
+  listStacks(input: DockerStackListInput = {} as DockerStackListInput) {
     this.debug("DockerStacksOrchestratorService.listStacks", {
       limit: input.limit,
       offset: input.offset,

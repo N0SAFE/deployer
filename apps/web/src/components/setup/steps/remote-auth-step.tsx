@@ -1,6 +1,8 @@
 "use client"
 
+import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useEffect, useRef, useState } from "react"
+import { useForm, useStore } from "@tanstack/react-form"
 import { ArrowLeft, ArrowRight, Mail, Lock, LogIn, RotateCw } from "lucide-react"
 import { Button } from "@repo/ui/components/shadcn/button"
 import { Input } from "@repo/ui/components/shadcn/input"
@@ -24,8 +26,6 @@ type AuthOutcome = {
 const DEBOUNCE_MS = 500
 
 export function RemoteAuthStep({ meshUrl, onBack, onAuthenticated }: Props) {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
   // Validation state mirrors RemoteUrlStep's pattern.
   const [state, setState] = useState<ConnectionState>("idle")
   const [detail, setDetail] = useState<string | undefined>(undefined)
@@ -38,13 +38,20 @@ export function RemoteAuthStep({ meshUrl, onBack, onAuthenticated }: Props) {
   const remoteAuthRef = useRef(remoteAuth)
   remoteAuthRef.current = remoteAuth
 
-  // Reset validation the moment the user starts editing either field.
-  // Otherwise stale "valid" / "invalid" status would survive a change.
-  useEffect(() => {
-    setState("idle")
-    setDetail(undefined)
-    setOutcome(null)
-  }, [email, password])
+  const authForm = useForm({
+    defaultValues: { email: '', password: '' },
+  })
+
+  // useFormStore subscribes to the TanStack store reactively — store.state
+  // alone is NOT a React state and never triggers re-renders, so the
+  // debounced probe effect never fires.
+  const email = useStore(authForm.store, (s) => s.values.email)
+  const password = useStore(authForm.store, (s) => s.values.password)
+
+  // Track the last probed credentials so we only reset state when the input
+  // actually changes, avoiding the flicker of idle → checking → idle on
+  // every keystroke.
+  const lastProbedRef = useRef({ email: '', password: '' })
 
   // Debounced real-time validation. Triggers as soon as both fields have
   // a non-empty value, and re-triggers whenever they change.
@@ -55,6 +62,9 @@ export function RemoteAuthStep({ meshUrl, onBack, onAuthenticated }: Props) {
       setDetail(undefined)
       return
     }
+    // Only reset + re-probe when the input actually changed.
+    if (lastProbedRef.current.email === trimmedEmail && lastProbedRef.current.password === password) return
+    lastProbedRef.current = { email: trimmedEmail, password }
 
     // Cheap syntactic check on the email side so we don't waste a roundtrip
     // on obviously bad input.
@@ -90,7 +100,7 @@ export function RemoteAuthStep({ meshUrl, onBack, onAuthenticated }: Props) {
             if (cancelled) return
             setState("unreachable")
             setOutcome(null)
-            setDetail(err.message || "Invalid credentials")
+            setDetail(isDefinedORPCError(err) ? getErrorMessage(err, "Invalid credentials") : UNKNOWN_ORPC_ERROR_MESSAGE)
           },
         },
       )
@@ -128,7 +138,7 @@ export function RemoteAuthStep({ meshUrl, onBack, onAuthenticated }: Props) {
         onError: (err) => {
           setState("unreachable")
           setOutcome(null)
-          setDetail(err.message || "Invalid credentials")
+          setDetail(isDefinedORPCError(err) ? getErrorMessage(err, "Invalid credentials") : UNKNOWN_ORPC_ERROR_MESSAGE)
         },
       },
     )
@@ -165,7 +175,8 @@ export function RemoteAuthStep({ meshUrl, onBack, onAuthenticated }: Props) {
               id="remote-email"
               type="email"
               value={email}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+              onChange={(e) => authForm.setFieldValue('email', e.target.value)}
+              onInput={(e) => authForm.setFieldValue('email', (e.target as HTMLInputElement).value)}
               placeholder="admin@example.com"
               autoComplete="email"
               className="pl-9"
@@ -187,7 +198,8 @@ export function RemoteAuthStep({ meshUrl, onBack, onAuthenticated }: Props) {
               id="remote-password"
               type="password"
               value={password}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+              onChange={(e) => authForm.setFieldValue('password', e.target.value)}
+              onInput={(e) => authForm.setFieldValue('password', (e.target as HTMLInputElement).value)}
               placeholder="••••••••"
               autoComplete="current-password"
               className="pl-9"

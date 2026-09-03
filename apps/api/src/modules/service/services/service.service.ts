@@ -9,9 +9,13 @@ import { EMPTY, type Observable, concat, defer, from, map, mergeMap } from "rxjs
 import { filter as rxFilter } from "rxjs/operators";
 import { CoreEventSyncService } from "@/core/modules/events";
 import { ProjectAccessService } from "@/core/modules/project/services/project-access.service";
-import { runtimeConfigurationAccessor } from "@/core/modules/configuration/services/runtime-configuration-accessor";
+import { RuntimeConfigurationAccessorService } from "@/core/modules/configuration/services/runtime-configuration-accessor.service";
 import { ServiceRepository } from "../repositories/service.repository";
 import { ServiceEventService } from "./service-event.service";
+import { PreviewTopologyService } from "./preview-topology.service";
+import { defaultProviderConfig, defaultRunnerConfig } from "./service-config-defaults";
+import { emptyEffectiveConfig, foldServiceChain, mergeServiceConfig } from "./service-effective-config";
+import type { ServiceEffectiveConfig, ServiceWithEffectiveConfig } from "@repo/contracts-entities";
 import type { ServiceListInput } from "@repo/api-contracts/modules/service/list";
 import type { ServiceCreateInput } from "@repo/api-contracts/modules/service/crud/create";
 import type { ServiceUpdateInput } from "@repo/api-contracts/modules/service/crud/update";
@@ -20,12 +24,35 @@ import type {
     ServiceStreamEvent,
     ServiceStreamQueryInput,
 } from "@repo/api-contracts/modules/service/streams/query";
+import type {
+    ConfigurationProviderType,
+    ConfigurationRunnerType,
+} from "@/core/modules/configuration/schemas/runtime-configuration.schema";
+import type { ServiceProviderType, ServiceRunnerType } from "@repo/contracts-common";
 
 type StreamEventWithMeta<T extends object> = T & {
     sequence: number;
     replayed: boolean;
     emittedAt: Date;
 };
+
+/** Map a service provider type to the runtime configuration provider type. */
+function mapProviderType(providerId: ServiceProviderType): ConfigurationProviderType {
+    if (providerId === "github") return "github";
+    if (providerId === "gitlab") return "gitlab";
+    if (providerId === "bitbucket") return "git";
+    return "custom";
+}
+
+/** Map a service builder/runner type to the runtime configuration runner type. */
+function mapRunnerType(builderId: ServiceRunnerType): ConfigurationRunnerType {
+    if (builderId === "static") return "static";
+    // manual / compose / orchestrator all deploy containers through docker —
+    // `compose` manages a whole compose stack as one unit, `orchestrator`
+    // manages individual sub-services. Both are docker-based runtimes.
+    if (builderId === "manual" || builderId === "compose" || builderId === "orchestrator") return "docker";
+    return "custom";
+}
 
 
 @Injectable()
@@ -35,6 +62,8 @@ export class ServiceService implements OnModuleInit {
         private readonly serviceEventService: ServiceEventService,
         private readonly coreEventSyncService: CoreEventSyncService,
         private readonly projectAccessService: ProjectAccessService,
+        private readonly previewTopologyService: PreviewTopologyService,
+        private readonly runtimeConfigurationAccessor: RuntimeConfigurationAccessorService,
     ) {}
 
     onModuleInit(): void {
@@ -56,16 +85,20 @@ export class ServiceService implements OnModuleInit {
         return service;
     }
 
-    async listServices(input: ServiceListInput) {
+    async listServices(input: ServiceListInput = {} as ServiceListInput) {
         return this.serviceRepository.list(input);
     }
 
-    async getServiceById(id: string) {
+    async getServiceById(id: string): Promise<ServiceWithEffectiveConfig> {
         const service = await this.serviceRepository.findById(id);
         if (!service) {
             throw new NotFoundException(`Service ${id} not found`);
         }
-        return service;
+        const ancestors = await this.serviceRepository.findAncestors(id);
+        return {
+            ...service,
+            effectiveConfig: foldServiceChain(ancestors, service),
+        };
     }
 
     async createService(
@@ -74,29 +107,42 @@ export class ServiceService implements OnModuleInit {
     ) {
         await this.assertProjectAccess(input.projectId, requesterId, ["owner", "maintainer", "deployer"]);
 
-        const resolvedRuntimeConfiguration = runtimeConfigurationAccessor.resolveStrict({
+        // Resolve runtime config constraints for the root service, and fill
+        // default provider/runner configs when not provided. Children are
+        // resolved recursively — each sub-service is a REAL service row.
+        const createPayload = await this.resolveCreatePayload(input);
+
+        const created = await this.serviceRepository.create(createPayload);
+        const timestamp = new Date().toISOString();
+        this.serviceEventService.emit(
+            "serviceCreated",
+            { projectId: created.projectId },
+            {
+                serviceId: created.id,
+                projectId: created.projectId,
+                name: created.name,
+                type: created.type,
+                isActive: created.isActive,
+                timestamp,
+            },
+        );
+        return created;
+    }
+
+    /**
+     * Recursively validate runtime-config constraints + fill default configs
+     * for a service and its whole children tree before persisting.
+     */
+    private async resolveCreatePayload(input: ServiceCreateInput): Promise<ServiceCreateInput> {
+        const resolvedRuntimeConfiguration = this.runtimeConfigurationAccessor.resolveStrict({
             scope: "project",
             context: {
                 projectId: input.projectId,
-                requestedProviderType: input.providerId === "github"
-                    ? "github"
-                    : input.providerId === "gitlab"
-                      ? "gitlab"
-                      : input.providerId === "git"
-                        ? "git"
-                        : input.providerId === "upload"
-                          ? "upload"
-                          : "custom",
-                requestedRunnerType: input.builderId === "dockerfile"
-                    ? "docker"
-                    : input.builderId === "nixpacks"
-                      ? "buildpack"
-                      : input.builderId === "static"
-                        ? "static"
-                        : "custom",
+                requestedProviderType: mapProviderType(input.providerId),
+                requestedRunnerType: mapRunnerType(input.builderId),
             },
-                        project: {},
-            service: runtimeConfigurationAccessor.serviceConfigFromRecord({
+            project: {},
+            service: this.runtimeConfigurationAccessor.serviceConfigFromRecord({
                 providerId: input.providerId,
                 builderId: input.builderId,
                 customDomains: input.customDomains ?? null,
@@ -118,53 +164,51 @@ export class ServiceService implements OnModuleInit {
             throw new BadRequestException("Configured runner is not allowed by runtime configuration");
         }
 
-        const created = await this.serviceRepository.create(input);
-        const timestamp = new Date().toISOString();
-        this.serviceEventService.emit(
-            "serviceCreated",
-            { projectId: created.projectId },
-            {
-                serviceId: created.id,
-                projectId: created.projectId,
-                name: created.name,
-                type: created.type,
-                isActive: created.isActive,
-                timestamp,
-            },
-        );
-        return created;
+        const children = input.children?.length
+            ? await Promise.all(input.children.map((child) => this.resolveCreatePayload(child)))
+            : undefined;
+
+        return {
+            ...input,
+            providerConfig: input.providerConfig ?? defaultProviderConfig(input.providerId),
+            builderConfig: input.builderConfig ?? defaultRunnerConfig(input.builderId),
+            children,
+        };
     }
 
     async updateService(id: string, input: Omit<ServiceUpdateInput, 'id'>, requesterId: string) {
         const existing = await this.assertServiceAccess(id, requesterId, ["owner", "maintainer", "deployer"]);
 
-        const resolvedRuntimeConfiguration = runtimeConfigurationAccessor.resolveStrict({
+        // Reparenting: a service cannot be moved under itself or under one of
+        // its own descendants (would create a cycle in the hierarchy).
+        if (input.parentId !== undefined && input.parentId !== null && input.parentId !== existing.parentId) {
+            if (input.parentId === id) {
+                throw new BadRequestException("A service cannot be its own parent");
+            }
+            const isDescendant = await this.isDescendant(id, input.parentId);
+            if (isDescendant) {
+                throw new BadRequestException("A service cannot be moved under one of its own children");
+            }
+            // Moving across projects is forbidden — children stay in the parent's project.
+            const newParent = await this.getServiceById(input.parentId);
+            if (newParent.projectId !== existing.projectId) {
+                throw new BadRequestException("A sub-service must belong to the same project as its parent");
+            }
+        }
+
+        const resolvedRuntimeConfiguration = this.runtimeConfigurationAccessor.resolveStrict({
             scope: "service",
             context: {
                 projectId: existing.projectId,
                 serviceId: existing.id,
                 requestedProviderType: input.providerId
-                    ? input.providerId === "github"
-                        ? "github"
-                        : input.providerId === "gitlab"
-                          ? "gitlab"
-                          : input.providerId === "git"
-                            ? "git"
-                            : input.providerId === "upload"
-                              ? "upload"
-                              : "custom"
+                    ? mapProviderType(input.providerId)
                     : undefined,
                 requestedRunnerType: input.builderId
-                    ? input.builderId === "dockerfile"
-                        ? "docker"
-                        : input.builderId === "nixpacks"
-                          ? "buildpack"
-                          : input.builderId === "static"
-                            ? "static"
-                            : "custom"
+                    ? mapRunnerType(input.builderId)
                     : undefined,
             },
-            service: runtimeConfigurationAccessor.serviceConfigFromRecord({
+            service: this.runtimeConfigurationAccessor.serviceConfigFromRecord({
                 providerId: input.providerId ?? existing.providerId,
                 builderId: input.builderId ?? existing.builderId,
                 customDomains: input.customDomains ?? existing.customDomains,
@@ -207,6 +251,105 @@ export class ServiceService implements OnModuleInit {
         return updated;
     }
 
+    /** Is `candidateId` a descendant of `ancestorId`? (walk up parent links) */
+    private async isDescendant(ancestorId: string, candidateId: string): Promise<boolean> {
+        let currentId: string | null = candidateId;
+        const visited = new Set<string>();
+        while (currentId) {
+            if (currentId === ancestorId) {
+                return true;
+            }
+            if (visited.has(currentId)) {
+                return false;
+            }
+            visited.add(currentId);
+            const current = await this.serviceRepository.findById(currentId);
+            currentId = current?.parentId ?? null;
+        }
+        return false;
+    }
+
+    /** List the direct children (sub-services) of a service, with effective config. */
+    async listChildren(serviceId: string, requesterId: string) {
+        const service = await this.assertServiceAccess(serviceId, requesterId, ["owner", "maintainer", "deployer"]);
+        const children = await this.serviceRepository.listChildren(service.id);
+        const ancestors = await this.serviceRepository.findAncestors(service.id);
+        // Each child inherits the parent's (already resolved) effective config,
+        // then applies its own overrides.
+        const parentEffective = foldServiceChain(ancestors, service);
+        return {
+            children: children.map((child) => ({
+                ...child,
+                effectiveConfig: mergeServiceConfig(parentEffective, child),
+            })),
+        };
+    }
+
+    /**
+     * Get the whole descendant subtree as a nested tree. Every node carries its
+     * resolved `effectiveConfig` (ancestors' config folded down, node's own
+     * overrides applied).
+     */
+    async getSubtree(serviceId: string, requesterId: string) {
+        await this.assertServiceAccess(serviceId, requesterId, ["owner", "maintainer", "deployer"]);
+        const subtree = await this.serviceRepository.findWithSubtree(serviceId);
+        if (!subtree) {
+            return null;
+        }
+
+        // Ancestors ABOVE the root are not part of the subtree — fetch them
+        // separately, then fold down the tree with a memo cache.
+        const rootAncestors = await this.serviceRepository.findAncestors(serviceId);
+        type IncomingNode = NonNullable<Awaited<ReturnType<ServiceRepository["findWithSubtree"]>>>;
+        const byId = new Map<string, IncomingNode>();
+        const collect = (node: IncomingNode): void => {
+            byId.set(node.id, node);
+            node.children.forEach(collect);
+        };
+        collect(subtree);
+
+        const cache = new Map<string, ServiceEffectiveConfig>();
+        const resolveNode = (node: IncomingNode): ServiceEffectiveConfig => {
+            const cached = cache.get(node.id);
+            if (cached) {
+                return cached;
+            }
+            let inherited = emptyEffectiveConfig();
+            const parent = node.parentId ? byId.get(node.parentId) : undefined;
+            if (parent) {
+                inherited = resolveNode(parent);
+            } else {
+                // Node's parent is outside the subtree (or null) → fold the
+                // ancestors fetched above the root.
+                for (const ancestor of rootAncestors) {
+                    inherited = mergeServiceConfig(inherited, ancestor);
+                }
+            }
+            const effective = mergeServiceConfig(inherited, node);
+            cache.set(node.id, effective);
+            return effective;
+        };
+
+        // Build a fresh, fully-typed tree where every node (including nested
+        // children) carries its resolved `effectiveConfig`. This recursive
+        // node type matches `serviceSubtreeNodeSchema` in the contract (each
+        // level requires `effectiveConfig`), unlike `ServiceWithEffectiveConfig`
+        // whose `children` are plain `Service[]`.
+        type SubtreeNode = Omit<ServiceWithEffectiveConfig, "children"> & {
+            children?: SubtreeNode[];
+        };
+        const toTyped = (node: IncomingNode): SubtreeNode => {
+            const { children, ...rest } = node;
+            return {
+                ...rest,
+                effectiveConfig: resolveNode(node),
+                children: children.length > 0 ? children.map(toTyped) : undefined,
+            };
+        };
+
+        return toTyped(subtree);
+    }
+
     async deleteService(id: string, requesterId: string) {
         const existing = await this.assertServiceAccess(id, requesterId, ["owner", "maintainer"]);
         await this.serviceRepository.delete(id);
@@ -242,10 +385,60 @@ export class ServiceService implements OnModuleInit {
         return updated;
     }
 
+    /**
+     * Namespace-aware dependency view. A service "is a namespace for
+     * everything below it": the response contains the service's OWN dependency
+     * edges PLUS a `subServices` tree — one node per sub-service, each with its
+     * own dependencies (and recursively its own sub-services).
+     */
     async getDependencies(serviceId: string) {
         await this.getServiceById(serviceId);
         const dependencies = await this.serviceRepository.getDependencies(serviceId);
-        return { dependencies };
+        const subServices = await this.buildSubServiceDependenciesTree(serviceId);
+        return { dependencies, subServices };
+    }
+
+    /**
+     * DRY-RUN preview topology — resolve how a preview of this service WOULD
+     * link its dependencies (new instances, reused staging, mocks). Does NOT
+     * deploy; the lifecycle engine consumes the same config later.
+     */
+    async resolvePreviewTopology(
+        serviceId: string,
+        requesterId: string,
+        input: { environment: "production" | "staging" | "preview" | "development"; pullRequestNumber?: number; branch?: string },
+    ) {
+        const service = await this.assertServiceAccess(serviceId, requesterId, ["owner", "maintainer", "deployer"]);
+        return this.previewTopologyService.resolve(service.id, {
+            environment: input.environment,
+            pullRequestNumber: input.pullRequestNumber,
+            branch: input.branch,
+        });
+    }
+
+    private async buildSubServiceDependenciesTree(parentId: string) {
+        type Dependency = Awaited<ReturnType<ServiceRepository["getDependencies"]>>[number];
+        type SubServiceNode = {
+            serviceId: string;
+            serviceName: string;
+            serviceType: string;
+            dependencies: Dependency[];
+            children?: SubServiceNode[];
+        };
+        const children = await this.serviceRepository.listChildren(parentId);
+        const nodes: SubServiceNode[] = [];
+        for (const child of children) {
+            const dependencies = await this.serviceRepository.getDependencies(child.id);
+            const grandchildren = await this.buildSubServiceDependenciesTree(child.id);
+            nodes.push({
+                serviceId: child.id,
+                serviceName: child.name,
+                serviceType: child.type,
+                dependencies,
+                ...(grandchildren.length > 0 ? { children: grandchildren } : {}),
+            });
+        }
+        return nodes;
     }
 
     private async wouldIntroduceDependencyCycle(
@@ -268,8 +461,8 @@ export class ServiceService implements OnModuleInit {
             visited.add(currentServiceId);
 
             const dependencies = await this.serviceRepository.getDependencies(currentServiceId);
-            for (const dependency of dependencies ?? []) {
-                const downstreamServiceId = dependency?.dependsOnServiceId;
+            for (const dependency of dependencies) {
+                const downstreamServiceId = dependency.dependsOnServiceId;
                 if (
                     typeof downstreamServiceId === "string" &&
                     downstreamServiceId.length > 0 &&
@@ -576,7 +769,7 @@ export class ServiceService implements OnModuleInit {
         const source$ = this.streamQueryEvents({
             serviceId: typeof filters.serviceId === "string" ? filters.serviceId : scopedServiceId,
             projectId: typeof filters.projectId === "string" ? filters.projectId : scopedProjectId,
-            serviceType: typeof filters.serviceType === "string" ? filters.serviceType : undefined,
+            serviceType: typeof filters.serviceType === "string" ? filters.serviceType as ServiceStreamQueryInput["serviceType"] : undefined,
             isActive: typeof filters.isActive === "boolean" ? filters.isActive : undefined,
             eventTypes: Array.isArray(filters.eventTypes)
                 ? filters.eventTypes.filter((v): v is ServiceStreamEvent["type"] => typeof v === "string")

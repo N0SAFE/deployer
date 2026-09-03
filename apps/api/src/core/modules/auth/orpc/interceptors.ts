@@ -51,22 +51,49 @@ export function httpStatusToORPCCode(status: number): ORPCErrorCode {
 }
 
 /**
+ * Extract a single human-readable message from a NestJS exception response.
+ * Validation pipes produce `string[]` messages — join them so the wire
+ * payload always satisfies `standardDomainErrorPayloadSchema` (`message:
+ * string`).
+ */
+function resolveExceptionMessage(response: unknown, fallback: string): string {
+    if (typeof response === 'string') return response
+    if (typeof response === 'object' && response !== null && 'message' in response) {
+        const message = (response as { message?: unknown }).message
+        if (typeof message === 'string') return message
+        if (Array.isArray(message)) return message.filter(m => typeof m === 'string').join('; ')
+    }
+    return fallback
+}
+
+/**
  * Transforms NestJS HttpException to ORPCError
- * This allows proper HTTP status codes to be returned instead of 500
+ *
+ * The emitted `data` payload mirrors `standardDomainErrorPayloadSchema`
+ * (`{ statusCode, code, message, orpcCode }`) — the exact shape every
+ * contract declares via `.errors(standardDomainErrorContracts(e))`. ORPC
+ * marks a thrown error as "defined" (typed on the client) ONLY when its
+ * data validates against the contract's declared schema, so deviating from
+ * this shape would downgrade every service-thrown exception to an unknown
+ * error on the web app.
+ *
+ * This allows proper HTTP status codes to be returned instead of 500.
  */
 export function transformHttpExceptionToORPCError(error: unknown): void {
     if (error instanceof HttpException) {
         const status = error.getStatus()
-        const response = error.getResponse()
-        const message =
-            typeof response === 'string'
-                ? response
-                : ((response as { message?: string }).message ?? error.message)
+        const orpcCode = httpStatusToORPCCode(status)
+        const message = resolveExceptionMessage(error.getResponse(), error.message)
 
-        throw new ORPCError(httpStatusToORPCCode(status), {
+        throw new ORPCError(orpcCode, {
             status,
             message,
-            data: typeof response === 'object' ? response : undefined,
+            data: {
+                statusCode: status,
+                code: orpcCode,
+                message,
+                orpcCode,
+            },
             cause: error,
         })
     }
@@ -74,17 +101,24 @@ export function transformHttpExceptionToORPCError(error: unknown): void {
 
 /**
  * Transforms MeshBaseDomainError to ORPCError
- * Mesh domain errors carry their own httpStatus and orpcCode fields,
- * so no mapping table is needed. This ensures proper HTTP status codes
- * (e.g. 404 for not found, 424 for dependency missing) are returned
- * instead of generic 500 errors.
+ *
+ * Mesh domain errors carry their own `httpStatus` / `orpcCode` fields. The
+ * emitted `data` payload mirrors `meshDomainErrorPayloadSchema`
+ * (`{ statusCode, code, message, orpcCode }`) — the shape mesh contracts
+ * declare via `.errors(meshDomainErrorContracts(e))` — so the typed client
+ * receives them as DEFINED errors instead of unknown ones.
  */
 export function transformMeshDomainErrorToORPCError(error: unknown): void {
     if (error instanceof MeshBaseDomainError) {
         throw new ORPCError(error.orpcCode, {
             status: error.httpStatus,
             message: error.message,
-            data: { domainCode: error.code },
+            data: {
+                statusCode: error.httpStatus,
+                code: error.code,
+                message: error.message,
+                orpcCode: error.orpcCode,
+            },
             cause: error,
         })
     }

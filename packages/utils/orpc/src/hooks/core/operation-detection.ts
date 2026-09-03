@@ -61,17 +61,7 @@ export function detectOperationType(
 }
 
 /**
- * Legacy name-based detection for backwards compatibility.
- * @deprecated Use detectOperationType with procedure object instead.
- */
-export function detectOperationTypeByName(name: string): 'query' | 'mutation' {
-  const mutationVerbs = ['create', 'update', 'delete', 'remove', 'add', 'set', 'toggle', 'check', 'verify', 'send'];
-  const lowerName = name.toLowerCase();
 
-  return mutationVerbs.some(verb => lowerName.includes(verb)) ? 'mutation' : 'query';
-}
-
-/**
  * Auto-detect which queries should be invalidated by a mutation.
  */
 export function inferInvalidations(mutationName: string, availableQueries: string[]): string[] {

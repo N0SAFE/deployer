@@ -2,6 +2,7 @@ import { customType } from "drizzle-orm/pg-core";
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
 import { validateApiEnvPath } from "@repo/env";
 import { Logger } from "@nestjs/common";
+import { AppError } from "@repo/errors";
 
 const logger = new Logger("EncryptedText");
 
@@ -14,17 +15,28 @@ const AUTH_SECRET = process.env.AUTH_SECRET
 
 /**
  * Encryption configuration
- * ENCRYPTION_KEY must be exactly 32 bytes (256 bits) for AES-256
- * If not provided, we'll generate one (NOT RECOMMENDED for production)
+ * ENCRYPTION_KEY must be exactly 32 bytes (256 bits) for AES-256.
+ *
+ * W-P4 (key hardening): in PRODUCTION the master key is MANDATORY — a missing
+ * AUTH_SECRET is a hard boot failure, never a silent fallback (the old
+ * `scryptSync("temporary-fallback-key")` fallback was an in-source key whose
+ * ciphertext anyone with repo access could decrypt). Non-production keeps the
+ * loud-warn temporary key so unit/dev environments run without a secret.
  */
 const ENCRYPTION_KEY = AUTH_SECRET
     ? Buffer.from(AUTH_SECRET, "hex")
     : (() => {
-          logger.warn(
-              "⚠️  WARNING: ENCRYPTION_KEY not found in environment variables. " +
-                  "Using a temporary key. This is NOT secure for production! " +
-                  "Generate a key with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
-          );
+          const message =
+              "⚠️  ENCRYPTION_KEY/AUTH_SECRET not found in environment variables. " +
+              "PRODUCTION WILL REFUSE TO BOOT — this shows because non-production " +
+              "environments (dev/test) use a temporary key, which is NOT secure. " +
+              "Generate a key with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"";
+          if (process.env.NODE_ENV === "production") {
+              // Fail fast: never run production with an in-source fallback key —
+              // any ciphertext written under it is trivially decryptable.
+              throw new Error("Encryption key (AUTH_SECRET) is required in production — refusing to boot");
+          }
+          logger.warn(message);
           return scryptSync("temporary-fallback-key", "salt", 32);
       })();
 
@@ -61,7 +73,7 @@ function encrypt(text: string): string {
         return `${salt.toString("hex")}:${iv.toString("hex")}:${authTag.toString("hex")}:${encrypted}`;
     } catch (error) {
         logger.error("Encryption error:", { error });
-        throw new Error("Failed to encrypt data");
+        throw new AppError("Failed to encrypt data", "ENCRYPTION_ERROR");
     }
 }
 
@@ -74,7 +86,7 @@ function decrypt(encryptedText: string): string {
         // Split the encrypted text into components
         const parts = encryptedText.split(":");
         if (parts.length !== 4) {
-            throw new Error("Invalid encrypted data format");
+            throw new AppError("Invalid encrypted data format", "ENCRYPTION_ERROR");
         }
 
         const [saltHex, ivHex, authTagHex, encryptedData] = parts as [string, string, string, string];
@@ -97,7 +109,7 @@ function decrypt(encryptedText: string): string {
         return decrypted;
     } catch (error) {
         logger.error("Decryption error:", { error });
-        throw new Error("Failed to decrypt data");
+        throw new AppError("Failed to decrypt data", "ENCRYPTION_ERROR");
     }
 }
 

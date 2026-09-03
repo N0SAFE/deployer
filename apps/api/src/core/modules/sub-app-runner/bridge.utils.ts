@@ -24,7 +24,7 @@
 
 import { Injectable } from '@nestjs/common';
 import type { Type } from '@nestjs/common';
-import { z } from 'zod/v4';
+import z from 'zod/v4';
 import { BaseTriggerService } from '@/core/modules/triggers/base-bridge.service';
 
 /**

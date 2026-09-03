@@ -3,12 +3,12 @@ import type { Observable } from "rxjs";
 import type {
     AnyEventEmission,
     EventSubscription,
-} from "@/core/modules/events/base-event.service";
+} from "@repo/nest-events";
 import type {
     EventContracts,
     EventInput,
     EventOutput,
-} from "@/core/modules/events/event-contract.builder";
+} from "@repo/nest-events";
 import type { MeshResourceLookupResult } from "@repo/contracts-entities";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -30,7 +30,6 @@ export interface MeshTopicReplayOptions {
 }
 
 export interface MeshTopicRequestOptions {
-    organizationId?: string | null;
     timeoutMs?: number;
     traceId?: string;
     partitionKey?: string;
@@ -42,7 +41,6 @@ export interface MeshTopicQueryOptions<TInput> extends MeshTopicReplayOptions {
 }
 
 export interface MeshTopicPublishOptions {
-    organizationId?: string | null;
     traceId?: string;
     partitionKey?: string;
     propagate?: boolean;
@@ -53,7 +51,6 @@ export interface MeshTopicPublishOptions {
 export interface MeshTopicNamespaceDefinition<TContracts extends EventContracts> {
     namespace: string;
     contracts: TContracts;
-    organizationId?: string | null;
 }
 
 export interface MeshTopicNamespaceHandle<TContracts extends EventContracts> {

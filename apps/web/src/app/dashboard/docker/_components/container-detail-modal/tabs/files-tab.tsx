@@ -114,6 +114,7 @@ export function DockerContainerFilesTab({
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="text-muted-foreground">Volume:</span>
               <select
+                aria-label="Volume"
                 className="h-8 rounded border bg-background px-2 text-xs"
                 value={selectedVolumePath}
                 onChange={(event) => {

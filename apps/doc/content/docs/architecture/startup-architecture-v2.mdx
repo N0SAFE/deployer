@@ -67,39 +67,57 @@ Instead of one monolithic startup app, each core concern is a **self-contained N
 6. The trigger **resolves exactly one module** in the main app's DI container
 7. The sub-app is **destroyed** — every provider cleaned up
 
-```
-TIME ──────────────────────────────────────────────────────────►
+```mermaid
+sequenceDiagram
+    autonumber
+    participant M as Main App (empty DI container)
+    participant S as Sub-App (own DI container)
 
-Main App shell created (empty DI container)
+    Note over M: TIME →
 
-  │
-  ├─► SubApp 1: Config SubApp
-  │     starts → loads env → fires ConfigTrigger → destroyed
-  │       └─► Main App resolves ConfigModule
-  │
-  ├─► SubApp 2: Database SubApp
-  │     starts → creates pool → runs migrations → fires DbTrigger → destroyed
-  │       └─► Main App resolves DatabaseModule
-  │
-  ├─► SubApp 3: Auth SubApp
-  │     starts → inits BetterAuth → creates admin → fires AuthTrigger → destroyed
-  │       └─► Main App resolves AuthModule
-  │
-  ├─► SubApp 4: Mesh SubApp
-  │     starts → registers with mesh → fires MeshTrigger → destroyed
-  │       └─► Main App resolves MeshModule
-  │
-  ├─► SubApp 5: Events SubApp
-  │     starts → connects event bus → fires EventsTrigger → destroyed
-  │       └─► Main App resolves EventsModule
-  │
-  ├─► SubApp 6: Docker SubApp
-  │     starts → validates socket → fires DockerTrigger → destroyed
-  │       └─► Main App resolves DockerModule
-  │
-  └─► All done → feature modules have everything they need
+    rect rgb(240, 240, 245)
+        S->>S: Config SubApp<br/>starts → loads env
+        S->>M: fires ConfigTrigger
+        M->>M: resolves ConfigModule
+        Note over S: destroyed — providers cleaned up
+    end
 
-Main App fully initialized (all modules resolved, no sub-apps alive)
+    rect rgb(240, 240, 245)
+        S->>S: Database SubApp<br/>starts → creates pool → runs migrations
+        S->>M: fires DbTrigger
+        M->>M: resolves DatabaseModule
+        Note over S: destroyed
+    end
+
+    rect rgb(240, 240, 245)
+        S->>S: Auth SubApp<br/>starts → inits BetterAuth → creates admin
+        S->>M: fires AuthTrigger
+        M->>M: resolves AuthModule
+        Note over S: destroyed
+    end
+
+    rect rgb(240, 240, 245)
+        S->>S: Mesh SubApp<br/>starts → registers with mesh
+        S->>M: fires MeshTrigger
+        M->>M: resolves MeshModule
+        Note over S: destroyed
+    end
+
+    rect rgb(240, 240, 245)
+        S->>S: Events SubApp<br/>starts → connects event bus
+        S->>M: fires EventsTrigger
+        M->>M: resolves EventsModule
+        Note over S: destroyed
+    end
+
+    rect rgb(240, 240, 245)
+        S->>S: Docker SubApp<br/>starts → validates socket
+        S->>M: fires DockerTrigger
+        M->>M: resolves DockerModule
+        Note over S: destroyed
+    end
+
+    Note over M,S: All done → feature modules have everything they need.<br/>Main App fully initialized — all modules resolved, no sub-apps alive.
 ```
 
 ### The Chain
@@ -155,7 +173,7 @@ flowchart LR
 
 ## The Trigger System
 
-### Trigger<T> Interface
+### Trigger&lt;T&gt; Interface
 
 The foundation of the architecture is the **trigger** — a typed signal that transitions from "unresolved" to "resolved" exactly once, carrying a typed payload.
 
@@ -1086,7 +1104,7 @@ flowchart TD
 | **One trigger = one module** | Each sub-app fires exactly one trigger, which resolves exactly one module |
 | **Sequential, not monolithic** | Sub-apps run one at a time in dependency order |
 | **Zero leftovers** | Each sub-app is destroyed after firing its trigger |
-| **Clean, typed contract** | `Trigger<T>` with generic payload types |
+| **Clean, typed contract** | `Trigger&lt;T&gt;` with generic payload types |
 | **Degraded operation** | Non-critical sub-apps can fail without crashing the process |
 | **No deadlocks** | Each sub-app has its own DI context — no racing factories vs lifecycle hooks |
 
@@ -1094,10 +1112,10 @@ flowchart TD
 
 | File | Purpose |
 |------|---------|
-| `src/core/modules/triggers/trigger.ts` | `Trigger<T>` class |
+| `src/core/modules/triggers/trigger.ts` | `Trigger&lt;T&gt;` class |
 | `src/core/modules/triggers/trigger-registry.ts` | `TriggerRegistry` with all trigger instances |
 | `src/core/modules/triggers/triggers.module.ts` | NestJS module providing `TriggerRegistry` |
-| `src/core/modules/sub-app-runner/sub-app.interface.ts` | `SubApp<T>`, `SubAppContext<T>` interfaces |
+| `src/core/modules/sub-app-runner/sub-app.interface.ts` | `SubApp&lt;T&gt;`, `SubAppContext&lt;T&gt;` interfaces |
 | `src/core/modules/sub-app-runner/sub-app-context.module.ts` | `SubAppContextModule.forRoot()` |
 | `src/core/modules/sub-app-runner/tokens.ts` | `SUB_APP_CONTEXT` token |
 | `src/core/modules/sub-app-orchestrator/sub-app-orchestrator.service.ts` | `SubAppOrchestrator` |

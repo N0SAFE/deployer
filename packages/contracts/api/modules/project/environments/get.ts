@@ -1,4 +1,5 @@
 import z from "zod/v4";
+import { standardDomainErrorContracts } from "@repo/orpc-utils";
 import { projectEnvironmentOps } from "./shared";
 
 export const projectGetEnvironmentContract = projectEnvironmentOps
@@ -10,4 +11,8 @@ export const projectGetEnvironmentContract = projectEnvironmentOps
         ),
     )
     .output((b) => b.entitySchema)
+    .errors((e) => [
+        // 404 for unknown env.
+        ...standardDomainErrorContracts(e),
+    ])
     .build();

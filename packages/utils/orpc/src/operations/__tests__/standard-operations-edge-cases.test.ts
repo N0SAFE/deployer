@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { z } from 'zod/v4';
+import z from 'zod/v4';
 import { standard } from '../zod/standard-operations';
 import { createFilterConfig } from '../zod/list-builder';
 

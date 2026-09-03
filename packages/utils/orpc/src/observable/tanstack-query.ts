@@ -384,7 +384,7 @@ function resolveBaseProcedureOptions(
   }
 
   const result = method(baseOptionsInput);
-  return isObjectLike(result) ? (result as ProcedureBaseQueryOptions) : null;
+  return isObjectLike(result) ? (result) : null;
 }
 
 function resolveProcedureKey(

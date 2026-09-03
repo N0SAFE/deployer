@@ -1,11 +1,16 @@
 import type { Auth } from "@/auth";
-import { createPluginRegistry, type AdminPluginWrapper, type OrganizationPluginWrapper } from "../plugin-utils/plugin-wrapper-factory";
-import { ORPCError } from "@orpc/client";
-import type { PlatformRole } from "@repo/auth/permissions";
+import { createPluginRegistry, type AdminPluginWrapper } from "../plugin-utils/plugin-wrapper-factory";
+import { standardErrorActions } from "@repo/orpc-utils";
 
-type SessionUserWithRole = Auth["$Infer"]["Session"]["user"] & {
-  role?: PlatformRole;
-  banned?: boolean;
+export type SessionUserWithRole = Auth["$Infer"]["Session"]["user"] & {
+  // `role` comes from Better Auth's `user.additionalFields.role` (DB text).
+  // It is NOT a `PlatformRole` at the type level; the permission engine
+  // validates/adopts it into `PlatformRole` at the trust boundary.
+  role?: string;
+  // Admin plugin fields — nullable at runtime (not banned yet).
+  banned?: boolean | null;
+  banReason?: string | null;
+  banExpires?: Date | string | null;
   [key: string]: unknown;
 };
 
@@ -33,7 +38,7 @@ export type RequestWithSession = Request & {
  * - `adminMiddlewares.requireRole(role)` - Require specific role
  * - `adminMiddlewares.requirePermission(permission)` - Permission-based access
  * - `adminMiddlewares.requireAccess({ roles, permissions })` - Complex access control
- * - `organizationMiddlewares.requireRole(role)` - Organization role-based access
+ * - `meshMiddlewares.requireRole(role)` - Mesh-wide role-based access
  * 
  * @example
  * ```ts
@@ -50,7 +55,6 @@ export type RequestWithSession = Request & {
  */
 export class AuthUtils {
   private readonly _adminUtils: AdminPluginWrapper;
-  private readonly _orgUtils: OrganizationPluginWrapper;
 
   constructor(
     private readonly _session: UserSession | null,
@@ -61,7 +65,6 @@ export class AuthUtils {
     const registry = createPluginRegistry(auth as never);
     const plugins = registry.getAll(headers ?? new Headers());
     this._adminUtils = plugins.admin;
-    this._orgUtils = plugins.organization;
   }
 
   get isLoggedIn(): boolean {
@@ -95,23 +98,6 @@ export class AuthUtils {
   }
 
   /**
-   * Access organization plugin utilities with auto-injected headers
-   * 
-   * @example
-   * ```typescript
-   * // In ORPC handler
-   * const org = await context.auth.org.createOrganization({
-   *   name: 'Acme Corp',
-   *   slug: 'acme-corp',
-   *   userId: context.auth.user?.id
-   * });
-   * ```
-   */
-  get org(): OrganizationPluginWrapper {
-    return this._orgUtils;
-  }
-
-  /**
    * Require authentication - throws if user is not logged in
    * 
    * Use this for programmatic auth checks after middleware processing,
@@ -129,9 +115,11 @@ export class AuthUtils {
    */
   requireAuth(): UserSession {
     if (!this._session) {
-      throw new ORPCError('UNAUTHORIZED', {
-        message: 'Authentication required',
-      });
+      // Contract-closed error: UNAUTHORIZED is declared on every contract
+      // via standardDomainErrorContracts, so ORPC upgrades this to a DEFINED
+      // error on the client. No hand-built ORPCError with an off-contract
+      // code can be produced.
+      throw standardErrorActions.UNAUTHORIZED('Authentication required');
     }
     return this._session;
   }
@@ -146,24 +134,18 @@ export class AuthUtilsEmpty {
   readonly session = null;
   readonly user = null;
   
-  // Admin and org utilities (available even when not logged in)
+  // Admin utilities (available even when not logged in)
   private readonly _admin: AdminPluginWrapper;
-  private readonly _org: OrganizationPluginWrapper;
 
   constructor(auth: Auth) {
     // Create utilities using registry with getAll()
     const registry = createPluginRegistry(auth as never);
     const plugins = registry.getAll(new Headers());
     this._admin = plugins.admin;
-    this._org = plugins.organization;
   }
 
   get admin(): AdminPluginWrapper {
     return this._admin;
-  }
-
-  get org(): OrganizationPluginWrapper {
-    return this._org;
   }
 
   /**
@@ -171,8 +153,8 @@ export class AuthUtilsEmpty {
    * @throws ORPCError with UNAUTHORIZED code
    */
   requireAuth(): never {
-    throw new ORPCError('UNAUTHORIZED', {
-      message: 'Authentication required',
-    });
+    // Contract-closed error: UNAUTHORIZED is declared on every contract via
+    // standardDomainErrorContracts.
+    throw standardErrorActions.UNAUTHORIZED('Authentication required');
   }
 }

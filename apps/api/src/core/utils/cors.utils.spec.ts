@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeUrl, buildAllowedOrigins, isLocalhostOrigin } from './cors.utils';
+import { normalizeUrl, buildAllowedOrigins, isLocalhostOrigin, resolveCorsDecision } from './cors.utils';
 
 describe('cors.utils', () => {
   describe('normalizeUrl', () => {
@@ -100,6 +100,60 @@ describe('cors.utils', () => {
         'http://example.com',
         'https://app.example.com'
       ]);
+    });
+  });
+
+  describe('resolveCorsDecision', () => {
+    const allowedOrigins = ['http://localhost:3000', 'https://app.example.com'];
+
+    it('skips CORS headers entirely for same-origin (no Origin header)', () => {
+      expect(
+        resolveCorsDecision({ origin: undefined, hasCookieHeader: true, allowedOrigins, isDevelopment: false })
+      ).toEqual({ allowOrigin: false, allowCredentials: false });
+    });
+
+    it('reflects allowlisted origins with credentials', () => {
+      expect(
+        resolveCorsDecision({ origin: 'https://app.example.com', hasCookieHeader: true, allowedOrigins, isDevelopment: false })
+      ).toEqual({ allowOrigin: true, allowCredentials: true });
+    });
+
+    it('treats localhost variants as allowlisted in development only', () => {
+      const input = { origin: 'http://localhost:4200', hasCookieHeader: false, allowedOrigins };
+      expect(resolveCorsDecision({ ...input, isDevelopment: true })).toEqual({ allowOrigin: true, allowCredentials: true });
+      expect(resolveCorsDecision({ ...input, isDevelopment: false })).toEqual({ allowOrigin: true, allowCredentials: false });
+    });
+
+    it('BLOCKS untrusted cross-origin requests that carry cookies', () => {
+      // The security boundary: ambient/stolen cookies can never read responses
+      // from an unknown origin.
+      expect(
+        resolveCorsDecision({
+          origin: 'https://evil.example.net',
+          hasCookieHeader: true,
+          allowedOrigins,
+          isDevelopment: false,
+        })
+      ).toEqual({ allowOrigin: false, allowCredentials: false });
+    });
+
+    it('reflects cookie-free token-path requests from any origin WITHOUT credentials', () => {
+      // This is the BYO web-app path: possession of the app-instance token
+      // (a header) replaces origin configuration.
+      expect(
+        resolveCorsDecision({
+          origin: 'https://consumer-machine.example.net',
+          hasCookieHeader: false,
+          allowedOrigins,
+          isDevelopment: false,
+        })
+      ).toEqual({ allowOrigin: true, allowCredentials: false });
+    });
+
+    it('normalizes the incoming origin before matching', () => {
+      expect(
+        resolveCorsDecision({ origin: 'https://app.example.com/', hasCookieHeader: false, allowedOrigins, isDevelopment: false })
+      ).toEqual({ allowOrigin: true, allowCredentials: true });
     });
   });
 });

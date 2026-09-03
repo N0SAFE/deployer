@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 // Generic type for exportable data - should have string keys and values that can be converted to string
 // Allow arrays for hierarchical data (subRows)
-export type ExportableData = Record<string, string | number | boolean | null | undefined | any[]>;
+export type ExportableData = Record<string, unknown>;
 
 /**
  * Flatten hierarchical data for export
@@ -21,8 +21,8 @@ export function flattenHierarchicalData<T extends ExportableData>(
       const { [subRowsField]: subRows, ...itemData } = item as Record<string, unknown>;
       flattened.push(
         includeDepth
-          ? ({ ...itemData, _depth: depth } as T)
-          : (itemData as T)
+          ? ({ ...itemData, _depth: depth } as unknown as T)
+          : (itemData as unknown as T)
       );
 
       if (subRows && Array.isArray(subRows) && subRows.length > 0) {

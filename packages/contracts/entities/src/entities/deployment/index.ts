@@ -6,3 +6,5 @@ export * from "./retry.schema";
 export * from "./phase.schema";
 export * from "./execution.schema";
 export * from "./lifecycle-events.schema";
+export * from "./runtime-runner-options.schema";
+export * from "./source-checkout.schema";

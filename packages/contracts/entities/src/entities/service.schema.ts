@@ -10,15 +10,32 @@ import {
 } from "./service/provider-config.schema";
 import {
     kubernetesRunnerConfigSchema,
-    dockerComposeRunnerConfigSchema,
-    dockerSwarmRunnerConfigSchema,
+    manualRunnerConfigSchema,
+    orchestratorRunnerConfigSchema,
+    orchestratorSubServiceSchema,
     workerRuntimeRunnerConfigSchema,
     nomadRunnerConfigSchema,
     staticRunnerConfigSchema,
     runnerConfigSchemaById,
     serviceRunnerConfigUnionSchema,
 } from "./service/runner-config.schema";
-import { serviceSchema, type Service } from "./service/service.schema";
+import {
+    mockEngineSchema,
+    mockServiceConfigSchema,
+    implementedContractSchema,
+    type MockEngine,
+    type MockServiceConfig,
+    type ImplementedContract,
+} from "./service/mock-config.schema";
+import {
+    serviceSchema,
+    serviceObjectShape,
+    serviceEffectiveConfigSchema,
+    serviceWithEffectiveConfigSchema,
+    type Service,
+    type ServiceEffectiveConfig,
+    type ServiceWithEffectiveConfig,
+} from "./service/service.schema";
 
 export {
     githubProviderConfigSchema,
@@ -30,14 +47,28 @@ export {
     providerConfigSchemaById,
     serviceProviderConfigUnionSchema,
     kubernetesRunnerConfigSchema,
-    dockerComposeRunnerConfigSchema,
-    dockerSwarmRunnerConfigSchema,
+    manualRunnerConfigSchema,
+    orchestratorRunnerConfigSchema,
+    orchestratorSubServiceSchema,
     workerRuntimeRunnerConfigSchema,
     nomadRunnerConfigSchema,
     staticRunnerConfigSchema,
     runnerConfigSchemaById,
     serviceRunnerConfigUnionSchema,
+    mockEngineSchema,
+    mockServiceConfigSchema,
+    implementedContractSchema,
     serviceSchema,
+    serviceObjectShape,
+    serviceEffectiveConfigSchema,
+    serviceWithEffectiveConfigSchema,
 };
 
-export type { Service };
+export type {
+    Service,
+    ServiceEffectiveConfig,
+    ServiceWithEffectiveConfig,
+    MockEngine,
+    MockServiceConfig,
+    ImplementedContract,
+};

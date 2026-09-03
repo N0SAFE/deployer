@@ -18,4 +18,7 @@ export const getAvailableDomainsForServiceContract = projectDomainMappingsOps
             ),
     )
     .output((b) => z.array(b.entitySchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
+
+import { standardDomainErrorContracts } from "@repo/orpc-utils";

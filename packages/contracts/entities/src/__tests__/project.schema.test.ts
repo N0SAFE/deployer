@@ -19,52 +19,45 @@ describe('project schema validation', () => {
     },
   }
 
-  it('accepts consistent production/preview/development enablement flags', () => {
+  it('accepts the flat project settings storage shape', () => {
     const result = projectSettingsSchema.safeParse({
-      general: {
-        defaultBranch: 'main',
-        autoDeployEnabled: true,
-        enablePreviewEnvironments: true,
-      },
-      environment: {
-        previewEnabled: true,
-        developmentEnabled: true,
-        defaultEnvironmentVariables: {},
-        environments: {
-          production: baseEnvironment,
-          preview: baseEnvironment,
-          development: baseEnvironment,
-        },
-      },
-      deployment: {
-        autoCleanupDays: 30,
-        maxPreviewEnvironments: 10,
-        deploymentStrategy: 'rolling',
-        healthCheckTimeout: 30,
-        deploymentTimeout: 600,
-        enableRollback: true,
-        requireApprovalForProduction: true,
-      },
-      security: {
-        enableHttpsRedirect: true,
-        allowedDomains: [],
-        ipWhitelist: [],
-        enableBasicAuth: false,
-      },
-      resource: {
-        defaultCpuLimit: '500m',
-        defaultMemoryLimit: '512Mi',
-        defaultStorageLimit: '1Gi',
-        maxServicesPerProject: 20,
-      },
-      notification: {
-        enableEmailNotifications: true,
-        enableSlackNotifications: false,
-        emailRecipients: ['team@example.com'],
-        notifyOnDeploymentSuccess: true,
-        notifyOnDeploymentFailure: true,
-        notifyOnServiceDown: true,
-      },
+      defaultBranch: 'main',
+      autoDeployEnabled: true,
+      enablePreviewEnvironments: true,
+      defaultEnvironmentVariables: { NODE_ENV: 'production' },
+      productionEnvironmentVariables: { NODE_ENV: 'production' },
+      autoCleanupDays: 30,
+      maxPreviewEnvironments: 10,
+      deploymentStrategy: 'rolling',
+      healthCheckTimeout: 30,
+      deploymentTimeout: 600,
+      enableRollback: true,
+      requireApprovalForProduction: true,
+      enableHttpsRedirect: true,
+      allowedDomains: [],
+      ipWhitelist: [],
+      enableBasicAuth: false,
+      defaultCpuLimit: '500m',
+      defaultMemoryLimit: '512Mi',
+      defaultStorageLimit: '1Gi',
+      maxServicesPerProject: 20,
+      enableEmailNotifications: true,
+      enableSlackNotifications: false,
+      emailRecipients: ['team@example.com'],
+      notifyOnDeploymentSuccess: true,
+      notifyOnDeploymentFailure: true,
+      notifyOnServiceDown: true,
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts a partial settings blob (subset of keys)', () => {
+    const result = projectSettingsSchema.safeParse({
+      enableRollback: true,
+      emailRecipients: [],
+      healthCheckTimeout: 60,
+      enableSlackNotifications: false,
     })
 
     expect(result.success).toBe(true)

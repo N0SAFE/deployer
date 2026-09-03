@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { BadRequestError } from "@/core/errors/app-error";
+import { BadRequestError } from "@repo/errors";
 import type { DependencyTemplateConfig } from "@repo/contracts-entities";
 import type { ServiceDag } from "./service-dag.service";
 

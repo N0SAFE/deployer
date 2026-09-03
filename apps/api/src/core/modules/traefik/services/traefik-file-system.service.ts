@@ -919,6 +919,62 @@ export class TraefikFileSystemService {
   }
 
   /**
+   * Build the DEFAULT Traefik main configuration.
+   *
+   * Env-gated (W-P1):
+   *  - `DEPLOYER_TRAEFIK_TLS_ENABLED=true` adds the HTTP→HTTPS redirect on the
+   *    web entrypoint and the letsencrypt ACME resolver (contact from
+   *    `DEPLOYER_TRAEFIK_ACME_EMAIL`). Default (false) keeps plain-HTTP dev
+   *    flows — no ACME resolver, no redirect.
+   *  - Both entry points are always declared (routers reference them), but the
+   *    ACME resolver is only attached to TLS-enabled routers per-domain via
+   *    the persisted ssl flag (traefik-sync.service.ts).
+   */
+  private buildDefaultMainConfig(): string {
+    const tlsEnabled = this.envService.get('DEPLOYER_TRAEFIK_TLS_ENABLED') === true;
+    const acmeEmail = this.envService.get('DEPLOYER_TRAEFIK_ACME_EMAIL') ?? 'admin@example.com';
+
+    const webEntryPoint = tlsEnabled
+      ? `  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true`
+      : `  web:
+    address: ":80"`;
+
+    const acmeBlock = tlsEnabled
+      ? `
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: ${acmeEmail}
+      storage: /etc/traefik/acme.json
+      httpChallenge:
+        entryPoint: web
+`
+      : '';
+
+    return `# Traefik main configuration
+api:
+  dashboard: true
+  insecure: true
+
+entryPoints:
+${webEntryPoint}
+  websecure:
+    address: ":443"
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+${acmeBlock}`;
+  }
+  /**
    * Get virtual main config content
    */
   private async getVirtualMainConfig(): Promise<string> {
@@ -932,57 +988,11 @@ export class TraefikFileSystemService {
       }
 
       // Return default main config
-      return `# Traefik main configuration
-api:
-  dashboard: true
-  insecure: true
-
-entryPoints:
-  web:
-    address: ":80"
-  websecure:
-    address: ":443"
-
-providers:
-  file:
-    directory: /etc/traefik/dynamic
-    watch: true
-
-certificatesResolvers:
-  letsencrypt:
-    acme:
-      email: admin@example.com
-      storage: /etc/traefik/acme.json
-      httpChallenge:
-        entryPoint: web
-`;
+      return this.buildDefaultMainConfig();
     } catch (error) {
       this.logger.error('Error getting virtual main config:', error);
       // Return default config if database query fails
-      return `# Traefik main configuration (default - database error)
-api:
-  dashboard: true
-  insecure: true
-
-entryPoints:
-  web:
-    address: ":80"
-  websecure:
-    address: ":443"
-
-providers:
-  file:
-    directory: /etc/traefik/dynamic
-    watch: true
-
-certificatesResolvers:
-  letsencrypt:
-    acme:
-      email: admin@example.com
-      storage: /etc/traefik/acme.json
-      httpChallenge:
-        entryPoint: web
-`;
+      return this.buildDefaultMainConfig();
     }
   }
 

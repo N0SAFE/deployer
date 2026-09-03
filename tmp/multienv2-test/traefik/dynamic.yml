@@ -1,0 +1,21 @@
+http:
+  routers:
+    production-router:
+      rule: "Host(`app.deployer.local`)"
+      service: production-svc
+      entryPoints:
+        - web
+    preview-router:
+      rule: "Host(`preview.deployer.local`)"
+      service: preview-svc
+      entryPoints:
+        - web
+  services:
+    production-svc:
+      loadBalancer:
+        servers:
+          - url: "http://multienv2-test-web-production-1:80"
+    preview-svc:
+      loadBalancer:
+        servers:
+          - url: "http://multienv2-test-web-preview-1:80"

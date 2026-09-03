@@ -73,11 +73,8 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * Narrow `unknown` to `Record<string, unknown>` — same as `isRecord` but
- * accepts arrays as a valid record shape (some legacy code uses arrays
- * like records). Prefer `isRecord` unless you have a specific reason
- * to accept arrays.
- *
- * @deprecated Prefer `isRecord` — arrays are not records.
+ * accepts arrays (some runtime shapes use arrays like records). Use
+ * `isRecord` when the value must be a true object.
  */
 export function isObjectLike(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
@@ -201,7 +198,7 @@ export function isObjectWithMessage(
   return (
     isObject(value) &&
     "message" in value &&
-    typeof (value as { message: unknown }).message === "string"
+    typeof (value).message === "string"
   )
 }
 

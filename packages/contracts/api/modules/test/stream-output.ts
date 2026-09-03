@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 
 const testStreamOutputOps = standard.zod(
   z.object({ index: z.number(), message: z.string(), timestamp: z.number() }),
@@ -32,6 +32,7 @@ export const testStreamOutputContract = testStreamOutputOps
       }),
     ),
   )
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();
 
 // Define types based on schemas

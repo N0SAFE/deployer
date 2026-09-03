@@ -9,4 +9,7 @@ export const listServiceDomainsContract = serviceDomainOps
     .list()
     .input((b) => b.params((p) => p`/${p("serviceId", z.uuid())}/domains`))
     .output((b) => z.array(b.entitySchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
+
+import { standardDomainErrorContracts } from "@repo/orpc-utils";

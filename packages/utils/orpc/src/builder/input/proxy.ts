@@ -1,14 +1,18 @@
+ 
 import type { AnySchema } from "../../types/types";
-import type { ObjectSchema, OptionalSchema, ShouldBeOptional, VoidSchema } from "../../types/standard-schema-helpers";
+import type { VoidSchema } from "../../types/standard-schema-helpers";
+import type { BasePluginTransformer } from "../plugin";
+import { StandardPluginTransformer } from "../plugin";
 import { DetailedInputBuilder } from "./builder";
 import type { DetailedInputBuilderSchema } from "./builder";
 
 export type InputSchemaProxySchema<
+    TPlugin extends BasePluginTransformer,
     TParams extends AnySchema,
     TQuery extends AnySchema,
     TBody extends AnySchema,
     THeaders extends AnySchema,
-> = DetailedInputBuilderSchema<TParams, TQuery, TBody, THeaders>;
+> = DetailedInputBuilderSchema<TPlugin, TParams, TQuery, TBody, THeaders>;
 
 export class InputSchemaProxy<
     TParams extends AnySchema = VoidSchema,
@@ -16,17 +20,9 @@ export class InputSchemaProxy<
     TBody extends AnySchema = VoidSchema,
     THeaders extends AnySchema = VoidSchema,
     TEntitySchema extends AnySchema = VoidSchema,
-> extends DetailedInputBuilder<TParams, TQuery, TBody, THeaders, TEntitySchema> {
-    override get schema(): InputSchemaProxySchema<TParams, TQuery, TBody, THeaders> {
+    TPlugin extends BasePluginTransformer = StandardPluginTransformer,
+> extends DetailedInputBuilder<TParams, TQuery, TBody, THeaders, TEntitySchema, TPlugin> {
+    override get schema(): InputSchemaProxySchema<TPlugin, TParams, TQuery, TBody, THeaders> {
         return super.schema;
-    }
-
-    override _build(): ObjectSchema<{
-        params: ShouldBeOptional<TParams> extends true ? OptionalSchema<TParams> : TParams;
-        query: ShouldBeOptional<TQuery> extends true ? OptionalSchema<TQuery> : TQuery;
-        body: ShouldBeOptional<TBody> extends true ? OptionalSchema<TBody> : TBody;
-        headers: ShouldBeOptional<THeaders> extends true ? OptionalSchema<THeaders> : THeaders;
-    }> {
-        return super._build();
     }
 }

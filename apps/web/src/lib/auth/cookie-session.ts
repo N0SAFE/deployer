@@ -65,7 +65,7 @@ export async function getRawSessionCookie(): Promise<string | null> {
     } catch (error) {
         // Re-throw internal Next.js errors (PPR bailout, redirects, etc.)
         unstable_rethrow(error)
-        cookieLogger.error('getRawSessionCookie: ERROR', { error })
+        cookieLogger.log.error('getRawSessionCookie: ERROR', { error })
         return null
     }
 }
@@ -98,7 +98,7 @@ export async function getRawSessionCookie(): Promise<string | null> {
  */
 export async function getSessionFromCookie(): Promise<Session | null> {
     if (!env?.BETTER_AUTH_SECRET) {
-        cookieLogger.warn('getSessionFromCookie: BETTER_AUTH_SECRET not configured')
+        cookieLogger.log.warn('getSessionFromCookie: BETTER_AUTH_SECRET not configured')
         return null
     }
 
@@ -117,7 +117,7 @@ export async function getSessionFromCookie(): Promise<Session | null> {
     } catch (error) {
         // Re-throw internal Next.js errors (PPR bailout, redirects, etc.)
         unstable_rethrow(error)
-        cookieLogger.error('getSessionFromCookie: ERROR', { error })
+        cookieLogger.log.error('getSessionFromCookie: ERROR', { error })
         return null
     }
 }

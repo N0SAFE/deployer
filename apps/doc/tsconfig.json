@@ -18,6 +18,7 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
+    "types": ["node"],
     "paths": {
       "@/*": [
         "./src/*"
@@ -34,12 +35,24 @@
   },
   "include": [
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    ".source/**/*.ts",
+    ".source/**/*.mjs",
+    "next.config.ts",
+    "source.config.ts",
+    "eslint.config.ts",
+    ".prettierrc.ts",
+    "postcss.config.mjs"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    ".next",
+    ".turbo",
+    "out",
+    "dist",
+    "coverage",
+    "build",
+    ".swc"
   ]
 }

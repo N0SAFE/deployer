@@ -1,4 +1,4 @@
-import { defineInvalidations } from "@/domains/shared/helpers";
+import { defineInvalidations, type InvalidationConfig } from "@/domains/shared/helpers";
 import { meshEndpoints } from "./endpoints";
 
 /**
@@ -27,7 +27,9 @@ import { meshEndpoints } from "./endpoints";
  *   → cascades to trustStrictModeSet/trustStrictRollback (via trustStrictReadiness) → adds keys.trustStrictRolloutPlan()
  *   → plus direct key: keys.trustKeyringConvergenceStatus()
  */
-export const meshInvalidations = defineInvalidations(meshEndpoints, {
+export const meshInvalidations: ReturnType<
+  typeof defineInvalidations<typeof meshEndpoints, InvalidationConfig<typeof meshEndpoints>>
+> = defineInvalidations(meshEndpoints, {
   // ── Flat: no cascading ────────────────────────────────────────────────
   connectPeer: ({ keys }) => [
     keys.getLocalNode(),

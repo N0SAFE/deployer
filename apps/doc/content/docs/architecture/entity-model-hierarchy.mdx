@@ -195,13 +195,13 @@ And the runtime aggregate is explicitly modeled by `dockerRuntimeCatalogSchema`:
 
 ```mermaid
 flowchart TD
-    RC[DockerRuntimeCatalog]
-    RC --> RCC[containers: DockerContainerEntity[]]
-    RC --> RCI[images: DockerImageEntity[]]
-    RC --> RCN[networks: DockerNetworkEntity[]]
-    RC --> RCV[volumes: DockerVolumeEntity[]]
-    RC --> RCR[registries: DockerRegistryEntity[]]
-    RC --> RCS[stacks: DockerStackEntity[]]
+    RC["DockerRuntimeCatalog"]
+    RC --> RCC["containers: DockerContainerEntity[]"]
+    RC --> RCI["images: DockerImageEntity[]"]
+    RC --> RCN["networks: DockerNetworkEntity[]"]
+    RC --> RCV["volumes: DockerVolumeEntity[]"]
+    RC --> RCR["registries: DockerRegistryEntity[]"]
+    RC --> RCS["stacks: DockerStackEntity[]"]
 ```
 
 ---

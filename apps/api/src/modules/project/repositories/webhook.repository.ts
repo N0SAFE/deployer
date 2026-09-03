@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { ConflictError } from "@/core/errors/app-error";
+import { ConflictError } from "@repo/errors";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { webhooks } from "@/config/drizzle/global/schema/deployment";
 import { eq, and } from "drizzle-orm";

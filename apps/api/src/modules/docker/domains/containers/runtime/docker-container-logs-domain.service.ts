@@ -259,7 +259,7 @@ export class DockerContainerLogsDomainService {
     });
   }
 
-  private async getFirstResponse<T>(call: Promise<{ responses: T[] }>): Promise<T | null> {
+  private async getFirstResponse<T>(call: Promise<{ responses: readonly T[] }>): Promise<T | null> {
     const result = await call;
     return result.responses[0] ?? null;
   }

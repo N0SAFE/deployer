@@ -5,7 +5,7 @@ import { SystemMeshTopicService } from "./system-mesh-topic/orchestrator/system-
 import { SystemMeshTopologyService } from "./system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { SystemMeshConfigService } from "./system-mesh-config.service";
 import { EnvService } from "@/config/env/env.service";
-import { contractBuilder } from "@/core/modules/events/event-contract.builder";
+import { contractBuilder } from "@repo/nest-events";
 import z from "zod/v4";
 
 const nodeInfoGetInputSchema = z.object({});
@@ -27,7 +27,6 @@ const SystemMeshResourceContracts = {
     .build(),
   "system-resource:nodeInfo:get:res": contractBuilder()
     .input(z.object({ 
-      organizationId: z.string().nullable().optional(), 
       correlationId: z.string() 
     }))
     .output(z.object({
@@ -40,7 +39,6 @@ const SystemMeshResourceContracts = {
     .build(),
   "system-resource:nodeInfo:get:cancel": contractBuilder()
     .input(z.object({ 
-      organizationId: z.string().nullable().optional(), 
       correlationId: z.string().optional() 
     }))
     .output(z.object({
@@ -78,7 +76,7 @@ export class SystemMeshResourceService extends SystemMeshResourceBase implements
       return {
         payload: {
           nodeId: this.meshConfig.getNodeId(),
-          databaseUrl: this.env.get("DATABASE_URL") || "",
+          databaseUrl: this.buildLocalDatabaseUrl(),
           serverUrl: this.env.get("NEXT_PUBLIC_API_URL") || "",
         },
       };
@@ -87,5 +85,26 @@ export class SystemMeshResourceService extends SystemMeshResourceBase implements
 
   onModuleDestroy(): void {
     super.onModuleDestroy();
+  }
+
+  /**
+   * Builds the PostgreSQL connection URL advertised to mesh peers from the
+   * typed `DB_*` environment keys. `DATABASE_URL` is intentionally not a
+   * typed EnvService key, so the URL is assembled from its parts.
+   */
+  private buildLocalDatabaseUrl(): string {
+    const user = this.env.get("DB_USER");
+    const password = this.env.get("DB_PASSWORD");
+    const host = this.env.get("DB_HOST");
+    const port = this.env.get("DB_PORT");
+    const database = this.env.get("DB_DATABASE");
+
+    if (!host || !database) {
+      return "";
+    }
+
+    const credentials = user ? `${encodeURIComponent(user)}${password ? `:${encodeURIComponent(password)}` : ""}@` : "";
+    const portPart = port ? `:${port}` : "";
+    return `postgres://${credentials}${host}${portPart}/${database}`;
   }
 }

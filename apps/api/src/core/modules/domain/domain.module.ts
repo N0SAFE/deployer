@@ -1,14 +1,14 @@
 import { Module, Global } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
+import { TraefikCoreModule } from '@/core/modules/traefik/traefik.module';
 
 // Services
 import { DomainVerificationService } from './services/domain-verification.service';
 import { DomainConflictService } from './services/domain-conflict.service';
-import { OrganizationDomainService } from './services/organization-domain.service';
 import { ServiceDomainMappingService } from './services/service-domain-mapping.service';
+import { DomainRoutingService } from './services/domain-routing.service';
 
 // Repositories
-import { OrganizationDomainRepository } from './repositories/organization-domain.repository';
 import { ProjectDomainRepository } from './repositories/project-domain.repository';
 import { ServiceDomainMappingRepository } from './repositories/service-domain-mapping.repository';
 
@@ -23,11 +23,9 @@ import { ServiceDomainMappingRepository } from './repositories/service-domain-ma
  * Services provided:
  * - DomainVerificationService: Domain verification (DNS, TXT records)
  * - DomainConflictService: Subdomain conflict detection
- * - OrganizationDomainService: Organization domain management
  * - ServiceDomainMappingService: Service-to-domain mappings
  * 
  * Repositories provided:
- * - OrganizationDomainRepository: Organization domain data access
  * - ProjectDomainRepository: Project domain data access
  * - ServiceDomainMappingRepository: Service domain mapping data access
  * 
@@ -37,17 +35,17 @@ import { ServiceDomainMappingRepository } from './repositories/service-domain-ma
 @Module({
   imports: [
     DatabaseModule,
+    TraefikCoreModule,
   ],
   controllers: [],  // NO CONTROLLERS - moved to DomainControllerModule (feature)
   providers: [
     // Services
     DomainVerificationService,
     DomainConflictService,
-    OrganizationDomainService,
     ServiceDomainMappingService,
+    DomainRoutingService,
     
     // Repositories
-    OrganizationDomainRepository,
     ProjectDomainRepository,
     ServiceDomainMappingRepository,
   ],
@@ -55,11 +53,10 @@ import { ServiceDomainMappingRepository } from './repositories/service-domain-ma
     // Export services for use in other modules (e.g., ServiceContext, Deployment)
     DomainVerificationService,
     DomainConflictService,
-    OrganizationDomainService,
     ServiceDomainMappingService,
+    DomainRoutingService,
     
     // Export repositories for use in other modules
-    OrganizationDomainRepository,
     ProjectDomainRepository,
     ServiceDomainMappingRepository,
   ],

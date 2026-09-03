@@ -5,14 +5,14 @@ import type { Table } from "@tanstack/react-table";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Settings, Undo2, TrashIcon, EyeOff, CheckSquare, MoveHorizontal } from "lucide-react";
 
-import { Button } from "@/components/shadcn/button";
-import { Input } from "@/components/shadcn/input";
+import { Button } from "../shadcn/button";
+import { Input } from "../shadcn/input";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/shadcn/popover";
-import { CalendarDatePicker } from "@/components/calendar-date-picker";
+} from "../shadcn/popover";
+import { CalendarDatePicker } from "../calendar-date-picker";
 import { DataTableViewOptions } from "./view-options";
 import { DataTableExport } from "./data-export";
 import type { DataTransformFunction, ExportableData } from "./utils/export-utils";

@@ -201,6 +201,8 @@ journalService.hasMigration(tag)       // true/false
 | **Per-migration versions** | `minAppVersion`, `minSchemaVersion` required | None needed — package.json semver is SSOT |
 | **Maintenance burden** | Update manifest for every migration | Zero — Drizzle handles it |
 | **Error cases** | MANIFEST_MISSING, MANIFEST_OUTDATED | Only JOURNAL_MISSING — can't be outdated |
+
+```json
     {
       "version": "0002",
       "name": "whole_sumo",

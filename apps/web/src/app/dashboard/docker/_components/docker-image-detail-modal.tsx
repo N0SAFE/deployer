@@ -1,5 +1,6 @@
 'use client'
 
+import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useDockerImageInspect, useDockerImageSecurityScanStream, useDockerRuntimeEntityDetail } from '@/domains/docker/hooks'
 import { useDockerLiveRefetch } from '@/domains/docker/use-docker-live'
@@ -849,7 +850,7 @@ function DockerImageDetailContent({
     )
 
     void imageScanStreamQuery.refetch().catch((error) => {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = isDefinedORPCError(error) ? getErrorMessage(error) : String(error)
 
       appendScanEvent(
         createSyntheticScanEvent({
@@ -1392,7 +1393,7 @@ function DockerImageDetailContent({
               <DockerImageSecurityFlow
                 activeStage={securitySubTab}
                 onStageChange={(stage) => setSecuritySubTab(stage)}
-                pullStatus={pullStatus}
+                pullStatus={pullStatus === 'queued' ? 'idle' : pullStatus}
                 logsCount={streamLogEvents.length}
                 resultsCount={filteredVulnerabilities.length}
                 pullingContent={(
@@ -1440,14 +1441,14 @@ function DockerImageDetailContent({
                       )}
                       extraToolbarContent={(
                         <div className="flex flex-wrap items-center gap-2">
-                          <select className="h-8 rounded border bg-background px-2 text-xs" value={scanToolFilter} onChange={(event) => setScanToolFilter(event.target.value as typeof scanToolFilter)}>
+                          <select aria-label="Tool: all" className="h-8 rounded border bg-background px-2 text-xs" value={scanToolFilter} onChange={(event) => setScanToolFilter(event.target.value as typeof scanToolFilter)}>
                             <option value="all">Tool: all</option>
                             <option value="pipeline">Tool: pipeline</option>
                             <option value="trivy">Tool: trivy</option>
                             <option value="grype">Tool: grype</option>
                             <option value="dive">Tool: dive</option>
                           </select>
-                          <select className="h-8 rounded border bg-background px-2 text-xs" value={scanStageFilter} onChange={(event) => setScanStageFilter(event.target.value as typeof scanStageFilter)}>
+                          <select aria-label="Stage: all" className="h-8 rounded border bg-background px-2 text-xs" value={scanStageFilter} onChange={(event) => setScanStageFilter(event.target.value as typeof scanStageFilter)}>
                             <option value="all">Stage: all</option>
                             <option value="queued">queued</option>
                             <option value="pulling-scanner">pulling-scanner</option>
@@ -1457,7 +1458,7 @@ function DockerImageDetailContent({
                             <option value="completed">completed</option>
                             <option value="error">error</option>
                           </select>
-                          <select className="h-8 rounded border bg-background px-2 text-xs" value={scanTypeFilter} onChange={(event) => setScanTypeFilter(event.target.value as typeof scanTypeFilter)}>
+                          <select aria-label="Type: all" className="h-8 rounded border bg-background px-2 text-xs" value={scanTypeFilter} onChange={(event) => setScanTypeFilter(event.target.value as typeof scanTypeFilter)}>
                             <option value="all">Type: all</option>
                             <option value="status">status</option>
                             <option value="log">log</option>
@@ -1519,7 +1520,7 @@ function DockerImageDetailContent({
                           />
                         </div>
 
-                        <select className="h-8 rounded border bg-background px-2 text-xs" value={vulnerabilitySeverityFilter} onChange={(event) => setVulnerabilitySeverityFilter(event.target.value as typeof vulnerabilitySeverityFilter)}>
+                        <select aria-label="Severity: all" className="h-8 rounded border bg-background px-2 text-xs" value={vulnerabilitySeverityFilter} onChange={(event) => setVulnerabilitySeverityFilter(event.target.value as typeof vulnerabilitySeverityFilter)}>
                           <option value="all">Severity: all</option>
                           <option value="critical">critical</option>
                           <option value="high">high</option>
@@ -1527,7 +1528,7 @@ function DockerImageDetailContent({
                           <option value="low">low</option>
                         </select>
 
-                        <select className="h-8 rounded border bg-background px-2 text-xs" value={vulnerabilityScannerFilter} onChange={(event) => setVulnerabilityScannerFilter(event.target.value as typeof vulnerabilityScannerFilter)}>
+                        <select aria-label="Scanner: all" className="h-8 rounded border bg-background px-2 text-xs" value={vulnerabilityScannerFilter} onChange={(event) => setVulnerabilityScannerFilter(event.target.value as typeof vulnerabilityScannerFilter)}>
                           <option value="all">Scanner: all</option>
                           <option value="trivy">Scanner: trivy</option>
                           <option value="grype">Scanner: grype</option>
@@ -1536,7 +1537,7 @@ function DockerImageDetailContent({
                           <option value="unmapped">Layer map: unmapped</option>
                         </select>
 
-                        <select className="h-8 rounded border bg-background px-2 text-xs" value={vulnerabilitySort} onChange={(event) => setVulnerabilitySort(event.target.value as typeof vulnerabilitySort)}>
+                        <select aria-label="Sort: severity ↓" className="h-8 rounded border bg-background px-2 text-xs" value={vulnerabilitySort} onChange={(event) => setVulnerabilitySort(event.target.value as typeof vulnerabilitySort)}>
                           <option value="severity-desc">Sort: severity ↓</option>
                           <option value="severity-asc">Sort: severity ↑</option>
                           <option value="package-asc">Sort: package A→Z</option>
@@ -1624,13 +1625,13 @@ function DockerImageDetailContent({
 
               {imageInspectQuery.error ? (
                 <div className="rounded border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
-                  Failed to refresh image detail: {imageInspectQuery.error instanceof Error ? imageInspectQuery.error.message : String(imageInspectQuery.error)}
+                  Failed to refresh image detail: {isDefinedORPCError(imageInspectQuery.error) ? getErrorMessage(imageInspectQuery.error) : String(imageInspectQuery.error)}
                 </div>
               ) : null}
 
               {imageScanStreamQuery.error ? (
                 <div className="rounded border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
-                  Scan stream error: {imageScanStreamQuery.error instanceof Error ? imageScanStreamQuery.error.message : String(imageScanStreamQuery.error)}
+                  Scan stream error: {isDefinedORPCError(imageScanStreamQuery.error) ? getErrorMessage(imageScanStreamQuery.error) : String(imageScanStreamQuery.error)}
                 </div>
               ) : null}
             </TabsContent>

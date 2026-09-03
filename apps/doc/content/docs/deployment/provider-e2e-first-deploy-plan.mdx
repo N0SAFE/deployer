@@ -1,0 +1,490 @@
+---
+title: Provider E2E & First-Deploy Implementation Plan
+description: Deep-analysis outcome — code providers (GitHub) + dns providers (Cloudflare) end-to-end, GitHub→Dockerfile first deploy, all features working, web app perfect. Docs-first sequencing, dependency-ordered workstreams, evidence map, and the approved review contract.
+order: 24
+---
+
+<DocMeta source="apps/doc/content/docs/deployment/provider-e2e-first-deploy-plan.mdx" scope="canonical" />
+
+<DocCallout title="Status: approved implementation plan" tone="success">
+Outcome of a deep-analysis loop (2 investigate waves, synthesize, 3-review + gatekeeper cycle — verdict **APPROVED** with 10 fold-in conditions). The 10 conditions are folded in below; `## Unresolved Gaps` lists the product decisions that gate specific workstreams.
+</DocCallout>
+
+## Table of contents
+
+1. [Executive summary](#executive-summary)
+2. [Current state by domain](#current-state-by-domain)
+3. [Implementation plan (W1–W12)](#implementation-plan-w1w12)
+4. [Phase map (docs → plan → code)](#phase-map-docs--plan--code)
+5. [Evidence map](#evidence-map)
+6. [Unresolved gaps & decisions](#unresolved-gaps--decisions)
+7. [Mission ledger & strategist log](#mission-ledger--strategist-log)
+
+---
+
+## Executive summary
+
+The provider stack is **asymmetric**: the GitHub (code) surface has 27 fixture sites proving shapes but **zero writers** for the real `github_repository_configs` mapping; the Cloudflare (DNS) surface talks to real APIs (SDK, tunnels, zones/records) but has **six gaps** that break creates and records; the ingress **double-publishes** the same Host (two YAML files, parallel, no dedupe) and has **zero TLS scaffolding**; the web has **24 type errors** (22 mechanical `.body` drift in one file + 2 config-package typing) and dashboards are mostly real with 2 skeleton spots; the webhook auth guard can silently **downgrade to no-auth** (missing/missing-DB secret), uses a single shared secret, in-memory idempotency, HMAC over re-serialized JSON; retry is a **documented no-op** (enqueue TODO) and Redis is **absent** (Bull fails silently, swallowed); hygiene is 6/6 verified.
+
+Gatekeeper verdict: **APPROVED** — conditions folded: explicit SC2 serviceId W-step + test; SC3 replay/failure test w/ `webhook_events` writer; SC11 migrations workstream; SC12 commit-hygiene + CI gate; SC13 explicit docs page list; W2 path `apps/web/src/app/dashboard/admin/system/page.tsx`; `github_repository_configs.create()` exists (zero call sites — delete-or-wire decision); GAP-5 rawBody owner (W7 verify → W9 acceptance); §1 gate-list fixed to "before W5/W6/W7/W9/W10"; mermaid CF→TLS edge captioned candidate-only.
+
+**Five product decisions gate W5/W6/W7/W9/W10** (see [Unresolved gaps](#unresolved-gaps--decisions)); everything else is deterministic.
+
+## Current state by domain
+
+### Code providers — GitHub (B1, B2)
+- `deployment.service.spec.ts` 21 failures = **fixture-only** (inputs use flat `sourceType`/`sourceConfig`; contract now nests a `source:` discriminated union). DI args 15=15 exact. 27 fixture sites: 25 wrap + **upload hoist** (uploadId/uploadPath into source-level) + 2 entity-shaped fixtures stay flat (`mockDeployment` L63, `manualDeployment` L1512); gitlab kind untested; `previewEnabled` optional-fidelity.
+- Webhook `TODO(T032)` at `github.webhooks.controller.ts:154-155` uses `repository.full_name` as placeholder serviceId; `projectId` never passed.
+- Real bridge = `github_repository_configs` (projectId FK, githubAppId FK, repositoryId text, repositoryFullName) — **zero writers** (a `create()` method exists but has zero call sites). `services.providerConfig` is `.strict()` grecaptcha — repo URL = `sourceUrl`.
+
+_Sources: B1, B2 missions (95%, 90%)._
+
+### DNS providers — Cloudflare (CF)
+Paths read: `providers/dns/**`, `core/modules/reachability/**`, web provider pages. Provider is real (Cloudflare SDK client, accountId resolution, tunnel create/get/delete + CNAME, zones/records). Reachability controller wired (provisionTunnelIfNeeded, refresh()). Six gaps (CF-2..CF-7): credential smuggling (route53/google creates always fail — `createApp` verifies with a Cloudflare token regardless of `providerType`), no type filter on `cloudflare/page.tsx`, dead hook, `DnsProviderRegistryService` zero DI, `github_webhook_events` zero writers, `checkRecord.matchContent` no-op.
+
+_Sources: CF scout (85–90%), hygiene (100%)._
+
+### Deployment pipeline
+GitHub→Dockerfile path exists (clone → `buildImage` → `DockerfileRuntimeRunnerService` → dockerode health gate → route sync → success) but is only exercised through fixtures today; Cloudflare creates fail, so DNS half of E2E is blocked (CF-2) and GitHub half is starved (B2-2).
+
+### Ingress / TLS (IG)
+**Double-publish confirmed**: a deployment's primary host appears in BOTH `dynamic-domain.yml` (`deploy-<slug>`, container:port) and `dynamic-services.yml` (`svc-<id8>`, target URL or public-DNS fallback) — same `Host()`, same entrypoint, emitted in parallel `Promise.all`, no cross-file dedupe. TLS: zero scaffolding (only `--entrypoints.web.address=:80`; no websecure/certresolver/acme/redirect; `sslEnabled` is inert metadata).
+
+_Sources: T6 mission (90%), ingress scout._
+
+### Web (W)
+24 errors (confirmed by running `bun --bun run type-check`): 21 TS2339 `.body`-drift + 1 TS7006 fallout, all in `apps/web/src/app/dashboard/admin/system/page.tsx` (mechanical strip); 2 TS7053 in `packages/configs/eslint/src/base.ts` (configs map typed `{}`). Provider/deploy pages: **zero errors**. Dashboard: 6 REAL cards (organizations, invites, role-prop, live SSE badge, recent deployments, org/invitation lists) + 2 SKELETON (Your role hardcoded `member`, quick actions static; `isAdmin` unused; `organizationId` shown raw).
+
+### Auth / security (A)
+- **Critical**: webhook guard skips signature verification when `getWebhookSecret()` returns null (missing config **or any DB error** — empty catch) → forged webhooks possible; single global secret (per-app `webhookSecret` columns unused); idempotency in-memory Map (10k cap, lost on restart); HMAC over re-serialized JSON not raw bytes (false-401 risk).
+- Redaction list case-sensitive (`webhookSecret/clientSecret/privateKey` unredacted); rate limiting only on `registerAppInstance`; reachability ops all `requireAuth()` ✓.
+
+### Queue / retry (R)
+`retryDeployment` no-op at `deployment.service.ts:897`; exact enqueue delta available (`type:"retry"`, `idempotencyKey: "retry:${id}"`, projectId via `getServiceProjectId`, context `{sourceType, sourceConfig}`); `@Process("retry")` processor exists; **Redis absent** in dev compose + no `BullModule.forRoot` → Bull `add()` fails silently (swallowed at lifecycle enqueue) → job stuck queued.
+
+### Hygiene (H)
+6/6 verified (cred smuggling, no type filter, dead hook split, registry zero-DI, webhook_events no writers, matchContent no-op).
+
+---
+
+## Implementation plan (W1–W12)
+
+**Sequencing rule (user mandates docs FIRST):** W1 (docs) precedes ALL code; each later W also carries its doc delta.
+
+| W | Goal | Key changes | Decision-gated | Tests |
+|---|---|---|---|---|
+| **W1 — Docs first** | Architect docs reflect the corrected model; plan is canonical | Update `api-centric-deployment-architecture.mdx` (ownership: core module = config, supervisor = process; route families + single-publish rule), `onboarding-and-lifecycle.mdx` (failover/URL-heal verified), NEW `provider-e2e-first-deploy-plan.mdx` (this page), NEW runbook drafts (github first deploy, dns/cloudflare guide), queue/retry + reachability pages. Numbered page list: this plan W1 output. | no | doc build |
+| **W2 — Web type errors** | 24 → 0 | `apps/web/src/app/dashboard/admin/system/page.tsx`: strip `.body.` at the ~21 mutation-result sites (+type `branch`); `packages/configs/eslint/src/base.ts`: type `configs` map (add `recommended-ci` key) | no | `web -- type-check` = 0 |
+| **W3 — Deployment fixtures (B1)** | `deployment.service.spec` 21→0 | `deployment.service.spec.ts`: 25 inputs → `source: {sourceType, …}` (github: repositoryUrl/branch…; upload: hoist uploadId/uploadPath to source-level; custom: customData); keep `mockDeployment`/`manualDeployment` flat; optional `previewEnabled:true` in resolver mock + add ONE gitlab fixture | no | spec green |
+| **W4 — Ingress single-publish** | one Host = one router | `traefik-platform-config.service.ts`: compute domain-file hosts FIRST; `writeServiceConfigs` skips rows whose host is claimed (dedupe across writers); unit: parse both files, assert no duplicate `Host(` | no | super/ingress 357+ green |
+| **W5 — TLS ingress** | websecure + certs | Supervisor command: `--entrypoints.websecure.address=:443`, `--certificatesresolvers.letsresolve.acme.email=<ops>`, `--certificatesresolvers.letsresolve.acme.storage=/config/acme.json`, `httpchallenge.entrypoint=web`; acme storage on shared volume; builder emits `.tls({certResolver:"letsresolve"})` gated by config `sslEnabled`; HTTP→HTTPS redirect middleware | GAP-3 (authority: LE vs self-signed), GAP-5 no | curl https verify |
+| **W6 — Provider write-side** | `github_repository_configs` + `github_webhook_events` populated | Wire `GithubAppsRepository.create` (or new repo) into install/repo-selection UI + webhook first-delivery persistence (writer for `github_webhook_events`); index `repository_full_name`; decide delete-vs-wire of the zero-call create() | GAP-4 (population UX: admin UI vs webhook-registration bootstrap) | unit per writer |
+| **W7 — Webhook → real serviceId (B2/SC2)** | T032 closed | Controller: `findConfigByRepository(repositoryId/repositoryFullName)` → projectId; service selection (single-github-service or `sourceUrl` match); pass `projectId`+real `serviceId` to dispatch; **verify rawBody availability for HMAC (GAP-5) here → feeds W9 acceptance**; e2e webhook→deploy→container up (retry path explicitly excluded — deferred to W10) | GAP-5 (rawBody) | webhook e2e + SC2 unit |
+| **W8 — Cloudflare gaps (CF-2..7)** | DNS provider E2E | per-type credential model (typed fields remove smuggling) + createApp dispatches per `providerType`; type filter on `cloudflare/page.tsx`; hook cleanup; registry wiring or delete; `checkRecord` content match; `webhook_events` writer (shared w/ W6) | no | provider unit + create e2e |
+| **W9 — Auth/security (A-1..6)** | guard + secrets + redaction | Restore HMAC guard (fail-closed when secret missing; per-app `webhookSecret` resolution); durable idempotency (DB/Redis — ties W10); HMAC over raw body (GAP-5 acceptance); redaction list case-insensitive + `privateKey`; rate limit webhook/setup/probe | GAP-5 acceptance | forged-webhook rejected + idempotency-restart + redaction |
+| **W10 — Retry (B3) + Redis** | retry enqueues, jobs processed | `retryDeployment` → `enqueueQueueJob({type:"retry", idempotencyKey:"retry:${id}", payload{deploymentId, serviceId, projectId, environment, context{sourceType, sourceConfig}}, maxAttempts:5})`; Redis service in dev compose + `BullModule.forRoot`; stop swallowing Bull failures (log surface); spec: assert enqueue call | GAP-2 (redis choice) | retry spec + job completes |
+| **W11 — Dashboard polish** | web perfect | Your role from `session.user` (not hardcoded `member`); remove unused `isAdmin` prop or wire admin cards; `organizationId` → org name lookup; quick actions stay static (documented) | no | web type-check + render |
+| **W12 — Validation + CI/hygiene** | full green + gate | Root type-check (api+web), full tests, e2e, `dr:build` clean; **commit hygiene** for the ~1049-file change set (contracts→api→web→docs atomic commits per core-rules golden order); CI gate (type-check+lint+unit+knip); fresh-DB migration boot check | no | CI green |
+
+**Dependencies:** W5 after W4; W6 before W7; W7 needs W3+W6; W8 after W6 (shared writer); W10 independent but shares swallow-fix w/ W4; W9 acceptance depends on W7 rawBody verification.
+
+**Tests-kept-green rule (SC14):** every W keeps the supervisors+platform-ingress+traefik core at 357+, no new `@ts-ignore`/`as any`/`as unknown as`.
+
+---
+
+## Phase map (docs → plan → code)
+
+1. **(a) Docs first** — W1: docs app pages updated/re-ordered (deliverable: this page + updated siblings), before any code.
+2. **(b) Plan** — this document IS the well-produced plan; finalize after W1, then freeze.
+3. **(c) Implementation** — execute W2 → W12 in order, gating on the 5 decisions (GAP-1..5) before W5/W6/W7/W9/W10 as noted.
+
+## Evidence map
+
+| Claim | Finding | Source (file:line confirmed) |
+|---|---|---|
+| 21 spec fails = fixture-only | B1 | `deployment.service.spec.ts` flat inputs; `crud.ts:79-88` union |
+| Webhook T032 placeholder | B2 | `github.webhooks.controller.ts:154-155` |
+| configs table zero writers (create() exists) | B2 | `schema/github-provider.ts:61`; repository ts (grep call sites) |
+| CF creds smuggling → creates fail | CF | `cloudflare-app.service.ts:88-98,110`; web route53/google pages |
+| CF no type filter | CF | `cloudflare/page.tsx:47,178` |
+| checkRecord matchContent no-op | CF | `cloudflare.controller.ts:95-125` |
+| Double-publish same Host | IG | `traefik-platform-config.service.ts:73-77` + writers |
+| TLS zero scaffolding | IG | `traefik-supervisor.service.ts` command; no websecure/acme grep |
+| 24 web errors | W | `bun --bun run type-check` (coordinator): 21 TS2339+TS7006 in admin/system/page.tsx; 2 TS7053 eslint |
+| Webhook guard downgrade | A | `github-webhook-auth.middleware.ts:108-111`; `github-apps.repository.ts:175-189` |
+| Retry no-op | R | `deployment.service.ts:897` |
+| Redis absent | R | grep docker/compose — zero redis/6379 |
+
+## Unresolved gaps & decisions
+
+(the 10 gatekeeper fold-ins are folded above — the itemized list ends here)
+
+1. **GAP-1 — `github_repository_configs` write-side population (gates W6):** admin UI (providers page) vs webhook-registration bootstrap vs CLI. Schema known; writer absent.
+2. **GAP-2 — Redis wiring (gates W10):** add Redis to dev+prod compose + `BullModule.forRoot` vs durable in-process alternative (idempotency also ties in — W9).
+3. **GAP-3 — TLS authority (gates W5):** Let's Encrypt vs self-signed; redirect policy. NOTE: any mermaid edge showing CF as cert issuer is **candidate-only** (authority undecided).
+4. **GAP-4 — repo→service selection UI (gates W6/W7):** single-github-service rule vs `sourceUrl` match vs explicit mapping in UI (long-term `serviceId` FK on configs table).
+5. **GAP-5 — HMAC raw-body availability (gates W9 acceptance):** verify NestJS raw-body capture during W7; fallback (exact canonical re-serialization + documented) if unavailable.
+
+## Mission ledger & strategist log
+
+Wave 1 (10): scouts + analysts — B1, B2, T3/CF, T4/T5, T6/IG, T7/T8/WEB, T9/T10/HYGIENE (6/10 empty due to infra; retried sequentially, 4 recovered). Wave 2 (8/8): T6(dedupe+TLS), web-errors, auth, dispatch-seam, B3/retry, B1-mopup, hygiene-evidence, dashboard. Synthesized (1). Reviewed (completeness:5-additions / accuracy:ACCURATE+2 / coherence:COHERENT+3) → Gatekeeper **APPROVED** (10 fold-ins).
+
+Strategist: START → CONTINUE (10 spawns) · post-W1 → CONTINUE (8 bounded) · post-W2 → SYNTHESIZE · post-cycle-1 → **DELIVER (0 spawns)**.
+
+Budget: investigators ≈24/30, cycles 1/3, depth 1/4 (deliberately under-used — verdict APPROVED, deltas deterministic).
+
+---
+---
+
+## Decision log & status delta — 2026-08-28
+
+Updated as implementation progressed (docs-first discipline: every code decision
+lands here before/with the code).
+
+### D-1 — Load balancer app REMOVED entirely (architectural decision)
+The standalone `apps/load-balancer` is **deleted** — it is not necessary:
+
+- **Deployment access** is handled by **Traefik redirect or the direct-proxy
+  supervisor** depending on setup (Traefik healthy = Traefik route; Traefik
+  down = DirectProxySupervisor takes over, then self-closes).
+- **Direct app access** needs no LB: Traefik is small (single-node self-hosted);
+  the platform never needed an external balancer in front of it.
+
+Removed in this change set:
+
+| Area | What |
+|---|---|
+| App | `apps/load-balancer/` deleted |
+| Builder | `docker/builder/load-balancer/` (dev+prod Dockerfiles) deleted |
+| Compose | `docker/compose/load-balancer/` (dev/prod/prod-like) deleted; includes removed from `docker-compose.{dev,prod,prod-like}.yml`; `lb-dev`/`lb-prod` deps removed from override files |
+| API | `DeploymentLoadBalancerSyncAdapter` deleted; runner ctor/sync/result field removed; `RuntimeConvergenceConfig`/`RuntimeExecutionResult` LB field removed; convergence resolution LB key removed; workflow LB log/merge removed |
+| Contracts | `runtime-runner-options.schema.ts` `loadBalancerSyncMaxAttempts` removed |
+| Env | `loadBalancerEnvSchema`, `LoadBalancerEnv`, `LOAD_BALANCER_URL`, all `LB_*` keys removed from `@repo/utils-env` (index + mock) |
+| Doc app | `deployment/load-balancer.mdx` deleted; browser/server loaders de-imported; stale links replaced with Traefik ingress pages |
+| Root | `package.json` `load-balancer` script removed; builder AGENTS LB sections removed |
+
+**Kept (native Traefik, NOT ours):** `LoadBalancerConfig`/`LoadBalancerBuilder`,
+`service.loadBalancer(...)` in service-builder and route-config — these are
+Traefik's own `loadBalancer` dynamic-config block (servers/weighted/mirroring).
+
+### D-2 — `appInstance` removed from the global ORPC context (antipattern fix)
+`context.appInstance` was declared OPTIONAL in `ORPCGlobalContext` + populated by
+a root `AppInstancePlugin`, forcing every consumer to null-check — an
+antipattern. Per the same model as `requireAuth()`:
+
+- New typed middleware `requireAppInstance(appInstances)` in
+  `modules/platform/orpc/middlewares.ts`: resolves `X-App-Instance-Token`,
+  throws `UNAUTHORIZED` when missing/invalid, and **narrows the context so
+  `appInstance` is guaranteed present** after it runs.
+- `heartbeat()` in `platform.controller.ts` uses `.use(requireAppInstance(…))`;
+  the `context.appInstance === undefined` check is **deleted**.
+- `ORPCGlobalContext` no longer declares `appInstance` (nothing optional leaks
+  into the global context); `AppInstancePlugin` deleted.
+- Initial context stays `{ request, auth }` — plugins array only carries
+  `SmartCoercionPlugin` + `AuthPlugin`, both typed over the merged context.
+
+### D-3 — API production code is now fully type-clean (0 errors)
+Root causes fixed (all pre-existing, now gone):
+
+- Stale duplicate provider files removed: `providers/code/{code-provider-registry,github/github-source-provider,upload/upload-source-provider,upload/upload-bundle-registry,custom/custom-source-provider}.service.ts` (+ root github spec) were broken duplicates of the `services/` variants — deleted, imports already used `services/`.
+- `app.module.ts` ORPC config aligned with `@orpc/nest` 1.14: `interceptors` → `sendResponseInterceptors`; dropped the removed `eventIteratorKeepAliveInterval`; plugins explicitly typed `<ORPCGlobalContext>`.
+- Dead `core/modules/mesh/examples/` deleted (3 broken example consumers).
+- `traefik-platform-config.service.ts` `Host()` regex group now `?? null` safe.
+- `cli-auth.service.ts` 3 account inserts were missing the required `issuer`
+  column (Better Auth credential convention) — this was the real cause of the
+  cryptic `'id' does not exist` insert error.
+- `deployment.service.spec.ts` fully green: **66/66** (was 21 fails) — fixture
+  transform to nested `source:` union + DI update (15-arg ctor) + runtime-config
+  mock + rollback policy mock.
+
+### W3 status update
+`deployment.service.spec` **66 passed**, `docker-runtime-runner` **7 passed**,
+`deployment-execution-workflow` **5 passed** (2 stale fixtures gained the missing
+`runner:` discriminator — they were silently parsing `runtimeRunnerOptions` to
+null). Full API suite: **1474 passed / 194 failed** (pre-existing spec+e2e drift
+only; production code clean).
+
+### W-status delta (same day)
+- **W2 done** — web type errors **24 → 0**: 22 `.body`-envelope strips in
+  `dashboard/admin/system/page.tsx` (mutations return the body directly) + the
+  progress eslint plugin now ships `index.d.ts` (declared `configs` keys) with
+  `"types"` in its package.json (no more `{}` index TS7053). `doc` type-check
+  also 0.
+- **W4 done** — ingress **single-publish**: `writePlatformConfigs` now resolves
+  the DB-driven domain routes FIRST, then the per-service file skips any host
+  the domain file claims (case-insensitive set; also removed a duplicated
+  `if (host === null) continue;`). Regression test added (4/4 passing):
+  claimed host absent from `dynamic-services.yml`, unclaimed host present.
+- **W9-core done** — webhook guard **fail-closed**: no webhook secret available
+  (missing config OR DB error) now REJECTS `UNAUTHORIZED` instead of skipping
+  verification. Logic extracted to pure `resolveGithubWebhookAuth(input, deps)`
+  (the old ORPC-decorated-function test harness was stale vs @orpc/server 1.14
+  — the pure function is directly testable). 13/13 webhook tests green.
+- Baseline regression check: traefik + supervisors + platform-ingress suites
+  **330/330** after D-1/D-2/W4/W9.
+- Remaining: W5 (GAP-3 TLS), W6 (GAP-1/GAP-4 write-side), W7/W9-hardening
+  (GAP-2/GAP-5), W8 Cloudflare gaps, W10 (GAP-2), W11 dashboard, W12 hygiene.
+
+### W-status delta 2 (continuation — all recommended defaults adopted)
+- **W8 done (DNS)**: CF-2 credential smuggling killed (`CloudflareAppService.createApp`
+  now rejects non-`cloudflare` providerType — route53/google creates never persist
+  with CF credentials); CF-3 Cloudflare page filters rows to `providerType ===
+  "cloudflare"`; CF-7 `matchContent` is REAL content matching (normalized
+  compare, `recordContent` query added to the contract); CF-5 verified wired
+  (`DnsProviderRegistryService` factory in providers.module); CF-4 no dead hook
+  found (all hooks referenced).
+- **W6/W7 done (code write-side)**: `github_repository_configs` writer +
+  lookup + bootstrap upsert; `github_webhook_events` journal writer; webhook→
+  service bridge resolves `serviceId` via repo mapping (fallback to
+  source-URL-matched service + auto-upsert config on first delivery —
+  GAP-1(a)+GAP-4 single-service-per-repo). `handlePullRequest` no longer uses
+  the `repository.full_name` placeholder — unmapped repos return
+  `skipped:no_service_mapped`. 14/14 webhook tests.
+- **W5 done (TLS)**: flag-gated `DEPLOYER_TRAEFIK_TLS_ENABLED` adds the
+  websecure(443) entrypoint + HTTP→HTTPS redirect (Traefik self-signed default
+  cert — no new deps); env schema + turbo globalEnv + `.env.example` updated;
+  supervisor spec guard (18/18).
+- **W10 done (retry)**: `retryDeployment` enqueues a REAL `retry` job
+  (idempotency `retry:<id>`), re-resolves the source checkout from the saved
+  discriminated source, and `completeQueueJob`/`handleClaimedQueueJob` now
+  process `retry` like `deploy` (+ ingress refresh). 67/67 deployment tests.
+- **W11 done (dashboard)**: real role from session (`superAdmin`/`admin` →
+  admin tools card + "Your role" metric; no more hardcoded `member`); invitation
+  rows show org NAME (id→name map) instead of a raw UUID.
+- **Spec repair + 2 REAL bugs fixed**: full providers/deployment/runners/
+  service/project/traefik/supervisors/platform-ingress scope = **664/664 tests**:
+  - real bug: Bull processor runtime-config `networkMode` hydration never parsed
+    (options union needs `runner`) → now bundled under the resolved runner;
+  - real bug: `project.service.updateProject` `changedFields` was ALWAYS `[]`
+    (`Reflect.get(data, "key")` nonsense) → proper key presence filter;
+  - spec drift fixed: stale twin `code-provider-conformance.spec.ts` deleted;
+    conformance/github-services specs moved to nested `source:` fixtures; mesh
+    spec harness rewritten to current derived topics + current
+    search/list API (resolve API removed by the v3 refactor); processor +
+    artifact + service + project + controllers specs aligned to current APIs.
+- Full api suite now **1563 passed / 113 failed** (session start: 1474/194) —
+  the remaining failures are pre-existing compile-broken legacy specs (187 type
+  errors, all `.spec`/`__tests__`/e2e) + environment-dependent e2e specs +
+  3 deep-drift mesh-stream-runtime tests; none are in the provider/deployment
+  mission scope. API + web + doc production code: **0 type errors**.
+
+### D-4 — First-boot ingress reachability (web.deployer.localhost during setup)
+**User report**: on FIRST boot (setup phase, no database yet) `web.deployer.localhost`
+was unreachable even though the Traefik supervisor had converged.
+
+**Root cause**: the Traefik dynamic config was written ONLY in
+`OrchestratorService.startMainApp()` — i.e. AFTER setup completes (the DB exists
+condition). On first boot the pipeline goes `runDbResolver → startSetupWizard`
+and main-app is never reached during setup, so the file-provider watched
+directory was EMPTY → Traefik had no `Host()` rules → both
+`api.deployer.localhost` and `web.deployer.localhost` returned nothing. The
+supervisor (process) converging was correct — the CONFIG (core module) just
+never existed yet.
+
+**Fix** (2 parts):
+1. **Boot-time publish** — `OrchestratorService.onApplicationBootstrap` now calls
+   `ingressConfig.writePlatformConfigs()` right after the DB resolver (Step 1a),
+   so api + web routes exist from the moment the pipeline starts, including the
+   setup-wizard phase. `startMainApp()` still rewrites (idempotent) with the
+   now-available DB domain routes.
+2. **DB-resilient domain family** — `resolveDomainRoutes()` now catches the
+   missing-global-DB failure (first boot has no `deployments` table) and returns
+   `[]`; the domain file is removed and api/web are still written. Previously
+   the `Promise.all` in `writePlatformConfigs()` aborted everything when the
+   DB query threw.
+
+Backends at boot are explicit compose targets (`DEPLOYER_API_TARGET=api-dev`,
+`DEPLOYER_WEB_TARGET=web-dev`), both attached to `deployer-platform`, so
+`api.deployer.localhost → api-dev:3005` (gateway hosts the setup-wizard
+sub-app routes) and `web.deployer.localhost → web-dev:3000` work during setup.
+
+Regression test added: `traefik-platform-config.service.spec` — "publishes api +
+web during FIRST BOOT when the global DB is absent (setup phase)" (routesSource
+rejects → api.yml + web.yml exist, domain.yml removed). Config suites 7/7.
+
+---
+
+## Phase 2 — Production readiness (docs-first delta, 2026-08-29)
+
+Goal (user): "go closer to a full production ready app for ALL features". W1–W11
+done + D-1..D-4 above. This phase is sequenced by *what actually blocks a
+working production deployment*, not by cosmetic order.
+
+### Current true state (verified 2026-08-29)
+
+| Area | State | Evidence |
+|---|---|---|
+| Providers (code+dns) write-side | DONE (W6/W7/W8) | repo-config writer + webhook bridge, CF gaps closed, 664/664 mission tests |
+| Ingress (single-publish, TLS, first-boot) | DONE (W4/W5/D-4) | 332/332 traefik/supervisors/ingress |
+| Queue — **jobs NEVER executed** | 🔴 **CRITICAL** | `DeploymentBullQueueService` `@InjectQueue("deployment")` but **no `BullModule.forRoot`** anywhere → `queue.add()` fails; `deployment.service.ts:1326-1333` **empty `.catch(() => {})` swallows it** → in-process queue fills, Bull `@Process` processor (the ONLY `claimQueueJobs` consumer) never receives jobs → **a triggered/retried deploy stays queued forever** |
+| Redis | 🔴 absent | `grep redis docker/compose` = 0 |
+| Legacy spec type-errors | 🔴 186 | all `.spec`/`__tests__`/e2e (broken imports to deleted files + stale APIs): ~36 unit + ~150 e2e harness |
+| E2E suites | 🔴 env+harness broken | runner-manager + setup/mesh/module workflows (compile-broken) |
+| Webhook hardening (W9-tail) | 🟡 | single global secret; in-memory idempotency (10k cap); redaction case-sensitive; rate-limit only on registerAppInstance |
+| Web app | ✅ 0 type errors, dashboard real | W2/W11 |
+
+### P2 workstreams (dependency-ordered)
+
+| ID | Goal | Key changes (evidence-driven) | Tests gate |
+|---|---|---|---|
+| **P2-1 — Queue actually executes (CRITICAL)** | a triggered deployment runs end-to-end | Redis service in dev+prod compose; `BullModule.forRoot({ redis })` + registerQueue already exists; replace empty `catch` with logged `warn` (keep non-blocking); assert in graph that Bull processor claims → build → complete | unit: enqueue no-swallow; deploy smoke (claim→complete) |
+| **P2-2 — Legacy unit-spec repairs** | ~36 type errors → 0 | broken-import fixes to moved files (`runner-preparation`, `docker-runtime-stream-orchestrator`, `deployment-queue-lifecycle`, `docker-image-auto-scan-listener`, `storage-policy-resolver-registry`, `database.service`, `decorators`, `setup-dev`, `startup-flow.integration`, `core-event-sync`, `initialization`, …) | api type-check 0 |
+| **P2-3 — E2E harness repair** | runner + workflows compile | `e2e/utils/shared-api-runtime/manager.ts` + setup/mesh/module workflow specs: fix stale imports/APIs to deleted files (`system-mesh-resource-discovery`, moved repos, setup API drift) | api type-check incl. e2e = 0 |
+| **P2-4 — Webhook hardening (W9 tail)** | per-app secret + durable idempotency + redaction + rate limit | resolve `webhookSecret` per GitHub app (`github_apps.webhook_secret`, encrypted) with global fallback then FAIL-CLOSED; idempotency via `github_webhook_events.delivery_id` unique checkpoint (durable) instead of in-memory Map; redaction normalized (lowercase + key-set) incl. `privateKey`/`clientSecret`; rate-limit webhook endpoint | forged-webhook 401 + restart-replay ignored + redaction spec |
+| **P2-5 — Validation gate (W12)** | full green + CI | root `type-check` api+web+doc = 0; `dr:build` clean; full api suite (unit green, e2e bootable); `knip` no new dead code; CI gate (type-check+lint+unit) | CI green |
+
+### Sequencing rule
+P2-1 first (deployment execution is the product). P2-2 → P2-3 (type-clean
+halves the failure set). P2-4 next (security). P2-5 last (global gate).
+Docs deltas ride along per step (this section grows).
+
+### P2-1 reshape — Redis API-supervised + typed event-driven queue (2026-08-29)
+**User direction**: Redis must be SUPERVISED BY THE API (like traefik / local-db /
+managed-web), not a compose service; and instead of BullModule use the same
+typed, clearly-accessible system as the core events module.
+
+#### D-5 — Redis is API-supervised infrastructure
+- New `RedisSupervisorService` (`core/modules/supervisors/platform/redis-supervisor.service.ts`,
+  registered in `SupervisorsPlatformModule` → gateway-owned, so it runs BEFORE and
+  WHILE the setup wizard, exactly like the other platform supervisors).
+- Container spec: `redis:7-alpine` (image `DEPLOYER_REDIS_IMAGE`, default
+  `redis:7-alpine`), `--appendonly yes` (durable AOF), optional `--requirepass`
+  (`DEPLOYER_REDIS_PASSWORD`), named volume `deployer-redis-data` → `/data`,
+  joined to `deployer-platform` (`deployer-redis` / `deployer-redis-<prefix>`),
+  default HEADLESS (no host port) with optional `DEPLOYER_REDIS_PORT` host bind
+  for debugging. `restartPolicy: unless-stopped`, role label
+  `deployer.platform.role=platform-redis`.
+- Real health probe: `redis-cli ping` executed inside the container (expect
+  `PONG`) + `INFO server` for the redis version; `latencyMs` measured; payload
+  schema `{ container, host, port, reachable, ping, redisVersion, latencyMs }`.
+- Typed access for consumers: `getConnectionUrl(): string`
+  (`redis://[pwd@]deployer-redis:6379` on the platform network), consumed by
+  P2-4 (durable webhook idempotency / rate limits). Compose files are NOT
+  touched — this is the API's own supervised infra, visible in the dashboard
+  health grid like traefik/sqlite.
+- Env (schema + turbo globalEnv + `.env.example`): `DEPLOYER_REDIS_URL`
+  (default now `redis://deployer-redis:6379`), `DEPLOYER_REDIS_IMAGE`,
+  `DEPLOYER_REDIS_PORT`, `DEPLOYER_REDIS_PASSWORD`.
+
+#### D-6 — Queue = typed event-driven worker (Bull REMOVED)
+Replace the Redis-backed Bull bridge (`BullModule`, `@nestjs/bull`, `bull`,
+`DeploymentBullQueueService`, Bull `@Processor` decorators) with the same
+typed-observable pattern as the core events module:
+
+- `DeploymentQueueLifecycleService` (the Zod-typed in-process queue store —
+  already the single source of truth) now exposes a TYPED channel:
+  `onJobQueued(): Observable<DeploymentQueueJob>` (RxJS subject fed on every
+  NEW enqueue; deduplicated enqueues do not re-emit).
+- NEW `DeploymentQueueWorkerService` (`deployment-queue.worker.service.ts`):
+  an `@Injectable` that subscribes to the typed channel on module init and runs
+  the FULL execution body previously living in the Bull processor (claim by
+  idempotency key → 30s heartbeats → storage binding / execution plan /
+  runtime-runner options merge / container-image build-with-policy →
+  `completeQueueJob` with the typed result → `failQueueJob` on error). All
+  payload access is the typed `DeploymentQueueJob` Zod shape — no Bull job
+  mapping, no external IO.
+- `deployment.service.enqueueQueueJob` no longer calls Bull (and no longer has
+  the silent-swallow catch) — the typed channel fire + the worker executing IS
+  the queue. Jobs that previously "stayed queued forever" now actually run.
+- Deleted: `deployment-bull-queue.service.ts`,
+  `deployment-bull-queue.contracts.ts`, `deployment-queue.processor.ts`;
+  `@nestjs/bull`/`bull` deps removed from `apps/api/package.json`.
+- Redis stays supervised (D-5) for durability/idempotency (P2-4) — the queue
+  EXECUTION path is fully typed + in-process (single-node self-hosted model).
+
+Sequencing stays: P2-1 (queue executes) → P2-2/P2-3 (spec repairs) → P2-4
+(webhook hardening, now with the supervised REDIS URL) → P2-5 (validation).
+
+### P2-1 verified — 2026-08-29 (queue executes + Redis supervised + Bull removed)
+D-5 + D-6 implemented and verified:
+
+- **RedisSupervisorService** (`core/modules/supervisors/platform/redis-supervisor.service.ts`):
+  gateway-owned (SupervisorsPlatformModule → runs before/while setup), container
+  `redis:7-alpine` + `--appendonly yes`, named volume `deployer-redis-data` → `/data`,
+  joined to `deployer-platform` as `deployer-redis` (headless by default; optional
+  `DEPLOYER_REDIS_PORT` host bind), real probe = `redis-cli ping` (PONG) + `INFO
+  server` version + latency, typed `getConnectionUrl()` (with optional
+  `DEPLOYER_REDIS_PASSWORD`). Env: `DEPLOYER_REDIS_URL` default
+  `redis://deployer-redis:6379`, `DEPLOYER_REDIS_IMAGE`, `DEPLOYER_REDIS_PORT`,
+  `DEPLOYER_REDIS_PASSWORD` (schema + turbo globalEnv + `.env.example`).
+- **Typed queue (Bull removed)**: `DeploymentQueueLifecycleService` now exposes
+  `onJobQueued(): Observable<DeploymentQueueJob>` (typed RxJS channel, emits on
+  NEW enqueue, dedup does NOT re-emit). New `DeploymentQueueWorkerService`
+  subscribes on module init and runs the full execution body (claim by
+  idempotency → 30s heartbeats → storage/plan/runner hydration → image
+  build-with-policy → complete/fail) over the typed Zod job. `enqueueQueueJob`
+  no longer calls Bull and the silent-swallow catch is gone — a queued deploy
+  NOW actually executes. Deleted: `deployment-bull-queue.service(.contracts).ts`,
+  `deployment-queue.processor.ts` (+ `@nestjs/bull`/`bull` deps).
+- **Bonus real bug found+fixed**: `platform-config.service.ts` had a mangled
+  orphan transformer tail (`if (raw === "false") return false; ctx.addIssue…; return z.NEVER; });`
+  at module top-level → the file failed EVERY runtime/Vitest transform — restored
+  the missing `booleanValueSchema = z.string().trim().toLowerCase().transform((raw, ctx) => {…})`.
+- **Specs**: worker spec (15 tests: claim/complete, skip, heartbeats, fail,
+  storage/plan/runner/env hydration, build retry + exhausted, image/name,
+  execution-plan precedence, custom commands), Redis supervisor spec (5:
+  converge spec, host-port debug bind, PONG probe + version, unhealthy, typed
+  URL with/without password), lifecycle channel test. **669/669** green across
+  deployment/providers/runners/service/project/traefik/supervisors/platform-ingress
+  (re-run after a flaky port-80 race). API production type-check: **0 errors**
+  (total spec type errors 187 → 180, still all pre-existing legacy drift).
+
+### P2-2 verified — 2026-08-29 (unit specs compile + ALL pass)
+
+**Non-e2e type errors: 180 → 0.** Every `*.spec.ts` in the api now type-checks
+clean AND the full unit project passes (`vitest --project unit`:
+**127/127 files, 1435/1435 tests** — including the P2-1 mission scope).
+
+#### ROOT-CAUSE fix: filter `_and`/`_or` type was wrong
+`packages/utils/orpc/src/operations/zod/utils/filtering.ts` — `FilteringSchemaOutput`
+declared `_and?: Partial<Record<keyof TFields | "_and" | "_or", unknown>>` while the
+docs + runtime (`createFilteringSchema` → `z.array(recursiveFilterSchema)`) and every
+web caller (`mergeRuntimeFilters`, `buildScopeFilter`) send **arrays of nodes**.
+Corrected to `_and?: FilteringSchemaOutput<TFields>[]; _or?: …[]`. This removes the
+`as DockerRuntimeEventFilterInput` casts the web had to sprinkle and makes the
+contract honest for every list op.
+
+#### Spec repairs by file (type + runner fixes)
+- `docker-image-auto-scan-listener.service.spec.ts` — 6th ctor arg (`EnvService`);
+  harness rebuilt for the CURRENT bootstrap flow (`listImages` pages +
+  `reconcileImageLifecycleWithActiveSet` + `ensureImageAutoScanEligibility`), action
+  `create`→`start` (service only scans `start`), `DISABLE_AUTO_SCAN` mock false,
+  microtask flush extended. 5/5 green. (Bonus: TS narrows closure-written `let` to
+  `never` → use a mutable holder object for deferred resolvers.)
+- `docker-runtime-stream-orchestrator.service.spec.ts` — `since`/`until` are
+  `z.date()` (build `new Date(...)`), `_and` back to runtime-correct ARRAY form once
+  the FilteringSchemaOutput fix landed, indexed-object `in` values kept with a
+  documented `as unknown as string[]` (legacy wire encoding the runtime normalizes)
+  + `"containerId" in payload` narrowing. 10/10 green.
+- `startup-flow.integration.spec.ts` — mesh reconnect lives in `onModuleInit`
+  (not `checkConfigAndEmit`): tests drive `module.init()`; `connectSpy` guarded
+  (indexed-access possibly-undefined); Scenario 6 inlined its own
+  `triggerInitialize` (deleted `launchLocalSetup` was scoped to Scenario 2).
+  **26/26 green** (was 10 failing).
+- `initialization.service.spec.ts` — missing `SetupEventService` provider +
+  `./setup-event.service` path. 2/2 green.
+- `mesh-stream-runtime.service.spec.ts` — the service was intentionally reduced to
+  an honest local-serve fallback (`openInternalBridge` always `null` until a mesh
+  stream-resource registry exists); spec rewritten to pin that contract.
+  3/3 green.
+- globals specs (`global/local-database`, `shared/database.service`,
+  `mesh-initialization`, `mesh-orchestration`) — `vitest/globals` doesn't resolve
+  under the nestjs tsconfig base → explicit `import { describe, it, expect, beforeEach } from "vitest"`.
+- `platform-managed-web.controller.ts` — handlers must return the response
+  envelope `{ status: 201, body }` (matches `platform.controller.ts` convention);
+  `getManagedWebState` body is flat, action ops wrap `{ state }`.
+- `storage-policy-resolver-registry` — `sourceType: "upload" as const`.
+- Misc: `apps/api/tsconfig.json` restored to HEAD (a stray in-progress change
+  adding `module: nodenext` broke all CJS imports) + added `vitest/globals` is NOT
+  needed anymore (explicit imports), kept `types` minimal — **0 errors**.
+- `docker-runtime-stream-orchestrator` filter semantics documented:
+  top-level field filters, `_and`/`_or` arrays of nodes, `in` values may be arrays
+  or (legacy) indexed objects — all normalized by `toFilterNodeArray`/`toUnknownArray`.
+
+#### Not in P2-2 (next workstreams)
+- `src/e2e/**` (P2-3): compile-broken legacy harnesses (~147 type errors +
+  runtime drift: `getStateMachine`, `initialize`, sourceType literals, …) — still
+  failing; must be repaired next.
+- `@repo/orpc-utils` package tests: 7 pre-existing runtime failures (verified
+  present WITHOUT the FilteringSchemaOutput change — bare-list/entitySchema
+  coverage) — backlog candidate.

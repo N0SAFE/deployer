@@ -1,14 +1,17 @@
 /**
  * @fileoverview Query Error Fallback Component
- * 
+ *
  * Specialized fallback UI for TanStack Query errors.
  * Provides query-specific messaging and retry functionality.
  */
 
 'use client'
 
+import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
 import React from 'react'
 import { AlertCircle, RefreshCw, WifiOff } from 'lucide-react'
+import { Button } from '@repo/ui/components/shadcn/button'
+import { cn } from '@/lib/utils'
 
 interface QueryErrorFallbackProps {
   /** The error that was caught */
@@ -19,13 +22,14 @@ interface QueryErrorFallbackProps {
 
 /**
  * Fallback UI specifically designed for query errors
- * 
+ *
  * Features:
  * - Distinguishes network errors from other errors
  * - Clear retry action for users
  * - Helpful troubleshooting tips
  * - Accessible design
- * 
+ * - Theme-token colors (works in light AND dark mode)
+ *
  * @example
  * ```tsx
  * <QueryErrorBoundary fallback={(error, reset) => <QueryErrorFallback error={error} onReset={reset} />}>
@@ -35,41 +39,50 @@ interface QueryErrorFallbackProps {
  */
 export function QueryErrorFallback({ error, onReset }: QueryErrorFallbackProps): React.ReactElement {
   const isDevelopment = process.env.NODE_ENV === 'development'
-  
-  // Detect network errors
-  const isNetworkError = error.message.toLowerCase().includes('network') || 
-                        error.message.toLowerCase().includes('fetch')
+
+  // A DEFINED ORPC error means the contract surfaced a typed failure
+  // (payload.message explains it). Everything else is an unknown error:
+  // network outage, unhandled 5xx, or a non-ORPC exception.
+  const orpcErrorMessage = isDefinedORPCError(error) ? getErrorMessage(error) : null
+  const isNetworkError = !orpcErrorMessage &&
+    (error.message.toLowerCase().includes('network') ||
+     error.message.toLowerCase().includes('fetch'))
 
   return (
-    <div className="flex min-h-[400px] flex-col items-center justify-center p-8">
+    <div className="flex min-h-100 flex-col items-center justify-center p-8">
       <div className="max-w-md space-y-6 text-center">
         {/* Error Icon */}
         <div className="flex justify-center">
-          <div className={`rounded-full p-4 ${isNetworkError ? 'bg-orange-100' : 'bg-red-100'}`}>
+          <div
+            className={cn(
+              'flex size-20 items-center justify-center rounded-full',
+              isNetworkError ? 'bg-amber-500/10' : 'bg-destructive/10',
+            )}
+          >
             {isNetworkError ? (
-              <WifiOff className="h-12 w-12 text-orange-600" />
+              <WifiOff className="size-10 text-amber-600 dark:text-amber-400" />
             ) : (
-              <AlertCircle className="h-12 w-12 text-red-600" />
+              <AlertCircle className="size-10 text-destructive" />
             )}
           </div>
         </div>
 
         {/* Error Message */}
         <div className="space-y-2">
-          <h2 className="text-2xl font-bold text-gray-900">
+          <h2 className="text-2xl font-semibold tracking-tight text-foreground">
             {isNetworkError ? 'Connection Problem' : 'Failed to Load Data'}
           </h2>
-          <p className="text-gray-600">
-            {isNetworkError
+          <p className="text-muted-foreground">
+            {orpcErrorMessage ?? (isNetworkError
               ? 'Unable to connect to the server. Please check your internet connection and try again.'
-              : 'We had trouble loading the data. This might be a temporary issue.'}
+              : 'We had trouble loading the data. This might be a temporary issue.')}
           </p>
         </div>
 
         {/* Troubleshooting Tips */}
-        <div className="rounded-md bg-blue-50 p-4 text-left">
-          <p className="mb-2 text-sm font-semibold text-blue-900">What you can try:</p>
-          <ul className="space-y-1 text-sm text-blue-800">
+        <div className="rounded-md bg-card/60 p-4 text-left ring-1 ring-border/60">
+          <p className="mb-2 text-sm font-medium text-foreground">What you can try:</p>
+          <ul className="space-y-1 text-sm text-muted-foreground">
             {isNetworkError ? (
               <>
                 <li>• Check your internet connection</li>
@@ -88,21 +101,18 @@ export function QueryErrorFallback({ error, onReset }: QueryErrorFallbackProps):
 
         {/* Error Details (Development Only) */}
         {isDevelopment && (
-          <div className="rounded-md bg-gray-100 p-4 text-left">
-            <p className="mb-2 text-sm font-semibold text-gray-700">Error Details (Development):</p>
-            <p className="text-xs text-gray-600">{error.message}</p>
+          <div className="rounded-md bg-card/60 p-4 text-left ring-1 ring-border/60">
+            <p className="mb-2 text-sm font-medium text-foreground">Error Details (Development):</p>
+            <p className="text-xs text-muted-foreground">{error.message}</p>
           </div>
         )}
 
         {/* Retry Button */}
         {onReset && (
-          <button
-            onClick={onReset}
-            className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-6 py-3 text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            <RefreshCw className="h-4 w-4" />
+          <Button onClick={onReset} size="default">
+            <RefreshCw className="size-4" />
             Retry
-          </button>
+          </Button>
         )}
       </div>
     </div>

@@ -1,5 +1,6 @@
 import z from "zod/v4";
-import { environmentTypeSchema } from "@repo/contracts-entities";
+import { standardDomainErrorContracts } from "@repo/orpc-utils";
+import { environmentKindSchema, environmentTriggerSchema, environmentRulesSchema } from "@repo/contracts-entities";
 import { projectEnvironmentOps } from "./shared";
 
 export const projectUpdateEnvironmentContract = projectEnvironmentOps
@@ -13,7 +14,9 @@ export const projectUpdateEnvironmentContract = projectEnvironmentOps
             .body(
                 z.object({
                     name: z.string().min(1).max(100).optional(),
-                    type: environmentTypeSchema.optional(),
+                    kind: environmentKindSchema.optional(),
+                    rules: environmentRulesSchema.optional(),
+                    trigger: environmentTriggerSchema.nullable().optional(),
                     description: z.string().optional(),
                     domainConfig: b.entitySchema.shape.domainConfig.optional(),
                     deploymentConfig: b.entitySchema.shape.deploymentConfig.optional(),
@@ -22,4 +25,8 @@ export const projectUpdateEnvironmentContract = projectEnvironmentOps
             ),
     )
     .output((b) => b.entitySchema)
+    .errors((e) => [
+        // 404 for unknown env; 409 duplicate name; 400 invalid rules/trigger.
+        ...standardDomainErrorContracts(e),
+    ])
     .build();

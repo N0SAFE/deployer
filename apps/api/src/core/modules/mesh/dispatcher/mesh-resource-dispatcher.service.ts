@@ -14,8 +14,9 @@
  */
 
 import { Injectable, Logger } from "@nestjs/common";
-import { ORPCError } from "@orpc/server";
+import { meshErrorActions } from "@repo/orpc-utils";
 
+import { ConflictError } from "@repo/errors";
 interface HandlerEntry {
   fn: (input: unknown) => Promise<unknown>;
   description?: string;
@@ -41,10 +42,11 @@ export class MeshResourceDispatcher {
   ): void {
     const key = this.buildKey(entityKey, methodName);
     if (this.registry.has(key)) {
-      throw new Error(
+      throw new ConflictError(
         `Duplicate mesh resource handler: ${key}. ` +
         `Each entityKey+methodName combination must be unique.`,
-      );
+      
+);
     }
     this.registry.set(key, { fn: handlerFn });
     this.logger.debug(`Registered mesh resource: ${key}`);
@@ -86,9 +88,12 @@ export class MeshResourceDispatcher {
 
     if (!entry) {
       this.logger.warn(`No handler registered for: ${key}`);
-      throw new ORPCError("NOT_FOUND", {
-        message: `No mesh resource handler for '${entityKey}/${methodName}'`,
-      });
+      // Contract-closed mesh error: NOT_FOUND is declared on
+      // meshBaseResourceContract via meshDomainErrorContracts, so the runtime
+      // upgrades this to a DEFINED error on the client.
+      throw meshErrorActions.NOT_FOUND(
+        `No mesh resource handler for '${entityKey}/${methodName}'`,
+      );
     }
 
     return entry.fn(body);

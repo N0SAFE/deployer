@@ -1,13 +1,13 @@
-import { BasePooledEventService } from "@/core/modules/events/services/base-pooled-event.service";
-import type { CoreEventStreamPoolService } from "@/core/modules/events/services/core-event-stream-pool.service";
-import type { EventContracts, EventInput, EventOutput } from "@/core/modules/events/event-contract.builder";
+import { BasePooledEventService } from "@repo/nest-events";
+import type { CoreEventStreamPoolService } from "@repo/nest-events";
+import type { EventContracts, EventInput, EventOutput } from "@repo/nest-events";
 import { MeshTopicContractNotFoundError } from "../domain/mesh-topic-errors";
 
 /**
  * Runtime d'événements pour un namespace mesh-topic.
  *
  * Étend BasePooledEventService en préfixant le nom d'événement
- * par l'organizationId pour l'isolation multi-tenant.
+ * par namespace (mesh-wide tenant — pas d'isolation par organization).
  */
 export class MeshTopicNamespaceRuntime<
     TContracts extends EventContracts,
@@ -22,14 +22,11 @@ export class MeshTopicNamespaceRuntime<
 
     protected override buildFullEventName(
         eventName: string,
-        input: Record<string, unknown>,
+        _input: Record<string, unknown>,
     ): string {
-        const organizationId =
-            typeof input.organizationId === "string" && input.organizationId.length > 0
-                ? input.organizationId
-                : "__global__";
-
-        return `${this.namespace}:${eventName}:${organizationId}`;
+        // The organization concept was removed — the mesh is the single tenant,
+        // so events are not org-scoped: namespace:event only.
+        return `${this.namespace}:${eventName}`;
     }
 
     parseInput<K extends keyof TContracts>(topic: K, input: EventInput<TContracts[K]>): EventOutput<TContracts[K]> {

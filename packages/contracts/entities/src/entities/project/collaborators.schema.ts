@@ -18,10 +18,10 @@ export const collaboratorSchema = z.object({
     })
     .nullable(),
   invitedBy: z.string().nullable(),
-  invitedAt: z.date(),
-  acceptedAt: z.date().nullable(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  invitedAt: z.string(),
+  acceptedAt: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
 })
 
 export const inviteCollaboratorSchema = z.object({

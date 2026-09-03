@@ -20,6 +20,7 @@ import {
 	DialogTitle,
 } from '@repo/ui/components/shadcn/dialog'
 import { Activity, Network, Timer, TriangleAlert } from 'lucide-react'
+import { PageHeader } from '@/components/dashboard'
 
 
 /**
@@ -215,25 +216,26 @@ export default function AdminServersPage() {
 	)
 
 	const surfaceCardClass =
-		'border-slate-200/80 bg-white/85 shadow-sm backdrop-blur supports-backdrop-filter:bg-white/70 dark:border-slate-800 dark:bg-slate-950/45'
+		'border-border/60 bg-card/40 backdrop-blur-xl'
 
 	return (
 		<div className="container mx-auto max-w-350 space-y-6 py-8">
-			<div className="rounded-xl border border-slate-200/70 bg-linear-to-b from-white to-slate-50/70 p-5 shadow-sm dark:border-slate-800 dark:from-slate-950 dark:to-slate-900/50">
-				<h1 className="text-3xl font-bold tracking-tight">Servers & Fleet Map</h1>
-				<p className="mt-1 text-muted-foreground">
-					Real-time mesh topology with latency paths and live node/link telemetry.
-				</p>
-				<div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
-					<Badge variant="secondary">{nodes.length} nodes</Badge>
-					<Badge variant="secondary">{links.length} links</Badge>
-					<Badge variant="outline">{liveTelemetryLinks.length} live telemetry</Badge>
-					<Badge variant="outline">avg latency {avgLatency}ms</Badge>
-					<Badge variant={status === 'connected' ? 'default' : status === 'error' ? 'destructive' : 'secondary'}>
-						stream {status}
-					</Badge>
-				</div>
-			</div>
+			<PageHeader
+				eyebrow="Admin"
+				title="Servers & Fleet Map"
+				description="Real-time mesh topology with latency paths and live node/link telemetry."
+				badge={
+					<>
+						<Badge variant="secondary">{nodes.length} nodes</Badge>
+						<Badge variant="secondary">{links.length} links</Badge>
+						<Badge variant="outline">{liveTelemetryLinks.length} live telemetry</Badge>
+						<Badge variant="outline">avg latency {avgLatency}ms</Badge>
+						<Badge variant={status === 'connected' ? 'default' : status === 'error' ? 'destructive' : 'secondary'}>
+							stream {status}
+						</Badge>
+					</>
+				}
+			/>
 
 			{lastError ? (
 				<Card className={surfaceCardClass}>

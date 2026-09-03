@@ -1,5 +1,6 @@
 "use client"
 
+import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Boxes } from "lucide-react"
 import { useTriggerInitialize, useInitializeStream, useSetupState } from "@/domains/setup/hooks"
@@ -12,6 +13,7 @@ import { ProgressStep, type ProgressStepContext } from "@/components/setup/steps
 import { LocalAccountStep } from "@/components/setup/steps/local-account-step"
 import { LocalDatabaseStep } from "@/components/setup/steps/local-database-step"
 import { Alert, AlertDescription } from "@repo/ui/components/shadcn/alert"
+import { Button } from "@repo/ui/components/shadcn/button"
 import { toast } from "sonner"
 
 type WizardStep =
@@ -35,7 +37,6 @@ type WizardState = {
     username: string
     email: string
     password: string
-    organizationName: string
     dbMode: "managed" | "existing"
     dbUrl: string
   }
@@ -46,7 +47,7 @@ const initialState: WizardState = {
   step: "mode",
   mode: null,
   remote: { meshUrl: "", authToken: null },
-  local: { username: "", email: "", password: "", organizationName: "", dbMode: "managed", dbUrl: "" },
+  local: { username: "", email: "", password: "", dbMode: "managed", dbUrl: "" },
   recovery: false,
 }
 
@@ -94,7 +95,7 @@ export function SetupWizard() {
       setState((prev) => ({
         ...prev,
         step: "local-progress",
-        mode: setupState.strategy ?? "local",
+        mode: setupState.bootstrapStrategy ?? "local",
         recovery: true,
       }))
     }
@@ -162,7 +163,6 @@ export function SetupWizard() {
         name: merged.username,
         email: merged.email,
         password: merged.password,
-        organizationName: merged.organizationName || merged.username,
         serverUrl: process.env.NEXT_PUBLIC_API_URL || window.location.origin,
         existingDatabaseUrl: merged.dbMode === "existing" ? merged.dbUrl : undefined,
       })
@@ -238,7 +238,12 @@ export function SetupWizard() {
             />
             {error ? (
               <Alert variant="destructive" className="mt-4">
-                <AlertDescription>{error.message}</AlertDescription>
+                <AlertDescription className="flex items-center justify-between gap-2">
+                  <span>{isDefinedORPCError(error) ? getErrorMessage(error) : UNKNOWN_ORPC_ERROR_MESSAGE}</span>
+                  <Button variant="outline" size="sm" onClick={handleReset}>
+                    Retry
+                  </Button>
+                </AlertDescription>
               </Alert>
             ) : null}
           </>
@@ -279,7 +284,12 @@ export function SetupWizard() {
             />
             {error ? (
               <Alert variant="destructive" className="mt-4">
-                <AlertDescription>{error.message}</AlertDescription>
+                <AlertDescription className="flex items-center justify-between gap-2">
+                  <span>{error.message}</span>
+                  <Button variant="outline" size="sm" onClick={handleReset}>
+                    Retry
+                  </Button>
+                </AlertDescription>
               </Alert>
             ) : null}
           </>

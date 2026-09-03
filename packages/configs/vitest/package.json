@@ -32,13 +32,13 @@
         "src"
     ],
     "scripts": {
-        "build": "tsgo",
-        "compile": "tsgo",
+        "build": "tsc --noEmit",
+        "compile": "tsc --noEmit",
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
         "clean": "rimraf dist",
-        "type-check": "tsgo --noEmit",
+        "type-check": "tsc --noEmit",
         "test": "echo 'vitest-config package ready'"
     },
     "keywords": [
@@ -56,6 +56,7 @@
         "@types/node": "catalog:build",
         "@vitejs/plugin-react": "catalog:testing",
         "jsdom": "catalog:testing",
-        "vitest": "catalog:testing"
+        "vitest": "catalog:testing",
+        "typescript": "catalog:build"
     }
 }

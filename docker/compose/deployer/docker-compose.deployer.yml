@@ -35,8 +35,10 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-warn}
 
       # Database — resolved at runtime via setup sub-app (Phase 0) or node_config.
-      # SETUP_DATABASE_URL is NOT read at runtime — it's only used by Phase 0 to
-      # persist to SQLite. The InitializationService reads from SQLite node_config.
+      # SETUP_AUTO_DATABASE_URL (legacy alias: SETUP_DATABASE_URL) is NOT read
+      # at runtime — it's only used by Phase 0 to persist to SQLite. The
+      # InitializationService reads from SQLite node_config. The global DB is
+      # mandatory — with SETUP_AUTO=true an unreachable URL fails boot hard.
       - NODE_LOCAL_DB_PATH=${NODE_LOCAL_DB_PATH:-/data/local.db}
 
       # API Configuration
@@ -58,8 +60,61 @@ services:
       # Docker socket for container management
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
+  # Cloudflare Tunnel connector for the deployer platform's own tunnel
+  # ("global" tunnel). Runs cloudflared with the platform tunnel's run token,
+  # routing the public hostname (e.g. deployer.sebille.net) to the platform
+  # TRAEFIK (web:80) — the single entry point for ALL public traffic. Traefik
+  # then routes by Host: the node's global address → the API, deployments →
+  # their containers, the web app's own address → the web app.
+  #
+  # Set the tunnel id + run token in the environment:
+  #   CLOUDFLARE_TUNNEL_ID="f4330659-dc10-4e24-8337-e459fb313b47"   # optional
+  #   CLOUDFLARE_TUNNEL_TOKEN="<token>"       # from `bun --bun run api -- tunnel:bootstrap`
+  #
+  # The ingress below is written at container start from env and used instead
+  # of the tunnel's remote config (which may be empty until the API provisions
+  # it) — so the hostname enters Traefik immediately, even on first boot.
+  cloudflared:
+    container_name: ${COMPOSE_PROJECT_NAME:-tgclub}-cloudflared
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    environment:
+      CLOUDFLARE_TUNNEL_ID: ${CLOUDFLARE_TUNNEL_ID:-f4330659-dc10-4e24-8337-e459fb313b47}
+      CLOUDFLARE_TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in your environment}
+      CLOUDFLARE_TUNNEL_HOSTNAME: ${CLOUDFLARE_TUNNEL_HOSTNAME:-deployer.sebille.net}
+      # Global tunnel ingress → the platform TRAEFIK (web:80). Traefik routes
+      # the global hostname to the API (dynamic-domain.yml); the web app has
+      # its own surface via the managed-web section.
+      CLOUDFLARE_TUNNEL_SERVICE: ${CLOUDFLARE_TUNNEL_SERVICE_URL:-http://deployer-traefik:80}
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        cat > /etc/cloudflared/config.yml <<EOF
+        tunnel: $$CLOUDFLARE_TUNNEL_ID
+        token: $$CLOUDFLARE_TUNNEL_TOKEN
+        ingress:
+          - hostname: $$CLOUDFLARE_TUNNEL_HOSTNAME
+            service: $$CLOUDFLARE_TUNNEL_SERVICE
+          - service: http_status:404
+        EOF
+        exec cloudflared tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    depends_on:
+      - deployer
+    networks:
+      - deployer_network
+      # Join the PLATFORM network (the same one the API-supervised Traefik
+      # joins) so the cloudflared connector can resolve `deployer-traefik` —
+      # the tunnel's ingress target (web:80). Compose creates it if absent;
+      # the Traefik supervisor REUSES it by name (ensureNetwork inspects
+      # first).
+      - deployer-platform
+
 networks:
   deployer_network:
+    driver: bridge
+  deployer-platform:
+    name: deployer-platform
     driver: bridge
 
 volumes:

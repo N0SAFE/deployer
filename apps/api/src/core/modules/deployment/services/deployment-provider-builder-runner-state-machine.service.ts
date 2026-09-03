@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import z from "zod/v4";
 
-export const deploymentProviderKindSchema = z.enum(["github", "upload", "custom"]);
+export const deploymentProviderKindSchema = z.enum(["github", "gitlab", "upload", "custom"]);
 export type DeploymentProviderKind = z.infer<typeof deploymentProviderKindSchema>;
 
 export const deploymentBuilderKindSchema = z.enum([
@@ -150,7 +150,7 @@ const deploymentStateMachinePolicyPatchSchema = z.object({
 type DeploymentStateMachinePolicyPatchInput = z.input<typeof deploymentStateMachinePolicyPatchSchema>;
 
 const deploymentStateMachineScopeConfigSchema = z.object({
-    organization: deploymentStateMachinePolicyPatchSchema.optional(),
+    mesh: deploymentStateMachinePolicyPatchSchema.optional(),
     project: deploymentStateMachinePolicyPatchSchema.optional(),
     service: deploymentStateMachinePolicyPatchSchema.optional(),
     runtime: z.object({
@@ -385,7 +385,7 @@ export class DeploymentProviderBuilderRunnerStateMachineService {
 
         const mergedPolicy = this.mergePolicy(
             deploymentStateMachinePolicySchema.parse({}),
-            scopedConfig.organization,
+            scopedConfig.mesh,
             scopedConfig.project,
             scopedConfig.service,
         );

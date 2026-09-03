@@ -1,8 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { and, eq } from "drizzle-orm";
-import { projectCollaborators, projects } from "@/config/drizzle/global/schema/deployment";
-import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import type { ProjectRole } from "@repo/auth";
+import { ProjectAccessRepository } from "../repositories/project-access.repository";
 
 interface ProjectAccessProject {
     id: string;
@@ -11,36 +9,14 @@ interface ProjectAccessProject {
 
 @Injectable()
 export class ProjectAccessService {
-    constructor(private readonly databaseService: GlobalDatabaseService) {}
+    constructor(private readonly projectAccessRepository: ProjectAccessRepository) {}
 
-    async findProjectById(projectId: string): Promise<ProjectAccessProject | null> {
-        const db = this.databaseService.db;
-        const [project] = await db
-            .select({
-                id: projects.id,
-                ownerId: projects.ownerId,
-            })
-            .from(projects)
-            .where(eq(projects.id, projectId))
-            .limit(1);
-
-        return project ?? null;
+    findProjectById(projectId: string): Promise<ProjectAccessProject | null> {
+        return this.projectAccessRepository.findProjectById(projectId);
     }
 
-    async findCollaboratorByUserAndProject(userId: string, projectId: string): Promise<{ role: ProjectRole } | null> {
-        const db = this.databaseService.db;
-        const [collaborator] = await db
-            .select({ role: projectCollaborators.role })
-            .from(projectCollaborators)
-            .where(
-                and(
-                    eq(projectCollaborators.userId, userId),
-                    eq(projectCollaborators.projectId, projectId),
-                ),
-            )
-            .limit(1);
-
-        return collaborator as { role: ProjectRole } | null;
+    findCollaboratorByUserAndProject(userId: string, projectId: string): Promise<{ role: ProjectRole } | null> {
+        return this.projectAccessRepository.findCollaboratorByUserAndProject(userId, projectId);
     }
 
     async assertProjectAccess(

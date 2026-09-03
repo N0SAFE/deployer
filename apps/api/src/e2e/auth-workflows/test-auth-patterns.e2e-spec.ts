@@ -119,20 +119,16 @@ describe("Auth patterns API e2e: anonymous and protected boundaries", () => {
     expect(orpcResponse.needsSetup).toBe(httpPayload.needsSetup);
   });
 
-  it("HTTP and ORPC setup state machine stay in sync for core shape", async () => {
+  it("HTTP and ORPC setup state stay in sync for core shape", async () => {
     const context = await getSharedApiRuntimeContext();
     // Use ORPC for both calls since /setup/state-machine REST endpoint is not mounted
-    const [orpcState, orpcStateMachine] = await Promise.all([
-      context.orpc.setup.getState(),
-      context.orpc.setup.getStateMachine(),
-    ]);
+    const orpcState = await context.orpc.setup.getState();
 
-    expect(orpcStateMachine.initialState).toBeDefined();
-    expect(orpcStateMachine.states.length).toBeGreaterThan(0);
-    expect(orpcStateMachine.terminalStates.length).toBeGreaterThan(0);
-    expect(orpcStateMachine.transitions.length).toBeGreaterThan(0);
-    // Verify state machine entry matches current state
-    expect(orpcStateMachine.states).toContain(orpcStateMachine.initialState);
+    expect(orpcState.state).toBeDefined();
+    expect(typeof orpcState.needsSetup).toBe("boolean");
+    expect(typeof orpcState.currentStep).toBe("string");
+    expect(typeof orpcState.progressPercent).toBe("number");
+    expect(Array.isArray(orpcState.steps)).toBe(true);
   });
 
   it("standalone setup ORPC client can attach tracker metadata", async () => {

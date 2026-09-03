@@ -1,10 +1,9 @@
 import { Injectable, Logger } from "@nestjs/common";
 import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { and, asc, eq, isNotNull, lte, sql } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
-import { localEventOutbox } from "@/config/drizzle/global/schema/runtime";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
+import { AppLifecycleService, AppLifecyclePhase } from "@repo/nest-lifecycle";
 import { coreDomainEventEnvelopeSchema } from "@repo/contracts-entities";
+import { LocalEventOutboxRepository } from "./local-event-outbox.repository";
 
 const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
 
@@ -15,16 +14,33 @@ export class LocalEventOutboxDispatcherService implements OnModuleInit, OnModule
     private readonly maxRetries = 8;
     private ticker: ReturnType<typeof setInterval> | null = null;
 
-    constructor(private readonly databaseService: GlobalDatabaseService) {}
+    constructor(
+        private readonly databaseService: GlobalDatabaseService,
+        private readonly outboxRepository: LocalEventOutboxRepository,
+        private readonly lifecycle: AppLifecycleService,
+    ) {}
 
     onModuleInit(): void {
         this.ticker = setInterval(() => {
-            // Only dispatch if the database is initialized — the dispatcher
-            // may fire before BootstrapOrchestrator sets up the connection.
-            if (!this.databaseService.isInitialized) return;
+            // Only dispatch once the application has reached a phase where the
+            // global database pool is guaranteed to point at a real URL.
+            //
+            // `isInitialized` alone is NOT sufficient: GlobalDatabaseModule
+            // creates a placeholder pool (empty connection string) at module
+            // init when no URL is in SQLite yet, and the orchestrator resolves
+            // the real URL later. Polling against the placeholder pool fails
+            // every 3s until the orchestrator finishes — the exact symptom
+            // seen in startup logs ("dispatchPending error (will retry)").
+            //
+            // Gate on lifecycle phase instead: READY (or DEGRADED, which means
+            // the pool exists but had transient failures) implies the pool was
+            // re-pointed at the real database.
+            const phase = this.lifecycle.phase;
+            if (phase !== AppLifecyclePhase.READY && phase !== AppLifecyclePhase.DEGRADED) {
+                return;
+            }
             this.dispatchPending().catch((err: unknown) => {
-                const message = err instanceof Error ? err.message : String(err);
-                this.logger.warn(`dispatchPending error (will retry): ${message}`);
+                this.logger.warn(`dispatchPending error (will retry): ${this.describeError(err)}`);
             });
         }, this.pollIntervalMs);
 
@@ -40,39 +56,42 @@ export class LocalEventOutboxDispatcherService implements OnModuleInit, OnModule
         }
     }
 
+    /**
+     * Format an error including its underlying cause chain.
+     *
+     * Drizzle's `DrizzleQueryError` only formats `query + params` — the actual
+     * database error (e.g. `ECONNREFUSED`, `no such table`, `database is
+     * locked`) lives in `error.cause`. Without it, debugging the outbox
+     * failure is guesswork.
+     */
+    private describeError(err: unknown): string {
+        if (!(err instanceof Error)) {
+            return String(err);
+        }
+        const parts: string[] = [err.message];
+        let cause: unknown = (err as Error & { cause?: unknown }).cause;
+        let depth = 0;
+        while (cause instanceof Error && depth < 3) {
+            parts.push(`cause[${depth}]=${cause.message}`);
+            cause = (cause as Error & { cause?: unknown }).cause;
+            depth += 1;
+        }
+        return parts.join(" | ");
+    }
+
     async enqueue(input: {
         topic: string;
         payload: Record<string, unknown>;
         nodeId?: string | null;
     }): Promise<void> {
-        const now = new Date();
-        await this.databaseService.db.insert(localEventOutbox).values({
-            id: randomUUID(),
+        await this.outboxRepository.enqueue({
+            ...input,
             nodeId: this.resolveNodeId(input.nodeId ?? null),
-            topic: input.topic,
-            payload: input.payload,
-            state: "pending",
-            retryCount: 0,
-            nextRetryAt: now,
-            createdAt: now,
-            updatedAt: now,
         });
     }
 
     async dispatchPending(limit = 50): Promise<void> {
-        const now = new Date();
-        const dueRows = await this.databaseService.db
-            .select()
-            .from(localEventOutbox)
-            .where(
-                and(
-                    eq(localEventOutbox.state, "pending"),
-                    isNotNull(localEventOutbox.nextRetryAt),
-                    lte(localEventOutbox.nextRetryAt, now),
-                ),
-            )
-            .orderBy(asc(localEventOutbox.createdAt))
-            .limit(limit);
+        const dueRows = await this.outboxRepository.findDue(limit);
 
         for (const row of dueRows) {
             await this.dispatchOne(row.id);
@@ -80,11 +99,7 @@ export class LocalEventOutboxDispatcherService implements OnModuleInit, OnModule
     }
 
     private async dispatchOne(outboxId: string): Promise<void> {
-        const [row] = await this.databaseService.db
-            .select()
-            .from(localEventOutbox)
-            .where(eq(localEventOutbox.id, outboxId))
-            .limit(1);
+        const row = await this.outboxRepository.findById(outboxId);
 
         if (row?.state !== "pending") {
             return;
@@ -92,7 +107,10 @@ export class LocalEventOutboxDispatcherService implements OnModuleInit, OnModule
 
         const parsed = coreDomainEventEnvelopeSchema.safeParse(row.payload);
         if (!parsed.success) {
-            await this.markDeadLetter(row.id, row.retryCount, "invalid_envelope_schema");
+            // An invalid envelope will never parse on retry — dead-letter it
+            // immediately instead of burning through the retry budget.
+            await this.outboxRepository.markDeadLetter(row.id, row.retryCount);
+            this.logger.error(`Outbox item '${row.id}' moved to dead-letter: invalid_envelope_schema`);
             return;
         }
 
@@ -115,65 +133,20 @@ export class LocalEventOutboxDispatcherService implements OnModuleInit, OnModule
     }
 
     private async hasSentDuplicateEventId(currentId: string, eventId: string): Promise<boolean> {
-        const rows = await this.databaseService.db
-            .select({ id: localEventOutbox.id })
-            .from(localEventOutbox)
-            .where(
-                and(
-                    eq(localEventOutbox.state, "sent"),
-                    sql`(${localEventOutbox.payload} ->> 'eventId') = ${eventId}`,
-                    sql`${localEventOutbox.id} <> ${currentId}`,
-                ),
-            )
-            .limit(1);
-
-        return rows.length > 0;
+        return this.outboxRepository.hasSentDuplicateEventId(currentId, eventId);
     }
 
     private async markSent(id: string): Promise<void> {
-        await this.databaseService.db
-            .update(localEventOutbox)
-            .set({
-                state: "sent",
-                updatedAt: new Date(),
-            })
-            .where(eq(localEventOutbox.id, id));
+        await this.outboxRepository.markSent(id);
     }
 
     private async scheduleRetryOrDeadLetter(id: string, retryCount: number, reason: string): Promise<void> {
-        const nextRetryCount = retryCount + 1;
+        const outcome = await this.outboxRepository.scheduleRetry(id, retryCount, this.maxRetries);
 
-        if (nextRetryCount >= this.maxRetries) {
-            await this.markDeadLetter(id, nextRetryCount, reason);
+        if (outcome === "retry") {
+            this.logger.warn(`Outbox dispatch retry scheduled for '${id}': ${reason}`);
             return;
         }
-
-        const delayMs = Math.min(60_000, 1_000 * 2 ** Math.max(0, nextRetryCount - 1));
-        const nextRetryAt = new Date(Date.now() + delayMs);
-
-        await this.databaseService.db
-            .update(localEventOutbox)
-            .set({
-                state: "pending",
-                retryCount: nextRetryCount,
-                nextRetryAt,
-                updatedAt: new Date(),
-            })
-            .where(eq(localEventOutbox.id, id));
-
-        this.logger.warn(`Outbox dispatch retry scheduled for '${id}': ${reason}`);
-    }
-
-    private async markDeadLetter(id: string, retryCount: number, reason: string): Promise<void> {
-        await this.databaseService.db
-            .update(localEventOutbox)
-            .set({
-                state: "dead_letter",
-                retryCount,
-                updatedAt: new Date(),
-            })
-            .where(eq(localEventOutbox.id, id));
-
         this.logger.error(`Outbox item '${id}' moved to dead-letter: ${reason}`);
     }
 

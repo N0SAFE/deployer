@@ -3,6 +3,18 @@
     "compilerOptions": {
         "useDefineForClassFields": true,
         "incremental": true,
+        // Bun globals (Bun.file / Bun.write) are used in server-only modules
+        // loaded from instrumentation.ts. @types/bun is installed at the repo
+        // root; base.json pins "types": ["node"], so re-declare with bun added.
+        "types": ["node", "bun"],
+        // The ORPC router types are enormous. With `declaration: true` (inherited
+        // from the shared base config), tsgo must serialize them and hits
+        // TS7056 ("inferred type exceeds maximum serialization length").
+        // The web app is a Next.js app with `noEmit: true` — it never emits
+        // declarations, so disable them here (ORPC docs: "Exceeds the maximum
+        // length problem" → fix #1: disable `declaration`).
+        "declaration": false,
+        "declarationMap": false,
         "plugins": [
             {
                 "name": "next"
@@ -29,6 +41,5 @@
         "*.config.js",
         "*.config.mjs",
         "vitest.setup.ts"
-    ],
-    "exclude": ["node_modules", ".next", "out", "dist", ".turbo", "coverage", "build", ".swc"]
+    ]
 }

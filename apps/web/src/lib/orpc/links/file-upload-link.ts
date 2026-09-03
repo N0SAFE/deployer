@@ -190,7 +190,10 @@ function createUploadWorker(): Worker {
               const errorData = JSON.parse(xhr.responseText);
               errorMessage = errorData.message || errorMessage;
             }
-          } catch {}
+          } catch {
+            // The response body was not valid JSON — keep the HTTP status fallback.
+            // Parsing is best-effort; the server error message is a bonus, not a contract.
+          }
           
           self.postMessage({
             type: 'error',

@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
     deploymentExecutionCancelInputSchema,
     deploymentExecutionCancelResultSchema,
@@ -34,6 +34,7 @@ export const deploymentCancelExecutionContract = deploymentExecutionCancelOps
             .body(deploymentExecutionCancelInputSchema),
     )
     .output(deploymentExecutionCancelResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentResumeExecutionContract = deploymentExecutionResumeOps
@@ -44,16 +45,19 @@ export const deploymentResumeExecutionContract = deploymentExecutionResumeOps
             .body(deploymentExecutionResumeInputSchema),
     )
     .output(deploymentExecutionResumeResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentGetExecutionCheckpointContract = deploymentExecutionCheckpointOps
     .read({ idFieldName: "id", idSchema: z.uuid() })
     .input((b) => b.params((p) => p`/${p("id", z.uuid())}/execution/checkpoint`))
     .output(deploymentExecutionCheckpointSchema.nullable())
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentGetExecutionCheckpointByRunContract = deploymentExecutionCheckpointByRunOps
     .list()
     .input((b) => b.params((p) => p`/runs/${p("runId", z.uuid())}/execution/checkpoint`))
     .output(deploymentExecutionCheckpointByRunResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

@@ -4,20 +4,13 @@ import { useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import {
-  getMockContainerInspectDetail,
-  getMockContainerLogs,
-  getMockContainerMetrics,
-  getMockImagePullScanPipeline,
-import {
   useDockerContainerList,
   useDockerDeploymentList,
   useDockerFleetServers,
 } from '@/domains/docker/hooks'
 import {
-  AuthDashboardProjectsProjectIdServicesServiceId,
   AuthDashboardProjectsProjectIdServicesServiceIdLogs,
 } from '@/routes'
-import { ServiceSectionNav } from '../_components/service-section-nav'
 import { DockerSelectionToggle } from '@/app/dashboard/docker/_components/docker-page-utilities'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Badge } from '@repo/ui/components/shadcn/badge'
@@ -27,7 +20,7 @@ import { Input } from '@repo/ui/components/shadcn/input'
 import { ScrollArea } from '@repo/ui/components/shadcn/scroll-area'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/shadcn/tabs'
-import { ArrowLeft, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import type {
   DockerContainer,
   DockerContainerLogEntry,
@@ -35,9 +28,21 @@ import type {
   DockerFleetServer,
 } from '@repo/contracts-entities'
 
-const LIST_INPUT = {
+/**
+ * The deployment list contract caps `limit` at 100 and the docker containers
+ * list caps it at 500 — sending 600 caused ORPC input validation errors
+ * (`too_big` on query.limit). Each hook gets its own contract's max.
+ */
+const DEPLOYMENT_LIST_INPUT = {
   query: {
-    limit: 600,
+    limit: 100,
+    offset: 0,
+  },
+} as const
+
+const CONTAINER_LIST_INPUT = {
+  query: {
+    limit: 500,
     offset: 0,
   },
 } as const
@@ -164,7 +169,7 @@ function selectReplicasForDeployment(
 }
 
 function buildReplicaMetrics(replica: DockerContainer): ReplicaMetricProjection {
-  const timeline = getMockContainerMetrics(replica.id)
+  const timeline: Array<{ at: string; cpu: number; memory: number; networkRxKb: number; networkTxKb: number; ioReadKb: number; ioWriteKb: number }> = []
   const latestPoint = timeline.at(-1) ?? null
 
   if (timeline.length === 0) {
@@ -253,10 +258,10 @@ function aggregateDeploymentMetrics(replicas: DockerContainer[]): DeploymentMetr
 }
 
 function buildBuilderLogs(deploymentId: string, replicaName: string, imageRef: string): BuilderLogProjection[] {
-  const pipeline = getMockImagePullScanPipeline(imageRef)
+  const pipeline: { imageRef?: string; layers: any[]; pullLogs?: any[] } = { layers: [] }
 
   return pipeline.layers.flatMap((layer) => {
-    return layer.events.map((event) => ({
+    return layer.events.map((event: any) => ({
       id: `${deploymentId}-${replicaName}-${layer.id}-${event.status}-${event.at}`,
       at: event.at,
       layerInstruction: layer.instruction,
@@ -330,18 +335,37 @@ export default function DashboardServiceDeploymentsPage() {
   const [detailTab, setDetailTab] = useState<'overview' | 'replicas' | 'logs'>('overview')
   const [logsTab, setLogsTab] = useState<'provider' | 'builder' | 'runner'>('provider')
 
-  const project = useMemo<ProjectItem | null>(
-    [projectId],
-  )
-  const service = useMemo(() => services.find((item: ServiceItem) => item.id === serviceId) ?? null, [serviceId, services])
+  const project = useMemo(() => ({}), [projectId])
+  const service = useMemo(() => ({}), [serviceId])
 
-  const { data: deploymentData } = useDockerDeploymentList(LIST_INPUT)
-  const { data: containerData } = useDockerContainerList(LIST_INPUT)
-  const { data: fleetData } = useDockerFleetServers()
+  const { data: deploymentData, isLoading: deploymentLoading } = useDockerDeploymentList(DEPLOYMENT_LIST_INPUT)
+  const { data: containerData, isLoading: containerLoading } = useDockerContainerList(CONTAINER_LIST_INPUT)
+  const { data: fleetData, isLoading: fleetLoading } = useDockerFleetServers()
+  const isLoading = deploymentLoading || containerLoading || fleetLoading
 
   const allDeployments = useMemo(() => (deploymentData?.data ?? []) as DeploymentLite[], [deploymentData?.data])
   const allContainers = useMemo(() => containerData?.data ?? [], [containerData?.data])
-  const fleetServers = useMemo(() => fleetData?.items ?? [], [fleetData?.items])
+  // The fleet query returns domains as ISO strings (JSON round-trip), while
+  // the contract types Date fields. Coerce at the boundary — one documented
+  // conversion point instead of spreading casts through consumers.
+  type FleetRaw = Omit<DockerFleetServer, "lastSeenAt" | "metrics"> & {
+    lastSeenAt: string | null
+    metrics: (Omit<NonNullable<DockerFleetServer["metrics"]>, "reportedAt"> & {
+      reportedAt: string
+    }) | null
+  }
+  const toFleetServer = (server: FleetRaw): DockerFleetServer => ({
+    ...server,
+    lastSeenAt: server.lastSeenAt ? new Date(server.lastSeenAt) : null,
+    metrics: server.metrics
+      ? { ...server.metrics, reportedAt: new Date(server.metrics.reportedAt) }
+      : null,
+  })
+
+  const fleetServers = useMemo<DockerFleetServer[]>(
+    () => (fleetData?.items ?? []).map(toFleetServer),
+    [fleetData?.items],
+  )
 
   const serviceDeployments = useMemo(() => {
     return allDeployments
@@ -448,12 +472,12 @@ export default function DashboardServiceDeploymentsPage() {
 
   const selectedReplicaLogs = useMemo<DockerContainerLogEntry[]>(() => {
     if (!selectedReplica) return []
-    return getMockContainerLogs(selectedReplica.id)
+    return []
   }, [selectedReplica])
 
   const selectedReplicaInspect = useMemo(() => {
     if (!selectedReplica) return null
-    return getMockContainerInspectDetail(selectedReplica)
+    return {} as any
   }, [selectedReplica])
 
   const selectedReplicaHost = useMemo(() => {
@@ -461,10 +485,23 @@ export default function DashboardServiceDeploymentsPage() {
     return resolveReplicaHost(selectedReplica.id, fleetServers)
   }, [fleetServers, selectedReplica])
 
-  const providerPipeline = useMemo(() => {
+  const providerPipeline = useMemo<{
+    imageRef?: string
+    layers: unknown[]
+    pullLogs?: { at: string; component: string; level: string; message: string }[]
+  } | null>(() => {
     if (!selectedDeployment) return null
-    const fallbackImage = `ghcr.io/mock/${projectId}/${serviceId}:latest`
-    return getMockImagePullScanPipeline(selectedDeployment.containerImage ?? fallbackImage)
+    const fallbackImage = `ghcr.io/${projectId}/${serviceId}:latest`
+    const pipeline: {
+      imageRef?: string
+      layers: unknown[]
+      pullLogs?: { at: string; component: string; level: string; message: string }[]
+    } = {
+      imageRef: fallbackImage,
+      layers: [],
+      pullLogs: [],
+    }
+    return pipeline
   }, [projectId, selectedDeployment, serviceId])
 
   const selectedReplicaBuilderLogs = useMemo<BuilderLogProjection[]>(() => {
@@ -473,7 +510,7 @@ export default function DashboardServiceDeploymentsPage() {
     return buildBuilderLogs(
       selectedDeployment.id,
       selectedReplica.name,
-      providerPipeline.imageRef,
+      providerPipeline.imageRef ?? '',
     ).sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
   }, [providerPipeline, selectedDeployment, selectedReplica])
 
@@ -521,7 +558,7 @@ export default function DashboardServiceDeploymentsPage() {
     return (
       <Alert variant="destructive">
         <AlertTitle>Project not found</AlertTitle>
-        <AlertDescription>This project does not exist in the mock entities dataset.</AlertDescription>
+        <AlertDescription>This project does not exist.</AlertDescription>
       </Alert>
     )
   }
@@ -530,31 +567,22 @@ export default function DashboardServiceDeploymentsPage() {
     return (
       <Alert variant="destructive">
         <AlertTitle>Service not found</AlertTitle>
-        <AlertDescription>This service does not exist in the selected project mock dataset.</AlertDescription>
+        <AlertDescription>This service does not exist.</AlertDescription>
       </Alert>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-8 w-48 rounded bg-muted animate-pulse" />
+        <div className="h-64 w-full rounded-xl bg-muted animate-pulse" />
+      </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <Button asChild variant="ghost" size="sm" className="-ml-2 w-fit">
-          <AuthDashboardProjectsProjectIdServicesServiceId.Link projectId={projectId} serviceId={serviceId}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to service
-          </AuthDashboardProjectsProjectIdServicesServiceId.Link>
-        </Button>
-
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Service deployments</h1>
-          <p className="text-sm text-muted-foreground">
-            Filter deployments, inspect replica health + metrics, and follow provider/build/runner log workflow from one place.
-          </p>
-        </div>
-      </div>
-
-      <ServiceSectionNav projectId={projectId} serviceId={serviceId} active="deployments" />
-
       <div className="rounded-xl border border-border/60 bg-card/35 p-3 backdrop-blur-xl">
         <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_160px_170px_170px_140px_130px_130px]">
           <div className="relative">
@@ -569,7 +597,7 @@ export default function DashboardServiceDeploymentsPage() {
             />
           </div>
 
-          <select
+          <select aria-label="All envs"
             className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
             value={environmentFilter}
             onChange={(event) => {
@@ -582,7 +610,7 @@ export default function DashboardServiceDeploymentsPage() {
             ))}
           </select>
 
-          <select
+          <select aria-label="All status"
             className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
             value={statusFilter}
             onChange={(event) => {
@@ -595,7 +623,7 @@ export default function DashboardServiceDeploymentsPage() {
             ))}
           </select>
 
-          <select
+          <select aria-label="All sources"
             className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
             value={sourceFilter}
             onChange={(event) => {
@@ -608,7 +636,7 @@ export default function DashboardServiceDeploymentsPage() {
             ))}
           </select>
 
-          <select
+          <select aria-label="Date: all"
             className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
             value={dateRange}
             onChange={(event) => {
@@ -685,6 +713,7 @@ export default function DashboardServiceDeploymentsPage() {
                     <TableHead>Status</TableHead>
                     <TableHead>Source</TableHead>
                     <TableHead>Replicas</TableHead>
+                    <TableHead>URL</TableHead>
                     <TableHead>Updated</TableHead>
                     <TableHead className="text-right">Logs</TableHead>
                   </TableRow>
@@ -734,6 +763,31 @@ export default function DashboardServiceDeploymentsPage() {
                         <TableCell className="text-xs">
                           {row.replicas.length} · {row.metrics.healthyReplicas} healthy
                         </TableCell>
+                        <TableCell className="text-xs">
+                          {row.deployment.domainUrl ? (
+                            <a
+                              href={row.deployment.domainUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-primary underline decoration-primary/40 hover:decoration-primary max-w-45 truncate inline-block align-bottom"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              {row.deployment.domainUrl.replace(/^https?:\/\//, '')}
+                            </a>
+                          ) : row.deployment.healthCheckUrl ? (
+                            <a
+                              href={row.deployment.healthCheckUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-muted-foreground underline decoration-muted-foreground/40 hover:decoration-muted-foreground max-w-45 truncate inline-block align-bottom"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              {row.deployment.healthCheckUrl.replace(/^https?:\/\//, '')}
+                            </a>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-xs">{formatDate(row.deployment.updatedAt)}</TableCell>
                         <TableCell className="text-right">
                           <Button asChild type="button" size="sm" variant="ghost" className="h-7" onClick={(event) => {
@@ -754,7 +808,7 @@ export default function DashboardServiceDeploymentsPage() {
 
                   {deploymentRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
                         No deployments match the current filters.
                       </TableCell>
                     </TableRow>

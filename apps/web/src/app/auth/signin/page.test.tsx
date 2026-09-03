@@ -32,6 +32,12 @@ vi.mock("@repo/ui/components/shadcn/alert", () => ({
   AlertDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
+vi.mock("@repo/ui/components/shadcn/label", () => ({
+  Label: ({ children, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
+    <label {...props}>{children}</label>
+  ),
+}));
+
 
 vi.mock("@repo/ui/components/atomics/atoms/Icon", () => ({
   Spinner: () => <span>spinner</span>,
@@ -67,6 +73,7 @@ vi.mock("next/navigation", () => ({
     forward: vi.fn(),
     refresh: vi.fn(),
   }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
 vi.mock("@/routes", () => ({
@@ -120,6 +127,9 @@ describe("SignIn page", () => {
       isLoading: false,
     });
 
+    // The page reads ?redirectTo from the URL — seed it like a real navigation.
+    window.history.replaceState(null, "", "/auth/signin?redirectTo=%2Fdashboard%2Fservices");
+
     render(<SignInPageLoose params={{}} searchParams={{ redirectTo: "/dashboard/services" }} />);
 
     await waitFor(() => {
@@ -136,6 +146,9 @@ describe("SignIn page", () => {
     });
     mocks.signInEmail.mockResolvedValue({ data: { user: { id: "u1" } } });
 
+    // The page reads ?redirectTo from the URL at submit time — seed it like a real navigation.
+    window.history.replaceState(null, "", "/auth/signin?redirectTo=%2Fdashboard%2Fservices");
+
     render(<SignInPageLoose params={{}} searchParams={{ redirectTo: "/dashboard/services" }} />);
 
     fireEvent.change(screen.getByLabelText(/email address/i), {
@@ -149,6 +162,83 @@ describe("SignIn page", () => {
 
     await waitFor(() => {
       expect(mocks.redirectAction).toHaveBeenCalledWith("/dashboard/services");
+    });
+  });
+
+  it("shows a field error once the invalid email field is touched", async () => {
+    mocks.useSetupState.mockReturnValue({
+      data: { needsSetup: false },
+      isLoading: false,
+    });
+
+    render(<SignInPageLoose params={{}} searchParams={{}} />);
+
+    const emailInput = screen.getByLabelText(/email address/i);
+    fireEvent.change(emailInput, { target: { value: "not-an-email" } });
+    // TanStack Form only validates touched fields — touch happens on blur,
+    // mirroring a user leaving the field.
+    fireEvent.blur(emailInput);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        /please enter a valid email address/i,
+      );
+    });
+    expect(mocks.signInEmail).not.toHaveBeenCalled();
+  });
+
+  it("surfaces API errors instead of failing silently", async () => {
+    mocks.useSetupState.mockReturnValue({
+      data: { needsSetup: false },
+      isLoading: false,
+    });
+    mocks.signInEmail.mockResolvedValue({
+      error: { message: "Invalid email or password" },
+    });
+
+    render(<SignInPageLoose params={{}} searchParams={{}} />);
+
+    fireEvent.change(screen.getByLabelText(/email address/i), {
+      target: { value: "admin@admin.com" },
+    });
+    fireEvent.change(screen.getByLabelText(/^password$/i), {
+      target: { value: "adminadmin" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /sign in with email/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Invalid email or password")).toBeInTheDocument();
+    });
+    expect(mocks.redirectAction).not.toHaveBeenCalled();
+  });
+
+  it("recovers when the auth request rejects (network failure)", async () => {
+    mocks.useSetupState.mockReturnValue({
+      data: { needsSetup: false },
+      isLoading: false,
+    });
+    mocks.signInEmail.mockRejectedValue(new Error("Network unreachable"));
+
+    render(<SignInPageLoose params={{}} searchParams={{}} />);
+
+    fireEvent.change(screen.getByLabelText(/email address/i), {
+      target: { value: "admin@admin.com" },
+    });
+    fireEvent.change(screen.getByLabelText(/^password$/i), {
+      target: { value: "adminadmin" },
+    });
+
+    const submit = screen.getByRole("button", { name: /sign in with email/i });
+    fireEvent.click(submit);
+
+    await waitFor(() => {
+      expect(screen.getByText("Network unreachable")).toBeInTheDocument();
+    });
+
+    // Regression guard: the button must be re-enabled (previously it stayed
+    // disabled forever because isLoading was never reset on throw).
+    await waitFor(() => {
+      expect(submit).not.toBeDisabled();
     });
   });
 });

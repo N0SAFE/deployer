@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ServiceController } from './service.controller';
 import { ServiceService } from '../services/service.service';
+import { ServiceNetworkService } from '../services/service-network.service';
 
 function createImplementMock() {
     type HandlerFn = (opts: { input: unknown; context: unknown }) => unknown;
@@ -47,6 +48,13 @@ describe('ServiceController', () => {
                 {
                     provide: ServiceService,
                     useFactory: () => mockServiceService,
+                },
+                {
+                    provide: ServiceNetworkService,
+                    useFactory: () => ({
+                        getNetwork: vi.fn(),
+                        saveNetwork: vi.fn(),
+                    }),
                 },
             ],
         }).compile();

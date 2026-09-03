@@ -10,10 +10,10 @@ import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import '@/routes/configure-auth'
 import type { Metadata } from 'next'
 import { Inter, Geist } from 'next/font/google'
+import { Suspense, type JSX } from 'react'
 import { cn } from '@repo/ui/lib/utils'
 import ThemeProvider from '@repo/ui/components/theme-provider'
 import ReactQueryProviders from '@/utils/providers/ReactQueryProviders'
-import type { JSX } from 'react'
 import AuthProviders from '@/utils/providers/AuthProviders/index'
 import NextTopLoader from 'nextjs-toploader'
 import Script from 'next/script'
@@ -53,7 +53,16 @@ export default function RootLayout({
     const env = envResult.success ? envResult.data : null
 
     return (
-        <html lang="en" className={cn("font-sans", geist.variable)}>
+        <html
+            lang="en"
+            // next-themes (ThemeProvider with attribute="class" + enableSystem)
+            // applies the `dark` class and `color-scheme` style on the client
+            // BEFORE hydration. Without suppressHydrationWarning, React logs a
+            // hydration mismatch on every load ("A tree hydrated but some
+            // attributes of the server rendered HTML didn't match...").
+            suppressHydrationWarning
+            className={cn("font-sans", geist.variable)}
+        >
             <head>
                 <link rel="manifest" href="/site.webmanifest" />
                 <meta name="theme-color" content="#000000" />
@@ -91,6 +100,12 @@ export default function RootLayout({
                         disableTransitionOnChange
                     >
                         <NextTopLoader />
+                        {/* NuqsAdapter is the documented root-layout integration
+                            (nuqs.dev/docs/adapters). It works during SSR/prerender:
+                            its internal NavigationSpy is already wrapped in Suspense
+                            by the adapter itself. Consumers of nuqs state that need
+                            URL data on dynamic routes must have a Suspense boundary
+                            above them — handled per-route, not here. */}
                         <NuqsAdapter>
                             <ReactQueryProviders>
                                 {children}

@@ -83,7 +83,7 @@ This document is the authoritative, exhaustive inventory of every feature the pl
 | Cluster health overview | 🟡 | Mesh topology service + health module, no admin UI |
 | Multi-node gossip ring (mesh transport) | 🟡 | `MeshCoreModule` + event replication, wiring incomplete |
 | Cross-node event delivery (ORPC SSE) | 🟡 | `BaseMeshService` + EventIterator contracts exist |
-| Load balancer (redirect + signed token) | 🟡 | `apps/load-balancer` app exists, redirect formula defined |
+| Standalone load balancer | ❌ | Removed — Traefik is the sole reverse proxy; direct-proxy supervisor covers Traefik downtime |
 | Platform self-update (cluster-wide) | 🔴 | Not implemented |
 | Cluster backup to S3 | 🔴 | Not implemented |
 | Multi-region cluster federation | 🔴 | Architecture defined, not implemented |
@@ -855,18 +855,21 @@ All providers expose a **common normalized source contract** (`SourceProviderReg
 
 ### 19c. Global layout structure
 
-```
-RootLayout (next-themes ThemeProvider, Sonner Toaster)
-└── DashboardLayout
-    ├── AppSidebar                          ← shadcn Sheet on mobile; fixed 240px→56px on desktop
-    │   ├── OrgSwitcher                     ← shadcn Popover + Command for search
-    │   ├── NavSection (main links)         ← NavItem with active indicator (`bg-sidebar-primary` left accent + text)
-    │   ├── NavSection (admin links)        ← Separator + admin items (shown if platform admin)
-    │   └── UserFooter                      ← Avatar + name + DropdownMenu (profile, settings, sign out)
-    ├── SidebarToggle button               ← ChevronLeft/Right, persisted in localStorage
-    └── MainContent
-        ├── TopBar                          ← sticky, Breadcrumb + PageTitle + right slot (action buttons)
-        └── PageContent                     ← padded, scrollable
+```mermaid
+flowchart TB
+    ROOT["RootLayout<br/>next-themes ThemeProvider · Sonner Toaster"] --> DL["DashboardLayout"]
+
+    DL --> SB["AppSidebar<br/>shadcn Sheet on mobile · fixed 240px→56px on desktop"]
+    DL --> TOG["SidebarToggle button<br/>ChevronLeft/Right, persisted in localStorage"]
+    DL --> MC["MainContent"]
+
+    SB --> OS["OrgSwitcher<br/>shadcn Popover + Command for search"]
+    SB --> NAV1["NavSection (main links)<br/>NavItem with active indicator — bg-sidebar-primary accent"]
+    SB --> NAV2["NavSection (admin links)<br/>Separator + admin items if platform admin"]
+    SB --> UF["UserFooter<br/>Avatar + name + DropdownMenu (profile, settings, sign out)"]
+
+    MC --> TB["TopBar<br/>sticky · Breadcrumb + PageTitle + right slot (action buttons)"]
+    MC --> PC["PageContent<br/>padded, scrollable"]
 ```
 
 **Sidebar nav items** (lucide icons shown):

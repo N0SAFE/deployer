@@ -8,7 +8,7 @@ order: 5
 
 ## How it works
 
-1. Each route page owns a `page.info.ts` descriptor.
+1. Each route page owns a `route.info.ts` descriptor.
 2. The declarative routing generator builds typed route artifacts.
 3. UI code consumes generated links/helpers instead of raw string paths.
 
@@ -33,7 +33,7 @@ bun run web -- dr:build:watch
 ## Practical implementation sequence
 
 1. Add or update route UI files.
-2. Define/update matching `page.info.ts` metadata.
+2. Define/update matching `route.info.ts` routing descriptor (name/params/search); per-page SEO metadata lives in `page.tsx` `export const metadata`/`generateMetadata`.
 3. Run route generation.
 4. Replace raw path usage with typed route helpers.
 5. Run checks to catch param/search typing drift.
@@ -43,7 +43,7 @@ bun run web -- dr:build:watch
 ### Generated helpers missing
 
 - Re-run route generation.
-- Ensure `page.info.ts` exists in the target route segment.
+- Ensure `route.info.ts` exists in the target route segment.
 - Restart the web dev process if stale artifacts persist.
 
 ### Type mismatch after route edits

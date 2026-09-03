@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { projectDeploymentConfigSchema } from "@repo/contracts-entities";
  
 const projectDeploymentConfigOps = standard.zod(projectDeploymentConfigSchema, "projectDeploymentConfig");
@@ -14,4 +14,5 @@ export const projectUpdateDeploymentConfigContract = projectDeploymentConfigOps
             .body(projectDeploymentConfigUpdateInputSchema),
     )
     .output(projectDeploymentConfigSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

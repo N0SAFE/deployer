@@ -211,7 +211,7 @@ export class ConfigurationResolverService {
 
     private computeConstraints(
         context: RuntimeConfigurationContext,
-        organization: ResolvedRuntimeConfiguration["organization"],
+        mesh: ResolvedRuntimeConfiguration["mesh"],
         project: ResolvedRuntimeConfiguration["project"],
         service: ResolvedRuntimeConfiguration["service"],
         effective: ResolvedRuntimeConfiguration["effective"],
@@ -226,21 +226,21 @@ export class ConfigurationResolverService {
         }
 
         const allowedProviders =
-            project.allowedProviders ?? organization.allowedProviders ?? [...ALL_PROVIDER_TYPES];
+            project.allowedProviders ?? mesh.allowedProviders ?? [...ALL_PROVIDER_TYPES];
         const providerAllowed = allowedProviders.includes(effective.execution.providerType);
         if (!providerAllowed) {
             reasons.push(`Provider '${effective.execution.providerType}' is not allowed`);
         }
 
         const allowedRunners =
-            project.allowedRunners ?? organization.allowedRunners ?? [...ALL_RUNNER_TYPES];
+            project.allowedRunners ?? mesh.allowedRunners ?? [...ALL_RUNNER_TYPES];
         const runnerAllowed = allowedRunners.includes(effective.execution.runnerType);
         if (!runnerAllowed) {
             reasons.push(`Runner '${effective.execution.runnerType}' is not allowed`);
         }
 
         const projectReplicaLimit =
-            project.maxReplicas ?? organization.maxProjectReplicas ?? effective.replicas.max;
+            project.maxReplicas ?? mesh.maxProjectReplicas ?? effective.replicas.max;
 
         const replicasWithinLimits =
             effective.replicas.min <= effective.replicas.desired &&
@@ -252,8 +252,8 @@ export class ConfigurationResolverService {
         }
 
         const cpuLimit =
-            project.limits?.cpuMillicores ?? organization.projectLimits?.cpuMillicores ?? null;
-        const memoryLimit = project.limits?.memoryMb ?? organization.projectLimits?.memoryMb ?? null;
+            project.limits?.cpuMillicores ?? mesh.projectLimits?.cpuMillicores ?? null;
+        const memoryLimit = project.limits?.memoryMb ?? mesh.projectLimits?.memoryMb ?? null;
 
         const resourcesWithinProjectLimits =
             (cpuLimit === null || effective.resources.cpuMillicores <= cpuLimit) &&
@@ -281,7 +281,7 @@ export class ConfigurationResolverService {
         }
 
         const currentLifecycle =
-            service.lifecycleState ?? project.lifecycleState ?? organization.lifecycleState ?? "active";
+            service.lifecycleState ?? project.lifecycleState ?? mesh.lifecycleState ?? "active";
 
         const lifecycleTransitionAllowed =
             typeof context.requestedLifecycleState === "undefined" ||
@@ -346,10 +346,6 @@ export class ConfigurationResolverService {
         }
 
         if (!this.listConditionIncludes(condition.actorRoleIn, context.actorRole)) {
-            return false;
-        }
-
-        if (!this.listConditionIncludes(condition.organizationIdIn, context.organizationId)) {
             return false;
         }
 
@@ -627,23 +623,23 @@ export class ConfigurationResolverService {
     resolve(input: RuntimeConfigurationResolverInput): ResolvedRuntimeConfiguration {
         const parsedInput = runtimeConfigurationResolverInputSchema.parse(input);
 
-        const organization = {
+        const mesh = {
             deployment: {
-                defaultStrategy: parsedInput.organization?.deployment?.defaultStrategy ?? "rolling",
+                defaultStrategy: parsedInput.mesh?.deployment?.defaultStrategy ?? "rolling",
                 enforceHttpsRedirect:
-                    parsedInput.organization?.deployment?.enforceHttpsRedirect ?? true,
-                previewEnabled: parsedInput.organization?.deployment?.previewEnabled ?? true,
+                    parsedInput.mesh?.deployment?.enforceHttpsRedirect ?? true,
+                previewEnabled: parsedInput.mesh?.deployment?.previewEnabled ?? true,
             },
-            allowedProviders: parsedInput.organization?.allowedProviders,
-            allowedRunners: parsedInput.organization?.allowedRunners,
-            projectLimits: parsedInput.organization?.projectLimits,
-            maxProjectReplicas: parsedInput.organization?.maxProjectReplicas,
-            traefik: parsedInput.organization?.traefik,
-            lifecycleState: parsedInput.organization?.lifecycleState,
-            environmentByDomain: parsedInput.organization?.environmentByDomain,
-            environment: parsedInput.organization?.environment ?? {},
-            featureFlags: parsedInput.organization?.featureFlags ?? {},
-            metadata: parsedInput.organization?.metadata ?? {},
+            allowedProviders: parsedInput.mesh?.allowedProviders,
+            allowedRunners: parsedInput.mesh?.allowedRunners,
+            projectLimits: parsedInput.mesh?.projectLimits,
+            maxProjectReplicas: parsedInput.mesh?.maxProjectReplicas,
+            traefik: parsedInput.mesh?.traefik,
+            lifecycleState: parsedInput.mesh?.lifecycleState,
+            environmentByDomain: parsedInput.mesh?.environmentByDomain,
+            environment: parsedInput.mesh?.environment ?? {},
+            featureFlags: parsedInput.mesh?.featureFlags ?? {},
+            metadata: parsedInput.mesh?.metadata ?? {},
         };
 
         const project = {
@@ -721,7 +717,7 @@ export class ConfigurationResolverService {
         const strategy =
             service.deployment.strategy ??
             project.settings.deploymentStrategy ??
-            organization.deployment.defaultStrategy;
+            mesh.deployment.defaultStrategy;
 
         const autoDeployEnabled =
             user.deployment.autoDeployEnabled ??
@@ -732,17 +728,17 @@ export class ConfigurationResolverService {
         const previewEnabled =
             user.deployment.previewEnabled ??
             project.settings.enablePreviewEnvironments ??
-            organization.deployment.previewEnabled;
+            mesh.deployment.previewEnabled;
 
         const requireApprovalForProduction = project.settings.requireApprovalForProduction ?? false;
 
         const forceHttps =
             service.routing.forceHttps ??
             project.settings.enableHttpsRedirect ??
-            organization.deployment.enforceHttpsRedirect;
+            mesh.deployment.enforceHttpsRedirect;
 
         const environmentDomains = this.mergeEnvironmentDomains(
-            organization.environmentByDomain,
+            mesh.environmentByDomain,
             project.environmentByDomain,
             service.environmentByDomain,
             user.environmentByDomainOverrides,
@@ -750,7 +746,7 @@ export class ConfigurationResolverService {
 
         const environment = {
             ...this.flattenEnvironmentDomains(environmentDomains),
-            ...organization.environment,
+            ...mesh.environment,
             ...(project.settings.defaultEnvironmentVariables ?? {}),
             ...project.environment,
             ...service.environment,
@@ -758,7 +754,7 @@ export class ConfigurationResolverService {
         };
 
         const featureFlags = {
-            ...organization.featureFlags,
+            ...mesh.featureFlags,
             ...project.featureFlags,
             ...service.featureFlags,
             ...user.featureFlagOverrides,
@@ -778,7 +774,7 @@ export class ConfigurationResolverService {
 
         const minReplicas = service.replicas.min ?? 1;
         const maxReplicas =
-            service.replicas.max ?? project.maxReplicas ?? organization.maxProjectReplicas ?? 10;
+            service.replicas.max ?? project.maxReplicas ?? mesh.maxProjectReplicas ?? 10;
         const desiredReplicas =
             parsedInput.context.requestedReplicas ?? service.replicas.desired ?? minReplicas;
 
@@ -786,18 +782,18 @@ export class ConfigurationResolverService {
             parsedInput.context.requestedResources?.cpuMillicores ??
             service.resources.cpuMillicores ??
             project.limits?.cpuMillicores ??
-            organization.projectLimits?.cpuMillicores ??
+            mesh.projectLimits?.cpuMillicores ??
             500;
 
         const memoryMb =
             parsedInput.context.requestedResources?.memoryMb ??
             service.resources.memoryMb ??
             project.limits?.memoryMb ??
-            organization.projectLimits?.memoryMb ??
+            mesh.projectLimits?.memoryMb ??
             512;
 
         const mergedTraefik = {
-            ...(organization.traefik ?? {}),
+            ...(mesh.traefik ?? {}),
             ...(project.traefik ?? {}),
             ...(service.traefik ?? {}),
             ...(user.preferredTraefik ?? {}),
@@ -807,7 +803,7 @@ export class ConfigurationResolverService {
             parsedInput.context.requestedLifecycleState ??
             service.lifecycleState ??
             project.lifecycleState ??
-            organization.lifecycleState ??
+            mesh.lifecycleState ??
             "active";
 
         let effective: ResolvedRuntimeConfiguration["effective"] = {
@@ -872,7 +868,7 @@ export class ConfigurationResolverService {
 
         effective = {
             ...effective,
-            constraints: this.computeConstraints(parsedInput.context, organization, project, service, effective),
+            constraints: this.computeConstraints(parsedInput.context, mesh, project, service, effective),
         };
 
         const dispatchRules = [...(parsedInput.dispatch?.rules ?? [])]
@@ -896,14 +892,14 @@ export class ConfigurationResolverService {
         if (!touchedConstraints) {
             effective = {
                 ...effective,
-                constraints: this.computeConstraints(parsedInput.context, organization, project, service, effective),
+                constraints: this.computeConstraints(parsedInput.context, mesh, project, service, effective),
             };
         }
 
         return resolvedRuntimeConfigurationSchema.parse({
             scope: parsedInput.scope,
             context: parsedInput.context,
-            organization,
+            mesh,
             project,
             service,
             user,
@@ -915,19 +911,12 @@ export class ConfigurationResolverService {
         });
     }
 
-    resolveStrict(input: RuntimeConfigurationResolverInputByScope<"organization">): ResolvedRuntimeConfiguration;
     resolveStrict(input: RuntimeConfigurationResolverInputByScope<"project">): ResolvedRuntimeConfiguration;
     resolveStrict(input: RuntimeConfigurationResolverInputByScope<"service">): ResolvedRuntimeConfiguration;
     resolveStrict(input: RuntimeConfigurationResolverInputByScope<"user">): ResolvedRuntimeConfiguration;
     resolveStrict(input: RuntimeConfigurationResolverScopedInput): ResolvedRuntimeConfiguration;
     resolveStrict(input: RuntimeConfigurationResolverScopedInput): ResolvedRuntimeConfiguration {
         return this.resolve(input);
-    }
-
-    resolveForOrganization(
-        input: Omit<RuntimeConfigurationResolverInputByScope<"organization">, "scope">,
-    ): ResolvedRuntimeConfiguration {
-        return this.resolveStrict({ ...input, scope: "organization" });
     }
 
     resolveForProject(

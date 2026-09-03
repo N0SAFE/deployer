@@ -1,5 +1,6 @@
 "use client";
 
+import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type {
@@ -127,7 +128,7 @@ export function useTriggerInitialize() {
       queryClient.invalidateQueries({ queryKey: setupKeys.nodeStatus() });
     },
     onError: (error: Error) => {
-      toast.error(`Setup trigger failed: ${error.message}`);
+      toast.error(isDefinedORPCError(error) ? getErrorMessage(error, 'Setup trigger failed') : UNKNOWN_ORPC_ERROR_MESSAGE);
     },
   });
 }
@@ -146,7 +147,7 @@ export function useTriggerInitialize() {
 export function useInitializeStream(options?: { enabled?: boolean }) {
   return useQuery({
     ...setupEndpoints.getInitializeStream.experimental_streamedObservableOptions({
-      input: {},
+      input: undefined,
       enabled: options?.enabled ?? false,
       refetchInterval: false,
     }),

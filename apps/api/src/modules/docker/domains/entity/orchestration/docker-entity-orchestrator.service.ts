@@ -63,7 +63,7 @@ export class DockerEntityOrchestratorService {
   // list
   // ---------------------------------------------------------------------------
 
-  listContainers(input: DockerEntityListInput): Promise<DockerEntityListResult<"container">> {
+  listContainers(input: DockerEntityListInput = {} as DockerEntityListInput): Promise<DockerEntityListResult<"container">> {
     return this.runList("container", () => this.dockerEntityDomainService.listContainerEntity(input))
   }
 

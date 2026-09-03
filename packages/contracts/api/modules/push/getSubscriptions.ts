@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 
 export const subscriptionSchema = z.object({
   id: z.string(),
@@ -22,4 +22,5 @@ export const getSubscriptionsContract = pushSubscriptionOps
   .path("/subscriptions")
   .input(z.object({}))
   .output(getSubscriptionsOutputSchema)
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

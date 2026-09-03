@@ -1,4 +1,5 @@
-import { z } from "zod/v4";
+import z from "zod/v4";
+import { ORPCError } from "@orpc/client";
 import type { ErrorDefinitionBuilder } from "./builder/core/error-builder";
 
 /**
@@ -62,6 +63,66 @@ export const meshErrorResponseSchema = meshDomainErrorPayloadSchema.extend({
 });
 
 export type MeshErrorResponse = z.infer<typeof meshErrorResponseSchema>;
+
+/**
+ * Build a contract-compliant wire payload for a mesh domain error.
+ *
+ * Mesh contracts spread `meshDomainErrorContracts(e)`, whose declared data
+ * schema is `meshDomainErrorPayloadSchema`. ORPC only marks a thrown error
+ * as "defined" on the client when its data validates against the declared
+ * schema — so every throw site MUST attach this payload.
+ *
+ * @param code    Canonical mesh error code (e.g. `"mesh.not_found"`).
+ * @param message Human-readable message sent to the client.
+ */
+export function meshDomainErrorPayload(
+    code: MeshErrorCode,
+    message: string,
+): MeshDomainErrorPayload {
+    return {
+        statusCode: MESH_ERROR_HTTP_STATUS[code],
+        code,
+        message,
+        orpcCode: MESH_ERROR_ORPC_CODE[code],
+    };
+}
+
+function meshErrorThrow(
+    orpcCode: string,
+    meshCode: MeshErrorCode,
+    message: string,
+): ORPCError<string, MeshDomainErrorPayload> {
+    return new ORPCError(orpcCode, {
+        status: MESH_ERROR_HTTP_STATUS[meshCode],
+        message,
+        data: meshDomainErrorPayload(meshCode, message),
+    });
+}
+
+/**
+ * Closed-set throwable factories for the mesh domain errors — the ORPC
+ * Compatibility pattern (from the oRPC docs) for code paths WITHOUT access
+ * to the `errors` property (services, repositories). The code/status/data
+ * triple matches what mesh contracts declare via
+ * `meshDomainErrorContracts`, so the runtime upgrades the throw to a
+ * DEFINED (typed) error on the client; no off-contract code is throwable.
+ */
+export const meshErrorActions = {
+    NOT_FOUND: (message: string) =>
+        meshErrorThrow(MESH_ERROR_ORPC_CODE["mesh.not_found"], "mesh.not_found", message),
+    BAD_REQUEST: (message: string) =>
+        meshErrorThrow(MESH_ERROR_ORPC_CODE["mesh.validation"], "mesh.validation", message),
+    FORBIDDEN: (message: string) =>
+        meshErrorThrow(MESH_ERROR_ORPC_CODE["mesh.trust"], "mesh.trust", message),
+    CONFLICT: (message: string) =>
+        meshErrorThrow(MESH_ERROR_ORPC_CODE["mesh.conflict"], "mesh.conflict", message),
+    FAILED_DEPENDENCY: (message: string) =>
+        meshErrorThrow(
+            MESH_ERROR_ORPC_CODE["mesh.dependency_missing"],
+            "mesh.dependency_missing",
+            message,
+        ),
+} as const;
 
 /**
  * Helper to attach the canonical mesh domain errors to an ORPC contract.

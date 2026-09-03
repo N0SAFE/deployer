@@ -17,14 +17,15 @@
         },
         "./react/session/client": "./src/react/session/client.ts",
         "./react/session/server": "./src/react/session/server.ts",
-        "./mesh": "./src/mesh/index.ts"
+        "./mesh": "./src/mesh/index.ts",
+        "./src/*": "./src/*"
     },
     "scripts": {
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix",
-        "type-check": "tsgo --noEmit",
+        "lint": "eslint . --fix --cache --concurrency=auto",
+        "type-check": "tsc --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage"
@@ -45,10 +46,10 @@
         "@repo/config-prettier": "*",
         "@repo/config-typescript": "*",
         "@types/react": "catalog:react",
-        "@typescript/native-preview": "catalog:build",
         "vitest": "catalog:testing",
         "@vitest/coverage-v8": "catalog:testing",
-        "server-only": "^0.0.1"
+        "server-only": "catalog:utils",
+        "typescript": "catalog:build"
     },
     "peerDependencies": {
         "drizzle-orm": "catalog:database",

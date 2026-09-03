@@ -1,7 +1,7 @@
 export {
     collaboratorSchema,
     environmentStatusSchema,
-    environmentTypeSchema,
+    environmentKindSchema,
     inviteCollaboratorSchema,
     projectDeploymentConfigSchema,
     projectEnvironmentConfigSchema,

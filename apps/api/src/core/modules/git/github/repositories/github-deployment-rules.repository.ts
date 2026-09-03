@@ -19,6 +19,7 @@ import { GlobalDatabaseService } from '@/core/modules/database/services/global-d
 import { githubDeploymentRules } from '@/config/drizzle/global/schema/github-provider';
 import { eq, and, desc } from 'drizzle-orm';
 
+import { AppError } from "@repo/errors";
 // Type inference from schema
 type GithubDeploymentRule = typeof githubDeploymentRules.$inferSelect;
 type GithubDeploymentRuleInsert = typeof githubDeploymentRules.$inferInsert;
@@ -107,7 +108,7 @@ export class GithubDeploymentRulesRepository {
       .returning();
 
     if (!rule) {
-      throw new Error('Failed to create GitHub deployment rule');
+      throw new AppError('Failed to create GitHub deployment rule', 'INTERNAL_ERROR');
     }
 
     return rule;

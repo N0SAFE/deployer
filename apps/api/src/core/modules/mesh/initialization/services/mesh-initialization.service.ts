@@ -3,17 +3,36 @@ import { randomUUID } from "node:crypto";
 import { createORPCClient } from "@orpc/client";
 import type { ContractRouterClient } from "@orpc/contract";
 import { OpenAPILink } from "@orpc/openapi-client/fetch";
-import { meshContract, type MeshContract } from "@/contracts/mesh/mesh-contracts";
+import {
+    meshContract,
+    meshInternalContract,
+    type MeshContract,
+    type MeshInternalContract,
+} from "@repo/api-contracts";
+import {
+    meshJoinGrantConsumeResultSchema,
+    meshJoinGrantIssueResultSchema,
+} from "@repo/contracts-entities";
 import { signMeshToken } from "@repo/auth/mesh";
 import { MeshValidationError } from "../../services/system-mesh-topology/domain/mesh-errors";
 import { toMeshWebSocketUrl } from "../../shared/utils/mesh-server-url.utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+/**
+ * The mesh-to-mesh client surface. The initialization flow dials other nodes
+ * using BOTH the public surface (ping, getLocalNode, listPeerSessions,
+ * issueJoinGrant — served to authenticated callers) and the internal
+ * transport surface (consumeJoinGrant — the enrollment handshake). Merging
+ * the two routers gives one typed client for the whole mesh-to-mesh API.
+ */
+export type MeshClientContract = MeshContract & MeshInternalContract;
+const meshClientRouter = { ...meshContract, ...meshInternalContract };
+
 export interface MeshSetupSession {
     readonly remoteNodeId: string;
     readonly remoteBaseUrl: string;
-    readonly client: ContractRouterClient<MeshContract>;
+    readonly client: ContractRouterClient<MeshClientContract>;
     /**
      * Long-lived peer service token issued by the remote mesh during
      * `consumeJoinGrant`. Carried in `X-Mesh-Internal-Key` on every
@@ -120,18 +139,21 @@ export class MeshInitializationService {
             preEnrollmentHeaders,
         );
 
-        const result = await preEnrollmentClient.consumeJoinGrant({
+        const body = await preEnrollmentClient.consumeJoinGrant({
             grantToken,
             nodeId,
             serverUrl,
         });
+        // The response crosses a trust boundary (remote mesh node) — validate
+        // it through the contract's output schema so the types are truthful.
+        const result = meshJoinGrantConsumeResultSchema.parse(body);
 
         const peerServiceToken = result.peerServiceToken;
         const peerServiceTokenExpiresAt = result.peerServiceTokenExpiresAt;
         const meshSharedSecret = result.meshSharedSecret;
 
         return {
-            nodeId:      result.nodeId,   // echo back from mesh (may differ if remapped)
+            nodeId:      result.nodeId,
             databaseUrl: result.databaseUrl,
             enrolledAt:  result.enrolledAt,
             peerServiceToken,
@@ -184,12 +206,14 @@ export class MeshInitializationService {
             Cookie: sessionCookie,
         })
 
-        const result = await authClient.issueJoinGrant({
-            organizationId: null,
+        const body = await authClient.issueJoinGrant({
             targetNodeId: null,
             ttlSeconds: 900,
             metadata: null,
         })
+        // The remote mesh's contract output is validated at the boundary —
+        // parse through the shared Zod schema instead of casting.
+        const result = meshJoinGrantIssueResultSchema.parse(body)
 
         return result.grantToken
     }
@@ -300,8 +324,8 @@ export class MeshInitializationService {
     private createRemoteClient(
         baseUrl: string,
         internalHeaders?: Record<string, string>,
-    ): ContractRouterClient<MeshContract> {
-        const link = new OpenAPILink(meshContract, {
+    ): ContractRouterClient<MeshClientContract> {
+        const link = new OpenAPILink(meshClientRouter, {
             url:   baseUrl,
             fetch: (input, init) => {
                 if (!internalHeaders) return fetch(input, init);
@@ -330,7 +354,7 @@ export class MeshInitializationService {
                 return fetch(input, { ...init, headers });
             },
         });
-        return createORPCClient<ContractRouterClient<MeshContract>>(link);
+        return createORPCClient<ContractRouterClient<MeshClientContract>>(link);
     }
 
     /**

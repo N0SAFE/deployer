@@ -1,4 +1,4 @@
-import type { Observable } from "rxjs";
+import { Observable } from "rxjs";
 
 function toError(value: unknown): Error {
     if (value instanceof Error) {
@@ -86,5 +86,31 @@ export function observableToAsyncIterable<T>(observable: Observable<T> | AsyncIt
             };
         },
     };
+}
+
+/**
+ * Convert an AsyncIterable into an RxJS Observable.
+ *
+ * Bridges services that expose AsyncIterable pull-based streams back to the
+ * ORPC duplex contract which expects an Observable push-based body.
+ */
+export function asyncIterableToObservable<T>(iterable: AsyncIterable<T>): Observable<T> {
+    return new Observable<T>((subscriber) => {
+        let active = true;
+        (async () => {
+            try {
+                for await (const value of iterable) {
+                    if (!active) return;
+                    subscriber.next(value);
+                }
+                if (active) subscriber.complete();
+            } catch (error) {
+                if (active) subscriber.error(toError(error));
+            }
+        })();
+        return () => {
+            active = false;
+        };
+    });
 }
 

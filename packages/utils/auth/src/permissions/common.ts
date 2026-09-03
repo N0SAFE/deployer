@@ -1,10 +1,7 @@
 import { 
-    platformSchemas, 
-    organizationSchemas,
+    platformSchemas,
     type PlatformRole,
-    type OrganizationRole,
     platformRoles,
-    organizationRoles,
 } from "./config";
 
 /**
@@ -12,9 +9,6 @@ import {
  * 
  * This file provides reusable permission sets that align with the project's
  * dual-layer permission system:
- * 
- * - PLATFORM ROLES: superAdmin, admin, operator, viewer (global access)
- * - ORGANIZATION ROLES: owner, admin, member (org-scoped access)
  * 
  * The permission bundles are derived directly from the config to ensure consistency.
  */
@@ -28,12 +22,6 @@ import {
  * These are the actual permissions assigned to each platform role.
  */
 export const platformPermissions = platformRoles;
-
-/**
- * Organization permission bundles - derived from organizationRoles in config
- * These are the actual permissions assigned to each organization role.
- */
-export const organizationPermissions = organizationRoles;
 
 // ============================================================================
 // SCHEMA HELPERS
@@ -65,35 +53,6 @@ export const platformSchemaHelpers = {
     viewerActions: platformSchemas.actions.forRole("viewer"),
 } as const;
 
-/**
- * Organization-level schema helpers for permission validation
- */
-export const organizationSchemaHelpers = {
-    /** Schema for read-only actions across organization resources */
-    readOnlyActions: organizationSchemas.actions.only("update"),
-
-    /** Schema for organization actions */
-    organizationActions: organizationSchemas.actions.forResource("organization"),
-
-    /** Schema for member actions */
-    memberActions: organizationSchemas.actions.forResource("member"),
-
-    /** Schema for team actions */
-    teamActions: organizationSchemas.actions.forResource("team"),
-
-    /** Schema for invitation actions */
-    invitationActions: organizationSchemas.actions.forResource("invitation"),
-
-    /** Schema for organization owner permissions */
-    ownerAllActions: organizationSchemas.actions.forRole("owner"),
-
-    /** Schema for organization admin actions */
-    adminAllActions: organizationSchemas.actions.forRole("admin"),
-
-    /** Schema for organization member actions */
-    memberAllActions: organizationSchemas.actions.forRole("member"),
-} as const;
-
 // ============================================================================
 // TYPE EXPORTS
 // ============================================================================
@@ -101,13 +60,7 @@ export const organizationSchemaHelpers = {
 /** Keys for platform permission bundles */
 export type PlatformPermissionKeys = PlatformRole;
 
-/** Keys for organization permission bundles */
-export type OrganizationPermissionKeys = OrganizationRole;
-
 /** Get the permission bundle type for a platform role */
 export type PlatformPermission<T extends PlatformPermissionKeys> = (typeof platformPermissions)[T];
-
-/** Get the permission bundle type for an organization role */
-export type OrganizationPermission<T extends OrganizationPermissionKeys> = (typeof organizationPermissions)[T];
 
 

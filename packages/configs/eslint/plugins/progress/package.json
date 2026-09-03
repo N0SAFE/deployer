@@ -1,0 +1,15 @@
+{
+  "name": "@repo/config-eslint-plugins-progress",
+  "module": "index.js",
+  "type": "module",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "dependencies": {
+    "nanospinner": "^1.2.2",
+    "picocolors": "^1.1.1"
+  }
+}

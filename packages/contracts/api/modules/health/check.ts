@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 
 // Define the input for the check endpoint
 export const healthCheckInput = z.object({});
@@ -19,4 +19,8 @@ export const healthCheckContract = healthCheckOps
   .path("/")
   .input(healthCheckInput)
   .output(healthCheckOutput)
+  .errors((e) => [
+    // 503 when a dependency is down.
+    ...standardDomainErrorContracts(e),
+  ])
   .build();

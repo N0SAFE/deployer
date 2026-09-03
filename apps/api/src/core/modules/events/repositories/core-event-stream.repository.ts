@@ -24,7 +24,7 @@ function toDto(row: CoreEventStreamRow): CoreEventStreamDefinition {
 export class CoreEventStreamRepository {
     constructor(private readonly databaseService: GlobalDatabaseService) {}
 
-    async findMany(input: CoreEventStreamListInput): Promise<{
+    async findMany(input: CoreEventStreamListInput | undefined): Promise<{
         data: CoreEventStreamDefinition[];
         meta: {
             total: number;
@@ -34,9 +34,9 @@ export class CoreEventStreamRepository {
         };
     }> {
         const db = this.databaseService.db;
-        const filter = input.filter ?? {};
-        const sort = input.sortBy ?? "createdAt";
-        const direction = input.sortDirection ?? "desc";
+        const filter = input?.filter ?? {};
+        const sort = input?.sortBy ?? "createdAt";
+        const direction = input?.sortDirection ?? "desc";
 
         const result = await listBuilder(filter)
             .filter({
@@ -76,7 +76,7 @@ export class CoreEventStreamRepository {
                 },
                 coreEventStreams.createdAt,
             )
-            .pagination({ limit: input.limit, offset: input.offset })
+            .pagination({ limit: input?.limit ?? 20, offset: input?.offset ?? 0 })
             .execute(db, coreEventStreams);
 
         return {

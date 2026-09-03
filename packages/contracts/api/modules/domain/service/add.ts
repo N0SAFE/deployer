@@ -19,4 +19,7 @@ export const addServiceDomainContract = serviceDomainOps
             ),
     )
     .output(addServiceDomainResponseSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
+
+import { standardDomainErrorContracts } from "@repo/orpc-utils";

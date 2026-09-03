@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
     deploymentDeadLetterJobSchema,
     deploymentDeadLetterListInputSchema,
@@ -56,6 +56,7 @@ export const deploymentQueueEnqueueJobContract = deploymentQueueEnqueueOps
     .path("/queue/jobs")
     .input((b) => b.body(deploymentQueueEnqueueInputSchema))
     .output(deploymentQueueEnqueueResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentQueueClaimJobsContract = deploymentQueueClaimOps
@@ -63,6 +64,7 @@ export const deploymentQueueClaimJobsContract = deploymentQueueClaimOps
     .path("/queue/jobs/claim")
     .input((b) => b.body(deploymentQueueClaimInputSchema))
     .output(deploymentQueueClaimResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentQueueHeartbeatJobContract = deploymentQueueHeartbeatOps
@@ -73,6 +75,7 @@ export const deploymentQueueHeartbeatJobContract = deploymentQueueHeartbeatOps
             .body(deploymentQueueHeartbeatInputSchema),
     )
     .output(deploymentQueueHeartbeatResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentQueueCompleteJobContract = deploymentQueueTransitionOps
@@ -83,6 +86,7 @@ export const deploymentQueueCompleteJobContract = deploymentQueueTransitionOps
             .body(deploymentQueueCompleteInputSchema),
     )
     .output(deploymentQueueTransitionResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentQueueFailJobContract = deploymentQueueTransitionOps
@@ -93,12 +97,14 @@ export const deploymentQueueFailJobContract = deploymentQueueTransitionOps
             .body(deploymentQueueFailInputSchema),
     )
     .output(deploymentQueueTransitionResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentQueueFindJobByIdContract = deploymentQueueJobOps
     .read({ idFieldName: "jobId", idSchema: z.uuid() })
     .input((b) => b.params((p) => p`/queue/jobs/${p("jobId", z.uuid())}`))
     .output(deploymentQueueJobSchema.nullable())
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentQueueListJobsContract = deploymentQueueListOps
@@ -106,6 +112,7 @@ export const deploymentQueueListJobsContract = deploymentQueueListOps
     .path("/queue/jobs")
     .input((b) => b.query(deploymentQueueListInputSchema))
     .output(deploymentQueueListResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentQueueListDeadLetterJobsContract = deploymentDeadLetterListOps
@@ -113,12 +120,14 @@ export const deploymentQueueListDeadLetterJobsContract = deploymentDeadLetterLis
     .path("/queue/dead-letter")
     .input((b) => b.query(deploymentDeadLetterListInputSchema))
     .output(deploymentDeadLetterListResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentQueueFindDeadLetterJobByIdContract = deploymentDeadLetterJobOps
     .read({ idFieldName: "deadLetterJobId", idSchema: z.uuid() })
     .input((b) => b.params((p) => p`/queue/dead-letter/${p("deadLetterJobId", z.uuid())}`))
     .output(deploymentDeadLetterJobSchema.nullable())
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const deploymentQueueReplayDeadLetterJobContract = deploymentDeadLetterReplayOps
@@ -126,4 +135,5 @@ export const deploymentQueueReplayDeadLetterJobContract = deploymentDeadLetterRe
     .path("/queue/dead-letter/replay")
     .input((b) => b.body(deploymentDeadLetterReplayInputSchema))
     .output(deploymentDeadLetterReplayResultSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

@@ -17,6 +17,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { AppError } from "@repo/errors";
 // ─── Resolve path ──────────────────────────────────────────────────────────────
 // This file lives at: apps/api/src/core/utils/deployer-version.ts
 // Target:          apps/api/package.json
@@ -115,5 +116,5 @@ export function semverSatisfies(version: string, required: string): boolean {
     return semverCompare(version, rangeMatch[1]!) >= 0 && semverCompare(version, rangeMatch[2]!) <= 0;
   }
 
-  throw new Error(`Unsupported semver range pattern: "${required}"`);
+  throw new AppError(`Unsupported semver range pattern: "${required}"`, "VERSION_PARSE_ERROR");
 }

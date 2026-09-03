@@ -39,19 +39,6 @@ export type {
 } from './service-mapping.interfaces';
 
 // ============================================================================
-// ORGANIZATION DOMAIN TYPES
-// ============================================================================
-export type {
-  OrganizationDomain,
-  InsertOrganizationDomain,
-  VerificationStatus,
-  VerificationMethodType,
-  RegisterDomainInput,
-  RegisterDomainResponse,
-  ListDomainsOptions,
-} from './organization-domain.interfaces';
-
-// ============================================================================
 // PROJECT DOMAIN TYPES
 // ============================================================================
 export type {

@@ -1,8 +1,6 @@
 import z from 'zod'
 import { platformDomainSchemas } from '../contracts/platform-domain.builder'
 
-export type MockOrganization = z.infer<typeof platformDomainSchemas.mockOrganizationSchema>
-export type MockTeam = z.infer<typeof platformDomainSchemas.mockTeamSchema>
 export type MockProject = z.infer<typeof platformDomainSchemas.mockProjectSchema>
 export type FixtureGroupMemberService = z.infer<typeof platformDomainSchemas.fixtureGroupMemberServiceSchema>
 export type FixtureGroupMemberDependency = z.infer<typeof platformDomainSchemas.fixtureGroupMemberDependencySchema>

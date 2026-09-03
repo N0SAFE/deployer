@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerContainerInspectDetailSchema } from "@repo/contracts-entities";
 import { dockerContainerInspectStreamQuerySchema } from "../shared";
 
@@ -12,4 +12,5 @@ export const dockerContainerInspectStreamContract = dockerContainerInspectStream
   .path("/inspect/stream")
   .input((b) => b.query(dockerContainerInspectStreamQuerySchema))
   .output((b) => b.observable(dockerContainerInspectDetailSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

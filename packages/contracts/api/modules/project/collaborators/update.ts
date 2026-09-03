@@ -1,4 +1,5 @@
 import z from "zod/v4";
+import { standardDomainErrorContracts } from "@repo/orpc-utils";
 import { projectCollaboratorOps } from "./shared";
 
 export const projectUpdateCollaboratorContract = projectCollaboratorOps
@@ -14,4 +15,8 @@ export const projectUpdateCollaboratorContract = projectCollaboratorOps
             ),
     )
     .output((b) => b.entitySchema)
+    .errors((e) => [
+        // 404 for unknown project/user; 409 when demoting the last owner.
+        ...standardDomainErrorContracts(e),
+    ])
     .build();

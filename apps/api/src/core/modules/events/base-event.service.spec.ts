@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as z from 'zod';
-import { BaseEventService } from './base-event.service';
-import { contractBuilder } from './event-contract.builder';
+import { BaseEventService, contractBuilder } from '@repo/nest-events';
 
 const testContracts = {
   changed: contractBuilder()

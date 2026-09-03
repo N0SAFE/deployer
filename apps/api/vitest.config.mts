@@ -126,7 +126,9 @@ export default defineConfig(
               ? ["./vitest.global-setup.noop.e2e.ts"]
               : ["./vitest.global-setup.e2e.ts"],
             setupFiles: ["./vitest.setup.e2e.ts"],
-            globalTeardown: ["./vitest.teardown.e2e.ts"],
+            // NOTE: vitest has no globalTeardown hook — teardown is wired by
+            // vitest.global-setup.e2e.ts returning the closure from
+            // vitest.teardown.e2e.ts.
             include: ["src/**/*.e2e-spec.ts"],
             exclude: ["node_modules", "dist", "uploads", "database", "drizzle"],
             globals: true,

@@ -1,29 +1,10 @@
 import { Injectable } from "@nestjs/common";
-import { Observable, defer, from, mergeMap } from "rxjs";
-import { createORPCClient } from "@orpc/client";
+import { Observable } from "rxjs";
 import type { ContractRouterClient } from "@orpc/contract";
-import { OpenAPILink } from "@orpc/openapi-client/fetch";
-import { appContract, type AppContract } from "@repo/api-contracts";
-import { EnvService } from "@/config/env/env.service";
-import { eq } from "drizzle-orm";
-import { meshStreamResourceSchema } from "@/core/modules/mesh/services/system-mesh-resource-discovery/schemas/mesh-resource-kind-schemas";
-import {
-    makeFieldRef,
-    path,
-} from "@/core/modules/mesh/services/system-mesh-resource-discovery/query/mesh-field-ref";
-import { SystemMeshResourceDiscoveryService } from "@/core/modules/mesh/services/system-mesh-resource-discovery/system-mesh-resource-discovery.service";
-import { SystemMeshConfigService } from "@/core/modules/mesh/services/system-mesh-config.service";
-import { MeshInternalRequestService } from "@/core/modules/mesh/services/mesh-internal-request.service";
-
-const streamFields = {
-    key: makeFieldRef<{ key: string; protocol: string; metadata: Record<string, unknown> }, string>("key"),
-    protocol: makeFieldRef<{ key: string; protocol: string; metadata: Record<string, unknown> }, string>("protocol"),
-    metadata: makeFieldRef<{ key: string; protocol: string; metadata: Record<string, unknown> }, Record<string, unknown>>("metadata"),
-} as const;
+import type { AppContract } from "@repo/api-contracts";
 
 export interface MeshOpenInternalBridgeInput<TEvent> {
     context: unknown;
-    organizationId?: string | null;
     resourceKey: string;
     localEndpointPath: string;
     metadata: {
@@ -35,126 +16,17 @@ export interface MeshOpenInternalBridgeInput<TEvent> {
 
 @Injectable()
 export class MeshStreamRuntimeService {
-    constructor(
-        private readonly meshResourceDiscoveryService: SystemMeshResourceDiscoveryService,
-        private readonly meshConfigService: SystemMeshConfigService,
-        private readonly envService: EnvService,
-        private readonly meshInternalRequestService: MeshInternalRequestService,
-    ) {}
-
-    openInternalBridge<TEvent>(input: MeshOpenInternalBridgeInput<TEvent>): Observable<TEvent> | null {
-        const organizationId = input.organizationId ?? this.resolveOrganizationScope(input.context);
-        const localServerUrl = this.resolveLocalServerUrl();
-
-        const remote = this.meshResourceDiscoveryService
-            .select(meshStreamResourceSchema)
-            .where({
-                organizationId,
-                includeCandidates: true,
-            })
-            .where(
-                eq(streamFields.key, input.resourceKey),
-                eq(streamFields.protocol, "sse"),
-                eq(path(streamFields.metadata, "streamType"), input.metadata.streamType),
-                eq(path(streamFields.metadata, "streamId"), input.metadata.streamId),
-            )
-            .autoRegister({
-                organizationId,
-                key: input.resourceKey,
-                ownerServerUrl: localServerUrl,
-                endpointPath: input.localEndpointPath,
-                endpointMethod: "GET",
-                protocol: "sse",
-                persistentConnectionRequired: true,
-                priority: 500,
-                version: 1,
-                metadata: {
-                    streamType: input.metadata.streamType,
-                    streamId: input.metadata.streamId,
-                },
-            })
-            .firstRemote();
-
-        if (!remote?.ownerServerUrl) {
-            return null;
-        }
-
-        const headers = this.buildProxyHeaders(input.context);
-        const client = this.createRemoteClient(remote.ownerServerUrl, headers);
-
-        return defer(() =>
-            from(input.executeRemote(client)).pipe(
-                mergeMap((stream$) => stream$),
-            ),
-        );
-    }
-
-    private createRemoteClient(
-        baseUrl: string,
-        headers: Record<string, string>,
-    ): ContractRouterClient<AppContract> {
-        const link = new OpenAPILink(appContract, {
-            url: baseUrl,
-            headers: () => headers,
-            fetch: (input, init) => fetch(input, init),
-        });
-
-        return createORPCClient<ContractRouterClient<AppContract>>(link);
-    }
-
-    private resolveOrganizationScope(context: unknown): string | null {
-        const authContext =
-            context && typeof context === "object" && "auth" in context
-                ? (context as { auth?: { session?: { activeOrganizationId?: unknown } | null } }).auth
-                : undefined;
-
-        const activeOrganizationId = authContext?.session?.activeOrganizationId;
-        return typeof activeOrganizationId === "string" && activeOrganizationId.length > 0
-            ? activeOrganizationId
-            : null;
-    }
-
-    private resolveLocalServerUrl(): string {
-        const candidate =
-            this.meshConfigService.getNodeServerUrl() ??
-            this.envService.get("APP_URL")?.toString().trim() ??
-            "http://localhost:3005";
-
-        try {
-            return new URL(candidate).origin;
-        } catch {
-            return "http://localhost:3005";
-        }
-    }
-
-    private buildProxyHeaders(context: unknown): Record<string, string> {
-        const headers: Record<string, string> = {
-            accept: "text/event-stream",
-            "cache-control": "no-cache",
-        };
-
-        const request =
-            context && typeof context === "object" && "request" in context
-                ? (context as { request?: Request }).request
-                : undefined;
-
-        if (!request) {
-            return headers;
-        }
-
-        const authorization = request.headers.get("authorization");
-        if (authorization) {
-            headers.authorization = authorization;
-        }
-
-        const cookie = request.headers.get("cookie");
-        if (cookie) {
-            headers.cookie = cookie;
-        }
-
-        const internalHeaders = this.meshInternalRequestService.buildInternalHeaders({ request });
-        Object.assign(headers, internalHeaders);
-
-        return headers;
+    openInternalBridge<TEvent>(_input: MeshOpenInternalBridgeInput<TEvent>): Observable<TEvent> | null {
+        // Cross-node deployment-stream proxying requires a registered mesh
+        // stream-resource query registry, which does not exist in the current
+        // discovery API (SystemMeshResourceDiscoveryService only exposes
+        // registered entity query refs such as `nodeInfo`; there is no stream
+        // query ref and no auto-register surface). Until that registry is
+        // built, always serve the stream from the local node by returning
+        // null — the honest, type-safe behavior. The remote-proxy machinery
+        // (ORPC client construction, `select`/`where`/`autoRegister` DSL) was
+        // removed as dead code and must be reintroduced together with the
+        // stream registry.
+        return null;
     }
 }

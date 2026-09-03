@@ -40,7 +40,6 @@ deployer/v3/
 ├── docker/compose/
 │   ├── api/docker-compose.api.dev.yml
 │   ├── web/docker-compose.web.dev.yml
-│   ├── load-balancer/docker-compose.load-balancer.dev.yml
 │   ├── traefik/docker-compose.traefik.dev.yml   (when added)
 │   └── docker-compose.dev.yml    ← includes all of the above
 ```
@@ -50,7 +49,6 @@ deployer/v3/
 ```yaml
 # .env
 API_PORT=3005
-LB_PORT=3010
 WEB_PORT=3000
 
 # docker/compose/api/docker-compose.api.dev.yml
@@ -60,14 +58,6 @@ services:
       - "${API_PORT:-3005}:${API_PORT:-3005}"
     environment:
       - API_PORT=${API_PORT:-3005}
-
-# docker/compose/load-balancer/docker-compose.load-balancer.dev.yml
-services:
-  lb-dev:
-    ports:
-      - "${LB_PORT:-3010}:${LB_PORT:-3010}"
-    environment:
-      - LOAD_BALANCER_PORT=${LB_PORT:-3010}
       - API_URL=http://api-dev:${API_PORT:-3005}   # ← uses API_PORT here too
 
 # docker/compose/web/docker-compose.web.dev.yml
@@ -156,6 +146,6 @@ export TRAEFIK_HTTPS_PORT=443
 
 ## Related documentation
 
-- [Load Balancer Architecture](./load-balancer.mdx) — how `LB_PORT` and `API_URL` are used at runtime
+- [Instance Ports conventions](./instance-ports.mdx) — Traefik is the sole proxy; no dedicated LB port
 - [Development Workflow](../dev/development-workflow.mdx) — running the full stack locally
 - [Production Deployment](./production-deployment.mdx) — env setup for production nodes

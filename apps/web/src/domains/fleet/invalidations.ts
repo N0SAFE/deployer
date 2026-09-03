@@ -3,7 +3,7 @@ import { fleetEndpoints } from "./endpoints";
 
 export const fleetInvalidations = defineInvalidations(fleetEndpoints, {
   setServerCapacity: ({ keys }) => [
-    keys.listServers({ input: {} }),
+    keys.listServers({ input: undefined }),
   ],
   createMyAdmissionRequest: ({ keys }) => [
     keys.listMyAdmissionRequests({ input: { query: {} } }),
@@ -14,13 +14,13 @@ export const fleetInvalidations = defineInvalidations(fleetEndpoints, {
     keys.listAdmissionRequests({ input: { query: {} } }),
   ],
   upsertAllocation: ({ keys }) => [
-    keys.listServers({ input: {} }),
+    keys.listServers({ input: undefined }),
     keys.listAllocations({ input: { query: {} } }),
-    keys.listMyAllocations({ input: {} }),
+    keys.listMyAllocations({ input: undefined }),
   ],
   deleteAllocation: ({ keys }) => [
-    keys.listServers({ input: {} }),
+    keys.listServers({ input: undefined }),
     keys.listAllocations({ input: { query: {} } }),
-    keys.listMyAllocations({ input: {} }),
+    keys.listMyAllocations({ input: undefined }),
   ],
 });

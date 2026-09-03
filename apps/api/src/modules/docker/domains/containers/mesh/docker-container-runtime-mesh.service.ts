@@ -27,13 +27,12 @@ import {
     type DockerImageInspectDetail,
     type DockerTerminalProfile,
 } from "@repo/contracts-entities";
-import { contractBuilder } from "@/core/modules/events/event-contract.builder";
+import { contractBuilder } from "@repo/nest-events";
 import { BaseMeshService, InternalBaseMeshService, type MeshCallManyResult, type MeshCallManyOptions } from "@/core/modules/mesh/services/base-mesh.service";
 import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 
 const correlationInputSchema = z.object({
-    organizationId: z.string().nullable().optional(),
     correlationId: z.string().optional(),
 });
 
@@ -656,7 +655,7 @@ export class DockerContainerRuntimeMeshService
         meshTopicService: SystemMeshTopicService,
         meshTopologyService: SystemMeshTopologyService,
     ) {
-        super(meshTopicService, meshTopologyService, "docker-container-runtime-internal", dockerContainerRuntimeMeshContracts);
+        super(meshTopicService, meshTopologyService, "docker-container-runtime-internal", dockerContainerRuntimeMeshContracts, {});
     }
 
     onModuleInit(): void {
@@ -671,10 +670,8 @@ export class DockerContainerRuntimeMeshService
         handler: (input: { correlationId: string; callerNodeId: string; payload: DockerContainerLogsSnapshotRequestPayload }) =>
             | { payload: DockerContainerLogsSnapshotResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerContainerLogsSnapshotResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler("logsSnapshotRequest", "logsSnapshotResponse", "logsSnapshotCancel", {
-            organizationId: options?.organizationId ?? null,
         }, handler);
     }
 
@@ -682,10 +679,8 @@ export class DockerContainerRuntimeMeshService
         handler: (input: { correlationId: string; callerNodeId: string; payload: DockerContainerProcessesSnapshotRequestPayload }) =>
             | { payload: DockerContainerProcessesSnapshotResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerContainerProcessesSnapshotResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler("processesSnapshotRequest", "processesSnapshotResponse", "processesSnapshotCancel", {
-            organizationId: options?.organizationId ?? null,
         }, handler);
     }
 
@@ -693,10 +688,8 @@ export class DockerContainerRuntimeMeshService
         handler: (input: { correlationId: string; callerNodeId: string; payload: DockerContainerProcessLogsSnapshotRequestPayload }) =>
             | { payload: DockerContainerProcessLogsSnapshotResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerContainerProcessLogsSnapshotResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler("processLogsSnapshotRequest", "processLogsSnapshotResponse", "processLogsSnapshotCancel", {
-            organizationId: options?.organizationId ?? null,
         }, handler);
     }
 
@@ -704,10 +697,8 @@ export class DockerContainerRuntimeMeshService
         handler: (input: { correlationId: string; callerNodeId: string; payload: DockerContainerFilesSnapshotRequestPayload }) =>
             | { payload: DockerContainerFilesSnapshotResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerContainerFilesSnapshotResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler("filesSnapshotRequest", "filesSnapshotResponse", "filesSnapshotCancel", {
-            organizationId: options?.organizationId ?? null,
         }, handler);
     }
 
@@ -715,10 +706,8 @@ export class DockerContainerRuntimeMeshService
         handler: (input: { correlationId: string; callerNodeId: string; payload: DockerContainerReadFileSnapshotRequestPayload }) =>
             | { payload: DockerContainerReadFileSnapshotResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerContainerReadFileSnapshotResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler("readFileSnapshotRequest", "readFileSnapshotResponse", "readFileSnapshotCancel", {
-            organizationId: options?.organizationId ?? null,
         }, handler);
     }
 
@@ -726,10 +715,8 @@ export class DockerContainerRuntimeMeshService
         handler: (input: { correlationId: string; callerNodeId: string; payload: DockerContainerWriteFileRequestPayload }) =>
             | { payload: DockerContainerWriteFileResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerContainerWriteFileResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler("writeFileRequest", "writeFileResponse", "writeFileCancel", {
-            organizationId: options?.organizationId ?? null,
         }, handler);
     }
 
@@ -737,10 +724,8 @@ export class DockerContainerRuntimeMeshService
         handler: (input: { correlationId: string; callerNodeId: string; payload: DockerContainerDeletePathRequestPayload }) =>
             | { payload: DockerContainerDeletePathResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerContainerDeletePathResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler("deletePathRequest", "deletePathResponse", "deletePathCancel", {
-            organizationId: options?.organizationId ?? null,
         }, handler);
     }
 
@@ -748,10 +733,8 @@ export class DockerContainerRuntimeMeshService
         handler: (input: { correlationId: string; callerNodeId: string; payload: DockerContainerRenamePathRequestPayload }) =>
             | { payload: DockerContainerRenamePathResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerContainerRenamePathResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler("renamePathRequest", "renamePathResponse", "renamePathCancel", {
-            organizationId: options?.organizationId ?? null,
         }, handler);
     }
 
@@ -759,10 +742,8 @@ export class DockerContainerRuntimeMeshService
         handler: (input: { correlationId: string; callerNodeId: string; payload: DockerContainerCreateDirectoryRequestPayload }) =>
             | { payload: DockerContainerCreateDirectoryResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerContainerCreateDirectoryResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler("createDirectoryRequest", "createDirectoryResponse", "createDirectoryCancel", {
-            organizationId: options?.organizationId ?? null,
         }, handler);
     }
 
@@ -770,10 +751,8 @@ export class DockerContainerRuntimeMeshService
         handler: (input: { correlationId: string; callerNodeId: string; payload: DockerContainerTerminalOpenRequestPayload }) =>
             | { payload: DockerContainerTerminalOpenResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerContainerTerminalOpenResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler("terminalOpenRequest", "terminalOpenResponse", "terminalOpenCancel", {
-            organizationId: options?.organizationId ?? null,
         }, handler);
     }
 
@@ -781,10 +760,8 @@ export class DockerContainerRuntimeMeshService
         handler: (input: { correlationId: string; callerNodeId: string; payload: DockerContainerTerminalEventsRequestPayload }) =>
             | { payload: DockerContainerTerminalEventsResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerContainerTerminalEventsResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler("terminalEventsRequest", "terminalEventsResponse", "terminalEventsCancel", {
-            organizationId: options?.organizationId ?? null,
         }, handler);
     }
 
@@ -792,10 +769,8 @@ export class DockerContainerRuntimeMeshService
         handler: (input: { correlationId: string; callerNodeId: string; payload: DockerContainerTerminalInputRequestPayload }) =>
             | { payload: DockerContainerTerminalInputResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerContainerTerminalInputResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler("terminalInputRequest", "terminalInputResponse", "terminalInputCancel", {
-            organizationId: options?.organizationId ?? null,
         }, handler);
     }
 
@@ -803,10 +778,8 @@ export class DockerContainerRuntimeMeshService
         handler: (input: { correlationId: string; callerNodeId: string; payload: DockerContainerTerminalCloseRequestPayload }) =>
             | { payload: DockerContainerTerminalCloseResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerContainerTerminalCloseResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler("terminalCloseRequest", "terminalCloseResponse", "terminalCloseCancel", {
-            organizationId: options?.organizationId ?? null,
         }, handler);
     }
 
@@ -814,10 +787,8 @@ export class DockerContainerRuntimeMeshService
         handler: (input: { correlationId: string; callerNodeId: string; payload: DockerImageInspectRequestPayload }) =>
             | { payload: DockerImageInspectResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: DockerImageInspectResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerCallHandler("imageInspectRequest", "imageInspectResponse", "imageInspectCancel", {
-            organizationId: options?.organizationId ?? null,
         }, handler);
     }
 
@@ -825,97 +796,97 @@ export class DockerContainerRuntimeMeshService
         payload: DockerContainerLogsSnapshotRequestPayload,
         options?: MeshCallManyOptions<DockerContainerLogsSnapshotResponsePayload>,
     ): Promise<MeshCallManyResult<DockerContainerLogsSnapshotResponsePayload>> {
-        return this.callMany("logsSnapshotRequest", "logsSnapshotResponse", "logsSnapshotCancel", payload, options);
+        return this.callManyOnTopics("logsSnapshotRequest", "logsSnapshotResponse", "logsSnapshotCancel", payload, options);
     }
 
     listContainerProcessesSnapshotAcrossInstances(
         payload: DockerContainerProcessesSnapshotRequestPayload,
         options?: MeshCallManyOptions<DockerContainerProcessesSnapshotResponsePayload>,
     ): Promise<MeshCallManyResult<DockerContainerProcessesSnapshotResponsePayload>> {
-        return this.callMany("processesSnapshotRequest", "processesSnapshotResponse", "processesSnapshotCancel", payload, options);
+        return this.callManyOnTopics("processesSnapshotRequest", "processesSnapshotResponse", "processesSnapshotCancel", payload, options);
     }
 
     listContainerProcessLogsSnapshotAcrossInstances(
         payload: DockerContainerProcessLogsSnapshotRequestPayload,
         options?: MeshCallManyOptions<DockerContainerProcessLogsSnapshotResponsePayload>,
     ): Promise<MeshCallManyResult<DockerContainerProcessLogsSnapshotResponsePayload>> {
-        return this.callMany("processLogsSnapshotRequest", "processLogsSnapshotResponse", "processLogsSnapshotCancel", payload, options);
+        return this.callManyOnTopics("processLogsSnapshotRequest", "processLogsSnapshotResponse", "processLogsSnapshotCancel", payload, options);
     }
 
     listContainerFilesSnapshotAcrossInstances(
         payload: DockerContainerFilesSnapshotRequestPayload,
         options?: MeshCallManyOptions<DockerContainerFilesSnapshotResponsePayload>,
     ): Promise<MeshCallManyResult<DockerContainerFilesSnapshotResponsePayload>> {
-        return this.callMany("filesSnapshotRequest", "filesSnapshotResponse", "filesSnapshotCancel", payload, options);
+        return this.callManyOnTopics("filesSnapshotRequest", "filesSnapshotResponse", "filesSnapshotCancel", payload, options);
     }
 
     readContainerFileSnapshotAcrossInstances(
         payload: DockerContainerReadFileSnapshotRequestPayload,
         options?: MeshCallManyOptions<DockerContainerReadFileSnapshotResponsePayload>,
     ): Promise<MeshCallManyResult<DockerContainerReadFileSnapshotResponsePayload>> {
-        return this.callMany("readFileSnapshotRequest", "readFileSnapshotResponse", "readFileSnapshotCancel", payload, options);
+        return this.callManyOnTopics("readFileSnapshotRequest", "readFileSnapshotResponse", "readFileSnapshotCancel", payload, options);
     }
 
     writeContainerFileAcrossInstances(
         payload: DockerContainerWriteFileRequestPayload,
         options?: MeshCallManyOptions<DockerContainerWriteFileResponsePayload>,
     ): Promise<MeshCallManyResult<DockerContainerWriteFileResponsePayload>> {
-        return this.callMany("writeFileRequest", "writeFileResponse", "writeFileCancel", payload, options);
+        return this.callManyOnTopics("writeFileRequest", "writeFileResponse", "writeFileCancel", payload, options);
     }
 
     deleteContainerPathAcrossInstances(
         payload: DockerContainerDeletePathRequestPayload,
         options?: MeshCallManyOptions<DockerContainerDeletePathResponsePayload>,
     ): Promise<MeshCallManyResult<DockerContainerDeletePathResponsePayload>> {
-        return this.callMany("deletePathRequest", "deletePathResponse", "deletePathCancel", payload, options);
+        return this.callManyOnTopics("deletePathRequest", "deletePathResponse", "deletePathCancel", payload, options);
     }
 
     renameContainerPathAcrossInstances(
         payload: DockerContainerRenamePathRequestPayload,
         options?: MeshCallManyOptions<DockerContainerRenamePathResponsePayload>,
     ): Promise<MeshCallManyResult<DockerContainerRenamePathResponsePayload>> {
-        return this.callMany("renamePathRequest", "renamePathResponse", "renamePathCancel", payload, options);
+        return this.callManyOnTopics("renamePathRequest", "renamePathResponse", "renamePathCancel", payload, options);
     }
 
     createContainerDirectoryAcrossInstances(
         payload: DockerContainerCreateDirectoryRequestPayload,
         options?: MeshCallManyOptions<DockerContainerCreateDirectoryResponsePayload>,
     ): Promise<MeshCallManyResult<DockerContainerCreateDirectoryResponsePayload>> {
-        return this.callMany("createDirectoryRequest", "createDirectoryResponse", "createDirectoryCancel", payload, options);
+        return this.callManyOnTopics("createDirectoryRequest", "createDirectoryResponse", "createDirectoryCancel", payload, options);
     }
 
     openContainerTerminalSessionAcrossInstances(
         payload: DockerContainerTerminalOpenRequestPayload,
         options?: MeshCallManyOptions<DockerContainerTerminalOpenResponsePayload>,
     ): Promise<MeshCallManyResult<DockerContainerTerminalOpenResponsePayload>> {
-        return this.callMany("terminalOpenRequest", "terminalOpenResponse", "terminalOpenCancel", payload, options);
+        return this.callManyOnTopics("terminalOpenRequest", "terminalOpenResponse", "terminalOpenCancel", payload, options);
     }
 
     listContainerTerminalSessionEventsAcrossInstances(
         payload: DockerContainerTerminalEventsRequestPayload,
         options?: MeshCallManyOptions<DockerContainerTerminalEventsResponsePayload>,
     ): Promise<MeshCallManyResult<DockerContainerTerminalEventsResponsePayload>> {
-        return this.callMany("terminalEventsRequest", "terminalEventsResponse", "terminalEventsCancel", payload, options);
+        return this.callManyOnTopics("terminalEventsRequest", "terminalEventsResponse", "terminalEventsCancel", payload, options);
     }
 
     sendContainerTerminalInputAcrossInstances(
         payload: DockerContainerTerminalInputRequestPayload,
         options?: MeshCallManyOptions<DockerContainerTerminalInputResponsePayload>,
     ): Promise<MeshCallManyResult<DockerContainerTerminalInputResponsePayload>> {
-        return this.callMany("terminalInputRequest", "terminalInputResponse", "terminalInputCancel", payload, options);
+        return this.callManyOnTopics("terminalInputRequest", "terminalInputResponse", "terminalInputCancel", payload, options);
     }
 
     closeContainerTerminalSessionAcrossInstances(
         payload: DockerContainerTerminalCloseRequestPayload,
         options?: MeshCallManyOptions<DockerContainerTerminalCloseResponsePayload>,
     ): Promise<MeshCallManyResult<DockerContainerTerminalCloseResponsePayload>> {
-        return this.callMany("terminalCloseRequest", "terminalCloseResponse", "terminalCloseCancel", payload, options);
+        return this.callManyOnTopics("terminalCloseRequest", "terminalCloseResponse", "terminalCloseCancel", payload, options);
     }
 
     inspectImageAcrossInstances(
         payload: DockerImageInspectRequestPayload,
         options?: MeshCallManyOptions<DockerImageInspectResponsePayload>,
     ): Promise<MeshCallManyResult<DockerImageInspectResponsePayload>> {
-        return this.callMany("imageInspectRequest", "imageInspectResponse", "imageInspectCancel", payload, options);
+        return this.callManyOnTopics("imageInspectRequest", "imageInspectResponse", "imageInspectCancel", payload, options);
     }
 }

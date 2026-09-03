@@ -1,7 +1,182 @@
-include:
-  - path:
-      - api/docker-compose.api.dev.yml
-      - web/docker-compose.web.dev.yml
-      - doc/docker-compose.doc.dev.yml
-      - load-balancer/docker-compose.load-balancer.dev.yml
-      - docker-compose.dev.override.yml
+# =====================================================================
+# DEV profile (compose-managed) — `bun run dev`.
+#
+# Every service EXTENDS its base config in common/ (the REAL base — build,
+# env, develop.watch, healthchecks live there). This file only wires the
+# project: network attach, depends_on, MANAGED_*_ENABLED flags and the
+# shared networks + volumes. All shared resources are declared ONCE here.
+# =====================================================================
+
+name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}
+
+services:
+  # ── Apps (extend common) ──────────────────────────────────────────
+  api-dev:
+    extends:
+      file: ./common/api/docker-compose.config.dev.yml
+      service: api
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-dev
+    ports:
+      - "${DRIZZLE_STUDIO_PORT:-4983}:4983"
+    depends_on:
+      global-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # ── Compose-managed services ──
+      # Every supervised platform service is owned by compose in dev — the
+      # API supervisors skip spawning (MANAGED_*_ENABLED=true).
+      MANAGED_GLOBAL_DB_ENABLED: "true"
+      MANAGED_GLOBAL_DB_HOST: global-db
+      MANAGED_GLOBAL_DB_PORT: "5432"
+      MANAGED_GLOBAL_DB_USER: deployer
+      MANAGED_GLOBAL_DB_PASSWORD: deployer
+      MANAGED_GLOBAL_DB_NAME: deployer
+      MANAGED_REDIS_ENABLED: "true"
+      MANAGED_REDIS_HOST: redis
+      MANAGED_REDIS_PORT: "6379"
+      MANAGED_LOCAL_DB_ENABLED: "true"
+      MANAGED_LOCAL_DB_PATH: /app/data/local.db
+      MANAGED_TRAEFIK_ENABLED: "true"
+      MANAGED_TRAEFIK_HOST: traefik
+      MANAGED_TRAEFIK_HTTP_PORT: ${DEPLOYER_TRAEFIK_HTTP_PORT:-80}
+      MANAGED_DATABASE_ENABLED: "true"
+      MANAGED_DATABASE_HOST: database
+      MANAGED_DATABASE_PORT: "5432"
+      MANAGED_DATABASE_USER: deployer
+      MANAGED_DATABASE_PASSWORD: deployer
+      MANAGED_DATABASE_NAME: deployer
+      MANAGED_WIREGUARD_ENABLED: "true"
+      SETUP_AUTO: "false"
+    networks:
+      app_network_dev:
+        aliases:
+          - api-dev
+          - api
+      deployer_platform:
+        aliases:
+          - api-dev
+          - api
+      shared: {}
+
+  web-dev:
+    extends:
+      file: ./common/web/docker-compose.config.dev.yml
+      service: web
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-web-dev
+    depends_on:
+      api-dev:
+        condition: service_healthy
+    networks:
+      app_network_dev: {}
+      deployer_platform: {}
+      shared: {}
+
+  doc-dev:
+    extends:
+      file: ./common/doc/docker-compose.config.dev.yml
+      service: doc
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-doc-dev
+    networks:
+      app_network_dev: {}
+
+  # ── Platform services (extend common bases) ───────────────────────
+  global-db:
+    extends:
+      file: ./common/database/global/docker-compose.config.yml
+      service: global-db
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-global-db
+    networks:
+      app_network_dev:
+        aliases:
+          - global-db
+      deployer_platform:
+        aliases:
+          - global-db
+      shared:
+        aliases:
+          - global-db
+
+  redis:
+    extends:
+      file: ./common/redis/docker-compose.config.yml
+      service: redis
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-redis
+    networks:
+      - deployer_platform
+      - shared
+
+  traefik:
+    extends:
+      file: ./common/traefik/docker-compose.config.yml
+      service: traefik
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-traefik
+    networks:
+      - deployer_platform
+
+  drizzle-gateway:
+    extends:
+      file: ./common/drizzle-gateway/docker-compose.config.yml
+      service: drizzle-gateway
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-drizzle-gateway
+    environment:
+      DATABASE_URL_Deployer: postgresql://${MANAGED_GLOBAL_DB_USER:-deployer}:${MANAGED_GLOBAL_DB_PASSWORD:-deployer}@global-db:5432/${MANAGED_GLOBAL_DB_NAME:-deployer}
+    depends_on:
+      global-db:
+        condition: service_healthy
+    networks:
+      shared: {}
+
+# ---------------------------------------------------------------------
+# SHARED NETWORKS — declared ONCE here.
+# ---------------------------------------------------------------------
+networks:
+  shared:
+    name: shared
+    driver: bridge
+  deployer_platform:
+    name: deployer-platform
+    driver: bridge
+  app_network_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_app_network_dev
+    driver: bridge
+
+# ---------------------------------------------------------------------
+# SHARED VOLUMES — declared ONCE here.
+# ---------------------------------------------------------------------
+volumes:
+  api_local_db_data_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_local_db_data_dev
+  api_db_data_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_db_data_dev
+  redis_data_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-redis-data
+  drizzle-gateway:
+    name: drizzle-gateway
+  database_data:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-database-data
+  bun_cache_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_bun_cache_dev
+  turbo_cache_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_turbo_cache_dev
+  api_uploads_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_dev
+  web_instance_token_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_web_instance_token_dev
+  deployer-traefik-config:
+    name: ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}
+  deployer-port-proxy-config:
+    name: ${DIRECT_PROXY_CONFIG_VOLUME:-deployer-port-proxy-config}
+  wireguard-state-mesh-1:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-1
+  wireguard-state-mesh-2:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-2
+  wireguard-state-mesh-3:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-3
+  wireguard-state-mesh-4:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-4
+  wireguard-state-mesh-5:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-5
+  wireguard-state-mesh-6:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-6

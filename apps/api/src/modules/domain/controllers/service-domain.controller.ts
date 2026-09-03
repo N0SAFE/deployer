@@ -12,14 +12,17 @@ export class ServiceDomainController {
     checkSubdomainAvailability() {
         return implement(appContract.domain.checkSubdomainAvailability)
             .use(requireAuth())
-            .handler(({ input }) => this.domainServiceService.checkSubdomainAvailability(input));
+            .handler(({ input }) =>
+                // Compact input (body-only) — `input` IS the payload.
+                this.domainServiceService.checkSubdomainAvailability(input),
+            );
     }
 
     @Implement(appContract.domain.listServiceDomains)
     listServiceDomains() {
         return implement(appContract.domain.listServiceDomains)
             .use(requireAuth())
-            .handler(({ input }) => this.domainServiceService.listServiceDomains(input));
+            .handler(({ input }) => this.domainServiceService.listServiceDomains(input.params));
     }
 
     @Implement(appContract.domain.addServiceDomain)
@@ -27,7 +30,10 @@ export class ServiceDomainController {
         return implement(appContract.domain.addServiceDomain)
             .use(requireAuth())
             .handler(({ input, context }) =>
-                this.domainServiceService.addServiceDomain(input, context.auth.user.id),
+                this.domainServiceService.addServiceDomain(
+                    { ...input.params, ...input.body },
+                    context.auth.user.id,
+                ),
             );
     }
 
@@ -36,7 +42,10 @@ export class ServiceDomainController {
         return implement(appContract.domain.updateServiceDomain)
             .use(requireAuth())
             .handler(({ input, context }) =>
-                this.domainServiceService.updateServiceDomain(input, context.auth.user.id),
+                this.domainServiceService.updateServiceDomain(
+                    { ...input.params, ...input.body },
+                    context.auth.user.id,
+                ),
             );
     }
 
@@ -46,7 +55,7 @@ export class ServiceDomainController {
             .use(requireAuth())
             .handler(({ input, context }) =>
                 this.domainServiceService.setPrimaryServiceDomain({
-                    ...input,
+                    ...input.params,
                     requesterId: context.auth.user.id,
                 }),
             );
@@ -58,7 +67,7 @@ export class ServiceDomainController {
             .use(requireAuth())
             .handler(({ input, context }) =>
                 this.domainServiceService.removeServiceDomain({
-                    ...input,
+                    ...input.params,
                     requesterId: context.auth.user.id,
                 }),
             );

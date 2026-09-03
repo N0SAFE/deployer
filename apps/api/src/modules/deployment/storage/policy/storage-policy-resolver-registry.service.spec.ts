@@ -4,14 +4,23 @@ import { StoragePolicyResolverRegistryService } from "./storage-policy-resolver-
 import { ServiceCustomDataStoragePolicyResolverService } from "./service-custom-data-storage-policy-resolver.service";
 import { ServiceTopLevelStoragePolicyResolverService } from "./service-top-level-storage-policy-resolver.service";
 import { RuntimeConfigurationStoragePolicyResolverService } from "./runtime-configuration-storage-policy-resolver.service";
-import { runtimeConfigurationAccessor } from "@/core/modules/configuration/services/runtime-configuration-accessor";
+import { RuntimeConfigurationAccessorService } from "@/core/modules/configuration/services/runtime-configuration-accessor.service";
+import { ConfigurationResolverService } from "@/core/modules/configuration/services/configuration-resolver.service";
+import { ConfigurationDefinitionService } from "@/core/modules/configuration/services/configuration-definition.service";
 
 describe("StoragePolicyResolverRegistryService", () => {
+    const accessor = new RuntimeConfigurationAccessorService(
+        new ConfigurationResolverService(new ConfigurationDefinitionService()),
+    );
+
     const buildInput = (metadata: Record<string, unknown> | null) => ({
         serviceId: "service-1",
         serviceMetadata: metadata,
-        sourceConfig: {},
-        runtimeConfiguration: runtimeConfigurationAccessor.resolveForDeployment({
+        source: {
+            sourceType: "upload" as const,
+            uploadId: "upload-1",
+        },
+        runtimeConfiguration: accessor.resolveForDeployment({
             serviceId: "service-1",
             projectId: "project-1",
             environment: "production",

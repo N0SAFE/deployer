@@ -1,6 +1,7 @@
 import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { LocalDatabaseService } from './local-database.service';
+import { describe, it, expect, beforeEach } from "vitest";
 
 describe('LocalDatabaseService', () => {
   let service: LocalDatabaseService;

@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerEntityStreamChunkSchema } from "@repo/contracts-entities";
 import { dockerEntityStreamInputSchema } from "./shared";
 
@@ -20,4 +20,8 @@ export const dockerEntityStreamContract = dockerEntityStreamOps
   .path("/stream")
   .input((b) => b.query(dockerEntityStreamInputSchema))
   .output((b) => b.observable(dockerEntityStreamChunkSchema))
+  .errors((e) => [
+    // Docker daemon unreachable / permission errors surface here.
+    ...standardDomainErrorContracts(e),
+  ])
   .build()

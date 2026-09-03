@@ -1,6 +1,8 @@
 "use client"
 
+import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useState, useEffect, useRef } from "react"
+import { useForm, useStore } from "@tanstack/react-form"
 import { ArrowLeft, ArrowRight, Globe } from "lucide-react"
 import { Button } from "@repo/ui/components/shadcn/button"
 import { Input } from "@repo/ui/components/shadcn/input"
@@ -15,16 +17,22 @@ type Props = {
 }
 
 export function RemoteUrlStep({ initialUrl, onBack, onContinue }: Props) {
-  const [url, setUrl] = useState(initialUrl)
   const [state, setState] = useState<ConnectionState>("idle")
   const [detail, setDetail] = useState<string | undefined>()
-  // Keep a stable ref to the mutation object so the probe effect
-  // doesn't refire on every render (TanStack returns a new object
-  // every render, which would otherwise cause an infinite re-probe
-  // loop when listed in a useEffect dependency array).
   const probeMesh = useProbeMesh()
   const probeMeshRef = useRef(probeMesh)
   probeMeshRef.current = probeMesh
+
+  const urlForm = useForm({
+    defaultValues: { url: initialUrl },
+  })
+
+  // The store.state is a plain object — NOT a React state. Reading
+  // form.store.state.values.url directly never triggers re-renders, so the
+  // useEffect([url]) never fires and the debounced probe never runs.
+  // useFormStore subscribes to the store reactively → re-render on every
+  // keystroke → url changes → probe fires.
+  const url = useStore(urlForm.store, (s) => s.values.url)
 
   useEffect(() => {
     const trimmed = url.trim()
@@ -33,9 +41,6 @@ export function RemoteUrlStep({ initialUrl, onBack, onContinue }: Props) {
       setDetail(undefined)
       return
     }
-    // Only probe HTTP(S) URLs. Anything else (postgresql://, malformed
-    // strings, …) is just unparseable from the mesh-probe perspective
-    // and we treat it as "unreachable" without spamming the API.
     let parsed: URL
     try {
       parsed = new URL(trimmed)
@@ -66,13 +71,14 @@ export function RemoteUrlStep({ initialUrl, onBack, onContinue }: Props) {
             )
           } else {
             setState("unreachable")
-            setDetail(result.error ?? "Not reachable")
+            // Normalize empty error detail so the UI never shows a blank reason.
+            setDetail(result.error?.trim() ? result.error : "Not reachable")
           }
         },
         onError: (err) => {
           if (cancelled) return
           setState("unreachable")
-          setDetail(err.message)
+          setDetail(isDefinedORPCError(err) ? getErrorMessage(err) : UNKNOWN_ORPC_ERROR_MESSAGE)
         },
       })
     }, 500)
@@ -91,7 +97,14 @@ export function RemoteUrlStep({ initialUrl, onBack, onContinue }: Props) {
     }
   })()
 
-  const canContinue = urlValid && state === "reachable"
+  // The probe is ADVISORY, not a hard gate: a valid mesh node whose mesh
+  // controller isn't mounted yet (early bootstrap) or that only answers
+  // /health (see ReachabilityService.checkMeshUrlReachability) can still be
+  // a legitimate registration target. Blocking forever on "unreachable"
+  // makes it impossible to join such a node. So we allow continuing when
+  // the URL is well-formed AND the probe settled (reachable OR unreachable);
+  // on unreachable the ConnectionStatus warning makes the risk explicit.
+  const canContinue = urlValid && (state === "reachable" || state === "unreachable")
 
   return (
     <div className="flex flex-col gap-6">
@@ -116,8 +129,9 @@ export function RemoteUrlStep({ initialUrl, onBack, onContinue }: Props) {
             <Input
               id="setup-mesh-url"
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://mesh.example.com"
+              onChange={(e) => urlForm.setFieldValue('url', e.target.value)}
+              onInput={(e) => urlForm.setFieldValue('url', (e.target as HTMLInputElement).value)}
+              placeholder="https://node.example.com:3005"
               required
               autoComplete="url"
               className="pl-9"
@@ -126,6 +140,12 @@ export function RemoteUrlStep({ initialUrl, onBack, onContinue }: Props) {
         </div>
 
         {url.trim() ? <ConnectionStatus state={state} detail={detail} /> : null}
+        {state === "unreachable" && urlValid ? (
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            The node did not answer the reachability check. You can still continue — if the
+            URL is correct for an existing node, authentication will confirm it.
+          </p>
+        ) : null}
       </div>
 
       <div className="flex items-center gap-3">

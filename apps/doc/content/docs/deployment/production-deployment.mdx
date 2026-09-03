@@ -46,7 +46,7 @@ For user-facing critical services, target this rule:
 - Traefik is the canonical ingress and load-balancing layer.
 - In Swarm mode, Traefik should discover services from the Swarm provider and route via service labels.
 - Standard HTTP/S traffic does **not** require a custom redirect app when Traefik + Swarm routing is correctly configured.
-- `apps/load-balancer` is an optional advanced pattern for owner-aware stream routing/diagnostic flows, not the baseline production requirement.
+- There is **no standalone load balancer**: Traefik is the sole reverse proxy; the API's direct-proxy supervisor temporarily takes over ingress only while Traefik is down.
 
 ## Recommended release sequence
 
@@ -134,7 +134,7 @@ For the canonical Swarm manager/worker model, prioritize:
 Use these only when you intentionally adopt advanced alternatives:
 
 - [Multi-Server & Multi-Org Operations](/docs/deployment/multi-server-multi-org-operations) — federation/governance patterns
-- [Load Balancer Architecture](/docs/deployment/load-balancer) — optional custom LB pattern
+- [Instance Ports](/docs/deployment/instance-ports) — Traefik routing conventions
 
 ## Related docs
 

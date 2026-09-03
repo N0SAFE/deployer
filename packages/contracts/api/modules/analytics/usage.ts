@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import z from "zod/v4";
 import {
     analyticsResourceUsageSchema,
@@ -6,6 +6,7 @@ import {
     activitySummarySchema,
     getActivityInputSchema,
     getUsageInputSchema,
+    analyticsDataSourceSchema,
 } from "./schemas";
 
 const analyticsResourceUsageOutputSchema = z.object({
@@ -16,6 +17,7 @@ const analyticsResourceUsageOutputSchema = z.object({
         minimum: analyticsResourceUsageSchema,
     }),
     timeRange: z.string(),
+    dataSource: analyticsDataSourceSchema.default("unavailable"),
 });
 
 const analyticsUserActivityOutputSchema = z.object({
@@ -23,6 +25,7 @@ const analyticsUserActivityOutputSchema = z.object({
     total: z.number(),
     limit: z.number(),
     offset: z.number(),
+    dataSource: analyticsDataSourceSchema.default("unavailable"),
 });
 
 const analyticsActivitySummaryQuerySchema = z
@@ -36,6 +39,7 @@ const analyticsActivitySummaryQuerySchema = z
 const analyticsActivitySummaryOutputSchema = z.object({
     data: z.array(activitySummarySchema),
     totalPeriods: z.number(),
+    dataSource: analyticsDataSourceSchema.default("unavailable"),
 });
 
 const analyticsApiUsageQuerySchema = z
@@ -63,6 +67,7 @@ const analyticsApiUsageOutputSchema = z.object({
         uniqueUsers: z.number(),
     }),
     timeRange: z.string(),
+    dataSource: analyticsDataSourceSchema.default("unavailable"),
 });
 
 const analyticsDeploymentUsageQuerySchema = z
@@ -103,6 +108,7 @@ const analyticsDeploymentUsageOutputSchema = z.object({
             }),
         ),
     }),
+    dataSource: analyticsDataSourceSchema.default("unavailable"),
 });
 
 const analyticsStorageUsageQuerySchema = z
@@ -136,6 +142,7 @@ const analyticsStorageUsageOutputSchema = z.object({
             filesCount: z.number(),
         }),
     ),
+    dataSource: analyticsDataSourceSchema.default("unavailable"),
 });
 
 const analyticsResourceUsageOps = standard.zod(analyticsResourceUsageOutputSchema, "analyticsResourceUsage");
@@ -150,6 +157,7 @@ export const analyticsGetResourceUsageContract = analyticsResourceUsageOps
     .path("/usage/resources")
     .input((input) => input.query(getUsageInputSchema.optional()))
     .output(analyticsResourceUsageOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsGetUserActivityContract = analyticsUserActivityOps
@@ -157,6 +165,7 @@ export const analyticsGetUserActivityContract = analyticsUserActivityOps
     .path("/usage/activity")
     .input((input) => input.query(getActivityInputSchema.optional()))
     .output(analyticsUserActivityOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsGetActivitySummaryContract = analyticsActivitySummaryOps
@@ -164,6 +173,7 @@ export const analyticsGetActivitySummaryContract = analyticsActivitySummaryOps
     .path("/usage/activity/summary")
     .input((input) => input.query(analyticsActivitySummaryQuerySchema))
     .output(analyticsActivitySummaryOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsGetApiUsageContract = analyticsApiUsageOps
@@ -171,6 +181,7 @@ export const analyticsGetApiUsageContract = analyticsApiUsageOps
     .path("/usage/api")
     .input((input) => input.query(analyticsApiUsageQuerySchema))
     .output(analyticsApiUsageOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsGetDeploymentUsageContract = analyticsDeploymentUsageOps
@@ -178,6 +189,7 @@ export const analyticsGetDeploymentUsageContract = analyticsDeploymentUsageOps
     .path("/usage/deployments")
     .input((input) => input.query(analyticsDeploymentUsageQuerySchema))
     .output(analyticsDeploymentUsageOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 export const analyticsGetStorageUsageContract = analyticsStorageUsageOps
@@ -185,4 +197,5 @@ export const analyticsGetStorageUsageContract = analyticsStorageUsageOps
     .path("/usage/storage")
     .input((input) => input.query(analyticsStorageUsageQuerySchema))
     .output(analyticsStorageUsageOutputSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { BadRequestError } from "@/core/errors/app-error";
+import { BadRequestError } from "@repo/errors";
 import { createHash } from "node:crypto";
 import type {
     DockerContainerGroupedListInput,
@@ -778,7 +778,7 @@ export class DockerContainerResolutionService {
     }
 
     private dedupeResponsesByResponder(
-        responses: DockerContainerListResponsePayload[],
+        responses: readonly DockerContainerListResponsePayload[],
     ): DockerContainerListResponsePayload[] {
         const deduped: DockerContainerListResponsePayload[] = [];
         const seenResponderIds = new Set<string>();
@@ -1109,7 +1109,7 @@ export class DockerContainerResolutionService {
         }
     }
 
-    private mergeRuntimeCatalogResponses(responses: DockerRuntimeCatalogResponsePayload[]): DockerRuntimeCatalog {
+    private mergeRuntimeCatalogResponses(responses: readonly DockerRuntimeCatalogResponsePayload[]): DockerRuntimeCatalog {
         const containers = this.mergeContainersFromCatalog(responses);
         const images = this.mergeImagesFromCatalog(responses);
         const networks = this.mergeNetworksFromCatalog(responses);
@@ -1127,7 +1127,7 @@ export class DockerContainerResolutionService {
         });
     }
 
-    private mergeContainersFromCatalog(responses: DockerRuntimeCatalogResponsePayload[]): DockerContainer[] {
+    private mergeContainersFromCatalog(responses: readonly DockerRuntimeCatalogResponsePayload[]): DockerContainer[] {
         const merged = new Map<string, DockerContainer>();
 
         for (const response of responses) {
@@ -1147,7 +1147,7 @@ export class DockerContainerResolutionService {
         return [...merged.values()];
     }
 
-    private mergeImagesFromCatalog(responses: DockerRuntimeCatalogResponsePayload[]): DockerImage[] {
+    private mergeImagesFromCatalog(responses: readonly DockerRuntimeCatalogResponsePayload[]): DockerImage[] {
         const merged = new Map<string, DockerImage>();
 
         for (const response of responses) {
@@ -1167,7 +1167,7 @@ export class DockerContainerResolutionService {
         return [...merged.values()];
     }
 
-    private mergeNetworksFromCatalog(responses: DockerRuntimeCatalogResponsePayload[]): DockerNetwork[] {
+    private mergeNetworksFromCatalog(responses: readonly DockerRuntimeCatalogResponsePayload[]): DockerNetwork[] {
         const merged = new Map<string, DockerNetwork>();
 
         for (const response of responses) {
@@ -1188,7 +1188,7 @@ export class DockerContainerResolutionService {
         return [...merged.values()];
     }
 
-    private mergeVolumesFromCatalog(responses: DockerRuntimeCatalogResponsePayload[]): DockerVolume[] {
+    private mergeVolumesFromCatalog(responses: readonly DockerRuntimeCatalogResponsePayload[]): DockerVolume[] {
         const merged = new Map<string, DockerVolume>();
 
         for (const response of responses) {
@@ -1209,7 +1209,7 @@ export class DockerContainerResolutionService {
         return [...merged.values()];
     }
 
-    private mergeRegistriesFromCatalog(responses: DockerRuntimeCatalogResponsePayload[]): DockerRegistry[] {
+    private mergeRegistriesFromCatalog(responses: readonly DockerRuntimeCatalogResponsePayload[]): DockerRegistry[] {
         const merged = new Map<string, DockerRegistry>();
 
         for (const response of responses) {
@@ -1248,7 +1248,7 @@ export class DockerContainerResolutionService {
         return [...merged.values()];
     }
 
-    private mergeStacksFromCatalog(responses: DockerRuntimeCatalogResponsePayload[]): DockerStack[] {
+    private mergeStacksFromCatalog(responses: readonly DockerRuntimeCatalogResponsePayload[]): DockerStack[] {
         const merged = new Map<string, DockerStack>();
 
         for (const response of responses) {
@@ -1269,7 +1269,7 @@ export class DockerContainerResolutionService {
         return [...merged.values()];
     }
 
-    private pickBestInspectDetail(responses: DockerContainerInspectResponsePayload[]): DockerContainerInspectDetail {
+    private pickBestInspectDetail(responses: readonly DockerContainerInspectResponsePayload[]): DockerContainerInspectDetail {
         const sorted = [...responses].sort((left, right) => {
             const leftEpoch = Date.parse(left.detail.generatedAt);
             const rightEpoch = Date.parse(right.detail.generatedAt);

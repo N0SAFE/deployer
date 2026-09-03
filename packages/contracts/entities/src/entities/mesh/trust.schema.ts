@@ -1,7 +1,7 @@
 import z from "zod/v4";
 
 export const meshJoinGrantIssueInputSchema = z.object({
-    organizationId: z.uuid().nullable().optional(),
+
     targetNodeId: z.uuid().nullable().optional(),
     ttlSeconds: z.number().int().min(30).max(86_400).default(900),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),

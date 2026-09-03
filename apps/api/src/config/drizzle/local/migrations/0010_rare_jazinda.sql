@@ -1,0 +1,1 @@
+ALTER TABLE `node_config` ADD `database_provisioning` text;

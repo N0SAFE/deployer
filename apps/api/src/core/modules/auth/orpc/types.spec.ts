@@ -31,7 +31,6 @@ describe('ORPC Auth Types', () => {
       },
       requireAuth: () => ({ session: {} as any, user: {} as any }),
       admin: {} as any,
-      org: {} as any,
     };
 
     mockUnauthenticatedContext = {
@@ -40,7 +39,6 @@ describe('ORPC Auth Types', () => {
       user: null,
       requireAuth: () => ({ session: {} as any, user: {} as any }),
       admin: {} as any,
-      org: {} as any,
     };
   });
 

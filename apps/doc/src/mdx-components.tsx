@@ -6,6 +6,7 @@ import { DocMeta } from './components/docs/DocMeta';
 import { DocCallout } from './components/docs/DocCallout';
 import { DocChecklist } from './components/docs/DocChecklist';
 import { MermaidDiagram } from './components/docs/MermaidDiagram';
+import { DocChart } from './components/docs/DocChart';
 import { DocCard, DocCardGrid } from './components/docs/DocCardGrid';
 import { DocStepFlow } from './components/docs/DocStepFlow';
 
@@ -96,6 +97,8 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     DocCardGrid,
     DocStepFlow,
     Mermaid: MermaidDiagram,
+    DocChart,
+    Chart: DocChart,
     pre: MermaidAwarePre,
     ...components,
   };

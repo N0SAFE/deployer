@@ -7,7 +7,7 @@
  * @example
  * ```typescript
  * import { standard } from '@repo/orpc-utils';
- * import { z } from 'zod/v4';
+ * import z from 'zod/v4';
  * 
  * const userSchema = z.object({
  *   id: z.uuid(),
@@ -72,7 +72,7 @@ export { ListOperationBuilder, createListConfig, createFilterConfig, type Builde
 
 // Re-export base types
 export {
-    StandardOperations as BaseStandardOperations,
+    BaseStandardOperations,
     type EntityOperationOptions,
     type ListOperationOptions,
     type ListPlainOptions,

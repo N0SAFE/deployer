@@ -67,7 +67,6 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 
           const forwardedTo = this.overlayScope.filterForwardedNodeIdsByOrganization(
               candidates,
-              trusted.organizationId ?? null,
           );
 
           return { accepted: true, envelopeId: trusted.envelopeId, forwardedTo };
@@ -81,18 +80,14 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
       }
 
       /**
-       * Applique le scope organisation de la session sur l'envelope.
-       * Retourne null si l'envelope tente de sortir de son scope.
+       * Mesh-wide envelope passthrough (the organization concept was removed —
+       * no session org scoping).
        */
       applySessionScope(
           envelope: MeshControlEnvelope,
-          sessionOrganizationId: string | null,
-      ): MeshControlEnvelope | null {
-          if (!sessionOrganizationId) return envelope;
-          if (envelope.organizationId && envelope.organizationId !== sessionOrganizationId) {
-              return null;
-          }
-          return { ...envelope, organizationId: sessionOrganizationId };
+          _sessionOrganizationId: string | null,
+      ): MeshControlEnvelope {
+          return envelope;
       }
 
       private ensureTrusted(envelope: MeshControlEnvelope): MeshControlEnvelope {

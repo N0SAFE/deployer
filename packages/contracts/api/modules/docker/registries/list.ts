@@ -1,4 +1,4 @@
-import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
+import { createFilterConfig, standard, type ComputeInputSchema, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerRegistryEntitySchema } from "@repo/contracts-entities";
 
 const dockerRegistryListItemSchema = dockerRegistryEntitySchema.omit({ relations: true });
@@ -22,4 +22,5 @@ export type DockerRegistryListInput = ComputeInputSchema<typeof dockerRegistryLi
 export const dockerListRegistriesContract = dockerRegistryOps
   .list(dockerRegistryListConfigSchemas)
   .path("/")
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

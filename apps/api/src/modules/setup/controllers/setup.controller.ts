@@ -2,6 +2,7 @@ import { Controller, Logger } from "@nestjs/common";
 import { Implement, implement } from "@orpc/nest";
 import { ORPCError } from "@orpc/server";
 import { setupContract } from "@repo/api-contracts";
+import { domainErrorOptions, standardErrorOptions } from "@repo/orpc-utils";
 import { publicAccess } from "@/core/modules/auth/orpc/middlewares";
 import { Pool } from "pg";
 import { InitializationService } from "@/core/modules/setup/services/initialization.service";
@@ -126,14 +127,12 @@ export class SetupController {
     remoteAuth() {
         return implement(setupContract.remoteAuth)
             .use(publicAccess())
-            .handler(async ({ input }) => {
+            .handler(async ({ input, errors }) => {
                 let meshOrigin: string;
                 try {
                     meshOrigin = new URL(input.meshUrl).origin;
                 } catch {
-                    throw new ORPCError("BAD_REQUEST", {
-                        message: "Invalid mesh URL",
-                    });
+                    throw errors.BAD_REQUEST(standardErrorOptions("validation", "Invalid mesh URL"));
                 }
 
                 const signinUrl = `${meshOrigin}/api/auth/sign-in/email`;
@@ -172,16 +171,19 @@ export class SetupController {
                                   : null;
 
                         if (response.status === 401 || response.status === 400) {
-                            throw new ORPCError("UNAUTHORIZED", {
-                                message: rawMessage ?? "Invalid email or password",
-                            });
+                            throw errors.UNAUTHORIZED(
+                                standardErrorOptions("unauthorized", rawMessage ?? "Invalid email or password"),
+                            );
                         }
 
-                        throw new ORPCError("BAD_GATEWAY" as never, {
-                            message:
+                        throw errors.BAD_GATEWAY(
+                            domainErrorOptions(
+                                "BAD_GATEWAY",
+                                502,
                                 rawMessage ??
-                                `Mesh returned ${response.status.toString()} during signin`,
-                        });
+                                    `Mesh returned ${response.status.toString()} during signin`,
+                            ),
+                        );
                     }
 
                     const result = (await response.json()) as {
@@ -204,10 +206,13 @@ export class SetupController {
                     const authToken = extractSessionCookie(setCookie) ?? tokenFromBody;
 
                     if (!authToken) {
-                        throw new ORPCError("INTERNAL_SERVER_ERROR" as never, {
-                            message:
+                        throw errors.INTERNAL_SERVER_ERROR(
+                            domainErrorOptions(
+                                "INTERNAL_SERVER_ERROR",
+                                500,
                                 "Mesh did not return a session token — cannot proceed",
-                        });
+                            ),
+                        );
                     }
 
                     return {
@@ -230,17 +235,23 @@ export class SetupController {
                 } catch (err) {
                     if (err instanceof ORPCError) throw err;
                     if (err instanceof Error && err.name === "AbortError") {
-                        throw new ORPCError("GATEWAY_TIMEOUT" as never, {
-                            message:
+                        throw errors.GATEWAY_TIMEOUT(
+                            domainErrorOptions(
+                                "GATEWAY_TIMEOUT",
+                                504,
                                 "Authentication timed out — mesh node did not respond",
-                        });
+                            ),
+                        );
                     }
-                    throw new ORPCError("INTERNAL_SERVER_ERROR" as never, {
-                        message:
+                    throw errors.INTERNAL_SERVER_ERROR(
+                        domainErrorOptions(
+                            "INTERNAL_SERVER_ERROR",
+                            500,
                             err instanceof Error
                                 ? err.message
                                 : "Unknown error contacting mesh",
-                    });
+                        ),
+                    );
                 } finally {
                     clearTimeout(timeout);
                 }
@@ -300,13 +311,17 @@ export class SetupController {
     setupDismissPostSetupHint() {
         return implement(setupContract.dismissPostSetupHint)
             .use(publicAccess())
-            .handler(({ input }) => {
+            .handler(({ input, errors }) => {
                 this.logger.log(`Hint dismissed: ${input.hintId}`);
                 const config = this.nodeConfigRepository.find();
                 if (!config) {
-                    throw new ORPCError("INTERNAL_SERVER_ERROR" as never, {
-                        message: "Cannot dismiss hint — node config not found",
-                    });
+                    throw errors.INTERNAL_SERVER_ERROR(
+                        domainErrorOptions(
+                            "INTERNAL_SERVER_ERROR",
+                            500,
+                            "Cannot dismiss hint — node config not found",
+                        ),
+                    );
                 }
                 const flags = config.postSetupFlags ?? {};
                 this.nodeConfigRepository.upsert({
@@ -315,6 +330,7 @@ export class SetupController {
                     setupState: config.setupState,
                     deployerVersion: config.deployerVersion,
                     databaseUrl: config.databaseUrl,
+                    databaseProvisioning: config.databaseProvisioning ?? null,
                     configuredAt: config.configuredAt,
                     meshUrlsSnapshot: config.meshUrlsSnapshot ?? [],
                     meshSharedSecret: config.meshSharedSecret,

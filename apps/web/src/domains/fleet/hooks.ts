@@ -10,7 +10,7 @@ const enhancedFleet = wrapWithInvalidations(fleetEndpoints, fleetInvalidations);
 export function useFleetServers(options?: { enabled?: boolean }) {
   return useQuery(
     fleetEndpoints.listServers.queryOptions({
-      input: {},
+      input: undefined,
       enabled: options?.enabled ?? true,
       refetchInterval: false,
     }),
@@ -19,7 +19,6 @@ export function useFleetServers(options?: { enabled?: boolean }) {
 
 export function useFleetAllocations(
   input?: {
-    organizationId?: string;
     serverNodeId?: string;
   },
   options?: { enabled?: boolean },
@@ -28,7 +27,6 @@ export function useFleetAllocations(
     fleetEndpoints.listAllocations.queryOptions({
       input: {
         query: {
-          organizationId: input?.organizationId,
           serverNodeId: input?.serverNodeId,
         },
       },
@@ -41,7 +39,7 @@ export function useFleetAllocations(
 export function useMyFleetAllocations(options?: { enabled?: boolean }) {
   return useQuery(
     fleetEndpoints.listMyAllocations.queryOptions({
-      input: {},
+      input: undefined,
       enabled: options?.enabled ?? true,
       refetchInterval: false,
     }),
@@ -74,7 +72,6 @@ export function useMyFleetAdmissionRequests(
 export function useFleetAdmissionRequests(
   input?: {
     status?: 'pending' | 'approved' | 'rejected' | 'cancelled'
-    organizationId?: string
   },
   options?: { enabled?: boolean },
 ) {
@@ -83,7 +80,6 @@ export function useFleetAdmissionRequests(
       input: {
         query: {
           status: input?.status,
-          organizationId: input?.organizationId,
         },
       },
       enabled: options?.enabled ?? true,

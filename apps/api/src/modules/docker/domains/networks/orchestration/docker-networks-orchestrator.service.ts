@@ -16,7 +16,7 @@ export class DockerNetworksOrchestratorService {
 
   constructor(private readonly dockerNetworksDomainService: DockerNetworksDomainService) {}
 
-  listNetworks(input: DockerNetworkListInput) {
+  listNetworks(input: DockerNetworkListInput = {} as DockerNetworkListInput) {
     this.debug("DockerNetworksOrchestratorService.listNetworks", {
       limit: input.limit,
       offset: input.offset,

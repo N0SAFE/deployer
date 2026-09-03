@@ -136,7 +136,6 @@ export class MeshTrustService {
     private serializeForSigning(envelope: MeshControlEnvelope): string {
         return JSON.stringify({
             envelopeId: envelope.envelopeId,
-            organizationId: envelope.organizationId ?? null,
             keyId: envelope.keyId ?? null,
             algorithm: envelope.algorithm ?? "HS256",
             type: envelope.type,

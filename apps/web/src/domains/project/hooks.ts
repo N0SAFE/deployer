@@ -18,6 +18,13 @@ const enhancedProject = wrapWithInvalidations(projectEndpoints, projectInvalidat
 // QUERY HOOKS
 // ============================================================================
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+/** Only fetch when the id is a real UUID — never a `:id` route-template placeholder. */
+function isProjectIdUsable(id: string | undefined | null): id is string {
+  return typeof id === 'string' && UUID_RE.test(id)
+}
+
 export function useProjectList(
   input: Parameters<typeof projectEndpoints.list.call>[0],
 ) {
@@ -25,77 +32,112 @@ export function useProjectList(
 }
 
 export function useProject(projectId: string) {
-  return useQuery(
-    projectEndpoints.findById.queryOptions({ input: { params: { id: projectId }, id: projectId } }),
-  )
+  return useQuery({
+    ...projectEndpoints.findById.queryOptions({ input: { params: { id: projectId } } }),
+    enabled: isProjectIdUsable(projectId),
+  })
 }
 
 export function useProjectCollaborators(projectId: string) {
-  return useQuery(
-    projectEndpoints.getCollaborators.queryOptions({ input: { params: { id: projectId }, id: projectId } }),
-  )
+  return useQuery({
+    ...projectEndpoints.getCollaborators.queryOptions({ input: { params: { id: projectId } } }),
+    enabled: isProjectIdUsable(projectId),
+  })
 }
 
 export function useProjectEnvironments(projectId: string) {
-  return useQuery(
-    projectEndpoints.listEnvironments.queryOptions({ input: { params: { id: projectId }, id: projectId } }),
-  )
+  return useQuery({
+    ...projectEndpoints.listEnvironments.queryOptions({ input: { params: { id: projectId }, query: {} } }),
+    enabled: isProjectIdUsable(projectId),
+  })
 }
 
 export function useProjectEnvironment(projectId: string, environmentId: string) {
-  return useQuery(
-    projectEndpoints.getEnvironment.queryOptions({
-      input: { params: { id: projectId, environmentId }, id: projectId, environmentId },
+  return useQuery({
+    ...projectEndpoints.getEnvironment.queryOptions({
+      input: { params: { id: projectId, environmentId } },
+    }),
+    enabled: isProjectIdUsable(projectId) && isProjectIdUsable(environmentId),
+  })
+}
+
+export function useProjectServiceEnvironmentLinks(projectId: string) {
+  return useQuery({
+    ...projectEndpoints.listServiceEnvironmentLinks.queryOptions({ input: { params: { id: projectId } } }),
+    enabled: isProjectIdUsable(projectId),
+  })
+}
+
+/** Provider-backed project network config (DNS provider + zone + records). */
+export function useProjectNetwork(projectId: string) {
+  return useQuery({
+    ...projectEndpoints.getNetwork.queryOptions({ input: { params: { id: projectId } } }),
+    enabled: isProjectIdUsable(projectId),
+  })
+}
+
+export function useUpdateProjectNetwork() {
+  return useMutation(
+    projectEndpoints.updateNetwork.mutationOptions({
+      onSuccess: enhancedProject.updateNetwork.withInvalidationOnSuccess(),
     }),
   )
 }
 
 export function useProjectVariableTemplates(projectId: string) {
-  return useQuery(
-    projectEndpoints.listVariableTemplates.queryOptions({ input: { params: { id: projectId }, id: projectId } }),
-  )
+  return useQuery({
+    ...projectEndpoints.listVariableTemplates.queryOptions({ input: { params: { id: projectId } } }),
+    enabled: isProjectIdUsable(projectId),
+  })
 }
 
 export function useProjectGeneralConfig(projectId: string) {
-  return useQuery(
-    projectEndpoints.getGeneralConfig.queryOptions({ input: { params: { id: projectId }, id: projectId } }),
-  )
+  return useQuery({
+    ...projectEndpoints.getGeneralConfig.queryOptions({ input: { params: { id: projectId } } }),
+    enabled: isProjectIdUsable(projectId),
+  })
 }
 
 export function useProjectEnvironmentConfig(projectId: string) {
-  return useQuery(
-    projectEndpoints.getEnvironmentConfig.queryOptions({ input: { params: { id: projectId }, id: projectId } }),
-  )
+  return useQuery({
+    ...projectEndpoints.getEnvironmentConfig.queryOptions({ input: { params: { id: projectId } } }),
+    enabled: isProjectIdUsable(projectId),
+  })
 }
 
 export function useProjectDeploymentConfig(projectId: string) {
-  return useQuery(
-    projectEndpoints.getDeploymentConfig.queryOptions({ input: { params: { id: projectId }, id: projectId } }),
-  )
+  return useQuery({
+    ...projectEndpoints.getDeploymentConfig.queryOptions({ input: { params: { id: projectId } } }),
+    enabled: isProjectIdUsable(projectId),
+  })
 }
 
 export function useProjectSecurityConfig(projectId: string) {
-  return useQuery(
-    projectEndpoints.getSecurityConfig.queryOptions({ input: { params: { id: projectId }, id: projectId } }),
-  )
+  return useQuery({
+    ...projectEndpoints.getSecurityConfig.queryOptions({ input: { params: { id: projectId } } }),
+    enabled: isProjectIdUsable(projectId),
+  })
 }
 
 export function useProjectResourceConfig(projectId: string) {
-  return useQuery(
-    projectEndpoints.getResourceConfig.queryOptions({ input: { params: { id: projectId }, id: projectId } }),
-  )
+  return useQuery({
+    ...projectEndpoints.getResourceConfig.queryOptions({ input: { params: { id: projectId } } }),
+    enabled: isProjectIdUsable(projectId),
+  })
 }
 
 export function useProjectNotificationConfig(projectId: string) {
-  return useQuery(
-    projectEndpoints.getNotificationConfig.queryOptions({ input: { params: { id: projectId }, id: projectId } }),
-  )
+  return useQuery({
+    ...projectEndpoints.getNotificationConfig.queryOptions({ input: { params: { id: projectId } } }),
+    enabled: isProjectIdUsable(projectId),
+  })
 }
 
 export function useProjectEnvironmentStatus(projectId: string) {
-  return useQuery(
-    projectEndpoints.getAllEnvironmentStatuses.queryOptions({ input: { params: { id: projectId }, id: projectId } }),
-  )
+  return useQuery({
+    ...projectEndpoints.getAllEnvironmentStatuses.queryOptions({ input: { params: { id: projectId } } }),
+    enabled: isProjectIdUsable(projectId),
+  })
 }
 
 // ============================================================================
@@ -178,6 +220,14 @@ export function useCloneProjectEnvironment() {
   return useMutation(
     projectEndpoints.cloneEnvironment.mutationOptions({
       onSuccess: enhancedProject.cloneEnvironment.withInvalidationOnSuccess(),
+    }),
+  )
+}
+
+export function useUpsertServiceEnvironmentLink() {
+  return useMutation(
+    projectEndpoints.upsertServiceEnvironmentLink.mutationOptions({
+      onSuccess: enhancedProject.upsertServiceEnvironmentLink.withInvalidationOnSuccess(),
     }),
   )
 }

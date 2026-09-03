@@ -7,14 +7,18 @@ import {
     domainContract,
     projectContract,
     serviceContract,
+    servicePreviewTopologyContract,
     deploymentContract,
     analyticsContract,
     providerSchemaContract,
     templateContract,
     dockerContract,
     setupContract,
-    organizationContract,
     coreContract,
+    reachabilityContract,
+    providersContract,
+    meshContract,
+    platformContract,
 } from "./modules/index";
 import { meshBaseResourceContract } from "./modules/mesh/resource/mesh-base-resource.contract";
 
@@ -27,6 +31,7 @@ export const appContract = oc.router({
     domain: domainContract,
     project: projectContract,
     service: serviceContract,
+    servicePreviewTopology: servicePreviewTopologyContract,
     deployment: deploymentContract,
     analytics: analyticsContract,
     providerSchema: providerSchemaContract,
@@ -34,8 +39,19 @@ export const appContract = oc.router({
     docker: dockerContract,
     setup: setupContract,
     core: coreContract,
-    organization: organizationContract,
-    mesh: meshBaseResourceContract,
+    reachability: reachabilityContract,
+    providers: providersContract,
+    // Public mesh surface: info + management endpoints. The mesh-to-mesh
+    // transport endpoints (meshInternalContract) are intentionally NOT here —
+    // they are only callable inside the mesh.
+    mesh: meshContract,
+    // API-centric platform surface: web app-instance registration/heartbeat
+    // plus operator management of the managed web app.
+    platform: platformContract,
+    // The resource-dispatcher catch-all (POST /mesh/:entityKey/:methodName)
+    // remains reachable via the MeshResourceController. It is NOT part of the
+    // public app contract either — the cross-node caller uses it directly.
+    meshResource: meshBaseResourceContract,
 });
 
 export type AppContract = typeof appContract;

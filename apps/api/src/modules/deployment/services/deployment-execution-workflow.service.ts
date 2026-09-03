@@ -1,30 +1,30 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { DeploymentObservabilityContext } from "@repo/contracts-entities";
 import { DeploymentRepository } from "../repositories/deployment.repository";
-import { RuntimeRunnerRegistryService } from "../runners/runtime-runner-registry.service";
+import { RuntimeRunnerRegistryService } from "@/modules/runners/runtime-runner-registry.service";
+import { DomainRoutingService, type RouteSyncResult } from "@/core/modules/domain/services/domain-routing.service";
 import type {
     BuildArtifactResult,
     HealthGateConfig,
     RuntimeConvergenceConfig,
     RuntimeRunnerExecutionOptions,
-} from "../runners/runtime-runner.interface";
+} from "@/modules/runners/runtime-runner.interface";
 import { DeploymentEventService } from "../events/deployment-event.service";
 import {
     deploymentStorageBindingSchema,
     type DeploymentStorageBinding,
 } from "../storage/base/storage-provider.interface";
-import { runtimeRunnerOptionsSchema } from "../providers/base/runtime-runner-options.schema";
+import { runtimeRunnerOptionsSchema } from "@/modules/providers/base/runtime-runner-options.schema";
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
 
 
-type RuntimeConvergenceSource = "runtimeRunnerOptions" | "legacyResult" | "default";
+type RuntimeConvergenceSource = "runtimeRunnerOptions" | "default";
 
 interface RuntimeConvergenceConfigResolution {
     config: RuntimeConvergenceConfig;
     source: {
         traefikSyncMaxAttempts: RuntimeConvergenceSource;
-        loadBalancerSyncMaxAttempts: RuntimeConvergenceSource;
         retryBaseDelayMs: RuntimeConvergenceSource;
     };
 }
@@ -40,6 +40,7 @@ export class DeploymentExecutionWorkflowService {
         private readonly deploymentRepository: DeploymentRepository,
         private readonly runtimeRunnerRegistryService: RuntimeRunnerRegistryService,
         private readonly deploymentEventService: DeploymentEventService,
+        private readonly domainRoutingService: DomainRoutingService,
     ) {}
 
     async markBuildExecutionStarted(
@@ -321,6 +322,43 @@ export class DeploymentExecutionWorkflowService {
         }
     }
 
+    /**
+     * W-Queue (Q4): persist a DEPLOY/RETRY queue-job failure onto the
+     * deployment row. Previously only ROLLBACK failures were persisted
+     * (`persistRollbackExecutionFailure`), leaving deploys stuck at
+     * `status = "building"` after exhaust/dead-letter. Mirrors the rollback
+     * path: status → failed, phase → failed (progress 100), error log, and
+     * execution metadata stamped.
+     */
+    async persistDeploymentExecutionFailure(deploymentId: string, errorMessage: string) {
+        const failedAt = new Date();
+        const deployment = await this.getDeploymentById(deploymentId);
+        const metadata = this.mergeMetadata(deployment.metadata, {
+            buildExecution: {
+                status: "failed",
+                failedAt: failedAt.toISOString(),
+                error: errorMessage,
+            },
+            stage: "failed",
+        });
+
+        await this.deploymentRepository.updateStatus(deploymentId, "failed", metadata);
+        await this.deploymentRepository.updatePhase(deploymentId, "failed", 100);
+
+        await this.deploymentRepository.insertLog(deploymentId, {
+            level: "error",
+            message: "Deployment execution failed (queue exhausted)",
+            phase: "failed",
+            stage: "build",
+            step: "execution_fail",
+            metadata: {
+                errorMessage,
+                failedAt: failedAt.toISOString(),
+                structured: true,
+            },
+        });
+    }
+
     private async applyContainerLifecycle(
         deploymentId: string,
         artifact: BuildArtifactResult,
@@ -349,7 +387,7 @@ export class DeploymentExecutionWorkflowService {
             const runtimeRunnerOptions = this.resolveRuntimeRunnerOptions(result);
             const customRunCommand = this.getResultString(result, "customRunCommand");
             const runtimeEnvironmentVariables = this.resolveRuntimeEnvironmentVariables(result);
-            const convergenceResolution = this.resolveRuntimeConvergenceConfig(result, runtimeRunnerOptions);
+            const convergenceResolution = this.resolveRuntimeConvergenceConfig(runtimeRunnerOptions);
             const deployRetryPolicy = this.resolveDeployPhaseRetryPolicy(result);
             const projectId = await this.deploymentRepository.getServiceProjectId(deployment.serviceId);
 
@@ -443,6 +481,63 @@ export class DeploymentExecutionWorkflowService {
                 observability,
             };
 
+            // A1: derive the service's reachable URLs from its domain mappings
+            // and upsert the Traefik routes BEFORE runtime execution, so the
+            // runner finds a real config instead of bootstrapping `localhost`.
+            // Pure data-driven (domain mappings) — never env vars.
+            let routeSync: RouteSyncResult | null = null;
+            try {
+                routeSync = await this.domainRoutingService.syncServiceRoutes(deployment.serviceId, {
+                    healthCheckPath: "/health",
+                });
+            } catch (error) {
+                // Non-fatal: deployment continues; the runner will fall back to
+                // its default (localhost) routing when no mappings resolve.
+                await this.deploymentRepository.insertLog(deploymentId, {
+                    level: "warn",
+                    message: `Domain route sync skipped for service ${deployment.serviceId}: ${error instanceof Error ? error.message : String(error)}`,
+                    phase: "deploying",
+                    step: "domain_route_sync",
+                    stage: "routing",
+                    correlationId: observability?.correlationId ?? deploymentId,
+                    traceId: observability?.traceId,
+                    spanId: observability?.spanId,
+                    metadata: { structured: true },
+                });
+            }
+
+            // A5: provision TLS certificate for the primary mapped domain
+            // (idempotent, data-driven from the mapping's ssl fields).
+            let tlsProvision: Awaited<ReturnType<typeof this.domainRoutingService.provisionTlsCertificate>>;
+            try {
+                tlsProvision = await this.domainRoutingService.provisionTlsCertificate(deployment.serviceId);
+                if (tlsProvision.provisioned && tlsProvision.reason !== "already_provisioned") {
+                    await this.deploymentRepository.insertLog(deploymentId, {
+                        level: "info",
+                        message: "TLS certificate provisioned for primary domain",
+                        phase: "deploying",
+                        step: "tls_provision",
+                        stage: "routing",
+                        correlationId: observability?.correlationId ?? deploymentId,
+                        traceId: observability?.traceId,
+                        spanId: observability?.spanId,
+                        metadata: { host: tlsProvision.host, structured: true },
+                    });
+                }
+            } catch (error) {
+                await this.deploymentRepository.insertLog(deploymentId, {
+                    level: "warn",
+                    message: `TLS provisioning skipped for service ${deployment.serviceId}: ${error instanceof Error ? error.message : String(error)}`,
+                    phase: "deploying",
+                    step: "tls_provision",
+                    stage: "routing",
+                    correlationId: observability?.correlationId ?? deploymentId,
+                    traceId: observability?.traceId,
+                    spanId: observability?.spanId,
+                    metadata: { structured: true },
+                });
+            }
+
             const runtimeResult = await this.executeRuntimeWithDeployRetryPolicy(
                 deploymentId,
                 runtimeRunnerKind,
@@ -453,9 +548,17 @@ export class DeploymentExecutionWorkflowService {
 
             const deployCompletedAt = new Date();
             const deployDuration = Math.max(0, deployCompletedAt.getTime() - deployStartedAt.getTime());
-            const domainUrl = this.resolveDomainUrl(runtimeResult.routeVerification.healthSummary);
+            // A2: primary URL comes from the domain mappings (the single source
+            // of truth for how this service is reachable).
+            const domainUrl = routeSync?.success ? (routeSync.primaryUrl ?? null) : null;
+
+            // A3: snapshot ALL reachable URLs for this deployment (previous
+            // deployments keep their own snapshot — "current vs previous" URLs).
+            const reachableUrls = routeSync?.success ? routeSync.urls.map((u) => u.fullUrl) : (domainUrl ? [domainUrl] : []);
 
             const metadata = this.mergeMetadata(deployment.metadata, {
+                reachableUrls,
+                ...(domainUrl ? { deployedDomainUrl: domainUrl } : {}),
                 containerLifecycle: {
                     status: "started",
                     containerId: runtimeResult.containerId,
@@ -472,7 +575,6 @@ export class DeploymentExecutionWorkflowService {
                                   deploymentId: runtimeResult.managedRuntime.deploymentId,
                                   serviceId: runtimeResult.managedRuntime.serviceId,
                                   projectId: runtimeResult.managedRuntime.projectId,
-                                  organizationId: runtimeResult.managedRuntime.organizationId,
                               },
                               container: {
                                   id: runtimeResult.containerId,
@@ -491,11 +593,6 @@ export class DeploymentExecutionWorkflowService {
                     : {}),
                 routeVerification: runtimeResult.routeVerification,
                 healthGate: runtimeResult.healthGate,
-                ...(runtimeResult.loadBalancerSync
-                    ? {
-                          loadBalancerSync: runtimeResult.loadBalancerSync,
-                      }
-                    : {}),
                 convergencePolicy: {
                     ...convergenceResolution.config,
                     source: convergenceResolution.source,
@@ -589,18 +686,11 @@ export class DeploymentExecutionWorkflowService {
                 spanId: observability?.spanId,
                 metadata: runtimeResult.healthGate,
             });
-            if (runtimeResult.loadBalancerSync) {
-                await this.deploymentRepository.insertLog(deploymentId, {
-                    level: "info",
-                    message: "Load balancer sync completed",
-                    phase: "deploying",
-                    step: "load_balancer_sync",
-                    stage: "routing",
-                    correlationId: observability?.correlationId ?? deploymentId,
-                    traceId: observability?.traceId,
-                    spanId: observability?.spanId,
-                    metadata: runtimeResult.loadBalancerSync,
-                });
+            // A4: non-blocking external probe of the deployed domain(s) — the
+            // internal health gate proves the container is up; this proves the
+            // public URL is actually reachable from the internet. Best-effort.
+            if (domainUrl) {
+                void this.probeDeployedDomain(deploymentId, domainUrl, observability?.correlationId ?? deploymentId);
             }
             await this.deploymentRepository.insertLog(deploymentId, {
                 level: "info",
@@ -764,36 +854,24 @@ export class DeploymentExecutionWorkflowService {
     }
 
     private resolveRuntimeConvergenceConfig(
-        result: Record<string, unknown> | undefined,
         runtimeRunnerOptions?: RuntimeRunnerExecutionOptions | null,
     ): RuntimeConvergenceConfigResolution {
         const optionTraefik = runtimeRunnerOptions?.traefikSyncMaxAttempts;
-        const legacyTraefik = this.getResultNumber(result, "traefikSyncMaxAttempts");
-        const optionLb = runtimeRunnerOptions?.loadBalancerSyncMaxAttempts;
-        const legacyLb = this.getResultNumber(result, "loadBalancerSyncMaxAttempts");
         const optionDelay = runtimeRunnerOptions?.convergenceRetryBaseDelayMs;
-        const legacyDelay = this.getResultNumber(result, "convergenceRetryBaseDelayMs");
 
         const traefikSyncMaxAttempts = this.normalizePositiveInteger(optionTraefik)
-            ?? this.normalizePositiveInteger(legacyTraefik)
-            ?? 3;
-        const loadBalancerSyncMaxAttempts = this.normalizePositiveInteger(optionLb)
-            ?? this.normalizePositiveInteger(legacyLb)
             ?? 3;
         const retryBaseDelayMs = this.normalizePositiveInteger(optionDelay)
-            ?? this.normalizePositiveInteger(legacyDelay)
             ?? 250;
 
         return {
             config: {
                 traefikSyncMaxAttempts,
-                loadBalancerSyncMaxAttempts,
                 retryBaseDelayMs,
             },
             source: {
-                traefikSyncMaxAttempts: this.resolveConvergenceSource(optionTraefik, legacyTraefik),
-                loadBalancerSyncMaxAttempts: this.resolveConvergenceSource(optionLb, legacyLb),
-                retryBaseDelayMs: this.resolveConvergenceSource(optionDelay, legacyDelay),
+                traefikSyncMaxAttempts: this.resolveConvergenceSource(optionTraefik),
+                retryBaseDelayMs: this.resolveConvergenceSource(optionDelay),
             },
         };
     }
@@ -851,13 +929,9 @@ export class DeploymentExecutionWorkflowService {
 
     private resolveConvergenceSource(
         runtimeOption: number | undefined,
-        legacyValue: number | null,
     ): RuntimeConvergenceSource {
         if (this.normalizePositiveInteger(runtimeOption) !== null) {
             return "runtimeRunnerOptions";
-        }
-        if (this.normalizePositiveInteger(legacyValue) !== null) {
-            return "legacyResult";
         }
         return "default";
     }
@@ -911,24 +985,50 @@ export class DeploymentExecutionWorkflowService {
         });
     }
 
-    private resolveDomainUrl(healthSummary: unknown): string | null {
-        if (!healthSummary || typeof healthSummary !== "object") {
-            return null;
+    /**
+     * A4: best-effort external probe of a deployed domain. Records the result
+     * into the deployment metadata (`externalReachability`) and a log line.
+     * Never blocks the deployment.
+     */
+    private async probeDeployedDomain(deploymentId: string, url: string, correlationId: string): Promise<void> {
+        try {
+            const probeUrl = `${url.replace(/\/$/, "")}/health`;
+            const start = Date.now();
+            const resp = await fetch(probeUrl, { signal: AbortSignal.timeout(10_000) });
+            const latencyMs = Date.now() - start;
+            const result = {
+                url,
+                statusCode: resp.status,
+                reachable: resp.ok,
+                latencyMs,
+                probedAt: new Date().toISOString(),
+            };
+
+            // Merge (the repository overwrites metadata — preserve existing).
+            const current = await this.getDeploymentById(deploymentId);
+            await this.deploymentRepository.persistBuildArtifacts(deploymentId, {
+                metadata: this.mergeMetadata(current.metadata, { externalReachability: result }),
+            });
+            await this.deploymentRepository.insertLog(deploymentId, {
+                level: resp.ok ? "info" : "warn",
+                message: resp.ok ? "Deployed domain is externally reachable" : `Deployed domain returned HTTP ${String(resp.status)}`,
+                phase: "active",
+                step: "external_probe",
+                stage: "health",
+                correlationId,
+                metadata: { url, statusCode: resp.status, latencyMs, structured: true },
+            });
+        } catch (error) {
+            await this.deploymentRepository.insertLog(deploymentId, {
+                level: "warn",
+                message: `External domain probe failed for ${url}: ${error instanceof Error ? error.message : String(error)}`,
+                phase: "active",
+                step: "external_probe",
+                stage: "health",
+                correlationId,
+                metadata: { url, structured: true },
+            });
         }
-
-        const candidateRecord = isRecord(healthSummary) ? healthSummary : {};
-        const directRoute = candidateRecord.route;
-        const directDomainUrl = candidateRecord.domainUrl;
-
-        if (typeof directDomainUrl === "string" && directDomainUrl.trim().length > 0) {
-            return directDomainUrl;
-        }
-
-        if (typeof directRoute === "string" && directRoute.trim().length > 0) {
-            return directRoute;
-        }
-
-        return null;
     }
 
     private mergeMetadata(

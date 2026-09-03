@@ -375,7 +375,7 @@ export function createSessionPage<
     
     const { checkCookie = true, sessionCookie = DEFAULT_SESSION_COOKIE } = options ?? {}
     
-    async function WrappedComponent(props: WrapperProps): Promise<React.ReactNode> {
+    async function SessionFetchingPage(props: WrapperProps): Promise<React.ReactNode> {
         const authAdapter = getServerAuthAdapter()
         
         // Check for auth cookie to avoid unnecessary session fetch
@@ -422,6 +422,18 @@ export function createSessionPage<
         
         // Without React Query, just render the component
         return <Component {...componentProps} />
+    }
+    
+    // Synchronous wrapper that renders a Suspense boundary around the session
+    // fetch. This mirrors createSessionLayout: the session read (cookies())
+    // suspends during prerendering, so the page's static shell can commit
+    // immediately and the session streams in behind the fallback.
+    function WrappedComponent(props: WrapperProps): React.ReactNode {
+        return (
+            <React.Suspense fallback={null}>
+                <SessionFetchingPage {...props} />
+            </React.Suspense>
+        )
     }
     
     const displayName = (Component as { displayName?: string; name?: string }).displayName 

@@ -1,3 +1,7 @@
-export { AppLifecycleModule } from './app-lifecycle.module';
-export { AppLifecycleService, AppLifecyclePhase } from './app-lifecycle.service';
-export type { AppLifecycleEvent } from './app-lifecycle.service';
+export {
+  AppLifecycleModule,
+  AppLifecycleService,
+  AppLifecyclePhase,
+  BootstrapStep,
+} from '@repo/nest-lifecycle';
+export type { AppLifecycleEvent } from '@repo/nest-lifecycle';

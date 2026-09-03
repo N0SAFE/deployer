@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
   dockerContainerTerminalOpenBodySchema,
   dockerContainerTerminalSessionOpenSchema,
@@ -14,4 +14,5 @@ export const dockerContainerTerminalOpenContract = dockerContainerTerminalOpenOp
   .path("/open")
   .input((b) => b.body(dockerContainerTerminalOpenBodySchema))
   .output((b) => b.body(dockerContainerTerminalSessionOpenSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

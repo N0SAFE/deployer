@@ -350,7 +350,7 @@ export default function DashboardDockerActivityPage() {
                 placeholder="Search activity"
               />
             </div>
-            <select
+            <select aria-label="All categories"
               className="h-10 rounded-md border bg-background px-3 text-sm"
               value={categoryFilter}
               onChange={(event) => {
@@ -361,7 +361,7 @@ export default function DashboardDockerActivityPage() {
               <option value="image-scanning">Image scanning</option>
               <option value="runtime-event">Runtime events</option>
             </select>
-            <select
+            <select aria-label="All status"
               className="h-10 rounded-md border bg-background px-3 text-sm"
               value={statusFilter}
               onChange={(event) => {
@@ -375,7 +375,7 @@ export default function DashboardDockerActivityPage() {
               <option value="error">Error</option>
               <option value="info">Info</option>
             </select>
-            <select
+            <select aria-label="All severities"
               className="h-10 rounded-md border bg-background px-3 text-sm"
               value={severityFilter}
               onChange={(event) => {

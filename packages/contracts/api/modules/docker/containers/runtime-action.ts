@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
   dockerContainerRuntimeActionAckSchema,
   dockerContainerRuntimeActionBodySchema,
@@ -14,4 +14,5 @@ export const dockerContainerRuntimeActionContract = dockerContainerRuntimeAction
   .path("/action")
   .input((b) => b.body(dockerContainerRuntimeActionBodySchema))
   .output((b) => b.body(dockerContainerRuntimeActionAckSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

@@ -19,6 +19,7 @@ export const setupStepIdSchema = z.enum([
     "reachability_check",
     "configure_account",
     "remote_auth",
+    "version_check",
     "provision_database",
     "ensure_empty",
     "run_migrations",
@@ -54,7 +55,9 @@ export type SetupStep = z.infer<typeof setupStepSchema>;
 export const setupStateSnapshotSchema = z.object({
     state: setupStateSchema,
     needsSetup: z.boolean(),
-    strategy: setupBootstrapStrategySchema.nullable(),
+    hasUsers: z.boolean(),
+    bootstrapStrategy: setupBootstrapStrategySchema.nullable(),
+    availableStrategies: z.array(setupBootstrapStrategySchema),
     currentStep: setupStepIdSchema.nullable(),
     progressPercent: z.number().int().min(0).max(100),
     steps: z.array(setupStepSchema),
@@ -69,7 +72,6 @@ export const setupInitializeLocalInputSchema = z.object({
     name: z.string().min(1),
     email: z.email(),
     password: z.string().min(8),
-    organizationName: z.string().min(1),
     existingDatabaseUrl: z.string().optional(),
     serverUrl: z.url(),
 });
@@ -222,7 +224,6 @@ export const setupInitializeLocalResultSchema = z.object({
     nodeId:       z.uuid(),
     databaseUrl:  z.string(),
     user:         z.object({ id: z.string(), name: z.string(), email: z.string() }),
-    organization: z.object({ id: z.string(), name: z.string(), slug: z.string() }),
 });
 export type SetupInitializeLocalResult = z.infer<typeof setupInitializeLocalResultSchema>;
 

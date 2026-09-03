@@ -8,6 +8,5 @@
     "rootDir": ".",
     "target": "ES2020"
   },
-  "include": ["src/**/*", "eslint.config.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*", "eslint.config.ts"]
 }

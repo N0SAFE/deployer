@@ -30,10 +30,11 @@ export class PermissionService {
 
   constructor(private readonly permissionRepository: PermissionRepository) {
     this.engine = new PermissionEngine({
-      loadMemberRoles: (userId, orgId) =>
-        this.permissionRepository.getMemberRoles(userId, orgId),
-      loadOrgRoles: (orgId, roleNames) =>
-        this.permissionRepository.getOrgRoleRules(orgId, roleNames),
+      // No org layer — the mesh is the single tenant. Member roles come from
+      // the user's platform role at eval time (see EngineContext).
+      loadMemberRoles: async () => [],
+      loadOrgRoles: (_orgId, roleNames) =>
+        this.permissionRepository.getRoleRules(roleNames).catch(() => []),
     });
   }
 
@@ -85,19 +86,18 @@ export class PermissionService {
   // ─────────────────────────────────────────────────────────────────────────
 
   upsertRoleRules(
-    orgId: string,
     roleName: string,
     rules: ResourceRule[],
   ): Promise<void> {
-    return this.permissionRepository.upsertRoleRules(orgId, roleName, rules);
+    return this.permissionRepository.upsertRoleRules(roleName, rules);
   }
 
-  deleteRoleRules(orgId: string, roleName: string): Promise<void> {
-    return this.permissionRepository.deleteRoleRules(orgId, roleName);
+  deleteRoleRules(roleName: string): Promise<void> {
+    return this.permissionRepository.deleteRoleRules(roleName);
   }
 
-  listRoleRules(orgId: string) {
-    return this.permissionRepository.listRoleRules(orgId);
+  listRoleRules() {
+    return this.permissionRepository.listRoleRules();
   }
 
   /** Re-export so callers can catch typed permission denials */

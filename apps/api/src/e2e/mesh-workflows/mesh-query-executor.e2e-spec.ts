@@ -33,7 +33,7 @@ describe("Mesh E2E: Query Executor", () => {
   it("executes a simple query without where clause", async () => {
     const result = await discovery
       .from(TestDeploymentMeshService.queries.deployments)
-      .execute();
+      .request();
 
     expect(result).toBeDefined();
     expect(Array.isArray(result.items)).toBe(true);
@@ -46,7 +46,7 @@ describe("Mesh E2E: Query Executor", () => {
     const result = await discovery
       .from(TestDeploymentMeshService.queries.deployments)
       .where({ environment: "prod" })
-      .execute();
+      .request();
 
     expect(result.items.length).toBeGreaterThan(0);
     for (const item of result.items) {
@@ -58,7 +58,7 @@ describe("Mesh E2E: Query Executor", () => {
     const result = await discovery
       .from(TestDeploymentMeshService.queries.deployments)
       .where({ environment: "prod", status: "running" })
-      .execute();
+      .request();
 
     for (const item of result.items) {
       expect((item as any).environment).toBe("prod");
@@ -70,7 +70,7 @@ describe("Mesh E2E: Query Executor", () => {
     const result = await discovery
       .from(TestDeploymentMeshService.queries.deployments)
       .orderBy("environment", "asc")
-      .execute();
+      .request();
 
     const envs = result.items.map((item) => (item as any).environment);
     const sorted = [...envs].sort();
@@ -81,7 +81,7 @@ describe("Mesh E2E: Query Executor", () => {
     const result = await discovery
       .from(TestDeploymentMeshService.queries.deployments)
       .orderBy("environment", "desc")
-      .execute();
+      .request();
 
     const envs = result.items.map((item) => (item as any).environment);
     const sorted = [...envs].sort().reverse();
@@ -92,7 +92,7 @@ describe("Mesh E2E: Query Executor", () => {
     const result = await discovery
       .from(TestDeploymentMeshService.queries.deployments)
       .limit(2)
-      .execute();
+      .request();
 
     expect(result.items.length).toBeLessThanOrEqual(2);
   });
@@ -102,13 +102,13 @@ describe("Mesh E2E: Query Executor", () => {
       .from(TestDeploymentMeshService.queries.deployments)
       .limit(1)
       .offset(0)
-      .execute();
+      .request();
 
     const secondPage = await discovery
       .from(TestDeploymentMeshService.queries.deployments)
       .limit(1)
       .offset(1)
-      .execute();
+      .request();
 
     expect(firstPage.items.length).toBeLessThanOrEqual(1);
     expect(secondPage.items.length).toBeLessThanOrEqual(1);
@@ -127,7 +127,7 @@ describe("Mesh E2E: Query Executor", () => {
       .where({ environment: "prod" })
       .orderBy("createdAt", "desc")
       .limit(5)
-      .execute();
+      .request();
 
     expect(result.items.length).toBeLessThanOrEqual(5);
     for (const item of result.items) {
@@ -200,7 +200,7 @@ describe("Mesh E2E: Query Executor", () => {
     const result = await discovery
       .from(TestDeploymentMeshService.queries.deployments)
       .where({ environment: "nonexistent" as any })
-      .execute();
+      .request();
 
     expect(Array.isArray(result.items)).toBe(true);
     expect(result.items).toHaveLength(0);
@@ -211,7 +211,7 @@ describe("Mesh E2E: Query Executor", () => {
     const result = await discovery
       .from(TestDeploymentMeshService.queries.deployments)
       .select(["deploymentId", "environment"])
-      .execute();
+      .request();
 
     for (const item of result.items) {
       const keys = Object.keys(item);
@@ -222,7 +222,7 @@ describe("Mesh E2E: Query Executor", () => {
   it("returns node response metadata", async () => {
     const result = await discovery
       .from(TestDeploymentMeshService.queries.deployments)
-      .execute();
+      .request();
 
     expect(Array.isArray(result.nodeResponses)).toBe(true);
     if (result.nodeResponses.length > 0) {
@@ -236,7 +236,7 @@ describe("Mesh E2E: Query Executor", () => {
     const result = await discovery
       .from(TestDeploymentMeshService.queries.deployments)
       .scope({ organizationId: "org-123", timeoutMs: 5000 })
-      .execute();
+      .request();
 
     expect(Array.isArray(result.items)).toBe(true);
   });

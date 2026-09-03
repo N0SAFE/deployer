@@ -22,7 +22,6 @@ export interface RuntimeExecutorOptions {
 
 export interface RuntimeConvergenceConfig {
     traefikSyncMaxAttempts: number;
-    loadBalancerSyncMaxAttempts: number;
     retryBaseDelayMs: number;
 }
 
@@ -30,7 +29,6 @@ export interface RuntimeDeploymentContext {
     deploymentId: string;
     serviceId: string;
     projectId?: string | null;
-    organizationId?: string | null;
     deploymentContainerName: string | null;
     deploymentContainerImage: string | null;
     healthCheckUrl: string | null;
@@ -78,21 +76,12 @@ export interface RuntimeExecutionResult {
         retryIntervalMs: number;
         verifiedAt: string;
     };
-    loadBalancerSync?: {
-        applied: boolean;
-        endpoint: string | null;
-        status: "synced" | "skipped";
-        reportedAt: string | null;
-        attempts: number;
-        errorMessage?: string;
-    };
     managedRuntime?: {
         managedBy: "deployment_service" | "orphan";
         managedReason: string;
         deploymentId: string | null;
         serviceId: string | null;
         projectId: string | null;
-        organizationId: string | null;
         imageRef: string;
         networkMode: string | null;
         labels: Record<string, string>;

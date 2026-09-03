@@ -3,6 +3,7 @@
 import { Button } from "@repo/ui/components/shadcn/button";
 import { WifiOff, RefreshCw } from "lucide-react";
 
+import type { Metadata } from 'next'
 export default function OfflinePage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
@@ -27,4 +28,9 @@ export default function OfflinePage() {
       </div>
     </div>
   );
+}
+
+export const metadata: Metadata = {
+    title: "Offline",
+    description: "The platform is temporarily offline",
 }

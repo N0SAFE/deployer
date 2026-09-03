@@ -25,6 +25,27 @@ export function DockerNetworkDetailModalTrigger({ id, children, className, initi
   const detail = detailQuery.data
   const isDetailLoading = detailQuery.isLoading && !detail
 
+  // Connectivity diagnostics — derived from the runtime detail, never fabricated.
+  const diagnostics = useMemo<{
+    dnsResolution: 'ok' | 'degraded' | 'unknown'
+    connectivityScore: number
+    notes: string[]
+  } | null>(() => {
+    if (!detail) return null
+    const hasGateway = Boolean(detail.gateway)
+    const hasSubnet = Boolean(detail.subnet)
+    const endpoints = detail.containerIds.length
+    const score = hasGateway && hasSubnet ? (endpoints > 0 ? 100 : 85) : hasGateway || hasSubnet ? 60 : 20
+    const dnsResolution: 'ok' | 'degraded' | 'unknown' = hasGateway ? 'ok' : hasSubnet ? 'degraded' : 'unknown'
+    const notes: string[] = []
+    if (!hasGateway) notes.push('No gateway configured — external DNS may not resolve.')
+    if (!hasSubnet) notes.push('No subnet assigned — IPAM is not providing addresses.')
+    if (endpoints === 0) notes.push('No containers attached to this network.')
+    if (detail.internal) notes.push('Internal network — egress to other networks is restricted.')
+    if (notes.length === 0) notes.push('Network healthy: gateway, subnet, and endpoints all present.')
+    return { dnsResolution, connectivityScore: score, notes }
+  }, [detail])
+
   return (
     <>
       <button

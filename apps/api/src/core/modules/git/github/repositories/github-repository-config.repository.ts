@@ -19,6 +19,7 @@ import { GlobalDatabaseService } from '@/core/modules/database/services/global-d
 import { githubRepositoryConfigs } from '@/config/drizzle/global/schema/github-provider';
 import { eq, and, or, SQL } from 'drizzle-orm';
 
+import { AppError } from "@repo/errors";
 // Type inference from schema
 type GithubRepositoryConfig = typeof githubRepositoryConfigs.$inferSelect;
 type GithubRepositoryConfigInsert = typeof githubRepositoryConfigs.$inferInsert;
@@ -151,7 +152,7 @@ export class GithubRepositoryConfigRepository {
       .returning();
 
     if (!config) {
-      throw new Error('Failed to create GitHub repository config');
+      throw new AppError('Failed to create GitHub repository config', 'INTERNAL_ERROR');
     }
 
     return config;

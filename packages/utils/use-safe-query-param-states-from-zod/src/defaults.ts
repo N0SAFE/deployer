@@ -8,7 +8,6 @@
  * case where the schema is flat.
  */
 import type { z } from 'zod'
-import { isRecord, isObjectLike } from '@repo/type-guards'
 
 import {
     getZodDefault,
@@ -130,8 +129,8 @@ function getEmptyPrimitive(schema: z.ZodType): unknown {
 
 function getEnumValues(schema: z.ZodType): unknown[] {
     const def = schema as { options?: readonly unknown[]; enum?: readonly unknown[] }
-    if (Array.isArray(def.options)) return [...def.options]
-    if (Array.isArray(def.enum)) return [...def.enum]
+    if (Array.isArray(def.options)) return Array.from(def.options)
+    if (Array.isArray(def.enum)) return Array.from(def.enum)
     const values = (schema as { _def?: { values?: unknown } })._def?.values
     if (values && typeof values === 'object') {
         return Object.values(values as Record<string, unknown>)

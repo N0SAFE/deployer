@@ -1,8 +1,19 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 
 // Define the input for the detailed endpoint
 export const healthDetailedInput = z.object({});
+
+// Supervisor health snapshot aggregated from the SupervisorOrchestratorService
+// (BaseSupervisorService subclasses auto-register there).
+export const supervisorHealthSchema = z.object({
+  supervisorId: z.string(),
+  description: z.string(),
+  healthy: z.boolean(),
+  state: z.enum(["idle", "converging", "converged", "degraded"]),
+  detail: z.string().nullable(),
+  checkedAt: z.string(),
+});
 
 // Define the output for the detailed endpoint
 export const healthDetailedOutput = z.object({
@@ -21,6 +32,7 @@ export const healthDetailedOutput = z.object({
     responseTime: z.coerce.number().optional(),
     error: z.string().optional(),
   }),
+  supervisors: z.array(supervisorHealthSchema),
 });
 
 const healthDetailedOps = standard.zod(healthDetailedOutput, "healthDetailed");
@@ -31,4 +43,5 @@ export const healthDetailedContract = healthDetailedOps
   .path("/detailed")
   .input(healthDetailedInput)
   .output(healthDetailedOutput)
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

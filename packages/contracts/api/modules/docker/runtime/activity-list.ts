@@ -1,4 +1,4 @@
-import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
+import { createFilterConfig, standard, type ComputeInputSchema, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerRuntimeActivityEntitySchema, dockerRuntimeEventSourceSchema } from "@repo/contracts-entities";
 
 const dockerRuntimeActivityOps = standard.zod(dockerRuntimeActivityEntitySchema, "dockerRuntimeActivity");
@@ -29,4 +29,5 @@ export type DockerRuntimeActivityListInput = ComputeInputSchema<typeof dockerRun
 export const dockerRuntimeActivityListContract = dockerRuntimeActivityOps
   .list(dockerRuntimeActivityListConfigSchemas)
   .path("/")
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

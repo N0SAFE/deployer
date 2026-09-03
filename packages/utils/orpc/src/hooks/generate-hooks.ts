@@ -104,7 +104,9 @@ export function createRouterHooks<TContract extends object, TRouter extends obje
   procedureNames.forEach(name => {
     const procedure = router[name] as unknown;
     const operationType = detectOperationType(procedure, name);
-    const typedProcedure = procedure as object;
+    // Narrow to a record so the client-surface property probes below are typed
+    // (unknown properties), not a bare `object` which rejects member access.
+    const typedProcedure: Record<string, unknown> = isObjectLike(procedure) ? procedure : {};
 
     switch (operationType) {
       case 'query':
@@ -247,16 +249,6 @@ export function createRouterHooks<TContract extends object, TRouter extends obje
   hooks.queryKeys = queryKeys;
 
   return hooks as RouterHooks<TContract, TRouter>;
-}
-
-/**
- * Legacy name-based detection for backwards compatibility.
- * Prefer `detectOperationType` which relies on contract metadata.
- */
-export function detectOperationTypeByName(name: string): 'query' | 'mutation' {
-  const mutationVerbs = ['create', 'update', 'delete', 'remove', 'add', 'set', 'toggle', 'check', 'verify', 'send'];
-  const lowerName = name.toLowerCase();
-  return mutationVerbs.some((verb) => lowerName.includes(verb)) ? 'mutation' : 'query';
 }
 
 /**

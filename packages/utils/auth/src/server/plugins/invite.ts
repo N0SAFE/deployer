@@ -171,12 +171,16 @@ export const invitePlugin = <TRoles extends string>(
             invitedUserId = existingUser.id;
           } else {
             // Create user if not exists
-            const newUser = await ctx.context.internalAdapter.createUser({
-              email: ctx.body.email,
-              name: ctx.body.email.split("@")[0] ?? ctx.body.email, // Default name from email
-              emailVerified: false,
-              role: ctx.body.role,
-            });
+            const newUser = await ctx.context.internalAdapter.createUser(
+              {
+                email: ctx.body.email,
+                name: ctx.body.email.split("@")[0] ?? ctx.body.email, // Default name from email
+                emailVerified: false,
+                role: ctx.body.role,
+              },
+              // better-auth >=1.7 provisioning gate: admin-initiated invite.
+              { method: "admin" },
+            );
 
             if (!newUser.id) {
               throw ctx.error("INTERNAL_SERVER_ERROR", {

@@ -149,7 +149,7 @@ export type DependencyLinkTarget = z.infer<typeof dependencyLinkTargetSchema>
 const dependencyInstanceProvisioningSchema = z.discriminatedUnion('provisioningMode', [
   z.object({
     provisioningMode: z.literal('shared-service'),
-    sharingScope: z.enum(['project', 'environment', 'organization']),
+    sharingScope: z.enum(['project', 'environment']),
     reuseKey: z.string().min(1),
     allowAttachAllTargets: z.boolean().default(false),
     noMatchPolicy: z.enum(['create-new-instance', 'fail']).default('create-new-instance'),
@@ -177,11 +177,11 @@ export const serviceDependencyLinkPolicySchema = z
   })
   .superRefine((policy, ctx) => {
     if (policy.target.mode === 'same-environment' && policy.provisioning.provisioningMode === 'shared-service') {
-      if (policy.provisioning.sharingScope === 'organization') {
+      if (policy.provisioning.sharingScope === 'project') {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['provisioning', 'sharingScope'],
-          message: 'same-environment target cannot use organization sharing scope.',
+          message: 'same-environment target cannot use project sharing scope.',
         })
       }
     }

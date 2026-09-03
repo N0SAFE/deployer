@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
   dockerContainerTerminalCloseBodySchema,
   dockerContainerTerminalMutationAckSchema,
@@ -14,4 +14,5 @@ export const dockerContainerTerminalCloseContract = dockerContainerTerminalClose
   .path("/close")
   .input((b) => b.body(dockerContainerTerminalCloseBodySchema))
   .output((b) => b.body(dockerContainerTerminalMutationAckSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

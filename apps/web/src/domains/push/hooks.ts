@@ -22,21 +22,21 @@ const enhancedPush = wrapWithInvalidations(pushEndpoints, pushInvalidations)
  * Get VAPID public key for push subscriptions
  */
 export function usePushPublicKey() {
-  return useQuery(pushEndpoints.getPublicKey.queryOptions())
+  return useQuery(pushEndpoints.getPublicKey.queryOptions({ input: {} }))
 }
 
 /**
  * Get list of push subscriptions
  */
 export function usePushSubscriptions() {
-  return useQuery(pushEndpoints.getSubscriptions.queryOptions())
+  return useQuery(pushEndpoints.getSubscriptions.queryOptions({ input: {} }))
 }
 
 /**
  * Get push notification statistics
  */
 export function usePushStats() {
-  return useQuery(pushEndpoints.getStats.queryOptions())
+  return useQuery(pushEndpoints.getStats.queryOptions({ input: {} }))
 }
 
 // ============================================================================

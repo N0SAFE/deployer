@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import type { PreviewTemplateConfig } from "@repo/contracts-entities";
-import { BadRequestError } from "@/core/errors/app-error";
+import { BadRequestError } from "@repo/errors";
 import { slugify } from "@/core/utils/slug.utils";
 
 export interface PreviewNamingInput {

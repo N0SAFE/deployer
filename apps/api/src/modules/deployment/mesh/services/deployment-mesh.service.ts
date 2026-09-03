@@ -2,6 +2,7 @@ import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/com
 import * as z from "zod";
 import { meshEntity, meshOperation } from "@/core/modules/mesh/primitives";
 import { BaseMeshService } from "@/core/modules/mesh/services/base-mesh.service";
+import type { AnyMeshEntity } from "@/core/modules/mesh/mesh-entity";
 import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 
@@ -79,7 +80,11 @@ export type ListDeploymentsResponsePayload = z.infer<typeof listDeploymentsRespo
 
 const DeploymentMeshBase = BaseMeshService({
     namespace: "deployment-internal",
-    entities: { deployments: deploymentsEntity },
+    // The entity's operations include index-signature-incompatible bound
+    // queries. It is type-correct on its own but does not structurally
+    // overlap AnyMeshEntity at the generic level, so we widen at the service
+    // boundary (the base consumes it as an opaque AnyMeshEntity).
+    entities: { deployments: deploymentsEntity as unknown as AnyMeshEntity },
 });
 
 @Injectable()
@@ -107,13 +112,11 @@ export class DeploymentMeshService extends DeploymentMeshBase implements OnModul
         }) =>
             | { payload: ResolveDeploymentResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: ResolveDeploymentResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerQueryHandler(
             "deployments",
             "resolve",
             handler,
-            { organizationId: options?.organizationId ?? null },
         );
     }
 
@@ -125,13 +128,11 @@ export class DeploymentMeshService extends DeploymentMeshBase implements OnModul
         }) =>
             | { payload: SearchDeploymentsResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: SearchDeploymentsResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerQueryHandler(
             "deployments",
             "search",
             handler,
-            { organizationId: options?.organizationId ?? null },
         );
     }
 
@@ -143,20 +144,17 @@ export class DeploymentMeshService extends DeploymentMeshBase implements OnModul
         }) =>
             | { payload: ListDeploymentsResponsePayload; stopPropagation?: boolean }
             | Promise<{ payload: ListDeploymentsResponsePayload; stopPropagation?: boolean }>,
-        options?: { organizationId?: string | null },
     ): void {
         this.registerQueryHandler(
             "deployments",
             "list",
             handler,
-            { organizationId: options?.organizationId ?? null },
         );
     }
 
     async searchDeploymentsAcrossInstances(
         payload: SearchDeploymentsRequestPayload,
         options?: {
-            organizationId?: string | null;
             timeoutMs?: number;
             stopOnFirstMatch?: boolean;
             maxCollectedResponses?: number;
@@ -172,7 +170,6 @@ export class DeploymentMeshService extends DeploymentMeshBase implements OnModul
             "search",
             payload,
             {
-                organizationId: options?.organizationId ?? null,
                 timeoutMs: options?.timeoutMs ?? 1_500,
                 maxCollectedResponses: options?.maxCollectedResponses,
                 stopWhen: options?.stopOnFirstMatch
@@ -194,7 +191,6 @@ export class DeploymentMeshService extends DeploymentMeshBase implements OnModul
     async listDeploymentsAcrossInstances(
         payload: ListDeploymentsRequestPayload,
         options?: {
-            organizationId?: string | null;
             timeoutMs?: number;
             maxCollectedResponses?: number;
         },
@@ -209,7 +205,6 @@ export class DeploymentMeshService extends DeploymentMeshBase implements OnModul
             "list",
             payload,
             {
-                organizationId: options?.organizationId ?? null,
                 timeoutMs: options?.timeoutMs ?? 1_500,
                 maxCollectedResponses: options?.maxCollectedResponses,
             },

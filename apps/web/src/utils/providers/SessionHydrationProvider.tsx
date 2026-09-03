@@ -38,7 +38,7 @@ import { unstable_rethrow } from 'next/navigation'
 import { SessionHydration } from '@repo/auth/react/session/server'
 import { SESSION_QUERY_KEY } from '@/lib/auth'
 import type { Session } from '@/lib/auth'
-import { getSessionFromCookie } from '@/lib/auth/cookie-session'
+import { getSessionFromCookie, hasSessionCookie } from '@/lib/auth/cookie-session'
 
 export interface SessionHydrationProviderProps {
     children: React.ReactNode
@@ -68,6 +68,21 @@ export interface SessionHydrationProviderProps {
 export async function SessionHydrationProvider({ 
     children 
 }: SessionHydrationProviderProps): Promise<React.ReactElement> {
+    // Fast path: no session cookie → skip the session fetch entirely.
+    // This avoids TanStack Query's setQueryData (which stamps dataUpdatedAt
+    // with Date.now()) during static prerendering — the source of the
+    // blocking-prerender-current-time insight on the home page. The client
+    // useSession() hook falls back to Better Auth's own fetch when the
+    // cache is empty, so skipping hydration here is safe.
+    let hasCookie = false
+    try {
+        hasCookie = await hasSessionCookie()
+    } catch (e) {
+        // Re-throw internal Next.js errors (PPR bailout, redirects, etc.)
+        unstable_rethrow(e)
+        hasCookie = false
+    }
+
     // Create fetchSession closure using cookie-based session retrieval
     // This is MUCH faster than HTTP-based getSession (~5ms vs ~1500ms)
     const fetchSession = async (): Promise<Session | null> => {
@@ -84,6 +99,7 @@ export async function SessionHydrationProvider({
     const result = await SessionHydration<Session>({
         fetchSession,
         sessionQueryKey: SESSION_QUERY_KEY,
+        shouldFetch: hasCookie,
         children,
     })
 

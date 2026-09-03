@@ -4,5 +4,4 @@ export * from './library';
 export * from './nextjs';
 export * from './nestjs';
 export * from './react';
-export * from './mdx';
 export type { Linter } from 'eslint';

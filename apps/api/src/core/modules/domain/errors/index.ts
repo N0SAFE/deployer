@@ -8,7 +8,7 @@
  * 
  * ```
  * DomainError (base)
- * ├── OrganizationDomainNotFoundError
+ * ├── DomainAlreadyExistsError
  * ├── DomainAlreadyExistsError
  * ├── InvalidDomainFormatError
  * ├── DomainNotVerifiedError
@@ -61,15 +61,11 @@
 // Base error
 export { DomainError } from './domain-error';
 
-// Organization domain errors
+// Domain errors (project-owned, mesh-wide tenant)
 export {
-  OrganizationDomainNotFoundError,
   DomainAlreadyExistsError,
-  InvalidDomainFormatError,
   DomainNotVerifiedError,
-  DomainDeletionError,
-  GranularityViolationError,
-} from './organization-domain-errors';
+} from './domain-errors';
 
 // Verification errors
 export {

@@ -34,6 +34,7 @@
 import { and, or, asc, desc, count, eq, ne, like, ilike, gt, gte, lt, lte, type AnyColumn, type SQL, type InferSelectModel } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import type { GlobalDatabase as Database } from "@/core/modules/database/services/global-database.service";
+import { AppError } from "@repo/errors";
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
@@ -103,7 +104,7 @@ function createCommonOperators(value: unknown): CommonOperators {
             const [from, to] = value as [unknown, unknown];
             const condition = and(gte(col, from), lte(col, to));
             if (!condition) {
-                throw new Error("[IllogicalState] condition should never be falsy since it returns a SQL object and as in input two separate conditions");
+                throw new AppError("[IllogicalState] condition should never be falsy since it returns a SQL object and as in input two separate conditions", "INTERNAL_ERROR");
             }
             return condition;
         },
@@ -181,7 +182,7 @@ function resolveSort<TField extends string>(
     const dirFn = sortDirection === "asc" ? asc : desc;
     if (!sortBy) return dirFn(defaultColumn);
     if (!(sortBy in columns)) {
-        throw new Error(`Unsupported sort field: ${sortBy}`);
+        throw new AppError(`Unsupported sort field: ${sortBy}`, `INTERNAL_ERROR`);
     }
     return dirFn(columns[sortBy]);
 }
@@ -301,7 +302,7 @@ export function listBuilder<TFilter extends Record<string, unknown>>(
             meta: PaginationMeta<PaginationInput>;
         }> {
             if (!_pagination) {
-                throw new Error("pagination() must be called before execute()");
+                throw new AppError("pagination() must be called before execute()", "INTERNAL_ERROR");
             }
 
             // Drizzle's table type is a complex generic that can't be narrowed statically.
@@ -338,8 +339,8 @@ export function listBuilder<TFilter extends Record<string, unknown>>(
             // Build queries
             // The from() call is inherently dynamic — Drizzle's generic chain
             // types don't compose statically when the table is a type parameter.
-            let dataQ = ensureDynamic(db.select().from(from) as unknown as QueryChain<InferSelectModel<TTable>[]>);
-            let countQ = ensureDynamic(db.select({ count: count() }).from(from) as unknown as QueryChain<{ count: number }[]>);
+            let dataQ = ensureDynamic(db.select().from(from as PgTable) as unknown as QueryChain<InferSelectModel<TTable>[]>);
+            let countQ = ensureDynamic(db.select({ count: count() }).from(from as PgTable) as unknown as QueryChain<{ count: number }[]>);
 
             if (_where) {
                 dataQ = dataQ.where(_where);

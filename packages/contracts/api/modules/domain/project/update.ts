@@ -18,4 +18,7 @@ export const updateProjectDomainContract = projectDomainOps
             .body(z.object(updateProjectDomainSchema.shape)),
     )
     .output((b) => b.entitySchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
+
+import { standardDomainErrorContracts } from "@repo/orpc-utils";

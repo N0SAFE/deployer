@@ -5,11 +5,9 @@
  * Use the `use*` functions for plugins that require access control configuration.
  */
 
-import { admin, organization } from "better-auth/plugins";
+import { admin } from "better-auth/plugins";
 import {
   platformAc,
-  organizationAc,
-  organizationRoles,
   platformRoles,
   platformSchemas,
 } from "../../permissions/config";
@@ -62,57 +60,6 @@ export function useAdmin(
 }
 
 export type AdminPlugin = ReturnType<typeof useAdmin>;
-
-// ============================================================================
-// Organization Plugin
-// ============================================================================
-
-/**
- * Server plugin wrapper for the organization plugin
- * 
- * Pre-configures organization with the project's access control and roles.
- * This ensures the server has consistent AC configuration.
- * 
- * Provides:
- * - Organization management (create, update, delete)
- * - Member management
- * - Organization invitations
- * - Organization roles
- * - Teams management (sub-groups within organizations)
- * 
- * @example
- * ```typescript
- * import { useOrganization } from '@repo/auth/server/plugins'
- * 
- * betterAuth({
- *   plugins: [
- *     useOrganization()
- *   ]
- * })
- * ```
- */
-export function useOrganization(
-  options: Omit<Parameters<typeof organization>[0], "ac" | "roles"> = {}
-) {
-  return organization({
-    ac: organizationAc,
-    roles: organizationRoles,
-    // Enable teams feature for sub-group management within organizations
-    teams: {
-      enabled: true,
-      allowRemovingAllTeams: true, // Allow removing all teams
-    },
-    // Enable dynamic roles stored in the `organization_role` table.
-    // Allows creating / updating / deleting custom roles at runtime via
-    // auth.organization.createRole / updateRole / deleteRole APIs.
-    dynamicAccessControl: {
-      enabled: true,
-    },
-    ...options,
-  });
-}
-
-export type OrganizationPlugin = ReturnType<typeof useOrganization>;
 
 // ============================================================================
 // Invite Plugin

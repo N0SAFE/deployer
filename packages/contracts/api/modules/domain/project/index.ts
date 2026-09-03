@@ -5,3 +5,4 @@ export * from "./get-available-for-service";
 export * from "./add";
 export * from "./update";
 export * from "./remove";
+export * from "./verify";

@@ -1,5 +1,5 @@
 import { oc } from "@orpc/contract";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import z from "zod/v4";
 
 export const fleetAllocationModeSchema = z.enum(["dedicated_full", "dedicated_slice", "shared_slice"]);
@@ -10,7 +10,7 @@ export const fleetNodeMetricSchema = z.object({
     memoryUsage: z.number().min(0).max(1),
     activeStreams: z.number().int().min(0),
     queueDepth: z.number().int().min(0),
-    reportedAt: z.date(),
+    reportedAt: z.string(),
 });
 
 export const fleetServerSummarySchema = z.object({
@@ -19,21 +19,19 @@ export const fleetServerSummarySchema = z.object({
     displayName: z.string().nullable(),
     status: z.enum(["active", "suspect", "draining", "revoked"]),
     healthy: z.boolean(),
-    lastSeenAt: z.date().nullable(),
+    lastSeenAt: z.string().nullable(),
     maxCpuMillicores: z.number().int().min(0).nullable(),
     maxMemoryMb: z.number().int().min(0).nullable(),
     metrics: fleetNodeMetricSchema.nullable(),
     allocationSummary: z.object({
-        organizations: z.number().int().min(0),
+        services: z.number().int().min(0),
         cpuMillicores: z.number().int().min(0),
         memoryMb: z.number().int().min(0),
     }),
 });
 
-export const fleetOrgServerAllocationSchema = z.object({
+export const fleetServerAllocationSchema = z.object({
     id: z.uuid(),
-    organizationId: z.string(),
-    organizationName: z.string().nullable(),
     serverNodeId: z.uuid(),
     serverUrl: z.string().nullable(),
     allocationMode: fleetAllocationModeSchema,
@@ -41,16 +39,14 @@ export const fleetOrgServerAllocationSchema = z.object({
     memoryMb: z.number().int().min(0),
     maxServices: z.number().int().min(0).nullable(),
     isEnabled: z.boolean(),
-    updatedAt: z.date(),
+    updatedAt: z.string(),
 });
 
 const listFleetAllocationsQuerySchema = z.object({
-    organizationId: z.string().optional(),
     serverNodeId: z.uuid().optional(),
 });
 
 const upsertFleetAllocationInputSchema = z.object({
-    organizationId: z.string(),
     serverNodeId: z.uuid(),
     allocationMode: fleetAllocationModeSchema,
     cpuMillicores: z.number().int().min(0),
@@ -60,7 +56,6 @@ const upsertFleetAllocationInputSchema = z.object({
 });
 
 const deleteFleetAllocationInputSchema = z.object({
-    organizationId: z.string(),
     serverNodeId: z.uuid(),
 });
 
@@ -81,7 +76,6 @@ const createFleetAdmissionRequestInputSchema = z.object({
 
 const listFleetAdmissionRequestsQuerySchema = z.object({
     status: fleetAdmissionRequestStatusSchema.optional(),
-    organizationId: z.string().optional(),
 });
 
 const resolveFleetAdmissionRequestInputSchema = z.object({
@@ -102,17 +96,14 @@ const fleetAdmissionCandidateSchema = z.object({
 });
 
 const fleetAdmissionCheckResultSchema = z.object({
-    organizationId: z.string(),
     allowed: z.boolean(),
     reason: z.string().nullable(),
-    evaluatedAt: z.date(),
+    evaluatedAt: z.string(),
     candidates: z.array(fleetAdmissionCandidateSchema),
 });
 
 const fleetAdmissionRequestSchema = z.object({
     id: z.uuid(),
-    organizationId: z.string(),
-    organizationName: z.string().nullable(),
     status: fleetAdmissionRequestStatusSchema,
     requestedServerNodeId: z.uuid().nullable(),
     decisionServerNodeId: z.uuid().nullable(),
@@ -123,14 +114,14 @@ const fleetAdmissionRequestSchema = z.object({
     requesterNote: z.string().nullable(),
     reviewedByUserId: z.string().nullable(),
     reviewerNote: z.string().nullable(),
-    reviewedAt: z.date().nullable(),
-    createdAt: z.date(),
-    updatedAt: z.date(),
+    reviewedAt: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
 });
 
 const fleetServerSummaryOps = standard.zod(fleetServerSummarySchema, "fleetServerSummary");
-const fleetOrgServerAllocationOps = standard.zod(
-    fleetOrgServerAllocationSchema,
+const fleetServerAllocationOps = standard.zod(
+    fleetServerAllocationSchema,
     "fleetOrgServerAllocation",
 );
 const fleetAdmissionCheckOps = standard.zod(fleetAdmissionCheckResultSchema, "fleetAdmissionCheck");
@@ -147,24 +138,28 @@ export const fleetListServersContract = fleetServerSummaryOps
     .output((b) => b.body(z.object({ items: z.array(fleetServerSummarySchema) })))
     .build();
 
-export const fleetListAllocationsContract = fleetOrgServerAllocationOps
+export const fleetListAllocationsContract = fleetServerAllocationOps
     .list()
     .path("/allocations")
     .input((b) => b.query(listFleetAllocationsQuerySchema))
-    .output((b) => b.body(z.object({ items: z.array(fleetOrgServerAllocationSchema) })))
+    .output((b) => b.body(z.object({ items: z.array(fleetServerAllocationSchema) })))
     .build();
 
-export const fleetListMyAllocationsContract = fleetOrgServerAllocationOps
+export const fleetListMyAllocationsContract = fleetServerAllocationOps
     .list()
     .path("/allocations/me")
-    .output((b) => b.body(z.object({ items: z.array(fleetOrgServerAllocationSchema) })))
+    .output((b) => b.body(z.object({ items: z.array(fleetServerAllocationSchema) })))
     .build();
 
-export const fleetUpsertAllocationContract = fleetOrgServerAllocationOps
+export const fleetUpsertAllocationContract = fleetServerAllocationOps
     .create()
     .path("/allocations/upsert")
     .input((b) => b.body(upsertFleetAllocationInputSchema))
-    .output((b) => b.body(fleetOrgServerAllocationSchema))
+    .output((b) => b.body(fleetServerAllocationSchema))
+    .errors((e) => [
+        // 404 unknown org/server; 409 allocation conflict.
+        ...standardDomainErrorContracts(e),
+    ])
     .build();
 
 export const fleetDeleteAllocationContract = fleetAllocationDeleteOps
@@ -172,6 +167,10 @@ export const fleetDeleteAllocationContract = fleetAllocationDeleteOps
     .path("/allocations/delete")
     .input((b) => b.body(deleteFleetAllocationInputSchema))
     .output((b) => b.body(fleetAllocationDeleteResultSchema))
+    .errors((e) => [
+        // 404 for unknown allocation.
+        ...standardDomainErrorContracts(e),
+    ])
     .build();
 
 export const fleetCheckMyAdmissionContract = fleetAdmissionCheckOps

@@ -1,4 +1,4 @@
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
   dockerContainerRenamePathBodySchema,
   dockerContainerTerminalMutationAckSchema,
@@ -14,4 +14,5 @@ export const dockerContainerRenamePathContract = dockerContainerRenamePathOps
   .path("/rename")
   .input((b) => b.body(dockerContainerRenamePathBodySchema))
   .output((b) => b.body(dockerContainerTerminalMutationAckSchema))
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

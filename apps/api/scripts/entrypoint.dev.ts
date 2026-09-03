@@ -2,8 +2,9 @@
 
 import { existsSync, readFileSync } from 'fs'
 import { execSync, spawn, spawnSync } from 'child_process'
-import { validateApiEnv, apiEnvIsValid, validateApiEnvSafe } from '@repo/env'
+import { apiEnvIsValid, validateApiEnvSafe } from '@repo/env'
 import zod from 'zod/v4'
+import figlet from 'figlet'
 
 // ─── Version ───────────────────────────────────────────────────────────────────
 // Read deployer version from package.json at module load time using
@@ -311,13 +312,7 @@ function main(): void {
   }
 
   console.log('🎯 API Development Entrypoint Started\n')
-  console.log('════════════════════════════════════════════════════════')
-  console.log('  ██████  ████████  █████  ██████  ████████ ██    ██ ')
-  console.log('  ██   ██    ██    ██   ██ ██   ██    ██    ██    ██ ')
-  console.log('  ██████     ██    ███████ ██████     ██    ██    ██ ')
-  console.log('  ██         ██    ██   ██ ██   ██    ██    ██    ██ ')
-  console.log('  ██         ██    ██   ██ ██   ██    ██     ██████  ')
-  console.log('════════════════════════════════════════════════════════')
+  console.log(figlet.textSync('DEPLOYER', {font: 'Standard'}))
   console.log()
 
   // ── Phase 1: Version Extraction ──────────────────────────────────────

@@ -14,47 +14,17 @@ export const verificationMethodSchema = z.enum(VERIFICATION_METHOD_VALUES);
 export const sslProviderSchema = z.enum(SSL_PROVIDER_VALUES);
 
 // ==========================================
-// ORGANIZATION DOMAIN SCHEMAS
+// PROJECT DOMAIN SCHEMAS
+// Domains belong DIRECTLY to projects (no organization layer — the mesh is
+// the single tenant). Verification is per-project-domain; the verified domain
+// is available to the project's services via subdomain mappings.
 // ==========================================
-
-export const addOrganizationDomainSchema = z.object({
-  organizationId: z.uuid(),
-  domain: z.string().min(1).max(255).regex(
-    /^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$/i,
-    'Invalid domain format'
-  ),
-  verificationMethod: verificationMethodSchema.default('txt_record'),
-});
-
-export const organizationDomainSchema = z.object({
-  id: z.uuid(),
-  organizationId: z.uuid(),
-  domain: z.string(),
-  verificationStatus: verificationStatusSchema,
-  verificationMethod: verificationMethodSchema,
-  verificationToken: z.string(),
-  dnsRecordChecked: z.boolean(),
-  lastVerificationAttempt: z.date().nullable(),
-  verifiedAt: z.date().nullable(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-  metadata: z.object({
-    registrar: z.string().optional(),
-    expiresAt: z.date().optional(),
-    autoRenew: z.boolean().optional(),
-  }).catchall(z.any()).optional(),
-});
 
 export const verificationInstructionsSchema = z.object({
   method: verificationMethodSchema,
   recordName: z.string(),
   recordValue: z.string(),
   instructions: z.string(),
-});
-
-export const addDomainResponseSchema = z.object({
-  organizationDomain: organizationDomainSchema,
-  verificationInstructions: verificationInstructionsSchema,
 });
 
 export const verifyDomainResponseSchema = z.object({
@@ -68,13 +38,13 @@ export const verifyDomainResponseSchema = z.object({
   }).optional(),
 });
 
-// ==========================================
-// PROJECT DOMAIN SCHEMAS
-// ==========================================
-
 export const addProjectDomainSchema = z.object({
   projectId: z.uuid(),
-  organizationDomainId: z.uuid(),
+  domain: z.string().min(1).max(255).regex(
+    /^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$/i,
+    'Invalid domain format'
+  ),
+  verificationMethod: verificationMethodSchema.default('txt_record'),
   allowedSubdomains: z.array(z.string().max(100)).default([]),
   isPrimary: z.boolean().default(false),
 });
@@ -87,18 +57,32 @@ export const updateProjectDomainSchema = z.object({
 export const projectDomainSchema = z.object({
   id: z.uuid(),
   projectId: z.uuid(),
-  organizationDomainId: z.uuid(),
+  domain: z.string(),
+  verificationStatus: verificationStatusSchema,
+  verificationMethod: verificationMethodSchema,
+  verificationToken: z.string(),
+  dnsRecordChecked: z.boolean(),
+  lastVerificationAttempt: z.date().nullable(),
+  verifiedAt: z.date().nullable(),
   allowedSubdomains: z.array(z.string()),
   isPrimary: z.boolean(),
   createdAt: z.date(),
   updatedAt: z.date(),
   metadata: z.object({
     notes: z.string().optional(),
+    registrar: z.string().optional(),
+    expiresAt: z.date().optional(),
+    autoRenew: z.boolean().optional(),
   }).catchall(z.any()).optional(),
 });
 
-export const projectDomainWithOrgDomainSchema = projectDomainSchema.extend({
-  organizationDomain: organizationDomainSchema,
+export const addDomainResponseSchema = z.object({
+  projectDomain: projectDomainSchema,
+  verificationInstructions: verificationInstructionsSchema,
+});
+
+export const projectDomainWithVerificationSchema = projectDomainSchema.extend({
+  verificationInstructions: verificationInstructionsSchema,
 });
 
 export const availableDomainSchema = z.object({
@@ -173,11 +157,7 @@ export const serviceDomainMappingSchema = z.object({
 
 export const serviceDomainWithFullUrlSchema = serviceDomainMappingSchema.extend({
   fullUrl: z.string(),
-  organizationDomain: z.object({
-    id: z.uuid(),
-    domain: z.string(),
-    verificationStatus: z.literal('verified'),
-  }),
+  domain: z.string(),
 });
 
 export const addServiceDomainResponseSchema = z.object({
@@ -214,8 +194,6 @@ export type VerificationStatus = z.infer<typeof verificationStatusSchema>;
 export type VerificationMethod = z.infer<typeof verificationMethodSchema>;
 export type SslProvider = z.infer<typeof sslProviderSchema>;
 
-export type AddOrganizationDomain = z.infer<typeof addOrganizationDomainSchema>;
-export type OrganizationDomain = z.infer<typeof organizationDomainSchema>;
 export type VerificationInstructions = z.infer<typeof verificationInstructionsSchema>;
 export type AddDomainResponse = z.infer<typeof addDomainResponseSchema>;
 export type VerifyDomainResponse = z.infer<typeof verifyDomainResponseSchema>;
@@ -223,7 +201,6 @@ export type VerifyDomainResponse = z.infer<typeof verifyDomainResponseSchema>;
 export type AddProjectDomain = z.infer<typeof addProjectDomainSchema>;
 export type UpdateProjectDomain = z.infer<typeof updateProjectDomainSchema>;
 export type ProjectDomain = z.infer<typeof projectDomainSchema>;
-export type ProjectDomainWithOrgDomain = z.infer<typeof projectDomainWithOrgDomainSchema>;
 export type AvailableDomain = z.infer<typeof availableDomainSchema>;
 
 export type CheckSubdomainAvailability = z.infer<typeof checkSubdomainAvailabilitySchema>;

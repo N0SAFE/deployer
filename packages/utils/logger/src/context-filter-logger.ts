@@ -1,5 +1,5 @@
 import type { LogData, Logger } from "./index";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { isRecord } from "@repo/type-guards"
 
 
 /**
@@ -295,7 +295,7 @@ export class ContextFilterLogger {
     }
 
     if (typeof source === "function") {
-      const fnName = source.name?.trim();
+      const fnName = source.name.trim();
       return {
         methodName: fnName && fnName.length > 0 ? fnName : undefined,
         sourceName: fnName && fnName.length > 0 ? fnName : "anonymous",
@@ -352,7 +352,7 @@ export class ContextFilterLogger {
       }
 
       if (typeof value === "function") {
-        const fnName = value.name?.trim();
+        const fnName = value.name.trim();
         if (fnName && fnName.length > 0) {
           return fnName;
         }
@@ -461,7 +461,9 @@ export class ContextFilterLogger {
   }
 
   private static globToRegex(globPattern: string): RegExp {
-    const escaped = [...globPattern]
+    // Array.from iterates over Unicode code points (handles surrogate pairs),
+    // unlike the spread operator or `.split("")` which the linter flags.
+    const escaped = Array.from(globPattern)
       .map((char) => {
         if (char === "*") {
           return ".*";

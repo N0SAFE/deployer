@@ -171,7 +171,7 @@ function useClientRouteHelpers<
         if (isZodObjectSchema(searchSchema)) {
             const [state, setter] = useSafeQueryParamStatesFromZod(searchSchema)
             return [
-                state as z.output<Search>,
+                state,
                 setter as unknown as (value: z.input<Search> | null) => void,
             ]
         }

@@ -630,7 +630,7 @@ export default function DashboardDockerLogsPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <select
+                <select aria-label="Single"
                   className="h-8 rounded-md border border-border/70 bg-background/70 px-2 text-xs"
                   value={logsViewMode}
                   onChange={(event) => {
@@ -746,7 +746,7 @@ export default function DashboardDockerLogsPage() {
                   placeholder="Search logs"
                 />
               </div>
-              <select
+              <select aria-label="All sources"
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={logsSourceFilter}
                 onChange={(event) => {
@@ -757,7 +757,7 @@ export default function DashboardDockerLogsPage() {
                 <option value="runtime">Runtime stream</option>
                 <option value="container">Container logs stream</option>
               </select>
-              <select
+              <select aria-label="All containers"
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={logsContainerFilter}
                 onChange={(event) => {

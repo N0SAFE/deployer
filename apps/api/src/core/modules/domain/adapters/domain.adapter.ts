@@ -1,7 +1,6 @@
-import type { organizationDomains, projectDomains, serviceDomainMappings } from '@/config/drizzle/global/schema/domain';
+import type { projectDomains, serviceDomainMappings } from '@/config/drizzle/global/schema/domain';
 import type { z } from 'zod';
 import type {
-  organizationDomainSchema,
   projectDomainSchema,
   serviceDomainMappingSchema,
   addDomainResponseSchema,
@@ -9,11 +8,9 @@ import type {
   verificationInstructionsSchema,
 } from '@repo/api-contracts';
 
-type OrganizationDomain = typeof organizationDomains.$inferSelect;
 type ProjectDomain = typeof projectDomains.$inferSelect;
 type ServiceDomainMapping = typeof serviceDomainMappings.$inferSelect;
 
-type OrganizationDomainContract = z.infer<typeof organizationDomainSchema>;
 type ProjectDomainContract = z.infer<typeof projectDomainSchema>;
 type ServiceDomainMappingContract = z.infer<typeof serviceDomainMappingSchema>;
 type AddDomainResponse = z.infer<typeof addDomainResponseSchema>;
@@ -21,39 +18,6 @@ type VerifyDomainResponse = z.infer<typeof verifyDomainResponseSchema>;
 type VerificationInstructions = z.infer<typeof verificationInstructionsSchema>;
 
 export class DomainAdapter {
-  /**
-   * Adapt organization domain entity to contract schema
-   */
-  static toOrganizationDomainContract(entity: OrganizationDomain): OrganizationDomainContract {
-    return {
-      id: entity.id,
-      organizationId: entity.organizationId,
-      domain: entity.domain,
-      verificationStatus: entity.verificationStatus,
-      verificationMethod: entity.verificationMethod,
-      verificationToken: entity.verificationToken,
-      dnsRecordChecked: entity.dnsRecordChecked,
-      lastVerificationAttempt: entity.lastVerificationAttempt,
-      verifiedAt: entity.verifiedAt,
-      createdAt: entity.createdAt,
-      updatedAt: entity.updatedAt,
-      metadata: entity.metadata ?? undefined,
-    };
-  }
-  
-  /**
-   * Adapt organization domain with verification instructions
-   */
-  static toAddDomainResponse(
-    entity: OrganizationDomain,
-    instructions: VerificationInstructions
-  ): AddDomainResponse {
-    return {
-      organizationDomain: DomainAdapter.toOrganizationDomainContract(entity),
-      verificationInstructions: instructions,
-    };
-  }
-
   /**
    * Adapt verification result to contract schema
    */
@@ -83,30 +47,19 @@ export class DomainAdapter {
     return {
       id: entity.id,
       projectId: entity.projectId,
-      organizationDomainId: entity.organizationDomainId,
+      domain: entity.domain,
+      verificationStatus: entity.verificationStatus,
+      verificationMethod: entity.verificationMethod,
+      verificationToken: entity.verificationToken,
+      dnsRecordChecked: entity.dnsRecordChecked,
+      lastVerificationAttempt: entity.lastVerificationAttempt,
+      verifiedAt: entity.verifiedAt,
       allowedSubdomains: entity.allowedSubdomains,
       isPrimary: entity.isPrimary,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
       metadata: entity.metadata ?? undefined,
     };
-  }
-
-  /**
-   * Adapt available domains response
-   */
-  static toAvailableDomainsResponse(domains: {
-    organizationDomainId: string;
-    domain: string;
-    organizationId: string;
-  }[]): {
-    organizationDomainId: string;
-    domain: string;
-  }[] {
-    return domains.map(d => ({
-      organizationDomainId: d.organizationDomainId,
-      domain: d.domain,
-    }));
   }
 
   /**

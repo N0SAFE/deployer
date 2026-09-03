@@ -39,16 +39,12 @@ export function extractRoutesFromExpress(
     return routes;
   }
 
-  for (const layer of stack) {
-    if (!layer || !layer.route) continue;
+  for (const rawLayer of stack) {
+    const layer = isExpressLayer(rawLayer) ? rawLayer : null;
+    if (!layer || !layer.route || !layer.route.path || !layer.route.methods) continue;
 
-    const route = layer.route;
-    const path = route.path as string | undefined;
-    if (!path) continue;
-
-    // Express stores methods as { get: true, post: true, ... }
-    const methods = route.methods as Record<string, boolean> | undefined;
-    if (!methods) continue;
+    const path = layer.route.path;
+    const methods = layer.route.methods;
 
     for (const [method, enabled] of Object.entries(methods)) {
       if (!enabled) continue;
@@ -61,6 +57,17 @@ export function extractRoutesFromExpress(
   }
 
   return routes;
+}
+
+interface ExpressLayer {
+  route?: {
+    path?: string;
+    methods?: Record<string, boolean>;
+  };
+}
+
+function isExpressLayer(value: unknown): value is ExpressLayer {
+  return typeof value === "object" && value !== null;
 }
 
 interface NestAppWithHttpAdapter {

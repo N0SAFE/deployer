@@ -1,4 +1,4 @@
-import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
+import { createFilterConfig, standard, type ComputeInputSchema, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { dockerVolumeEntitySchema } from "@repo/contracts-entities";
 
 const dockerVolumeListItemSchema = dockerVolumeEntitySchema.omit({ relations: true });
@@ -21,4 +21,5 @@ export type DockerVolumeListInput = ComputeInputSchema<typeof dockerVolumeListCo
 export const dockerListVolumesContract = dockerVolumeOps
   .list(dockerVolumeListConfigSchemas)
   .path("/")
+  .errors((e) => [...standardDomainErrorContracts(e)])
   .build();

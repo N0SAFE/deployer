@@ -2,6 +2,7 @@ import z from 'zod/v4'
 import {
   projectDeploymentStrategySchema,
 } from '@repo/contracts-common'
+import { serviceContractRegistryMapSchema } from '../configuration/contract-registry.schema'
 
 export const projectBaseEnvironmentSettingsSchema = z.object({
   variables: z.record(z.string(), z.string()),
@@ -120,16 +121,32 @@ export const projectNotificationSettingsSchema = z
   })
   .strict()
 
+/**
+ * Settings stored in `project.settings` JSONB — the FLAT shape the DB and API
+ * actually use. The dedicated `/projects/:id/config/*` endpoints are the
+ * read/write surfaces for each section; this is the raw storage shape that
+ * the project entity carries. All keys are optional: the JSONB blob is
+ * written incrementally, section by section, so any subset is valid.
+ */
 export const projectSettingsSchema = z
   .object({
-    general: projectGeneralSettingsSchema,
-    environment: projectEnvironmentSettingsSchema,
-    deployment: projectDeploymentSettingsSchema,
-    security: projectSecuritySettingsSchema,
-    resource: projectResourceSettingsSchema,
-    notification: projectNotificationSettingsSchema,
+    // General config (name/description/baseDomain are top-level columns)
+    ...projectGeneralSettingsSchema.shape,
+    // Environment config — per-environment variable maps (flat)
+    defaultEnvironmentVariables: z.record(z.string(), z.string()).optional(),
+    productionEnvironmentVariables: z.record(z.string(), z.string()).optional(),
+    stagingEnvironmentVariables: z.record(z.string(), z.string()).optional(),
+    developmentEnvironmentVariables: z.record(z.string(), z.string()).optional(),
+    // Deployment / security / resource / notification config
+    ...projectDeploymentSettingsSchema.shape,
+    ...projectSecuritySettingsSchema.shape,
+    ...projectResourceSettingsSchema.shape,
+    ...projectNotificationSettingsSchema.shape,
+    // Contract registry — the "interfaces" services implement (DI semantics).
+    // Mocks must implement the same contractRef as the service they replace.
+    contracts: serviceContractRegistryMapSchema.optional(),
   })
-  .strict()
+  .partial()
 
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>
 
@@ -142,7 +159,20 @@ export const projectGeneralConfigSchema = z
   })
   .strict()
 
-export const projectEnvironmentConfigSchema = projectEnvironmentSettingsSchema
+/**
+ * Environment config read/write shape — the FLAT per-environment variable
+ * layout that the API and DB actually use (the nested `projectEnvironment
+ * SettingsSchema` is the settings-storage shape; this is the config-surface
+ * shape served by `/projects/:id/config/environment`).
+ */
+export const projectEnvironmentConfigSchema = z
+  .object({
+    defaultEnvironmentVariables: z.record(z.string(), z.string()).default({}),
+    productionEnvironmentVariables: z.record(z.string(), z.string()).default({}),
+    stagingEnvironmentVariables: z.record(z.string(), z.string()).default({}),
+    developmentEnvironmentVariables: z.record(z.string(), z.string()).default({}),
+  })
+  .strict()
 
 export const projectDeploymentConfigSchema = projectDeploymentSettingsSchema
 

@@ -1,3 +1,5 @@
+import { AppError } from "@repo/errors";
+import { Logger } from '@nestjs/common'
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
 import type * as globalSchema from '@/config/drizzle/global/schema'
 import type * as localSchema from '@/config/drizzle/local/schema'
@@ -8,6 +10,7 @@ export abstract class BaseDatabaseService<
         | NodePgDatabase<typeof globalSchema>
         | BunSQLiteDatabase<typeof localSchema>,
 > {
+    protected readonly logger = new Logger(this.constructor.name)
     private _db: DB | undefined
 
     constructor(db?: DB) {
@@ -27,7 +30,7 @@ export abstract class BaseDatabaseService<
     /** The underlying Drizzle database handle. Throws if not yet initialized. */
     get db(): DB {
         if (!this._db) {
-            throw new Error(`${this.constructor.name} has not been initialized yet`)
+            throw new AppError(`${this.constructor.name} has not been initialized yet`, `DATABASE_NOT_INITIALIZED`)
         }
         return this._db
     }
@@ -44,10 +47,11 @@ export abstract class BaseDatabaseService<
                 // likely Postgres
                 anyDb.execute('SELECT 1')
             } else {
-                throw new Error('Unsupported database type')
+                throw new AppError('Unsupported database type', 'DATABASE_NOT_INITIALIZED')
             }
             return true
-        } catch {
+        } catch (err: unknown) {
+            this.logger.warn(`Health check failed: ${err instanceof Error ? err.message : String(err)}`)
             return false
         }
     }

@@ -153,6 +153,24 @@ export const analyticsReportSchema = z.object({
     userActivity: activitySummarySchema.optional(),
 });
 
+/**
+ * Where a metrics/usage payload actually comes from. The analytics module is
+ * honest about provenance: metrics backed by real sources (docker stats,
+ * deployments tables) declare their source; telemetry with NO connected source
+ * (e.g. APM request counts without instrumentation) returns
+ * `dataSource: "unavailable"` with an EMPTY payload so the UI never plots
+ * fabricated numbers.
+ */
+export const analyticsDataSourceSchema = z.enum([
+    "docker",
+    "deployments",
+    "services",
+    "reports",
+    "unavailable",
+]);
+
+export type AnalyticsDataSource = z.infer<typeof analyticsDataSourceSchema>;
+
 export const getMetricsInputSchema = z.object({
     timeRange: timeRangeSchema.default("1d"),
     granularity: z.enum(["minute", "hour", "day"]).default("hour"),

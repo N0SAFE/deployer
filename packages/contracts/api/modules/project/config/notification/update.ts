@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { standard } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { projectNotificationConfigSchema } from "@repo/contracts-entities";
  
 const projectNotificationConfigOps = standard.zod(projectNotificationConfigSchema, "projectNotificationConfig");
@@ -14,4 +14,5 @@ export const projectUpdateNotificationConfigContract = projectNotificationConfig
             .body(projectNotificationConfigUpdateInputSchema),
     )
     .output(projectNotificationConfigSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
     .build();

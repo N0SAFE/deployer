@@ -12,7 +12,8 @@ import type {
     ORPCContextWithAuthBrand,
 } from './types'
 import { AUTH_MIDDLEWARE_BRAND_VALUE } from './types'
-import { os, ORPCError } from '@orpc/server'
+import { os } from '@orpc/server'
+import { standardErrorOptions, STANDARD_DOMAIN_ERROR_DEFS } from '@repo/orpc-utils'
 import { verifyMeshToken, verifyPeerServiceToken } from '@repo/auth/mesh'
 import { EnvService } from '@/config/env/env.service'
 import type { Env } from '@/config/env/env'
@@ -138,11 +139,12 @@ export function authMiddleware() {
     return os.$context<ORPCGlobalContext>().middleware(({ context, next }) => {
         // Verify the AuthPlugin populated context.auth at runtime
         if (!validateAuthOnContext(context)) {
-            throw new ORPCError('PRECONDITION_FAILED', {
-                message:
-                    'Auth context not available. The AuthPlugin must be registered in ORPCModule.',
-                status: 500,
-            })
+            // Config/invariant bug — NOT a domain error. A plain Error is
+            // converted by oRPC to INTERNAL_SERVER_ERROR; no hand-built
+            // ORPCError with an off-contract code is ever thrown.
+            throw new Error(
+                'Auth context not available. The AuthPlugin must be registered in ORPCModule.',
+            )
         }
 
         return next({
@@ -204,10 +206,20 @@ export function requireAuth() {
     return authMiddleware().concat(
         os
             .$context<ORPCContextWithAuthOnly>()
-            .middleware(({ context, next }) => {
-                // This throws UNAUTHORIZED if no session is available.
-                // After it succeeds, session and user are guaranteed non-null.
-                context.auth.requireAuth()
+            .errors(STANDARD_DOMAIN_ERROR_DEFS)
+            .middleware(({ context, next, errors }) => {
+                // Throw the contract-defined UNAUTHORIZED when there is no
+                // session. After it succeeds, session and user are guaranteed
+                // non-null.
+                if (
+                    !context.auth.isLoggedIn ||
+                    context.auth.session === null ||
+                    context.auth.user === null
+                ) {
+                    throw errors.UNAUTHORIZED(
+                        standardErrorOptions('unauthorized', 'Authentication required'),
+                    )
+                }
 
                 return next({
                     context: {
@@ -233,7 +245,6 @@ function makeAuthenticatedAuth(auth: ORPCAuthContext): ORPCAuthContext<true> {
         session: auth.session,
         user: auth.user,
         admin: auth.admin,
-        org: auth.org,
         requireAuth: () => auth.requireAuth(),
     } as ORPCAuthContext<true>
 }
@@ -356,7 +367,8 @@ function buildMeshContext(
 export function requireMesh() {
     return os
         .$context<ORPCContextWithAuth>()
-        .middleware(async ({ context, next }) => {
+        .errors(STANDARD_DOMAIN_ERROR_DEFS)
+        .middleware(async ({ context, next, errors }) => {
             const request = context.request
             const webHeaders = toWebHeaders(request.headers)
 
@@ -365,27 +377,27 @@ export function requireMesh() {
                 webHeaders.get(HDR_MESH_INTERNAL_KEY.toUpperCase())
 
             if (!internalKey) {
-                throw new ORPCError('FORBIDDEN', {
-                    message: 'Mesh endpoint requires internal credentials',
-                })
+                throw errors.FORBIDDEN(
+                    standardErrorOptions('forbidden', 'Mesh endpoint requires internal credentials'),
+                )
             }
 
-            // ── 1. Peer service token (v2.) — preferred ────────────────────
+            // ── 1. Peer service token (v2.) — preferred ────────────────
             if (internalKey.startsWith('v2.')) {
                 const sharedSecret = resolveSharedSecret()
                 if (!sharedSecret) {
-                    throw new ORPCError('FORBIDDEN', {
-                        message: 'Mesh shared secret is not configured',
-                    })
+                    throw errors.FORBIDDEN(
+                        standardErrorOptions('forbidden', 'Mesh shared secret is not configured'),
+                    )
                 }
                 const verified = verifyPeerServiceToken(
                     internalKey,
                     sharedSecret
                 )
                 if (!verified) {
-                    throw new ORPCError('UNAUTHORIZED', {
-                        message: 'Invalid or expired peer service token',
-                    })
+                    throw errors.UNAUTHORIZED(
+                        standardErrorOptions('unauthorized', 'Invalid or expired peer service token'),
+                    )
                 }
                 const meshCtx = buildMeshContext(
                     verified.nodeId,
@@ -400,20 +412,20 @@ export function requireMesh() {
                 })
             }
 
-            // ── 2. Generic mesh control token (v1. or bare secret) ──────────
+            // ── 2. Generic mesh control token (v1. or bare secret) ──────
             const sharedSecret = resolveSharedSecret()
             if (!sharedSecret) {
-                throw new ORPCError('FORBIDDEN', {
-                    message: 'Mesh shared secret is not configured',
-                })
+                throw errors.FORBIDDEN(
+                    standardErrorOptions('forbidden', 'Mesh shared secret is not configured'),
+                )
             }
             const ok = internalKey.startsWith('v1.')
                 ? verifyMeshToken(internalKey, sharedSecret)
                 : internalKey.trim() === sharedSecret
             if (!ok) {
-                throw new ORPCError('FORBIDDEN', {
-                    message: 'Mesh endpoint requires internal credentials',
-                })
+                throw errors.FORBIDDEN(
+                    standardErrorOptions('forbidden', 'Mesh endpoint requires internal credentials'),
+                )
             }
             const meshCtx = buildMeshContext(
                 'mesh-internal',
@@ -452,15 +464,18 @@ export function requireMesh() {
 export function requirePlatformRole(allowedRoles: string[]) {
     return os
         .$context<ORPCContextWithAuthOnly<true>>() // Requires authenticated context
-        .middleware(({ context, next }) => {
+        .errors(STANDARD_DOMAIN_ERROR_DEFS)
+        .middleware(({ context, next, errors }) => {
             const userRole = context.auth.user.role
 
             if (!userRole || !allowedRoles.includes(userRole)) {
-                throw new ORPCError('FORBIDDEN', {
-                    message:
+                throw errors.FORBIDDEN(
+                    standardErrorOptions(
+                        'forbidden',
                         'Insufficient permissions. Required role: ' +
                         allowedRoles.join(', '),
-                })
+                    ),
+                )
             }
 
             return next({ context })

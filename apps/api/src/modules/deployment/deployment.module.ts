@@ -1,5 +1,4 @@
 import { Module } from "@nestjs/common";
-import { BullModule } from "@nestjs/bull";
 import { DatabaseModule } from "../../core/modules/database/database.module";
 import { ConfigurationCoreModule } from "@/core/modules/configuration/configuration-core.module";
 import { DeploymentCoreModule } from "@/core/modules/deployment/deployment-core.module";
@@ -12,12 +11,12 @@ import { DeploymentEventService } from "./events/deployment-event.service";
 import { DeploymentReadModelProjectorService } from "./events/deployment-read-model-projector.service";
 import { DeploymentExecutionWorkflowService } from "./services/deployment-execution-workflow.service";
 import { DeploymentQueueLifecycleService } from "./queue/deployment-queue-lifecycle.service";
-import { DeploymentBullQueueService } from "./queue/deployment-bull-queue.service";
+import { DeploymentQueueWorkerService } from "./queue/deployment-queue.worker.service";
 import { DeploymentQueueEventService } from "./queue/deployment-queue-event.service";
-import { DeploymentQueueProcessor } from "./queue/deployment-queue.processor";
+import { DeploymentQueueReconciliationService } from "./queue/deployment-queue-reconciliation.service";
 import { CoreEventSyncService } from "@/core/modules/events";
-import { DeploymentProvidersModule } from "./providers/providers.module";
-import { DeploymentRunnersModule } from "./runners/runners.module";
+import { ProvidersModule } from "@/modules/providers/providers.module";
+import { RunnersModule } from "@/modules/runners/runners.module";
 import { DeploymentMeshService } from "./mesh/services/deployment-mesh.service";
 import { DeploymentsMeshService } from "./mesh/services/deployments.mesh.service";
 import { DeploymentStreamBridgeService } from "./mesh/services/deployment-stream-bridge.service";
@@ -26,6 +25,7 @@ import { DeploymentMeshHandlerRegistrar } from "./mesh/registrars/deployment-mes
 import { PreviewEnvOverlayService } from "./preview/preview-env-overlay.service";
 import { DeploymentStorageProvidersModule } from "./storage/storage-providers.module";
 import { GitModule } from "@/core/modules/git/git/git.module";
+import { TraefikCoreModule } from "@/core/modules/traefik/traefik.module";
 import { CONTAINER_LINK_RESOLVER } from "@/core/modules/docker/services/container-link-resolver.interface";
 import { DeploymentContainerLinkService } from "./services/container-link.service";
 import { DeploymentArtifactBuilderService } from "./builders/deployment-artifact-builder.service";
@@ -38,12 +38,15 @@ import { EventsModule } from "@/core/modules/events/events.module";
         MeshCoreModule,
         DeploymentCoreModule,
         ProjectCoreModule,
-        DeploymentProvidersModule,
-        DeploymentRunnersModule,
+        ProvidersModule,
+        RunnersModule,
         DeploymentStorageProvidersModule,
         GitModule,
         EventsModule,
-        BullModule.registerQueue({ name: "deployment" }),
+        TraefikCoreModule,
+        // D-6: NO Bull — the queue is the typed in-process lifecycle store +
+        // this module's typed worker (DeploymentQueueWorkerService), driven by
+        // the onJobQueued() RxJS channel. No Redis/queue IO to configure.
     ],
     controllers: [DeploymentController],
     providers: [
@@ -54,13 +57,13 @@ import { EventsModule } from "@/core/modules/events/events.module";
         CoreEventSyncService,
         DeploymentExecutionWorkflowService,
         DeploymentQueueLifecycleService,
-        DeploymentBullQueueService,
+        DeploymentQueueWorkerService,
+        DeploymentQueueReconciliationService,
         DeploymentQueueEventService,
         DeploymentMeshService,
         DeploymentStreamBridgeService,
         DeploymentStreamOrchestratorService,
         DeploymentMeshHandlerRegistrar,
-        DeploymentQueueProcessor,
         DeploymentArtifactBuilderService,
         PreviewEnvOverlayService,
         DeploymentContainerLinkService,

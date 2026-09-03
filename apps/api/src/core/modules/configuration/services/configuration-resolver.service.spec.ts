@@ -13,32 +13,30 @@ describe("ConfigurationResolverService", () => {
     it("exposes typed definitions for all scopes", () => {
         const definitions = service.listDefinitions();
 
-        expect(definitions).toHaveLength(4);
+        expect(definitions).toHaveLength(3);
         expect(definitions.map((d) => d.scope)).toEqual([
-            "organization",
             "project",
             "service",
             "user",
         ]);
     });
 
-    it("merges org/project/service/user layers with precedence", () => {
+    it("merges mesh/project/service/user layers with precedence", () => {
                 const result = service.resolveStrict({
             scope: "service",
             context: {
-                organizationId: "org-1",
                 projectId: "proj-1",
                 serviceId: "svc-1",
                 requestedEnvironment: "production",
             },
-            organization: {
+            mesh: {
                 deployment: {
                     defaultStrategy: "rolling",
                     enforceHttpsRedirect: true,
                     previewEnabled: true,
                 },
-                environment: { ORG_LEVEL: "1" },
-                featureFlags: { orgFlag: true },
+                environment: { MESH_LEVEL: "1" },
+                featureFlags: { meshFlag: true },
             },
             project: {
                 settings: {
@@ -68,7 +66,7 @@ describe("ConfigurationResolverService", () => {
         expect(result.effective.routing.domains).toEqual(["svc.example.com"]);
 
         expect(result.effective.environment).toMatchObject({
-            ORG_LEVEL: "1",
+            MESH_LEVEL: "1",
             PROJECT_DEFAULT: "1",
             PROJECT_LEVEL: "1",
             SERVICE_LEVEL: "1",
@@ -76,7 +74,7 @@ describe("ConfigurationResolverService", () => {
         });
 
         expect(result.effective.featureFlags).toMatchObject({
-            orgFlag: true,
+            meshFlag: true,
             projectFlag: true,
             serviceFlag: true,
             userFlag: true,
@@ -106,7 +104,6 @@ describe("ConfigurationResolverService", () => {
                 const result = service.resolveStrict({
             scope: "service",
             context: {
-                organizationId: "org-1",
                 projectId: "proj-1",
                 serviceId: "svc-1",
                 requestedEnvironment: "production",
@@ -118,7 +115,7 @@ describe("ConfigurationResolverService", () => {
                     region: "eu-west-1",
                 },
             },
-            organization: {
+            mesh: {
                 deployment: {
                     defaultStrategy: "rolling",
                     enforceHttpsRedirect: true,
@@ -182,7 +179,6 @@ describe("ConfigurationResolverService", () => {
                 const result = service.resolveStrict({
             scope: "service",
             context: {
-                organizationId: "org-1",
                 projectId: "proj-1",
                 serviceId: "svc-1",
                 requestedEnvironment: "production",
@@ -196,7 +192,7 @@ describe("ConfigurationResolverService", () => {
                 requestedLifecycleState: "active",
                 trigger: "manual",
             },
-            organization: {
+            mesh: {
                 allowedProviders: ["github", "gitlab"],
                 allowedRunners: ["docker", "buildpack"],
                 projectLimits: {
@@ -291,10 +287,10 @@ describe("ConfigurationResolverService", () => {
                 serviceId: "svc-1",
                 requestedEnvironmentDomain: "runtime",
             },
-            organization: {
+            mesh: {
                 environmentByDomain: {
                     build: { NODE_ENV: "production" },
-                    security: { SECURITY_LEVEL: "org" },
+                    security: { SECURITY_LEVEL: "mesh" },
                 },
             },
             project: {

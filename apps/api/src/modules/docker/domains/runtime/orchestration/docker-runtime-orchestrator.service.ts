@@ -44,7 +44,7 @@ export class DockerRuntimeOrchestratorService {
     return this.dockerRuntimeActivityDomainService.stream(input);
   }
 
-  listRuntimeActivities(input: DockerRuntimeActivityListInput) {
+  listRuntimeActivities(input: DockerRuntimeActivityListInput = {} as DockerRuntimeActivityListInput) {
     this.debug("DockerRuntimeOrchestratorService.listRuntimeActivities", {
       limit: input.limit,
       offset: input.offset,

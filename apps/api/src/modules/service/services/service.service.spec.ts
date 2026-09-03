@@ -4,6 +4,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { EMPTY } from 'rxjs';
 import { ServiceService } from './service.service';
+import { PreviewTopologyService } from './preview-topology.service';
+import { RuntimeConfigurationAccessorService } from '@/core/modules/configuration/services/runtime-configuration-accessor.service';
 
 describe('ServiceService', () => {
     let service: ServiceService;
@@ -57,6 +59,7 @@ describe('ServiceService', () => {
         mockRepository = {
             list: vi.fn(),
             findById: vi.fn(),
+            findAncestors: vi.fn().mockResolvedValue([]),
             create: vi.fn(),
             update: vi.fn(),
             delete: vi.fn(),
@@ -65,6 +68,7 @@ describe('ServiceService', () => {
             addDependency: vi.fn(),
             removeDependency: vi.fn(),
             dependencyExists: vi.fn(),
+            listChildren: vi.fn().mockResolvedValue([]),
         };
 
         mockEventService = {
@@ -80,6 +84,53 @@ describe('ServiceService', () => {
             assertProjectAccess: vi.fn().mockResolvedValue(mockProject),
         };
 
+        const mockPreviewTopologyService = {
+            resolve: vi.fn(),
+        } as unknown as PreviewTopologyService;
+
+        const mockRuntimeConfigurationAccessor = {
+            resolver: {
+                resolveStrict: vi.fn(),
+            },
+            resolveStrict: vi.fn(() => ({
+                scope: 'project',
+                context: {},
+                organization: { metadata: null },
+                project: { metadata: null },
+                service: { metadata: null },
+                user: { metadata: null },
+                effective: {
+                    deployment: { strategy: 'rolling', autoDeployEnabled: true, previewEnabled: true, requireApprovalForProduction: false },
+                    routing: { forceHttps: false, domains: [] },
+                    execution: { providerType: 'github', runnerType: 'docker' },
+                    replicas: { min: 0, desired: 1, max: 3 },
+                    resources: { cpuMillicores: 100, memoryMb: 128 },
+                    envPolicy: { required: [], allowList: [], denyList: [] },
+                    traefik: { enabled: true, entryPoints: ['web'], middlewares: [], stripPrefix: null, domains: [], tls: { enabled: false, resolver: null } },
+                    lifecycle: { current: 'active', allowedNextStates: [] },
+                    environmentDomains: { build: {}, runtime: {}, deployment: {}, network: {}, traefik: {}, provider: {}, runner: {}, security: {} },
+                    environment: {},
+                    featureFlags: {},
+                    constraints: {
+                        canDeployToRequestedEnvironment: true,
+                        providerAllowed: true,
+                        runnerAllowed: true,
+                        replicasWithinLimits: true,
+                        resourcesWithinProjectLimits: true,
+                        envPolicyValid: true,
+                        lifecycleTransitionAllowed: true,
+                        reason: null,
+                        reasons: [],
+                    },
+                },
+                dispatchAudit: { evaluatedRules: 0, appliedRuleIds: [] },
+            })),
+            resolve: vi.fn(),
+            resolveForDeployment: vi.fn(),
+            projectConfigFromSettings: vi.fn(),
+            serviceConfigFromRecord: vi.fn(),
+        } as unknown as RuntimeConfigurationAccessorService;
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 {
@@ -89,6 +140,8 @@ describe('ServiceService', () => {
                         mockEventService,
                         mockCoreEventSyncService,
                         mockProjectAccessService,
+                        mockPreviewTopologyService,
+                        mockRuntimeConfigurationAccessor,
                     ),
                 },
             ],
@@ -129,8 +182,10 @@ describe('ServiceService', () => {
 
             const result = await service.getServiceById('service-1');
 
-            expect(result).toEqual(mockService);
+            expect(result).toMatchObject(mockService);
+            expect(result.effectiveConfig).toBeDefined();
             expect(mockRepository.findById).toHaveBeenCalledWith('service-1');
+            expect(mockRepository.findAncestors).toHaveBeenCalledWith('service-1');
         });
 
         it('should throw NotFoundException when service not found', async () => {
@@ -266,7 +321,7 @@ describe('ServiceService', () => {
 
             const result = await service.getDependencies('service-1');
 
-            expect(result).toEqual({ dependencies: [mockDependency] });
+            expect(result).toMatchObject({ dependencies: [mockDependency] });
             expect(mockRepository.getDependencies).toHaveBeenCalledWith('service-1');
         });
 

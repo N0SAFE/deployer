@@ -4,7 +4,7 @@
  * sprinkle `any` casts around the implementation.
  */
 import type { z } from 'zod'
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { isRecord } from "@repo/type-guards"
 
 /** Possible Zod type discriminants we care about. */
 type ZodKind =

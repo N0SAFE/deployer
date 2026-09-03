@@ -25,7 +25,7 @@ export function DockerSavedViewSelect({ storageKey, options, value, onChange }: 
   }, [storageKey, value])
 
   return (
-    <select
+    <select aria-label="{option.label}"
       className="h-10 rounded-md border bg-background px-3 text-sm"
       value={value}
       onChange={(event) => {

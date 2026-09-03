@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { BadRequestError } from "@/core/errors/app-error";
+import { BadRequestError } from "@repo/errors";
 import {
   Observable,
   defer,
@@ -32,8 +32,8 @@ import {
   type DockerRuntimeEvent,
 } from "@repo/contracts-entities";
 import { DockerService as CoreDockerService } from "@/core/modules/docker/services/docker.service";
-import { AbstractDomainEventStreamService } from "@/core/modules/events/services/abstract-domain-event-stream.service";
-import { CoreEventStreamPoolService } from "@/core/modules/events/services/core-event-stream-pool.service";
+import { AbstractDomainEventStreamService } from "@repo/nest-events";
+import { CoreEventStreamPoolService } from "@repo/nest-events";
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
 type DockerKnownSource = Exclude<DockerRuntimeEvent["source"], "unknown">;

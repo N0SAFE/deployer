@@ -1,10 +1,11 @@
 import { Controller } from "@nestjs/common";
-import { BadRequestError, NotFoundError, ConflictError } from "@/core/errors/app-error";
+import { BadRequestError, NotFoundError, ConflictError } from "@repo/errors";
 import { Implement, implement } from "@orpc/nest";
 import { userContract } from "@repo/api-contracts";
+import { standardErrorOptions } from "@repo/orpc-utils";
 import { UserService } from "../services/user.service";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
-import { PLATFORM_ROLES } from '../../../../../../packages/utils/auth/src/permissions/config';
+import { PLATFORM_ROLES } from "@repo/auth/permissions";
 
 @Controller()
 export class UserController {
@@ -12,8 +13,12 @@ export class UserController {
 
     @Implement(userContract.list)
     list() {
-        return implement(userContract.list).use(requireAuth()).handler(async ({ input, context }) => {
-            context.auth.requireAuth();
+        return implement(userContract.list).use(requireAuth()).handler(async ({ input, context, errors }) => {
+            if (!context.auth.isLoggedIn || context.auth.user === null || context.auth.session === null) {
+                throw errors.UNAUTHORIZED(
+                    standardErrorOptions("unauthorized", "Authentication required"),
+                );
+            }
             const result = await this.userService.getUsers(input.query);
             return {
                 data: result.data.map((user) => ({
@@ -122,8 +127,12 @@ export class UserController {
 
     @Implement(userContract.count)
     count() {
-        return implement(userContract.count).handler(async ({ context }) => {
-            context.auth.requireAuth();
+        return implement(userContract.count).handler(async ({ context, errors }) => {
+            if (!context.auth.isLoggedIn || context.auth.user === null || context.auth.session === null) {
+                throw errors.UNAUTHORIZED(
+                    standardErrorOptions("unauthorized", "Authentication required"),
+                );
+            }
             return await this.userService.getUserCount();
         });
     }

@@ -32,7 +32,7 @@ import {
  * local avoids leaking the generic `SingleParser<T>` into the rest of
  * the package.
  */
-export type NuqsParserBuilder = {
+export interface NuqsParserBuilder {
     parse: (value: string) => unknown
     serialize: (value: unknown) => string
     eq: (a: unknown, b: unknown) => boolean
@@ -125,7 +125,7 @@ export function createParserForZodField(
         case 'object': {
             try {
                 parser = asParserBuilder(
-                    parseAsJson(baseSchema) as unknown as SingleParser<unknown>
+                    parseAsJson(baseSchema)
                 )
             } catch {
                 parser = asParserBuilder(
@@ -173,8 +173,8 @@ function extractStringEnumValues(schema: z.ZodType): string[] {
     }
     const values = (schema as { _def?: { values?: unknown } })._def?.values
     if (values && typeof values === 'object') {
-        return Object.valuesReflect.get(values, "filter")(
-            (value): value is string => typeof value === 'string'
+        return Object.values(values).filter(
+            (value): value is string => typeof value === 'string',
         )
     }
     return []

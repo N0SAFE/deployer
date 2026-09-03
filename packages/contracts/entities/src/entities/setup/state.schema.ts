@@ -16,7 +16,8 @@ export const setupStepIdSchema = z.enum([
   'connect_remote_instance',
   'verify_remote_handshake',
   'create_initial_user',
-  'create_initial_organization',
+
+
   'assign_owner_membership',
   'finalize',
 ])
@@ -40,7 +41,6 @@ export const setupStateSnapshotSchema = z.object({
   state: setupStateSchema,
   needsSetup: z.boolean(),
   hasUsers: z.boolean(),
-  hasOrganizations: z.boolean(),
   bootstrapStrategy: setupBootstrapStrategySchema.nullable(),
   availableStrategies: z.array(setupBootstrapStrategySchema),
   currentStep: setupStepIdSchema.nullable(),

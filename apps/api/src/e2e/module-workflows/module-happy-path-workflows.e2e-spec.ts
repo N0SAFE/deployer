@@ -7,7 +7,6 @@ import {
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { user } from "@/config/drizzle/global/schema/auth";
 import { UserService } from "@/modules/user/services/user.service";
-import { OrganizationService } from "@/modules/organization/services/organization.service";
 import { ProviderSchemaService } from "@/modules/provider-schema/services/provider-schema.service";
 import { AnalyticsService } from "@/modules/analytics/services/analytics.service";
 import { ProjectService } from "@/modules/project/services/project.service";
@@ -17,7 +16,6 @@ describe("Module happy-path workflows e2e: service-level authenticated flows", (
   let runtime: SharedApiRuntimeContext;
   let ownerId: string;
   let userService: UserService;
-  let organizationService: OrganizationService;
   let providerSchemaService: ProviderSchemaService;
   let analyticsService: AnalyticsService;
   let projectService: ProjectService;
@@ -26,7 +24,6 @@ describe("Module happy-path workflows e2e: service-level authenticated flows", (
   beforeAll(async () => {
     runtime = await getSharedApiRuntimeContext();
     userService = runtime.serviceMapper.get(UserService);
-    organizationService = runtime.serviceMapper.get(OrganizationService);
     providerSchemaService = runtime.serviceMapper.get(ProviderSchemaService);
     analyticsService = runtime.serviceMapper.get(AnalyticsService);
     projectService = runtime.serviceMapper.get(ProjectService);
@@ -71,28 +68,14 @@ describe("Module happy-path workflows e2e: service-level authenticated flows", (
     expect(deleted?.id).toBe(created.id);
   });
 
-  it("returns paginated organization collections", async () => {
-    const organizations = await organizationService.listAll({
+  it("returns paginated user collections", async () => {
+    const users = await userService.getUsers({
       limit: 20,
       offset: 0,
-      sortBy: "createdAt",
-      sortDirection: "desc",
-      filter: {},
     });
 
-    expect(Array.isArray(organizations.data)).toBe(true);
-    expect(organizations.meta.limit).toBe(20);
-
-    const members = await organizationService.listMembers({
-      limit: 20,
-      offset: 0,
-      sortBy: "createdAt",
-      sortDirection: "asc",
-      filter: {},
-    });
-
-    expect(Array.isArray(members.data)).toBe(true);
-    expect(members.meta.limit).toBe(20);
+    expect(Array.isArray(users.data)).toBe(true);
+    expect(users.meta.limit).toBe(20);
   });
 
   it("creates and updates project + service for an authenticated owner", async () => {
@@ -118,9 +101,9 @@ describe("Module happy-path workflows e2e: service-level authenticated flows", (
         projectId: project.id,
         name: `happy-service-${randomUUID()}`,
         description: "Happy-path service",
-        type: "web",
-        providerId: "upload",
-        builderId: "dockerfile",
+        type: "application",
+        providerId: "artifact-bundle",
+        builderId: "manual",
         port: 3001,
         healthCheckPath: "/health",
       },
@@ -199,28 +182,27 @@ describe("Module happy-path workflows e2e: service-level authenticated flows", (
   });
 
   it("returns analytics metrics collections and report lifecycle shapes", async () => {
-    const resourceMetrics = analyticsService.getResourceMetrics("24h", "hour");
-    const deploymentMetrics = analyticsService.getDeploymentMetrics("7d", "day");
-    const realtime = analyticsService.getRealTimeMetrics(["api", "cache"]);
+    const resourceMetrics = await analyticsService.getResourceMetrics("24h", "hour");
+    const deploymentMetrics = await analyticsService.getDeploymentMetrics("7d", "day");
+    const realtime = await analyticsService.getRealTimeMetrics(["api", "cache"]);
 
     expect(resourceMetrics.timeRange).toBe("24h");
     expect(resourceMetrics.data.length).toBe(24);
     expect(deploymentMetrics.data.length).toBe(7);
     expect(realtime.services.length).toBe(2);
 
-    const report = analyticsService.generateReport(
-      {
+    const report = await analyticsService.generateReport({
+      period: {
         start: new Date(Date.now() - 24 * 60 * 60 * 1000),
         end: new Date(),
       },
-      "json",
-    );
+    });
 
     expect(report.reportId).toContain("report-");
-    expect(report.status).toBe("pending");
+    expect(report.status).toBe("completed");
 
-    const reportStatus = analyticsService.getReport(report.reportId);
+    const reportStatus = await analyticsService.getReport(report.reportId);
     expect(reportStatus.id).toBe(report.reportId);
-    expect(typeof reportStatus.progress).toBe("number");
+    expect(typeof reportStatus.generatedAt).toBe("object");
   });
 });

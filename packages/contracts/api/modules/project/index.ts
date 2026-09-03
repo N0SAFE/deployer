@@ -19,6 +19,10 @@ import {
     projectCloneEnvironmentContract,
 } from "./environments";
 import {
+    projectListServiceEnvironmentLinksContract,
+    projectUpsertServiceEnvironmentLinkContract,
+} from "./service-environment-links";
+import {
     projectListVariableTemplatesContract,
     projectGetVariableTemplateContract,
     projectCreateVariableTemplateContract,
@@ -47,6 +51,10 @@ import {
     projectResolveVariablesContract,
 } from "./utils";
 import { projectQueryStreamContract } from "./stream";
+import {
+    projectGetNetworkContract,
+    projectUpdateNetworkContract,
+} from "./network";
 
 export const projectContract = oc.tag("Project").prefix("/projects").router({
     // Core CRUD
@@ -67,6 +75,9 @@ export const projectContract = oc.tag("Project").prefix("/projects").router({
     updateEnvironment: projectUpdateEnvironmentContract,
     deleteEnvironment: projectDeleteEnvironmentContract,
     cloneEnvironment: projectCloneEnvironmentContract,
+    // Service × environment links (which services participate in which env)
+    listServiceEnvironmentLinks: projectListServiceEnvironmentLinksContract,
+    upsertServiceEnvironmentLink: projectUpsertServiceEnvironmentLinkContract,
     // Variable template management
     listVariableTemplates: projectListVariableTemplatesContract,
     getVariableTemplate: projectGetVariableTemplateContract,
@@ -93,6 +104,9 @@ export const projectContract = oc.tag("Project").prefix("/projects").router({
     getAllEnvironmentStatuses: projectGetAllEnvironmentStatusesContract,
     refreshEnvironmentStatus: projectRefreshEnvironmentStatusContract,
     streamQuery: projectQueryStreamContract,
+    // Network configuration (DNS provider + zone + records)
+    getNetwork: projectGetNetworkContract,
+    updateNetwork: projectUpdateNetworkContract,
 });
 
 export type ProjectContract = typeof projectContract;
@@ -104,7 +118,9 @@ export * from "./update";
 export * from "./delete";
 export * from "./collaborators";
 export * from "./environments";
+export * from "./service-environment-links";
 export * from "./templates";
 export * from "./config";
 export * from "./utils";
 export * from "./stream";
+export * from "./network";

@@ -43,8 +43,8 @@
  * );
  *
  * // Create ORPC middleware
- * const requireOrgMember = createOrpcMiddleware(
- *   orgMiddleware.isMemberOf({ organizationId: (ctx) => ctx.params.orgId })
+ * const requireAdmin = createOrpcMiddleware(
+ *   adminMiddleware.hasPermission({ user: ['manage'] })
  * );
  * ```
  *
@@ -72,8 +72,6 @@ export type {
   PermissionCheck,
   RoleCheck,
   MembershipCheck,
-  OrganizationRoleCheck,
-  OrganizationPermissionCheck,
 } from './middleware-check';
 
 export {
@@ -107,16 +105,6 @@ export {
   HasRoleCheck,
   RequireAdminRoleCheck,
 } from './admin.middleware-definition';
-
-// Organization plugin definition
-export type { OrganizationAuthConstraint } from './organization.middleware-definition';
-export {
-  OrganizationMiddlewareDefinition,
-  HasOrganizationPermissionCheck,
-  IsMemberOfCheck,
-  HasOrganizationRoleCheck,
-  IsOrganizationOwnerCheck,
-} from './organization.middleware-definition';
 
 // ============================================================================
 // Framework Converters
@@ -178,9 +166,7 @@ import type {
   InferRolesFromBuilder,
 } from '@repo/auth/permissions/plugins';
 import type { AdminAuthConstraint } from './admin.middleware-definition';
-import type { OrganizationAuthConstraint } from './organization.middleware-definition';
 import { AdminMiddlewareDefinition } from './admin.middleware-definition';
-import { OrganizationMiddlewareDefinition } from './organization.middleware-definition';
 
 /**
  * Options for creating admin middleware definition.
@@ -233,38 +219,6 @@ export function createAdminMiddleware<
   return new AdminMiddlewareDefinition(pluginFactory, options);
 }
 
-/**
- * Create an OrganizationMiddlewareDefinition from an organizations plugin instance.
- *
- * Convenience factory function that provides a simpler API than
- * directly instantiating OrganizationMiddlewareDefinition.
- *
- * @template TPermissionBuilder - Permission builder type
- * @template TAuth - Auth constraint type
- * @param plugin - Organizations plugin instance
- * @returns OrganizationMiddlewareDefinition bound to the plugin
- *
- * @example
- * ```typescript
- * // Simple usage
- * const orgPlugin = registry.create('organization', { auth, headers, permissionBuilder });
- * const middleware = createOrganizationMiddleware(orgPlugin);
- *
- * // Use middleware checks
- * const guard = createNestGuard(middleware.isMemberOf((ctx) => ctx.params.orgId));
- * ```
- */
-export function createOrganizationMiddleware<
-  TPermissionBuilder extends AnyPermissionBuilder,
-  TAuth extends OrganizationAuthConstraint<TPermissionBuilder>,
->(
-  plugin: OrganizationsPermissionsPlugin<TPermissionBuilder, TAuth>
-): OrganizationMiddlewareDefinition<TPermissionBuilder, TAuth> {
-  // Wrap the plugin instance in a factory function
-  // This allows using a pre-created plugin with the new factory-based API
-  const pluginFactory = () => plugin;
-  return new OrganizationMiddlewareDefinition(pluginFactory);
-}
 
 // ============================================================================
 // ORPC Middleware Proxy

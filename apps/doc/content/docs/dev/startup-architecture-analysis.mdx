@@ -66,24 +66,26 @@ StartupModule → ORPCModule
 
 The API must start in three concentric circles:
 
-```text
-┌─────────────────────────────────────────┐
-│           CORE (always starts)           │
-│  EnvModule, DatabaseModule (local SQLite)│
-│  StartupModule, ORPCModule (minimal)     │
-└────────────────┬────────────────────────┘
-                 │ guards pass
-┌────────────────▼────────────────────────┐
-│          INFRASTRUCTURE (phase 2)        │
-│  GlobalDatabaseModule, AuthModule        │
-│  MeshInitializationModule, HealthModule  │
-└────────────────┬────────────────────────┘
-                 │ registration + consensus
-┌────────────────▼────────────────────────┐
-│          FEATURES (lazy, phase 3)        │
-│  DockerModule, FleetModule, SystemModule │
-│  All domain modules                      │
-└─────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph CORE["CORE — always starts"]
+        C1["EnvModule"]
+        C2["DatabaseModule (local SQLite)"]
+        C3["StartupModule"]
+        C4["ORPCModule (minimal)"]
+    end
+    subgraph INFRA["INFRASTRUCTURE — phase 2"]
+        I1["GlobalDatabaseModule"]
+        I2["AuthModule"]
+        I3["MeshInitializationModule"]
+        I4["HealthModule"]
+    end
+    subgraph FEAT["FEATURES — lazy, phase 3"]
+        F1["DockerModule, FleetModule, SystemModule"]
+        F2["All domain modules"]
+    end
+    CORE ==>|"guards pass"| INFRA
+    INFRA ==>|"registration + consensus"| FEAT
 ```
 
 ### Dev Entrypoint — Correct Design
@@ -445,22 +447,25 @@ stateDiagram-v2
 
 ### Fix Priority
 
-```text
-P0 - BLOCKER (ship-stopping):
-  └─ Add registration guard (#1)
-  └─ Add peer version check + consensus (#2)
-
-P1 - CRITICAL (correctness):
-  └─ Add cluster_migration_state management (#3)
-  └─ Fix admin creation to use DI (#6)
-
-P2 - IMPORTANT (architecture):
-  └─ Lazy-load feature modules (#5)
-  └─ Unify dev entrypoint (#4)
-
-P3 - ENHANCEMENT (completeness):
-  └─ Add update marker detection (#7)
-  └─ Fix GlobalModule setup deadlock (#8)
+```mermaid
+flowchart TB
+    subgraph P0["P0 — BLOCKER (ship-stopping)"]
+        P0A["Add registration guard (#1)"]
+        P0B["Add peer version check + consensus (#2)"]
+    end
+    subgraph P1["P1 — CRITICAL (correctness)"]
+        P1A["Add cluster_migration_state management (#3)"]
+        P1B["Fix admin creation to use DI (#6)"]
+    end
+    subgraph P2["P2 — IMPORTANT (architecture)"]
+        P2A["Lazy-load feature modules (#5)"]
+        P2B["Unify dev entrypoint (#4)"]
+    end
+    subgraph P3["P3 — ENHANCEMENT (completeness)"]
+        P3A["Add update marker detection (#7)"]
+        P3B["Fix GlobalModule setup deadlock (#8)"]
+    end
+    P0 --> P1 --> P2 --> P3
 ```
 
 ---

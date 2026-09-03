@@ -42,7 +42,7 @@ export class SystemMeshResourceDiscoveryService {
 
   /**
    * Executes a query directly from a method ref with optional where clauses.
-   * Convenience shorthand for `.from().where().execute()`.
+   * Convenience shorthand for `.from().where().request()`.
    *
    * For queries with custom input schemas (e.g., search), use queryWithInput().
    */
@@ -51,7 +51,7 @@ export class SystemMeshResourceDiscoveryService {
     where?: Partial<TItem>,
   ): Promise<MeshQueryResult<TItem>> {
     const builder = this.from(queryRef);
-    return where ? builder.where(where).execute() : builder.execute();
+    return where ? builder.where(where).request() : builder.request();
   }
 
   /**
