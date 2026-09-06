@@ -24,25 +24,19 @@ export {
 export {
     createPermissionHooks,
     type UsePermissionsResult,
-    type UseOrganizationPermissionsResult,
     type CreatePermissionHooksOptions,
     type UseSessionResult,
     type SessionData,
-    type OrganizationMember,
-    type UseOrganizationMembersResult,
 } from './usePermissions'
 
 // Re-export permission components factory
 export {
     createRequirePermissionComponents,
     type RequirePlatformPermissionProps,
-    type RequireOrganizationPermissionProps,
     type RequirePermissionProps,
-    type PermissionTarget,
 } from './RequirePermission'
 
 // Re-export permission types
 export type {
     PlatformPermission,
-    OrganizationPermission,
 } from './usePermissions'

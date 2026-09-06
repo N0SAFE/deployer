@@ -1,15 +1,15 @@
 import { Injectable } from "@nestjs/common";
 import { and, eq, inArray } from "drizzle-orm";
 import { GlobalDatabaseService } from "../../../core/modules/database/services/global-database.service";
-import { orgRoleRules } from "@/config/drizzle/global/schema/permissions";
+import { roleRules } from "@/config/drizzle/global/schema/permissions";
 import type { ResourceRule } from "@repo/auth/permissions";
 
 /**
  * Handles raw DB queries for the PermissionEngine loaders.
  *
  * Two responsibilities:
- *  1. Read member roles from Better Auth's `member` table (BA owns writes).
- *  2. Read / write fine-grained ResourceRule configs from our `org_role_rules`
+ *  1. Load the user's platform-role-derived rules (mesh-wide single tenant).
+ *  2. Read / write fine-grained ResourceRule configs from our `role_rules`
  *     table (we own lifecycle).
  */
 @Injectable()
@@ -17,22 +17,22 @@ export class PermissionRepository {
   constructor(private readonly databaseService: GlobalDatabaseService) {}
 
 /**
-   * Returns the merged ResourceRule[] for all of the given role names within
-   * an organisation.  Rules from multiple matched rows are concatenated.
+   * Returns the merged ResourceRule[] for all of the given role names.
+   * Rules from multiple matched rows are concatenated.
    */
   async getRoleRules(roleNames: string[]): Promise<ResourceRule[]> {
     if (roleNames.length === 0) return [];
 
     const rows = await this.databaseService.db
-      .select({ resourceRules: orgRoleRules.resourceRules })
-      .from(orgRoleRules)
-      .where(inArray(orgRoleRules.roleName, roleNames));
+      .select({ resourceRules: roleRules.resourceRules })
+      .from(roleRules)
+      .where(inArray(roleRules.roleName, roleNames));
 
     return rows.flatMap((r) => r.resourceRules);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // CRUD for orgRoleRules (our custom table)
+  // CRUD for roleRules (our custom table)
   // ─────────────────────────────────────────────────────────────────────────
 
   async upsertRoleRules(
@@ -42,14 +42,14 @@ export class PermissionRepository {
     const { randomUUID } = await import("crypto");
 
     await this.databaseService.db
-      .insert(orgRoleRules)
+      .insert(roleRules)
       .values({
         id: randomUUID(),
         roleName,
         resourceRules: rules,
       })
       .onConflictDoUpdate({
-        target: [orgRoleRules.roleName],
+        target: [roleRules.roleName],
         set: {
           resourceRules: rules,
           updatedAt: new Date(),
@@ -59,13 +59,13 @@ export class PermissionRepository {
 
   async deleteRoleRules(roleName: string): Promise<void> {
     await this.databaseService.db
-      .delete(orgRoleRules)
-      .where(eq(orgRoleRules.roleName, roleName));
+      .delete(roleRules)
+      .where(eq(roleRules.roleName, roleName));
   }
 
   async listRoleRules() {
     return this.databaseService.db
       .select()
-      .from(orgRoleRules);
+      .from(roleRules);
   }
 }

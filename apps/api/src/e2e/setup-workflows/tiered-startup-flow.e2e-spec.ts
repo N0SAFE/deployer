@@ -85,7 +85,6 @@ async function runLocalSetup(
         name: `Startup E2E Node ${instanceKey}`,
         email: `startup-e2e-${instanceKey}@mesh.test`,
         password: 'P@ssword1234',
-        organizationName: `Startup E2E Org ${instanceKey}`,
         serverUrl: context.runtime.baseUrl,
     })
 
@@ -244,7 +243,6 @@ describe('Tier 1 — Pool exists, startup in progress', () => {
                 name: 'Duplicate Node',
                 email: 'dup@mesh.test',
                 password: 'P@ssword1234',
-                organizationName: 'Dup Org',
                 serverUrl: context.runtime.baseUrl,
             })
             const events = await collectStreamEvents(obs)
@@ -387,7 +385,6 @@ describe('Mesh URL caching and reconnection', () => {
                 name: 'Duplicate Mesh Cache',
                 email: 'dup-cache@mesh.test',
                 password: 'P@ssword1234',
-                organizationName: 'Dup Cache Org',
                 serverUrl: context.runtime.baseUrl,
             })
             await collectStreamEvents(obs)

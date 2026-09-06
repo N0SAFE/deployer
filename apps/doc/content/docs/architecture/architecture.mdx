@@ -49,13 +49,17 @@ Keep contract definitions in shared packages, implementations in API, and UI dat
 
 ## Docker topology — Swarm baseline
 
-The canonical v3 target is a Docker Swarm cluster with manager/worker roles.
+The v3 runtime baseline is a Docker Swarm cluster with manager/worker roles (implemented — see `docs/swarm-orchestration/README.md`).
 
 - **Manager node(s)**: orchestrator control plane (Raft), service scheduling, stack/service updates.
 - **Control-plane services** (`traefik`, `api`, `web`): deployed as Swarm services and managed from managers.
 - **Worker node(s)**: execute scheduled service tasks/replicas.
 - **Shared PostgreSQL**: primary source of truth for platform state.
 - **Mesh (ORPC EventIterator over HTTP/SSE)**: cross-node event/resource coordination between API nodes.
+
+<DocCallout title="Implementation status" tone="success">
+The Swarm execution backend, master election, node sharing, and cluster API surface are implemented behind the dockerode SDK (zero CLI). See `docs/swarm-orchestration/` for design docs and the `IMPLEMENTATION_TODO.md` status checklist.
+</DocCallout>
 
 ## Multi-node topology
 

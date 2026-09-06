@@ -2,45 +2,33 @@
 
 /**
  * @fileoverview Permission Hooks - Role-Based Access Control (RBAC)
- * 
- * This file provides React hooks for checking user permissions across different contexts:
- * - Platform-level permissions (admin operations)
- * - Organization-level permissions (per-tenant access control)
- * - Component-level permission checks (UI visibility)
- * 
+ *
+ * This file provides React hooks for checking platform-level permissions
+ * and roles. The mesh is the single tenant — there is no organization
+ * layer, so all access control is platform-scoped.
+ *
  * Key Features:
  * - Platform permission checking (usePermissions)
- * - Organization permission checking (useOrganizationPermissions)
- * - Combined permission checking (useCombinedPermissions)
  * - Session-aware permission resolution
  * - Type-safe permission string definitions
- * 
+ *
  * Permission Model:
  * - Platform permissions: Apply globally across the application
- * - Organization permissions: Apply within a specific organization context
- * - Permissions defined as resource:action format (e.g., 'user:delete', 'org:update')
- * 
- * Unlike ORPC hooks which use generated contracts, these hooks work directly with
- * session data and Better Auth's permission model for real-time access control checks.
- * 
- * NOTE: This module requires external dependencies to be provided:
- * - useSession hook from Better Auth client
- * - useOrganizationMembers hook for org membership data
- * These should be imported and passed when creating wrapper components.
+ * - Permissions defined as resource:action format (e.g., 'user:delete')
+ *
+ * Unlike ORPC hooks which use generated contracts, these hooks work
+ * directly with session data and Better Auth's permission model for
+ * real-time access control checks.
  */
 
 import { useMemo } from 'react'
 import type {
   PlatformRole,
-  OrganizationRole,
   PlatformResource,
-  OrganizationResource,
 } from '../permissions'
 import {
   platformRolesConfig,
-  organizationRolesConfig,
   PLATFORM_ROLES,
-  ORGANIZATION_ROLES,
 } from '../permissions'
 
 // ============================================================================
@@ -49,11 +37,6 @@ import {
 
 export interface PlatformPermission {
   resource: PlatformResource
-  action: string
-}
-
-export interface OrganizationPermission {
-  resource: OrganizationResource
   action: string
 }
 
@@ -70,28 +53,11 @@ export interface SessionData {
 }
 
 /**
- * Organization member data interface
- */
-export interface OrganizationMember {
-  userId: string
-  role: OrganizationRole
-  [key: string]: unknown
-}
-
-/**
  * Use session hook result
  */
 export interface UseSessionResult {
   data: SessionData | null | undefined
   isLoading?: boolean
-}
-
-/**
- * Use organization members hook result
- */
-export interface UseOrganizationMembersResult {
-  data?: { data: OrganizationMember[] } | { members: OrganizationMember[] } | OrganizationMember[]
-  isLoading: boolean
 }
 
 export interface UsePermissionsResult {
@@ -118,32 +84,12 @@ export interface UsePermissionsResult {
   canAllPlatform: (permissions: PlatformPermission[]) => boolean
 }
 
-export interface UseOrganizationPermissionsResult {
-  // Organization state
-  isLoading: boolean
-  isMember: boolean
-  role: OrganizationRole | null
-
-  // Organization role checks
-  hasOrganizationRole: (role: OrganizationRole) => boolean
-  hasAnyOrganizationRole: (roles: OrganizationRole[]) => boolean
-  isOrganizationOwner: () => boolean
-  isOrganizationAdmin: () => boolean
-  organizationRoleLevel: number
-
-  // Organization permission checks
-  canOrganization: (resource: OrganizationResource, action: string) => boolean
-  canAnyOrganization: (permissions: OrganizationPermission[]) => boolean
-  canAllOrganization: (permissions: OrganizationPermission[]) => boolean
-}
-
 // ============================================================================
 // PERMISSION HOOKS FACTORY
 // ============================================================================
 
 export interface CreatePermissionHooksOptions {
   useSession: () => UseSessionResult
-  useOrganizationMembers: (organizationId: string) => UseOrganizationMembersResult
 }
 
 /**
@@ -151,7 +97,6 @@ export interface CreatePermissionHooksOptions {
  */
 export function createPermissionHooks({
   useSession,
-  useOrganizationMembers,
 }: CreatePermissionHooksOptions) {
   // ============================================================================
   // PLATFORM PERMISSIONS HOOK
@@ -159,15 +104,15 @@ export function createPermissionHooks({
 
   /**
    * Hook for checking platform-level permissions and roles
-   * 
+   *
    * @example
    * ```tsx
    * const { isPlatformAdmin, canPlatform } = usePermissions()
-   * 
+   *
    * if (isPlatformAdmin()) {
    *   // Show admin UI
    * }
-   * 
+   *
    * if (canPlatform('user', 'list')) {
    *   // Show user list
    * }
@@ -238,7 +183,7 @@ export function createPermissionHooks({
       return (permissions: PlatformPermission[]): boolean => {
         const role = user?.role
         if (!role) return false
-        return permissions.some(({ resource, action }) => 
+        return permissions.some(({ resource, action }) =>
           (role === 'superAdmin') || platformRolesConfig.hasPermission(role, resource, action)
         )
       }
@@ -248,7 +193,7 @@ export function createPermissionHooks({
       return (permissions: PlatformPermission[]): boolean => {
         const role = user?.role
         if (!role) return false
-        return permissions.every(({ resource, action }) => 
+        return permissions.every(({ resource, action }) =>
           (role === 'superAdmin') || platformRolesConfig.hasPermission(role, resource, action)
         )
       }
@@ -269,191 +214,7 @@ export function createPermissionHooks({
     }
   }
 
-  // ============================================================================
-  // ORGANIZATION PERMISSIONS HOOK
-  // ============================================================================
-
-  /**
-   * Hook for checking organization-level permissions and roles
-   * 
-   * @param organizationId - The organization ID to check permissions for
-   * 
-   * @example
-   * ```tsx
-   * const { isOrganizationOwner, canOrganization } = useOrganizationPermissions(orgId)
-   * 
-   * if (isOrganizationOwner()) {
-   *   // Show delete button
-   * }
-   * 
-   * if (canOrganization('orgMember', 'invite')) {
-   *   // Show invite button
-   * }
-   * ```
-   */
-  function useOrganizationPermissions(
-    organizationId: string | undefined
-  ): UseOrganizationPermissionsResult {
-    const session = useSession()
-    const members = useOrganizationMembers(organizationId ?? '')
-
-    // Find current user's membership
-    const membership = useMemo(() => {
-      if (!session.data?.user || !members.data) return null
-      const userId = session.data.user.id
-      const membersArray = getMembersArray(members.data)
-      return membersArray.find((m: OrganizationMember) => m.userId === userId) ?? null
-    }, [session.data, members.data])
-
-    const role = useMemo<OrganizationRole | null>(() => {
-      return membership?.role ?? null
-    }, [membership])
-
-    const organizationRoleLevel = useMemo(() => {
-      if (!role) return 0
-      // Level derived from position in ORGANIZATION_ROLES array (higher index = higher privilege)
-      const idx = (ORGANIZATION_ROLES as readonly string[]).indexOf(role)
-      return idx === -1 ? 0 : idx + 1
-    }, [role])
-
-    // Organization role checks
-    const hasOrganizationRole = useMemo(() => {
-      return (checkRole: OrganizationRole): boolean => {
-        if (!role) return false
-        return role === checkRole
-      }
-    }, [role])
-
-    const hasAnyOrganizationRole = useMemo(() => {
-      return (roles: OrganizationRole[]): boolean => {
-        if (!role) return false
-        return roles.includes(role)
-      }
-    }, [role])
-
-    const isOrganizationOwner = useMemo(() => {
-      return (): boolean => {
-        if (!role) return false
-        return role === 'owner'
-      }
-    }, [role])
-
-    const isOrganizationAdmin = useMemo(() => {
-      return (): boolean => {
-        if (!role) return false
-        const roleIdx = (ORGANIZATION_ROLES as readonly string[]).indexOf(role)
-        const adminIdx = (ORGANIZATION_ROLES as readonly string[]).indexOf('admin')
-        return roleIdx >= adminIdx && adminIdx !== -1
-      }
-    }, [role])
-
-    // Organization permission checks
-    const canOrganization = useMemo(() => {
-      return (resource: OrganizationResource, action: string): boolean => {
-        if (!role) return false
-        if (role === 'owner') return true
-        return organizationRolesConfig.hasPermission(role, resource, action)
-      }
-    }, [role])
-
-    const canAnyOrganization = useMemo(() => {
-      return (permissions: OrganizationPermission[]): boolean => {
-        const r = role
-        if (!r) return false
-        return permissions.some(({ resource, action }) => 
-          (r === 'owner') || organizationRolesConfig.hasPermission(r, resource, action)
-        )
-      }
-    }, [role])
-
-    const canAllOrganization = useMemo(() => {
-      return (permissions: OrganizationPermission[]): boolean => {
-        const r = role
-        if (!r) return false
-        return permissions.every(({ resource, action }) => 
-          (r === 'owner') || organizationRolesConfig.hasPermission(r, resource, action)
-        )
-      }
-    }, [role])
-
-    return {
-      isLoading: members.isLoading,
-      isMember: !!membership,
-      role,
-      hasOrganizationRole,
-      hasAnyOrganizationRole,
-      isOrganizationOwner,
-      isOrganizationAdmin,
-      organizationRoleLevel,
-      canOrganization,
-      canAnyOrganization,
-      canAllOrganization,
-    }
-  }
-
-  // ============================================================================
-  // COMBINED PERMISSIONS HOOK
-  // ============================================================================
-
-  /**
-   * Hook that combines platform and organization permissions
-   * 
-   * @param organizationId - Optional organization ID for org-level checks
-   * 
-   * @example
-   * ```tsx
-   * const perms = useCombinedPermissions(orgId)
-   * 
-   * // Platform checks
-   * if (perms.platform.isPlatformAdmin()) { ... }
-   * 
-   * // Organization checks (only if orgId provided)
-   * if (perms.organization?.isOrganizationOwner()) { ... }
-   * ```
-   */
-  function useCombinedPermissions(organizationId?: string) {
-    const platform = usePermissions()
-    const organization = useOrganizationPermissions(organizationId)
-
-    return {
-      platform,
-      organization: organizationId ? organization : null,
-      isLoading: platform.isLoading || (organizationId ? organization.isLoading : false),
-    }
-  }
-
   return {
     usePermissions,
-    useOrganizationPermissions,
-    useCombinedPermissions,
   }
 }
-
-// ============================================================================
-// INTERNAL HELPERS
-// ============================================================================
-
-function getMembersArray(
-  data: { data: OrganizationMember[] } | { members: OrganizationMember[] } | OrganizationMember[] | undefined
-): OrganizationMember[] {
-  if (!data) return []
-  if (Array.isArray(data)) return data
-  if ('data' in data && Array.isArray(data.data)) return data.data
-  if ('members' in data && Array.isArray(data.members)) return data.members
-  return []
-}
-
-// ============================================================================
-// RE-EXPORTS
-// ============================================================================
-
-export {
-  type PlatformRole,
-  type OrganizationRole,
-  type PlatformResource,
-  type OrganizationResource,
-  PLATFORM_ROLES,
-  ORGANIZATION_ROLES,
-  platformRoleMeta,
-  organizationRoleMeta,
-} from '../permissions'

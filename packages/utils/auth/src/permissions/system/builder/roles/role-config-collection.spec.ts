@@ -7,7 +7,7 @@ describe('RoleConfigCollection', () => {
     admin: {
       project: ['create', 'read', 'update', 'delete'] as const,
       user: ['create', 'read', 'update', 'delete'] as const,
-      organization: ['create', 'read', 'update', 'delete'] as const,
+      service: ['create', 'read', 'update', 'delete'] as const,
     },
     editor: {
       project: ['create', 'read', 'update'] as const,
@@ -16,7 +16,7 @@ describe('RoleConfigCollection', () => {
     viewer: {
       project: ['read'] as const,
       user: ['read'] as const,
-      organization: ['read'] as const,
+      service: ['read'] as const,
     },
     contributor: {
       project: ['create', 'read', 'update'] as const,
@@ -80,8 +80,8 @@ describe('RoleConfigCollection', () => {
     });
 
     it('should filter roles without resource', () => {
-      // @ts-expect-error - Testing resource filtering with 'organization' resource
-      const withoutOrg = collection.withoutResource('organization');
+      // @ts-expect-error - Testing resource filtering with 'service' resource
+      const withoutOrg = collection.withoutResource('service');
       const result = withoutOrg.all();
 
       expect(Object.keys(result)).toEqual(['editor', 'contributor']);
@@ -170,7 +170,7 @@ describe('RoleConfigCollection', () => {
       expect(result.viewer).toEqual({
         project: ['read'],
         user: ['read'],
-        organization: ['read'],
+        service: ['read'],
       });
     });
 
@@ -394,7 +394,7 @@ describe('RoleConfigCollection', () => {
     it('should handle multi-tenant permission scenarios', () => {
       const tenantRoles = {
         orgAdmin: {
-          organization: ['create', 'read', 'update', 'delete', 'manage-members'] as const,
+          service: ['create', 'read', 'update', 'delete', 'manage-members'] as const,
           project: ['create', 'read', 'update', 'delete'] as const,
           billing: ['read', 'update', 'manage-subscriptions'] as const,
         },
@@ -440,11 +440,11 @@ describe('RoleConfigCollection', () => {
       const roles = {
         superAdmin: {
           system: ['manage', 'configure'] as const,
-          organization: ['create', 'read', 'update', 'delete'] as const,
+          service: ['create', 'read', 'update', 'delete'] as const,
           user: ['create', 'read', 'update', 'delete'] as const,
         },
         orgAdmin: {
-          organization: ['read', 'update'] as const,
+          service: ['read', 'update'] as const,
           user: ['create', 'read', 'update', 'delete'] as const,
         },
         manager: {

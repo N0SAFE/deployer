@@ -16,11 +16,6 @@ import { TestController } from "./controllers/test.controller";
  * baseProcedure
  *     .use(this.authService.middleware.admin.hasPermission({ user: ['create'] }))
  *     .handler(async (input, ctx) => { ... })
- * 
- * // Organization-based checks
- * baseProcedure
- *     .use(this.authService.middleware.org.isMemberOf(ctx => ctx.input.organizationId))
- *     .handler(async (input, ctx) => { ... })
  * ```
  */
 @Module({

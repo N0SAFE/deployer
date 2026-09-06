@@ -566,6 +566,20 @@ export class DeploymentExecutionWorkflowService {
                     containerImage: runtimeResult.containerImage,
                     startedAt: new Date().toISOString(),
                 },
+                // SW-024: swarm service identity as the inventory root — maps
+                // deploymentId ↔ serviceId ↔ serviceName ↔ tasks so the
+                // reconciliation and ops surfaces resolve `docker service ps`
+                // rows back to the deployment without a separate table.
+                ...(runtimeResult.serviceId || (runtimeResult.taskIds?.length ?? 0) > 0
+                    ? {
+                          swarmIdentity: {
+                              serviceId: runtimeResult.serviceId ?? null,
+                              serviceName: runtimeResult.serviceName ?? runtimeResult.containerName,
+                              taskIds: runtimeResult.taskIds ?? [],
+                              inventorySource: "deployment_execution",
+                          },
+                      }
+                    : {}),
                 ...(runtimeResult.managedRuntime?.managedBy === "deployment_service"
                     ? {
                           managedRuntimeResources: {

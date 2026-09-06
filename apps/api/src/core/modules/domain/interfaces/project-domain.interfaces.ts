@@ -33,8 +33,8 @@ export type InsertProjectDomain = typeof projectDomains.$inferInsert;
 export interface AssignDomainInput {
   /** Project ID to assign the domain to */
   projectId: string;
-  /** Organization domain ID (must be verified) */
-  organizationDomainId: string;
+  /** Domain ID (must be verified) */
+  domainId: string;
   /** Allowed subdomain patterns (e.g., ['staging', 'api', '*']) */
   allowedSubdomains?: string[];
 }
@@ -45,12 +45,6 @@ export interface AssignDomainInput {
 export interface AssignDomainResponse {
   /** Created project domain entity */
   projectDomain: ProjectDomain;
-  /** The underlying organization domain */
-  organizationDomain: {
-    id: string;
-    domain: string;
-    verificationStatus: string;
-  };
 }
 
 // ============================================================================
@@ -61,12 +55,10 @@ export interface AssignDomainResponse {
  * A verified domain available for project assignment
  */
 export interface AvailableDomain {
-  /** Organization domain ID */
-  organizationDomainId: string;
+  /** Domain ID */
+  domainId: string;
   /** Domain name */
   domain: string;
-  /** Organization ID that owns the domain */
-  organizationId: string;
 }
 
 // ============================================================================

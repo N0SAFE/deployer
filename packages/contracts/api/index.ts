@@ -14,10 +14,11 @@ import {
     templateContract,
     dockerContract,
     setupContract,
-    coreContract,
+    nodesContract,
     reachabilityContract,
     providersContract,
     meshContract,
+    clusterContract,
     platformContract,
 } from "./modules/index";
 import { meshBaseResourceContract } from "./modules/mesh/resource/mesh-base-resource.contract";
@@ -38,7 +39,8 @@ export const appContract = oc.router({
     template: templateContract,
     docker: dockerContract,
     setup: setupContract,
-    core: coreContract,
+    // Node-scoped surface: fleet servers, per-node allocations, admission.
+    nodes: nodesContract,
     reachability: reachabilityContract,
     providers: providersContract,
     // Public mesh surface: info + management endpoints. The mesh-to-mesh
@@ -48,6 +50,8 @@ export const appContract = oc.router({
     // API-centric platform surface: web app-instance registration/heartbeat
     // plus operator management of the managed web app.
     platform: platformContract,
+    // Swarm cluster surface: snapshot, fleet inventory, master, node labels.
+    cluster: clusterContract,
     // The resource-dispatcher catch-all (POST /mesh/:entityKey/:methodName)
     // remains reachable via the MeshResourceController. It is NOT part of the
     // public app contract either — the cross-node caller uses it directly.

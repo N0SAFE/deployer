@@ -29,7 +29,7 @@ services:
       MANAGED_LOCAL_DB_ENABLED: "true"
       MANAGED_TRAEFIK_ENABLED: "false"
       APP_URL: http://web-dev:3000
-      ENABLE_SEEDING: "false"
+      ENABLE_SEEDING: ${ENABLE_SEEDING:-false}
       NODE_LOCAL_DB_PATH: /app/data/local-mesh-node-1.db
       MESH_NODE_ID: ${MESH_NODE_ID_NODE_1:-22222222-2222-4222-8222-222222222222}
       MESH_NODE_SERVER_URL: ${MESH_NODE_SERVER_URL_NODE_1:-http://api-mesh-dev-1:3301}
@@ -69,7 +69,7 @@ services:
       MANAGED_LOCAL_DB_ENABLED: "true"
       MANAGED_TRAEFIK_ENABLED: "false"
       APP_URL: http://web-dev:3000
-      ENABLE_SEEDING: "false"
+      ENABLE_SEEDING: ${ENABLE_SEEDING:-false}
       NODE_LOCAL_DB_PATH: /app/data/local-mesh-node-2.db
       MESH_NODE_ID: ${MESH_NODE_ID_NODE_2:-33333333-3333-4333-8333-333333333333}
       MESH_NODE_SERVER_URL: ${MESH_NODE_SERVER_URL_NODE_2:-http://api-mesh-dev-2:3302}
@@ -108,7 +108,7 @@ services:
       MANAGED_LOCAL_DB_ENABLED: "true"
       MANAGED_TRAEFIK_ENABLED: "false"
       APP_URL: http://web-dev:3000
-      ENABLE_SEEDING: "false"
+      ENABLE_SEEDING: ${ENABLE_SEEDING:-false}
       NODE_LOCAL_DB_PATH: /app/data/local-mesh-node-3.db
       MESH_NODE_ID: ${MESH_NODE_ID_NODE_3:-44444444-4444-4444-8444-444444444444}
       MESH_NODE_SERVER_URL: ${MESH_NODE_SERVER_URL_NODE_3:-http://api-mesh-dev-3:3303}
@@ -147,7 +147,7 @@ services:
       MANAGED_LOCAL_DB_ENABLED: "true"
       MANAGED_TRAEFIK_ENABLED: "false"
       APP_URL: http://web-dev:3000
-      ENABLE_SEEDING: "false"
+      ENABLE_SEEDING: ${ENABLE_SEEDING:-false}
       NODE_LOCAL_DB_PATH: /app/data/local-mesh-node-4.db
       MESH_NODE_ID: ${MESH_NODE_ID_NODE_4:-55555555-5555-4555-8555-555555555555}
       MESH_NODE_SERVER_URL: ${MESH_NODE_SERVER_URL_NODE_4:-http://api-mesh-dev-4:3304}
@@ -186,7 +186,7 @@ services:
       MANAGED_LOCAL_DB_ENABLED: "true"
       MANAGED_TRAEFIK_ENABLED: "false"
       APP_URL: http://web-dev:3000
-      ENABLE_SEEDING: "false"
+      ENABLE_SEEDING: ${ENABLE_SEEDING:-false}
       NODE_LOCAL_DB_PATH: /app/data/local-mesh-node-5.db
       MESH_NODE_ID: ${MESH_NODE_ID_NODE_5:-66666666-6666-4666-8666-666666666666}
       MESH_NODE_SERVER_URL: ${MESH_NODE_SERVER_URL_NODE_5:-http://api-mesh-dev-5:3305}
@@ -225,7 +225,7 @@ services:
       MANAGED_LOCAL_DB_ENABLED: "true"
       MANAGED_TRAEFIK_ENABLED: "false"
       APP_URL: http://web-dev:3000
-      ENABLE_SEEDING: "false"
+      ENABLE_SEEDING: ${ENABLE_SEEDING:-false}
       NODE_LOCAL_DB_PATH: /app/data/local-mesh-node-6.db
       MESH_NODE_ID: ${MESH_NODE_ID_NODE_6:-77777777-7777-4777-8777-777777777777}
       MESH_NODE_SERVER_URL: ${MESH_NODE_SERVER_URL_NODE_6:-http://api-mesh-dev-6:3306}

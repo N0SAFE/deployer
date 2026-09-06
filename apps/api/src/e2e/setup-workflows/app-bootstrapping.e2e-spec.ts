@@ -58,7 +58,6 @@ describe('Application bootstrapping: mesh creation', () => {
       name: 'Mesh Admin Node',
       email: 'admin@mesh.test',
       password: 'P@ssword1234',
-      organizationName: 'Mesh Test Org',
     })
 
     const events = await collectStreamEvents(initObservable)
@@ -102,7 +101,6 @@ describe('Application bootstrapping: mesh URL persistence', () => {
         name: 'Persistence Test Node',
         email: 'persist@mesh.test',
         password: 'P@ssword1234',
-        organizationName: 'Persistence Test Org',
       })
       await collectStreamEvents(initObservable)
     }
@@ -164,7 +162,6 @@ describe('Application bootstrapping: multi-node mesh', () => {
       name: 'Mesh Hub',
       email: 'hub@mesh.test',
       password: 'P@ssword1234',
-      organizationName: 'Mesh Hub Org',
     })
     await collectStreamEvents(hubInitObservable)
 
@@ -232,7 +229,6 @@ describe('Application bootstrapping: node status consistency', () => {
         name: 'Status Check Node',
         email: 'status@mesh.test',
         password: 'P@ssword1234',
-        organizationName: 'Status Check Org',
       })
       await collectStreamEvents(initObservable)
     }

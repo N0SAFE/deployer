@@ -148,13 +148,13 @@ describe('serviceEnvironmentExecutionOverrideSchema - target selection strategy 
 })
 
 describe('serviceDependencyLinkPolicySchema - existing incompatible combinations', () => {
-  it('rejects same-environment + shared-service + organization scope', () => {
+  it('rejects same-environment + shared-service + project scope', () => {
     const result = serviceDependencyLinkPolicySchema.safeParse({
       target: { mode: 'same-environment' },
       provisioning: {
         provisioningMode: 'shared-service',
-        sharingScope: 'organization',
-        reuseKey: 'org-wide',
+        sharingScope: 'project',
+        reuseKey: 'mesh-wide',
       },
     })
 

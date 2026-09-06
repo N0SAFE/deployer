@@ -6,7 +6,7 @@ describe('RoleConfig', () => {
     const roleData = {
       project: ['create', 'read', 'update'] as const,
       user: ['read'] as const,
-      organization: ['read', 'update'] as const,
+      service: ['read', 'update'] as const,
     };
 
     it('should return all role data', () => {
@@ -47,7 +47,7 @@ describe('RoleConfig', () => {
     const roleData = {
       project: ['create', 'read', 'update', 'delete'] as const,
       user: ['read'] as const,
-      organization: ['read', 'update'] as const,
+      service: ['read', 'update'] as const,
     };
     const config = new RoleConfig(roleData);
 
@@ -105,7 +105,7 @@ describe('RoleConfig', () => {
     const roleData = {
       project: ['create', 'read', 'update', 'delete'] as const,
       user: ['read'] as const,
-      organization: ['read', 'update'] as const,
+      service: ['read', 'update'] as const,
     };
     const config = new RoleConfig(roleData);
 
@@ -117,7 +117,7 @@ describe('RoleConfig', () => {
 
     it('should get all resources', () => {
       const resources = config.getResources();
-      expect(resources).toEqual(['project', 'user', 'organization']);
+      expect(resources).toEqual(['project', 'user', 'service']);
     });
   });
 
@@ -125,7 +125,7 @@ describe('RoleConfig', () => {
     const roleData = {
       project: ['create', 'read', 'update', 'delete'] as const,
       user: ['read'] as const,
-      organization: ['read', 'update'] as const,
+      service: ['read', 'update'] as const,
       billing: ['create', 'read', 'update'] as const,
     };
     const config = new RoleConfig(roleData);
@@ -152,7 +152,7 @@ describe('RoleConfig', () => {
       const writeOnly = config.writeOnly();
       expect(writeOnly.all()).toEqual({
         project: ['create', 'read', 'update', 'delete'],
-        organization: ['read', 'update'],
+        service: ['read', 'update'],
         billing: ['create', 'read', 'update'],
       });
     });
@@ -296,7 +296,7 @@ describe('RoleConfig', () => {
       const config = new RoleConfig({
         project: ['create', 'read', 'update', 'delete', 'share'] as const,
         user: ['read'] as const,
-        organization: ['read', 'update'] as const,
+        service: ['read', 'update'] as const,
         billing: ['read'] as const,
         settings: ['read', 'update'] as const,
       });
@@ -313,14 +313,14 @@ describe('RoleConfig', () => {
         actions.some(a => ['create', 'update', 'delete'].includes(a))
       );
 
-      expect(writeCapable.size).toBe(3); // project, organization, settings
+      expect(writeCapable.size).toBe(3); // project, service, settings
     });
 
     it('should chain operations correctly', () => {
       const config = new RoleConfig({
         project: ['create', 'read', 'update', 'delete'] as const,
         user: ['read'] as const,
-        organization: ['read', 'update'] as const,
+        service: ['read', 'update'] as const,
         billing: ['create', 'update'] as const,
       });
 

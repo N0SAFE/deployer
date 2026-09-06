@@ -78,7 +78,6 @@ describe("DeploymentExecutionWorkflowService", () => {
                     deploymentId: "deployment-1",
                     serviceId: "service-1",
                     projectId: "project-1",
-                    organizationId: null,
                     imageRef: "nginx:alpine",
                     networkMode: "bridge",
                     labels: {
@@ -404,7 +403,6 @@ describe("DeploymentExecutionWorkflowService", () => {
                     deploymentId: "deployment-1",
                     serviceId: "service-1",
                     projectId: "project-1",
-                    organizationId: null,
                     imageRef: "nginx:alpine",
                     networkMode: "bridge",
                     labels: {

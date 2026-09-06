@@ -215,7 +215,7 @@ import { NotFoundError } from "@repo/errors";
 
           const all = [local, ...remotes];
           const allowed = new Set(
-              this.overlayScope.filterForwardedNodeIdsByOrganization(all.map((c) => c.nodeId)),
+              this.overlayScope.filterForwardedNodeIds(all.map((c) => c.nodeId)),
           );
           return all.filter((c) => allowed.has(c.nodeId));
       }

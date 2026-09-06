@@ -17,7 +17,6 @@ const mockEngine = {
 // ---------------------------------------------------------------------------
 const ctx = {
   userId: "user-1",
-  orgId: "org-1",
   platformRole: "member" as const,
 };
 
@@ -27,7 +26,7 @@ const rule = {
   scope: { type: "all" as const },
 };
 
-const orgRoleRule = {
+const roleRule = {
   id: "rule-1",
   roleName: "developer",
   resourceRules: [rule],
@@ -179,11 +178,11 @@ describe("PermissionService", () => {
   // ─────────────────────────────────────────────────────────────────────────
   describe("listRoleRules", () => {
     it("should return all role rules for mesh", async () => {
-      mockRepository.listRoleRules.mockResolvedValue([orgRoleRule]);
+      mockRepository.listRoleRules.mockResolvedValue([roleRule]);
 
       const result = await service.listRoleRules();
 
-      expect(result).toEqual([orgRoleRule]);
+      expect(result).toEqual([roleRule]);
       expect(mockRepository.listRoleRules).toHaveBeenCalledWith();
     });
 

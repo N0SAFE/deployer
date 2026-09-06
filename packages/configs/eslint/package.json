@@ -63,6 +63,7 @@
         "eslint-config-next": "catalog:next",
         "eslint-config-prettier": "^10.1.8",
         "eslint-config-turbo": "^2.10.11",
+        "eslint-module-utils": "^2.14.0",
         "eslint-plugin-mdx": "^3.6.2",
         "eslint-plugin-next": "^0.0.0",
         "eslint-plugin-only-warn": "^1.1.0",

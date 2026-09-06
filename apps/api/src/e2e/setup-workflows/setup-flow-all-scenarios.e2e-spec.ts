@@ -84,7 +84,6 @@ async function runLocalSetup(
         name: `E2E Node ${instanceKey}`,
         email: `e2e-${instanceKey}@mesh.test`,
         password: 'P@ssword1234',
-        organizationName: `E2E Org ${instanceKey}`,
     })
 
     const events = await collectStreamEvents(initObservable)
@@ -469,7 +468,6 @@ describe('Setup Flow — Already Configured Guard', () => {
                 name: 'Duplicate Node',
                 email: 'duplicate@mesh.test',
                 password: 'P@ssword1234',
-                organizationName: 'Duplicate Org',
             })
             const events = await collectStreamEvents(initObservable)
             const errorEvent = events.find((e) => e.type === 'error')
@@ -703,7 +701,6 @@ describe('Setup Flow — Input Validation', () => {
                 name: 'Validation Test',
                 email: 'not-an-email',
                 password: 'P@ssword1234',
-                organizationName: 'Validation Org',
             })
             // If validation is permissive, this may succeed
         } catch {

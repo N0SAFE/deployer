@@ -21,7 +21,7 @@ export interface MeshNodeCaller {
     entityKey: string,
     methodName: string,
     payload: Record<string, unknown>,
-    options: { organizationId?: string | null; timeoutMs?: number },
+    options: { timeoutMs?: number },
   ): Promise<readonly { nodeId: string; items: readonly TItem[]; durationMs: number }[]>;
 }
 
@@ -296,7 +296,7 @@ export class MeshQueryExecutor {
     entityKey: string,
     methodName: string,
     payload: Record<string, unknown>,
-    options: { organizationId?: string | null; timeoutMs?: number },
+    options: { timeoutMs?: number },
   ): Promise<readonly { nodeId: string; items: readonly TItem[]; durationMs: number }[]> {
     try {
       return await this.nodeCaller.callMany<TItem>(

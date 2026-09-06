@@ -38,6 +38,7 @@ const apiMockEnv: EnvMockForSchema<typeof apiEnvSchema> = {
     DISABLE_AUTO_SCAN: "false",
     SETUP_AUTO: "false",
     ENABLE_SEEDING: "false",
+    ENABLE_DEV_BOOTSTRAP: "true",
     SKIP_MIGRATIONS: "false",
 };
 

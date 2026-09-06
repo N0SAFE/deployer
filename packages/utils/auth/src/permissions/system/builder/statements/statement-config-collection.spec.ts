@@ -6,7 +6,7 @@ describe('StatementConfigCollection', () => {
   const mockStatements = {
     project: ['create', 'read', 'update', 'delete', 'share'] as const,
     user: ['create', 'read', 'update', 'delete'] as const,
-    organization: ['read', 'update'] as const,
+    service: ['read', 'update'] as const,
     billing: ['read'] as const,
   };
 
@@ -18,7 +18,7 @@ describe('StatementConfigCollection', () => {
 
     it('should get all resource names', () => {
       const collection = new StatementConfigCollection(mockStatements);
-      expect(collection.resources()).toEqual(['project', 'user', 'organization', 'billing']);
+      expect(collection.resources()).toEqual(['project', 'user', 'service', 'billing']);
     });
 
     it('should get specific resource by key', () => {
@@ -64,7 +64,7 @@ describe('StatementConfigCollection', () => {
 
       expect(result.project).toEqual(['read', 'update']);
       expect(result.user).toEqual(['read', 'update']);
-      expect(result.organization).toEqual(['read', 'update']);
+      expect(result.service).toEqual(['read', 'update']);
       expect(result.billing).toEqual(['read']);
     });
 
@@ -74,7 +74,7 @@ describe('StatementConfigCollection', () => {
 
       expect(result.project).toEqual(['read']);
       expect(result.user).toEqual(['read']);
-      expect(result.organization).toEqual(['read']);
+      expect(result.service).toEqual(['read']);
       expect(result.billing).toEqual(['read']);
     });
 
@@ -86,7 +86,7 @@ describe('StatementConfigCollection', () => {
       // @ts-expect-error - Testing properties after filtering, type doesn't include all resources
       expect(result.user).toEqual([]);
       // @ts-expect-error - Testing properties after filtering, type doesn't include all resources
-      expect(result.organization).toEqual([]);
+      expect(result.service).toEqual([]);
       // @ts-expect-error - Testing properties after filtering, type doesn't include all resources
       expect(result.billing).toEqual([]);
     });
@@ -101,7 +101,7 @@ describe('StatementConfigCollection', () => {
 
       expect(result.project).toEqual(['read', 'update', 'share']);
       expect(result.user).toEqual(['read', 'update']);
-      expect(result.organization).toEqual(['read', 'update']);
+      expect(result.service).toEqual(['read', 'update']);
       expect(result.billing).toEqual(['read']);
     });
 
@@ -111,7 +111,7 @@ describe('StatementConfigCollection', () => {
 
       expect(result.project).toEqual(['create', 'update', 'delete', 'share']);
       expect(result.user).toEqual(['create', 'update', 'delete']);
-      expect(result.organization).toEqual(['update']);
+      expect(result.service).toEqual(['update']);
       // @ts-expect-error - Testing property after filtering operation
       expect(result.billing).toEqual([]);
     });
@@ -131,7 +131,7 @@ describe('StatementConfigCollection', () => {
 
       expect(result.project).toEqual(['read']);
       expect(result.user).toEqual(['read']);
-      expect(result.organization).toEqual(['read']);
+      expect(result.service).toEqual(['read']);
       expect(result.billing).toEqual(['read']);
     });
 
@@ -141,7 +141,7 @@ describe('StatementConfigCollection', () => {
 
       expect(result.project).toEqual(['create', 'update', 'delete']);
       expect(result.user).toEqual(['create', 'update', 'delete']);
-      expect(result.organization).toEqual(['update']);
+      expect(result.service).toEqual(['update']);
       // @ts-expect-error - Testing property after filtering operation
       expect(result.billing).toEqual([]);
     });
@@ -152,7 +152,7 @@ describe('StatementConfigCollection', () => {
 
       expect(result.project).toEqual(['create', 'read', 'update', 'delete']);
       expect(result.user).toEqual(['create', 'read', 'update', 'delete']);
-      expect(result.organization).toEqual(['read', 'update']);
+      expect(result.service).toEqual(['read', 'update']);
       expect(result.billing).toEqual(['read']);
     });
   });
@@ -172,7 +172,7 @@ describe('StatementConfigCollection', () => {
       const withAll = collection.withAllActions(['read', 'update']);
       const result = withAll.all();
 
-      expect(Object.keys(result)).toEqual(['project', 'user', 'organization']);
+      expect(Object.keys(result)).toEqual(['project', 'user', 'service']);
     });
 
     it('should filter resources with any of specified actions', () => {
@@ -186,7 +186,7 @@ describe('StatementConfigCollection', () => {
       const withoutDelete = collection.withoutAction('delete');
       const result = withoutDelete.all();
 
-      expect(Object.keys(result)).toEqual(['organization', 'billing']);
+      expect(Object.keys(result)).toEqual(['service', 'billing']);
     });
 
     it('should return empty when no resources match action', () => {
@@ -222,7 +222,7 @@ describe('StatementConfigCollection', () => {
       expect(mapped).toEqual([
         { resource: 'project', actionCount: 5, hasCreate: true },
         { resource: 'user', actionCount: 4, hasCreate: true },
-        { resource: 'organization', actionCount: 2, hasCreate: false },
+        { resource: 'service', actionCount: 2, hasCreate: false },
         { resource: 'billing', actionCount: 1, hasCreate: false },
       ]);
     });
@@ -361,7 +361,7 @@ describe('StatementConfigCollection', () => {
         .withoutAction('share')
         .all();
 
-      expect(Object.keys(result)).toEqual(['user', 'organization', 'billing']);
+      expect(Object.keys(result)).toEqual(['user', 'service', 'billing']);
     });
 
     it('should combine multiple action filters', () => {
@@ -370,7 +370,7 @@ describe('StatementConfigCollection', () => {
         .withAction('read')
         .all();
 
-      expect(Object.keys(result)).toEqual(['project', 'user', 'organization']);
+      expect(Object.keys(result)).toEqual(['project', 'user', 'service']);
     });
 
     it('should filter to specific permission patterns', () => {

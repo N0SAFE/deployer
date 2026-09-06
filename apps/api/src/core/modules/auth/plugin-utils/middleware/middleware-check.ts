@@ -65,11 +65,11 @@ export type DefaultBody = unknown;
  * const ctx: MiddlewareContext = { headers: new Headers() };
  * 
  * // Typed usage with your auth instance
- * type MyContext = MiddlewareContext<typeof auth, { organizationId: string }>;
+ * type MyContext = MiddlewareContext<typeof auth, { projectId: string }>;
  * const ctx: MyContext = {
  *   headers: new Headers(),
  *   session: { user: { id: '...', email: '...' }, session: { id: '...' } },
- *   params: { organizationId: 'org_123' },
+ *   params: { projectId: 'project_123' },
  * };
  * // ctx.session?.user is fully typed based on your auth config!
  * ```
@@ -84,7 +84,7 @@ export interface MiddlewareContext<
   headers: Headers;
   /** Pre-resolved session (typed from TAuth via InferSessionFromAuth) */
   session?: InferSessionFromAuth<TAuth> | null;
-  /** Route parameters (e.g., { organizationId: 'org_123' }) */
+  /** Route parameters (e.g., { projectId: 'project_123' }) */
   params?: TParams;
   /** Query parameters */
   query?: TQuery;
@@ -128,7 +128,7 @@ export type ValueOrResolver<
 export type MiddlewareErrorCode =
   | 'UNAUTHORIZED' // No valid session
   | 'FORBIDDEN' // Valid session but no permission
-  | 'NOT_FOUND' // Resource not found (e.g., organization)
+  | 'NOT_FOUND' // Resource not found (e.g., entity)
   | 'BAD_REQUEST'; // Invalid parameters
 
 /**
@@ -231,47 +231,8 @@ export interface RoleCheck<
   readonly matchMode: 'any' | 'all';
 }
 
-/**
- * Organization membership check.
- * Checks if user is a member of the organization.
- */
-export interface MembershipCheck<
-  TContext extends AnyMiddlewareContext = AnyMiddlewareContext,
-> extends MiddlewareCheck<TContext> {
-  readonly name: 'requireMembership' | 'requireActiveMember';
-  /** Organization ID (static or resolved) */
-  readonly organizationId?: string;
-  /** Whether this checks active organization from session */
-  readonly requiresActive: boolean;
-}
-
-/**
- * Organization role check.
- * Checks if user has a specific role in the organization.
- */
-export interface OrganizationRoleCheck<
-  TContext extends AnyMiddlewareContext = AnyMiddlewareContext,
-> extends MiddlewareCheck<TContext> {
-  readonly name: 'requireRole';
-  /** Organization ID (static or resolved) */
-  readonly organizationId: string;
-  /** Required roles in the organization */
-  readonly requiredRoles: readonly string[];
-}
-
-/**
- * Organization permission check.
- * Checks if user has permissions within the organization context.
- */
-export interface OrganizationPermissionCheck<
-  TContext extends AnyMiddlewareContext = AnyMiddlewareContext,
-> extends MiddlewareCheck<TContext> {
-  readonly name: 'hasOrgPermission';
-  /** Organization ID (static or resolved) */
-  readonly organizationId: string;
-  /** The permissions being checked */
-  readonly permissions: PermissionObject;
-}
+// Note: there is no organization membership/role/permission check — the mesh
+// is the single tenant. Access control is platform-scoped (admin plugin).
 
 // ============================================================================
 // Abstract Base Implementation

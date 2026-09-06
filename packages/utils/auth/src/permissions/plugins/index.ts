@@ -8,7 +8,8 @@
 // System registry and types
 export * from './system';
 
-// Admin permissions plugin
+// Admin permissions plugin — the mesh is the single tenant, so the admin
+// plugin is the only scoped wrapper we ship.
 export { 
   AdminPermissionsPlugin, 
   type AdminPlugin,
@@ -17,13 +18,3 @@ export {
   type AdminPluginWrapperOptions,
   type ApiMethodsWithAdminPlugin,
 } from './admin.permissions.plugin';
-
-// Organizations permissions plugin  
-export { 
-  OrganizationsPermissionsPlugin, 
-  type OrganizationsPlugin,
-  type OrganizationPluginInstance,
-  type AuthWithOrganizationPlugin,
-  type OrganizationsPluginWrapperOptions,
-  type ApiMethodsWithOrganizationPlugin,
-} from './organizations.permissions.plugin';

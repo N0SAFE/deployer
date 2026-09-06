@@ -196,12 +196,9 @@ import { Injectable } from "@nestjs/common";
           }
 
           if (data.type === "control") {
-              const orgId = activeSessionId
-                  ? this.sessions.resolveOrganizationId(activeSessionId)
-                  : null;
-              const scoped = this.controlPlane.applySessionScope(data.envelope, orgId);
+              const scoped = this.controlPlane.applySessionScope(data.envelope);
               if (!scoped) {
-                  emit({ type: "error", code: "invalid_event", message: "Control envelope org scope mismatch", retryable: false });
+                  emit({ type: "error", code: "invalid_event", message: "Control envelope scope rejection", retryable: false });
                   return;
               }
               const response = this.controlPlane.publish(scoped);

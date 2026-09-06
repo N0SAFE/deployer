@@ -93,7 +93,7 @@ export class MeshMembershipService {
         input: MeshMembershipReconcileInput
     ): MeshMembershipReconcileResult {
         const parsed = meshMembershipReconcileInputSchema.parse(input)
-        const scoped = this.overlayScope.scopeMembershipSnapshotByOrganization(
+        const scoped = this.overlayScope.scopeMembershipSnapshot(
             parsed.snapshot
         )
 
@@ -158,7 +158,7 @@ export class MeshMembershipService {
             connections: this.health.listRanked(),
             sessions: this.sessions.list(),
         }
-        return this.overlayScope.scopeMembershipSnapshotByOrganization(snapshot)
+        return this.overlayScope.scopeMembershipSnapshot(snapshot)
     }
 
     getRemoteNode(nodeId: string): MeshNodeState | undefined {

@@ -236,10 +236,10 @@ sequenceDiagram
 ## Implementation status
 - ✅ Architecture constraints frozen for current scope.
 - ✅ Diagram + schema documentation added.
-- ✅ Contracts added under `packages/contracts/api/modules/fleet` and wired into `core.fleet`.
-- ✅ API system module added under `apps/api/src/system/modules/fleet` with super-admin guarded allocation operations.
+- ✅ Contracts moved to `packages/contracts/api/modules/nodes` and wired into the `nodes` contract group (the mesh is the single tenant — no org concept).
+- ✅ API fleet module (originally `apps/api/src/system/modules/fleet`) reworked as the node-scoped fleet surface under `apps/api/src/modules/fleet`.
 - ✅ Web domain layer added under `apps/web/src/domains/fleet`.
-- ✅ Super-admin dashboard section added in `apps/web/src/app/dashboard/admin/system/page.tsx` for server listing and org CPU/RAM allocation management.
+- ✅ Fleet/allocations surfaced in `apps/web/src/app/dashboard/nodes` (fleet view) and `apps/web/src/app/dashboard/configuration` (per-node capacity cards).
 
 ## Related execution tracking
 - [Migration Task Breakdown](/docs/deployment/migration-task-breakdown)

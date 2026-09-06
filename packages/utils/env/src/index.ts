@@ -136,7 +136,7 @@ export const apiEnvSchema = zod
         // SETUP_AUTO=true (probed — unreachable URL fails boot hard).
         // SETUP_DATABASE_URL is kept as a backwards-compatible alias.
         SETUP_AUTO_DATABASE_URL: zod.string().optional(),
-        SETUP_DATABASE_URL: zod.string().optional(),
+        SETUP_DATABASE_URL: zod.string().min(1).optional(),
         SETUP_AUTO: booleanEnv().default(false),
         DB_HOST: zod.string().optional(),
         DB_PORT: zod.string().optional(),
@@ -166,7 +166,6 @@ export const apiEnvSchema = zod
         DEFAULT_ADMIN_EMAIL: zod.email().optional(),
         DEFAULT_ADMIN_PASSWORD: zod.string().optional(),
         DEFAULT_ADMIN_NAME: zod.string().optional().default("Admin"),
-        DEFAULT_ADMIN_ORGANIZATION: zod.string().optional().default("My Organization"),
         GITHUB_WEBHOOK_SECRET: zod.string().optional(),
         DEPLOYMENT_UPLOAD_DIR: zod.string().optional().default("/tmp/deployer-uploads"),
         APP_DOCKER_IMAGE_SCAN_PARALLELISM: zod.coerce.number().int().min(1).optional().default(5),
@@ -309,6 +308,41 @@ export const apiEnvSchema = zod
         // Named docker volume persisting wg keys + config.
         MANAGED_WIREGUARD_STATE_VOLUME: zod.string().optional().default("deployer-wireguard-state"),
 
+        // ─── Swarm (SDK cluster orchestration) ──────────────────────────
+        // The platform converges the local engine into Swarm mode on boot
+        // (SwarmBootstrapService → SwarmClusterService.ensureCluster, all via
+        // the dockerode SDK — no CLI). SWARM_ENABLED=false restores pure
+        // supervisor mode (edge nodes, constrained hosts).
+        SWARM_ENABLED: booleanEnv().default(true),
+        // Advertise address forced for `docker swarm init`. When unset the
+        // engine auto-selects (first non-loopback interface); prefer the
+        // WireGuard overlay IP (MANAGED_WIREGUARD_IP) for mesh clusters.
+        SWARM_ADVERTISE_ADDR: zod.string().optional(),
+        // Max manager count (quorum cap) for the platform master election.
+        SWARM_QUORUM_MAX: zod.coerce.number().int().min(1).default(3),
+
+        // ─── Master election / failover (P4/P5 — docs/swarm-orchestration/02/03) ──
+        // Evaluation cadence: stable (settled) vs volatile (churn) intervals.
+        SWARM_ELECTION_EVAL_STABLE_MS: zod.coerce.number().int().min(500).default(15000),
+        SWARM_ELECTION_EVAL_VOLATILE_MS: zod.coerce.number().int().min(250).default(5000),
+        // Minimum time between two leadership takeovers (anti-flap).
+        SWARM_ELECTION_COOLDOWN_MS: zod.coerce.number().int().min(0).default(60000),
+        // Hysteresis: a challenger must beat the current master by this delta.
+        SWARM_ELECTION_DELTA_MASTER: zod.coerce.number().min(0).max(1).default(0.25),
+        // Max silence of the master heartbeat before SUSPECT.
+        SWARM_HEARTBEAT_TTL_MS: zod.coerce.number().int().min(1000).default(30000),
+        // SUSPECT → CONFIRMED_DOWN grace window.
+        SWARM_MASTER_GRACE_MS: zod.coerce.number().int().min(0).default(15000),
+        // A candidate whose observed term lags by more than this is excluded.
+        SWARM_MAX_TERM_SKEW: zod.coerce.number().int().min(0).default(2),
+        // Winner must have been up this long before a takeover is allowed.
+        SWARM_TAKEOVER_MIN_UPTIME_MS: zod.coerce.number().int().min(0).default(120000),
+        // API-driven platform stack: when the engine is in swarm mode, the API
+        // deploys its OWN ingress (Traefik swarm provider) as swarm services —
+        // no CLI scripts, no manual `docker stack deploy`. Disable to keep the
+        // supervisor-managed compose path.
+        SWARM_PLATFORM_STACK: booleanEnv().default(true),
+
         // ─── Database service primitive (scaled Postgres instances) ──────
         // A "database service" is a scaled set of managed Postgres instances
         // (one per replica) reachable in the private overlay + shared network
@@ -378,6 +412,15 @@ export const apiEnvSchema = zod
         // Using .default() which reads from process.env via expandVariables
         DISABLE_AUTO_SCAN: booleanEnv().default(false),
         ENABLE_SEEDING: booleanEnv().default(false),
+        // Dev first-run bootstrap — documented in .env.example/.env.template
+        // ("startup creates default admin + seeds") but was previously NOT in
+        // the schema and never consumed. Now: when NODE_ENV !== 'production',
+        // the orchestrator ensures the default admin (DEFAULT_ADMIN_EMAIL /
+        // DEFAULT_ADMIN_PASSWORD) exists after global migrations — default
+        // true so a fresh compose-managed dev stack boots with credentials.
+        // Set false to keep the first-run wizard flow. In production the
+        // equivalent gate is ENABLE_SEEDING.
+        ENABLE_DEV_BOOTSTRAP: booleanEnv().default(true),
         SKIP_MIGRATIONS: booleanEnv().optional().default(false),
 
         // Scanner runner shared container

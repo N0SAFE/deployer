@@ -133,8 +133,11 @@ flowchart TD
 - `user`, `health`, `push`, `test`
 - `domain`, `project`, `service`, `deployment`, `analytics`
 - `providerSchema`, `template`, `setup`
-- `core.mesh`, `core.fleet`
-- `organization.admin.listAll`, `organization.admin.listMembers`
+- `mesh` (public mesh surface), `nodes` (fleet servers, allocations, admission)
+
+The mesh is the single tenant — there is no organization layer. Projects and
+services are mesh-wide; deployments, docker and node configuration are scoped
+per node.
 
 ---
 

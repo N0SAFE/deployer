@@ -95,7 +95,6 @@ describe('ServiceService', () => {
             resolveStrict: vi.fn(() => ({
                 scope: 'project',
                 context: {},
-                organization: { metadata: null },
                 project: { metadata: null },
                 service: { metadata: null },
                 user: { metadata: null },

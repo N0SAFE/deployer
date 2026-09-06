@@ -300,7 +300,7 @@ export type LayoutRouteBuilder<
      * ```tsx
      * // app/(dashboard)/layout.tsx
      * export default DashboardRoute.Route(async ({ params, children }) => {
-     *   const config = await fetchDashboardConfig(params.orgId)
+     *   const config = await fetchDashboardConfig(params.projectId)
      *   return <DashboardShell config={config}>{children}</DashboardShell>
      * })
      * ```
@@ -425,7 +425,7 @@ export type PageRouteBuilder<
      * ```tsx
      * // app/(dashboard)/layout.tsx
      * export default DashboardRoute.Route(async ({ params, children }) => {
-     *   const config = await fetchDashboardConfig(params.orgId)
+     *   const config = await fetchDashboardConfig(params.projectId)
      *   return <DashboardShell config={config}>{children}</DashboardShell>
      * })
      * ```

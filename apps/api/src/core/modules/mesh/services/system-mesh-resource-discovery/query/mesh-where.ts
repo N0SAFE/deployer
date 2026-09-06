@@ -382,7 +382,7 @@ export function applyObjectWhere<TItem>(
  *
  * The test expects this API:
  * createFilter<UserSchema>(() => ({
- *   organizationId: eq("org-123"),  // eq returns a wrapper with _eq property
+ *   projectId: eq("prj-123"),  // eq returns a wrapper with _eq property
  *   status: eq("active"),
  *   age: gt(18),
  * }))

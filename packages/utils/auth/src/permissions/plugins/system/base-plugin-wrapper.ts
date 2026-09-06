@@ -5,7 +5,6 @@
  * Subclasses should implement plugin-specific permission checking using
  * Better Auth's native APIs:
  * - Admin plugin: auth.api.userHasPermission()
- * - Organization plugin: auth.api.hasPermission()
  *
  * @template TPermissionBuilder - Permission builder type for type inference
  * @template TAuth - Auth instance type with required API methods

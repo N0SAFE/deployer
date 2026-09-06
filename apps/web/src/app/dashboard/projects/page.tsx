@@ -18,7 +18,7 @@ import { Label } from '@repo/ui/components/shadcn/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
 import { ArrowRight, FolderKanban, Pencil, Plus, Search, Settings, Siren, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { PageHeader, PageLoadingState, PageErrorState, EmptyState } from '@/components/dashboard'
+import { PageHeader, PageLoadingState, PageErrorState, EmptyState, ScopeLabel } from '@/components/dashboard'
 import { formatDate, shortId } from './[projectId]/_utils/helpers'
 
 interface ProjectRow {
@@ -129,6 +129,7 @@ export default function DashboardProjectsPage() {
         eyebrow="Projects"
         title="Projects"
         description="Organize services and infrastructure into deployable units."
+        badge={<ScopeLabel scope="mesh" />}
         actions={
           <>
             <Button asChild variant="outline">

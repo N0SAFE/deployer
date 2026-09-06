@@ -31,22 +31,27 @@ bun run api -- db:studio
 
 ## Runtime order (important)
 
-### Development entrypoint
+### Runtime order (dev, compose-managed)
 
-`entrypoint.dev.ts` runs in this sequence:
+`bun run dev` boots the API container, which runs `entrypoint.dev.ts`
+(version → node-startup-check → env validation → diagnostics → `start:dev`).
+Migrations and bootstrap happen INSIDE the app lifecycle (orchestrator):
 
-1. validate environment,
-2. run diagnostics,
-3. run migrations,
-4. create default admin,
-5. run seeding,
-6. start API processes.
+1. Phase 0 (`SetupDevService`) persists the database URL — the compose-managed
+   global DB is written to SQLite as `setup_done`, so no wizard appears.
+2. The orchestrator runs global Postgres migrations (idempotent).
+3. Env-gated default-admin bootstrap:
+   - dev (`NODE_ENV !== 'production'`): ensures `DEFAULT_ADMIN_EMAIL` /
+     `DEFAULT_ADMIN_PASSWORD` exist when `ENABLE_DEV_BOOTSTRAP` is not
+     `false` (default `true`).
+   - non-dev: only when `ENABLE_SEEDING=true` (opt-in, default `false`).
+4. Main app + web start.
 
 ### Production entrypoint
 
 - Migrations run unless `SKIP_MIGRATIONS=true`.
-- Seeding is opt-in and only runs when `ENABLE_SEEDING=true`.
-- Failed migration/seed steps are logged and handled intentionally by entrypoint logic.
+- Admin seeding is opt-in and only runs when `ENABLE_SEEDING=true`.
+- Failed migration/seed steps are logged and handled intentionally.
 
 <DocCallout title="Critical rule" tone="warning">
 Never perform direct DB access from web code. Keep persistence rules in API services/repositories and expose them through contracts.

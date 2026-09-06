@@ -235,7 +235,7 @@ describe("Mesh E2E: Query Executor", () => {
   it("handles scope options", async () => {
     const result = await discovery
       .from(TestDeploymentMeshService.queries.deployments)
-      .scope({ organizationId: "org-123", timeoutMs: 5000 })
+      .scope({ timeoutMs: 5000 })
       .request();
 
     expect(Array.isArray(result.items)).toBe(true);

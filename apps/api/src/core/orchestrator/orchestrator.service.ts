@@ -23,6 +23,7 @@ import { migrate as migratePg } from "drizzle-orm/node-postgres/migrator";
 import { RouteRegistryService } from "../gateway/route-registry.service";
 import { NodeConfigRepository } from "../modules/setup/repositories/node-config.repository";
 import { SetupDevModule } from "../setup-dev/setup-dev.module";
+import { ensureDefaultAdmin } from "../setup-dev/default-admin.bootstrap";
 import { SetupSubAppModule } from "../setup-sub-app/setup-sub-app.module";
 import { runSubApp } from "../sub-app/sub-app-runner";
 import { AppModule } from "../../app.module";
@@ -143,6 +144,9 @@ export class OrchestratorService implements OnApplicationBootstrap {
       // ── Auto-migrate global Postgres (idempotent) ────────────────────
       await this.runGlobalMigrations();
 
+      // ── Env-gated bootstrap: default admin after migrations ──────────
+      await this.bootstrapSeededAdmin(databaseUrl);
+
       this.lifecycle.transition(AppLifecyclePhase.READY, {
         message: "Database reachable, proceeding to mesh-init → main-app",
         databaseReachable: true,
@@ -175,6 +179,10 @@ export class OrchestratorService implements OnApplicationBootstrap {
             this.logger.log('✅ Healed from explicit database URL — proceeding to main flow');
             await this.startupGuard.ensureDatabaseAvailable(this.pool);
             await this.runGlobalMigrations();
+
+            // ── Env-gated bootstrap: default admin after migrations ────
+            await this.bootstrapSeededAdmin(updatedUrl);
+
             this.lifecycle.transition(AppLifecyclePhase.READY, {
               message: "Database reachable (healed from env), proceeding to mesh-init → main-app",
               databaseReachable: true,
@@ -366,6 +374,37 @@ export class OrchestratorService implements OnApplicationBootstrap {
         this.logger.warn(`⚠️  Global Postgres migrations failed (non-fatal): ${msg}`);
       }
     }
+  }
+
+  /**
+   * Env-gated bootstrap: ensure the default admin exists after migrations.
+   *
+   * The compose-managed dev stack boots straight into the app (no setup
+   * wizard — SetupDevService persists setup_done for MANAGED_GLOBAL_DB), so
+   * a fresh stack would otherwise have NO admin credentials to sign in with
+   * (seeding is opt-in and off by default). This step creates
+   * DEFAULT_ADMIN_EMAIL / DEFAULT_ADMIN_PASSWORD via Better Auth
+   * (idempotent + non-fatal — see default-admin.bootstrap.ts).
+   *
+   * Gate (driven by .env):
+   *   dev (NODE_ENV !== 'production') → ENABLE_DEV_BOOTSTRAP (default true;
+   *     set false in .env to keep the first-run wizard flow).
+   *   non-dev → ENABLE_SEEDING=true (opt-in; .env.prod sets it).
+   */
+  private async bootstrapSeededAdmin(databaseUrl: string): Promise<void> {
+    const enabled =
+      process.env.NODE_ENV !== "production"
+        ? process.env.ENABLE_DEV_BOOTSTRAP !== "false"
+        : process.env.ENABLE_SEEDING === "true";
+    if (!enabled) {
+      this.logger.log(
+        process.env.NODE_ENV !== "production"
+          ? "⏭  Default-admin bootstrap skipped (ENABLE_DEV_BOOTSTRAP=false)"
+          : "⏭  Seeding skipped (ENABLE_SEEDING not true)",
+      );
+      return;
+    }
+    await ensureDefaultAdmin(databaseUrl);
   }
 
   // ─── Step 2: Setup Wizard (HTTP, conditional) ──────────────────────

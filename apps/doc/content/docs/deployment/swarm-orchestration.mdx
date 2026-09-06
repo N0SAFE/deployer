@@ -1,0 +1,41 @@
+---
+title: Swarm Orchestration
+description: Swarm runtime baseline — SDK-first execution backend, mesh master election, shared nodes, and the cluster API.
+order: 25
+---
+
+<DocMeta source="docs/swarm-orchestration/README.md" scope="canonical" />
+
+## Overview
+
+The v3 production baseline is a **Docker Swarm cluster** driven **entirely through the dockerode SDK** (no `docker` CLI in platform code — enforced by `scripts/check-swarm-cli-lock.sh`). The platform converges every node — including single-node dev/prod hosts — into a real Swarm cluster so the API runs ONE code path for every fleet size.
+
+Key capabilities implemented:
+
+- **Swarm execution backend** — user deployments run as Swarm services behind the existing `DeploymentRuntimeRunner` contract (`swarm` runner), with typed spec mappers, task-convergence health gates, Traefik swarm-provider verification, and a Compose→Swarm realizer (no `docker stack deploy` — the platform implements the transform itself).
+- **Master election** — the controlling manager is elected by the mesh: weighted scoring (latency/jitter/memory/CPU/stability/quorum/hysteresis), eligibility gates, odd-quorum planning, term-guarded CAS (single winner), cooldown + `δ_master` hysteresis, and a watchdog with Suspect/grace → takeover + step-down (quorum-loss guard: never elect into a broken cluster).
+- **Node sharing** — no dedicated workers: every node runs control-plane and user workloads (default role `both`; the only hard constraints are `deployer.ingress`, `deployer.tenant.*`, and infra). Platform control plane deployed via `docker/compose/docker-stack.deploy.yml` (spread preferences, `max_replicas_per_node: 1`, start-first rollback updates).
+- **Fleet lifecycle** — idempotent cluster bootstrap (`swarmInit`), join tokens persisted locally (never `.env`), periodic `docker node ls` inventory with drift reconciliation, and lifecycle ops (remove/scale/rollback).
+- **Cluster API** — `clusterContract` (`/cluster`): snapshot, node inventory, master view, node role/ingress label updates (authenticated).
+
+## Design & status
+
+Full design docs and the phased implementation checklist live in `docs/swarm-orchestration/`:
+
+- `README.md` — hub, terminology, topology, principles
+- `01-single-node-unified-mode.md` · `02-master-election-algorithm.md` · `03-master-takeover-failover.md` · `04-node-sharing-and-placement.md` · `05-swarm-execution-backend.md`
+- `IMPLEMENTATION_TODO.md` — P0–P8 checklist with landed/remaining status
+
+## Developer workflow
+
+Swarm is entirely API-driven — no CLI scripts:
+
+- On boot, `SwarmBootstrapService` converges the engine (`swarm init`/join, idempotent, `SWARM_ENABLED`).
+- `PlatformStackService` then deploys the platform's OWN stack (Traefik ingress with the swarm provider + overlay network) as swarm services (`SWARM_PLATFORM_STACK`).
+- `check:swarm:cli-lock` guards the SDK-first rule in CI.
+
+## Related documentation
+
+- [Architecture](/docs/architecture/architecture) — Docker topology / Swarm baseline
+- [Production Deployment](/docs/deployment/production-deployment) — target topology, replica policy, Traefik-first ingress
+- [Platform Source of Truth](/docs/architecture/platform-source-of-truth) — baseline statements §17/§23

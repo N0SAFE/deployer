@@ -14,7 +14,7 @@ import { reconstructFilter } from "@/core/modules/mesh/filter/mesh-filter-evalua
 import type { MeshFilterDescriptor } from "@/core/modules/mesh/filter/mesh-filter.types";
 
 type UserSchema = {
-  organizationId: `org-${number}`;
+  projectId: `org-${number}`;
   status: "active" | "inactive";
   ownerId: string;
   age: number;
@@ -23,12 +23,12 @@ type UserSchema = {
 describe("Mesh E2E: Typed Filter + Where System", () => {
   it("supports typed createFilter with leaf operators", () => {
     const userFilter = createFilter<UserSchema>(() => ({
-      organizationId: eq("org-123"),
+      projectId: eq("org-123"),
       status: eq("active"),
       age: gt(18),
     }));
 
-    expect(userFilter.organizationId?._eq).toBe("org-123");
+    expect(userFilter.projectId?._eq).toBe("org-123");
     expect(userFilter.status?._eq).toBe("active");
     expect(userFilter.age?._gt).toBe(18);
   });
@@ -38,7 +38,7 @@ describe("Mesh E2E: Typed Filter + Where System", () => {
       and([
         { status: eq("active") },
         or([
-          { organizationId: eq("org-123") },
+          { projectId: eq("org-123") },
           { ownerId: eq("user-456") },
         ]),
       ]),
@@ -54,7 +54,7 @@ describe("Mesh E2E: Typed Filter + Where System", () => {
         { status: eq("active") },
         {
           _or: [
-            { organizationId: eq("org-123") },
+            { projectId: eq("org-123") },
             { ownerId: eq("user-456") },
           ],
         },
@@ -64,7 +64,7 @@ describe("Mesh E2E: Typed Filter + Where System", () => {
 
     const pass = applyObjectWhere(
       {
-        organizationId: "org-123",
+        projectId: "org-123",
         status: "active",
         ownerId: "user-999",
         age: 31,
@@ -74,7 +74,7 @@ describe("Mesh E2E: Typed Filter + Where System", () => {
 
     const fail = applyObjectWhere(
       {
-        organizationId: "org-789",
+        projectId: "org-789",
         status: "active",
         ownerId: "user-999",
         age: 16,

@@ -70,7 +70,6 @@ async function runSetup(
         name: 'Test Mesh Node',
         email: 'test@mesh.test',
         password: 'P@ssword1234',
-        organizationName: 'Test Mesh Org',
     })
 
     const events = await collectStreamEvents(initObservable)
@@ -375,7 +374,6 @@ describe('Application Bootstrapping: Database URL Resolution', () => {
             name: 'DB Check Node',
             email: 'dbcheck@mesh.test',
             password: 'P@ssword1234',
-            organizationName: 'DB Check Org',
         })
 
         const events = await collectStreamEvents(initObservable)
@@ -453,7 +451,6 @@ describe('Application Bootstrapping: Setup Step Progression', () => {
             name: 'Step Test Node',
             email: 'steptest@mesh.test',
             password: 'P@ssword1234',
-            organizationName: 'Step Test Org',
         })
 
         const events = await collectStreamEvents(initObservable)
@@ -472,7 +469,6 @@ describe('Application Bootstrapping: Setup Step Progression', () => {
             name: 'Step Complete Node',
             email: 'stepcomplete@mesh.test',
             password: 'P@ssword1234',
-            organizationName: 'Step Complete Org',
         })
 
         const events = await collectStreamEvents(initObservable)
@@ -493,7 +489,6 @@ describe('Application Bootstrapping: Setup Step Progression', () => {
             name: 'Completed Node',
             email: 'completed@mesh.test',
             password: 'P@ssword1234',
-            organizationName: 'Completed Org',
         })
 
         const events = await collectStreamEvents(initObservable)
@@ -509,7 +504,6 @@ describe('Application Bootstrapping: Setup Step Progression', () => {
             name: 'Success Node',
             email: 'success@mesh.test',
             password: 'P@ssword1234',
-            organizationName: 'Success Org',
         })
 
         const events = await collectStreamEvents(initObservable)

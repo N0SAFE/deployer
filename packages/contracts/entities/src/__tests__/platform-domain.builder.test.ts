@@ -3,17 +3,8 @@ import { platformDomainSchemas } from '../contracts/platform-domain.builder'
 
 function createBaseScenario() {
   return {
-    organization: {
-      id: 'org_1',
-      slug: 'acme',
-      name: 'Acme',
-      plan: 'team',
-      region: 'eu-west-1',
-    },
     project: {
       id: 'prj_1',
-      organizationId: 'org_1',
-      teamId: 'team_1',
       slug: 'platform',
       name: 'Platform',
       description: 'Main project',

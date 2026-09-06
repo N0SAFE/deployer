@@ -161,75 +161,13 @@ const testContracts = oc.prefix("/test/orpc").router({
         method: "POST",
         path: "/admin/dynamic-permission",
     }).input(z.object({
-        resource: z.enum(["user", "organization", "invitation", "session", "member"]),
+        resource: z.enum(["user", "invitation", "session"]),
         action: z.enum(["create", "read", "update", "delete"]),
     })).output(
         z.object({
             message: z.string(),
             resource: z.string(),
             action: z.string(),
-            userId: z.string(),
-        })
-    ),
-    
-    // =========================================================================
-    // Organization Access Control
-    // =========================================================================
-    
-    /** Requires organization membership (static org ID) */
-    orgMembershipStaticEndpoint: oc.route({
-        method: "GET",
-        path: "/org/membership/static",
-    }).input(z.object({})).output(
-        z.object({
-            message: z.string(),
-            userId: z.string(),
-        })
-    ),
-    
-    /** Requires organization membership (dynamic org ID from input) */
-    orgMembershipDynamicEndpoint: oc.route({
-        method: "GET",
-        path: "/org/{organizationId}/membership",
-    }).input(z.object({
-    })).output(
-        z.object({
-            message: z.string(),
-            userId: z.string(),
-        })
-    ),
-    
-    /** Requires specific organization role */
-    orgRoleEndpoint: oc.route({
-        method: "GET",
-        path: "/org/{organizationId}/role",
-    }).input(z.object({
-    })).output(
-        z.object({
-            message: z.string(),
-            userId: z.string(),
-        })
-    ),
-    
-    /** Requires organization ownership */
-    orgOwnerEndpoint: oc.route({
-        method: "GET",
-        path: "/org/{organizationId}/owner",
-    }).input(z.object({
-    })).output(
-        z.object({
-            message: z.string(),
-            userId: z.string(),
-        })
-    ),
-    
-    /** Requires organization permission */
-    orgPermissionEndpoint: oc.route({
-        method: "GET",
-        path: "/org/permission",
-    }).input(z.object({})).output(
-        z.object({
-            message: z.string(),
             userId: z.string(),
         })
     ),
@@ -257,7 +195,7 @@ const testContracts = oc.prefix("/test/orpc").router({
     /** Demonstrates type-safe context access from previous middlewares */
     contextAccessEndpoint: oc.route({
         method: "GET",
-        path: "/context-access/{organizationId}",
+        path: "/context-access/{resourceId}",
     }).input(z.object({
     })).output(
         z.object({
@@ -374,50 +312,6 @@ export class TestController {
     }
     
     // -------------------------------------------------------------------------
-    // Organization Access Control (using AuthService guards)
-    // -------------------------------------------------------------------------
-    
-    @Get("test/org/:organizationId")
-    @UseGuards(AuthGuard)
-    @ApiBearerAuth()
-    @ApiParam({ name: "organizationId", description: "Organization ID to check access for" })
-    @ApiOperation({ summary: "Requires Organization membership via AuthService" })
-    @ApiResponse({ status: 200, description: "Organization access granted" })
-    @ApiResponse({ status: 403, description: "Forbidden - no organization access" })
-    organizationAccessNestJS(
-        @Session() session: UserSession,
-        @Param("organizationId") organizationId: string
-    ) {
-        // NOTE: For dynamic guards with route params:
-        // authService.guards.org.isMemberOf(ctx => ctx.params?.organizationId ?? '')
-        return {
-            message: "Organization access (see ORPC patterns for AuthService usage)",
-            approach: "authService.guards.org.isMemberOf(ctx => ctx.params?.organizationId)",
-            userId: session.user.id,
-            organizationId,
-        };
-    }
-    
-    @Get("test/org/:organizationId/owner")
-    @UseGuards(AuthGuard)
-    @ApiBearerAuth()
-    @ApiParam({ name: "organizationId", description: "Organization ID" })
-    @ApiOperation({ summary: "Requires Organization ownership via AuthService" })
-    @ApiResponse({ status: 200, description: "Organization owner access granted" })
-    @ApiResponse({ status: 403, description: "Forbidden - not organization owner" })
-    organizationOwnerNestJS(
-        @Session() session: UserSession,
-        @Param("organizationId") organizationId: string
-    ) {
-        return {
-            message: "Organization owner access (see ORPC patterns for AuthService usage)",
-            approach: "authService.guards.org.isOrganizationOwner(ctx => ctx.params?.organizationId)",
-            userId: session.user.id,
-            organizationId,
-        };
-    }
-    
-    // -------------------------------------------------------------------------
     // Combined Patterns (using AuthService composite guards)
     // -------------------------------------------------------------------------
     
@@ -455,6 +349,7 @@ export class TestController {
     // Public Access
     // -------------------------------------------------------------------------
     
+    @AllowAnonymous()
     @Implement(testContracts.publicEndpoint)
     publicOrpc() {
         return implement(testContracts.publicEndpoint)
@@ -485,6 +380,7 @@ export class TestController {
             });
     }
     
+    @OptionalAuth()
     @Implement(testContracts.optionalAuthEndpoint)
     optionalAuthOrpc() {
         return implement(testContracts.optionalAuthEndpoint)
@@ -555,81 +451,6 @@ export class TestController {
     }
     
     // -------------------------------------------------------------------------
-    // Organization Access Control (using AuthService.middleware)
-    // -------------------------------------------------------------------------
-    
-    @Implement(testContracts.orgMembershipStaticEndpoint)
-    orgMembershipStaticOrpc() {
-        return implement(testContracts.orgMembershipStaticEndpoint)
-            .use(requireAuth())
-            // Static org ID - no generic needed
-                        .handler(({ context }) => {
-                const auth = assertAuthenticated(context.auth);
-                return {
-                    message: "Authenticated access (membership endpoint)",
-                    userId: auth.user.id,
-                };
-            });
-    }
-    
-    @Implement(testContracts.orgMembershipDynamicEndpoint)
-    orgMembershipDynamicOrpc() {
-        return implement(testContracts.orgMembershipDynamicEndpoint)
-            .use(requireAuth())
-            // Dynamic org ID from input - uses .forInput() + mapInput for auto-typed input
-                        .handler(({ context, input }) => {
-                const auth = assertAuthenticated(context.auth);
-                return {
-                    message: "Authenticated access (membership endpoint)",
-                    userId: auth.user.id,
-                };
-            });
-    }
-    
-    @Implement(testContracts.orgRoleEndpoint)
-    orgRoleOrpc() {
-        // Input type for type-safe resolver
-        interface Input { organizationId: string }
-        
-        return implement(testContracts.orgRoleEndpoint)
-            .use(requireAuth())
-            // Test surface: org plugins removed with the organization concept.
-            .handler(({ context, input }) => {
-                const auth = assertAuthenticated(context.auth);
-                return {
-                    message: "Authenticated access (role endpoint)",
-                    userId: auth.user.id,
-                };
-            });
-    }
-    
-    @Implement(testContracts.orgOwnerEndpoint)
-    orgOwnerOrpc() {
-        return implement(testContracts.orgOwnerEndpoint)
-            .use(requireAuth())
-            .handler(({ context, input }) => {
-                const auth = assertAuthenticated(context.auth);
-                return {
-                    message: "Authenticated access (owner endpoint)",
-                    userId: auth.user.id,
-                };
-            });
-    }
-    
-    @Implement(testContracts.orgPermissionEndpoint)
-    orgPermissionOrpc() {
-        return implement(testContracts.orgPermissionEndpoint)
-            .use(requireAuth())
-            .handler(({ context }) => {
-                const auth = assertAuthenticated(context.auth);
-                return {
-                    message: "Authenticated access (permission endpoint)",
-                    userId: auth.user.id,
-                };
-            });
-    }
-    
-    // -------------------------------------------------------------------------
     // Composite Patterns (using AuthService.middleware.composite)
     // -------------------------------------------------------------------------
     
@@ -662,9 +483,6 @@ export class TestController {
     
     @Implement(testContracts.contextAccessEndpoint)
     contextAccessOrpc() {
-        // Input type for type-safe resolver
-        interface Input { organizationId: string }
-        
         return implement(testContracts.contextAccessEndpoint)
             .use(requireAuth())
             // Use TInput for type-safe input access

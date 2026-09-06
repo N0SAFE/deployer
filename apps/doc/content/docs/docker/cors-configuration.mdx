@@ -16,6 +16,16 @@ Primary environment inputs:
 - `APP_URL` (internal/container-facing app URL when needed)
 - `TRUSTED_ORIGINS` (additional comma-separated origins)
 
+## Development defaults
+
+In dev (no `.env`), the API container trusts these origins out of the box:
+
+- `http://web.deployer.localhost` (from `NEXT_PUBLIC_APP_URL`, aligned with the web container)
+- `http://web-dev:3000` (from `APP_URL`, internal Docker network)
+- `http://localhost:3000` (from `TRUSTED_ORIGINS` dev default — covers the direct-proxy / setup-wizard access mode)
+
+Both access modes — `web.deployer.localhost` and `localhost:3000` — therefore work for sign-in. Override any of them via `.env` (e.g. `TRUSTED_ORIGINS=http://other-app.localhost,https://app.example.com`).
+
 ## Common failures
 
 ### 1) Trailing slash mismatch

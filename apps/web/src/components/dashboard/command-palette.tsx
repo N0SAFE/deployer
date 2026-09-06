@@ -6,9 +6,9 @@ import {
   AuthDashboard,
   AuthDashboardAdminDomains,
   AuthDashboardAdminProviders,
-  AuthDashboardAdminServers,
   AuthDashboardAdminSystem,
   AuthDashboardAdminUsers,
+  AuthDashboardConfiguration,
   AuthDashboardDeployments,
   AuthDashboardDocker,
   AuthDashboardDockerActivity,
@@ -20,6 +20,7 @@ import {
   AuthDashboardDockerShell,
   AuthDashboardDockerStacks,
   AuthDashboardDockerVolumes,
+  AuthDashboardNodes,
   AuthDashboardProfile,
   AuthDashboardProjects,
   AuthDashboardProjectsProjectId,
@@ -37,7 +38,6 @@ import {
   CommandShortcut,
 } from '@repo/ui/components/shadcn/command'
 import {
-  Building2,
   Container,
   FolderKanban,
   Globe,
@@ -55,6 +55,7 @@ import {
   HardDrive,
   ScrollText,
   TerminalSquare,
+  SlidersHorizontal,
   type LucideIcon,
 } from 'lucide-react'
 import { useProjectList } from '@/domains/project/hooks'
@@ -91,8 +92,9 @@ const NAV_ENTRIES: PaletteEntry[] = [
   { id: 'nav:docker-activity', label: 'Docker · Activity', icon: Activity, href: AuthDashboardDockerActivity(), keywords: 'activity events log' },
   { id: 'nav:docker-logs', label: 'Docker · Logs', icon: ScrollText, href: AuthDashboardDockerLogs(), keywords: 'logs streaming output' },
   { id: 'nav:docker-shell', label: 'Docker · Shell', icon: TerminalSquare, href: AuthDashboardDockerShell(), keywords: 'shell terminal exec' },
+  { id: 'nav:nodes', label: 'Nodes', hint: 'Fleet, allocation & topology', icon: Server, href: AuthDashboardNodes(), shortcut: 'g n', keywords: 'nodes fleet servers mesh topology' },
+  { id: 'nav:configuration', label: 'Configuration', hint: 'Mesh-wide & per-node settings', icon: SlidersHorizontal, href: AuthDashboardConfiguration(), keywords: 'configuration settings node mesh' },
 
-  { id: 'nav:admin-servers', label: 'Admin · Servers & fleet', icon: Server, href: AuthDashboardAdminServers(), keywords: 'servers fleet mesh nodes' },
   { id: 'nav:admin-users', label: 'Admin · Users', icon: Users, href: AuthDashboardAdminUsers(), keywords: 'users roles permissions' },
   { id: 'nav:admin-domains', label: 'Admin · Domains', icon: Globe, href: AuthDashboardAdminDomains(), keywords: 'domains dns verify' },
   { id: 'nav:admin-providers', label: 'Admin · Providers', icon: GitFork, href: AuthDashboardAdminProviders(), keywords: 'providers code dns cloudflare' },

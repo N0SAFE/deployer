@@ -254,6 +254,7 @@
         "mesh:prod:down": "docker compose -f ./docker/compose/docker-compose.mesh-6.dev-supervised.yml down",
         "mesh:prod:down:volumes": "docker compose -f ./docker/compose/docker-compose.mesh-6.dev-supervised.yml down --volumes",
         "mesh:prod:logs": "docker compose -f ./docker/compose/docker-compose.mesh-6.dev-supervised.yml logs -f",
+        "check:swarm:cli-lock": "bash scripts/check-swarm-cli-lock.sh",
         "docker:build": "docker compose -f ./docker/compose/docker-compose.prod.yml build",
         "docker:build:web": "docker build -f docker/builder/web/Dockerfile.web.build-time.prod . -t nextjs-directus-web:latest",
         "docker:build:api": "docker build -f docker/builder/api/Dockerfile.api.prod . -t directus-api:latest",

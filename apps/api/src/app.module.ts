@@ -32,8 +32,9 @@ import { AnalyticsModule } from "./modules/analytics/analytics.module";
 import { DeploymentModule } from "./modules/deployment/deployment.module";
 import { DockerModule } from "./modules/docker/docker.module";
 import { DomainModule } from "./modules/domain/domain.module";
-import { PlatformModule } from "./modules/platform/platform.module";
 import { FleetModule } from "./modules/fleet/fleet.module";
+import { PlatformModule } from "./modules/platform/platform.module";
+import { ClusterModule } from "./modules/cluster/cluster.module";
 import { ProvidersModule } from "./modules/providers/providers.module";
 import { HealthModule } from "./modules/health/health.module";
 import { PermissionModule } from "./modules/permission/permission.module";
@@ -160,6 +161,7 @@ declare module "@orpc/nest" {
         DockerModule,
         DomainModule,
         FleetModule,
+        ClusterModule,
         HealthModule,
         PermissionModule,
         ProjectModule,

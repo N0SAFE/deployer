@@ -211,6 +211,13 @@
       "when": 1788302364147,
       "tag": "0029_remove_org_concepts",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1788467525591,
+      "tag": "0030_remove-organization-concept",
+      "breakpoints": true
     }
   ]
 }

@@ -2,12 +2,13 @@
  * Plugin Wrapper Factory for Better Auth - NestJS Integration
  * 
  * This module sets up the typed plugin registry using the generic permission plugins
- * from @repo/auth. It provides type-safe wrappers for admin and organization plugins
- * with automatic header injection and optional session caching.
+ * from @repo/auth. It provides type-safe wrappers for the admin plugin (the mesh is
+ * the single tenant — there is no organization layer) with automatic header
+ * injection and optional session caching.
  * 
  * Architecture:
  * - Uses PluginWrapperRegistry from @repo/auth for plugin management
- * - Registers AdminPermissionsPlugin and OrganizationsPermissionsPlugin
+ * - Registers AdminPermissionsPlugin
  * - Auth is provided once when creating the registry
  * - Session can be passed to avoid redundant getSession() calls
  * - Exports typed aliases and factory function for use throughout the app

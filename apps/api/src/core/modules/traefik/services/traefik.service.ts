@@ -2,6 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { TraefikRepository } from '../repositories/traefik.repository';
 import { TraefikFileSystemService } from './traefik-file-system.service';
 import { TraefikSyncService } from './traefik-sync.service';
+import {
+  verifySwarmRouteAgainstTraefik,
+  type SwarmRouteVerificationResult,
+  type SwarmRouteVerifyOptions,
+} from './swarm-route-verifier';
 import { ConfigNotFoundError } from '../errors';
 
 // Import types from centralized interfaces
@@ -350,18 +355,15 @@ export class TraefikService {
     // 1. Create or update configuration in database
     const existingConfig = await this.traefikRepository.getServiceConfigByServiceId(serviceId);
 
-    let serviceConfig: TraefikServiceConfig | null = null;
-    if (existingConfig) {
-      serviceConfig = await this.traefikRepository.updateServiceConfig({
-        id: existingConfig.id,
-        ...config,
-      });
-    } else {
-      serviceConfig = await this.traefikRepository.createServiceConfig({
-        serviceId,
-        ...config,
-      });
-    }
+    const serviceConfig = existingConfig
+      ? await this.traefikRepository.updateServiceConfig({
+          id: existingConfig.id,
+          ...config,
+        })
+      : await this.traefikRepository.createServiceConfig({
+          serviceId,
+          ...config,
+        });
 
     // 2. Sync to filesystem
     const configIdToSync = typeof serviceConfig === 'object' && serviceConfig !== null && 'id' in serviceConfig
@@ -407,6 +409,20 @@ export class TraefikService {
    */
   async getHealthStatus() {
     return this.traefikRepository.getHealthCheckSummary();
+  }
+
+  /**
+   * Verify-only mode for Swarm-managed services (SW-023): probes the Traefik
+   * API for a router matching the host rule. With the Swarm provider enabled,
+   * Traefik converges routes from service labels — this is verification, NOT
+   * config writing. Never throws: an unreachable Traefik API yields
+   * `verified: false` (the swarm provider converges asynchronously).
+   */
+  async verifySwarmServiceRoute(
+    hostRule: string,
+    options?: SwarmRouteVerifyOptions,
+  ): Promise<SwarmRouteVerificationResult> {
+    return verifySwarmRouteAgainstTraefik(hostRule, options);
   }
 
   /**

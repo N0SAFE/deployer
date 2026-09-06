@@ -49,7 +49,7 @@ describe("MeshStreamRuntimeService", () => {
             context: {
                 auth: {
                     session: {
-                        activeOrganizationId: "00000000-0000-0000-0000-000000000111",
+                        userRole: "admin",
                     },
                 },
             },

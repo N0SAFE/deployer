@@ -4,11 +4,24 @@ import { ORPCError } from "@orpc/server";
 import { setupContract } from "@repo/api-contracts";
 import { domainErrorOptions, standardErrorOptions } from "@repo/orpc-utils";
 import { publicAccess } from "@/core/modules/auth/orpc/middlewares";
+import { AllowAnonymous } from "@/core/modules/auth/decorators/decorators";
 import { Pool } from "pg";
 import { InitializationService } from "@/core/modules/setup/services/initialization.service";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
 import { NodeConfigRepository } from "@/core/modules/setup/repositories/node-config.repository";
 
+/**
+ * Setup wizard surface — intentionally PRE-AUTH by design (the wizard runs
+ * before any account exists).
+ *
+ * CRITICAL: the global APP_GUARD AuthGuard (AuthModule) runs at the Nest layer
+ * BEFORE ORPC middleware, so the ORPC-level `.use(publicAccess())` alone does
+ * NOT bypass it — every request would 401. The Nest-level @AllowAnonymous()
+ * metadata is what the guard actually reads (SetMetadata "PUBLIC"). Both are
+ * applied: @AllowAnonymous() for the guard, publicAccess() for ORPC handlers
+ * that read context.auth without requiring a session.
+ */
+@AllowAnonymous()
 @Controller()
 export class SetupController {
     private readonly logger = new Logger(SetupController.name);

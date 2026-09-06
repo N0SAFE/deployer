@@ -76,13 +76,13 @@ describe('PermissionBuilder', () => {
       const builder = new PermissionBuilder().resources(({ actions }) => ({
         project: actions(['create', 'read', 'update', 'delete'] as const),
         user: actions(['read', 'update'] as const),
-        organization: actions(['read'] as const),
+        service: actions(['read'] as const),
       }));
 
       const statement = builder.getStatement();
       expect(statement.project).toEqual(['create', 'read', 'update', 'delete']);
       expect(statement.user).toEqual(['read', 'update']);
-      expect(statement.organization).toEqual(['read']);
+      expect(statement.service).toEqual(['read']);
     });
 
     it('should merge bulk resources with individual resources', () => {
@@ -91,13 +91,13 @@ describe('PermissionBuilder', () => {
         .actions(['create', 'read'])
         .resources(({ actions }) => ({
           user: actions(['read'] as const),
-          organization: actions(['read', 'update'] as const),
+          service: actions(['read', 'update'] as const),
         }));
 
       const statement = builder.getStatement();
       expect(statement.project).toEqual(['create', 'read']);
       expect(statement.user).toEqual(['read']);
-      expect(statement.organization).toEqual(['read', 'update']);
+      expect(statement.service).toEqual(['read', 'update']);
     });
 
     it('should override existing resources when using bulk', () => {
@@ -442,14 +442,14 @@ describe('PermissionBuilder', () => {
         .actions(['create', 'read'])
         .resource('user')
         .actions(['read', 'update'])
-        .resource('organization')
+        .resource('service')
         .actions(['read']);
 
       const statementNames = builder.getStatementNames();
       expect(statementNames).toHaveLength(3);
       expect(statementNames).toContain('project');
       expect(statementNames).toContain('user');
-      expect(statementNames).toContain('organization');
+      expect(statementNames).toContain('service');
     });
 
     it('should return resource names from bulk resources definition', () => {
@@ -624,7 +624,7 @@ describe('PermissionBuilder', () => {
       // Better Auth roles have { statements: { resource: [...] } } structure
       const defaults = {
         user: { statements: { user: ['create', 'read', 'update', 'delete'] as const } },
-        admin: { statements: { organization: ['read', 'update'] as const } },
+        admin: { statements: { service: ['read', 'update'] as const } },
       };
 
       const builder = PermissionBuilder.withDefaults(defaults);
@@ -632,9 +632,9 @@ describe('PermissionBuilder', () => {
       // withDefaults merges all statements from all roles
       // At runtime, all statements are merged into one object
       const rawStatement: unknown = builder.getStatement();
-      const statement = rawStatement as { user: readonly string[]; organization: readonly string[] };
+      const statement = rawStatement as { user: readonly string[]; service: readonly string[] };
       expect(statement.user).toEqual(['create', 'read', 'update', 'delete']);
-      expect(statement.organization).toEqual(['read', 'update']);
+      expect(statement.service).toEqual(['read', 'update']);
     });
 
     it('should merge defaults with additional resources', () => {
@@ -715,7 +715,7 @@ describe('PermissionBuilder', () => {
           project: actions(['create', 'read', 'update', 'delete'] as const),
           user: actions(['read', 'update'] as const),
         }))
-        .resource('organization')
+        .resource('service')
         .actions(['read', 'manage-members'])
         .role('admin')
         .allPermissions()
@@ -727,14 +727,14 @@ describe('PermissionBuilder', () => {
           viewer: permissions({
             project: ['read'],
             user: ['read'],
-            organization: ['read'],
+            service: ['read'],
           }),
         }));
 
       const result = builder.build();
 
       expect(result.statement.project).toEqual(['create', 'read', 'update', 'delete']);
-      expect(result.statement.organization).toEqual(['read', 'manage-members']);
+      expect(result.statement.service).toEqual(['read', 'manage-members']);
       expect(result.roles.admin).toBeDefined();
       expect(result.roles.editor).toBeDefined();
       expect(result.roles.viewer).toBeDefined();
@@ -968,7 +968,7 @@ describe('PermissionBuilder', () => {
       const builder = new PermissionBuilder()
         .resources(({ actions }) => ({
           user: actions(['create', 'read', 'update', 'delete'] as const),
-          organization: actions(['read', 'update'] as const),
+          service: actions(['read', 'update'] as const),
         }));
 
       const result = builder.build();
@@ -1255,20 +1255,20 @@ describe('PermissionBuilder', () => {
     it('should build correctly with complex nested permissions', () => {
       const builder = new PermissionBuilder()
         .resources(({ actions }) => ({
-          'organization:project': actions(['create', 'read', 'update', 'delete'] as const),
-          'organization:member': actions(['invite', 'remove', 'update'] as const),
-          'organization:settings': actions(['read', 'update'] as const),
+          'service:project': actions(['create', 'read', 'update', 'delete'] as const),
+          'service:member': actions(['invite', 'remove', 'update'] as const),
+          'service:settings': actions(['read', 'update'] as const),
         }))
         .roles(({ permissions }) => ({
           orgAdmin: permissions({
-            'organization:project': ['create', 'read', 'update', 'delete'],
-            'organization:member': ['invite', 'remove', 'update'],
-            'organization:settings': ['read', 'update'],
+            'service:project': ['create', 'read', 'update', 'delete'],
+            'service:member': ['invite', 'remove', 'update'],
+            'service:settings': ['read', 'update'],
           }),
           orgMember: permissions({
-            'organization:project': ['read'],
-            'organization:member': ['invite'],
-            'organization:settings': ['read'],
+            'service:project': ['read'],
+            'service:member': ['invite'],
+            'service:settings': ['read'],
           }),
         }));
 
@@ -1276,13 +1276,13 @@ describe('PermissionBuilder', () => {
 
       expect(builder.getRoleNames()).toEqual(['orgAdmin', 'orgMember']);
       expect(builder.getStatementNames()).toEqual([
-        'organization:project',
-        'organization:member',
-        'organization:settings',
+        'service:project',
+        'service:member',
+        'service:settings',
       ]);
 
       // Verify schemas work with namespaced resources
-      const parsed = result.schemas.resourceNames.safeParse('organization:project');
+      const parsed = result.schemas.resourceNames.safeParse('service:project');
       expect(parsed.success).toBe(true);
     });
   });

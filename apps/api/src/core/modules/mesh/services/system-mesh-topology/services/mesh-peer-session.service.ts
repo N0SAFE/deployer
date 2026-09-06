@@ -167,13 +167,6 @@ import { SystemMeshConfigService } from "../../system-mesh-config.service";
           return id ? this.sessions.get(id) : undefined;
       }
 
-      resolveOrganizationId(sessionId: string): string | null {
-          const session = this.sessions.get(sessionId);
-          if (!session?.metadata || typeof session.metadata !== "object") return null;
-          const orgId = session.metadata.organizationId;
-          return typeof orgId === "string" && orgId.length > 0 ? orgId : null;
-      }
-
       isValidCredential(credential: string): boolean {
           const configured = this.meshConfigService.getStreamSharedSecret()
               ?? process.env.MESH_STREAM_SHARED_SECRET?.trim()

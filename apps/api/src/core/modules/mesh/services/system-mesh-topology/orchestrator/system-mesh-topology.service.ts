@@ -598,7 +598,7 @@ export class SystemMeshTopologyService
 
         if (!typeAllowed) return false
 
-        return this.overlayScope.isTopologyEventVisibleForOrganization(event)
+        return this.overlayScope.isTopologyEventVisible(event)
     }
 
     private resolveExpectedTrustAckPeers(): string[] {

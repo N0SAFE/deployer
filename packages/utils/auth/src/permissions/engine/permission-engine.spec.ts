@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PermissionEngine, ForbiddenError } from "./permission-engine";
 import type {
-    MemberRoleLoader,
-    OrgRoleLoader,
+    RoleRuleLoader,
     ResourceRecordLoader,
 } from "./permission-engine";
 import type { EngineContext, ResourceRule } from "./types";
@@ -14,7 +13,6 @@ import type { EngineContext, ResourceRule } from "./types";
 function makeCtx(overrides: Partial<EngineContext> = {}): EngineContext {
     return {
         userId: "user-1",
-        orgId: "org-1",
         ...overrides,
     };
 }
@@ -30,14 +28,11 @@ function makeRule(overrides: Partial<ResourceRule> = {}): ResourceRule {
 
 function makeEngine(
     rules: ResourceRule[],
-    roleNames = ["member"],
     recordLoader?: ResourceRecordLoader,
 ) {
-    const loadMemberRoles: MemberRoleLoader = vi.fn().mockResolvedValue(roleNames);
-    const loadOrgRoles: OrgRoleLoader = vi.fn().mockResolvedValue(rules);
+    const loadRoleRules: RoleRuleLoader = vi.fn().mockResolvedValue(rules);
     return new PermissionEngine({
-        loadMemberRoles,
-        loadOrgRoles,
+        loadRoleRules,
         loadResourceRecord: recordLoader,
     });
 }
@@ -60,15 +55,15 @@ describe("PermissionEngine — superAdmin bypass", () => {
 });
 
 // ---------------------------------------------------------------------------
-// No roles / no rules
+// No rules
 // ---------------------------------------------------------------------------
 
-describe("PermissionEngine — no roles / no rules", () => {
-    it("DENYs when user has no org roles", async () => {
-        const engine = makeEngine([], []);
+describe("PermissionEngine — no rules", () => {
+    it("DENYs when no rules are configured for the platform role", async () => {
+        const engine = makeEngine([]);
         const result = await engine.check(makeCtx(), "project", "read");
         expect(result.decision).toBe("DENY");
-        expect(result.reason).toContain("no roles");
+        expect(result.reason).toContain("No rules");
     });
 
     it("DENYs when no rules match the resource/action pair", async () => {
@@ -190,7 +185,7 @@ describe("PermissionEngine — scope: filter", () => {
         const rule = makeRule({
             scope: { type: "filter", condition: { status: { _eq: "active" } } },
         });
-        const engine = makeEngine([rule], ["member"], recordLoader);
+        const engine = makeEngine([rule], recordLoader);
         const result = await engine.check(makeCtx(), "project", "read", "project-1");
         expect(result.decision).toBe("ALLOW");
     });
@@ -203,7 +198,7 @@ describe("PermissionEngine — scope: filter", () => {
         const rule = makeRule({
             scope: { type: "filter", condition: { status: { _eq: "active" } } },
         });
-        const engine = makeEngine([rule], ["member"], recordLoader);
+        const engine = makeEngine([rule], recordLoader);
         const result = await engine.check(makeCtx(), "project", "read", "project-1");
         expect(result.decision).toBe("DENY");
     });
@@ -214,7 +209,7 @@ describe("PermissionEngine — scope: filter", () => {
         const rule = makeRule({
             scope: { type: "filter", condition: { status: { _eq: "active" } } },
         });
-        const engine = makeEngine([rule], ["member"], recordLoader);
+        const engine = makeEngine([rule], recordLoader);
         const result = await engine.check(makeCtx(), "project", "read", "missing-id");
         expect(result.decision).toBe("DENY");
     });
@@ -224,7 +219,7 @@ describe("PermissionEngine — scope: filter", () => {
         const rule = makeRule({
             scope: { type: "filter", condition: { status: { _eq: "active" } } },
         });
-        const engine = makeEngine([rule], ["member"], recordLoader);
+        const engine = makeEngine([rule], recordLoader);
 
         const result = await engine.check(
             makeCtx(),

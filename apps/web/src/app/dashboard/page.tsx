@@ -14,7 +14,7 @@ import type { Metadata } from 'next'
  * 4. Client components read from cache without refetching
  *
  * The page is intentionally thin: the command-center bento (live metrics,
- * recent deployments, quick actions, invitations, organizations) lives in
+ * recent deployments, quick actions) lives in
  * DashboardOverviewClient so all data fetches share one client boundary.
  */
 export default AuthDashboard.SessionRoute(({ session }) => {

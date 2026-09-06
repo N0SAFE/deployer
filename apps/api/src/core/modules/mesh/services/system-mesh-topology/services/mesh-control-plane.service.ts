@@ -65,7 +65,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
                     .filter((c) => c.state !== "down")
                     .map((c) => c.targetNodeId);
 
-          const forwardedTo = this.overlayScope.filterForwardedNodeIdsByOrganization(
+          const forwardedTo = this.overlayScope.filterForwardedNodeIds(
               candidates,
           );
 
@@ -80,12 +80,11 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
       }
 
       /**
-       * Mesh-wide envelope passthrough (the organization concept was removed —
-       * no session org scoping).
+       * Mesh-wide envelope passthrough — the mesh is the single tenant, so
+       * there is no per-session scoping.
        */
       applySessionScope(
           envelope: MeshControlEnvelope,
-          _sessionOrganizationId: string | null,
       ): MeshControlEnvelope {
           return envelope;
       }

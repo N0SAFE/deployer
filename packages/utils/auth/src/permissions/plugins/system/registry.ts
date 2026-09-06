@@ -54,13 +54,11 @@ type ExtractPluginType<TRegistry, TName extends keyof TRegistry> =
  * @example
  * ```typescript
  * const registry = new PluginWrapperRegistry(auth)
- *   .register('admin', (auth, headers, session) => new AdminPlugin({ auth, headers, session }))
- *   .register('organization', (auth, headers, session) => new OrgPlugin({ auth, headers, session }));
+ *   .register('admin', (auth, headers, session) => new AdminPlugin({ auth, headers, session }));
  * 
- * // Get all plugins with session - typed as { admin: AdminPlugin, organization: OrgPlugin }
+ * // Get all plugins with session - typed as { admin: AdminPlugin }
  * const plugins = registry.getAll(headers, session);
  * plugins.admin.createUser(...);
- * plugins.organization.createOrganization(...);
  * 
  * // Or get single plugin with session
  * const admin = registry.create('admin', headers, session);
@@ -162,10 +160,9 @@ export class PluginWrapperRegistry<
    * @example
    * ```typescript
    * const plugins = registry.getAll(headers, session);
-   * // plugins: { admin: AdminPlugin, organization: OrgPlugin }
+   * // plugins: { admin: AdminPlugin }
    * 
    * await plugins.admin.createUser({ ... });
-   * await plugins.organization.createOrganization({ ... });
    * ```
    */
   getAll(headers: Headers, session?: InferSessionFromAuth<TAuth> | null): Readonly<TRegistry> {

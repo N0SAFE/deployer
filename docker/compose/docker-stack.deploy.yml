@@ -1,0 +1,99 @@
+# =====================================================================
+# PROD platform stack (P7) — control plane (api/web/traefik/doc) as
+# Swarm services. Multi-node baseline per `production-deployment.mdx`.
+#
+# This is the target: one stack deployable from any swarm manager. It
+# replaces the supervisor-owned single-container path for multi-node
+# fleets; single-node prod can use the SAME spec (unified API code path).
+#
+# Placement notes (doc-04): NO `node.role == manager` constraints —
+# managers are workers too; api/web spread with max_replicas_per_node:1;
+# traefik constrained to ingress-tagged nodes (deployer.ingress=true).
+# =====================================================================
+
+name: ${COMPOSE_PROJECT_NAME:-deployer}
+
+services:
+  # ── Control-plane API (one replica per node, mesh-wired via env) ──
+  api:
+    image: ${DEPLOYER_IMAGE:-ghcr.io/${GITHUB_REPOSITORY_OWNER:-sebille}/deployer:latest}
+    environment:
+      NODE_ENV: production
+      SETUP_AUTO: "true"
+      API_PORT: "${API_PORT:-3001}"
+      # Per-replica mesh identity injected from the node label/DNS by the
+      # operator (template: '{{.Node.Hostname}}' via node label or env).
+      MESH_NODE_SERVER_URL: "${MESH_NODE_SERVER_URL:-http://localhost:3001}"
+      MANAGED_GLOBAL_DB_URL: "${MANAGED_GLOBAL_DB_URL}"
+      MANAGED_REDIS_URL: "${MANAGED_REDIS_URL:-redis://redis:6379}"
+      MANAGED_TRAEFIK_ENABLED: "true"
+      MANAGED_TRAEFIK_HOST: traefik
+      SWARM_ENABLED: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      replicas: ${API_REPLICAS:-3}
+      placement:
+        max_replicas_per_node: 1
+        preferences:
+          - spread: node.labels.deployer.node.role
+      update_config:
+        order: start-first
+        failure_action: rollback
+        parallelism: 1
+      resources:
+        reservations:
+          cpus: "1"
+          memory: 1G
+        limits:
+          cpus: "4"
+          memory: 4G
+
+  # ── Web (Next.js) ─────────────────────────────────────────────────
+  web:
+    image: ${DEPLOYER_WEB_IMAGE:-${DEPLOYER_IMAGE:-ghcr.io/${GITHUB_REPOSITORY_OWNER:-sebille}/deployer:latest}}
+    environment:
+      NEXT_PUBLIC_APP_PORT: "3000"
+      NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:-http://api:3001}"
+    deploy:
+      replicas: ${WEB_REPLICAS:-3}
+      placement:
+        max_replicas_per_node: 1
+        preferences:
+          - spread: node.labels.deployer.node.role
+      update_config:
+        order: start-first
+        failure_action: rollback
+        parallelism: 1
+
+  # ── Traefik ingress (Swarm provider, routes via service labels) ───
+  traefik:
+    image: ${MANAGED_TRAEFIK_IMAGE:-traefik:v3.3}
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.swarmMode=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.http.address=:80
+      - --entrypoints.websecure.address=:443
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      replicas: ${TRAEFIK_REPLICAS:-3}
+      placement:
+        constraints:
+          - node.labels.deployer.ingress == true
+        max_replicas_per_node: 1
+      update_config:
+        order: start-first
+        failure_action: rollback
+        parallelism: 1
+
+networks:
+  default:
+    name: ${COMPOSE_PROJECT_NAME:-deployer}-overlay
+    driver: overlay
+    attachable: true

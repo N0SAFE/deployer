@@ -5,10 +5,14 @@ import { apiEnvSchema } from '@repo/env';
 import zod from 'zod/v4';
 import { CliAuthService } from '../services/cli-auth.service';
 
-// Extend the API schema with command-specific environment variables
+// Extend the API schema with command-specific environment variables. Both
+// mirror the base schema's optionality — the boot path never requires them,
+// so the CLI must not fail env validation when they're absent:
+//   - DEFAULT_ADMIN_EMAIL absent   → graceful skip (nothing to create)
+//   - DEFAULT_ADMIN_PASSWORD absent → the service generates + logs one
 const createDefaultAdminEnvSchema = apiEnvSchema.safeExtend({
-  DEFAULT_ADMIN_EMAIL: zod.email().min(1, 'DEFAULT_ADMIN_EMAIL is required'),
-  DEFAULT_ADMIN_PASSWORD: zod.string().min(1, 'DEFAULT_ADMIN_PASSWORD is required'),
+  DEFAULT_ADMIN_EMAIL: zod.email().optional(),
+  DEFAULT_ADMIN_PASSWORD: zod.string().optional(),
 });
 
 type CreateDefaultAdminEnv = zod.infer<typeof createDefaultAdminEnvSchema>;
@@ -34,9 +38,13 @@ export class CreateDefaultAdminCommand extends CommandRunner {
     this.logger.log('🔐 Checking for default admin user...');
 
     try {
-      // Validate required env vars through typed schema access
-      this.commandEnvService.get('DEFAULT_ADMIN_EMAIL');
-      this.commandEnvService.get('DEFAULT_ADMIN_PASSWORD');
+      // No email configured → nothing to create (same graceful skip as the
+      // boot path). Never fail validation / hard-exit for an absent email.
+      const email = this.commandEnvService.get('DEFAULT_ADMIN_EMAIL');
+      if (!email) {
+        this.logger.log('ℹ️  DEFAULT_ADMIN_EMAIL not configured — skipping default admin creation');
+        return;
+      }
 
       const password = await this.cliAuthService.ensureDefaultAdminUser();
 

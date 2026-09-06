@@ -45,7 +45,7 @@ export class MeshTopicResourceIndexService {
     lookupTopic(
         namespace: string,
         topic: string,
-        options?: { organizationId?: string | null; includeCandidates?: boolean },
+        options?: { includeCandidates?: boolean },
     ): MeshResourceLookupResult {
         return this.meshTopology.lookupResource({
             kind: "topic",

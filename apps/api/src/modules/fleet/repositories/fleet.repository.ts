@@ -10,7 +10,7 @@ import {
 
 /**
  * FleetRepository — the data-access layer for the cluster fleet model
- * (cluster_nodes, cluster_org_server_allocations,
+ * (cluster_nodes, cluster_server_allocations,
  * cluster_org_admission_requests, cluster_node_metrics).
  *
  * Extracted from FleetService, which mixed ~16 raw Drizzle queries with

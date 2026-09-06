@@ -197,7 +197,7 @@ export type DFilter<
       };
 
 // ---------------------------------------------------------------------------
-// ResourceRule — the core unit stored in organization_role.resource_rules JSONB
+// ResourceRule — the core unit stored in role_rules.resource_rules JSONB
 // ---------------------------------------------------------------------------
 
 export interface ResourceRule {
@@ -228,19 +228,17 @@ export interface ResourceRule {
 /** Known dynamic variable keys that can be referenced in DFilterOperator. */
 export interface DynamicVars {
     $currentUser: string;
-    $currentOrg: string;
     $accessibleProjects: string[];
     $accessibleServices: string[];
 }
 
 export interface EngineContext {
     userId: string;
-    orgId: string;
     /** User's platform-level role (e.g. "superAdmin", "admin", "user"). */
     platformRole?: string;
     /**
      * Pre-resolved dynamic variables for filter evaluation.
-     * At minimum $currentUser and $currentOrg are auto-populated from userId/orgId.
+     * At minimum $currentUser is auto-populated from userId.
      */
     vars?: Partial<DynamicVars>;
 }

@@ -49,7 +49,6 @@ export type RequestWithSession = Request & {
  *     const { auth } = context;
  *     // Access plugins
  *     await auth.admin.listUsers();
- *     await auth.org.createOrganization({ ... });
  *   })
  * ```
  */

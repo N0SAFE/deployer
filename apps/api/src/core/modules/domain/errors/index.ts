@@ -38,14 +38,14 @@
  * 
  * ```typescript
  * import { 
- *   OrganizationDomainNotFoundError, 
+ *   ProjectDomainNotFoundError, 
  *   DomainAlreadyExistsError 
  * } from '../errors';
  * 
  * // In a controller or service
  * const domain = await repository.findById(id);
  * if (!domain) {
- *   throw new OrganizationDomainNotFoundError(id);
+ *   throw new ProjectDomainNotFoundError(id);
  * }
  * 
  * // Check for duplicates

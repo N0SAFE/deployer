@@ -58,16 +58,16 @@ interface FeatureErrorBoundaryProps {
  * </FeatureErrorBoundary>
  * ```
  * 
- * @example Organization feature
+ * @example Project feature
  * ```tsx
  * <FeatureErrorBoundary
- *   feature="OrganizationSettings"
- *   metadata={{ orgId: org.id }}
+ *   feature="ProjectSettings"
+ *   metadata={{ projectId: project.id }}
  *   fallback={(error, reset, feature) => (
- *     <CustomOrgError error={error} feature={feature} onReset={reset} />
+ *     <CustomProjectError error={error} feature={feature} onReset={reset} />
  *   )}
  * >
- *   <OrgSettings />
+ *   <ProjectSettings />
  * </FeatureErrorBoundary>
  * ```
  */

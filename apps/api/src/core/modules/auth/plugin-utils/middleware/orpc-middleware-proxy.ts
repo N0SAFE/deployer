@@ -11,14 +11,14 @@
  * 
  * 1. **Static values** - Direct call with static values:
  *    ```typescript
- *    .use(middleware.org.isMemberOf('org-123'))
+ *    .use(middleware.admin.hasRole(['admin']))
  *    ```
  *
  * 2. **Dynamic with ORPC mapInput** (RECOMMENDED) - Uses ORPC's native type inference:
  *    ```typescript
- *    // Call with no args to get middleware expecting the resolved type (e.g., string)
+ *    // Call with no args to get middleware expecting the resolved type (e.g., string[])
  *    // Then use mapInput to extract from input - input is AUTO-TYPED by ORPC!
- *    .use(middleware.org.isMemberOf(), input => input.organizationId)
+ *    .use(middleware.admin.hasRole(), input => input.role)
  *    ```
  *
  * The mapInput pattern leverages ORPC's `.use()` second argument which receives
@@ -34,9 +34,9 @@
  *
  * // Dynamic with mapInput - input is AUTO-TYPED!
  * procedure
- *   .input(z.object({ organizationId: z.string() }))
- *   .use(adminOrpc.org.isMemberOf(), input => input.organizationId)
- *   //                                ^^^^^ automatically typed as { organizationId: string }
+ *   .input(z.object({ role: z.string() }))
+ *   .use(adminOrpc.hasRole(), input => input.role)
+ *   //                    ^^^^^ automatically typed as { role: string }
  * ```
  */
 
@@ -80,8 +80,8 @@ type UnwrapValueOrResolver<T> = T extends ValueOrResolver<infer V> ? V : T;
  * Unwraps ValueOrResolver to get the actual value type.
  * 
  * For example:
- * - `isMemberOf(orgId: ValueOrResolver<string>)` → string
  * - `hasRole(roles: ValueOrResolver<string[]>)` → string[]
+ * - `hasPermission(permission: ValueOrResolver<PermissionObject>)` → PermissionObject
  */
 type ExtractFirstParamType<TMethod> = TMethod extends (arg: infer T, ...rest: never[]) => MiddlewareCheck
   ? UnwrapValueOrResolver<T>
@@ -107,7 +107,7 @@ type ExtractFirstParamType<TMethod> = TMethod extends (arg: infer T, ...rest: ne
  * 
  * **Two patterns:**
  * 1. Static call: `middleware.admin.hasRole(['admin'])` → use with any procedure
- * 2. Dynamic with mapInput: `middleware.org.isMemberOf.forInput()` + `input => input.orgId`
+ * 2. Dynamic with mapInput: `middleware.admin.hasRole.forInput()` + `input => input.roles`
  * 
  * @template TMethod - The original method type
  */
@@ -229,12 +229,12 @@ function createOrpcError(check: MiddlewareCheck, error: unknown): OrpcError {
  *
  * 1. **Static** - Pass values directly:
  *    ```typescript
- *    .use(middleware.org.isMemberOf('org-123'))
+ *    .use(middleware.admin.hasRole(['admin']))
  *    ```
  *
  * 2. **Dynamic with mapInput** - Use `.forInput()` + ORPC's mapInput:
  *    ```typescript
- *    .use(middleware.org.isMemberOf.forInput(), input => input.organizationId)
+ *    .use(middleware.admin.hasRole.forInput(), input => input.roles)
  *    //                                         ^^^^^ AUTO-TYPED by ORPC!
  *    ```
  *
@@ -245,16 +245,16 @@ function createOrpcError(check: MiddlewareCheck, error: unknown): OrpcError {
  * @example
  * ```typescript
  * const middlewares = createPluginMiddlewares(auth, registry);
- * const orgOrpc = createOrpcMiddlewareProxy(middlewares.org);
+ * const adminOrpc = createOrpcMiddlewareProxy(middlewares.admin);
  *
  * // Static value - resolved immediately
- * procedure.use(orgOrpc.isMemberOf('org-123'))
+ * procedure.use(adminOrpc.hasRole(['admin']))
  *
  * // Dynamic with mapInput - input is AUTO-TYPED!
  * procedure
- *   .input(z.object({ organizationId: z.string() }))
- *   .use(orgOrpc.isMemberOf.forInput(), input => input.organizationId)
- *   //                                  ^^^^^ TypeScript knows this is { organizationId: string }
+ *   .input(z.object({ roles: z.array(z.string()) }))
+ *   .use(adminOrpc.hasRole.forInput(), input => input.roles)
+ *   //                                ^^^^^ TypeScript knows this is { roles: string[] }
  * ```
  */
 export function createOrpcMiddlewareProxy<T extends MiddlewareDefinitionLike>(
@@ -285,7 +285,7 @@ export function createOrpcMiddlewareProxy<T extends MiddlewareDefinitionLike>(
           forInput: () => {
             return os.$context<ORPCContextWithAuthOnly<true>>().middleware(
               async ({ context, next }, input: unknown) => {
-                // Input IS the value directly (e.g., organizationId string)
+                // Input IS the value directly (e.g., the roles array)
                 // ORPC's mapInput already extracted it from the procedure's input
                 const check = originalValue.call(target, input) as MiddlewareCheck;
                 const middlewareContext = buildMiddlewareContext({ value: input });

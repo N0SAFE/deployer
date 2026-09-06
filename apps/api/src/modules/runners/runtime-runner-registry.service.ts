@@ -5,6 +5,7 @@ import { DockerRuntimeRunnerService } from "./docker/docker-runtime-runner.servi
 import { DockerfileRuntimeRunnerService } from "./dockerfile/dockerfile-runtime-runner.service";
 import { NixpacksRuntimeRunnerService } from "./nixpacks/nixpacks-runtime-runner.service";
 import { RailpackRuntimeRunnerService } from "./railpack/railpack-runtime-runner.service";
+import { SwarmRuntimeRunnerService } from "./swarm/swarm-runtime-runner.service";
 import type { RuntimeExecutionInput, RuntimeExecutionResult } from "./runtime-runner.interface";
 
 @Injectable()
@@ -16,6 +17,7 @@ export class RuntimeRunnerRegistryService {
         private readonly nixpacksRuntimeRunnerService?: NixpacksRuntimeRunnerService,
         private readonly buildpackRuntimeRunnerService?: BuildpackRuntimeRunnerService,
         private readonly railpackRuntimeRunnerService?: RailpackRuntimeRunnerService,
+        private readonly swarmRuntimeRunnerService?: SwarmRuntimeRunnerService,
     ) {}
 
     async execute(
@@ -30,6 +32,7 @@ export class RuntimeRunnerRegistryService {
             this.nixpacksRuntimeRunnerService,
             this.buildpackRuntimeRunnerService,
             this.railpackRuntimeRunnerService,
+            this.swarmRuntimeRunnerService,
         ].filter((runner) => runner !== undefined);
 
         const selectedRunner = runners.find((runner) => runner.runnerType === normalizedRunner);

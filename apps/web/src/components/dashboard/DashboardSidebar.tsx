@@ -1,7 +1,6 @@
 'use client'
 
 import { 
-  Building2, 
   ChevronRight,
   Users, 
   Settings, 
@@ -16,11 +15,11 @@ import {
   LogOut,
   FolderKanban,
   Search,
-  Loader2,
   GitFork,
   Globe,
   Network,
   Activity,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
@@ -70,7 +69,7 @@ interface NavItem {
   url: string
   icon: React.ElementType
   exact?: boolean
-  items?: Array<{ title: string; url: string }>
+  items?: { title: string; url: string }[]
 }
 
 const mainNavItems: NavItem[] = [
@@ -87,17 +86,37 @@ const mainNavItems: NavItem[] = [
   },
 ]
 
-/** Mesh-wide items: projects, services, domains (span all nodes) */
+/** Mesh-wide items: projects, services, domains, configuration (span all nodes) */
 const meshNavItems: NavItem[] = [
   {
     title: 'Services',
     url: '/dashboard/services',
     icon: Server,
   },
+  {
+    title: 'Domains',
+    url: '/dashboard/admin/domains',
+    icon: Globe,
+  },
+  {
+    title: 'Configuration',
+    url: '/dashboard/configuration',
+    icon: SlidersHorizontal,
+  },
 ]
 
-/** Node-scoped items: deployments, docker, per-node config */
+/** Node-scoped items: nodes, cluster, deployments, docker (per-node scope) */
 const nodeNavItems: NavItem[] = [
+  {
+    title: 'Nodes',
+    url: '/dashboard/nodes',
+    icon: Network,
+  },
+  {
+    title: 'Cluster',
+    url: '/dashboard/cluster',
+    icon: Server,
+  },
   {
     title: 'Deployments',
     url: '/dashboard/deployments',
@@ -129,26 +148,16 @@ const navShortcuts: Record<string, string> = {
   Deployments: 'g d',
   Services: 'g s',
   Docker: 'g c',
-  Organizations: 'g r',
+  Nodes: 'g n',
   Profile: 'g u',
   System: 'g a',
 }
 
 const adminNavItems: NavItem[] = [
   { 
-    title: 'Servers', 
-    url: '/dashboard/admin/servers',
-    icon: Server,
-  },
-  { 
     title: 'Users', 
     url: '/dashboard/admin/users',
     icon: Users,
-  },
-  { 
-    title: 'Domains', 
-    url: '/dashboard/admin/domains',
-    icon: Globe,
   },
   {
     title: 'Providers',
@@ -213,8 +222,8 @@ function ProjectsSidebarSection() {
 
   const { data: projectsData } = useProjectList({ query: { limit: 50, offset: 0 } })
 
-  const projects: Array<{ id: string; name: string }> = useMemo(() => {
-    const raw = projectsData as { data?: Array<{ id: string; name: string }> } | undefined
+  const projects: { id: string; name: string }[] = useMemo(() => {
+    const raw = projectsData as { data?: { id: string; name: string }[] } | undefined
     const list = raw?.data ?? []
     if (!projectFilter) return list
     return list.filter((p: { name: string }) => fuzzyMatch(p.name, projectFilter))
@@ -225,8 +234,8 @@ function ProjectsSidebarSection() {
 
   // Services of the expanded project — TOP-LEVEL only (sub-services appear
   // inside their parent service's page, never as main nav entries).
-  const filteredServices: Array<{ id: string; name: string }> = useMemo(() => {
-    const raw = servicesData as { data?: Array<{ id: string; name: string; parentId?: string | null; parent_id?: string | null; projectId?: string; project_id?: string }> } | undefined
+  const filteredServices: { id: string; name: string }[] = useMemo(() => {
+    const raw = servicesData as { data?: { id: string; name: string; parentId?: string | null; parent_id?: string | null; projectId?: string; project_id?: string }[] } | undefined
     const list = (raw?.data ?? []).filter((s) =>
       (s.projectId === expandedProject || s.project_id === expandedProject) &&
       (s.parentId == null && s.parent_id == null),
@@ -280,7 +289,7 @@ function ProjectsSidebarSection() {
                 ref={filterInputRef}
                 placeholder="Filter projects…"
                 value={projectFilter}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProjectFilter(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setProjectFilter(e.target.value); }}
                 className="flex h-7 w-full rounded-md border border-input bg-background px-3 pl-7 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
@@ -290,7 +299,7 @@ function ProjectsSidebarSection() {
               <Collapsible
                 key={project.id}
                 open={expandedProject === project.id}
-                onOpenChange={() => toggleProject(project.id)}
+                onOpenChange={() => { toggleProject(project.id); }}
                 className="group/sub"
               >
                 <SidebarMenuSubItem>
@@ -313,7 +322,9 @@ function ProjectsSidebarSection() {
                         <input
                           placeholder="Filter services…"
                           value={serviceFilter}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setServiceFilter(e.target.value)}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                            setServiceFilter(e.target.value)
+                          }}
                           className="flex h-6 w-full rounded-md border border-input bg-background px-3 pl-6 text-[11px] ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                         />
                       </div>
@@ -411,7 +422,7 @@ function DashboardSidebarInner() {
               <SidebarMenuItem>
                 <button
                   type="button"
-                  onClick={() => openCommandPalette()}
+                  onClick={() => { openCommandPalette(); }}
                   className="flex h-9 w-full items-center gap-2 rounded-lg border border-border/60 bg-background/40 px-3 text-xs text-muted-foreground transition-colors hover:border-border/80 hover:bg-background/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
                   aria-label="Open command palette"
                 >
@@ -512,11 +523,11 @@ function DashboardSidebarInner() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Node Section: Deployments, Docker — per-node scope */}
+        {/* Node Section: Nodes, Deployments, Docker — per-node scope */}
         <SidebarGroup>
           <SidebarGroupLabel>
             <Server className="size-3 mr-1" />
-            Node
+            Nodes
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>

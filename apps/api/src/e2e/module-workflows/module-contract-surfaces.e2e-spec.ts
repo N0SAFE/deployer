@@ -108,10 +108,10 @@ describe("Module contract surfaces e2e: public + auth boundaries", () => {
     );
   });
 
-  it("core.fleet.listServers rejects anonymous access", async () => {
+  it("nodes.listServers rejects anonymous access", async () => {
     await expectAnonymousUnauthorized(
-      () => context.orpc.core.fleet.listServers(),
-      "/core/fleet/servers",
+      () => context.orpc.nodes.listServers(),
+      "/nodes/servers",
     );
   });
 });

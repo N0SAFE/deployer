@@ -21,7 +21,7 @@ import { PermissionRepository } from "../repositories/permission.repository";
  *  - assert()         → like check(), throws ForbiddenError on DENY
  *  - buildWhereClause() → compiles rules to a Drizzle SQL predicate
  *
- * For custom org role rules CRUD, delegate directly to PermissionRepository
+ * For custom role rules CRUD, delegate directly to PermissionRepository
  * (no business logic needed — it's pure data management).
  */
 @Injectable()
@@ -30,11 +30,10 @@ export class PermissionService {
 
   constructor(private readonly permissionRepository: PermissionRepository) {
     this.engine = new PermissionEngine({
-      // No org layer — the mesh is the single tenant. Member roles come from
-      // the user's platform role at eval time (see EngineContext).
-      loadMemberRoles: async () => [],
-      loadOrgRoles: (_orgId, roleNames) =>
-        this.permissionRepository.getRoleRules(roleNames).catch(() => []),
+      // No org layer — the mesh is the single tenant. Rules are keyed by the
+      // user's platform role at eval time (see EngineContext).
+      loadRoleRules: (platformRole) =>
+        this.permissionRepository.getRoleRules([platformRole]).catch(() => []),
     });
   }
 
@@ -82,7 +81,7 @@ export class PermissionService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Custom org role rules CRUD (delegates to repository)
+  // Custom role rules CRUD (delegates to repository)
   // ─────────────────────────────────────────────────────────────────────────
 
   upsertRoleRules(

@@ -55,6 +55,10 @@ export interface RuntimeExecutionResult {
     containerId: string;
     containerName: string;
     containerImage: string;
+    /** Swarm services resolve to a service id/name + tasks instead of a plain container. */
+    serviceId?: string | null;
+    serviceName?: string | null;
+    taskIds?: string[];
     routeVerification: {
         applied: boolean;
         syncResult: {
@@ -95,6 +99,7 @@ export const DEPLOYMENT_RUNTIME_RUNNER_TYPES = [
     "nixpacks",
     "buildpack",
     "railpack",
+    "swarm",
 ] as const;
 
 export type DeploymentRuntimeRunnerType = (typeof DEPLOYMENT_RUNTIME_RUNNER_TYPES)[number];

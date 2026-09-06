@@ -128,10 +128,4 @@ describe('AuthUtilsEmpty', () => {
       expect(utils.admin).toBeDefined();
     });
   });
-
-  describe('org plugin access', () => {
-    it('should provide org plugin wrapper', () => {
-      expect(utils.admin).toBeDefined();
-    });
-  });
 });

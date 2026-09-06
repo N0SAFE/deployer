@@ -1,8 +1,7 @@
 import { AppLogger } from '@repo/logger'
 import { StandardLinkOptions, StandardLinkPlugin } from '@orpc/client/standard'
-import { toAbsoluteUrl } from '@/lib/utils'
 import clientRedirect from '@/actions/redirect'
-import { redirect, RedirectType } from 'next/navigation'
+import { redirect, RedirectType, unstable_rethrow } from 'next/navigation'
 import { AuthSignin } from '@/routes/index'
 
 const pluginLogger = new AppLogger('web').scope('RedirectOnUnauthorized')
@@ -75,22 +74,26 @@ export class RedirectOnUnauthorizedPlugin<
                         'ORPC Unauthorized - redirecting to login'
                     )
 
-                    const loginUrl = 
-                        AuthSignin(
+                    // Client-side: build redirectTo from the real browser URL so
+                    // the sign-in page can send the user back after login
+                    if (typeof window !== 'undefined') {
+                        const loginUrl = AuthSignin(
                             {},
-                            {   
+                            {
                                 redirectTo:
                                     window.location.pathname +
                                     window.location.search,
                             }
                         )
-
-                    // Client-side: use client redirect
-                    if (typeof window !== 'undefined') {
                         void clientRedirect(loginUrl)
-                    }
-                    // Server-side: use Next.js redirect
-                    else {
+                    } else {
+                        // Server-side (Server Component / Server Action / Route
+                        // Handler): recover the current URL from the request
+                        // headers stamped by the WithHeaders middleware
+                        // (x-pathname / x-search), so the sign-in page redirects
+                        // the user back to the page they were on.
+                        const redirectTo = await getServerRedirectTo()
+                        const loginUrl = AuthSignin({}, { redirectTo })
                         redirect(loginUrl, RedirectType.replace)
                     }
                 }
@@ -99,6 +102,39 @@ export class RedirectOnUnauthorizedPlugin<
                 throw error
             }
         })
+    }
+}
+
+/**
+ * Recovers the current request URL (pathname + search) inside a Server
+ * Component / Server Action / Route Handler by reading the headers stamped
+ * by the WithHeaders middleware.
+ *
+ * Falls back to `undefined` (sign-in without redirectTo) when the URL cannot
+ * be determined — e.g. non-Next.js environments or requests that did not go
+ * through the middleware.
+ *
+ * NOTE: mirrors the `cookie-headers-plugin` pattern of dynamically importing
+ * `next/headers`, which keeps this shared (client + server) module safe to
+ * bundle for the browser.
+ */
+async function getServerRedirectTo(): Promise<string | undefined> {
+    try {
+        const nh = await import('next/headers')
+        const headersList = await nh.headers()
+        const pathname = headersList.get('x-pathname')
+
+        if (!pathname) {
+            return undefined
+        }
+
+        return pathname + (headersList.get('x-search') ?? '')
+    } catch (error) {
+        // Re-throw Next.js internals (PPR bailout, static-gen bailout, redirects)
+        // so they propagate correctly — catching them here would break builds.
+        unstable_rethrow(error)
+
+        return undefined
     }
 }
 

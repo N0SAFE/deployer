@@ -2,7 +2,7 @@
  * rule-validator.ts
  *
  * Zod v4 schemas for validating ResourceRule[] before they are stored
- * in the `organization_role.resource_rules` JSONB column.
+ * in the `role_rules.resource_rules` JSONB column.
  *
  * Enforces:
  *  - Max filter depth of MAX_FILTER_DEPTH (10) via a custom refinement.

@@ -20,31 +20,23 @@ export class SystemMeshOverlayScopeService {
         return false;
     }
 
-    filterCandidatesByOrganization(
-        candidates: MeshResourceLocation[],
-    ): MeshResourceLocation[] {
+    filterCandidates(candidates: MeshResourceLocation[]): MeshResourceLocation[] {
         return candidates;
     }
 
-    filterForwardedNodeIdsByOrganization(nodeIds: string[]): string[] {
+    filterForwardedNodeIds(nodeIds: string[]): string[] {
         return nodeIds;
     }
 
-    isTopologyEventVisibleForOrganization(
-        event: MeshTopologyEvent,
-    ): boolean {
+    isTopologyEventVisible(event: MeshTopologyEvent): boolean {
         return true;
     }
 
-    scopeMembershipSnapshotByOrganization(
-        snapshot: MeshMembershipSnapshot,
-    ): MeshMembershipSnapshot {
+    scopeMembershipSnapshot(snapshot: MeshMembershipSnapshot): MeshMembershipSnapshot {
         return snapshot;
     }
 
-    scopeRuntimeEventByOrganization(
-        event: MeshRuntimeEvent,
-    ): MeshRuntimeEvent {
+    scopeRuntimeEvent(event: MeshRuntimeEvent): MeshRuntimeEvent {
         return event;
     }
 

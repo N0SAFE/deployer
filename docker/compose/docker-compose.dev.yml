@@ -48,7 +48,7 @@ services:
       MANAGED_DATABASE_PASSWORD: deployer
       MANAGED_DATABASE_NAME: deployer
       MANAGED_WIREGUARD_ENABLED: "true"
-      SETUP_AUTO: "false"
+      SETUP_AUTO: ${SETUP_AUTO:-false}
     networks:
       app_network_dev:
         aliases:

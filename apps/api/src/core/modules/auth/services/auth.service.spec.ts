@@ -8,7 +8,6 @@ vi.mock('../plugin-utils/plugin-wrapper-factory', () => ({
   createPluginRegistry: vi.fn(() => ({
     getAll: vi.fn(() => ({
       admin: { listUsers: vi.fn(), createUser: vi.fn() },
-      organization: { createOrganization: vi.fn() },
     })),
   })),
 }));

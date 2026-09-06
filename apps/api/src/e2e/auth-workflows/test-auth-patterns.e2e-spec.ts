@@ -57,12 +57,6 @@ describe("Auth patterns API e2e: anonymous and protected boundaries", () => {
       .expect(401);
   });
 
-  it("GET /test/org/:organizationId rejects anonymous access", async () => {
-    await http
-      .get("/test/org/e2e-org-anon")
-      .expect(401);
-  });
-
   it("GET /test/composite/admin rejects anonymous access", async () => {
     await http
       .get("/test/composite/admin")

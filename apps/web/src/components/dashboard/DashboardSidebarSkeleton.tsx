@@ -3,7 +3,9 @@
 import { 
   Home, 
   LayoutDashboard,
-  Building2,
+  FolderKanban,
+  Server,
+  Rocket,
   UserCircle,
 } from 'lucide-react'
 import { Home as HomeRoute } from '@/routes'
@@ -66,9 +68,21 @@ export function DashboardSidebarSkeleton() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Organizations">
-                  <Building2 />
-                  <span>Organizations</span>
+                <SidebarMenuButton tooltip="Projects">
+                  <FolderKanban />
+                  <span>Projects</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip="Services">
+                  <Server />
+                  <span>Services</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip="Deployments">
+                  <Rocket />
+                  <span>Deployments</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

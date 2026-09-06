@@ -940,7 +940,7 @@ export type CallableInvalidationConfig<
  * import { authInvalidations } from '@/domains/auth/invalidations'
  * import { userInvalidations } from '@/domains/user/invalidations'
  *
- * const organizationInvalidations = defineInvalidations(organizationEndpoints, {
+ * const projectInvalidations = defineInvalidations(projectEndpoints, {
  *   create: ({ input, keys }) => [
  *     keys.list(),
  *     authInvalidations.session({}),
@@ -950,10 +950,10 @@ export type CallableInvalidationConfig<
  *
  * 4. **Manual query key invalidation** - Use raw query keys when needed:
  * ```typescript
- * const invitationInvalidations = defineInvalidations(invitationEndpoints, {
+ * const inviteInvalidations = defineInvalidations(inviteEndpoints, {
  *   accept: ({ input, keys }) => [
  *     keys.accept(),
- *     ['organization'],
+ *     ['project'],
  *     ['user', input.userId],
  *   ],
  * })

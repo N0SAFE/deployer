@@ -280,8 +280,8 @@ interface NestGuardOptionsContext<TInput = unknown> {
  * @example
  * ```typescript
  * // Type-safe params resolver
- * const getOrgId: NestInputResolver<string, { params: { organizationId: string } }> = 
- *   (ctx) => ctx.params.organizationId;
+ * const getProjectId: NestInputResolver<string, { params: { projectId: string } }> = 
+ *   (ctx) => ctx.params.projectId;
  * 
  * // Type-safe body resolver
  * const getResourceName: NestInputResolver<string, { body: { name: string } }> = 
@@ -301,11 +301,11 @@ type NestInputResolver<T, TInput = unknown> = (
  * @example
  * ```typescript
  * // Static value (no type parameter needed)
- * const orgId: NestValueOrResolver<string> = 'org_123';
+ * const projectId: NestValueOrResolver<string> = 'project_123';
  * 
  * // Dynamic resolver from params
- * const orgId: NestValueOrResolver<string, { params: { organizationId: string } }> = 
- *   (ctx) => ctx.params.organizationId;
+ * const projectId: NestValueOrResolver<string, { params: { projectId: string } }> = 
+ *   (ctx) => ctx.params.projectId;
  * 
  * // Dynamic resolver from body
  * const permission: NestValueOrResolver<string[], { body: { permissions: string[] } }> = 
@@ -362,19 +362,19 @@ function buildNestGuardContext<TInput = unknown>(
  *
  * @example
  * ```typescript
- * // Guard that checks organization membership from route param
- * const OrgMemberGuard = createDynamicNestGuard<{ params: { orgId: string } }>(
- *   async (ctx) => middlewares.organization.isMemberOf(ctx.params.orgId)
+ * // Guard that checks an admin permission from route param
+ * const ProjectManagerGuard = createDynamicNestGuard<{ params: { projectId: string } }>(
+ *   async (ctx) => middlewares.admin.hasPermission({ project: ['manage'] })
  * );
  * 
  * // Use in controller
- * @UseGuards(OrgMemberGuard)
- * @Get('org/:orgId/projects')
- * getProjects(@Param('orgId') orgId: string) { ... }
+ * @UseGuards(ProjectManagerGuard)
+ * @Get('projects/:projectId')
+ * getProject(@Param('projectId') projectId: string) { ... }
  * 
  * // Guard with multiple resolved values
- * const RoleGuard = createDynamicNestGuard<{ params: { orgId: string }; query: { role: string } }>(
- *   async (ctx) => middlewares.organization.hasOrganizationRole(ctx.params.orgId, [ctx.query.role])
+ * const RoleGuard = createDynamicNestGuard<{ params: { projectId: string }; query: { role: string } }>(
+ *   async (ctx) => middlewares.admin.hasRole(ctx.query.role)
  * );
  * ```
  */
@@ -435,13 +435,13 @@ export function createDynamicNestGuard<TInput = unknown>(
  *
  * @example
  * ```typescript
- * // Guard that resolves organizationId from route params
- * const OrgMemberGuard = createDynamicNestGuardWithResolver<
+ * // Guard that resolves projectId from route params
+ * const ProjectGuard = createDynamicNestGuardWithResolver<
  *   string, 
- *   { params: { organizationId: string } }
+ *   { params: { projectId: string } }
  * >(
- *   (orgId) => middlewares.organization.isMemberOf(orgId),
- *   (ctx) => ctx.params.organizationId
+ *   (projectId) => middlewares.admin.hasPermission({ project: ['manage'] }),
+ *   (ctx) => ctx.params.projectId
  * );
  * ```
  */
@@ -499,8 +499,8 @@ interface OrpcMiddlewareOptionsContext<
  * @example
  * ```typescript
  * // Type-safe input resolver
- * const getOrgId: OrpcInputResolver<string, { organizationId: string }> = 
- *   (ctx) => ctx.input.organizationId;
+ * const getProjectId: OrpcInputResolver<string, { projectId: string }> = 
+ *   (ctx) => ctx.input.projectId;
  * 
  * // Type-safe context resolver (access accumulated context)
  * const getUserId: OrpcInputResolver<string, unknown, { auth: { user: { id: string } } }> = 
@@ -521,11 +521,11 @@ type OrpcInputResolver<T, TInput = unknown, TContext = unknown> = (
  * @example
  * ```typescript
  * // Static value
- * const orgId: OrpcValueOrResolver<string> = 'org_123';
+ * const projectId: OrpcValueOrResolver<string> = 'project_123';
  * 
  * // Typed resolver from input
- * const orgId: OrpcValueOrResolver<string, { organizationId: string }> = 
- *   (ctx) => ctx.input.organizationId;
+ * const projectId: OrpcValueOrResolver<string, { projectId: string }> = 
+ *   (ctx) => ctx.input.projectId;
  * 
  * // Typed resolver from context
  * const userId: OrpcValueOrResolver<string, unknown, { auth: { user: { id: string } } }> = 

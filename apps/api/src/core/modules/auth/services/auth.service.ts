@@ -74,23 +74,20 @@ export class AuthService<T extends AuthWithPlugins = Auth> {
 	 * Get a plugin by name with automatic header injection from request.
 	 * 
 	 * This method provides:
-	 * - Compile-time type checking for plugin names (only 'admin', 'organization', etc.)
+	 * - Compile-time type checking for plugin names (only 'admin')
 	 * - Full type safety for plugin methods and return types
 	 * - Automatic header injection from the request context
 	 * - IDE autocomplete for plugin names and methods
 	 * 
 	 * @template K - Plugin name, strongly typed from PluginRegistry keys
-	 * @param name - Name of the plugin to retrieve (e.g., 'admin', 'organization')
+	 * @param name - Name of the plugin to retrieve (e.g., 'admin')
 	 * @returns The plugin instance with fully typed methods
 	 * 
 	 * @example
 	 * ```typescript
-	 * // Strongly typed - only 'admin' and 'organization' are valid
+	 * // Strongly typed - only 'admin' is valid
 	 * const adminPlugin = this.authService.plugin('admin');
 	 * await adminPlugin.createUser({ ... }); // Fully typed
-	 * 
-	 * const orgPlugin = this.authService.plugin('organization');
-	 * await orgPlugin.createOrganization({ ... }); // Fully typed
 	 * ```
 	 */
 	plugin<K extends keyof PluginRegistry>(name: K): any {

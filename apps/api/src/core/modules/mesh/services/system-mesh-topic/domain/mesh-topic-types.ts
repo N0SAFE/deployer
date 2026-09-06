@@ -78,7 +78,7 @@ export interface MeshTopicNamespaceHandle<TContracts extends EventContracts> {
     ): Observable<AnyEventEmission<TContracts[K]>>;
     lookupRoute<K extends keyof TContracts>(
         topic: K,
-        options?: { organizationId?: string | null; includeCandidates?: boolean },
+        options?: { includeCandidates?: boolean },
     ): MeshResourceLookupResult;
     request<KReq extends keyof TContracts, KRes extends keyof TContracts>(
         requestTopic: KReq,

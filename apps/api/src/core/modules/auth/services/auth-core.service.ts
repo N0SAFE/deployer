@@ -79,19 +79,6 @@ type AdminPermissions = StrictAdminPermissions | PermissionObject;
 /** Role name type for admin/platform context (string union: 'user' | 'admin' | 'superAdmin') */
 type AdminRoles = InferRoleNamesFromBuilder<PlatformBuilder>;
 
-/** 
- * Strict permission statement type for organization context
- * Used internally when calling underlying middleware methods
- */
-
-/** 
- * Flexible permission statement type for organization context 
- * Accepts both strictly typed permissions AND loose PermissionObject for flexibility
- * Use this in public API methods
- */
-
-/** Role name type for organization context (string union: 'owner' | 'admin' | 'member') */
-
 // ============================================================================
 // ORPC Middleware Builder (Using Typed Wrappers)
 // ============================================================================
@@ -104,15 +91,13 @@ type AdminMiddlewareDefinition = ReturnType<typeof createPluginMiddlewares>['adm
 /** Internal proxy type for raw admin middleware */
 type AdminOrpcProxy = OrpcMiddlewareProxy<AdminMiddlewareDefinition>;
 
-/** Internal proxy type for raw organization middleware */
-
 // ============================================================================
 // Type Utilities for Widening Permission Parameters
 // ============================================================================
 
 /**
  * Widen a strict permission type to accept PermissionObject.
- * Maps StrictAdminPermissions -> AdminPermissions, StrictOrgPermissions -> OrgPermissions
+ * Maps StrictAdminPermissions -> AdminPermissions
  */
 type WidenPermission<T> = 
 	T extends StrictAdminPermissions ? AdminPermissions :
@@ -207,10 +192,8 @@ type WidenedOrpcProxy<T> = {
 /** Admin proxy with widened permission types */
 type RelaxedAdminProxy = WidenedOrpcProxy<AdminOrpcProxy>;
 
-/** Organization proxy with widened permission types */
-
 /**
- * ORPC middleware builder - provides access to admin and organization middlewares
+ * ORPC middleware builder - provides access to admin middlewares
  * 
  * Uses widened type proxies that accept PermissionObject in addition to strict
  * permission types, while maintaining full type safety. Each method supports both
@@ -225,9 +208,6 @@ type RelaxedAdminProxy = WidenedOrpcProxy<AdminOrpcProxy>;
  * const dynamicMiddleware = builder.admin.hasPermission<{ perms: AdminPermissions }>(
  *   ctx => ctx.input.perms
  * );
- * 
- * // Works the same for organization middlewares
- * const orgMiddleware = builder.org.isMemberOf<{ orgId: string }>(ctx => ctx.input.orgId);
  * ```
  */
 class OrpcMiddlewareBuilder {
@@ -386,7 +366,7 @@ export class AuthCoreService<T extends AuthWithPlugins = Auth> {
 	 * AuthService.plugin(), this requires headers to be passed explicitly.
 	 * 
 	 * @template K - Plugin name, strongly typed from PluginRegistry keys
-	 * @param name - Name of the plugin to retrieve (e.g., 'admin', 'organization')
+	 * @param name - Name of the plugin to retrieve (e.g., 'admin')
 	 * @param headers - HTTP headers to pass to the plugin (for authentication)
 	 * @returns The plugin instance with fully typed methods
 	 * 
@@ -398,9 +378,6 @@ export class AuthCoreService<T extends AuthWithPlugins = Auth> {
 	 * // Get typed plugin
 	 * const adminPlugin = authCore.plugin('admin', headers);
 	 * await adminPlugin.createUser({ ... }); // Fully typed
-	 * 
-	 * const orgPlugin = authCore.plugin('organization', headers);
-	 * await orgPlugin.createOrganization({ ... }); // Fully typed
 	 * ```
 	 */
 	plugin<K extends keyof PluginRegistry>(name: K, headers: Headers): PluginRegistry[K] {
@@ -515,8 +492,6 @@ export class AuthCoreService<T extends AuthWithPlugins = Auth> {
 	 * Provides fluent API for creating ORPC middlewares:
 	 * - `middleware.admin.hasPermission()` - Check admin permissions
 	 * - `middleware.admin.hasRole()` - Check admin roles
-	 * - `middleware.org.isMemberOf()` - Check organization membership
-	 * - `middleware.org.hasOrganizationPermission()` - Check org permissions
 	 * 
 	 * @example
 	 * ```typescript

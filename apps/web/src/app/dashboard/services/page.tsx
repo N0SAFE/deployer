@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui/components/sh
 import { Input } from '@repo/ui/components/shadcn/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
 import { ArrowRight, RefreshCw, Server, Search, Siren, GitBranch, CheckCircle2, Clock, XCircle } from 'lucide-react'
-import { PageHeader, PageLoadingState, PageErrorState, StatusDot } from '@/components/dashboard'
+import { PageHeader, PageLoadingState, PageErrorState, StatusDot, ScopeLabel } from '@/components/dashboard'
 
 /** One cell of the compact service summary band. */
 function ServiceBandCell({
@@ -108,6 +108,7 @@ export default function DashboardServicesPage() {
         eyebrow="Services"
         title="Service inventory"
         description="Health and lifecycle status across all services."
+        badge={<ScopeLabel scope="mesh" />}
         actions={
           <>
             <Button type="button" variant="outline" onClick={() => void refetch()}>

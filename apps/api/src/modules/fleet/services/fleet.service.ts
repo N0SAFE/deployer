@@ -12,12 +12,12 @@ type AdmissionRequestRow = typeof clusterAdmissionRequests.$inferSelect;
 
 /**
  * Fleet Service — business logic over the cluster fleet data model
- * (cluster_nodes, cluster_org_server_allocations,
+ * (cluster_nodes, cluster_server_allocations,
  * cluster_org_admission_requests).
  *
  * All data access is delegated to FleetRepository; this class owns
  * aggregation, capacity feasibility and view mapping. Backs the
- * `core.fleet.*` ORPC contract.
+ * `nodes.*` ORPC contract.
  */
 @Injectable()
 export class FleetService {

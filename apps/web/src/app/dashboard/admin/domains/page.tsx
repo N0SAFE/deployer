@@ -528,7 +528,7 @@ export default function AdminDomainsPage() {
         </Card>
       ) : (
         <Card>
-          <CardHeader><CardTitle>Organization Domains</CardTitle><CardDescription>{domainRows.length} domain{domainRows.length !== 1 ? 's' : ''} — reachability checks run automatically on load</CardDescription></CardHeader>
+          <CardHeader><CardTitle>Project Domains</CardTitle><CardDescription>{domainRows.length} domain{domainRows.length !== 1 ? 's' : ''} — reachability checks run automatically on load</CardDescription></CardHeader>
           <CardContent>
             <Table>
               <TableHeader>

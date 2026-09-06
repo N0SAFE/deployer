@@ -88,8 +88,8 @@ export type RolesAsRoleObjects<TRoles extends Record<string, Record<string, read
  * const builder = new PermissionBuilder()
  *   .resource('project')
  *     .actions(['create', 'read', 'update', 'delete', 'share'])
- *   .resource('organization')
- *     .actions(['create', 'read', 'update', 'delete', 'manage-members'])
+ *   .resource('service')
+ *     .actions(['create', 'read', 'update', 'delete', 'deploy'])
  *   .resource('billing')
  *     .actions(['read', 'update', 'manage-subscriptions'])
  *   .build();

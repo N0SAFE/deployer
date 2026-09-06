@@ -43,8 +43,8 @@ function makeService(mocks: ReturnType<typeof makeMocks>): LocalInitializationSe
 	(service as unknown as { ensureDatabaseEmpty(): Promise<string[]> }).ensureDatabaseEmpty =
 		async () => [];
 	(service as unknown as { runMigrations(): Promise<void> }).runMigrations = async () => {};
-	(service as unknown as { seedInitialData(): Promise<{ userId: string; organizationId: string; organizationSlug: string }> }).seedInitialData =
-		async () => ({ userId: "u1", organizationId: "o1", organizationSlug: "org" });
+	(service as unknown as { seedInitialData(): Promise<{ userId: string }> }).seedInitialData =
+		async () => ({ userId: "u1" });
 	return service;
 }
 

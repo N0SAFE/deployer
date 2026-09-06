@@ -5,30 +5,29 @@ import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { FleetService } from "../services/fleet.service";
 
 /**
- * Fleet Controller — implements the `core.fleet.*` ORPC contract.
+ * Fleet Controller — implements the `nodes.*` ORPC contract.
  * Backed by the cluster fleet tables (cluster_nodes, allocations,
  * admission requests).
  *
- * NOTE: the contract must be referenced through `appContract.core.fleet.*`
- * (not the standalone `fleetContract`) so the `/core` router prefix is
- * preserved in the mapped Nest routes.
+ * NOTE: the contract must be referenced through `appContract.nodes.*`
+ * so the `/nodes` router prefix is preserved in the mapped Nest routes.
  */
 @Controller()
 export class FleetController {
     constructor(private readonly fleetService: FleetService) {}
 
-    @Implement(appContract.core.fleet.listServers)
+    @Implement(appContract.nodes.listServers)
     listServers() {
-        return implement(appContract.core.fleet.listServers)
+        return implement(appContract.nodes.listServers)
             .use(requireAuth())
             .handler(async () => {
                 return this.fleetService.listServers();
             });
     }
 
-    @Implement(appContract.core.fleet.setServerCapacity)
+    @Implement(appContract.nodes.setServerCapacity)
     setServerCapacity() {
-        return implement(appContract.core.fleet.setServerCapacity)
+        return implement(appContract.nodes.setServerCapacity)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 const result = await this.fleetService.setServerCapacity(input);
@@ -36,27 +35,27 @@ export class FleetController {
             });
     }
 
-    @Implement(appContract.core.fleet.listAllocations)
+    @Implement(appContract.nodes.listAllocations)
     listAllocations() {
-        return implement(appContract.core.fleet.listAllocations)
+        return implement(appContract.nodes.listAllocations)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.fleetService.listAllocations(input.query ?? {});
             });
     }
 
-    @Implement(appContract.core.fleet.listMyAllocations)
+    @Implement(appContract.nodes.listMyAllocations)
     listMyAllocations() {
-        return implement(appContract.core.fleet.listMyAllocations)
+        return implement(appContract.nodes.listMyAllocations)
             .use(requireAuth())
             .handler(async () => {
                 return this.fleetService.listMyAllocations();
             });
     }
 
-    @Implement(appContract.core.fleet.checkMyAdmission)
+    @Implement(appContract.nodes.checkMyAdmission)
     checkMyAdmission() {
-        return implement(appContract.core.fleet.checkMyAdmission)
+        return implement(appContract.nodes.checkMyAdmission)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 const result = await this.fleetService.checkMyAdmission(context.auth.user.id, input);
@@ -64,9 +63,9 @@ export class FleetController {
             });
     }
 
-    @Implement(appContract.core.fleet.createMyAdmissionRequest)
+    @Implement(appContract.nodes.createMyAdmissionRequest)
     createMyAdmissionRequest() {
-        return implement(appContract.core.fleet.createMyAdmissionRequest)
+        return implement(appContract.nodes.createMyAdmissionRequest)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 const result = await this.fleetService.createMyAdmissionRequest(context.auth.user.id, input);
@@ -74,18 +73,18 @@ export class FleetController {
             });
     }
 
-    @Implement(appContract.core.fleet.listMyAdmissionRequests)
+    @Implement(appContract.nodes.listMyAdmissionRequests)
     listMyAdmissionRequests() {
-        return implement(appContract.core.fleet.listMyAdmissionRequests)
+        return implement(appContract.nodes.listMyAdmissionRequests)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 return this.fleetService.listMyAdmissionRequests(context.auth.user.id, input.query ?? {});
             });
     }
 
-    @Implement(appContract.core.fleet.upsertAllocation)
+    @Implement(appContract.nodes.upsertAllocation)
     upsertAllocation() {
-        return implement(appContract.core.fleet.upsertAllocation)
+        return implement(appContract.nodes.upsertAllocation)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 const result = await this.fleetService.upsertAllocation(input);
@@ -93,9 +92,9 @@ export class FleetController {
             });
     }
 
-    @Implement(appContract.core.fleet.deleteAllocation)
+    @Implement(appContract.nodes.deleteAllocation)
     deleteAllocation() {
-        return implement(appContract.core.fleet.deleteAllocation)
+        return implement(appContract.nodes.deleteAllocation)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 const result = await this.fleetService.deleteAllocation(input);
@@ -103,18 +102,18 @@ export class FleetController {
             });
     }
 
-    @Implement(appContract.core.fleet.listAdmissionRequests)
+    @Implement(appContract.nodes.listAdmissionRequests)
     listAdmissionRequests() {
-        return implement(appContract.core.fleet.listAdmissionRequests)
+        return implement(appContract.nodes.listAdmissionRequests)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.fleetService.listAdmissionRequests(input.query ?? {});
             });
     }
 
-    @Implement(appContract.core.fleet.resolveAdmissionRequest)
+    @Implement(appContract.nodes.resolveAdmissionRequest)
     resolveAdmissionRequest() {
-        return implement(appContract.core.fleet.resolveAdmissionRequest)
+        return implement(appContract.nodes.resolveAdmissionRequest)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 const result = await this.fleetService.resolveAdmissionRequest(input);

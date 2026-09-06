@@ -26,7 +26,7 @@ import { Injectable } from "@nestjs/common";
               includeCandidates: true,
           });
 
-          const filtered = this.overlayScope.filterCandidatesByOrganization(
+          const filtered = this.overlayScope.filterCandidates(
               lookup.candidates,
           );
 

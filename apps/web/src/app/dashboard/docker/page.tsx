@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@repo/ui/components/shadcn/table'
-import { Bot, Boxes } from 'lucide-react'
+import { Bot, Boxes, Server } from 'lucide-react'
 import type { DockerContainer } from '@repo/contracts-entities'
 import { cn } from '@/lib/utils'
 import { EnvironmentBadge, StatusBadge } from '@/components/dashboard'
@@ -181,6 +181,11 @@ export default function DashboardDockerPage() {
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-semibold tracking-tight">Docker overview</h2>
               <Badge variant="secondary" className="border border-border/70">{containers.length}</Badge>
+              {/* Docker always operates on the node that hosts this API. */}
+              <Badge variant="outline" className="gap-1.5 font-normal">
+                <Server className="size-3" />
+                Node scope
+              </Badge>
             </div>
             <div className="text-xs text-muted-foreground">
               Fleet nodes <span className="font-semibold text-foreground">{fleetServers.length}</span> · Runtime groups <span className="font-semibold text-foreground">{runtimeCatalogGroupCount}</span> · Runtime entities <span className="font-semibold text-foreground">{runtimeCatalogEntityCount}</span> · Projects <span className="font-semibold text-foreground">{networkCount}</span>

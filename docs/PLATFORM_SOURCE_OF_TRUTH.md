@@ -236,7 +236,9 @@
 141. The platform must support multi-node resource placement.
 142. The platform must support node health state and node inventory views.
 143. The platform should support swarm/cluster-level orchestration patterns.
+     > **Implementation STATUS (§23/SW): DONE** — Swarm baseline implemented behind the dockerode SDK: `entities/swarm/*` schemas, `DockerService` swarm SDK group, `SwarmRuntimeRunnerService` + Compose→swarm realizer, mesh master election (weighted score + quorum + CAS), `NodeInventoryService`, `clusterContract` API. See `docs/swarm-orchestration/`.
 144. The platform should support project/resource placement constraints.
+     > **Implementation STATUS (SW-032): DONE** — `node-placement.service.ts` (`dedicated` / `exclude-ingress` / `prefer-region` / default-shared-nodes) wired into the swarm runner via the `deployer.placement` executor label.
 145. Multi-server operations must preserve tenant and project isolation boundaries.
 
 ---
@@ -313,10 +315,14 @@ This checklist is mandatory for keeping fixtures truthful and migration-safe.
 ## 23) Swarm manager + ingress baseline
 
 178. Multi-node production orchestration baseline must use Docker Swarm manager/worker topology.
+     > **Implementation STATUS: DONE** — SDK-first Swarm baseline: `swarm init/join` via the API (`SwarmClusterService`), idempotent single-node mode, platform stack + `docker-stack.deploy.yml` reference spec, master election + takeover. See `docs/swarm-orchestration/`.
 179. Node onboarding must support explicit Swarm join flow (manager authority with worker enrollment and rotating join material).
+     > **Implementation STATUS: DONE (core)** — `SwarmClusterService.joinCluster(token, addrs)` + join tokens persisted locally (`cluster_node`), never `.env`. Mesh-authenticated onboarding + token rotation to peers remain (P7).
 180. Cluster operations must be initiated through manager-side orchestration APIs/workflows.
+     > **Implementation STATUS: DONE (core)** — `clusterContract` API (`/cluster` snapshot/nodes/master/updateNode) + `SwarmRuntimeRunnerService` lifecycle ops; all manager-routed when a master is elected.
 181. Critical user-facing workloads must support a minimum of two replicas when at least two schedulable nodes are available.
 182. Traefik with Swarm service discovery is the canonical ingress/load-balancing model; custom redirect/token load balancer behavior is optional advanced scope.
+     > **Implementation STATUS (181/182): DONE in specs + runner** — replica policy encoded in `docker-stack.deploy.yml` / compose realizer (`deploy.replicas`); Traefik swarm provider (`swarmMode=true`) + verify-only route probe (`swarm-route-verifier.ts`). Live multi-node verification remains on live-infra CI.
 
 ---
 

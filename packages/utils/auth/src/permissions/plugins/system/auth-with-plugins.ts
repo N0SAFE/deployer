@@ -9,18 +9,15 @@
  *
  * @example
  * ```typescript
- * import { admin, organization } from 'better-auth/plugins'
+ * import { admin } from 'better-auth/plugins'
  *
  * const adminPlugin = admin({});
- * const orgPlugin = organization();
  *
  * type AdminOnlyAuth = WithAuthPlugins<[typeof adminPlugin]>;
- * type MultiPluginAuth = WithAuthPlugins<[typeof adminPlugin, typeof orgPlugin]>;
  *
  * // Use in a function
  * function handleUser(auth: AdminOnlyAuth) {
  *   // auth.api.createUser is available with proper typing
- *   // auth.api.createOrganization is NOT available (type error)
  * }
  * ```
  */

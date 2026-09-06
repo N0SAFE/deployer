@@ -512,7 +512,7 @@ export const githubInstallations = pgTable("github_installations", {
         .references(() => user.id, { onDelete: "cascade" }),
     installationId: integer("installation_id").notNull().unique(), // GitHub installation ID
     accountLogin: text("account_login").notNull(), // GitHub username or org name
-    accountType: text("account_type").notNull(), // "User" or "Organization"
+    accountType: text("account_type").notNull(), // GitHub account type ("User" or "Org")
     accountAvatarUrl: text("account_avatar_url"),
     repositoriesCount: integer("repositories_count").default(0),
     // GitHub App credentials (automatically encrypted/decrypted)

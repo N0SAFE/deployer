@@ -17,7 +17,9 @@
  *    - Plugin-specific middleware factories
  *    - BaseMiddlewareDefinition: Session checks
  *    - AdminMiddlewareDefinition: Admin permission/role checks
- *    - OrganizationMiddlewareDefinition: Organization-scoped checks
+ *
+ *    Note: the mesh is the single tenant — there is no organization
+ *    middleware definition. Access control is platform-scoped.
  *
  * 3. **Converters** (`middleware-converter.ts`)
  *    - Convert checks to NestJS Guards
@@ -28,14 +30,12 @@
  * ```typescript
  * import {
  *   AdminMiddlewareDefinition,
- *   OrganizationMiddlewareDefinition,
  *   createNestGuard,
  *   createOrpcMiddleware,
  * } from './middleware';
  *
  * // Create middleware definitions from plugin wrappers
  * const adminMiddleware = new AdminMiddlewareDefinition(adminPlugin);
- * const orgMiddleware = new OrganizationMiddlewareDefinition(orgPlugin);
  *
  * // Create NestJS guards
  * const AdminGuard = createNestGuard(
@@ -71,7 +71,6 @@ export type {
   SessionCheck,
   PermissionCheck,
   RoleCheck,
-  MembershipCheck,
 } from './middleware-check';
 
 export {
@@ -162,7 +161,6 @@ export {
 import type {
   AnyPermissionBuilder,
   AdminPermissionsPlugin,
-  OrganizationsPermissionsPlugin,
   InferRolesFromBuilder,
 } from '@repo/auth/permissions/plugins';
 import type { AdminAuthConstraint } from './admin.middleware-definition';

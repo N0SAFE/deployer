@@ -58,7 +58,7 @@ class StubMeshNodeCaller implements MeshNodeCaller {
         _entityKey: string,
         _methodName: string,
         _payload: Record<string, unknown>,
-        _options: { organizationId?: string | null; timeoutMs?: number },
+        _options: { timeoutMs?: number },
     ): Promise<readonly { nodeId: string; items: readonly TItem[]; durationMs: number }[]> {
         return [];
     }

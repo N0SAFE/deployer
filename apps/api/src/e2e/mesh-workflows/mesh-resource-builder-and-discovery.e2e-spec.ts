@@ -34,7 +34,7 @@ describe('real mesh resource builder and discovery e2e', () => {
       .itemKey('projectId')
       .globalOwnership('mesh-coordinator')
       .addQuery('list', {
-        inputSchema: z.object({ organizationId: z.string().optional() }),
+        inputSchema: z.object({ projectId: z.string().optional() }),
         outputSchema: z.object({ total: z.number() }),
         capabilities: {
           request: true,

@@ -78,7 +78,6 @@ async function runLocalSetup(
     name: `Lifecycle E2E Node ${instanceKey}`,
     email: `lifecycle-e2e-${instanceKey}@mesh.test`,
     password: 'P@ssword1234',
-    organizationName: `Lifecycle E2E Org ${instanceKey}`,
     serverUrl: context.runtime.baseUrl,
   })
 
@@ -402,7 +401,6 @@ describe('Guard: Already-configured node', () => {
         name: 'Duplicate Node',
         email: 'dup-guard@mesh.test',
         password: 'P@ssword1234',
-        organizationName: 'Dup Guard Org',
         serverUrl: context.runtime.baseUrl,
       })
       const events = await collectStreamEvents(obs)

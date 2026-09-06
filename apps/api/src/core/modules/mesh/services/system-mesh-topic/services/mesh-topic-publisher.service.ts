@@ -98,7 +98,6 @@ export class MeshTopicPublisherService {
             "deploymentId",
             "serviceId",
             "projectId",
-            "organizationId",
             "id",
         ];
         for (const key of prioritized) {

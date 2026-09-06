@@ -110,7 +110,6 @@ export interface ORPCContextWithAuth<TLoggedIn extends boolean = boolean> extend
  * For access control, use plugin-based middlewares:
  * - `adminMiddlewares.requireRole(roles)` - Require specific admin role(s)
  * - `adminMiddlewares.requirePermission(permission)` - Require specific permission
- * - `organizationMiddlewares.requireRole(roles)` - Require organization role(s)
  * 
  * @template TLoggedIn - Whether user is logged in (boolean by default, true for authenticated contexts)
  */

@@ -646,7 +646,6 @@ describe("Mesh E2E: Reactive Subqueries & Connection Sharing", () => {
       //
       // const activeProjects$ = mesh
       //   .from(ProjectMeshService.queries.projects.query)
-      //   .where({ organizationId: eq(ORG_ID), status: eq("active") })
       //   .listen()
       //   .execute();
       //

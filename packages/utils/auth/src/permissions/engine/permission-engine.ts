@@ -2,19 +2,19 @@
  * permission-engine.ts
  *
  * The PermissionEngine provides resource-rule-based access control checks
- * for the organisation layer of the deployer permission system.
+ * for the deployer permission system. The mesh is the single tenant — rules
+ * are keyed by the user's platform role, there is no organization layer.
  *
  * ── Evaluation algorithm ──────────────────────────────────────────────────
  *   1. platformRole === "superAdmin"  →  ALLOW (bypass everything)
- *   2. Load all role names for (userId, orgId) from the `member` table
- *   3. Load all ResourceRule[] for those role names from `organization_role`
- *   4. Filter rules by (resource, action) match
- *   5. Evaluate each rule's scope — keep only in-scope rules
- *   6. Resolve conflicts via priority:
+ *   2. Load all ResourceRule[] for the user's platform role from `role_rules`
+ *   3. Filter rules by (resource, action) match
+ *   4. Evaluate each rule's scope — keep only in-scope rules
+ *   5. Resolve conflicts via priority:
  *        deny rules:  compute maxDenyPriority
  *        allow rules: any allow.priority > maxDenyPriority  →  ALLOW
  *        equal priority:  deny wins
- *   7. Default: DENY
+ *   6. Default: DENY
  * ─────────────────────────────────────────────────────────────────────────
  *
  * Phase A: check() and assert() — full in-memory evaluation.
@@ -43,16 +43,10 @@ export type { ColumnResolver };
 // ---------------------------------------------------------------------------
 
 /**
- * Resolves all role names a user holds in an organisation.
- * Reads from the `member` table (multi-row; one row per role).
+ * Resolves all ResourceRule[] for a platform role name.
+ * Reads from `role_rules.resource_rules` (JSONB).
  */
-export type MemberRoleLoader = (userId: string, orgId: string) => Promise<string[]>;
-
-/**
- * Resolves all ResourceRule[] for a set of role names within an organisation.
- * Reads from `organization_role.resource_rules` (JSONB).
- */
-export type OrgRoleLoader = (orgId: string, roleNames: string[]) => Promise<ResourceRule[]>;
+export type RoleRuleLoader = (platformRole: string) => Promise<ResourceRule[]>;
 
 /**
  * Optional: loads a resource record for filter-scope rule evaluation.
@@ -64,7 +58,6 @@ export type OrgRoleLoader = (orgId: string, roleNames: string[]) => Promise<Reso
 export type ResourceRecordLoader = (
     resource: ProjectResource,
     resourceId: string,
-    orgId: string,
 ) => Promise<Record<string, unknown> | undefined>;
 
 // ---------------------------------------------------------------------------
@@ -72,8 +65,7 @@ export type ResourceRecordLoader = (
 // ---------------------------------------------------------------------------
 
 export interface PermissionEngineOptions {
-    loadMemberRoles: MemberRoleLoader;
-    loadOrgRoles: OrgRoleLoader;
+    loadRoleRules: RoleRuleLoader;
     /**
      * Required when any stored rule uses `scope: { type: "filter" }`.
      * If absent and a filter-scope rule is encountered, check() throws.
@@ -89,9 +81,9 @@ export class PermissionEngine {
     // -----------------------------------------------------------------------
 
     /**
-     * Evaluates access for a (userId, orgId, resource, action) tuple.
+     * Evaluates access for a (ctx, resource, action) tuple.
      *
-     * @param ctx         Engine context: userId, orgId, platformRole, pre-resolved vars.
+     * @param ctx         Engine context: userId, platformRole, pre-resolved vars.
      * @param resource    Resource type being accessed.
      * @param action      Action being attempted (e.g. "read", "delete").
      * @param resourceId  Specific resource instance UUID. Required for non-"all" scopes.
@@ -109,16 +101,16 @@ export class PermissionEngine {
             return { decision: "ALLOW", reason: "superAdmin bypass" };
         }
 
-        // 2. Resolve the user's role names in this org
-        const roleNames = await this.opts.loadMemberRoles(ctx.userId, ctx.orgId);
-        if (roleNames.length === 0) {
-            return { decision: "DENY", reason: "User has no roles in this organization" };
+        // 2. Resolve the rules for the user's platform role
+        const allRules = await this.opts.loadRoleRules(ctx.platformRole ?? "user");
+        if (allRules.length === 0) {
+            return {
+                decision: "DENY",
+                reason: "No rules configured for the user's platform role",
+            };
         }
 
-        // 3. Collect all rules across all roles (union merge)
-        const allRules = await this.opts.loadOrgRoles(ctx.orgId, roleNames);
-
-        // 4. Filter to rules that match (resource, action)
+        // 3. Filter to rules that match (resource, action)
         const matchingRules = allRules.filter((rule) =>
             ruleMatchesResourceAndAction(rule, resource, action),
         );
@@ -130,7 +122,7 @@ export class PermissionEngine {
             };
         }
 
-        // 5. Evaluate scope for each matching rule
+        // 4. Evaluate scope for each matching rule
         const applicableRules: ResourceRule[] = [];
         for (const rule of matchingRules) {
             const inScope = await this.evaluateScope(
@@ -152,7 +144,7 @@ export class PermissionEngine {
             };
         }
 
-        // 6. Priority-based conflict resolution
+        // 5. Priority-based conflict resolution
         const denyRules = applicableRules.filter((r) => r.deny === true);
         const allowRules = applicableRules.filter((r) => r.deny !== true);
 
@@ -249,12 +241,7 @@ export class PermissionEngine {
             return undefined;
         }
 
-        const roleNames = await this.opts.loadMemberRoles(ctx.userId, ctx.orgId);
-        if (roleNames.length === 0) {
-            return rawSql`1 = 0`; // no access
-        }
-
-        const allRules = await this.opts.loadOrgRoles(ctx.orgId, roleNames);
+        const allRules = await this.opts.loadRoleRules(ctx.platformRole ?? "user");
         const matchingRules = allRules.filter((rule) =>
             ruleMatchesResourceAndAction(rule, resource, action),
         );
@@ -360,21 +347,16 @@ export class PermissionEngine {
                 );
             }
 
-            case "cascade": {
-                const ancestors = getAncestorChain(resource);
-                if (!ancestors.includes(scope.from)) {
-                    return undefined; // invalid cascade target — skip
-                }
-                // TODO (Phase B.2): real FK-chain subquery. For now: conservatively allow all.
-                return null;
-            }
+            case "cascade":
+                return null; // Phase B.2: FK-chain subquery
 
             case "filter": {
-                return compileDFilter<TSchema>(
+                const compiled = compileDFilter<TSchema>(
                     scope.condition as unknown as DFilter<TSchema>,
                     resolver,
                     vars,
-                ) ?? undefined;
+                );
+                return compiled;
             }
         }
     }
@@ -420,7 +402,6 @@ export class PermissionEngine {
                     const loaded = await this.opts.loadResourceRecord(
                         resource,
                         resourceId,
-                        ctx.orgId,
                     );
                     if (!loaded) {
                         return false;
@@ -471,7 +452,6 @@ function ruleMatchesResourceAndAction(
 function buildDynamicVars(ctx: EngineContext): Partial<DynamicVars> {
     return {
         $currentUser: ctx.userId,
-        $currentOrg: ctx.orgId,
         ...ctx.vars,
     };
 }

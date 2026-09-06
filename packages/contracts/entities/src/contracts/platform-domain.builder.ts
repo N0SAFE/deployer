@@ -549,7 +549,7 @@ export function createPlatformDomainSchemas(deps: PlatformDomainSchemaDeps = {})
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['serviceConfigs', service.id, 'executionOverrides', envName, 'dependencyLinkPolicy', 'provisioning', 'sharingScope'],
-            message: `Organization-wide sharing is invalid for same-environment dependency links on ${service.id}/${envName}.`,
+            message: `Project-wide sharing is invalid for same-environment dependency links on ${service.id}/${envName}.`,
           })
         }
       }

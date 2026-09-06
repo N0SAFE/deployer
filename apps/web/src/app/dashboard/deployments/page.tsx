@@ -16,7 +16,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
 import { ArrowRight, CheckCircle2, Clock3, RefreshCw, Rocket, Search, Workflow, XCircle, XOctagon, TrendingUp, Server, Network } from 'lucide-react'
 import { toast } from 'sonner'
-import { PageHeader, PageLoadingState, PageErrorState, StatusDot, StatusBadge, EnvironmentBadge } from '@/components/dashboard'
+import { PageHeader, PageLoadingState, PageErrorState, StatusDot, StatusBadge, EnvironmentBadge, ScopeLabel } from '@/components/dashboard'
 import { useDeploymentList } from '@/domains/deployment/hooks'
 import { useNodeScope } from '@/domains/node/node-context'
 
@@ -168,6 +168,7 @@ export default function DashboardDeploymentsPage() {
           ? `Showing deployments running on node ${nodeId?.slice(0, 8)}. Select "All Nodes" to see mesh-wide deployments.`
           : 'Filter, sort, and operate on recent rollouts across environments and nodes.'
         }
+        badge={<ScopeLabel scope={isNodeSelected ? 'node' : 'mesh'} />}
         actions={
           <>
             <Button

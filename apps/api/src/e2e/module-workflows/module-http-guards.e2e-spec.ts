@@ -32,7 +32,6 @@ describe("Module HTTP guard matrix e2e", () => {
     await context.http.get("/providers").expect(401);
     await context.http.get("/push/subscriptions").expect(401);
     await context.http.get("/core/fleet/servers").expect(401);
-    await context.http.get("/organization/admin").expect(401);
   });
 
   it("reports template list route as not yet mounted", async () => {

@@ -1,6 +1,7 @@
 import { Injectable, Logger, Optional } from "@nestjs/common";
 import type { OnModuleInit } from "@nestjs/common";
 import type { OnModuleDestroy } from "@nestjs/common";
+import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
 import { DeploymentRepository } from "./../repositories/deployment.repository";
 import type { DeploymentQueueLifecycleService } from "./deployment-queue-lifecycle.service";
 import type { DeploymentRow } from "./../repositories/deployment.repository";
@@ -25,7 +26,7 @@ import type { DeploymentRow } from "./../repositories/deployment.repository";
  *     is user-visible, and nothing degrades silently.
  */
 @Injectable()
-export class DeploymentQueueReconciliationService implements OnModuleInit {
+export class DeploymentQueueReconciliationService implements OnModuleInit, OnModuleDestroy {
     private static readonly RECONCILE_START_DELAY_MS = 3_000;
     private static readonly ORPHAN_SCAN_LIMIT = 500;
 
@@ -35,12 +36,16 @@ export class DeploymentQueueReconciliationService implements OnModuleInit {
     constructor(
         private readonly deploymentRepository: DeploymentRepository,
         @Optional() private readonly queueLifecycle?: DeploymentQueueLifecycleService,
+        /** SW-026: swarm-aware adoption — when the engine already owns the
+         *  service (deployer.deployment_id label match), a crash that wiped
+         *  the queue must adopt the deployment as success, not fail it. */
+        @Optional() private readonly swarmClusterService?: SwarmClusterService,
     ) {}
 
     onModuleInit(): void {
         this.timer = setTimeout(
             () => {
-                void this.reconcileOrphanedInFlightDeployments().catch((error) => {
+                void this.reconcileOrphanedInFlightDeployments().catch((error: unknown) => {
                     this.logger.error(
                         `Failed to reconcile orphaned deployments: ${
                             error instanceof Error ? error.message : String(error)
@@ -83,6 +88,42 @@ export class DeploymentQueueReconciliationService implements OnModuleInit {
                 continue;
             }
 
+            // SW-026: adopt deployments whose Swarm service survived the crash
+            // (engine owns the desired state — the platform only lost the job,
+            // not the service). Never fail a still-running swarm service.
+            if (await this.hasLiveSwarmService(deployment.id)) {
+                await this.deploymentRepository.updateStatus(
+                    deployment.id,
+                    "success",
+                    {
+                        ...(deployment.metadata ?? {}),
+                        swarmAdoptedAt: new Date().toISOString(),
+                        swarmAdoptedReason:
+                            "Swarm service discovered alive after restart; deployment adopted rather than failed.",
+                    } as DeploymentRow["metadata"],
+                );
+
+                await this.deploymentRepository.insertLog(deployment.id, {
+                    level: "info",
+                    message:
+                        "Deployment adopted: Swarm service still running after restart; engine owns the convergence.",
+                    phase: "success",
+                    step: "startup_reconcile",
+                    stage: "deploy",
+                    correlationId: deployment.id,
+                    metadata: {
+                        structured: true,
+                        reason: "startup_reconcile_adopt",
+                    },
+                });
+
+                this.logger.log(
+                    `Reconciled orphaned deployment '${deployment.id}' (status building → success, swarm service alive)`,
+                );
+                reconciled.push(deployment.id);
+                continue;
+            }
+
             await this.deploymentRepository.updateStatus(
                 deployment.id,
                 "failed",
@@ -116,10 +157,28 @@ export class DeploymentQueueReconciliationService implements OnModuleInit {
 
         if (reconciled.length > 0) {
             this.logger.log(
-                `Startup reconciliation: marked ${reconciled.length} orphaned deployment(s) as failed`,
+                `Startup reconciliation: marked ${String(reconciled.length)} orphaned deployment(s) as failed/adopted`,
             );
         }
 
         return reconciled;
+    }
+
+    /**
+     * True when a live Swarm service carries the `deployer.deployment_id`
+     * label for the given deployment. False when swarm is disabled, the
+     * engine is not in a cluster, or no matching service exists.
+     */
+    private async hasLiveSwarmService(deploymentId: string): Promise<boolean> {
+        if (!this.swarmClusterService) {
+            return false;
+        }
+        try {
+            await this.swarmClusterService.assertClusterReady();
+            const services = await this.swarmClusterService.listSwarmServicesForDeployment(deploymentId);
+            return services.length > 0;
+        } catch {
+            return false;
+        }
     }
 }

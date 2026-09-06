@@ -23,7 +23,6 @@ export const githubAppConfigSchema = z.object({
 });
 
 export const createGithubAppInputSchema = z.object({
-    organizationId: z.string().optional(),
     name: z.string().min(1, "Name is required"),
     appId: z.string().min(1, "GitHub App ID is required"),
     clientId: z.string().min(1, "Client ID is required"),

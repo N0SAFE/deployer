@@ -50,7 +50,7 @@ type MeshWhereClauseScalar = string | number | boolean | null | undefined;
  * const result = discovery
  *   .select("stream")
  *   .where(eq(f.ownerNodeId, "node-1"))
- *   .where({ organizationId: "org-123" })
+ *   .where({ status: "active" })
  *   .first();
  */
 export class MeshResourceQueryBuilder<

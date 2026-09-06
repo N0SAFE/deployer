@@ -13,7 +13,29 @@ import { PassThrough } from "stream";
 import { execFile } from "node:child_process";
 import { Observable } from "rxjs";
 import { EnvService } from "@/config/env/env.service";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { isRecord } from "@repo/type-guards";
+import z from "zod/v4";
+import {
+    dockerodeSwarmInfoSchema,
+    dockerodeSwarmInspectSchema,
+    dockerodeServiceSummarySchema,
+    dockerodeTaskSummarySchema,
+    dockerodeNodeSummarySchema,
+    dockerodeSecretSummarySchema,
+    dockerodeConfigSummarySchema,
+} from "@repo/contracts-entities";
+import type {
+    DockerodeSwarmInfo,
+    DockerodeSwarmInspect,
+    DockerodeServiceSummary,
+    DockerodeTaskSummary,
+    DockerodeNodeSummary,
+    DockerodeSecretSummary,
+    DockerodeConfigSummary,
+    SwarmInitOptions,
+    SwarmJoinOptions,
+    SwarmOverlayNetworkRequest,
+} from "@repo/contracts-entities";
 
 
 
@@ -390,7 +412,7 @@ CMD ["npm", "start"]
         if (!fs.existsSync(composeFilePath)) {
             throw new NotFoundException(`Docker compose file not found at ${composeFilePath}`);
         }
-        const projectName = options?.projectName ?? `deployer-${Date.now()}`;
+        const projectName = options?.projectName ?? `deployer-${String(Date.now())}`;
         const args = ["compose", "-f", composeFilePath, "-p", projectName, "build"];
         if (options?.serviceNames?.length) {
             args.push(...options.serviceNames);
@@ -2453,6 +2475,419 @@ CMD ["npm", "start"]
         } catch (error) {
             this.logger.error(`Error while searching for container with path ${searchPath}:`, error);
             return null;
+        }
+    }
+
+    // ==========================================================================
+    // SWARM MODE — dockerode SDK (no CLI). All engine responses are Zod-parsed
+    // at this boundary (parse, don't validate); business logic never touches
+    // dockerode's loose raw shapes.
+    // ==========================================================================
+
+    private isDockerNotFoundError(error: unknown): boolean {
+        if (!isRecord(error)) {
+            return false;
+        }
+        return error.statusCode === 404;
+    }
+
+    /**
+     * Read the local engine's Swarm mode state (GET /info → `.Swarm`).
+     * `LocalNodeState` drives idempotent cluster bootstrap (active → no-op).
+     */
+    async getSwarmInfo(): Promise<DockerodeSwarmInfo> {
+        try {
+            const info: unknown = await this.docker.info();
+            const swarmRaw = isRecord(info) ? info.Swarm : undefined;
+            return dockerodeSwarmInfoSchema.parse(isRecord(swarmRaw) ? swarmRaw : {});
+        } catch (error: unknown) {
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to read Swarm info: ${message}`);
+            throw new BadGatewayException(`Failed to read Swarm info: ${message}`);
+        }
+    }
+
+    /**
+     * Inspect the local Swarm cluster (GET /swarm). Throws NotFoundException
+     * when the engine is not part of any cluster.
+     */
+    async swarmInspect(): Promise<DockerodeSwarmInspect> {
+        try {
+            const raw: unknown = await this.docker.swarmInspect();
+            return dockerodeSwarmInspectSchema.parse(raw);
+        } catch (error: unknown) {
+            if (this.isDockerNotFoundError(error)) {
+                throw new NotFoundException(`Swarm cluster is not initialized on this engine`);
+            }
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to inspect Swarm cluster: ${message}`);
+            throw new BadGatewayException(`Failed to inspect Swarm cluster: ${message}`);
+        }
+    }
+
+    /**
+     * Initialize Swarm mode on the local engine (POST /swarm/init).
+     * Callers should gate on `getSwarmInfo().LocalNodeState` for idempotency.
+     */
+    async swarmInit(options: SwarmInitOptions): Promise<DockerodeSwarmInspect> {
+        try {
+            const raw: unknown = await this.docker.swarmInit(options);
+            return dockerodeSwarmInspectSchema.parse(raw);
+        } catch (error: unknown) {
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to initialize Swarm cluster: ${message}`);
+            throw new BadGatewayException(`Failed to initialize Swarm cluster: ${message}`);
+        }
+    }
+
+    /**
+     * Join an existing Swarm cluster (POST /swarm/join) using a join token.
+     */
+    async swarmJoin(options: SwarmJoinOptions): Promise<void> {
+        try {
+            await this.docker.swarmJoin(options);
+            this.logger.log(`Joined Swarm cluster via ${options.RemoteAddrs.join(", ")}`);
+        } catch (error: unknown) {
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to join Swarm cluster: ${message}`);
+            throw new BadGatewayException(`Failed to join Swarm cluster: ${message}`);
+        }
+    }
+
+    /**
+     * Leave the Swarm cluster (POST /swarm/leave). `force` leaves even as a
+     * manager (last resort for decommissioning).
+     */
+    async swarmLeave(force = false): Promise<void> {
+        try {
+            await this.docker.swarmLeave({ Force: force });
+            this.logger.log(`Left Swarm cluster (force=${String(force)})`);
+        } catch (error: unknown) {
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to leave Swarm cluster: ${message}`);
+            throw new BadGatewayException(`Failed to leave Swarm cluster: ${message}`);
+        }
+    }
+
+    /**
+     * List all swarm services (GET /services).
+     */
+    async listSwarmServices(): Promise<DockerodeServiceSummary[]> {
+        try {
+            const raw: unknown = await this.docker.listServices();
+            return z.array(dockerodeServiceSummarySchema).parse(raw);
+        } catch (error: unknown) {
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to list Swarm services: ${message}`);
+            throw new BadGatewayException(`Failed to list Swarm services: ${message}`);
+        }
+    }
+
+    /**
+     * Inspect a swarm service by id or name (GET /services/{id}).
+     */
+    async inspectSwarmService(serviceIdOrName: string): Promise<DockerodeServiceSummary> {
+        try {
+            const raw: unknown = await this.docker.getService(serviceIdOrName).inspect();
+            return dockerodeServiceSummarySchema.parse(raw);
+        } catch (error: unknown) {
+            if (this.isDockerNotFoundError(error)) {
+                throw new NotFoundException(`Swarm service not found: ${serviceIdOrName}`);
+            }
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to inspect Swarm service ${serviceIdOrName}: ${message}`);
+            throw new BadGatewayException(`Failed to inspect Swarm service ${serviceIdOrName}: ${message}`);
+        }
+    }
+
+    /**
+     * Create a swarm service from a dockerode spec (POST /services/create).
+     */
+    async createSwarmService(spec: Docker.ServiceSpec): Promise<DockerodeServiceSummary> {
+        try {
+            const raw: unknown = await this.docker.createService(spec);
+            return dockerodeServiceSummarySchema.parse(raw);
+        } catch (error: unknown) {
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to create Swarm service: ${message}`);
+            throw new BadGatewayException(`Failed to create Swarm service: ${message}`);
+        }
+    }
+
+    /**
+     * Update a swarm service (POST /services/{id}/update?version=N[&rollback=true]).
+     * `version` must match the service's current Version.Index (from inspect).
+     */
+    async updateSwarmService(
+        serviceIdOrName: string,
+        version: number,
+        spec: Docker.ServiceSpec,
+        rollback = false,
+    ): Promise<DockerodeServiceSummary> {
+        try {
+            const service = this.docker.getService(serviceIdOrName);
+            const raw: unknown = await service.update({
+                version,
+                ...(rollback ? { rollback: true } : {}),
+                ...spec,
+            });
+            return dockerodeServiceSummarySchema.parse(raw);
+        } catch (error: unknown) {
+            if (this.isDockerNotFoundError(error)) {
+                throw new NotFoundException(`Swarm service not found: ${serviceIdOrName}`);
+            }
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to update Swarm service ${serviceIdOrName}: ${message}`);
+            throw new BadGatewayException(`Failed to update Swarm service ${serviceIdOrName}: ${message}`);
+        }
+    }
+
+    /**
+     * Remove a swarm service (DELETE /services/{id}). Gracefully drains tasks.
+     */
+    async removeSwarmService(serviceIdOrName: string): Promise<void> {
+        try {
+            await this.docker.getService(serviceIdOrName).remove();
+            this.logger.log(`Removed Swarm service ${serviceIdOrName}`);
+        } catch (error: unknown) {
+            if (this.isDockerNotFoundError(error)) {
+                return;
+            }
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to remove Swarm service ${serviceIdOrName}: ${message}`);
+            throw new BadGatewayException(`Failed to remove Swarm service ${serviceIdOrName}: ${message}`);
+        }
+    }
+
+    /**
+     * Scale a swarm service (POST /services/{id}/update?version=N) by
+     * overriding `Mode.Replicated.Replicas`. The loose engine spec stays
+     * INSIDE this boundary — callers only pass a service name + target count.
+     */
+    async scaleSwarmService(serviceIdOrName: string, replicas: number): Promise<void> {
+        const target = Math.max(0, Math.floor(replicas));
+        try {
+            const service = this.docker.getService(serviceIdOrName);
+            const inspect = await service.inspect();
+            await service.update({
+                version: inspect.Version.Index,
+                ...inspect.Spec,
+                Mode: { Replicated: { Replicas: target } },
+            });
+            this.logger.log(`Scaled Swarm service ${serviceIdOrName} → ${String(target)} replicas`);
+        } catch (error: unknown) {
+            if (this.isDockerNotFoundError(error)) {
+                throw new NotFoundException(`Swarm service not found: ${serviceIdOrName}`);
+            }
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to scale Swarm service ${serviceIdOrName}: ${message}`);
+            throw new BadGatewayException(`Failed to scale Swarm service ${serviceIdOrName}: ${message}`);
+        }
+    }
+
+    /**
+     * Roll back a swarm service (POST /services/{id}/update?version=N&rollback=true).
+     * The engine re-applies the service's `RollbackConfig` target (previous
+     * good spec). The loose engine spec stays inside this boundary.
+     */
+    async rollbackSwarmService(serviceIdOrName: string): Promise<void> {
+        try {
+            const service = this.docker.getService(serviceIdOrName);
+            const inspect = await service.inspect();
+            await service.update({ version: inspect.Version.Index, rollback: true, ...inspect.Spec });
+            this.logger.log(`Rolled back Swarm service ${serviceIdOrName}`);
+        } catch (error: unknown) {
+            if (this.isDockerNotFoundError(error)) {
+                throw new NotFoundException(`Swarm service not found: ${serviceIdOrName}`);
+            }
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to roll back Swarm service ${serviceIdOrName}: ${message}`);
+            throw new BadGatewayException(`Failed to roll back Swarm service ${serviceIdOrName}: ${message}`);
+        }
+    }
+
+    /**
+     * List the tasks of a service (GET /services/{id}/tasks).
+     */
+    async listSwarmServiceTasks(serviceIdOrName: string): Promise<DockerodeTaskSummary[]> {
+        try {
+            const raw: unknown = await this.docker.listTasks({
+                filters: { service: [serviceIdOrName] },
+            });
+            return z.array(dockerodeTaskSummarySchema).parse(raw);
+        } catch (error: unknown) {
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to list tasks for Swarm service ${serviceIdOrName}: ${message}`);
+            throw new BadGatewayException(`Failed to list tasks for Swarm service ${serviceIdOrName}: ${message}`);
+        }
+    }
+
+    /**
+     * List all swarm nodes (GET /nodes).
+     */
+    async listSwarmNodes(): Promise<DockerodeNodeSummary[]> {
+        try {
+            const raw: unknown = await this.docker.listNodes();
+            return z.array(dockerodeNodeSummarySchema).parse(raw);
+        } catch (error: unknown) {
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to list Swarm nodes: ${message}`);
+            throw new BadGatewayException(`Failed to list Swarm nodes: ${message}`);
+        }
+    }
+
+    /**
+     * Inspect a swarm node (GET /nodes/{id}).
+     */
+    async inspectSwarmNode(nodeId: string): Promise<DockerodeNodeSummary> {
+        try {
+            const raw: unknown = await this.docker.getNode(nodeId).inspect();
+            return dockerodeNodeSummarySchema.parse(raw);
+        } catch (error: unknown) {
+            if (this.isDockerNotFoundError(error)) {
+                throw new NotFoundException(`Swarm node not found: ${nodeId}`);
+            }
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to inspect Swarm node ${nodeId}: ${message}`);
+            throw new BadGatewayException(`Failed to inspect Swarm node ${nodeId}: ${message}`);
+        }
+    }
+
+    /**
+     * Update a swarm node's labels (POST /nodes/{id}/update?version=N).
+     * Used for placement metadata: `deployer.ingress`, `deployer.tenant.*`,
+     * `deployer.node.role`, regions, etc.
+     */
+    async updateSwarmNodeLabels(nodeId: string, version: number, labels: Record<string, string>): Promise<void> {
+        try {
+            const existing = await this.inspectSwarmNode(nodeId);
+            await this.docker.getNode(nodeId).update({
+                version,
+                Spec: {
+                    Labels: {
+                        ...existing.Spec.Labels,
+                        ...labels,
+                    },
+                },
+            });
+            this.logger.log(`Updated labels on Swarm node ${nodeId}`);
+        } catch (error: unknown) {
+            if (this.isDockerNotFoundError(error)) {
+                throw new NotFoundException(`Swarm node not found: ${nodeId}`);
+            }
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to update labels on Swarm node ${nodeId}: ${message}`);
+            throw new BadGatewayException(`Failed to update labels on Swarm node ${nodeId}: ${message}`);
+        }
+    }
+
+    /**
+     * Create a swarm secret (POST /secrets/create). Data is base64-encoded
+     * for the engine (the engine never returns it in list/inspect).
+     */
+    async createSwarmSecret(options: {
+        name: string;
+        data: string;
+        labels?: Record<string, string>;
+    }): Promise<DockerodeSecretSummary> {
+        try {
+            const raw: unknown = await this.docker.createSecret({
+                Name: options.name,
+                Data: Buffer.from(options.data, "utf8").toString("base64"),
+                Labels: options.labels ?? {},
+            });
+            return dockerodeSecretSummarySchema.parse(raw);
+        } catch (error: unknown) {
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to create Swarm secret ${options.name}: ${message}`);
+            throw new BadGatewayException(`Failed to create Swarm secret ${options.name}: ${message}`);
+        }
+    }
+
+    /**
+     * List swarm secrets (GET /secrets).
+     */
+    async listSwarmSecrets(): Promise<DockerodeSecretSummary[]> {
+        try {
+            const raw: unknown = await this.docker.listSecrets();
+            return z.array(dockerodeSecretSummarySchema).parse(raw);
+        } catch (error: unknown) {
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to list Swarm secrets: ${message}`);
+            throw new BadGatewayException(`Failed to list Swarm secrets: ${message}`);
+        }
+    }
+
+    /**
+     * Create a swarm config (POST /configs/create). Data is base64-encoded.
+     */
+    async createSwarmConfig(options: {
+        name: string;
+        data: string;
+        labels?: Record<string, string>;
+    }): Promise<DockerodeConfigSummary> {
+        try {
+            const raw: unknown = await this.docker.createConfig({
+                Name: options.name,
+                Data: Buffer.from(options.data, "utf8").toString("base64"),
+                Labels: options.labels ?? {},
+            });
+            return dockerodeConfigSummarySchema.parse(raw);
+        } catch (error: unknown) {
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to create Swarm config ${options.name}: ${message}`);
+            throw new BadGatewayException(`Failed to create Swarm config ${options.name}: ${message}`);
+        }
+    }
+
+    /**
+     * List swarm configs (GET /configs).
+     */
+    async listSwarmConfigs(): Promise<DockerodeConfigSummary[]> {
+        try {
+            const raw: unknown = await this.docker.listConfigs();
+            return z.array(dockerodeConfigSummarySchema).parse(raw);
+        } catch (error: unknown) {
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to list Swarm configs: ${message}`);
+            throw new BadGatewayException(`Failed to list Swarm configs: ${message}`);
+        }
+    }
+
+    /**
+     * Idempotently ensure an overlay network exists (create once, reuse by
+     * name). Concurrent creation is tolerated: a 409 race resolves by
+     * re-inspecting the network name.
+     */
+    async ensureOverlayNetwork(request: SwarmOverlayNetworkRequest): Promise<void> {
+        const network = this.docker.getNetwork(request.name);
+        try {
+            await network.inspect();
+            return;
+        } catch (error: unknown) {
+            if (!this.isDockerNotFoundError(error)) {
+                throw error;
+            }
+        }
+        try {
+            await this.docker.createNetwork({
+                Name: request.name,
+                Driver: request.driver,
+                Attachable: request.attachable,
+                Ingress: request.ingress,
+                EnableIPv6: request.enableIpv6,
+                Labels: request.labels,
+            });
+            this.logger.log(`Created overlay network ${request.name}`);
+        } catch (error: unknown) {
+            // Concurrent creation from another node: accept if it now exists.
+            try {
+                await network.inspect();
+            } catch {
+                const message = DockerService.getErrMsg(error);
+                this.logger.error(`Failed to create overlay network ${request.name}: ${message}`);
+                throw new BadGatewayException(`Failed to create overlay network ${request.name}: ${message}`);
+            }
         }
     }
 }

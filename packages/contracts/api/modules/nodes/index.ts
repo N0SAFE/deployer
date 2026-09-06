@@ -2,6 +2,16 @@ import { oc } from "@orpc/contract";
 import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import z from "zod/v4";
 
+/**
+ * Nodes contract — the fleet view of the mesh. Every operation is
+ * node-scoped: servers = cluster nodes, allocations = per-node resource
+ * budgets, admission requests = per-node capacity asks.
+ *
+ * Conceptually this is the "Nodes" section of the platform: projects and
+ * services are mesh-wide, but server capacity, allocations and admission
+ * are per node.
+ */
+
 export const fleetAllocationModeSchema = z.enum(["dedicated_full", "dedicated_slice", "shared_slice"]);
 export const fleetAdmissionRequestStatusSchema = z.enum(["pending", "approved", "rejected", "cancelled"]);
 
@@ -122,7 +132,7 @@ const fleetAdmissionRequestSchema = z.object({
 const fleetServerSummaryOps = standard.zod(fleetServerSummarySchema, "fleetServerSummary");
 const fleetServerAllocationOps = standard.zod(
     fleetServerAllocationSchema,
-    "fleetOrgServerAllocation",
+    "fleetServerAllocation",
 );
 const fleetAdmissionCheckOps = standard.zod(fleetAdmissionCheckResultSchema, "fleetAdmissionCheck");
 const fleetAdmissionRequestOps = standard.zod(fleetAdmissionRequestSchema, "fleetAdmissionRequest");
@@ -157,7 +167,7 @@ export const fleetUpsertAllocationContract = fleetServerAllocationOps
     .input((b) => b.body(upsertFleetAllocationInputSchema))
     .output((b) => b.body(fleetServerAllocationSchema))
     .errors((e) => [
-        // 404 unknown org/server; 409 allocation conflict.
+        // 404 unknown node/server; 409 allocation conflict.
         ...standardDomainErrorContracts(e),
     ])
     .build();
@@ -223,7 +233,7 @@ export const fleetSetServerCapacityContract = fleetServerSummaryOps
     .output((b) => b.body(fleetServerSummarySchema))
     .build();
 
-export const fleetContract = oc.tag("Core Fleet").prefix("/fleet").router({
+export const nodesContract = oc.tag("Nodes").prefix("/nodes").router({
     listServers: fleetListServersContract,
     setServerCapacity: fleetSetServerCapacityContract,
     listAllocations: fleetListAllocationsContract,
@@ -237,4 +247,4 @@ export const fleetContract = oc.tag("Core Fleet").prefix("/fleet").router({
     resolveAdmissionRequest: fleetResolveAdmissionRequestContract,
 });
 
-export type FleetContract = typeof fleetContract;
+export type NodesContract = typeof nodesContract;

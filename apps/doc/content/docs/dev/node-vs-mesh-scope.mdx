@@ -1,0 +1,42 @@
+---
+title: Node vs Mesh Scope Model
+description: Every product page is either mesh-wide or node-scoped — the mental model behind the console IA.
+order: 20
+---
+
+<DocMeta source="apps/doc/content/docs/dev" scope="canonical" />
+
+## The two scopes
+
+The platform has exactly two scopes. There is **no organization layer** — the
+mesh is the single tenant, so access control is platform-wide.
+
+| Scope | Meaning | Owns |
+|-------|---------|------|
+| **Mesh** | Data that spans every node | Projects, services, domains, mesh-wide configuration defaults |
+| **Node** | Data pinned to one cluster node | Deployments, Docker, per-node configuration and capacity |
+
+Every dashboard page states its scope with a `ScopeLabel` badge (Mesh outline
+badge / Node badge) so the operator always knows what they are looking at.
+
+## Information architecture
+
+The dashboard sidebar is organized by scope:
+
+- **Mesh** — Services, Domains, Configuration, and the inline Projects picker.
+- **Nodes** — the fleet view (`/dashboard/nodes`), per-node workspaces
+  (`/dashboard/nodes/[nodeId]`), Deployments and Docker.
+- **Admin Panel** — Users, Providers, System (platform administration).
+
+## API surface
+
+The node-scoped fleet surface lives under the `nodes` ORPC group
+(`packages/contracts/api/modules/nodes`) with a `/nodes` prefix. Mesh-level
+resources (`project`, `service`, `domain`) keep their own groups.
+
+## Node selection
+
+The dashboard header carries a node-scope picker. Selecting a node scopes the
+Deployments page (and other node-aware pages) to that node; "All Nodes (Mesh)"
+returns to the mesh-wide view. Docker always operates on the node that hosts
+the API answering the console.

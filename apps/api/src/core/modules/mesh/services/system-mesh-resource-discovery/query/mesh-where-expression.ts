@@ -71,12 +71,6 @@ export function buildEqStateHint<TRecord extends AnyRecord, TValue>(
     if (field.path.length > 0) return undefined;
 
     switch (field.rootKey) {
-        case "organizationId":
-            if (value === null || typeof value === "string") {
-                return (state) => ({ ...state, organizationId: value as string | null });
-            }
-            return undefined;
-
         case "key":
             if (typeof value === "string") {
                 return (state) => ({ ...state, key: value });
