@@ -5,10 +5,12 @@
  */
 
 import { Injectable, Logger } from "@nestjs/common";
-import type { ClusterSnapshot, ClusterNode } from "@repo/contracts-entities";
+import { Observable } from "rxjs";
+import type { ClusterSnapshot, ClusterNode, SwarmNodeResources, SwarmServiceRuntime, SwarmTaskRuntime } from "@repo/contracts-entities";
 import { clusterNodeInventoryRowSchema } from "@repo/api-contracts";
 import type { ClusterMasterView } from "@repo/api-contracts";
 import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
+import { SwarmFleetService } from "@/core/modules/swarm/services/swarm-fleet.service";
 import { ClusterNodeRepository } from "@/core/modules/swarm/repositories/cluster-node.repository";
 import { ClusterNodeInventoryRepository } from "@/core/modules/swarm/repositories/cluster-node-inventory.repository";
 
@@ -18,6 +20,7 @@ export class ClusterService {
 
     constructor(
         private readonly swarmClusterService: SwarmClusterService,
+        private readonly swarmFleetService: SwarmFleetService,
         private readonly clusterNodeRepository: ClusterNodeRepository,
         private readonly inventoryRepository: ClusterNodeInventoryRepository,
     ) {}
@@ -25,6 +28,36 @@ export class ClusterService {
     /** Local engine's current Swarm snapshot (typed). */
     async getSnapshot(): Promise<ClusterSnapshot> {
         return this.swarmClusterService.getLocalClusterSnapshot();
+    }
+
+    /** Observable stream of node resources at 10s intervals. */
+    nodeResourcesStream$(nodeId: string) {
+        return new Observable<SwarmNodeResources>((subscriber) => {
+            const push = () => {
+                this.swarmFleetService
+                    .getNodeResources(nodeId)
+                    .then((resources) => subscriber.next(resources))
+                    .catch((err) => this.logger.warn(`Node resources stream error: ${err}`));
+            };
+            push();
+            const timer = setInterval(push, 10_000);
+            return () => clearInterval(timer);
+        });
+    }
+
+    /** Observable stream of cluster snapshots at 30s intervals. */
+    snapshotStream$() {
+        return new Observable<ClusterSnapshot>((subscriber) => {
+            const push = () => {
+                this.swarmClusterService
+                    .getLocalClusterSnapshot()
+                    .then((snapshot) => subscriber.next(snapshot))
+                    .catch((err) => this.logger.warn(`Snapshot stream error: ${err}`));
+            };
+            push(); // initial push
+            const timer = setInterval(push, 30_000);
+            return () => clearInterval(timer);
+        });
     }
 
     /**
@@ -163,5 +196,22 @@ export class ClusterService {
             labels,
             lastHeartbeatAt: new Date().toISOString(),
         };
+    }
+
+    // ─── Fleet workload surface (services / tasks / node resources) ────────
+
+    /** Mesh-wide swarm services with mode + desired/running task counts. */
+    async listServices(): Promise<SwarmServiceRuntime[]> {
+        return this.swarmFleetService.listServices();
+    }
+
+    /** Swarm tasks filtered by service and/or node. */
+    async listTasks(filter: { serviceId?: string; nodeId?: string }): Promise<SwarmTaskRuntime[]> {
+        return this.swarmFleetService.listTasks(filter);
+    }
+
+    /** Per-node aggregation (swarm services/tasks + local engine artifacts). */
+    async getNodeResources(nodeId: string): Promise<SwarmNodeResources> {
+        return this.swarmFleetService.getNodeResources(nodeId);
     }
 }

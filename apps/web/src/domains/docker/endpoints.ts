@@ -54,12 +54,6 @@ export const dockerEndpoints = {
   volumes: {
     list: orpc.docker.volumes.list,
   },
-  registries: {
-    list: orpc.docker.registries.list,
-  },
-  stacks: {
-    list: orpc.docker.stacks.list,
-  },
   runtime: {
     snapshot: orpc.docker.runtime.snapshot,
     stream: orpc.docker.runtime.stream,

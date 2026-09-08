@@ -12,6 +12,32 @@ import { LocalDatabaseService } from "./local-database.service";
 const logger = new Logger("LocalDatabaseModule");
 
 /**
+ * Process-level guard: local schema migrations run ONCE per DB path per process.
+ *
+ * The API boots several NestJS contexts in the SAME process — the orchestrator
+ * bootstrap, the Phase-0 SetupDevModule headless context, and the setup-wizard /
+ * mesh-initializer / main-app sub-apps — and every context imports
+ * LocalDatabaseModule. Without this guard each context re-opened SQLite and
+ * re-scanned all migration files (5× the same "Checking migrations / Found N /
+ * Skipping already-applied" log spam per boot). The first context migrates;
+ * all others reuse the same connection state.
+ */
+const migratedDbPaths = new Set<string>();
+
+function ensureLocalSchemaMigrated(sqlite: BunSqliteDatabase, dbPath: string): void {
+    if (migratedDbPaths.has(dbPath)) {
+        return;
+    }
+    try {
+        runSqliteMigrations(sqlite);
+        migratedDbPaths.add(dbPath);
+    } catch (error) {
+        logger.error(`Local SQLite migrations failed for ${dbPath}`, error as Error);
+        throw error;
+    }
+}
+
+/**
  * Migration state table — tracks which migrations have been applied.
  *
  * Previously the runner re-executed ALL migration files on every boot and
@@ -104,13 +130,12 @@ function runSqliteMigrations(sqlite: BunSqliteDatabase): void {
     const migrationsDir = fileURLToPath(
         new URL("../../../../config/drizzle/local/migrations", import.meta.url)
     );
-    logger.log(`Checking migrations at: ${migrationsDir}`);
+    logger.log(`Checking local migrations at: ${migrationsDir}`);
     if (!fs.existsSync(migrationsDir)) {
         logger.warn(`Local migrations directory not found at ${migrationsDir}, skipping`);
         return;
     }
     const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort();
-    logger.log(`Found ${files.length} migration files: ${files.join(", ")}`);
 
     ensureMigrationStateTable(sqlite);
 
@@ -119,9 +144,11 @@ function runSqliteMigrations(sqlite: BunSqliteDatabase): void {
         return;
     }
 
+    let applied = 0;
+    let skipped = 0;
     for (const file of files) {
         if (isMigrationApplied(sqlite, file)) {
-            logger.log(`Skipping already-applied migration: ${file}`);
+            skipped += 1;
             continue;
         }
 
@@ -135,14 +162,14 @@ function runSqliteMigrations(sqlite: BunSqliteDatabase): void {
             .map((s) => s.split("\n").filter((line) => !line.trim().startsWith("--")).join("\n").trim())
             .filter((s) => s.length > 0);
 
-        logger.log(`Running migration: ${file}`);
+        logger.log(`Running local migration: ${file}`);
 
         // A migration with no executable statements is a valid no-op marker
         // (e.g. a column that was already present in an earlier migration).
         // Record it as applied without executing anything.
         if (statements.length === 0) {
             recordMigrationApplied(sqlite, file, hash);
-            logger.log(`Applied local migration (no-op): ${file}`);
+            applied += 1;
             continue;
         }
 
@@ -156,7 +183,7 @@ function runSqliteMigrations(sqlite: BunSqliteDatabase): void {
             }
             recordMigrationApplied(sqlite, file, hash);
             sqlite.run("COMMIT");
-            logger.log(`Applied local migration: ${file}`);
+            applied += 1;
         } catch (err: unknown) {
             sqlite.run("ROLLBACK");
             const msg = err instanceof Error ? err.message : String(err);
@@ -164,6 +191,9 @@ function runSqliteMigrations(sqlite: BunSqliteDatabase): void {
             throw err;
         }
     }
+    logger.log(
+        `Local SQLite schema ready — ${String(applied)} applied, ${String(skipped)} already applied (${String(files.length)} total)`,
+    );
 }
 
 @Global()
@@ -182,7 +212,10 @@ function runSqliteMigrations(sqlite: BunSqliteDatabase): void {
                 const sqlite = new BunSqliteDatabase(dbPath);
                 sqlite.run("PRAGMA journal_mode = WAL;");
                 sqlite.run("PRAGMA busy_timeout = 5000;");
-                runSqliteMigrations(sqlite);
+                // Migrate ONCE per process per DB path — every later NestJS
+                // context (setup-wizard / mesh-initializer / main-app sub-apps)
+                // skips the scan entirely.
+                ensureLocalSchemaMigrated(sqlite, dbPath);
                 return drizzleSqlite(sqlite, { schema: localSchema });
             },
         },

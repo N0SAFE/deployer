@@ -13,7 +13,7 @@ import {
 import { localEventOutbox } from "@/config/drizzle/global/schema/runtime";
 import { environments } from "@/config/drizzle/global/schema/environment";
 import { resourceOwnershipIndex } from "@/config/drizzle/global/schema/cluster";
-import { and, asc, count, desc, eq, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql, type SQL } from "drizzle-orm";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";
 import type { DeploymentListInput } from "@repo/api-contracts/modules/deployment/list";
@@ -251,7 +251,7 @@ export class DeploymentRepository {
             ? db
                 .select({ deployment: deployments })
                 .from(deployments)
-                .innerJoin(resourceOwnershipIndex, eq(resourceOwnershipIndex.resourceKey, deployments.id))
+                .innerJoin(resourceOwnershipIndex, sql`${resourceOwnershipIndex.resourceKey} = ${deployments.id}::text`)
                 .leftJoin(services, eq(services.id, deployments.serviceId))
             : db
                 .select({ deployment: deployments })
@@ -262,7 +262,7 @@ export class DeploymentRepository {
             ? db
                 .select({ count: count() })
                 .from(deployments)
-                .innerJoin(resourceOwnershipIndex, eq(resourceOwnershipIndex.resourceKey, deployments.id))
+                .innerJoin(resourceOwnershipIndex, sql`${resourceOwnershipIndex.resourceKey} = ${deployments.id}::text`)
                 .leftJoin(services, eq(services.id, deployments.serviceId))
             : db
                 .select({ count: count() })

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { AuthDashboardDockerActivity, AuthDashboardDockerContainers, AuthDashboardDockerImages, AuthDashboardDockerLogs, AuthDashboardDockerNetworks, AuthDashboardDockerRegistry, AuthDashboardDockerStacks, AuthDashboardDockerVolumes } from '@/routes'
+import { AuthDashboardDockerActivity, AuthDashboardDockerContainers, AuthDashboardDockerImages, AuthDashboardDockerLogs, AuthDashboardDockerNetworks, AuthDashboardDockerVolumes } from '@/routes'
 import { useMemo } from 'react'
 import { DockerContainerDetailModalTrigger } from './_components/container-detail-modal'
 import { DockerInlineLoadingState, DockerTableLoadingRows } from './_components/docker-loading-states'

@@ -73,6 +73,11 @@ export class RedirectOnUnauthorizedPlugin<
                     pluginLogger.debug(
                         'ORPC Unauthorized - redirecting to login'
                     )
+                    
+                    console.log('ORPC Unauthorized - redirecting to login', {
+                        error,
+                        context: interceptorOptions.context,
+                    })
 
                     // Client-side: build redirectTo from the real browser URL so
                     // the sign-in page can send the user back after login

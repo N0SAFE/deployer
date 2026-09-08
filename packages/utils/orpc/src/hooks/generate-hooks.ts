@@ -153,7 +153,7 @@ export function createRouterHooks<TContract extends object, TRouter extends obje
 
   queries.forEach(name => {
     const hookName = options.hookNaming?.(name) ?? `use${name.charAt(0).toUpperCase()}${name.slice(1)}`;
-    const procedure = Reflect.get(router, "name") as { queryOptions: unknown; queryKey: unknown };
+    const procedure = router[name] as { queryOptions: unknown; queryKey: unknown };
     hooks[hookName] = createQueryHook(procedure);
 
     queryKeys[name] = (input?: unknown) => {
@@ -173,10 +173,10 @@ export function createRouterHooks<TContract extends object, TRouter extends obje
     const capitalizedName = name.charAt(0).toUpperCase() + name.slice(1);
 
     const liveHookName = options.hookNaming?.(`live${capitalizedName}`) ?? `useLive${capitalizedName}`;
-    hooks[liveHookName] = createLiveQueryHook(Reflect.get(router, "name") as { experimental_liveOptions?: unknown; queryOptions?: unknown; queryKey?: unknown });
+    hooks[liveHookName] = createLiveQueryHook(router[name] as { experimental_liveOptions?: unknown; queryOptions?: unknown; queryKey?: unknown });
 
     const streamedHookName = options.hookNaming?.(`streamed${capitalizedName}`) ?? `useStreamed${capitalizedName}`;
-    hooks[streamedHookName] = createStreamedQueryHook(Reflect.get(router, "name") as { experimental_streamedOptions?: unknown; queryOptions?: unknown; queryKey?: unknown });
+    hooks[streamedHookName] = createStreamedQueryHook(router[name] as { experimental_streamedOptions?: unknown; queryOptions?: unknown; queryKey?: unknown });
 
     if (options.debug) {
       console.log(`Generated streaming hooks for "${name}":`);
@@ -195,7 +195,7 @@ export function createRouterHooks<TContract extends object, TRouter extends obje
       const results: { queryKey: unknown; input?: unknown; scope?: 'all' | 'exact' }[] = [];
 
       const add = (queryName: string, input: unknown, scope: 'all' | 'exact') => {
-        const queryProcedure = Reflect.get(router, "queryName") as Record<string, unknown> | undefined;
+        const queryProcedure = router[queryName] as Record<string, unknown> | undefined;
         if (!queryProcedure?.queryKey) {
           if (options.debug) {
             console.warn(`Query procedure "${queryName}" not found for invalidation`);
@@ -227,7 +227,7 @@ export function createRouterHooks<TContract extends object, TRouter extends obje
       return results;
     };
 
-    const mutationProcedure = Reflect.get(router, "name") as { mutationOptions: unknown; queryKey?: unknown };
+    const mutationProcedure = router[name] as { mutationOptions: unknown; queryKey?: unknown };
     hooks[hookName] = createMutationHook(
       mutationProcedure,
       name,

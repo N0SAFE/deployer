@@ -58,8 +58,8 @@ Invariants:
 
 `bun run dev` on a single host must exercise the swarm path:
 
-- **Option A (recommended — API-driven)**: the API itself initializes swarm on the host (or in the dev container with a sibling socket) through `SwarmBootstrapService` (`SWARM_ENABLED`, idempotent), then deploys the platform stack (Traefik ingress via the swarm provider + overlay) through `PlatformStackService` (`SWARM_PLATFORM_STACK`) — zero CLI, zero `docker stack deploy`, one code path for dev and prod. `MESH_*` env still seeds from the mesh-6 pattern (`docker/compose/docker-compose.mesh-6.dev.yml`).
-- **Option B: supervisor fallback** — keep `docker-compose.dev.yml` + `MANAGED_*_ENABLED` for pure frontend work where a daemon mode change is undesirable; the API still detects swarm and uses the swarm runner for user deployments.
+- **API-driven convergence**: the API initializes swarm on the host (or in the dev container with a sibling socket) through `SwarmBootstrapService` (`SWARM_ENABLED`, idempotent) — zero CLI, zero `docker stack deploy`, one code path for dev and prod. `MESH_*` env still seeds from the mesh-6 pattern (`docker/compose/docker-compose.mesh-6.dev.yml`).
+- **Layering (per architecture)**: Swarm schedules the WORKLOAD Deployer owns — user deployments / projects / services via the `runners/swarm` backend. Deployer's OWN platform infra (ingress Traefik, DB, Redis, shared `deployer-platform` network) is managed by the platform supervisors or Compose (`MANAGED_*_ENABLED`) — **never by Swarm**. There is NO "platform swarm stack": Deployer orchestrates Swarm, Swarm orchestrates Deployer's deployed workloads. (The former `PlatformStackService` + `SWARM_PLATFORM_STACK` placeholder was removed — deploying Deployer's own Traefik/overlay on Swarm collided with the compose-owned `deployer-platform` bridge network and violated this layering.)
 
 Desired dev properties:
 
@@ -70,10 +70,11 @@ Desired dev properties:
 
 ## 5. Single-node production
 
-- `docker swarm init` + `docker stack deploy` of the platform stack (api, web, traefik) — or the unsupervised supervisor for the most constrained hosts.
-- Health: swarm healthchecks + `update-config --order start-first` for zero-downtime restarts.
-- State: shared PG (or local SQLite if truly standalone), persisted under swarm volumes.
-- Ingress: Traefik swarm provider; the single node carries `deployer.ingress=true`.
+- `docker swarm init` (via `SwarmBootstrapService`, idempotent) with the node as manager == worker.
+- Deployer's own platform services (api, web, traefik, DB) stay under **supervisor / compose / Terraform ownership** — NOT scheduled on Swarm. Only the deployed user workloads (projects/services) are Swarm services.
+- Health: swarm healthchecks + `update-config --order start-first` for zero-downtime restarts on the workloads.
+- State: shared PG (or local SQLite if truly standalone), persisted under swarm volumes for workloads.
+- Ingress: Traefik (platform-owned) + the swarm provider for discovering user services.
 - Master election with `N=1` is immediate and stable (no quorum loss possible).
 
 ## 6. What this enables later
@@ -85,5 +86,5 @@ Desired dev properties:
 
 - `apps/api/src/core/modules/swarm/` (new): `swarm.module.ts`, `cluster.service.ts`, `cluster-state.entity.ts`, `cluster.repository.ts`
 - `apps/api/src/config/env/` — swarm env group (`SWARM_ENABLED`, `SWARM_ADVERTISE_ADDR`, `SWARM_QUORUM_MIN`)
-- `docker-stack.deploy.yml` (reference stack spec), `SWARM_ENABLED` / `SWARM_PLATFORM_STACK` env knobs; no `swarm:*` CLI scripts (API-driven).
+- `docker-stack.deploy.yml` (reference stack spec), `SWARM_ENABLED` env knob; no `swarm:*` CLI scripts (API-driven).
 - `apps/api/src/modules/setup/` — Phase 1 hook

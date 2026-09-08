@@ -10,6 +10,16 @@
  * exists after setup), so the cluster bootstrap never interferes with the
  * first-run wizard.
  *
+ * LAYERING (per architecture): Swarm orchestrates the WORKLOAD Deployer owns
+ * — user deployments / projects / services (the `runners/swarm` execution
+ * backend creates per-project overlay networks + services). Swarm NEVER
+ * orchestrates Deployer's OWN platform infra (Traefik ingress, DB, Redis,
+ * etc.) — that is owned by the platform supervisors or, in the compose dev
+ * profile, Compose itself (`MANAGED_*_ENABLED`). There is therefore no
+ * "platform swarm stack": the ingress and the shared bridge network stay
+ * under platform ownership on every fleet size; only user workloads are
+ * scheduled.
+ *
  * Failure is best-effort by design: a node without an engine in swarm mode
  * (edge/NAT, engine constraints) logs a warning and keeps the platform up —
  * the hard gate lives in executors (`SwarmClusterService.assertClusterReady`),
@@ -20,7 +30,6 @@ import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common"
 import type { SwarmInitOptions } from "@repo/contracts-entities";
 import { EnvService } from "@/config/env/env.service";
 import { ClusterNodeRepository } from "../repositories/cluster-node.repository";
-import { PlatformStackService } from "./platform-stack.service";
 import { SwarmClusterService } from "./swarm-cluster.service";
 
 @Injectable()
@@ -31,9 +40,6 @@ export class SwarmBootstrapService implements OnApplicationBootstrap {
         private readonly clusterService: SwarmClusterService,
         private readonly clusterNodeRepository: ClusterNodeRepository,
         private readonly envService: EnvService,
-        /** API-driven platform stack (SW-070/071): the API deploys its own
-         *  ingress + overlay as swarm services — no CLI scripts. */
-        private readonly platformStackService: PlatformStackService,
     ) {}
 
     async onApplicationBootstrap(): Promise<void> {
@@ -71,17 +77,15 @@ export class SwarmBootstrapService implements OnApplicationBootstrap {
                 );
             }
 
-            // SW-070/071: deploy the platform's own swarm stack (traefik
-            // ingress + overlay) through the SDK — the API owns swarm.
-            try {
-                await this.platformStackService.ensurePlatformStack();
-            } catch (stackError: unknown) {
-                this.logger.warn(
-                    `Platform swarm stack ensure skipped: ${
-                        stackError instanceof Error ? stackError.message : String(stackError)
-                    }`,
-                );
-            }
+            // Layering note (per architecture): Swarm schedules the WORKLOAD
+            // Deployer owns — user deployments/projects/services via the
+            // runners/swarm execution backend. Deployer's OWN platform infra
+            // (Traefik ingress, DB, Redis, shared network) is managed by the
+            // platform supervisors or Compose (MANAGED_*_ENABLED) — never by
+            // Swarm — so there is no "platform swarm stack" to deploy here.
+            this.logger.log(
+                "🐝 Swarm initialized for Deployer-owned workloads — platform ingress/infra remain separately managed (supervisors/compose), not scheduled on Swarm",
+            );
         } catch (error: unknown) {
             // Best-effort: never crash platform boot because swarm is unavailable.
             this.logger.warn(

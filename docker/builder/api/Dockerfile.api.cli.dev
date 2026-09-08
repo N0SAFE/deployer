@@ -6,7 +6,7 @@
 # The pruner is split in two stages: pruner-json handles only manifests
 # (super-stable cache) and pruner-full bind-mounts sources to produce out/full/.
 
-FROM oven/bun:1.4.0-alpine AS base
+FROM oven/bun:1.4.2-alpine AS base
 
 RUN apk add --no-cache curl wget bash git python3 make g++ tar libc6-compat
 COPY --from=node:22-alpine /usr/local /usr/local

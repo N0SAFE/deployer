@@ -146,6 +146,7 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
         const specInput: SwarmServiceSpecInput = {
             name: serviceName,
             image: containerImage,
+            mode: "replicated",
             replicas: 1,
             env: this.sanitizeEnvironmentVariables(executorOptions?.environmentVariables),
             command: [],

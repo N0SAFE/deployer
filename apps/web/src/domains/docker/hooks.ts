@@ -196,34 +196,6 @@ export function useDockerVolumeList(input?: QueryInput) {
   )
 }
 
-export function useDockerRegistryList(input?: QueryInput) {
-  return useQuery(
-    dockerEndpoints.registries.list.queryOptions({
-      input: {
-        query: {
-          limit: input?.query?.limit ?? 100,
-          offset: input?.query?.offset ?? 0,
-        },
-      },
-      refetchInterval: false,
-    }),
-  )
-}
-
-export function useDockerStackList(input?: QueryInput) {
-  return useQuery(
-    dockerEndpoints.stacks.list.queryOptions({
-      input: {
-        query: {
-          limit: input?.query?.limit ?? 100,
-          offset: input?.query?.offset ?? 0,
-        },
-      },
-      refetchInterval: false,
-    }),
-  )
-}
-
 type DockerRuntimeEventsStreamInput = Parameters<
   typeof dockerEndpoints.runtime.stream.experimental_liveObservableOptions
 >[0]['input']

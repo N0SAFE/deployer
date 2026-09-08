@@ -31,7 +31,7 @@ Full design docs and the phased implementation checklist live in `docs/swarm-orc
 Swarm is entirely API-driven — no CLI scripts:
 
 - On boot, `SwarmBootstrapService` converges the engine (`swarm init`/join, idempotent, `SWARM_ENABLED`).
-- `PlatformStackService` then deploys the platform's OWN stack (Traefik ingress with the swarm provider + overlay network) as swarm services (`SWARM_PLATFORM_STACK`).
+- Layering (per architecture): **Swarm schedules the workload Deployer owns** — user deployments/projects/services via the `runners/swarm` execution backend (per-project overlay networks + services). **Deployer's own platform infra** (ingress Traefik, DB, Redis, shared `deployer-platform` network) is managed by the platform supervisors or Compose (`MANAGED_*_ENABLED`) — never by Swarm. There is **no "platform swarm stack"**; `ensureOverlayNetwork` refuses to reuse a non-overlay (compose bridge) same-name network for a workload.
 - `check:swarm:cli-lock` guards the SDK-first rule in CI.
 
 ## Related documentation

@@ -8,8 +8,9 @@ import {
   AuthDashboardDeployments,
 } from '@/routes'
 import { useDeploymentList } from '@/domains/deployment/hooks'
-import { useDockerRuntimeSseState } from '@/domains/docker/hooks'
+import { useClusterSnapshot } from '@/domains/cluster/hooks'
 import { useRealTimeMetrics } from '@/domains/analytics/hooks'
+import { MeshPulse } from '@/components/dashboard/MeshPulse'
 import {
   Card,
   CardContent,
@@ -83,8 +84,18 @@ function projectLabel(serviceId: string): string {
  *  3. Admin tools
  */
 export function DashboardOverviewClient({ isAdmin, userRole }: DashboardOverviewClientProps) {
-  const { status: runtimeStatus } = useDockerRuntimeSseState()
+  const { data: snapshot, isPending: snapshotPending, isError: snapshotError } = useClusterSnapshot()
   const { data: realtimeMetrics } = useRealTimeMetrics()
+
+  // Fleet status: the cluster (control-plane) surface — not the docker engine
+  // runtime stream, which belongs inside the engine workspace provider.
+  const platformStatus = snapshotError
+    ? 'error'
+    : snapshotPending
+      ? 'connecting'
+      : snapshot?.controlAvailable === true
+        ? 'live'
+        : 'disconnected'
 
   const { data: deploymentsData, isLoading: deploymentsLoading } = useDeploymentList({ query: { limit: 8, offset: 0 } })
 
@@ -104,6 +115,9 @@ export function DashboardOverviewClient({ isAdmin, userRole }: DashboardOverview
 
   return (
     <>
+      {/* ── Signature: the live fleet spine ── */}
+      <MeshPulse className="mb-3" />
+
       {/* ── Bento row 1: at a glance + system health + recent deployments ── */}
       <div className="grid gap-3 lg:grid-cols-4">
         {/* At a glance */}
@@ -111,7 +125,7 @@ export function DashboardOverviewClient({ isAdmin, userRole }: DashboardOverview
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-sm">At a glance</CardTitle>
-              <StatusBadge status={runtimeStatus === 'connected' ? 'live' : runtimeStatus} pulse={runtimeStatus === 'connecting'} />
+              <StatusBadge status={platformStatus === 'live' ? 'live' : platformStatus} pulse={platformStatus === 'connecting'} />
             </div>
             <CardDescription className="text-xs">Your platform state right now</CardDescription>
           </CardHeader>

@@ -37,6 +37,7 @@ const apiMockEnv: EnvMockForSchema<typeof apiEnvSchema> = {
     DEFAULT_ADMIN_PASSWORD: "adminadmin",
     DISABLE_AUTO_SCAN: "false",
     SETUP_AUTO: "false",
+    ADMIN_BOOTSTRAP: "auto",
     ENABLE_SEEDING: "false",
     ENABLE_DEV_BOOTSTRAP: "true",
     SKIP_MIGRATIONS: "false",

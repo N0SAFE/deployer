@@ -24,6 +24,7 @@ import { RouteRegistryService } from "../gateway/route-registry.service";
 import { NodeConfigRepository } from "../modules/setup/repositories/node-config.repository";
 import { SetupDevModule } from "../setup-dev/setup-dev.module";
 import { ensureDefaultAdmin } from "../setup-dev/default-admin.bootstrap";
+import { describePolicy, provisioningPolicyFromProcessEnv } from "../setup-dev/provisioning-policy";
 import { SetupSubAppModule } from "../setup-sub-app/setup-sub-app.module";
 import { runSubApp } from "../sub-app/sub-app-runner";
 import { AppModule } from "../../app.module";
@@ -33,6 +34,7 @@ import { SetupWizardBridge } from "../../sub-apps/setup-wizard/setup-wizard.brid
 import { MeshInitializerBridge } from "../../sub-apps/mesh-initializer/mesh-initializer.bridge";
 import { MeshInitializerAppModule } from "../../sub-apps/mesh-initializer/mesh-initializer.app.module";
 import { AppLifecycleService, AppLifecyclePhase } from "@repo/nest-lifecycle";
+import { splitManagedEnv } from "@repo/env";
 import { DatabaseStartupGuard } from "../modules/database/services/database-startup-guard.service";
 import { DatabaseProbeService } from "../modules/database/services/database-probe.service";
 import { PostgresContainerService, MANAGED_POSTGRES_CONTAINER_NAME, MANAGED_POSTGRES_PORT } from "../modules/docker/containers/postgres/postgres-container.service";
@@ -63,6 +65,17 @@ export class OrchestratorService implements OnApplicationBootstrap {
 
   async onApplicationBootstrap(): Promise<void> {
     this.logger.log("🚀 Orchestrator starting sub-app pipeline…");
+
+    // ── Step 0: Log the single derived provisioning decision ─────────────
+    // One line that states HOW this boot will behave — mode, DB source,
+    // whether setup is expected, admin bootstrap decision and the probe
+    // failure policy. Makes the old "same symptom, three causes" ambiguity
+    // visible at a glance (see docs/setup-unification-plan.md §2/§8).
+    const bootManaged = splitManagedEnv(
+      process.env as unknown as Record<string, unknown>,
+    ).globalDb;
+    const bootPolicy = provisioningPolicyFromProcessEnv(bootManaged);
+    this.logger.log(`[ProvisioningPolicy] ${describePolicy(bootPolicy)}`);
 
     // ── Step 1: Resolve database URL (dev bootstrap) ────────────────────
     await this.runDbResolver();
@@ -117,7 +130,11 @@ export class OrchestratorService implements OnApplicationBootstrap {
       // This means the local config lost its setup_done state (e.g., SQLite
       // was recreated or migrated). Try to heal by verifying the global DB.
       if (!isConfigured) {
-        this.logger.warn('⚠️  Local SQLite has databaseUrl but setupState is not setup_done — attempting heal');
+        // First boot with a PROVIDED (candidate) DB URL: the URL was persisted
+        // by Phase 0 but setup has not run yet. This is the DESIGNED path, not
+        // a warning — the orchestrator either heals from an existing DB or
+        // starts the wizard to initialize it.
+        this.logger.log('ℹ️  Local SQLite has a candidate DB URL and setup is not complete — attempting heal / wizard');
         const healed = await this.tryHealFromGlobalDb(databaseUrl, config);
         if (healed) {
           this.logger.log('✅ Local config healed from global database');
@@ -138,25 +155,8 @@ export class OrchestratorService implements OnApplicationBootstrap {
         databaseUrl,
       });
 
-      // ── Verify database is reachable ─────────────────────────────────
-      await this.startupGuard.ensureDatabaseAvailable(this.pool);
-
-      // ── Auto-migrate global Postgres (idempotent) ────────────────────
-      await this.runGlobalMigrations();
-
-      // ── Env-gated bootstrap: default admin after migrations ──────────
-      await this.bootstrapSeededAdmin(databaseUrl);
-
-      this.lifecycle.transition(AppLifecyclePhase.READY, {
-        message: "Database reachable, proceeding to mesh-init → main-app",
-        databaseReachable: true,
-      });
-      // ── Mesh init ────────────────────────────────────────────────────
-      this.emitSetupWizardBridge(databaseUrl, config!);
-      await this.runMeshInitializer();
-
-      // ── Main app ─────────────────────────────────────────────────────
-      await this.startMainApp();
+      // ── Verify → migrate → admin → mesh-init → main-app ──────────────
+      await this.runReadyPipeline(databaseUrl, config!);
     } else {
       // ── No URL in local config — try to discover Postgres from env ──
 
@@ -177,19 +177,7 @@ export class OrchestratorService implements OnApplicationBootstrap {
           const updatedUrl = updatedConfig?.databaseUrl?.trim() ?? null;
           if (updatedUrl) {
             this.logger.log('✅ Healed from explicit database URL — proceeding to main flow');
-            await this.startupGuard.ensureDatabaseAvailable(this.pool);
-            await this.runGlobalMigrations();
-
-            // ── Env-gated bootstrap: default admin after migrations ────
-            await this.bootstrapSeededAdmin(updatedUrl);
-
-            this.lifecycle.transition(AppLifecyclePhase.READY, {
-              message: "Database reachable (healed from env), proceeding to mesh-init → main-app",
-              databaseReachable: true,
-            });
-            this.emitSetupWizardBridge(updatedUrl, updatedConfig!);
-            await this.runMeshInitializer();
-            await this.startMainApp();
+            await this.runReadyPipeline(updatedUrl, updatedConfig!);
             return;
           }
         } else {
@@ -236,7 +224,8 @@ export class OrchestratorService implements OnApplicationBootstrap {
           LIMIT 1;
         `);
         if (res.rows.length === 0) {
-          this.logger.warn('Global DB is empty — cannot heal, setup was never completed');
+          // Fresh/empty provided DB on first boot — the wizard will initialize it.
+          this.logger.log('ℹ️  Global DB is empty (fresh install) — cannot heal, setup wizard will initialize it');
           return false;
         }
 
@@ -377,34 +366,83 @@ export class OrchestratorService implements OnApplicationBootstrap {
   }
 
   /**
-   * Env-gated bootstrap: ensure the default admin exists after migrations.
+   * Ready-database pipeline — verify → migrate → admin → mesh-init → main-app.
    *
-   * The compose-managed dev stack boots straight into the app (no setup
-   * wizard — SetupDevService persists setup_done for MANAGED_GLOBAL_DB), so
-   * a fresh stack would otherwise have NO admin credentials to sign in with
-   * (seeding is opt-in and off by default). This step creates
-   * DEFAULT_ADMIN_EMAIL / DEFAULT_ADMIN_PASSWORD via Better Auth
-   * (idempotent + non-fatal — see default-admin.bootstrap.ts).
+   * The ONLY path that runs once a usable database URL exists (already
+   * configured, or healed from an existing DB). Both the local-config branch
+   * and the env-URL heal branch converge here so the sequence cannot drift.
+   */
+  private async runReadyPipeline(databaseUrl: string, config: any): Promise<void> {
+    // ── Verify database is reachable ─────────────────────────────────
+    await this.startupGuard.ensureDatabaseAvailable(this.pool);
+
+    // ── Auto-migrate global Postgres (idempotent) ────────────────────
+    await this.runGlobalMigrations();
+
+    // ── Policy-gated bootstrap: default admin after migrations ───────
+    await this.bootstrapSeededAdmin(databaseUrl);
+
+    this.lifecycle.transition(AppLifecyclePhase.READY, {
+      message: "Database reachable, proceeding to mesh-init → main-app",
+      databaseReachable: true,
+    });
+    // ── Mesh init ────────────────────────────────────────────────────
+    this.emitSetupWizardBridge(databaseUrl, config);
+    await this.runMeshInitializer();
+
+    // ── Main app ─────────────────────────────────────────────────────
+    await this.startMainApp();
+  }
+
+  /**
+   * Policy-gated bootstrap: ensure the default admin exists after migrations.
    *
-   * Gate (driven by .env):
-   *   dev (NODE_ENV !== 'production') → ENABLE_DEV_BOOTSTRAP (default true;
-   *     set false in .env to keep the first-run wizard flow).
-   *   non-dev → ENABLE_SEEDING=true (opt-in; .env.prod sets it).
+   * The decision comes from ProvisioningPolicy (ADMIN_BOOTSTRAP, with
+   * ENABLE_DEV_BOOTSTRAP / ENABLE_SEEDING honoured as deprecated aliases):
+   *   - always      → ensure the admin on every ready boot (compose/explicit
+   *                   modes — no wizard fallback).
+   *   - when_empty  → the wizard seeds an empty DB; this idempotent ensure
+   *                   covers the healed/restart path (managed/manual modes).
+   *   - never       → skip entirely (operator opted out).
+   *
+   * The default admin is created via ensureDefaultAdmin (Better Auth — the
+   * single source of truth for credential hashing). NON-SILENT: when the
+   * decision requires an admin and creation fails, the boot FAILS — a node
+   * that must be usable but has no credentials is an orphaned install.
    */
   private async bootstrapSeededAdmin(databaseUrl: string): Promise<void> {
-    const enabled =
-      process.env.NODE_ENV !== "production"
-        ? process.env.ENABLE_DEV_BOOTSTRAP !== "false"
-        : process.env.ENABLE_SEEDING === "true";
-    if (!enabled) {
-      this.logger.log(
-        process.env.NODE_ENV !== "production"
-          ? "⏭  Default-admin bootstrap skipped (ENABLE_DEV_BOOTSTRAP=false)"
-          : "⏭  Seeding skipped (ENABLE_SEEDING not true)",
-      );
+    const managed = splitManagedEnv(
+      process.env as unknown as Record<string, unknown>,
+    ).globalDb;
+    const policy = provisioningPolicyFromProcessEnv(managed);
+    const { admin, adminReason } = policy;
+
+    if (admin === "never") {
+      this.logger.log(`⏭  Default-admin bootstrap skipped (${adminReason})`);
       return;
     }
-    await ensureDefaultAdmin(databaseUrl);
+    if (adminReason.includes("deprecated alias")) {
+      this.logger.warn(
+        `⚠️  ${adminReason} — prefer ADMIN_BOOTSTRAP=auto|true|false`,
+      );
+    }
+
+    this.logger.log(`🔐 Ensuring default admin (decision=${admin}: ${adminReason})…`);
+    const result = await ensureDefaultAdmin(databaseUrl);
+    if (result.outcome === "failed") {
+      // Never boot a node whose required admin is missing — surface loudly.
+      throw new AppError(
+        `Failed to ensure default admin: ${result.error}`,
+        "INTERNAL_ERROR",
+      );
+    }
+    if (result.outcome === "created") {
+      this.logger.log(`✅ Default admin created (id=${result.userId})`);
+    } else if (result.outcome === "promoted") {
+      this.logger.log(`✅ Existing user promoted to superAdmin (id=${result.userId})`);
+    } else {
+      this.logger.log(`ℹ️  Default admin already exists (id=${result.userId})`);
+    }
   }
 
   // ─── Step 2: Setup Wizard (HTTP, conditional) ──────────────────────

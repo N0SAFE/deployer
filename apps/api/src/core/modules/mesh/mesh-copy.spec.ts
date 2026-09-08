@@ -1,8 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { Test } from "@nestjs/testing";
-import { MeshCoreModule } from "./mesh-core.module";
+import { describe, it, expect, vi } from "vitest";
 import { MeshConnectionRegistry } from "./connection/mesh-connection-registry";
 import { ServerConnectionConsumerRegistry } from "./connection/mesh-consumer-registry";
+
 import {
   eq,
   and,
@@ -32,13 +31,10 @@ function makeId(): string {
  */
 describe("Mesh E2E: Reactive Subqueries & Connection Sharing", () => {
   async function createTestModule() {
-    const moduleRef = await Test.createTestingModule({
-      imports: [MeshCoreModule],
-    }).compile();
-
+    // No need to import MeshCoreModule — these registries have no dependencies
     return {
-      connectionRegistry: moduleRef.get(MeshConnectionRegistry),
-      consumerRegistry: moduleRef.get(ServerConnectionConsumerRegistry),
+      connectionRegistry: new MeshConnectionRegistry(),
+      consumerRegistry: new ServerConnectionConsumerRegistry(),
     };
   }
 

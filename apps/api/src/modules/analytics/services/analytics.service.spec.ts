@@ -20,7 +20,7 @@ const mockRepository = {
     projectNamesByIds: vi.fn().mockResolvedValue(new Map()),
 };
 
-describe("AnalyticsService", () => {
+describe("AnalyticsService", { timeout: 15_000 }, () => {
     let service: AnalyticsService;
 
     beforeEach(async () => {

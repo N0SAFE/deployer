@@ -528,6 +528,7 @@ export class SwarmComposeRealizerService {
             const spec: SwarmServiceSpecInput = {
                 name: `deployer-${context.projectId}-${service.name}`,
                 image: service.image ?? "busybox:latest",
+                mode: "replicated",
                 replicas: service.deploy.replicas,
                 env: service.env,
                 command: service.command,

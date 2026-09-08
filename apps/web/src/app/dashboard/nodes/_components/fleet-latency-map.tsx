@@ -145,9 +145,13 @@ export function FleetLatencyMap({
   onNodeSelect,
   onLinkSelect,
 }: FleetLatencyMapProps) {
+  // Force a clean Leaflet remount when center changes significantly,
+  // preventing "Map container is being reused by another instance".
+  const mapKey = `${Math.round(center[0] * 100)}-${Math.round(center[1] * 100)}`
+
   return (
     <div className="h-full overflow-hidden rounded-lg border border-slate-200/80 bg-white/70 shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
-      <Map center={center} zoom={4} className="h-full! w-full" scrollWheelZoom preferCanvas>
+      <Map key={mapKey} center={center} zoom={4} className="h-full! w-full" scrollWheelZoom preferCanvas>
         <MapTileLayer />
         <MapZoomControl />
 

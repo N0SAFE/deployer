@@ -77,6 +77,15 @@ export type SwarmEndpointPorts = z.infer<typeof swarmEndpointPortsSchema>
 export const swarmServiceSpecInputSchema = z.object({
   name: z.string().min(1),
   image: z.string().min(1),
+  /**
+   * Scheduling mode.
+   *   - "replicated" → `Mode.Replicated.Replicas` (default — user workloads).
+   *   - "global"     → `Mode.Global` — one task on EVERY node. Used by the
+   *                    platform supervisors (ingress / redis / databases) so
+   *                    each node runs its own copy of the node-local infra.
+   */
+  mode: z.enum(["replicated", "global"]).default("replicated"),
+  /** Active only when `mode === "replicated"`. Ignored in global mode. */
   replicas: z.number().int().positive().default(1),
   /** "K=V" entries — matches dockerode ContainerSpec.Env. */
   env: z.array(z.string().min(1)).default([]),

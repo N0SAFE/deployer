@@ -26,7 +26,7 @@ export const clusterNodes = pgTable(
     "cluster_nodes",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        nodeId: uuid("node_id").notNull(),
+        nodeId: text("node_id").notNull(),
         serverUrl: text("server_url").notNull(),
         displayName: text("display_name"),
         status: clusterNodeStatusEnum("status").default("active").notNull(),
@@ -44,6 +44,7 @@ export const clusterNodes = pgTable(
         enrolledAt: timestamp("enrolled_at")
             .$defaultFn(() => new Date())
             .notNull(),
+        swarmNodeId: text("swarm_node_id"),
         lastSeenAt: timestamp("last_seen_at"),
         createdAt: timestamp("created_at")
             .$defaultFn(() => new Date())
@@ -65,7 +66,7 @@ export const clusterJoinGrants = pgTable(
         grantTokenHash: text("grant_token_hash").notNull(),
         status: clusterJoinGrantStatusEnum("status").default("issued").notNull(),
         issuedByUserId: text("issued_by_user_id").references(() => user.id, { onDelete: "set null" }),
-        targetNodeId: uuid("target_node_id"),
+        targetNodeId: text("target_node_id"),
         expiresAt: timestamp("expires_at").notNull(),
         usedAt: timestamp("used_at"),
         revokedAt: timestamp("revoked_at"),
@@ -116,7 +117,7 @@ export const clusterNodeMetrics = pgTable(
     "cluster_node_metrics",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        nodeId: uuid("node_id")
+        nodeId: text("node_id")
             .notNull()
             .references(() => clusterNodes.nodeId, { onDelete: "cascade" }),
         metrics: jsonb("metrics")
@@ -146,13 +147,13 @@ export const resourceOwnershipIndex = pgTable(
         id: uuid("id").primaryKey().defaultRandom(),
         resourceKind: text("resource_kind").notNull(),
         resourceKey: text("resource_key").notNull(),
-        ownerNodeId: uuid("owner_node_id")
+        ownerNodeId: text("owner_node_id")
             .notNull()
             .references(() => clusterNodes.nodeId, { onDelete: "cascade" }),
         ownerServerUrl: text("owner_server_url"),
         priority: integer("priority").default(0).notNull(),
         status: resourceOwnershipStatusEnum("status").default("active").notNull(),
-        leaseHolderNodeId: uuid("lease_holder_node_id").references(() => clusterNodes.nodeId, { onDelete: "set null" }),
+        leaseHolderNodeId: text("lease_holder_node_id").references(() => clusterNodes.nodeId, { onDelete: "set null" }),
         leaseExpiresAt: timestamp("lease_expires_at"),
         version: integer("version").default(1).notNull(),
         metadata: jsonb("metadata").$type<Record<string, unknown>>(),
@@ -185,7 +186,7 @@ export const clusterServerAllocations = pgTable(
     "cluster_server_allocations",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        serverNodeId: uuid("server_node_id")
+        serverNodeId: text("server_node_id")
             .notNull()
             .references(() => clusterNodes.nodeId, { onDelete: "cascade" }),
         allocationMode: clusterAllocationModeEnum("allocation_mode").default("shared_slice").notNull(),
@@ -214,10 +215,10 @@ export const clusterAdmissionRequests = pgTable(
     {
         id: uuid("id").primaryKey().defaultRandom(),
         status: clusterAdmissionRequestStatusEnum("status").default("pending").notNull(),
-        requestedServerNodeId: uuid("requested_server_node_id").references(() => clusterNodes.nodeId, {
+        requestedServerNodeId: text("requested_server_node_id").references(() => clusterNodes.nodeId, {
             onDelete: "set null",
         }),
-        decisionServerNodeId: uuid("decision_server_node_id").references(() => clusterNodes.nodeId, {
+        decisionServerNodeId: text("decision_server_node_id").references(() => clusterNodes.nodeId, {
             onDelete: "set null",
         }),
         requestedCpuMillicores: integer("requested_cpu_millicores").default(0).notNull(),

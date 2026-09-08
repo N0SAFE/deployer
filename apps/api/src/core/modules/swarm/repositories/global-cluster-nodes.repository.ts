@@ -32,7 +32,7 @@ export class GlobalClusterNodesRepository {
      * Returns true when the node is enrolled, false when identity/url are
      * unresolvable (callers treat as best-effort).
      */
-    async enrollLocalNode(): Promise<boolean> {
+    async enrollLocalNode(options?: { swarmNodeId?: string }): Promise<boolean> {
         const nodeId = this.meshConfig.getNodeId();
         if (nodeId.length === 0) {
             return false;
@@ -46,6 +46,7 @@ export class GlobalClusterNodesRepository {
                 nodeId,
                 serverUrl: serverUrl ?? "http://localhost",
                 displayName: `node-${nodeId.slice(0, 8)}`,
+                swarmNodeId: options?.swarmNodeId ?? null,
                 status: "active",
                 healthy: true,
                 lastSeenAt: now,
@@ -55,6 +56,8 @@ export class GlobalClusterNodesRepository {
                 target: clusterNodes.nodeId,
                 set: {
                     serverUrl: serverUrl ?? "http://localhost",
+                    displayName: `node-${nodeId.slice(0, 8)}`,
+                    swarmNodeId: options?.swarmNodeId ?? undefined,
                     status: "active",
                     healthy: true,
                     lastSeenAt: now,

@@ -202,7 +202,7 @@ rmdir apps/api/src/sub-apps/auth  # if empty
 
 ## 1.3 Dead Packages
 
-### 1.3.1 `packages/nest/auth/` — 🟡 MEDIUM — 20+ files
+### 1.4.2 `packages/nest/auth/` — 🟡 MEDIUM — 20+ files
 
 **Verification (confirmed):** Zero importers. The API re-implemented auth internally.
 

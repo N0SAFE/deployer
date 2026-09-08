@@ -74,7 +74,7 @@ repository-enhancements/
 | Styling | Tailwind CSS | 4.x |
 | Components | ShadCN UI | Latest |
 | Monorepo | Turborepo | 2.x |
-| Runtime | Bun | 1.3.1 |
+| Runtime | Bun | 1.4.2 |
 
 ## Priority Order for Enhancements
 

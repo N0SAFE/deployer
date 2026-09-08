@@ -3,7 +3,6 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ClusterSnapshot } from "@repo/contracts-entities";
 import { EnvService } from "@/config/env/env.service";
 import { ClusterNodeRepository } from "../repositories/cluster-node.repository";
-import { PlatformStackService } from "./platform-stack.service";
 import { SwarmBootstrapService } from "./swarm-bootstrap.service";
 import { SwarmClusterService } from "./swarm-cluster.service";
 
@@ -45,7 +44,6 @@ describe("SwarmBootstrapService", () => {
     let service: SwarmBootstrapService;
     let clusterService: { ensureCluster: ReturnType<typeof vi.fn>; assertClusterReady: ReturnType<typeof vi.fn> };
     let clusterNodeRepository: { upsertFromSnapshot: ReturnType<typeof vi.fn>; find: ReturnType<typeof vi.fn> };
-    let platformStackService: { ensurePlatformStack: ReturnType<typeof vi.fn> };
     let envService: { get: ReturnType<typeof vi.fn> };
 
     beforeEach(async () => {
@@ -56,9 +54,6 @@ describe("SwarmBootstrapService", () => {
         clusterNodeRepository = {
             upsertFromSnapshot: vi.fn(),
             find: vi.fn(),
-        };
-        platformStackService = {
-            ensurePlatformStack: vi.fn().mockResolvedValue(undefined),
         };
         envService = {
             get: vi.fn((key: string) => {
@@ -73,7 +68,6 @@ describe("SwarmBootstrapService", () => {
                 SwarmBootstrapService,
                 { provide: SwarmClusterService, useValue: clusterService },
                 { provide: ClusterNodeRepository, useValue: clusterNodeRepository },
-                { provide: PlatformStackService, useValue: platformStackService },
                 { provide: EnvService, useValue: envService },
             ],
         }).compile();
@@ -120,21 +114,26 @@ describe("SwarmBootstrapService", () => {
         expect(clusterNodeRepository.upsertFromSnapshot).toHaveBeenCalledWith(snapshotFixture);
     });
 
-    it("deploys the platform swarm stack after converge (API-driven, no CLI)", async () => {
+    it("does NOT schedule Deployer's platform infra on Swarm (workloads only)", async () => {
+        // Architectural rule (per request): Swarm orchestrates Deployer-OWNED
+        // workloads — user deployments/projects/services — never Deployer's own
+        // ingress/infra (managed by supervisors / compose). There is no
+        // "platform swarm stack" to deploy.
         clusterService.ensureCluster.mockResolvedValue(snapshotFixture);
         clusterNodeRepository.upsertFromSnapshot.mockReturnValue({ swarmRole: "manager" });
 
         await service.onApplicationBootstrap();
 
-        expect(platformStackService.ensurePlatformStack).toHaveBeenCalledTimes(1);
+        // The bootstrap still converges + persists cluster state (workload scheduling
+        // is available) but takes NO swarm action for platform infra.
+        expect(clusterService.ensureCluster).toHaveBeenCalledTimes(1);
+        expect(clusterNodeRepository.upsertFromSnapshot).toHaveBeenCalledTimes(1);
     });
 
-    it("never throws when the platform stack ensure fails (best-effort)", async () => {
-        clusterService.ensureCluster.mockResolvedValue(snapshotFixture);
-        clusterNodeRepository.upsertFromSnapshot.mockReturnValue({ swarmRole: "manager" });
-        platformStackService.ensurePlatformStack.mockRejectedValue(new Error("engine busy"));
-
+    it("never throws when the engine is not swarm-capable (best-effort)", async () => {
+        clusterService.ensureCluster.mockRejectedValue(new Error("docker swarm unavailable"));
         await expect(service.onApplicationBootstrap()).resolves.toBeUndefined();
+        expect(clusterNodeRepository.upsertFromSnapshot).not.toHaveBeenCalled();
     });
 
     it("never throws when persistence fails (best-effort persistence)", async () => {
@@ -143,12 +142,6 @@ describe("SwarmBootstrapService", () => {
             throw new Error("db unavailable");
         });
         await expect(service.onApplicationBootstrap()).resolves.toBeUndefined();
-    });
-
-    it("never throws when the engine is not swarm-capable (best-effort)", async () => {
-        clusterService.ensureCluster.mockRejectedValue(new Error("docker swarm unavailable"));
-        await expect(service.onApplicationBootstrap()).resolves.toBeUndefined();
-        expect(clusterNodeRepository.upsertFromSnapshot).not.toHaveBeenCalled();
     });
 
     it("never throws when the readiness probe itself fails", async () => {

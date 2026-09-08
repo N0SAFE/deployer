@@ -9,8 +9,6 @@ import { DockerImagesOrchestratorService } from "../domains/images/orchestration
 import { DockerRuntimeOrchestratorService } from "../domains/runtime/orchestration/docker-runtime-orchestrator.service";
 import { DockerNetworksOrchestratorService } from "../domains/networks/orchestration/docker-networks-orchestrator.service";
 import { DockerVolumesOrchestratorService } from "../domains/volumes/orchestration/docker-volumes-orchestrator.service";
-import { DockerRegistriesOrchestratorService } from "../domains/registries/orchestration/docker-registries-orchestrator.service";
-import { DockerStacksOrchestratorService } from "../domains/stacks/orchestration/docker-stacks-orchestrator.service";
 import { DockerEntityOrchestratorService } from "../domains/entity/orchestration/docker-entity-orchestrator.service";
 import { map } from "rxjs";
 
@@ -22,8 +20,6 @@ export class DockerController {
     private readonly dockerRuntimeOrchestratorService: DockerRuntimeOrchestratorService,
     private readonly dockerNetworksOrchestratorService: DockerNetworksOrchestratorService,
     private readonly dockerVolumesOrchestratorService: DockerVolumesOrchestratorService,
-    private readonly dockerRegistriesOrchestratorService: DockerRegistriesOrchestratorService,
-    private readonly dockerStacksOrchestratorService: DockerStacksOrchestratorService,
     private readonly dockerEntityOrchestratorService: DockerEntityOrchestratorService,
     private readonly meshInternalRequestService: MeshInternalRequestService,
   ) {}
@@ -325,20 +321,6 @@ export class DockerController {
     return implement(appContract.docker.volumes.list)
       .use(requireAuth())
       .handler(async ({ input }) => this.dockerVolumesOrchestratorService.listVolumes(input.query));
-  }
-
-  @Implement(appContract.docker.registries.list)
-  listRegistries() {
-    return implement(appContract.docker.registries.list)
-      .use(requireAuth())
-      .handler(async ({ input }) => this.dockerRegistriesOrchestratorService.listRegistries(input.query));
-  }
-
-  @Implement(appContract.docker.stacks.list)
-  listStacks() {
-    return implement(appContract.docker.stacks.list)
-      .use(requireAuth())
-      .handler(async ({ input }) => this.dockerStacksOrchestratorService.listStacks(input.query));
   }
 
   @Implement(appContract.docker.runtime.snapshot)

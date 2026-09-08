@@ -1,11 +1,11 @@
 /// <reference types="vitest" />
-import { defineConfig } from 'vitest/config'
+import { defineConfig, ViteUserConfigExport } from 'vitest/config'
 import { createBaseConfig } from './base.js'
 
 /**
  * Node.js-specific Vitest configuration
  */
-export const createNodeConfig = (overrides: any = {}) => {
+export const createNodeConfig = (overrides: ViteUserConfigExport = {}): ViteUserConfigExport => {
   const baseConfig = createBaseConfig({
     test: {
       environment: 'node',

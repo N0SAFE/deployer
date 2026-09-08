@@ -11,14 +11,21 @@
 import type Docker from "dockerode";
 import type { Container } from "dockerode";
 import z from "zod/v4";
+import { NotFoundException } from "@nestjs/common";
 
 import { DockerService } from "./docker.service";
 import {
 	BaseSupervisorService,
 	baseSupervisorPayloadSchema,
 } from "@/core/modules/supervisors/base-supervisor.service";
-import { type DockerProcessInfo } from "@/core/modules/supervisors/supervisor-process-info";
+import { type DockerProcessInfo, type SwarmProcessInfo } from "@/core/modules/supervisors/supervisor-process-info";
 import { baseSupervisorProcessInfoSchema } from "@/core/modules/supervisors/supervisor-process-info";
+import {
+	platformOverlayNetworkName,
+	type DockerSupervisorRuntime,
+} from "./docker-supervisor-runtime";
+import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
+import { toDockerServiceSpec } from "@/modules/runners/swarm/swarm-spec.mapper";
 
 /** Dockerode API errors carry an HTTP-style statusCode (404 = not found). */
 type DockerodeError = Error & { statusCode?: number };
@@ -54,8 +61,18 @@ export abstract class BaseDockerSupervisorService<
 		return this.dockerService.getDockerClient();
 	}
 
-	/** The container spec this supervisor converges towards. */
-	protected abstract buildContainerSpec(): DockerSupervisorContainerSpec;
+	/**
+	 * The container spec this supervisor converges towards when it uses the
+	 * (legacy, retained for compatibility) container path. Swarm-backed
+	 * supervisors do NOT implement this — they declare `buildSwarmSpec()` and
+	 * call `reconcileSwarmService` instead. Every docker supervisor must
+	 * implement exactly ONE of the two.
+	 */
+	protected buildContainerSpec(): DockerSupervisorContainerSpec {
+		throw new Error(
+			`${this.constructor.name} is swarm-backed — buildContainerSpec() (legacy container path) is not implemented. Declare buildSwarmSpec() instead.`,
+		);
+	}
 
 	/** Inspect a container by name; returns null when it does not exist. */
 	protected async inspectContainer(
@@ -202,5 +219,137 @@ export abstract class BaseDockerSupervisorService<
 				restartCount: live?.RestartCount ?? null,
 			},
 		};
+	}
+
+	// ─── Swarm-aware reconciliation ──────────────────────────────────────────
+	//
+	// When a docker supervisor converges to a SWARM SERVICE instead of a bare
+	// container (swarm-global for node-local infra, swarm-replicated for
+	// mesh-wide), the base provides the shared idempotent create/update and the
+	// process-info view. Concrete supervisors keep declaring their desired spec
+	// (now a SwarmServiceSpecInput) and call these helpers.
+
+	/**
+	 * Ensure the attachable OVERLAY network for a platform bridge network.
+	 * Compose declares the bridge (e.g. deployer-platform); the overlay is the
+	 * swarm-scoped counterpart that both swarm services AND (via external
+	 * wiring) compose-managed containers attach to, giving one DNS namespace.
+	 * Returns the overlay network name.
+	 */
+	protected async ensureSwarmNetwork(baseNetworkName: string): Promise<string> {
+		const overlay = platformOverlayNetworkName(baseNetworkName);
+		await this.dockerService.ensureOverlayNetwork({
+			name: overlay,
+			driver: "overlay",
+			attachable: true,
+			ingress: false,
+			enableIpv6: false,
+			labels: { "deployer.managed": "true", "deployer.platform": "true" },
+		});
+		return overlay;
+	}
+
+	/**
+	 * Desired config + LIVE runtime view of the SWARM SERVICE described by a
+	 * swarm spec — the process-info shape for swarm-backed supervisors.
+	 * `desired` mirrors the spec exactly; `live` is a fresh inspect / task
+	 * count (all-null when the service doesn't exist).
+	 */
+	protected async describeSwarmProcess(spec: SwarmServiceSpecInput): Promise<SwarmProcessInfo> {
+		let live: SwarmProcessInfo["live"] = {
+			serviceId: null,
+			exists: false,
+			createdAt: null,
+			updatedAt: null,
+			serviceName: null,
+			runningTasks: null,
+			totalTasks: null,
+		};
+		try {
+			const svc = await this.dockerService.inspectSwarmService(spec.name);
+			const tasks = await this.dockerService.listSwarmServiceTasks(spec.name).catch(() => []);
+			const running = (tasks as Array<{ Status?: { State?: string } }>).filter(
+				(t) => t.Status?.State === "running",
+			).length;
+			live = {
+				serviceId: svc.ID ?? null,
+				exists: true,
+				createdAt: svc.CreatedAt ?? null,
+				updatedAt: svc.UpdatedAt ?? null,
+				serviceName: svc.Spec.Name ?? null,
+				runningTasks: running,
+				totalTasks: tasks.length,
+			};
+		} catch (error: unknown) {
+			if (!(error instanceof NotFoundException)) throw error;
+		}
+
+		return {
+			kind: "swarm",
+			runtime: spec.mode === "global" ? "swarm-global" : "swarm-replicated",
+			desired: {
+				name: spec.name,
+				image: spec.image,
+				command: spec.command,
+				labels: spec.labels,
+				networkName: spec.networks[0] ?? null,
+				mode: spec.mode,
+				replicas: spec.replicas,
+			},
+			live,
+		};
+	}
+
+	/**
+	 * Idempotently converge one platform SWARM service to the given spec.
+	 * Creates when missing, updates (by latest version index) when present.
+	 * Used by swarm-backed supervisors for their desired state.
+	 */
+	protected async reconcileSwarmService(spec: SwarmServiceSpecInput): Promise<void> {
+		const dockerSpec = toDockerServiceSpec(spec);
+		try {
+			const existing = await this.dockerService.inspectSwarmService(spec.name);
+			await this.dockerService.updateSwarmService(
+				spec.name,
+				existing.Version.Index,
+				dockerSpec,
+				false,
+			);
+		} catch (error: unknown) {
+			if (error instanceof NotFoundException) {
+				await this.dockerService.createSwarmService(dockerSpec);
+				return;
+			}
+			throw error;
+		}
+	}
+
+	/** Remove a platform swarm service if it exists (tolerates already-gone). */
+	protected async removeSwarmServiceIfExists(name: string): Promise<void> {
+		try {
+			await this.dockerService.removeSwarmService(name);
+		} catch (error: unknown) {
+			if (error instanceof NotFoundException) return;
+			throw error;
+		}
+	}
+
+	/**
+	 * For a MANAGED (compose/operator-owned) service: ensure the attachable
+	 * overlay exists AND attach the API container to it. The API container is
+	 * the bridge head between compose-managed (bridge) and swarm (overlay)
+	 * networks, so compose services can reach/be reached from swarm networks.
+	 * Returns the overlay name.
+	 */
+	protected async wireExternalToSwarm(baseNetworkName: string, hostContainerName: string): Promise<string> {
+		const overlay = await this.ensureSwarmNetwork(baseNetworkName);
+		// Attach the API container to the overlay too — it bridges the
+		// compose-managed (bridge) and swarm (overlay) networks. Uses the
+		// network-level connect API (POST /networks/{id}/connect).
+		await this.client
+			.getNetwork(overlay)
+			.connect({ Container: hostContainerName })
+			.catch(() => undefined);
+		return overlay;
 	}
 }

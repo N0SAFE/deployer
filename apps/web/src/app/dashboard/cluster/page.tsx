@@ -22,6 +22,8 @@ import { Switch } from '@repo/ui/components/shadcn/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
 import { Crown, Globe, HardDrive, Info, Network, Server, ShieldCheck } from 'lucide-react'
 import { PageHeader, PageLoadingState, PageErrorState, StatusBadge } from '@/components/dashboard'
+import { MeshPulse } from '@/components/dashboard/MeshPulse'
+import { FleetWorkloadsPanel } from './_components/fleet-workloads-panel'
 import { useClusterMaster, useClusterNodes, useClusterSnapshot, useUpdateClusterNode } from '@/domains/cluster/hooks'
 
 interface ClusterNodeRow {
@@ -100,8 +102,11 @@ export default function DashboardClusterPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Cluster"
-        description="Swarm cluster state, controlling master, and fleet node inventory."
+        description="The Swarm command surface — live fleet spine, controlling master, and node inventory."
       />
+
+      {/* Signature: the live mesh pulse */}
+      <MeshPulse />
 
       {/* Overview cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -274,6 +279,9 @@ export default function DashboardClusterPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Live fleet workloads — swarm services + tasks */}
+      <FleetWorkloadsPanel />
 
       <p className="flex items-center gap-1 text-xs text-muted-foreground">
         <Globe className="size-3" /> Ingress-tagged nodes receive public traffic via the Traefik swarm provider.

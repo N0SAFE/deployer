@@ -37,6 +37,7 @@ export class FleetRepository {
                 status: clusterNodes.status,
                 healthy: clusterNodes.healthy,
                 lastSeenAt: clusterNodes.lastSeenAt,
+                swarmNodeId: clusterNodes.swarmNodeId,
                 maxCpuMillicores: clusterNodes.maxCpuMillicores,
                 maxMemoryMb: clusterNodes.maxMemoryMb,
                 cpuUsage: clusterNodeMetrics.metrics,

@@ -54,6 +54,19 @@ describe('SetupDevService — global DB is MANDATORY (no local-only mode)', () =
     else process.env.SETUP_AUTO_DATABASE_URL = OLD_URL;
     if (OLD_LEGACY_URL === undefined) delete process.env.SETUP_DATABASE_URL;
     else process.env.SETUP_DATABASE_URL = OLD_LEGACY_URL;
+
+    // Managed-env switches are set per-test (no cross-test leakage).
+    for (const k of [
+      'MANAGED_GLOBAL_DB_ENABLED',
+      'MANAGED_GLOBAL_DB_URL',
+      'MANAGED_GLOBAL_DB_HOST',
+      'MANAGED_GLOBAL_DB_PORT',
+      'MANAGED_GLOBAL_DB_USER',
+      'MANAGED_GLOBAL_DB_PASSWORD',
+      'MANAGED_GLOBAL_DB_NAME',
+    ]) {
+      delete process.env[k];
+    }
   });
 
   it('keeps an already-persisted URL (dev bootstrap skipped)', async () => {
@@ -110,5 +123,56 @@ describe('SetupDevService — global DB is MANDATORY (no local-only mode)', () =
     await service.onApplicationBootstrap();
 
     expect(repo.upsert).not.toHaveBeenCalled();
+  });
+
+  it('persists a compose-managed DB as a SETUP CANDIDATE, not setup_done (provided DB ≠ setup done)', async () => {
+    process.env.MANAGED_GLOBAL_DB_ENABLED = 'true';
+    process.env.MANAGED_GLOBAL_DB_HOST = 'global-db';
+    process.env.MANAGED_GLOBAL_DB_PORT = '5432';
+    process.env.MANAGED_GLOBAL_DB_USER = 'deployer';
+    process.env.MANAGED_GLOBAL_DB_PASSWORD = 'deployer';
+    process.env.MANAGED_GLOBAL_DB_NAME = 'deployer';
+
+    const svc = new SetupDevService(
+      repo as unknown as NodeConfigRepository,
+      { get: (k: string) => process.env[k] } as unknown as EnvService,
+    );
+    (svc as unknown as { probe(): Promise<boolean> }).probe = async () => true;
+
+    await svc.onApplicationBootstrap();
+
+    expect(repo.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        databaseUrl: expect.stringContaining('postgresql://'),
+        // The core assertion: a provided DB must NOT auto-complete setup.
+        setupState: 'not_started',
+        databaseProvisioning: 'external',
+      }),
+    );
+    expect(repo._getStore()?.configuredAt).toBeUndefined();
+  });
+
+  it('does not downgrade an already-configured node when MANAGED_GLOBAL_DB_ENABLED=true', async () => {
+    repo._seed({
+      nodeId: 'n1',
+      strategy: 'local',
+      setupState: 'setup_done',
+      databaseUrl: 'postgresql://deployer:deployer@global-db:5432/deployer',
+      databaseProvisioning: 'external',
+      configuredAt: '2026-01-01T00:00:00.000Z',
+      meshUrlsSnapshot: [],
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+    process.env.MANAGED_GLOBAL_DB_ENABLED = 'true';
+
+    const svc = new SetupDevService(
+      repo as unknown as NodeConfigRepository,
+      { get: (k: string) => process.env[k] } as unknown as EnvService,
+    );
+
+    await svc.onApplicationBootstrap();
+
+    expect(repo.upsert).not.toHaveBeenCalled();
+    expect(repo._getStore()?.setupState).toBe('setup_done');
   });
 });

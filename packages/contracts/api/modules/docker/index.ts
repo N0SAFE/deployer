@@ -32,8 +32,6 @@ import {
 } from "./images";
 import { dockerNetworksContract, dockerListNetworksContract } from "./networks";
 import { dockerVolumesContract, dockerListVolumesContract } from "./volumes";
-import { dockerRegistriesContract, dockerListRegistriesContract } from "./registries";
-import { dockerStacksContract, dockerListStacksContract } from "./stacks";
 import {
   dockerRuntimeContract,
   dockerRuntimeEventsStreamContract,
@@ -46,8 +44,6 @@ export const dockerContract = oc.tag("Core Docker").prefix("/docker").router({
   images: dockerImagesContract,
   networks: dockerNetworksContract,
   volumes: dockerVolumesContract,
-  registries: dockerRegistriesContract,
-  stacks: dockerStacksContract,
   runtime: dockerRuntimeContract,
   entity: dockerEntityContract,
 });
@@ -85,10 +81,6 @@ export {
   dockerListNetworksContract,
   dockerVolumesContract,
   dockerListVolumesContract,
-  dockerRegistriesContract,
-  dockerListRegistriesContract,
-  dockerStacksContract,
-  dockerListStacksContract,
   dockerRuntimeContract,
   dockerRuntimeEventsStreamContract,
   dockerRuntimeSnapshotContract,

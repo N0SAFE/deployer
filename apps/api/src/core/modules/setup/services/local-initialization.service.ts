@@ -73,18 +73,48 @@ export class LocalInitializationService {
     ): Promise<{ nodeId: string; databaseUrl: string }> {
         const nodeId = randomUUID();
 
-        // How the global DB is provisioned:
-        //   existingDatabaseUrl → operator-supplied ("external", not supervised)
-        //   otherwise           → the API spawns its own Postgres container
-        //                         ("local", supervised by GlobalDbSupervisorService)
-        const databaseProvisioning = input.existingDatabaseUrl?.trim() ? "external" : "local";
+        // ── Database source resolution ───────────────────────────────────
+        // 1. existingDatabaseUrl in the request → operator-supplied URL
+        //    (the wizard's "Use an existing PostgreSQL database" path).
+        // 2. Otherwise, a URL already persisted for this node as a SETUP
+        //    CANDIDATE (compose-managed global DB via MANAGED_GLOBAL_DB_*,
+        //    or a Phase-0 explicit URL) → the node was GIVEN a database, so
+        //    initialization must target it ("select managed → use this
+        //    node's provided DB") instead of provisioning another container.
+        // 3. Otherwise → the API spawns its own Postgres container ("local",
+        //    supervised by GlobalDbSupervisorService).
+        const explicitUrl = input.existingDatabaseUrl?.trim() ?? "";
+
+        const providedUrl = (() => {
+            if (explicitUrl) return "";
+            const cfg = this.nodeConfigRepository.find();
+            const alreadyDone =
+                cfg?.setupState === "setup_done" || Boolean(cfg?.configuredAt);
+            if (
+                !alreadyDone &&
+                cfg?.databaseUrl?.trim() &&
+                cfg.databaseProvisioning === "external"
+            ) {
+                return cfg.databaseUrl.trim();
+            }
+            return "";
+        })();
+
+        const databaseProvisioning =
+            explicitUrl || providedUrl ? "external" : "local";
 
         const databaseUrl = await runStep(tracker, emit, "provision_database", "Set up the database", async (stepLog) => {
-            if (input.existingDatabaseUrl?.trim()) {
-                stepLog("▸ Using existing database URL");
-                stepLog(`  host = ${redactUrl(input.existingDatabaseUrl.trim())}`);
+            if (explicitUrl) {
+                stepLog("▸ Using database URL supplied in the setup request");
+                stepLog(`  host = ${redactUrl(explicitUrl)}`);
                 stepLog("▸ Opening probe connection (max 1 client)…");
-                return await this.probeExistingDatabase(input.existingDatabaseUrl.trim(), stepLog);
+                return await this.probeExistingDatabase(explicitUrl, stepLog);
+            }
+            if (providedUrl) {
+                stepLog("▸ Using the database URL provided for this node (MANAGED_GLOBAL_DB_ENABLED / SETUP_AUTO)");
+                stepLog(`  host = ${redactUrl(providedUrl)}`);
+                stepLog("▸ Opening probe connection (max 1 client)…");
+                return await this.probeExistingDatabase(providedUrl, stepLog);
             }
             stepLog("▸ Bootstrapping Docker Postgres 16…");
             stepLog("  image  = postgres:16-alpine");
@@ -93,7 +123,7 @@ export class LocalInitializationService {
             stepLog("▸ Pulling image (cached if present)…");
             return await this.provisionDockerDatabase(stepLog);
         });
-        const readyLine = `✅ Container ready at ${redactUrl(databaseUrl)}`;
+        const readyLine = `✅ Database ready at ${redactUrl(databaseUrl)}`;
         tracker.log("provision_database", readyLine);
         const readyEvent = tracker.logEvent("provision_database", readyLine);
         if (readyEvent) emit(readyEvent);
@@ -445,6 +475,24 @@ export class LocalInitializationService {
         const db = drizzle(pool, { schema: globalSchema });
 
         try {
+            // Idempotent seed: if the admin already exists (e.g. two nodes
+            // racing against a shared database, or a heal that left the DB
+            // partially provisioned) never call signUpEmail a second time —
+            // just promote the existing user to super-admin.
+            log("▸ Checking whether the admin already exists…");
+            const existing = await db
+                .select({ id: user.id, role: user.role })
+                .from(user)
+                .where(eq(user.email, input.email))
+                .limit(1);
+            if (existing[0]) {
+                log(`  user ${input.email} already exists — promoting to super-admin instead of re-seeding`);
+                await db.update(user)
+                    .set({ emailVerified: true, role: Roles.superAdmin })
+                    .where(eq(user.id, existing[0].id));
+                return { userId: existing[0].id };
+            }
+
             // Create the super-admin user + credential account through the
             // Better Auth service-side API. This is the single source of truth
             // for user/account creation: Better Auth's internal adapter writes
@@ -467,14 +515,32 @@ export class LocalInitializationService {
             });
 
             log("▸ Calling auth.api.signUpEmail …");
-            const signUpResult = await auth.api.signUpEmail({
-                body: {
-                    name: input.name,
-                    email: input.email,
-                    password: input.password,
-                },
-            });
-            const userId = signUpResult.user.id;
+            let userId: string;
+            try {
+                const signUpResult = await auth.api.signUpEmail({
+                    body: {
+                        name: input.name,
+                        email: input.email,
+                        password: input.password,
+                    },
+                });
+                userId = signUpResult.user.id;
+            } catch (seedError: unknown) {
+                // Another node created the same admin concurrently (unique
+                // email constraint) — recover by promoting the winner instead
+                // of failing the whole setup.
+                const message = seedError instanceof Error ? seedError.message : String(seedError);
+                if (!/duplicate|already exists|unique/i.test(message)) throw seedError;
+                log(`  concurrent seed detected (${message}) — promoting the existing user instead`);
+                const raced = await db
+                    .select({ id: user.id })
+                    .from(user)
+                    .where(eq(user.email, input.email))
+                    .limit(1);
+                const racedId = raced[0]?.id;
+                if (!racedId) throw seedError;
+                userId = racedId;
+            }
             log(`  user.id  = ${userId}`);
             log("  user + credential account written (issuer handled by Better Auth)");
 

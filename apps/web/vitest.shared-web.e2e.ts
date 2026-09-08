@@ -14,7 +14,7 @@ import Dockerode from "dockerode";
  * The container runs the PRODUCTION build produced by `bun --bun run build`
  * (the package.json `test:e2e` script chains it before the tests):
  *
- *   - Image:    oven/bun:1.4.0 (Debian/glibc — same bun version as the repo's
+ *   - Image:    oven/bun:1.4.2 (Debian/glibc — same bun version as the repo's
  *               Dockerfiles; glibc so host-built native binaries stay loadable)
  *   - Mount:    the whole monorepo, read-only, at /app (hoisted node_modules
  *               symlinks resolve identically inside the container)
@@ -29,7 +29,7 @@ export const WEB_E2E_BASE_URL_FILE = resolve(
   "deployer-e2e-web-base-url.txt",
 );
 
-const WEB_E2E_IMAGE = "oven/bun:1.4.0";
+const WEB_E2E_IMAGE = "oven/bun:1.4.2";
 const CONTAINER_PORT = "3000";
 /**
  * Preferred host port — only used when free. Like apps/api's shared Postgres

@@ -24,7 +24,8 @@ export const fleetNodeMetricSchema = z.object({
 });
 
 export const fleetServerSummarySchema = z.object({
-    nodeId: z.uuid(),
+    nodeId: z.string(),
+    swarmNodeId: z.string().nullable().optional(),
     serverUrl: z.string(),
     displayName: z.string().nullable(),
     status: z.enum(["active", "suspect", "draining", "revoked"]),
@@ -42,7 +43,7 @@ export const fleetServerSummarySchema = z.object({
 
 export const fleetServerAllocationSchema = z.object({
     id: z.uuid(),
-    serverNodeId: z.uuid(),
+    serverNodeId: z.string(),
     serverUrl: z.string().nullable(),
     allocationMode: fleetAllocationModeSchema,
     cpuMillicores: z.number().int().min(0),
@@ -53,11 +54,11 @@ export const fleetServerAllocationSchema = z.object({
 });
 
 const listFleetAllocationsQuerySchema = z.object({
-    serverNodeId: z.uuid().optional(),
+    serverNodeId: z.string().optional(),
 });
 
 const upsertFleetAllocationInputSchema = z.object({
-    serverNodeId: z.uuid(),
+    serverNodeId: z.string(),
     allocationMode: fleetAllocationModeSchema,
     cpuMillicores: z.number().int().min(0),
     memoryMb: z.number().int().min(0),
@@ -66,21 +67,21 @@ const upsertFleetAllocationInputSchema = z.object({
 });
 
 const deleteFleetAllocationInputSchema = z.object({
-    serverNodeId: z.uuid(),
+    serverNodeId: z.string(),
 });
 
 const fleetAdmissionCheckInputSchema = z.object({
     requestedCpuMillicores: z.number().int().min(0),
     requestedMemoryMb: z.number().int().min(0),
     requestedServices: z.number().int().min(0).default(1),
-    serverNodeId: z.uuid().optional(),
+    serverNodeId: z.string().optional(),
 });
 
 const createFleetAdmissionRequestInputSchema = z.object({
     requestedCpuMillicores: z.number().int().min(0),
     requestedMemoryMb: z.number().int().min(0),
     requestedServices: z.number().int().min(0).default(1),
-    requestedServerNodeId: z.uuid().optional(),
+    requestedServerNodeId: z.string().optional(),
     requesterNote: z.string().max(1024).nullable().optional(),
 });
 
@@ -92,12 +93,12 @@ const resolveFleetAdmissionRequestInputSchema = z.object({
     requestId: z.uuid(),
     decision: z.enum(["approved", "rejected", "cancelled"]),
     reviewerNote: z.string().max(1024).nullable().optional(),
-    decisionServerNodeId: z.uuid().nullable().optional(),
+    decisionServerNodeId: z.string().nullable().optional(),
 });
 
 const fleetAdmissionCandidateSchema = z.object({
     allocationId: z.uuid(),
-    serverNodeId: z.uuid(),
+    serverNodeId: z.string(),
     serverUrl: z.string().nullable(),
     allocationMode: fleetAllocationModeSchema,
     availableCpuMillicores: z.number().int().min(0),
@@ -115,8 +116,8 @@ const fleetAdmissionCheckResultSchema = z.object({
 const fleetAdmissionRequestSchema = z.object({
     id: z.uuid(),
     status: fleetAdmissionRequestStatusSchema,
-    requestedServerNodeId: z.uuid().nullable(),
-    decisionServerNodeId: z.uuid().nullable(),
+    requestedServerNodeId: z.string().nullable(),
+    decisionServerNodeId: z.string().nullable(),
     requestedCpuMillicores: z.number().int().min(0),
     requestedMemoryMb: z.number().int().min(0),
     requestedServices: z.number().int().min(0),
@@ -145,6 +146,7 @@ const fleetAllocationDeleteOps = standard.zod(
 export const fleetListServersContract = fleetServerSummaryOps
     .list()
     .path("/servers")
+    .input(z.object({}))
     .output((b) => b.body(z.object({ items: z.array(fleetServerSummarySchema) })))
     .build();
 
@@ -158,6 +160,7 @@ export const fleetListAllocationsContract = fleetServerAllocationOps
 export const fleetListMyAllocationsContract = fleetServerAllocationOps
     .list()
     .path("/allocations/me")
+    .input(z.object({}))
     .output((b) => b.body(z.object({ items: z.array(fleetServerAllocationSchema) })))
     .build();
 
@@ -224,7 +227,7 @@ export const fleetSetServerCapacityContract = fleetServerSummaryOps
     .input((b) =>
         b.body(
             z.object({
-                serverNodeId: z.uuid(),
+                serverNodeId: z.string(),
                 maxCpuMillicores: z.number().int().min(1).nullable(),
                 maxMemoryMb: z.number().int().min(1).nullable(),
             }),

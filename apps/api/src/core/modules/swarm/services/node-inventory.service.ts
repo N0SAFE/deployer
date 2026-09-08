@@ -101,8 +101,11 @@ export class NodeInventoryService implements OnModuleInit, OnModuleDestroy {
         );
 
         // Keep the shared cluster_nodes enrollment fresh (heartbeat) on every sweep.
+        // Pass the Swarm node ID so the fleet API can return it for navigation.
         try {
-            await this.globalClusterNodes.enrollLocalNode();
+            await this.globalClusterNodes.enrollLocalNode({
+                swarmNodeId: snapshot.localNode.nodeId,
+            });
         } catch (error: unknown) {
             this.logger.warn(
                 `Global node enrollment failed: ${error instanceof Error ? error.message : String(error)}`,

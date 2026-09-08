@@ -218,6 +218,27 @@
       "when": 1788467525591,
       "tag": "0030_remove-organization-concept",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1788881582763,
+      "tag": "0031_graceful_red_ghost",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788896695580,
+      "tag": "0032_open_lester",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1788898493306,
+      "tag": "0033_graceful_electro",
+      "breakpoints": true
     }
   ]
 }

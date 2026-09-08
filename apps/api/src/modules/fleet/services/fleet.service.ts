@@ -36,6 +36,7 @@ export class FleetService {
                 status: row.status,
                 healthy: row.healthy,
                 lastSeenAt: row.lastSeenAt ? row.lastSeenAt.toISOString() : null,
+                swarmNodeId: row.swarmNodeId ?? null,
                 maxCpuMillicores: row.maxCpuMillicores,
                 maxMemoryMb: row.maxMemoryMb,
                 metrics: metrics

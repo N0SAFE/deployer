@@ -162,7 +162,7 @@ describe("TraefikPlatformConfigService (core-module config handler)", () => {
 			throw new Error("table does not exist yet");
 		}) as unknown as TraefikRepository["getAllServiceConfigs"];
 
-		const spy = vi.spyOn(service["logger"], "warn");
+		const spy = vi.spyOn(service["logger"], "log");
 		await service.writePlatformConfigs();
 
 		await expect(readFile(join(configDir, "dynamic-api.yml"), "utf8")).resolves.toContain("Host(`");

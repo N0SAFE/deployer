@@ -9,7 +9,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 // This must be imported before any SessionPage is used
 import '@/routes/configure-auth'
 import type { Metadata } from 'next'
-import { Inter, Geist } from 'next/font/google'
+import { Inter, Geist, Space_Grotesk, JetBrains_Mono } from 'next/font/google'
 import { Suspense, type JSX } from 'react'
 import { cn } from '@repo/ui/lib/utils'
 import ThemeProvider from '@repo/ui/components/theme-provider'
@@ -22,7 +22,13 @@ import { Toaster } from '@repo/ui/components/shadcn/sonner'
 import { PostSetupHints } from '@/components/setup/post-setup-hints'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'})
+// Font stack — the fleet console's typographic identity:
+//   - Geist (--font-sans): neutral UI body at high density.
+//   - Space Grotesk (--font-display): display/numerals — industrial, technical.
+//   - JetBrains Mono (--font-mono): all machine truth — ids, hashes, tasks, metrics.
+const geist = Geist({ subsets: ['latin'], variable: '--font-sans' })
+const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-display' })
+const jetBrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' })
 
 export const metadata: Metadata = {
     title: 'Deployer',
@@ -61,7 +67,7 @@ export default function RootLayout({
             // hydration mismatch on every load ("A tree hydrated but some
             // attributes of the server rendered HTML didn't match...").
             suppressHydrationWarning
-            className={cn("font-sans", geist.variable)}
+            className={cn('font-sans', geist.variable, spaceGrotesk.variable, jetBrainsMono.variable)}
         >
             <head>
                 <link rel="manifest" href="/site.webmanifest" />
@@ -78,6 +84,8 @@ export default function RootLayout({
             <body
                 className={cn(
                     geist.variable,
+                    spaceGrotesk.variable,
+                    jetBrainsMono.variable,
                     'bg-background flex h-dvh w-dvw flex-col font-sans antialiased'
                 )}
             >

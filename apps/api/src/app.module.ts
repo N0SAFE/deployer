@@ -57,7 +57,7 @@ import { AuthCoreService } from "./core/modules/auth/services/auth-core.service"
 import type { ORPCAuthContext } from "./core/modules/auth/orpc/types";
 import { logOrpcErrors, transformNestJSErrorToOrpcError } from "./core/modules/auth/orpc/index";
 import { SmartCoercionPlugin } from "@orpc/json-schema";
-import { ZodToJsonSchemaConverter } from "@orpc/zod";
+import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { REQUEST } from "@nestjs/core";
 
 declare module "@orpc/nest" {

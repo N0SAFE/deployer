@@ -12,6 +12,7 @@ function containerSpec(spec: Docker.ServiceSpec): Docker.ContainerSpec | undefin
 const baseInput: SwarmServiceSpecInput = {
     name: "deployer-svc-1234567890ab-ab12cd34",
     image: "nginx:alpine",
+    mode: "replicated",
     replicas: 2,
     env: ["FOO=bar", "BAZ=qux"],
     command: [],
@@ -47,6 +48,11 @@ describe("toDockerServiceSpec", () => {
         expect(container?.Args).toEqual(["sh", "-lc", "npm start"]);
         expect(container?.Labels).toEqual({ "com.example.label": "value" });
         expect(spec.Mode).toEqual({ Replicated: { Replicas: 2 } });
+    });
+
+    it("maps global mode to Mode.Global (one task per node — platform infra)", () => {
+        const spec = toDockerServiceSpec({ ...baseInput, mode: "global", replicas: 2 });
+        expect(spec.Mode).toEqual({ Global: {} });
     });
 
     it("converts health intervals from ms to nanoseconds", () => {

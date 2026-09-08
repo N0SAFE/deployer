@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ClusterSnapshot } from "@repo/contracts-entities";
 import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
+import { SwarmFleetService } from "@/core/modules/swarm/services/swarm-fleet.service";
 import { ClusterNodeRepository } from "@/core/modules/swarm/repositories/cluster-node.repository";
 import { ClusterNodeInventoryRepository } from "@/core/modules/swarm/repositories/cluster-node-inventory.repository";
 import { ClusterService } from "./cluster.service";
@@ -72,6 +73,11 @@ describe("ClusterService", () => {
         inspectSwarmNode: ReturnType<typeof vi.fn>;
         updateSwarmNodeLabels: ReturnType<typeof vi.fn>;
     };
+    let fleet: {
+        listServices: ReturnType<typeof vi.fn>;
+        listTasks: ReturnType<typeof vi.fn>;
+        getNodeResources: ReturnType<typeof vi.fn>;
+    };
     let nodeRepo: { find: ReturnType<typeof vi.fn> };
     let inventoryRepo: {
         list: ReturnType<typeof vi.fn>;
@@ -92,6 +98,15 @@ describe("ClusterService", () => {
             }),
             updateSwarmNodeLabels: vi.fn().mockResolvedValue(undefined),
         };
+        fleet = {
+            listServices: vi.fn().mockResolvedValue([]),
+            listTasks: vi.fn().mockResolvedValue([]),
+            getNodeResources: vi.fn().mockResolvedValue({
+                nodeId: "n1",
+                services: [],
+                tasks: [],
+            }),
+        };
         nodeRepo = { find: vi.fn().mockReturnValue(nodeRow) };
         inventoryRepo = {
             list: vi.fn().mockReturnValue([inventoryRow]),
@@ -100,6 +115,7 @@ describe("ClusterService", () => {
         };
         service = new ClusterService(
             swarm as unknown as SwarmClusterService,
+            fleet as unknown as SwarmFleetService,
             nodeRepo as unknown as ClusterNodeRepository,
             inventoryRepo as unknown as ClusterNodeInventoryRepository,
         );

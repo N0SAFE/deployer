@@ -5,7 +5,7 @@ import path from 'node:path'
 // When this file is loaded as a CJS module by Next.js, `__dirname` is the
 // directory of this config file (apps/doc/). Going up two levels reaches the
 // monorepo root where `next` is hoisted in node_modules.
-// NOTE: do NOT use `import.meta.url` here — Bun 1.4.0 has a transpiler bug
+// NOTE: do NOT use `import.meta.url` here — Bun 1.4.2 has a transpiler bug
 // that throws "Expected CommonJS module to have a function wrapper" when
 // `import.meta.url` is used inside a `.ts` file loaded as CJS.
 

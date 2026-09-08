@@ -24,6 +24,19 @@ interface EntrypointConfig {
   startupCheckCommand: string
 }
 
+/** Result of the pre-boot node-startup-check CLI call. */
+interface StartupCheckResult {
+  setupState: string
+  deployerVersion: string
+  nodeId: string | null
+  strategy: string | null
+  configuredAt: string | null
+  message: string
+  exitCode: number
+  /** True when the CLI produced no parseable JSON (failed before it could read). */
+  checkUnreadable?: boolean
+}
+
 // ─── Startup Protocol ──────────────────────────────────────────────────────────
 
 /**
@@ -51,15 +64,7 @@ function phaseVersionExtraction(): string {
  *   4  Setup failed / upgrade failed previous
  *   5  Error reading config or other unexpected failure
  */
-function phaseStartupCheck(config: EntrypointConfig): {
-  setupState: string
-  deployerVersion: string
-  nodeId: string | null
-  strategy: string | null
-  configuredAt: string | null
-  message: string
-  exitCode: number
-} {
+function phaseStartupCheck(config: EntrypointConfig): StartupCheckResult {
   console.log('🔍 Checking node setup state...')
 
   if (!existsSync(config.cliEntrypoint)) {
@@ -72,6 +77,7 @@ function phaseStartupCheck(config: EntrypointConfig): {
       configuredAt: null,
       message: `CLI entrypoint not found at ${config.cliEntrypoint}`,
       exitCode: 5,
+      checkUnreadable: true,
     }
   }
 
@@ -90,6 +96,7 @@ function phaseStartupCheck(config: EntrypointConfig): {
       configuredAt: null,
       message: 'Startup check process was killed or failed to spawn',
       exitCode: 5,
+      checkUnreadable: true,
     }
   }
 
@@ -106,18 +113,22 @@ function phaseStartupCheck(config: EntrypointConfig): {
     if (output.message) {
       console.log(`  ${output.message}`)
     }
-    return output
+    return output as StartupCheckResult
   } catch {
-    // Fallback: parse from exit code
-    console.log(`  Exit code: ${result.status} — no parsable JSON output`)
+    // Fallback: no parseable JSON (fresh DB before first boot, or CLI failed
+    // before it could write). The pre-boot check is ADVISORY — the API
+    // orchestrator (Phase 0 / wizard) is the authoritative gate, so continue
+    // booting and let it self-resolve.
+    console.log(`  Exit code: ${String(result.status)} — no parseable JSON output`)
     return {
-      setupState: result.status === 0 ? 'setup_done' : result.status === 2 ? 'not_started' : 'unknown',
+      setupState: 'unknown',
       deployerVersion: DEPLOYER_VERSION,
       nodeId: null,
       strategy: null,
       configuredAt: null,
-      message: `Exit code ${result.status}`,
+      message: `Startup-state check could not be read (exit ${String(result.status)}). The API will self-resolve during boot.`,
       exitCode: result.status ?? 5,
+      checkUnreadable: true,
     }
   }
 }
@@ -162,16 +173,22 @@ function phaseDiagnostics(config: EntrypointConfig): void {
 /**
  * Phase 6: Interpret the startup check result and decide next action
  */
-function interpretStartupResult(checkResult: {
-  setupState: string
-  deployerVersion: string
-  nodeId: string | null
-  message: string
-  exitCode: number
-}): boolean {
+function interpretStartupResult(checkResult: StartupCheckResult): boolean {
   console.log('\n════════════════════════════════════════════════════════')
   console.log(`📋 Startup Check Result: ${checkResult.setupState} (exit code ${checkResult.exitCode})`)
   console.log('════════════════════════════════════════════════════════\n')
+
+  // The pre-boot check could not read the node state (fresh install before
+  // the first boot, CLI startup failure, ...). This is ADVISORY — the API
+  // orchestrator is the authoritative gate (Phase 0 persists the DB candidate,
+  // heal/wizard runs setup, main-app starts only when ready). Continue booting.
+  if (checkResult.checkUnreadable) {
+    console.log('⚠️  Node startup-state check could not be read before boot.')
+    console.log(`   ${checkResult.message}`)
+    console.log('   This is expected on a fresh install (SQLite is created on first boot).')
+    console.log('   Continuing — the API orchestrator will run setup / self-heal during boot.')
+    return true // proceed to start
+  }
 
   switch (checkResult.exitCode) {
     case 0:
@@ -232,7 +249,7 @@ function interpretStartupResult(checkResult: {
  * Start API and Drizzle Studio processes concurrently
  */
 function startProcesses(): void {
-  console.log(`[entrypoint] SETUP_AUTO="${process.env.SETUP_AUTO}" SETUP_DATABASE_URL="${String(!!process.env.SETUP_DATABASE_URL)}"`)
+  console.log(`[entrypoint] SETUP_AUTO="${process.env.SETUP_AUTO ?? ''}" SETUP_DATABASE_URL=${process.env.SETUP_DATABASE_URL ? 'set' : 'unset'} (Phase 0 / wizard resolves the DB)`)
   // SETUP_AUTO is NOT forced here. If you want auto-provisioning, set
   // SETUP_AUTO=true in your .env or docker environment. Otherwise the
   // app starts without a database and you run the setup wizard manually.

@@ -153,7 +153,25 @@ export abstract class BaseEventService<
   protected readonly pendingFlushBatchSize = 200;
   protected readonly flushIntervalMs = 3 * 60 * 1000;
 
+  /**
+   * Persistence is best-effort audit logging. When the target table is not
+   * ready yet (e.g. a FIRST-BOOT setup is still running the global migrations
+   * that create `core_event_logs`) or the DB is temporarily unreachable, a
+   * flush must never DROP the batch — the events are re-queued and retried
+   * with backoff until they persist. The in-memory durable replay keeps all
+   * subscribers working regardless of persistence state.
+   */
+  private readonly flushRetryBaseMs = 500;
+  private readonly flushRetryMaxMs = 60_000;
+  /** Hard cap — if persistence stays down, oldest audit events are dropped (once, loudly). */
+  private readonly maxPendingPersistence = 10_000;
+
   private isFlushing = false;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryAttempt = 0;
+  private overflowWarned = false;
+  /** True while persistence is failing — used to log the outage ONCE, then debug. */
+  private persistenceOutageActive = false;
 
   constructor(
     eventPrefix: TNamespace,
@@ -483,6 +501,7 @@ export abstract class BaseEventService<
       output: bufferedRecord.output,
       emittedAt: new Date(bufferedRecord.emittedAt),
     });
+    this.trimPendingPersistenceIfNeeded();
 
     if (this.pendingPersistence.length >= this.pendingFlushBatchSize) {
       void this.flushPendingToPersistence();
@@ -724,6 +743,19 @@ export abstract class BaseEventService<
     return true;
   }
 
+  private trimPendingPersistenceIfNeeded(): void {
+    if (this.pendingPersistence.length <= this.maxPendingPersistence) return;
+    const overflow = this.pendingPersistence.length - this.maxPendingPersistence;
+    // Drop the OLDEST audit events when persistence is down for a long time.
+    this.pendingPersistence.splice(0, overflow);
+    if (!this.overflowWarned) {
+      this.overflowWarned = true;
+      this.logger.warn(
+        `Event persistence buffer exceeded ${String(this.maxPendingPersistence)} — dropping oldest audit events until persistence recovers`,
+      );
+    }
+  }
+
   private async flushPendingToPersistence(): Promise<void> {
     if (this.isFlushing || this.pendingPersistence.length === 0 || !BaseEventService.persistenceAdapter) {
       return;
@@ -731,12 +763,58 @@ export abstract class BaseEventService<
 
     this.isFlushing = true;
     try {
-      const batch = this.pendingPersistence.splice(0, this.pendingFlushBatchSize);
+      const batch = this.pendingPersistence.slice(0, this.pendingFlushBatchSize);
       await BaseEventService.persistenceAdapter.insertMany(batch);
+      // Success → remove exactly what was persisted from the front.
+      this.pendingPersistence.splice(0, batch.length);
+      this.retryAttempt = 0;
+      if (this.persistenceOutageActive) {
+        this.persistenceOutageActive = false;
+        this.logger.log(
+          `Event log persistence recovered (${String(this.pendingPersistence.length)} still queued)`,
+        );
+      }
+      // Drain any remaining backlog promptly (e.g. events buffered while the
+      // table was being created) instead of waiting for the 3-minute ticker.
+      if (this.pendingPersistence.length > 0) {
+        this.schedulePersistenceRetry();
+      }
     } catch (error) {
-      this.logger.error('Failed to persist event logs', error as Error);
+      // Never drop audit events on a transient failure (first-boot migrations
+      // still creating core_event_logs, DB restart, etc.) — keep the batch
+      // queued and retry with backoff. Log the outage ONCE as a compact WARN
+      // (never the full query/params — drizzle errors embed thousands of
+      // serialized rows), then debug until it recovers.
+      const message = error instanceof Error ? error.message : String(error);
+      if (!this.persistenceOutageActive) {
+        this.persistenceOutageActive = true;
+        this.logger.warn(
+          `Event log persistence failed (${String(this.pendingPersistence.length)} queued) — will retry with backoff: ${message.slice(0, 200)}`,
+        );
+      } else {
+        this.logger.debug(
+          `Event log persistence still unavailable (${String(this.pendingPersistence.length)} queued): ${message.slice(0, 200)}`,
+        );
+      }
+      this.schedulePersistenceRetry();
     } finally {
       this.isFlushing = false;
+    }
+  }
+
+  private schedulePersistenceRetry(): void {
+    if (this.retryTimer) return;
+    const delay = Math.min(
+      this.flushRetryBaseMs * 2 ** this.retryAttempt,
+      this.flushRetryMaxMs,
+    );
+    this.retryAttempt = Math.min(this.retryAttempt + 1, 16);
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      void this.flushPendingToPersistence();
+    }, delay);
+    if (typeof this.retryTimer.unref === 'function') {
+      this.retryTimer.unref();
     }
   }
 
@@ -755,13 +833,17 @@ export abstract class BaseEventService<
   }
 
   /**
-   * NestJS lifecycle hook — clears the persistent flush ticker so the
-   * process can exit cleanly. All concrete event services inherit this
-   * behaviour automatically. If a subclass needs to perform additional
+   * NestJS lifecycle hook — clears the persistent flush ticker + any pending
+   * retry so the process can exit cleanly. All concrete event services inherit
+   * this behaviour automatically. If a subclass needs to perform additional
    * teardown, it must override and call `super.onModuleDestroy()`.
    */
   onModuleDestroy(): void {
     this.stopFlushTicker();
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
   }
 
   protected stopFlushTicker(): void {

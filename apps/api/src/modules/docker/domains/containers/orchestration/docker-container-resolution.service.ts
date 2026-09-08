@@ -14,12 +14,6 @@ import type {
     DockerNetworkListInput,
 } from "@repo/api-contracts/modules/docker/networks/list";
 import type {
-    DockerRegistryListInput,
-} from "@repo/api-contracts/modules/docker/registries/list";
-import type {
-    DockerStackListInput,
-} from "@repo/api-contracts/modules/docker/stacks/list";
-import type {
     DockerVolumeListInput,
 } from "@repo/api-contracts/modules/docker/volumes/list";
 import {
@@ -331,60 +325,6 @@ export class DockerContainerResolutionService {
             switch (sortBy) {
                 case "name":
                     return item.name;
-                case "createdAt":
-                    return item.createdAt;
-                case "updatedAt":
-                default:
-                    return item.updatedAt;
-            }
-        });
-
-        return this.paginateList(sorted, input.limit, input.offset);
-    }
-
-    async listRegistries(input: DockerRegistryListInput): Promise<DockerListResult<DockerRegistry>> {
-        const catalog = await this.resolveRuntimeCatalog();
-
-        const filtered = catalog.registries.filter((item) => {
-            const nameMatch = this.matchString(item.name, this.getFilterEntry(input, "name"));
-            const statusMatch = this.matchEq(item.status, this.getFilterEntry(input, "status"));
-            const primaryMatch = this.matchEq(item.isPrimary, this.getFilterEntry(input, "isPrimary"));
-            return nameMatch && statusMatch && primaryMatch;
-        });
-
-        const sorted = this.sortItems(filtered, input.sortBy, input.sortDirection, (item, sortBy) => {
-            switch (sortBy) {
-                case "name":
-                    return item.name;
-                case "url":
-                    return item.url;
-                case "createdAt":
-                    return item.createdAt;
-                case "updatedAt":
-                default:
-                    return item.updatedAt;
-            }
-        });
-
-        return this.paginateList(sorted, input.limit, input.offset);
-    }
-
-    async listStacks(input: DockerStackListInput): Promise<DockerListResult<DockerStack>> {
-        const catalog = await this.resolveRuntimeCatalog();
-
-        const filtered = catalog.stacks.filter((item) => {
-            const nameMatch = this.matchString(item.name, this.getFilterEntry(input, "name"));
-            const statusMatch = this.matchEq(item.status, this.getFilterEntry(input, "status"));
-            const projectMatch = this.matchEq(item.projectId, this.getFilterEntry(input, "projectId"));
-            return nameMatch && statusMatch && projectMatch;
-        });
-
-        const sorted = this.sortItems(filtered, input.sortBy, input.sortDirection, (item, sortBy) => {
-            switch (sortBy) {
-                case "name":
-                    return item.name;
-                case "projectId":
-                    return item.projectId;
                 case "createdAt":
                     return item.createdAt;
                 case "updatedAt":

@@ -23,6 +23,7 @@ import { MeshRuntimeModule } from './runtime/mesh-runtime.module'
 import { MeshOrchestrationService } from './orchestration/mesh-orchestration.service'
 import { MeshInitializationModule } from './initialization/mesh-initialization.module'
 import { MeshResourceDispatcher, MeshResourceController } from './dispatcher'
+import { MeshController } from './controllers/mesh.controller'
 import { MeshIdentityService } from './services/system-mesh-topology/services/mesh-identity.service'
 import { MeshTrustService } from './services/system-mesh-topology/services/mesh-trust.service'
 import { MeshTrustStrictModeService } from './services/system-mesh-topology/services/mesh-trust-strict-mode.service'
@@ -102,6 +103,7 @@ const MESH_TOPIC_SERVICES = [
     ],
     controllers: [
         MeshResourceController,
+        MeshController,
     ],
     providers: [
         {

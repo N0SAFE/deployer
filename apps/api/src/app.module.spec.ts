@@ -1,5 +1,12 @@
 import type { Mock } from "vitest";
 import { describe, it, expect, beforeEach, vi } from "vitest";
+
+// Mock SSR module that requires nest-cli.json project configuration
+vi.mock("@nestjs-ssr/react", () => ({
+  RenderModule: { forRoot: vi.fn().mockReturnValue({ module: class {} }) },
+  Render: () => () => {},
+}));
+
 import { AppModule } from "@/app.module";
 import type { Request, Response } from "express";
 import { LoggerMiddleware } from "./core/middlewares/logger.middleware";
@@ -20,6 +27,7 @@ describe("AppModule", () => {
         it("should configure middleware consumer", () => {
             const mockConsumer = {
                 apply: vi.fn().mockReturnThis(),
+                exclude: vi.fn().mockReturnThis(),
                 forRoutes: vi.fn().mockReturnThis(),
             } as any;
 

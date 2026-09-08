@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig, ViteUserConfigExport } from "vitest/config";
 import * as path from "path";
 import { createNodeConfig } from "@repo/config-vitest/node";
 import swc from "unplugin-swc";
@@ -69,6 +69,11 @@ export default defineConfig(
       }),
     ],
     test: {
+      server: {
+        deps: {
+          inline: true
+        }
+      },
       coverage: {
         provider: "istanbul",
         reporter: ["text", "json", "html"],
@@ -143,10 +148,18 @@ export default defineConfig(
       alias: {
         "@": path.resolve(__dirname, "./src"),
         "~": path.resolve(__dirname, "./"),
+        // When vitest runs under Node (VS Code extension), bun: protocol imports
+        // cannot resolve. Alias bun:sqlite to our node:sqlite-backed shim so
+        // drizzle-orm/bun-sqlite and local-db-supervisor tests work in Node.
+        ...(IS_BUN_RUNTIME
+          ? {}
+          : {
+              "bun:sqlite": path.resolve(__dirname, "./vitest-shims/bun-sqlite.ts"),
+            }),
       },
       // Force zod to be resolved from the API's node_modules rather than
       // from workspace packages (which may lack the zod/v4 subpath export).
       dedupe: ["zod"],
     },
-  }),
+  } as ViteUserConfigExport),
 );

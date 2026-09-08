@@ -23,6 +23,9 @@ import {
     dockerodeNodeSummarySchema,
     dockerodeSecretSummarySchema,
     dockerodeConfigSummarySchema,
+    dockerodeImageSummarySchema,
+    dockerodeNetworkSummarySchema,
+    dockerodeVolumeListResponseSchema,
 } from "@repo/contracts-entities";
 import type {
     DockerodeSwarmInfo,
@@ -32,6 +35,9 @@ import type {
     DockerodeNodeSummary,
     DockerodeSecretSummary,
     DockerodeConfigSummary,
+    DockerodeImageSummary,
+    DockerodeNetworkSummary,
+    DockerodeVolumeListResponse,
     SwarmInitOptions,
     SwarmJoinOptions,
     SwarmOverlayNetworkRequest,
@@ -2723,6 +2729,70 @@ CMD ["npm", "start"]
     }
 
     /**
+     * List ALL swarm tasks cluster-wide (GET /tasks), optionally filtered by
+     * service and/or node. Used by fleet aggregation (`SwarmFleetService`) to
+     * answer per-service / per-node task queries without N+1 service calls.
+     */
+    async listAllSwarmTasks(filter?: { serviceId?: string; nodeId?: string }): Promise<DockerodeTaskSummary[]> {
+        try {
+            const filters: Record<string, string[]> = {};
+            if (filter?.serviceId) filters.service = [filter.serviceId];
+            if (filter?.nodeId) filters.node = [filter.nodeId];
+            const raw: unknown = await this.docker.listTasks({ filters });
+            return z.array(dockerodeTaskSummarySchema).parse(raw);
+        } catch (error: unknown) {
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to list Swarm tasks: ${message}`);
+            throw new BadGatewayException(`Failed to list Swarm tasks: ${message}`);
+        }
+    }
+
+    /**
+     * List engine images (GET /images/json) for the connected node.
+     * Used by the per-node resources aggregation (local scope only).
+     */
+    async listEngineImages(): Promise<DockerodeImageSummary[]> {
+        try {
+            const raw: unknown = await this.docker.listImages({ all: false });
+            return z.array(dockerodeImageSummarySchema).parse(raw);
+        } catch (error: unknown) {
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to list engine images: ${message}`);
+            throw new BadGatewayException(`Failed to list engine images: ${message}`);
+        }
+    }
+
+    /**
+     * List engine networks (GET /networks) for the connected node — includes
+     * swarm overlay networks from a manager.
+     */
+    async listEngineNetworks(): Promise<DockerodeNetworkSummary[]> {
+        try {
+            const raw: unknown = await this.docker.listNetworks();
+            return z.array(dockerodeNetworkSummarySchema).parse(raw);
+        } catch (error: unknown) {
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to list engine networks: ${message}`);
+            throw new BadGatewayException(`Failed to list engine networks: ${message}`);
+        }
+    }
+
+    /**
+     * List engine volumes (GET /volumes) for the connected node.
+     */
+    async listEngineVolumes(): Promise<DockerodeVolumeListResponse["Volumes"]> {
+        try {
+            const raw: unknown = await this.docker.listVolumes();
+            const parsed = dockerodeVolumeListResponseSchema.parse(raw);
+            return parsed.Volumes;
+        } catch (error: unknown) {
+            const message = DockerService.getErrMsg(error);
+            this.logger.error(`Failed to list engine volumes: ${message}`);
+            throw new BadGatewayException(`Failed to list engine volumes: ${message}`);
+        }
+    }
+
+    /**
      * List all swarm nodes (GET /nodes).
      */
     async listSwarmNodes(): Promise<DockerodeNodeSummary[]> {
@@ -2764,6 +2834,8 @@ CMD ["npm", "start"]
             await this.docker.getNode(nodeId).update({
                 version,
                 Spec: {
+                    Role: existing.Spec?.Role ?? 'worker',
+                    Availability: existing.Spec?.Availability ?? 'active',
                     Labels: {
                         ...existing.Spec.Labels,
                         ...labels,
@@ -2858,14 +2930,40 @@ CMD ["npm", "start"]
      * Idempotently ensure an overlay network exists (create once, reuse by
      * name). Concurrent creation is tolerated: a 409 race resolves by
      * re-inspecting the network name.
+     *
+     * IMPORTANT (layering): this is used ONLY for Deployer-OWNED workload
+     * networks (per-project overlays for scheduled services). If a network
+     * with the target name already exists it must be a compatible OVERLAY —
+     * reusing an incompatible non-overlay network (e.g. a compose-created
+     * BRIDGE) that happens to share a name would silently break swarm
+     * scheduling (Docker rejects bridge networks on services with HTTP 403),
+     * the exact failure that this guard prevents.
      */
     async ensureOverlayNetwork(request: SwarmOverlayNetworkRequest): Promise<void> {
         const network = this.docker.getNetwork(request.name);
         try {
-            await network.inspect();
+            const info = await network.inspect();
+            const driver = info.Driver.toLowerCase();
+            // A same-named network that isn't an overlay is a CONFLICT, not
+            // something to reuse. Never attach a bridge network to a swarm
+            // service — surface it loudly so ownership can be fixed.
+            if (driver && driver !== "overlay") {
+                const message = DockerService.getErrMsg(new Error(
+                    `Network "${request.name}" already exists with driver "${driver}" — ` +
+                    `refusing to use a non-overlay network for a swarm workload. ` +
+                    `The network is likely owned by Compose/supervisor, not Deployer workloads.`,
+                ));
+                this.logger.error(`Conflict on overlay network ${request.name}: ${message}`);
+                throw new BadGatewayException(message);
+            }
             return;
         } catch (error: unknown) {
             if (!this.isDockerNotFoundError(error)) {
+                // Re-throw conflicts (an explicit error type) so callers see the
+                // real reason instead of a re-create→inspect fallback masking it.
+                if (error instanceof BadGatewayException) {
+                    throw error;
+                }
                 throw error;
             }
         }
@@ -2880,10 +2978,23 @@ CMD ["npm", "start"]
             });
             this.logger.log(`Created overlay network ${request.name}`);
         } catch (error: unknown) {
-            // Concurrent creation from another node: accept if it now exists.
+            // Concurrent creation from another node: accept if it now exists as
+            // an overlay. A non-overlay same-name network created concurrently
+            // is still a conflict — never reuse it.
             try {
-                await network.inspect();
-            } catch {
+                const info = await network.inspect();
+                const driver = info.Driver.toLowerCase();
+                if (driver && driver !== "overlay") {
+                    const message = DockerService.getErrMsg(new Error(
+                        `Network "${request.name}" was concurrently created with driver "${driver}" — refusing to use a non-overlay network for a swarm workload.`,
+                    ));
+                    this.logger.error(`Conflict on overlay network ${request.name}: ${message}`);
+                    throw new BadGatewayException(message);
+                }
+            } catch (inspectError: unknown) {
+                if (inspectError instanceof BadGatewayException) {
+                    throw inspectError;
+                }
                 const message = DockerService.getErrMsg(error);
                 this.logger.error(`Failed to create overlay network ${request.name}: ${message}`);
                 throw new BadGatewayException(`Failed to create overlay network ${request.name}: ${message}`);

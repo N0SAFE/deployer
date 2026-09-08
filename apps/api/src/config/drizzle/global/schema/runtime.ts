@@ -20,7 +20,7 @@ export const localQueueJobs = pgTable(
     "local_queue_jobs",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        nodeId: uuid("node_id").notNull(),
+        nodeId: text("node_id").notNull(),
         deploymentRunId: uuid("deployment_run_id"),
         jobType: text("job_type").notNull(),
         state: localJobStateEnum("state").default("queued").notNull(),
@@ -48,7 +48,7 @@ export const localRuntimeProcesses = pgTable(
     "local_runtime_processes",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        nodeId: uuid("node_id").notNull(),
+        nodeId: text("node_id").notNull(),
         deploymentRunId: uuid("deployment_run_id"),
         serviceId: uuid("service_id"),
         containerName: text("container_name"),
@@ -74,7 +74,7 @@ export const localBuildCache = pgTable(
     "local_build_cache",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        nodeId: uuid("node_id").notNull(),
+        nodeId: text("node_id").notNull(),
         cacheKey: text("cache_key").notNull(),
         storagePath: text("storage_path").notNull(),
         sizeBytes: integer("size_bytes"),
@@ -94,7 +94,7 @@ export const localEventOutbox = pgTable(
     "local_event_outbox",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        nodeId: uuid("node_id").notNull(),
+        nodeId: text("node_id").notNull(),
         topic: text("topic").notNull(),
         payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
         state: localOutboxStateEnum("state").default("pending").notNull(),

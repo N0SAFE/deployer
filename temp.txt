@@ -26,7 +26,7 @@ $ dotenv -e .env -- docker compose --profile dev -f ./docker/compose/docker-comp
 #6 resolve docker.io/docker/dockerfile:1-labs@sha256:63e440b412b6acba117974e793b7e7f702e58ee65e044bdff1b8d388ee0d853b 0.0s done
 #6 CACHED
 
-#7 [doc-dev internal] load metadata for docker.io/oven/bun:1.4.0-alpine
+#7 [doc-dev internal] load metadata for docker.io/oven/bun:1.4.2-alpine
 #7 DONE 1.7s
 
 #8 [web-dev internal] load .dockerignore
@@ -36,8 +36,8 @@ $ dotenv -e .env -- docker compose --profile dev -f ./docker/compose/docker-comp
 #9 [api-dev internal] load metadata for docker.io/library/node:22-alpine
 #9 ...
 
-#10 [doc-dev base 1/4] FROM docker.io/oven/bun:1.4.0-alpine@sha256:07235578f79ef8c6f97d94aee7938e76f5cdba5f21ae5dbfdd3d3d38058437eb
-#10 resolve docker.io/oven/bun:1.4.0-alpine@sha256:07235578f79ef8c6f97d94aee7938e76f5cdba5f21ae5dbfdd3d3d38058437eb 0.1s done
+#10 [doc-dev base 1/4] FROM docker.io/oven/bun:1.4.2-alpine@sha256:07235578f79ef8c6f97d94aee7938e76f5cdba5f21ae5dbfdd3d3d38058437eb
+#10 resolve docker.io/oven/bun:1.4.2-alpine@sha256:07235578f79ef8c6f97d94aee7938e76f5cdba5f21ae5dbfdd3d3d38058437eb 0.1s done
 #10 DONE 0.1s
 
 #11 [web-dev internal] load build context
@@ -115,8 +115,8 @@ $ dotenv -e .env -- docker compose --profile dev -f ./docker/compose/docker-comp
 #8 transferring context: 1.22kB done
 #8 DONE 0.1s
 
-#10 [api-dev base 1/4] FROM docker.io/oven/bun:1.4.0-alpine@sha256:07235578f79ef8c6f97d94aee7938e76f5cdba5f21ae5dbfdd3d3d38058437eb
-#10 resolve docker.io/oven/bun:1.4.0-alpine@sha256:07235578f79ef8c6f97d94aee7938e76f5cdba5f21ae5dbfdd3d3d38058437eb 0.1s done
+#10 [api-dev base 1/4] FROM docker.io/oven/bun:1.4.2-alpine@sha256:07235578f79ef8c6f97d94aee7938e76f5cdba5f21ae5dbfdd3d3d38058437eb
+#10 resolve docker.io/oven/bun:1.4.2-alpine@sha256:07235578f79ef8c6f97d94aee7938e76f5cdba5f21ae5dbfdd3d3d38058437eb 0.1s done
 #10 DONE 0.1s
 
 #11 [api-dev internal] load build context
@@ -1995,7 +1995,8 @@ nextjs-nestjs-global-db        | 2026-09-02 12:29:39.822 UTC [152] ERROR:  relat
 nextjs-nestjs-global-db        | 2026-09-02 12:29:39.822 UTC [152] STATEMENT:  insert into "docker_runtime_activities" ("id", "event_fingerprint", "event_id", "flow_id", "depends_on_flow_id", "source", "action", "actor_id", "status", "category", "severity", "progress", "stage", "scanner", "message", "actor_attributes", "payload", "raw", "occurred_at", "created_at", "updated_at") values (default, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) on conflict ("event_fingerprint") do nothing
 nextjs-nestjs-global-db        | 2026-09-02 12:29:39.872 UTC [153] ERROR:  relation "docker_runtime_activities" does not exist at character 13
 nextjs-nestjs-global-db        | 2026-09-02 12:29:39.872 UTC [153] STATEMENT:  insert into "docker_runtime_activities" ("id", "event_fingerprint", "event_id", "flow_id", "depends_on_flow_id", "source", "action", "actor_id", "status", "category", "severity", "progress", "stage", "scanner", "message", "actor_attributes", "payload", "raw", "occurred_at", "created_at", "updated_at") values (default, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) on conflict ("event_fingerprint") do nothing
-[Knextjs-nestjs-web-dev exited with code 1 (restarting)
+
+[Knextjs-nestjs-web-dev exited with code 1 (restarting)
 nextjs-nestjs-web-dev          | 🚀 Starting web dev server...
 nextjs-nestjs-global-db        | 2026-09-02 12:29:40.092 UTC [154] ERROR:  relation "docker_runtime_activities" does not exist at character 13
 nextjs-nestjs-global-db        | 2026-09-02 12:29:40.092 UTC [154] STATEMENT:  insert into "docker_runtime_activities" ("id", "event_fingerprint", "event_id", "flow_id", "depends_on_flow_id", "source", "action", "actor_id", "status", "category", "severity", "progress", "stage", "scanner", "message", "actor_attributes", "payload", "raw", "occurred_at", "created_at", "updated_at") values (default, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) on conflict ("event_fingerprint") do nothing

@@ -1,6 +1,6 @@
 import path from "path";
 import fs from "fs";
-import { z } from "zod";
+import * as z from "zod";
 
 const CONFIG = "declarative-routing.config.json";
 

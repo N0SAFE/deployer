@@ -13,7 +13,7 @@ export const nodeNetworkConfig = pgTable(
     "node_network_config",
     {
         /** Mesh node this config belongs to (uuid — same as cluster_nodes.nodeId). */
-        nodeId: uuid("node_id").primaryKey(),
+        nodeId: text("node_id").primaryKey(),
         /**
          * The manually-configured globally reachable address: a bare IP
          * (203.0.113.10), a hostname (node.example.com) or a full origin+path.

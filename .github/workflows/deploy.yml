@@ -33,7 +33,7 @@ env:
   IMAGE_NAME: deployer
 
   # Bun version must match the Dockerfile base image
-  BUN_VERSION: "1.4.0"
+  BUN_VERSION: "1.4.2"
 
 jobs:
   # ── Job 1: Extract version from package.json ──────────────────────────────

@@ -10,22 +10,18 @@ import {
   AuthDashboardDockerImages,
   AuthDashboardDockerLogs,
   AuthDashboardDockerNetworks,
-  AuthDashboardDockerRegistry,
   AuthDashboardDockerShell,
-  AuthDashboardDockerStacks,
   AuthDashboardDockerVolumes,
 } from '@/routes'
 import { cn } from '@/lib/utils'
 
 const TABS: Array<{ label: string; href: string }> = [
   { label: 'Overview', href: AuthDashboardDocker() },
-  { label: 'Containers', href: AuthDashboardDockerContainers() },
+  { label: 'Tasks · Containers', href: AuthDashboardDockerContainers() },
   { label: 'Logs', href: AuthDashboardDockerLogs() },
   { label: 'Images', href: AuthDashboardDockerImages() },
   { label: 'Networks', href: AuthDashboardDockerNetworks() },
   { label: 'Volumes', href: AuthDashboardDockerVolumes() },
-  { label: 'Stacks', href: AuthDashboardDockerStacks() },
-  { label: 'Registry', href: AuthDashboardDockerRegistry() },
   { label: 'Activity', href: AuthDashboardDockerActivity() },
   { label: 'Shell', href: AuthDashboardDockerShell() },
 ]

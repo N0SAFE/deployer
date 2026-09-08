@@ -313,6 +313,12 @@ export const apiEnvSchema = zod
         // (SwarmBootstrapService → SwarmClusterService.ensureCluster, all via
         // the dockerode SDK — no CLI). SWARM_ENABLED=false restores pure
         // supervisor mode (edge nodes, constrained hosts).
+        //
+        // LAYERING: Swarm schedules the WORKLOAD Deployer owns — user
+        // deployments / projects / services (runners/swarm creates per-project
+        // overlay networks + services). Deployer's OWN platform infra (ingress
+        // Traefik, DB, Redis, shared network) is managed by the platform
+        // supervisors or Compose (MANAGED_*_ENABLED) — never by Swarm.
         SWARM_ENABLED: booleanEnv().default(true),
         // Advertise address forced for `docker swarm init`. When unset the
         // engine auto-selects (first non-loopback interface); prefer the
@@ -337,11 +343,6 @@ export const apiEnvSchema = zod
         SWARM_MAX_TERM_SKEW: zod.coerce.number().int().min(0).default(2),
         // Winner must have been up this long before a takeover is allowed.
         SWARM_TAKEOVER_MIN_UPTIME_MS: zod.coerce.number().int().min(0).default(120000),
-        // API-driven platform stack: when the engine is in swarm mode, the API
-        // deploys its OWN ingress (Traefik swarm provider) as swarm services —
-        // no CLI scripts, no manual `docker stack deploy`. Disable to keep the
-        // supervisor-managed compose path.
-        SWARM_PLATFORM_STACK: booleanEnv().default(true),
 
         // ─── Database service primitive (scaled Postgres instances) ──────
         // A "database service" is a scaled set of managed Postgres instances
@@ -412,14 +413,20 @@ export const apiEnvSchema = zod
         // Using .default() which reads from process.env via expandVariables
         DISABLE_AUTO_SCAN: booleanEnv().default(false),
         ENABLE_SEEDING: booleanEnv().default(false),
-        // Dev first-run bootstrap — documented in .env.example/.env.template
-        // ("startup creates default admin + seeds") but was previously NOT in
-        // the schema and never consumed. Now: when NODE_ENV !== 'production',
-        // the orchestrator ensures the default admin (DEFAULT_ADMIN_EMAIL /
-        // DEFAULT_ADMIN_PASSWORD) exists after global migrations — default
-        // true so a fresh compose-managed dev stack boots with credentials.
-        // Set false to keep the first-run wizard flow. In production the
-        // equivalent gate is ENABLE_SEEDING.
+        // ADMIN_BOOTSTRAP — canonical switch for the post-migration admin
+        // bootstrap (defaults to `auto`, resolved by ProvisioningPolicy):
+        //   auto  → mode-based default (compose/explicit-provided DB ⇒ always;
+        //           managed/manual wizard ⇒ when_empty)
+        //   true  → ensure the default admin on every ready boot
+        //   false → never auto-create the admin (wizard/manual only)
+        // Deprecated aliases (honoured only when ADMIN_BOOTSTRAP is unset):
+        //   ENABLE_DEV_BOOTSTRAP (dev) and ENABLE_SEEDING (prod).
+        ADMIN_BOOTSTRAP: zod.enum(["auto", "true", "false"]).default("auto"),
+        // Dev first-run bootstrap — DEPRECATED alias for ADMIN_BOOTSTRAP in
+        // dev (kept for .env/.env.example compatibility; logs a warning when
+        // used without ADMIN_BOOTSTRAP). When NODE_ENV !== 'production' the
+        // orchestrator ensures the default admin after global migrations
+        // (mode default: always for a provided DB, when_empty for wizard).
         ENABLE_DEV_BOOTSTRAP: booleanEnv().default(true),
         SKIP_MIGRATIONS: booleanEnv().optional().default(false),
 

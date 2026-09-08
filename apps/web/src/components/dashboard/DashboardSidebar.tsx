@@ -19,7 +19,12 @@ import {
   Globe,
   Network,
   Activity,
-  SlidersHorizontal,
+  Boxes,
+  Image as ImageIcon,
+  ScrollText,
+  TerminalSquare,
+  ServerCog,
+  HardDrive,
 } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
@@ -72,43 +77,16 @@ interface NavItem {
   items?: { title: string; url: string }[]
 }
 
-const mainNavItems: NavItem[] = [
-  { 
-    title: 'Overview', 
+/** Fleet group: overview + the cluster spine + the fleet node list. */
+const fleetNavItems: NavItem[] = [
+  {
+    title: 'Overview',
     url: '/dashboard',
     icon: LayoutDashboard,
     exact: true,
   },
   {
-    title: 'Analytics',
-    url: '/dashboard/analytics',
-    icon: Activity,
-  },
-]
-
-/** Mesh-wide items: projects, services, domains, configuration (span all nodes) */
-const meshNavItems: NavItem[] = [
-  {
-    title: 'Services',
-    url: '/dashboard/services',
-    icon: Server,
-  },
-  {
-    title: 'Domains',
-    url: '/dashboard/admin/domains',
-    icon: Globe,
-  },
-  {
-    title: 'Configuration',
-    url: '/dashboard/configuration',
-    icon: SlidersHorizontal,
-  },
-]
-
-/** Node-scoped items: nodes, cluster, deployments, docker (per-node scope) */
-const nodeNavItems: NavItem[] = [
-  {
-    title: 'Nodes',
+    title: 'Fleet',
     url: '/dashboard/nodes',
     icon: Network,
   },
@@ -117,41 +95,51 @@ const nodeNavItems: NavItem[] = [
     url: '/dashboard/cluster',
     icon: Server,
   },
+]
+
+/** Mesh-wide workload group: services, deployments, domains span every node. */
+const workloadNavItems: NavItem[] = [
   {
     title: 'Deployments',
     url: '/dashboard/deployments',
     icon: Rocket,
   },
   {
-    title: 'Docker',
-    url: '/dashboard/docker',
-    icon: Container,
-    items: [
-      { title: 'Overview', url: '/dashboard/docker' },
-      { title: 'Containers', url: '/dashboard/docker/containers' },
-      { title: 'Logs', url: '/dashboard/docker/logs' },
-      { title: 'Shell', url: '/dashboard/docker/shell' },
-      { title: 'Stacks', url: '/dashboard/docker/stacks' },
-      { title: 'Images', url: '/dashboard/docker/images' },
-      { title: 'Volumes', url: '/dashboard/docker/volumes' },
-      { title: 'Networks', url: '/dashboard/docker/networks' },
-      { title: 'Registry', url: '/dashboard/docker/registry' },
-      { title: 'Activity', url: '/dashboard/docker/activity' },
-    ],
+    title: 'Services',
+    url: '/dashboard/services',
+    icon: ServerCog,
+  },
+  {
+    title: 'Domains',
+    url: '/dashboard/admin/domains',
+    icon: Globe,
+  },
+  {
+    title: 'Analytics',
+    url: '/dashboard/analytics',
+    icon: Activity,
   },
 ]
 
-/** Subtle go-to hints for the primary nav (matched in the command palette). */
-const navShortcuts: Record<string, string> = {
-  Overview: 'g o',
-  Projects: 'g p',
-  Deployments: 'g d',
-  Services: 'g s',
-  Docker: 'g c',
-  Nodes: 'g n',
-  Profile: 'g u',
-  System: 'g a',
-}
+/** The connected node's engine resources (node-scoped, not a docker hub). */
+const engineNavItems: NavItem[] = [
+  {
+    title: 'Overview',
+    url: '/dashboard/docker',
+    icon: Boxes,
+  },
+  {
+    title: 'Tasks · Containers',
+    url: '/dashboard/docker/containers',
+    icon: Container,
+  },
+  { title: 'Images', url: '/dashboard/docker/images', icon: ImageIcon },
+  { title: 'Networks', url: '/dashboard/docker/networks', icon: Network },
+  { title: 'Volumes', url: '/dashboard/docker/volumes', icon: HardDrive },
+  { title: 'Logs', url: '/dashboard/docker/logs', icon: ScrollText },
+  { title: 'Shell', url: '/dashboard/docker/shell', icon: TerminalSquare },
+  { title: 'Activity', url: '/dashboard/docker/activity', icon: Activity },
+]
 
 const adminNavItems: NavItem[] = [
   { 
@@ -437,101 +425,61 @@ function DashboardSidebarInner() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Main Navigation */}
+        {/* Fleet group: overview + cluster spine + fleet nodes */}
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>
+            <Network className="size-3 mr-1" />
+            Fleet
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => (
-                <Collapsible
-                  key={item.title}
-                  asChild
-                  defaultOpen={isActive(item) || hasActiveChild(item)}
-                  className="group/collapsible"
-                >
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.title}>
-                      <Link href={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                        {navShortcuts[item.title] ? (
-                          <kbd className="ml-auto hidden rounded border border-transparent px-1 font-mono text-[10px] text-muted-foreground/70 group-data-[collapsible=icon]:hidden lg:inline-block">
-                            {navShortcuts[item.title]}
-                          </kbd>
-                        ) : null}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </Collapsible>
+              {fleetNavItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.title}>
+                    <Link href={item.url}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Mesh Section: Projects, Services — span all nodes */}
+        {/* Workloads group — mesh-wide */}
         <SidebarGroup>
           <SidebarGroupLabel>
-            <Network className="size-3 mr-1" />
-            Mesh
+            <Rocket className="size-3 mr-1" />
+            Workloads
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {meshNavItems.map((item) => (
-                <Collapsible
-                  key={item.title}
-                  asChild
-                  defaultOpen={isActive(item) || hasActiveChild(item)}
-                  className="group/collapsible"
-                >
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.title}>
-                      <Link href={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                    {item.items?.length ? (
-                      <>
-                        <CollapsibleTrigger asChild>
-                          <SidebarMenuAction className="group-data-[state=open]/collapsible:rotate-90">
-                            <ChevronRight />
-                            <span className="sr-only">Toggle</span>
-                          </SidebarMenuAction>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <SidebarMenuSub>
-                            {item.items.map((subItem) => (
-                              <SidebarMenuSubItem key={subItem.title}>
-                                <SidebarMenuSubButton asChild isActive={pathname === subItem.url || pathname.startsWith(`${subItem.url}/`)}>
-                                  <Link href={subItem.url}>
-                                    <span>{subItem.title}</span>
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            ))}
-                          </SidebarMenuSub>
-                        </CollapsibleContent>
-                      </>
-                    ) : null}
-                  </SidebarMenuItem>
-                </Collapsible>
+              {workloadNavItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.title}>
+                    <Link href={item.url}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               ))}
-
               {/* Inline Projects Section */}
               <ProjectsSidebarSection />
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Node Section: Nodes, Deployments, Docker — per-node scope */}
+        {/* Node scope — the connected node's engine (no global 'Docker' hub) */}
         <SidebarGroup>
           <SidebarGroupLabel>
             <Server className="size-3 mr-1" />
-            Nodes
+            Connected node · Engine
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {nodeNavItems.map((item) => (
+              {engineNavItems.map((item) => (
                 <Collapsible
                   key={item.title}
                   asChild

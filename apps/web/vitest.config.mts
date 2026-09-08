@@ -16,6 +16,8 @@ const shared = createNextJsConfig({
             '@repo/type-guards': path.resolve(__dirname, '../../packages/utils/type-guards/src/index.ts'),
             '@repo/api-contracts': path.resolve(__dirname, '../../packages/contracts/api/index.ts'),
             '@repo/auth': path.resolve(__dirname, '../../packages/utils/auth/src'),
+            '@repo/contracts-entities': path.resolve(__dirname, '../../packages/contracts/entities/src/index.ts'),
+            '@repo/contracts-common': path.resolve(__dirname, '../../packages/contracts/common/src/index.ts'),
             '@repo/orpc-utils': path.resolve(__dirname, '../../packages/utils/orpc/src/index.ts'),
             '@repo/ui': path.resolve(__dirname, '../../packages/ui/base/src'),
             '@repo': path.resolve(__dirname, '../../packages'),
@@ -32,6 +34,23 @@ const shared = createNextJsConfig({
 export default defineConfig({
     ...shared,
     test: {
+        // Default environment for root vitest workspace (which doesn't resolve
+        // nested projects). When running standalone from apps/web, the nested
+        // `projects` array below handles unit (jsdom) vs e2e (node) properly.
+        environment: 'jsdom',
+        setupFiles: ['./vitest.setup.ts'],
+        globals: true,
+        include: [
+            'src/**/*.test.{ts,tsx,js,jsx}',
+            'src/**/*.spec.{ts,tsx,js,jsx}',
+            'src/**/__tests__/**/*.{ts,tsx,js,jsx}',
+        ],
+        exclude: [
+            'node_modules',
+            'dist',
+            '.next',
+            'src/**/*.e2e.spec.{ts,tsx}',
+        ],
         // Projects split (same pattern as apps/api): fast jsdom unit tests by
         // default (`test`), real-server e2e behind `test:e2e`.
         projects: [

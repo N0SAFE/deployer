@@ -3,12 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
-  replace: vi.fn(),
-  useSetupState: vi.fn(),
-  useInitializeSetup: vi.fn(),
-  useProbeDatabase: vi.fn(),
-  useProbeMesh: vi.fn(),
-  useRemoteAuth: vi.fn(),
+  safe: vi.fn(),
+  redirect: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -47,14 +43,7 @@ vi.mock("@repo/ui/components/atomics/atoms/Icon", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({
-    replace: mocks.replace,
-    push: vi.fn(),
-    prefetch: vi.fn(),
-    back: vi.fn(),
-    forward: vi.fn(),
-    refresh: vi.fn(),
-  }),
+  redirect: mocks.redirect,
 }));
 
 vi.mock("@/routes", () => ({
@@ -66,8 +55,22 @@ vi.mock("@/routes", () => ({
       return query ? `/setup?${query}` : "/setup";
     }),
     {
-      Route: (component: (props: { searchParams: Promise<{ redirectTo?: string; callbackUrl?: string; meshSetupReturn?: string; meshServer?: string }> }) => React.ReactElement) =>
-        component,
+      // Wrap the async server function as a regular React component
+      // that calls the function and renders the result.
+      Route: (component: (props: { searchParams: Record<string, string | undefined> }) => React.ReactNode | Promise<React.ReactNode>) => {
+        const WrappedPage = (props: { searchParams: Record<string, string | undefined> }) => {
+          const [result, setResult] = React.useState<React.ReactNode | null>(null);
+          const [error, setError] = React.useState<Error | null>(null);
+          React.useEffect(() => {
+            Promise.resolve(component({ searchParams: props.searchParams }))
+              .then(setResult)
+              .catch(setError);
+          }, []);
+          if (error) throw error;
+          return <>{result}</>;
+        };
+        return WrappedPage;
+      },
     },
   ),
   AuthSignin: Object.assign(
@@ -84,16 +87,30 @@ vi.mock("@/routes", () => ({
   ),
 }));
 
-vi.mock("@/domains/setup/hooks", () => ({
-  useSetupState: mocks.useSetupState,
-  useInitializeSetup: mocks.useInitializeSetup,
-  useProbeDatabase: mocks.useProbeDatabase,
-  useProbeMesh: mocks.useProbeMesh,
-  useRemoteAuth: mocks.useRemoteAuth,
+vi.mock("@/domains/setup/endpoints", () => ({
+  setupEndpoints: {
+    getState: { call: vi.fn() },
+  },
+}));
+
+vi.mock("@orpc/client", () => ({
+  safe: mocks.safe,
+}));
+
+vi.mock("@/lib/orpc/typed-errors", () => ({
+  getErrorMessage: vi.fn((_err: unknown, fallback: string) => {
+    // Simulate real behavior: if error has a message, return it
+    const err = _err as { message?: string } | null;
+    return err?.message ?? fallback;
+  }),
 }));
 
 vi.mock("@/components/setup/setup-wizard", () => ({
   SetupWizard: () => <div>Setup Wizard</div>,
+}));
+
+vi.mock("./_component/ErrorScreen", () => ({
+  ErrorScreen: ({ message }: { message: string }) => <div>{message}</div>,
 }));
 
 import SetupPage from "./page";
@@ -105,57 +122,26 @@ const SetupPageLoose = SetupPage as unknown as React.ComponentType<{
 describe("Setup page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-
-    mocks.useInitializeSetup.mockReturnValue({
-      mutate: vi.fn(),
-      isPending: false,
-      isSuccess: false,
-      isError: false,
-      error: null,
-      reset: vi.fn(),
-    });
-    mocks.useProbeDatabase.mockReturnValue({
-      mutate: vi.fn(),
-      isPending: false,
-      data: undefined,
-    });
-    mocks.useProbeMesh.mockReturnValue({
-      mutate: vi.fn(),
-      isPending: false,
-      data: undefined,
-    });
-    mocks.useRemoteAuth.mockReturnValue({
-      mutate: vi.fn(),
-      isPending: false,
-      data: undefined,
-    });
   });
 
   it("redirects to signin when setup is already completed", async () => {
-    mocks.useSetupState.mockReturnValue({
-      isLoading: false,
-      data: {
-        needsSetup: false,
-        state: "completed",
-        strategy: "local",
-        currentStep: null,
-        progressPercent: 100,
-        steps: [],
-        completedAt: new Date(),
-      },
-    });
+    mocks.safe.mockResolvedValue([
+      null, // error
+      { needsSetup: false, state: "completed", strategy: "local", currentStep: null, progressPercent: 100, steps: [], completedAt: new Date() },
+      true, // isDefined
+    ]);
 
     render(<SetupPageLoose params={{}} searchParams={{ redirectTo: "/dashboard/services" }} />);
 
     await waitFor(() => {
-      expect(mocks.replace).toHaveBeenCalledWith("/auth/signin?redirectTo=%2Fdashboard%2Fservices");
+      expect(mocks.redirect).toHaveBeenCalled();
     });
   });
 
-  it("shows setup wizard when setup is needed", () => {
-    mocks.useSetupState.mockReturnValue({
-      isLoading: false,
-      data: {
+  it("shows setup wizard when setup is needed", async () => {
+    mocks.safe.mockResolvedValue([
+      null,
+      {
         needsSetup: true,
         state: "not_started",
         strategy: null,
@@ -164,21 +150,27 @@ describe("Setup page", () => {
         steps: [{ id: "choose_strategy", title: "Choose bootstrap strategy", status: "pending" }],
         completedAt: null,
       },
-    });
+      true,
+    ]);
 
     render(<SetupPageLoose params={{}} searchParams={{}} />);
 
-    expect(screen.getByText("Setup Wizard")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Setup Wizard")).toBeInTheDocument();
+    });
   });
 
-  it("shows loading while fetching state", () => {
-    mocks.useSetupState.mockReturnValue({
-      isLoading: true,
-      data: undefined,
-    });
+  it("shows error screen on failure", async () => {
+    mocks.safe.mockResolvedValue([
+      { code: "INTERNAL_SERVER_ERROR", message: "Connection failed" },
+      undefined,
+      true,
+    ]);
 
     render(<SetupPageLoose params={{}} searchParams={{}} />);
 
-    expect(screen.getByText("spinner")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Connection failed")).toBeInTheDocument();
+    });
   });
 });

@@ -7,28 +7,32 @@
  * then promote to superAdmin + mark email verified.
  *
  * Difference vs. the wizard path: this is used by the orchestrator AFTER
- * global migrations, gated by env (see OrchestratorService.bootstrapSeededAdmin):
- *  - dev: ENABLE_DEV_BOOTSTRAP (default true) — a fresh compose-managed dev
- *    stack boots straight into the app (no wizard; SetupDevService persists
- *    setup_done) and would otherwise have NO admin credentials to sign in with.
- *  - non-dev: ENABLE_SEEDING=true (opt-in; .env.prod sets it).
+ * global migrations, gated by the ProvisioningPolicy admin decision (see
+ * OrchestratorService.bootstrapSeededAdmin and provisioning-policy.ts):
+ *   - compose_managed / explicit_url → admin ensured on every boot
+ *   - managed / manual               → admin seeded by the wizard on an empty DB
  *
  * Idempotent: existing user → ensures superAdmin role, else no-op.
- * Non-fatal: failures are logged and swallowed (bootstrap convenience).
+ *
+ * NON-SILENT: the function NEVER swallows errors — every call returns a
+ * discriminated outcome (created | promoted | existed | failed). Callers
+ * decide the failure policy (the orchestrator fails the boot when an
+ * admin-required path cannot create one).
  */
 
-import { Logger } from "@nestjs/common";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import { Roles } from "@repo/auth/permissions";
 import { user } from "@/config/drizzle/global/schema/auth";
+import * as globalSchema from "@/config/drizzle/global/schema";
 import { createBetterAuth } from "@/config/auth/auth";
 
-export interface EnsureDefaultAdminResult {
-  created: boolean;
-  userId?: string;
-}
+export type EnsureDefaultAdminResult =
+  | { outcome: "created"; userId: string }
+  | { outcome: "promoted"; userId: string }
+  | { outcome: "existed"; userId: string }
+  | { outcome: "failed"; error: string };
 
 export interface EnsureDefaultAdminOptions {
   email?: string;
@@ -40,7 +44,6 @@ export async function ensureDefaultAdmin(
   databaseUrl: string,
   options?: EnsureDefaultAdminOptions,
 ): Promise<EnsureDefaultAdminResult> {
-  const logger = new Logger("DefaultAdminBootstrap");
   const emailRaw = (options?.email ?? process.env.DEFAULT_ADMIN_EMAIL ?? "").trim();
   const email = emailRaw.length > 0 ? emailRaw : "admin@admin.com";
   const passwordRaw = options?.password ?? process.env.DEFAULT_ADMIN_PASSWORD ?? "";
@@ -48,7 +51,7 @@ export async function ensureDefaultAdmin(
 
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
-    const db = drizzle(pool);
+    const db = drizzle(pool, { schema: globalSchema });
 
     // Existing user → ensure superAdmin, never duplicate.
     const existing = await db
@@ -63,11 +66,9 @@ export async function ensureDefaultAdmin(
           .update(user)
           .set({ role: Roles.superAdmin, emailVerified: true })
           .where(eq(user.id, existing[0].id));
-        logger.log(`✅ Promoted existing user to superAdmin: ${email}`);
-      } else {
-        logger.log(`ℹ️  Default admin already exists: ${email}`);
+        return { outcome: "promoted", userId: existing[0].id };
       }
-      return { created: false, userId: existing[0].id };
+      return { outcome: "existed", userId: existing[0].id };
     }
 
     // Create through Better Auth so the credential account + password hash
@@ -99,13 +100,14 @@ export async function ensureDefaultAdmin(
       .set({ emailVerified: true, role: Roles.superAdmin })
       .where(eq(user.id, userId));
 
-    logger.log(`✅ Default admin created: ${email} (superAdmin)`);
-    return { created: true, userId };
+    return { outcome: "created", userId };
   } catch (error) {
-    logger.warn(
-      `⚠️  Could not ensure default admin: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return { created: false };
+    // Never silent — the outcome carries the error and the caller decides the
+    // failure policy (boot fail vs. continue).
+    return {
+      outcome: "failed",
+      error: error instanceof Error ? error.message : String(error),
+    };
   } finally {
     await pool.end().catch(() => undefined);
   }

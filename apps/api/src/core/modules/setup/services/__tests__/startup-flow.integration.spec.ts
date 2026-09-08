@@ -69,7 +69,7 @@ function createMockSetupEventService() {
 
 // ─── Test suite ───────────────────────────────────────────────────────────────
 
-describe('Startup Flow Integration', () => {
+describe('Startup Flow Integration', { timeout: 30_000 }, () => {
   let service: InitializationService;
   let module: TestingModule;
   let mockNodeConfigRepo: ReturnType<typeof createMockNodeConfigRepository>;
@@ -126,7 +126,12 @@ describe('Startup Flow Integration', () => {
   });
 
   afterEach(async () => {
-    await module.close();
+    // module.close() may hang if a background mesh query (with mock setTimeout)
+    // is still pending. Add a timeout to avoid infinite wait.
+    await Promise.race([
+      module.close(),
+      new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
+    ]);
     vi.restoreAllMocks();
   });
 

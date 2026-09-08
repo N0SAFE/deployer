@@ -7,7 +7,7 @@ describe('service schema validation', () => {
     projectId: '22222222-2222-4222-8222-222222222222',
     name: 'api',
     description: null,
-    type: 'web',
+    type: 'application',
     providerId: 'github' as const,
     providerConfig: {
       sourceUrl: 'https://github.com/acme/repo.git',
@@ -42,6 +42,12 @@ describe('service schema validation', () => {
     customDomains: null,
     isActive: true,
     metadata: null,
+    network: null,
+    implementsContract: null,
+    preview: null,
+    parentId: null,
+    parentPath: null,
+    depth: 0,
     createdAt: '2026-03-27T10:00:00Z',
     updatedAt: '2026-03-27T10:00:00Z',
   }

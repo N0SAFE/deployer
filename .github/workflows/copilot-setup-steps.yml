@@ -54,7 +54,7 @@ jobs:
       SKIP_STATIC_GENERATION: true
       
       # Package manager settings
-      BUN_VERSION: "1.4.0"
+      BUN_VERSION: "1.4.2"
 
     # Services for running Docker containers if needed
     services:

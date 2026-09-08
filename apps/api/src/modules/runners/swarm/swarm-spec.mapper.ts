@@ -72,7 +72,12 @@ export function toDockerServiceSpec(input: SwarmServiceSpecInput): Docker.Servic
         Name: input.name,
         Labels: input.labels,
         TaskTemplate: taskTemplate,
-        Mode: { Replicated: { Replicas: input.replicas } },
+        // Global mode = one task on every node (platform node-local infra);
+        // replicated = the requested replica count (user workloads).
+        Mode:
+            input.mode === "global"
+                ? { Global: {} }
+                : { Replicated: { Replicas: input.replicas } },
         UpdateConfig: toUpdateConfig(input.updateConfig),
         ...(input.rollbackConfig ? { RollbackConfig: toUpdateConfig(input.rollbackConfig) } : {}),
         ...(input.endpointPorts.length > 0

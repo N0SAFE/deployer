@@ -12,7 +12,10 @@
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
         "lint": "eslint . --fix --cache --concurrency=auto",
-        "type-check": "tsc --noEmit"
+        "type-check": "tsc --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage"
     },
     "dependencies": {
         "@nestjs/common": "catalog:api:nest",
@@ -29,6 +32,7 @@
         "@repo/config-typescript": "*",
         "@types/node": "catalog:build",
         "eslint": "catalog:linting",
-        "typescript": "catalog:build"
+        "typescript": "catalog:build",
+        "vitest": "catalog:testing"
     }
 }

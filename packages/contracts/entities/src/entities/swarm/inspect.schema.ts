@@ -75,6 +75,75 @@ export const swarmTaskStateCheckSchema = z.object({
 })
 export type SwarmTaskStateCheck = z.infer<typeof swarmTaskStateCheckSchema>
 
+// ─── Fleet runtime views (cluster contract surface) ─────────────────────────
+
+/**
+ * Live service summary — the mesh-wide view of a running swarm service:
+ * deployment mode (global runs on every node; replicated has a target
+ * replica count), image, desired vs running tasks. Produced by
+ * `SwarmFleetService` from engine probes.
+ */
+export const swarmServiceRuntimeSchema = swarmServiceInspectSchema.extend({
+  mode: z.enum(['global', 'replicated']),
+  /** null when global (runs everywhere). */
+  replicas: z.number().int().nonnegative().nullable(),
+  desiredTasks: z.number().int().nonnegative().default(0),
+  runningTasks: z.number().int().nonnegative().default(0),
+})
+export type SwarmServiceRuntime = z.infer<typeof swarmServiceRuntimeSchema>
+
+/**
+ * Live task summary — one swarm task with its scheduling slot and the
+ * owning service's name (joined by the aggregation service). Container id
+ * is null until the task has been assigned a container.
+ */
+export const swarmTaskRuntimeSchema = swarmTaskSchema.extend({
+  serviceName: z.string().default(''),
+  image: z.string().default(''),
+})
+export type SwarmTaskRuntime = z.infer<typeof swarmTaskRuntimeSchema>
+
+// ─── Per-node docker artifact summaries (node resources surface) ────────────
+
+export const swarmNodeImageSummarySchema = z.object({
+  id: z.string(),
+  repoTags: z.array(z.string()).default([]),
+  sizeBytes: z.number().nullable().default(null),
+})
+export type SwarmNodeImageSummary = z.infer<typeof swarmNodeImageSummarySchema>
+
+export const swarmNodeNetworkSummarySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  driver: z.string().default(''),
+  scope: z.string().default(''),
+})
+export type SwarmNodeNetworkSummary = z.infer<typeof swarmNodeNetworkSummarySchema>
+
+export const swarmNodeVolumeSummarySchema = z.object({
+  name: z.string(),
+  driver: z.string().default(''),
+  mountpoint: z.string().default(''),
+})
+export type SwarmNodeVolumeSummary = z.infer<typeof swarmNodeVolumeSummarySchema>
+
+/**
+ * Per-node resource aggregation: swarm services/tasks scheduled on the node
+ * plus (when the API node is the queried node — `dockerScope: 'local'`) the
+ * engine's local images/networks/volumes. Remote nodes only expose the
+ * swarm-visible portion (`dockerScope: 'remote'`, docker arrays empty).
+ */
+export const swarmNodeResourcesSchema = z.object({
+  nodeId: z.string().min(1),
+  dockerScope: z.enum(['local', 'remote']),
+  services: z.array(swarmServiceRuntimeSchema).default([]),
+  tasks: z.array(swarmTaskRuntimeSchema).default([]),
+  images: z.array(swarmNodeImageSummarySchema).default([]),
+  networks: z.array(swarmNodeNetworkSummarySchema).default([]),
+  volumes: z.array(swarmNodeVolumeSummarySchema).default([]),
+})
+export type SwarmNodeResources = z.infer<typeof swarmNodeResourcesSchema>
+
 // ─── Secret / Config snapshot ───────────────────────────────────────────────
 
 export const swarmSecretSchema = z.object({

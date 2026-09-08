@@ -20,7 +20,7 @@ Primary compose sets live under `docker/compose/`:
 	- Docs: `doc/docker-compose.doc.prod.yml`, `doc/docker-compose.doc.prod-like.yml`
 
 <DocCallout title="Production model for v3" tone="success">
-The production model is Docker Swarm (manager + worker nodes), implemented behind the dockerode SDK — no independent per-node compose islands in the fleet runtime, and NO `docker stack deploy` / CLI scripts: the API converges the engine into swarm mode (SwarmBootstrapService) and deploys its own platform stack (PlatformStackService). Compose files remain useful for local/dev/prod-like flows. See `docs/swarm-orchestration/`.
+The production model is Docker Swarm (manager + worker nodes), implemented behind the dockerode SDK — no independent per-node compose islands in the fleet runtime, and NO `docker stack deploy` / CLI scripts: the API converges the engine into swarm mode (SwarmBootstrapService). **Layering:** Swarm schedules the workload Deployer owns (user deployments/projects/services via the `runners/swarm` backend); Deployer's own platform services (`api`, `web`, `traefik`, DB) stay under supervisor / compose ownership — never scheduled on Swarm. Compose files remain useful for local/dev/prod-like flows. See `docs/swarm-orchestration/`.
 </DocCallout>
 
 ## Production topology (Swarm manager + worker nodes) — implemented
@@ -28,10 +28,10 @@ The production model is Docker Swarm (manager + worker nodes), implemented behin
 - One Swarm cluster per environment (prod/staging/etc.).
 - Manager node(s) own orchestration state and scheduling decisions.
 - Worker nodes join the cluster and execute scheduled workloads; **shared-node rule**: every node runs control-plane AND user workloads (no dedicated workers).
-- Control-plane services (`api`, `web`, `traefik`) are deployed as Swarm services (`docker/compose/docker-stack.deploy.yml`) and managed from a manager node.
+- Control-plane services (`api`, `web`, `traefik`) are managed by the platform supervisors or Compose — NOT scheduled on Swarm. Only deployed user workloads (projects/services) become Swarm services via the `runners/swarm` backend.
 - The **controlling manager is elected by the mesh** (weighted score, quorum-aware, term-guarded CAS) — the platform master, distinct from Swarm's Raft leader.
 - For high availability, prefer an odd manager quorum (`3` managers) over a single manager.
-- Single-node installs run the SAME code path: the API idempotently `swarm init`s the host (manager == worker) and deploys the platform ingress stack (`SWARM_PLATFORM_STACK`, default on) — no manual scripts.
+- Single-node installs run the SAME code path: the API idempotently `swarm init`s the host (manager == worker) to schedule Deployer-owned workloads; the platform ingress/infra (Traefik, DB, Redis) stays supervisor/compose-managed — no manual scripts.
 
 ## Replica policy (minimum 2 when possible)
 

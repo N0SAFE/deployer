@@ -188,10 +188,11 @@ export class TraefikPlatformConfigService {
 			// deployments / previews) is DB-driven, so it is skipped — but
 			// api + web routes are still published, keeping
 			// api.<host> / web.<host> reachable while the setup wizard runs.
-			this.logger.warn(
-				`Platform routes unavailable at boot (global DB not ready yet?) — skipping domain family: ${
-					error instanceof Error ? error.message : String(error)
-				}`,
+			this.logger.log(
+				"ℹ️  Platform domain routes deferred — global DB not ready yet (first-boot / setup phase)",
+			);
+			this.logger.debug(
+				`Domain routes skipped: ${error instanceof Error ? error.message : String(error)}`,
 			);
 			return [];
 		}
@@ -262,7 +263,10 @@ export class TraefikPlatformConfigService {
 			await writeFile(file, this.routeConfig.buildDomainRoutesYaml(routes), "utf8");
 		} catch (error) {
 			const msg = error instanceof Error ? error.message : String(error);
-			this.logger.warn(`Per-service Traefik config sync skipped: ${msg}`);
+			this.logger.log(
+				"ℹ️  Per-service Traefik configs deferred — global DB not ready yet (first-boot / setup phase)",
+			);
+			this.logger.debug(`Per-service config sync skipped: ${msg}`);
 			await rm(file, { force: true }).catch(() => undefined);
 		}
 	}

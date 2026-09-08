@@ -1,5 +1,6 @@
 import { AppError } from "@repo/errors";
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common'
+import { Pool } from 'pg'
 import { ReplaySubject, firstValueFrom, Observable } from 'rxjs'
 import type {
     SetupInitializeInput,
@@ -31,6 +32,21 @@ export class InitializationService implements OnModuleInit {
 
     /** Track whether an initialization is currently running. */
     private initializationPromise: Promise<void> | null = null
+
+    /**
+     * Cached knowledge of whether the global DB actually contains users.
+     *
+     * hasUsers in the snapshot is NOT derived from the config row (that was a
+     * hardcoded guess). It is refreshed by a cheap, cached background probe of
+     * the "user" table whenever the node is configured, and set to true the
+     * moment a setup completes (local seeding or remote join). Between boot and
+     * the probe landing the value stays optimistically true for a configured
+     * node (the common case) — never a false negative that would block sign-in.
+     */
+    private usersPresence: { known: boolean; checkedAt: number } | null = null
+    private usersProbePromise: Promise<void> | null = null
+    private readonly HAS_USERS_PROBE_TIMEOUT_MS = 1_500
+    private readonly HAS_USERS_CACHE_TTL_MS = 30_000
 
     constructor(
         private readonly nodeConfigRepository: NodeConfigRepository,
@@ -103,6 +119,9 @@ export class InitializationService implements OnModuleInit {
                     databaseUrl: storedUrl,
                     strategy: config.strategy,
                 })
+                // Refresh the real user-presence answer in the background so
+                // hasUsers on /setup/state is truthful shortly after boot.
+                void this.refreshUserPresence(storedUrl).catch(() => undefined)
             } else if (config?.configuredAt) {
                 this.logger.warn(
                     '⚠️ Node config has configuredAt but NO database URL — treating as unconfigured (global DB is mandatory)'
@@ -149,7 +168,9 @@ export class InitializationService implements OnModuleInit {
             return {
                 state: 'completed',
                 needsSetup: false,
-                hasUsers: true,
+                // Truthful — see usersPresence. Optimistically true until the
+                // background probe resolves; never a false negative.
+                hasUsers: this.usersPresence?.known ?? true,
                 bootstrapStrategy: config.strategy,
                 availableStrategies: ['local', 'remote'],
                 currentStep: null,
@@ -330,7 +351,59 @@ export class InitializationService implements OnModuleInit {
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
+    /**
+     * Refresh the cached user-presence answer for a configured node.
+     * Cheap (SELECT EXISTS … LIMIT 1), cached for HAS_USERS_CACHE_TTL_MS,
+     * never throws. On probe failure the previous answer is kept (unknown).
+     */
+    private async refreshUserPresence(databaseUrl: string): Promise<void> {
+        const now = Date.now()
+        if (
+            this.usersPresence &&
+            now - this.usersPresence.checkedAt < this.HAS_USERS_CACHE_TTL_MS
+        ) {
+            return
+        }
+        if (this.usersProbePromise) {
+            await this.usersProbePromise
+            return
+        }
+        this.usersProbePromise = (async () => {
+            const found = await this.probeUsersExist(databaseUrl)
+            if (found !== null) {
+                this.usersPresence = { known: found, checkedAt: Date.now() }
+            }
+        })().finally(() => {
+            this.usersProbePromise = null
+        })
+        await this.usersProbePromise
+    }
+
+    /**
+     * SELECT EXISTS … on the "user" table. Returns true/false when the DB
+     * answers, null when the DB is unreachable (keep the previous answer).
+     */
+    private async probeUsersExist(databaseUrl: string): Promise<boolean | null> {
+        const pool = new Pool({
+            connectionString: databaseUrl,
+            max: 1,
+            connectionTimeoutMillis: this.HAS_USERS_PROBE_TIMEOUT_MS,
+        })
+        try {
+            const res = await pool.query<{ exists: boolean }>(
+                'SELECT EXISTS (SELECT 1 FROM "user" LIMIT 1) AS exists',
+            )
+            return Boolean(res.rows[0]?.exists)
+        } catch {
+            return null
+        } finally {
+            await pool.end().catch(() => undefined)
+        }
+    }
+
     private emitCompleted(status: SetupCompletionStatus): void {
+        // A completed setup always seeded/joined a DB that has the admin user.
+        this.usersPresence = { known: true, checkedAt: Date.now() }
         this.logger.log(
             `🚀 Setup complete — strategy=${status.strategy} nodeId=${status.nodeId}`
         )

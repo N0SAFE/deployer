@@ -1,5 +1,14 @@
-import { createFilterConfig, standard, type ComputeInputSchema, standardDomainErrorContracts } from "@repo/orpc-utils";
+import { createFilterConfig, standard, type ComputeInputSchema } from "@repo/orpc-utils";
 import { dockerRegistryEntitySchema } from "@repo/contracts-entities";
+
+/**
+ * Registry list query config — TYPE-ONLY surface.
+ *
+ * The docker registry *procedures* were removed (the fleet UI does not manage
+ * registries). This module survives because the engine runtime catalog
+ * repository (`docker.repository.listRegistries`) still consumes the typed
+ * list query input to build the read-only `registries` snapshot array.
+ */
 
 const dockerRegistryListItemSchema = dockerRegistryEntitySchema.omit({ relations: true });
 const dockerRegistryOps = standard.zod(dockerRegistryListItemSchema, "dockerRegistry");
@@ -18,9 +27,3 @@ export const dockerRegistryListConfigSchemas = createFilterConfig(dockerRegistry
   .buildConfig();
 
 export type DockerRegistryListInput = ComputeInputSchema<typeof dockerRegistryListConfigSchemas>;
-
-export const dockerListRegistriesContract = dockerRegistryOps
-  .list(dockerRegistryListConfigSchemas)
-  .path("/")
-  .errors((e) => [...standardDomainErrorContracts(e)])
-  .build();

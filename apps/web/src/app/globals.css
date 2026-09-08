@@ -150,9 +150,17 @@
   --sidebar-border: oklch(0.2450 0.0620 289.00);
   --sidebar-ring: oklch(0.6400 0.2050 300.00);
   --font-sans: Inter, system-ui, sans-serif;
+  --font-display: 'Space Grotesk', Inter, system-ui, sans-serif;
   --font-serif: Georgia, serif;
-  --font-mono: JetBrains Mono, monospace;
+  --font-mono: 'JetBrains Mono', monospace;
   --radius: 0.75rem;
+  /* Fleet-console semantic accents (light) */
+  --mesh: oklch(0.6000 0.1200 185.00);
+  --mesh-foreground: oklch(0.9850 0.0050 190.00);
+  --leader: oklch(0.7000 0.1650 65.00);
+  --leader-foreground: oklch(0.1500 0.0300 65.00);
+  --fail: oklch(0.6200 0.2200 25.00);
+  --fail-foreground: oklch(0.9850 0.0050 25.00);
   --shadow-x: 0px;
   --shadow-y: 1px;
   --shadow-blur: 2px;
@@ -205,9 +213,17 @@
   --sidebar-border: oklch(0.1550 0.0400 294.00);
   --sidebar-ring: oklch(0.7050 0.1950 304.00);
   --font-sans: Inter, system-ui, sans-serif;
+  --font-display: 'Space Grotesk', Inter, system-ui, sans-serif;
   --font-serif: Georgia, serif;
-  --font-mono: JetBrains Mono, monospace;
+  --font-mono: 'JetBrains Mono', monospace;
   --radius: 0.75rem;
+  /* Fleet-console semantic accents (dark) */
+  --mesh: oklch(0.7800 0.1400 185.00);
+  --mesh-foreground: oklch(0.1500 0.0400 190.00);
+  --leader: oklch(0.8000 0.1650 70.00);
+  --leader-foreground: oklch(0.1600 0.0300 70.00);
+  --fail: oklch(0.6900 0.1800 26.00);
+  --fail-foreground: oklch(0.9800 0.0100 26.00);
   --shadow-x: 0px;
   --shadow-y: 1px;
   --shadow-blur: 6px;
@@ -258,7 +274,15 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
+  --color-mesh: var(--mesh);
+  --color-mesh-foreground: var(--mesh-foreground);
+  --color-leader: var(--leader);
+  --color-leader-foreground: var(--leader-foreground);
+  --color-fail: var(--fail);
+  --color-fail-foreground: var(--fail-foreground);
+
   --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
 
@@ -275,7 +299,7 @@
   --shadow-lg: var(--shadow-lg);
   --shadow-xl: var(--shadow-xl);
   --shadow-2xl: var(--shadow-2xl);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-display);
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);

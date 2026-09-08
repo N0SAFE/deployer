@@ -71,6 +71,34 @@ export const dockerProcessInfoSchema = z.object({
 });
 export type DockerProcessInfo = z.infer<typeof dockerProcessInfoSchema>;
 
+/** A supervised process backed by a Docker Swarm SERVICE (not a bare container).
+ *  Used when the supervisor schedules its process on the swarm cluster
+ *  (swarm-global for node-local infra, swarm-replicated for mesh-wide). */
+export const swarmProcessInfoSchema = z.object({
+	kind: z.literal("swarm"),
+	runtime: z.enum(["swarm-global", "swarm-replicated"]),
+	desired: z.object({
+		name: z.string(),
+		image: z.string(),
+		command: z.array(z.string()).nullable(),
+		labels: z.record(z.string(), z.string()),
+		networkName: z.string().nullable(),
+		mode: z.enum(["global", "replicated"]),
+		replicas: z.number().int().min(0),
+	}),
+	/** Live view of the swarm service (all-null when the service doesn't exist). */
+	live: z.object({
+		serviceId: z.string().nullable(),
+		exists: z.boolean().nullable(),
+		createdAt: z.string().nullable(),
+		updatedAt: z.string().nullable(),
+		serviceName: z.string().nullable(),
+		runningTasks: z.number().int().min(0).nullable(),
+		totalTasks: z.number().int().min(0).nullable(),
+	}),
+});
+export type SwarmProcessInfo = z.infer<typeof swarmProcessInfoSchema>;
+
 /** A supervised process backed by a local sqlite database file. */
 export const sqliteProcessInfoSchema = z.object({
 	kind: z.literal("sqlite"),

@@ -158,6 +158,7 @@ const meshNodeConfigTestDbOps = standard.zod(meshNodeConfigTestDbResultSchema, "
 export const meshGetLocalNodeContract = meshNodeStateOps
     .list()
     .path("/node/local")
+    .input(z.object({}))
     .output((b) => meshNodeStateSchema)
     .build();
 
@@ -174,24 +175,28 @@ export const meshGetLocalNodeContract = meshNodeStateOps
 export const meshPingContract = meshPingOps
     .list()
     .path("/ping")
+    .input(z.object({}))
     .output(meshPingResultSchema)
     .build();
 
 export const meshGetNodeMetricsContract = meshSystemMetricsOps
     .list()
     .path("/node/metrics")
+    .input(z.object({}))
     .output(systemMetricsSnapshotSchema)
     .build();
 
 export const meshListPeersContract = meshPeersListOps
     .list()
     .path("/peers")
+    .input(z.object({}))
     .output(meshPeersListResultSchema)
     .build();
 
 export const meshListPeerSessionsContract = meshPeerSessionsListOps
     .list()
     .path("/peers/sessions")
+    .input(z.object({}))
     .output(meshPeerSessionsListResultSchema)
     .build();
 
@@ -250,6 +255,7 @@ export const meshPeerHeartbeatContract = meshPeerHeartbeatOps
 export const meshMembershipSnapshotContract = meshMembershipSnapshotOps
     .list()
     .path("/membership/snapshot")
+    .input(z.object({}))
     .output(meshMembershipSnapshotSchema)
     .build();
 
@@ -353,12 +359,14 @@ export const meshRevokeJoinGrantContract = meshJoinGrantRevokeOps
 export const meshTrustKeyringStatusContract = meshTrustKeyringStatusOps
     .list()
     .path("/trust/keyring")
+    .input(z.object({}))
     .output(meshTrustKeyringStatusResultSchema)
     .build();
 
 export const meshTrustKeyringSecretsContract = meshTrustKeyringSecretsOps
     .list()
     .path("/trust/keyring/secrets")
+    .input(z.object({}))
     .output(meshTrustKeyringSecretsResultSchema)
     .build();
 
@@ -372,12 +380,14 @@ export const meshTrustKeyringRotateContract = meshTrustKeyringRotateOps
 export const meshTrustKeyringConvergenceStatusContract = meshTrustKeyringConvergenceStatusOps
     .list()
     .path("/trust/keyring/convergence")
+    .input(z.object({}))
     .output(meshTrustKeyringConvergenceStatusResultSchema)
     .build();
 
 export const meshTrustStrictReadinessContract = meshTrustStrictReadinessOps
     .list()
     .path("/trust/strict/readiness")
+    .input(z.object({}))
     .output(meshTrustStrictReadinessResultSchema)
     .build();
 

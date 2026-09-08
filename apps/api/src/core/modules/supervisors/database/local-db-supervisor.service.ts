@@ -93,7 +93,7 @@ export class LocalDbSupervisorService extends BaseSupervisorService<
 
 	/** True when the deployment owns the local SQLite file (dev compose volume). */
 	private isComposeManaged(): boolean {
-		return splitManagedEnv(this.env).localDb.enabled === true;
+		return splitManagedEnv(this.env).localDb.enabled;
 	}
 
 	/**

@@ -25,6 +25,7 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3301}
       SETUP_DATABASE_URL: ${MANAGED_GLOBAL_DB_URL:-postgresql://deployer:deployer@global-db:5432/deployer}
       MANAGED_GLOBAL_DB_ENABLED: "true"
+      SETUP_AUTO: "true"
       MANAGED_REDIS_ENABLED: "true"
       MANAGED_LOCAL_DB_ENABLED: "true"
       MANAGED_TRAEFIK_ENABLED: "false"
@@ -65,6 +66,7 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_NODE_2:-http://localhost:3302}
       SETUP_DATABASE_URL: ${MANAGED_GLOBAL_DB_URL:-postgresql://deployer:deployer@global-db:5432/deployer}
       MANAGED_GLOBAL_DB_ENABLED: "true"
+      SETUP_AUTO: "true"
       MANAGED_REDIS_ENABLED: "true"
       MANAGED_LOCAL_DB_ENABLED: "true"
       MANAGED_TRAEFIK_ENABLED: "false"
@@ -104,6 +106,7 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_NODE_3:-http://localhost:3303}
       SETUP_DATABASE_URL: ${MANAGED_GLOBAL_DB_URL:-postgresql://deployer:deployer@global-db:5432/deployer}
       MANAGED_GLOBAL_DB_ENABLED: "true"
+      SETUP_AUTO: "true"
       MANAGED_REDIS_ENABLED: "true"
       MANAGED_LOCAL_DB_ENABLED: "true"
       MANAGED_TRAEFIK_ENABLED: "false"
@@ -143,6 +146,7 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_NODE_4:-http://localhost:3304}
       SETUP_DATABASE_URL: ${MANAGED_GLOBAL_DB_URL:-postgresql://deployer:deployer@global-db:5432/deployer}
       MANAGED_GLOBAL_DB_ENABLED: "true"
+      SETUP_AUTO: "true"
       MANAGED_REDIS_ENABLED: "true"
       MANAGED_LOCAL_DB_ENABLED: "true"
       MANAGED_TRAEFIK_ENABLED: "false"
@@ -182,6 +186,7 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_NODE_5:-http://localhost:3305}
       SETUP_DATABASE_URL: ${MANAGED_GLOBAL_DB_URL:-postgresql://deployer:deployer@global-db:5432/deployer}
       MANAGED_GLOBAL_DB_ENABLED: "true"
+      SETUP_AUTO: "true"
       MANAGED_REDIS_ENABLED: "true"
       MANAGED_LOCAL_DB_ENABLED: "true"
       MANAGED_TRAEFIK_ENABLED: "false"
@@ -221,6 +226,7 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_NODE_6:-http://localhost:3306}
       SETUP_DATABASE_URL: ${MANAGED_GLOBAL_DB_URL:-postgresql://deployer:deployer@global-db:5432/deployer}
       MANAGED_GLOBAL_DB_ENABLED: "true"
+      SETUP_AUTO: "true"
       MANAGED_REDIS_ENABLED: "true"
       MANAGED_LOCAL_DB_ENABLED: "true"
       MANAGED_TRAEFIK_ENABLED: "false"

@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { AuthDashboardDeployments } from '@/routes'
+import { useParams } from 'next/navigation'
+import { AuthDashboardDeployments, AuthDashboardNodesNodeId } from '@/routes'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import {
@@ -17,9 +18,10 @@ import { PageHeader, PageLoadingState, PageErrorState, StatusBadge, ScopeLabel, 
 import { useFleetServers, useFleetAllocations } from '@/domains/fleet/hooks'
 import { useDeploymentList } from '@/domains/deployment/hooks'
 import { useMeshLocalNode, useMeshNodeConfig, useMeshSseState } from '@/domains/mesh/hooks'
+import { useNodeResources } from '@/domains/cluster/hooks'
 import { isRecord } from '@repo/type-guards'
 
-type Tab = 'overview' | 'deployments' | 'configuration'
+type Tab = 'overview' | 'deployments' | 'configuration' | 'fleet'
 
 function formatBytes(mb: number | null | undefined): string {
   if (mb == null) return '—'
@@ -47,6 +49,7 @@ interface DeploymentRow {
 /** Typed projection of a fleet server row (API returns raw records). */
 interface NodeDetail {
   nodeId: string
+  swarmNodeId?: string | null
   serverUrl?: string | null
   displayName?: string | null
   status?: string
@@ -78,12 +81,9 @@ interface AllocationRow {
  * Docker for this node lives under the Docker section (it always operates
  * on the node that hosts the API answering the dashboard).
  */
-export default function DashboardNodeDetailPage({
-  params,
-}: {
-  params: { nodeId: string }
-}) {
-  const nodeId = params.nodeId
+export default function DashboardNodeDetailPage() {
+  const params = useParams<{ nodeId: string }>()
+  const nodeId = params.nodeId ?? ''
   const [tab, setTab] = useState<Tab>('overview')
 
   const { data: serversData, isLoading, error, refetch } = useFleetServers()
@@ -95,10 +95,14 @@ export default function DashboardNodeDetailPage({
 
   const node = useMemo<NodeDetail | null>(() => {
     const raw = serversData as { items?: Array<Record<string, unknown>> } | undefined
-    const item = (raw?.items ?? []).find((i) => i.nodeId === nodeId)
+    // Match by nodeId (UUID) or swarmNodeId (Docker Swarm short ID)
+    const item = (raw?.items ?? []).find(
+      (i) => i.nodeId === nodeId || i.swarmNodeId === nodeId
+    )
     if (!item) return null
     return {
       nodeId: String(item.nodeId ?? ''),
+      swarmNodeId: item.swarmNodeId as string | null | undefined,
       serverUrl: item.serverUrl as string | null | undefined,
       displayName: item.displayName as string | null | undefined,
       status: item.status as string | undefined,
@@ -171,6 +175,7 @@ export default function DashboardNodeDetailPage({
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: 'overview', label: 'Overview' },
     { id: 'deployments', label: 'Deployments' },
+    { id: 'fleet', label: 'Fleet' },
     { id: 'configuration', label: 'Configuration' },
   ]
 
@@ -473,6 +478,191 @@ export default function DashboardNodeDetailPage({
           </Card>
         </div>
       ) : null}
+
+      {tab === 'fleet' ? <NodeFleetResources nodeId={nodeId} isLocal={isLocal} /> : null}
+    </div>
+  )
+}
+
+/** Fleet-resources tab: swarm services/tasks on this node + engine artifacts. */
+function NodeFleetResources({ nodeId, isLocal }: { nodeId: string; isLocal: boolean }) {
+  const { data: resources, isLoading, error, refetch } = useNodeResources(nodeId)
+
+  if (isLoading) {
+    return <PageLoadingState label="Loading node resources…" />
+  }
+
+  if (error) {
+    return (
+      <PageErrorState
+        title="Unable to load node resources"
+        message="The per-node fleet aggregation could not be fetched."
+        onRetry={() => void refetch()}
+      />
+    )
+  }
+
+  const scope = resources?.dockerScope ?? 'remote'
+  const serviceCount = resources?.services?.length ?? 0
+  const taskCount = resources?.tasks?.length ?? 0
+  const imageCount = resources?.images?.length ?? 0
+  const networkCount = resources?.networks?.length ?? 0
+  const volumeCount = resources?.volumes?.length ?? 0
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <Badge
+          variant={scope === 'local' ? 'default' : 'secondary'}
+          className="gap-1 font-mono text-[10px] uppercase"
+        >
+          <Network className="size-3" /> {scope} engine
+        </Badge>
+        {!isLocal && (
+          <span className="text-xs text-muted-foreground">
+            Swarm-visible data only — docker artifacts are read from the node serving this dashboard.
+          </span>
+        )}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Services</CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold">{serviceCount}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Tasks</CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold">{taskCount}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Images</CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold">{imageCount}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Networks</CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold">{networkCount}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Volumes</CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-semibold">{volumeCount}</CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Services scheduled on this node</CardTitle>
+          <CardDescription>
+            Global services run on every node; replicated services appear here when they own a task
+            on this node.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Service</TableHead>
+                <TableHead>Mode</TableHead>
+                <TableHead className="text-center">Desired</TableHead>
+                <TableHead className="text-center">Running</TableHead>
+                <TableHead>Image</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(resources?.services ?? []).length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                    No services scheduled on this node.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                (resources?.services ?? []).map((service) => (
+                  <TableRow key={service.id}>
+                    <TableCell className="font-mono text-sm font-medium">{service.name}</TableCell>
+                    <TableCell>
+                      <Badge variant={service.mode === 'global' ? 'default' : 'secondary'}>
+                        {service.mode}
+                        {service.mode === 'replicated' && service.replicas != null
+                          ? ` × ${service.replicas}`
+                          : ''}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center font-mono">{service.desiredTasks}</TableCell>
+                    <TableCell className="text-center font-mono">{service.runningTasks}</TableCell>
+                    <TableCell className="max-w-70 truncate font-mono text-xs text-muted-foreground">
+                      {service.image || '—'}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Tasks on this node</CardTitle>
+          <CardDescription>Live task placement with container state.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Task</TableHead>
+                <TableHead>Service</TableHead>
+                <TableHead className="text-center">Slot</TableHead>
+                <TableHead>State</TableHead>
+                <TableHead>Error</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(resources?.tasks ?? []).length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
+                    No tasks scheduled on this node.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                (resources?.tasks ?? []).map((task) => (
+                  <TableRow key={task.id}>
+                    <TableCell className="font-mono text-xs">{task.id.slice(0, 12)}…</TableCell>
+                    <TableCell className="font-medium">{task.serviceName || '—'}</TableCell>
+                    <TableCell className="text-center font-mono text-xs">
+                      {task.slot ?? '—'}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        status={
+                          task.state === 'running'
+                            ? 'healthy'
+                            : task.state === 'failed' || task.state === 'rejected'
+                              ? 'unhealthy'
+                              : task.state === 'shutdown'
+                                ? 'inactive'
+                                : 'degraded'
+                        }
+                      />
+                    </TableCell>
+                    <TableCell className="max-w-60 truncate text-xs text-fail">
+                      {task.error ?? '—'}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   )
 }

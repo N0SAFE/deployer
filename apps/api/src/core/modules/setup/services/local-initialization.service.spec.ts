@@ -109,4 +109,48 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 			}),
 		);
 	});
+
+	it('uses the node-provided DB (SETUP CANDIDATE) when no URL is supplied — instead of provisioning a container', async () => {
+		const mocks = makeMocks();
+		// Phase 0 persisted a compose-managed DB as a candidate (not configured).
+		mocks.nodeConfigRepository.find = vi.fn(() => ({
+			nodeId: "n1",
+			strategy: "local",
+			setupState: "not_started",
+			databaseUrl: EXTERNAL_URL,
+			databaseProvisioning: "external",
+			configuredAt: null,
+			meshUrlsSnapshot: [],
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		}) as never);
+
+		const service = makeService(mocks);
+		const probeSpy = vi.fn(async () => EXTERNAL_URL);
+		(service as unknown as { probeExistingDatabase(): Promise<string> }).probeExistingDatabase = probeSpy;
+		const provisionSpy = vi.fn(async () => {
+			throw new Error("must not provision a container when a DB is provided");
+		});
+		(service as unknown as { provisionDockerDatabase(): Promise<string> }).provisionDockerDatabase = provisionSpy;
+
+		await service.initialize(
+			{
+				strategy: "local",
+				name: "Admin",
+				email: "admin@test.com",
+				password: "password123",
+				serverUrl: "http://127.0.0.1:3001",
+			},
+			new SetupStepTracker(),
+			noopEmit,
+		);
+
+		expect(provisionSpy).not.toHaveBeenCalled();
+		expect(probeSpy).toHaveBeenCalledWith(EXTERNAL_URL, expect.any(Function));
+		expect(mocks.upsert).toHaveBeenCalledWith(
+			expect.objectContaining({
+				databaseUrl: EXTERNAL_URL,
+				databaseProvisioning: "external",
+			}),
+		);
+	});
 });

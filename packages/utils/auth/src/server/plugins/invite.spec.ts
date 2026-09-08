@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { invitePlugin } from './invite';
-import { z } from 'zod';
+import * as z from 'zod';
 
 // Mock better-auth modules
 vi.mock('better-auth/api', () => ({
@@ -212,7 +212,10 @@ describe('invitePlugin', () => {
       const plugin = invitePlugin(defaultOptions);
       
       expect(plugin.$ERROR_CODES.USER_NOT_LOGGED_IN).toBeDefined();
-      expect(plugin.$ERROR_CODES.USER_NOT_LOGGED_IN).toBe('User must be logged in to create an invite');
+      expect(plugin.$ERROR_CODES.USER_NOT_LOGGED_IN).toEqual({
+        code: 'USER_NOT_LOGGED_IN',
+        message: 'User must be logged in to create an invite',
+      });
     });
 
     it('should export INSUFFICIENT_PERMISSIONS error code', () => {
