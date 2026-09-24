@@ -1706,5 +1706,14 @@
   "1704": "url-events.ts",
   "1705": "exceljs-dist.d.ts",
   "1706": "state.spec.ts",
-  "1707": "plugin-asserter.ts"
+  "1707": "plugin-asserter.ts",
+  "1708": "compile",
+  "1709": "init",
+  "1710": "test:coverage",
+  "1711": "index.ts",
+  "1712": "docker:build",
+  "1713": "docker:dev",
+  "1714": "database-connection.ts",
+  "1715": "MANAGED_POSTGRES_CONTAINER_NAME",
+  "1716": "MANAGED_POSTGRES_VOLUME_NAME"
 }

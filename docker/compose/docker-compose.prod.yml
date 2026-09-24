@@ -85,6 +85,12 @@ volumes:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_bun_cache_prod
   turbo_cache_prod:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_turbo_cache_prod
+  # Turbopack filesystem cache — one volume per app, so web and doc never
+  # share a cache directory (their graph roots differ: web/ vs doc/).
+  web_next_cache_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_web_next_cache_prod
+  doc_next_cache_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_doc_next_cache_prod
   api_uploads_prod:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_prod
   web_instance_token_prod:

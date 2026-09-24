@@ -6,7 +6,7 @@ import {
 	LocalDbSupervisorService,
 	LOCAL_DB_SUPERVISOR_ID,
 } from "./local-db-supervisor.service";
-import type { LocalDatabase } from "@/core/modules/database/local/local-database.service";
+import type { LocalDatabase } from "@repo/nest-database-local/local-database.service";
 import type { EnvService } from "@repo/nest-env";
 
 /** In-memory sqlite database wrapped by drizzle — no file I/O in tests. */

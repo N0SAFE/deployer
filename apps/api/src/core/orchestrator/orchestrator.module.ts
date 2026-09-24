@@ -21,7 +21,7 @@
 
 import { Module } from "@nestjs/common";
 import { RouterModule } from "../router/router.module";
-import { LocalDatabaseModule } from "../modules/database/local/local-database.module";
+import { LocalDatabaseModule } from "@repo/nest-database-local/local-database.module";
 import { DatabaseModule } from "../modules/database/database.module";
 import { AppLifecycleModule } from '@repo/nest-lifecycle'
 import { NodeStateModule } from "../modules/node-state/node-state.module";

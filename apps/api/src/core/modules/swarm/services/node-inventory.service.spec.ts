@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { SwarmClusterService } from "../services/swarm-cluster.service";
 import { NodeInventoryService } from "./node-inventory.service";
-import type { ClusterNodeInventoryRepository } from "../repositories/cluster-node-inventory.repository";
+import type { ClusterNodeInventoryRepository } from "@repo/nest-nodes/cluster-node-inventory.repository";
 import type { GlobalClusterNodesRepository } from "../repositories/global-cluster-nodes.repository";
 
 const activeSnapshot = {

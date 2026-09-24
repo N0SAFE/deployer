@@ -15,7 +15,7 @@ import { GlobalClusterNodesRepository } from "../repositories/global-cluster-nod
 import {
     ClusterNodeInventoryRepository,
     toEngineNodeRow,
-} from "../repositories/cluster-node-inventory.repository";
+} from "@repo/nest-nodes/cluster-node-inventory.repository";
 
 @Injectable()
 export class NodeInventoryService implements OnModuleInit, OnModuleDestroy {

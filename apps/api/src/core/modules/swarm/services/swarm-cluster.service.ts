@@ -21,7 +21,7 @@ import {
 } from "@repo/contracts-entities";
 import { ServiceUnavailableError, TimeoutError } from "@repo/errors";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
-import { ingressFromLabels, platformRoleFromLabels } from "../swarm-node-labels";
+import { ingressFromLabels, platformRoleFromLabels } from "@repo/nest-nodes/swarm-node-labels";
 
 @Injectable()
 export class SwarmClusterService {

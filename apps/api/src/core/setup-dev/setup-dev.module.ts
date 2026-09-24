@@ -26,7 +26,7 @@
  */
 
 import { Module } from "@nestjs/common";
-import { LocalDatabaseModule } from "../modules/database/local/local-database.module";
+import { LocalDatabaseModule } from "@repo/nest-database-local/local-database.module";
 import { NodeStateModule } from "../modules/node-state/node-state.module";
 import { SetupDevService } from "./setup-dev.service";
 import { EnvModule } from "@repo/nest-env";

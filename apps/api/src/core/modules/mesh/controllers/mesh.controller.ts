@@ -10,7 +10,7 @@ import { CoreEventSyncService } from "@/core/modules/events/services/core-event-
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { SystemMetricsService } from "@/core/modules/system-metrics/services/system-metrics.service";
 import { EnvService } from "@repo/nest-env";
-import { NodeConfigRepository } from "@/core/modules/setup/repositories/node-config.repository";
+import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 import { SwarmJoinGrantService } from "@/core/modules/swarm/services/swarm-join-grant.service";
 import { signPeerServiceToken } from "@repo/auth/mesh";
 import * as crypto from "node:crypto";

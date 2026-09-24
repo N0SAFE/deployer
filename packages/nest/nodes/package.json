@@ -1,0 +1,72 @@
+{
+    "name": "@repo/nest-nodes",
+    "version": "1.0.0",
+    "description": "Local node-state (SQLite) repositories and the swarm node-label vocabulary. The pre-setup source of truth for the cluster decision.",
+    "main": "./dist/cjs/index.js",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": {
+            "types": ["./src/index.ts"],
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
+        "./node-config.repository": {
+            "types": ["./src/node-config.repository.ts"],
+            "import": "./dist/esm/node-config.repository.mjs",
+            "require": "./dist/cjs/node-config.repository.js"
+        },
+        "./cluster-node.repository": {
+            "types": ["./src/cluster-node.repository.ts"],
+            "import": "./dist/esm/cluster-node.repository.mjs",
+            "require": "./dist/cjs/cluster-node.repository.js"
+        },
+        "./cluster-node-inventory.repository": {
+            "types": ["./src/cluster-node-inventory.repository.ts"],
+            "import": "./dist/esm/cluster-node-inventory.repository.mjs",
+            "require": "./dist/cjs/cluster-node-inventory.repository.js"
+        },
+        "./swarm-node-labels": {
+            "types": ["./src/swarm-node-labels.ts"],
+            "import": "./dist/esm/swarm-node-labels.mjs",
+            "require": "./dist/cjs/swarm-node-labels.js"
+        }
+    },
+    "scripts": {
+        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "format": "bun run prettify",
+        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "lint": "eslint . --fix --cache --concurrency=auto",
+        "type-check": "tsc --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "build": "bun --bun ../../bin/pkg-build/index.ts",
+        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
+        "clean": "rimraf dist"
+    },
+    "dependencies": {
+        "@nestjs/common": "catalog:api:nest",
+        "@repo/contracts-entities": "*",
+        "@repo/errors": "*",
+        "@repo/nest-database-local": "*",
+        "@repo/nest-schema": "*",
+        "@repo/type-guards": "*",
+        "drizzle-orm": "catalog:database"
+    },
+    "peerDependencies": {
+        "@nestjs/common": "catalog:api:nest"
+    },
+    "devDependencies": {
+        "@repo/config-eslint": "*",
+        "@repo/config-prettier": "*",
+        "@repo/config-typescript": "*",
+        "@repo/config-vitest": "*",
+        "@repo/pkg-build": "*",
+        "@types/node": "catalog:build",
+        "chokidar": "catalog:build",
+        "eslint": "catalog:linting",
+        "rimraf": "catalog:build",
+        "typescript": "catalog:build",
+        "vitest": "catalog:testing"
+    },
+    "module": "./dist/esm/index.mjs"
+}

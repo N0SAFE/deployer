@@ -46,6 +46,7 @@ const config: NextConfig = {
   turbopack: {
     root: path.join(__dirname, '../..'),
   },
+  output: 'export'
 }
 
 export default withMDX(config)

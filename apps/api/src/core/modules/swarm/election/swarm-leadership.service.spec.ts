@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ClusterSnapshot } from "@repo/contracts-entities";
 import type { ClusterNodeRow } from "@repo/nest-schema/local";
 import type { EnvService } from "@repo/nest-env";
-import type { ClusterNodeRepository } from "../repositories/cluster-node.repository";
+import type { ClusterNodeRepository } from "@repo/nest-nodes/cluster-node.repository";
 import type { SwarmClusterService } from "../services/swarm-cluster.service";
 import {
     SwarmLeadershipService,

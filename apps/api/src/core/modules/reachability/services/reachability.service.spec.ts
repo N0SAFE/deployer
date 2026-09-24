@@ -1,7 +1,7 @@
 import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { NodeConfigRepository } from '@/core/modules/setup/repositories/node-config.repository';
+import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 import { NodeNetworkConfigRepository } from '../repositories/node-network-config.repository';
 import { ReachabilityService } from './reachability.service';
 

@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as globalSchema from '@repo/nest-schema/global';
 import { EnvModule } from "@repo/nest-env";
-import { LocalDatabaseModule } from '../core/modules/database/local/local-database.module';
+import { LocalDatabaseModule } from "@repo/nest-database-local/local-database.module";
 import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "@repo/nest-database-core/database-connection";
 import { GlobalDatabaseService } from '../core/modules/database/global/global-database.service';
 import { AuthModule } from '../core/modules/auth/auth.module';
@@ -17,7 +17,7 @@ import { CreateDefaultAdminCommand } from './commands/create-default-admin.comma
 import { NodeStartupCheckCommand } from './commands/node-startup-check.command';
 import { SetupDbCommand } from './commands/setup-db.command';
 import { MigrationJournalService } from '@/core/utils/migration-journal.service';
-import { NodeConfigRepository } from '@/core/modules/setup/repositories/node-config.repository';
+import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
 
 const logger = new Logger('CLIModule');

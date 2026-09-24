@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { migrate as migratePg } from 'drizzle-orm/node-postgres/migrator'
 import { sql } from 'drizzle-orm'
 import { fileURLToPath } from 'url'
-import { LocalDatabaseService } from '@/core/modules/database/local/local-database.service';
+import { LocalDatabaseService } from "@repo/nest-database-local/local-database.service";
 import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service';
 
 /*

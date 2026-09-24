@@ -5,7 +5,7 @@ import { RemoteInitializationService } from "./services/remote-initialization.se
 import { LocalInitializationService } from "./services/local-initialization.service";
 import { SetupEventService } from "./services/setup-event.service";
 import { MeshInitializationModule } from "@/core/modules/mesh/initialization/mesh-initialization.module";
-import { LocalDatabaseModule } from "../database/local/local-database.module";
+import { LocalDatabaseModule } from "@repo/nest-database-local/local-database.module";
 import { CoreDockerModule } from "../docker/docker.module";
 import { CoreReachabilityModule } from "../reachability/core-reachability.module";
 import { MeshVersionService } from "../mesh/version/mesh-version.service";

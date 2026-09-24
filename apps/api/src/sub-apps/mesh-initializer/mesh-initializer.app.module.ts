@@ -10,7 +10,7 @@ import { Module } from '@nestjs/common';
 import { MeshInitializerService } from './mesh-initializer.service';
 import { MeshInitializationModule } from '@/core/modules/mesh/initialization/mesh-initialization.module';
 import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
-import { LocalDatabaseModule } from '@/core/modules/database/local/local-database.module';
+import { LocalDatabaseModule } from "@repo/nest-database-local/local-database.module";
 import { SetupWizardBridge } from '@/sub-apps/setup-wizard/setup-wizard.bridge';
 import { MeshInitializerBridge } from './mesh-initializer.bridge';
 

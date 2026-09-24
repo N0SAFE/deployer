@@ -14,7 +14,7 @@
 import { Global, Module } from '@nestjs/common'
 import { AppLifecycleModule } from '@repo/nest-lifecycle'
 import { GlobalDatabaseModule } from './global/global-database.module'
-import { LocalDatabaseModule } from './local/local-database.module'
+import { LocalDatabaseModule } from "@repo/nest-database-local/local-database.module"
 import { DatabaseProbeService } from './services/database-probe.service'
 import { DatabaseStartupGuard } from './services/database-startup-guard.service'
 import { DatabaseFailureTracker } from './services/database-failure-tracker.service'

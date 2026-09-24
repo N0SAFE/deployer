@@ -32,7 +32,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import type { OnApplicationBootstrap } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
-import { NodeConfigRepository } from "../modules/setup/repositories/node-config.repository";
+import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 import { DEPLOYER_VERSION } from "../utils/deployer-version";
 import { EnvService } from "@repo/nest-env";
 import { splitManagedEnv } from "@repo/env";

@@ -53,7 +53,7 @@ import {
 	type PostgresServiceIdentity,
 } from "@/core/modules/docker/containers/postgres/postgres-service.provisioner";
 import { MANAGED_POSTGRES_ALIAS } from "@/core/modules/docker/containers/postgres/postgres-service.provisioner";
-import { NodeConfigRepository } from "@/core/modules/setup/repositories/node-config.repository";
+import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 import { EnvService } from "@repo/nest-env";
 import { splitManagedEnv } from "@repo/env";
 import type { SwarmServiceSpecInput } from "@repo/contracts-entities";

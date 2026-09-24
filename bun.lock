@@ -63,9 +63,11 @@
         "@repo/errors": "*",
         "@repo/logger": "*",
         "@repo/nest-database-core": "*",
+        "@repo/nest-database-local": "*",
         "@repo/nest-env": "*",
         "@repo/nest-events": "*",
         "@repo/nest-lifecycle": "*",
+        "@repo/nest-nodes": "*",
         "@repo/nest-schema": "*",
         "@repo/nest-supervisor-core": "*",
         "@repo/orpc-utils": "*",
@@ -618,6 +620,34 @@
         "@nestjs/common": "catalog:api:nest",
       },
     },
+    "packages/nest/database-local": {
+      "name": "@repo/nest-database-local",
+      "version": "1.0.0",
+      "dependencies": {
+        "@nestjs/common": "catalog:api:nest",
+        "@repo/nest-database-core": "*",
+        "@repo/nest-schema": "*",
+        "drizzle-orm": "catalog:database",
+      },
+      "devDependencies": {
+        "@nestjs/testing": "catalog:api:nest",
+        "@repo/config-eslint": "*",
+        "@repo/config-prettier": "*",
+        "@repo/config-typescript": "*",
+        "@repo/config-vitest": "*",
+        "@repo/pkg-build": "*",
+        "@types/bun": "catalog:build",
+        "@types/node": "catalog:build",
+        "chokidar": "catalog:build",
+        "eslint": "catalog:linting",
+        "rimraf": "catalog:build",
+        "typescript": "catalog:build",
+        "vitest": "catalog:testing",
+      },
+      "peerDependencies": {
+        "@nestjs/common": "catalog:api:nest",
+      },
+    },
     "packages/nest/env": {
       "name": "@repo/nest-env",
       "version": "1.0.0",
@@ -686,6 +716,35 @@
         "eslint": "catalog:linting",
         "rimraf": "catalog:build",
         "typescript": "catalog:build",
+      },
+      "peerDependencies": {
+        "@nestjs/common": "catalog:api:nest",
+      },
+    },
+    "packages/nest/nodes": {
+      "name": "@repo/nest-nodes",
+      "version": "1.0.0",
+      "dependencies": {
+        "@nestjs/common": "catalog:api:nest",
+        "@repo/contracts-entities": "*",
+        "@repo/errors": "*",
+        "@repo/nest-database-local": "*",
+        "@repo/nest-schema": "*",
+        "@repo/type-guards": "*",
+        "drizzle-orm": "catalog:database",
+      },
+      "devDependencies": {
+        "@repo/config-eslint": "*",
+        "@repo/config-prettier": "*",
+        "@repo/config-typescript": "*",
+        "@repo/config-vitest": "*",
+        "@repo/pkg-build": "*",
+        "@types/node": "catalog:build",
+        "chokidar": "catalog:build",
+        "eslint": "catalog:linting",
+        "rimraf": "catalog:build",
+        "typescript": "catalog:build",
+        "vitest": "catalog:testing",
       },
       "peerDependencies": {
         "@nestjs/common": "catalog:api:nest",
@@ -2224,11 +2283,15 @@
 
     "@repo/nest-database-core": ["@repo/nest-database-core@workspace:packages/nest/database-core"],
 
+    "@repo/nest-database-local": ["@repo/nest-database-local@workspace:packages/nest/database-local"],
+
     "@repo/nest-env": ["@repo/nest-env@workspace:packages/nest/env"],
 
     "@repo/nest-events": ["@repo/nest-events@workspace:packages/nest/events"],
 
     "@repo/nest-lifecycle": ["@repo/nest-lifecycle@workspace:packages/nest/lifecycle"],
+
+    "@repo/nest-nodes": ["@repo/nest-nodes@workspace:packages/nest/nodes"],
 
     "@repo/nest-schema": ["@repo/nest-schema@workspace:packages/nest/schema"],
 

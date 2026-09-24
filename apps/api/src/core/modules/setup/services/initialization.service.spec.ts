@@ -1,7 +1,7 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import { InitializationService } from './initialization.service';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
-import { NodeConfigRepository } from '../repositories/node-config.repository';
+import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 import { LocalInitializationService } from './local-initialization.service';
 import { RemoteInitializationService } from './remote-initialization.service';
 import { SetupEventService } from './setup-event.service';

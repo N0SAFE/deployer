@@ -21,7 +21,7 @@ import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { migrate as migratePg } from "drizzle-orm/node-postgres/migrator";
 import { RouteRegistryService } from "../gateway/route-registry.service";
-import { NodeConfigRepository } from "../modules/setup/repositories/node-config.repository";
+import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 import { SetupDevModule } from "../setup-dev/setup-dev.module";
 import { ensureDefaultAdmin } from "../setup-dev/default-admin.bootstrap";
 import { describePolicy, provisioningPolicyFromProcessEnv } from "../setup-dev/provisioning-policy";

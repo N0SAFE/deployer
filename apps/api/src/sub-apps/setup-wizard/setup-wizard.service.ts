@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { EnvService } from '@repo/nest-env';
 import { SetupWizardBridge } from './setup-wizard.bridge';
 import { InitializationService } from '@/core/modules/setup/services/initialization.service';
-import { NodeConfigRepository } from '@/core/modules/setup/repositories/node-config.repository';
+import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 import { filter, take } from 'rxjs/operators';
 
 @Injectable()

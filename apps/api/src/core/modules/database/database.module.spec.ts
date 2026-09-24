@@ -2,7 +2,7 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { GLOBAL_DATABASE_CONNECTION, LOCAL_DATABASE_CONNECTION } from "@repo/nest-database-core/database-connection";
 import { GlobalDatabaseService } from './global/global-database.service';
-import { LocalDatabaseService } from './local/local-database.service';
+import { LocalDatabaseService } from "@repo/nest-database-local/local-database.service";
 
 // Mock heavy sub-modules that trigger env validation and real DB connections
 vi.mock('./global/global-database.module', () => ({
@@ -17,7 +17,7 @@ vi.mock('./global/global-database.module', () => ({
     exports: ['GLOBAL_DATABASE_POOL', GlobalDatabaseService, GLOBAL_DATABASE_CONNECTION],
   },
 }));
-vi.mock('./local/local-database.module', () => ({
+vi.mock("@repo/nest-database-local/local-database.module", () => ({
   LocalDatabaseModule: {
     global: true,
     module: class {},

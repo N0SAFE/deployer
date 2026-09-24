@@ -27,7 +27,7 @@ import { AbstractDomainEventStreamService } from "@repo/nest-events";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
 import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
 import { SwarmFleetService } from "@/core/modules/swarm/services/swarm-fleet.service";
-import { ClusterNodeInventoryRepository } from "@/core/modules/swarm/repositories/cluster-node-inventory.repository";
+import { ClusterNodeInventoryRepository } from "@repo/nest-nodes/cluster-node-inventory.repository";
 import type { ClusterSnapshot, SwarmServiceRuntime, SwarmTaskRuntime } from "@repo/contracts-entities";
 import { clusterNodeInventoryRowSchema, type ClusterNodeInventoryRow } from "@repo/api-contracts";
 import type { ClusterMasterView } from "@repo/api-contracts";

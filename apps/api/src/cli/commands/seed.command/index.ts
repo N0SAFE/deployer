@@ -1,7 +1,7 @@
 import { Command, CommandRunner } from 'nest-commander';
 import { Injectable, Logger } from '@nestjs/common';
 import { seedLocal } from './local';
-import { LocalDatabaseService } from '@/core/modules/database/local/local-database.service';
+import { LocalDatabaseService } from "@repo/nest-database-local/local-database.service";
 
 @Command({
   name: "seed",

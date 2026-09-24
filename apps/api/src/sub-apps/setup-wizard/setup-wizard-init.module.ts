@@ -11,7 +11,7 @@ import { EnvModule } from '@repo/nest-env';
 import { EnvService } from '@repo/nest-env';
 import { DockerService } from '@/core/modules/docker/services/docker.service';
 import { PostgresServiceProvisioner } from '@/core/modules/docker/containers/postgres/postgres-service.provisioner';
-import { LocalDatabaseModule } from '@/core/modules/database/local/local-database.module';
+import { LocalDatabaseModule } from "@repo/nest-database-local/local-database.module";
 import { InitializationService } from '@/core/modules/setup/services/initialization.service';
 import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
 import { LocalInitializationService } from '@/core/modules/setup/services/local-initialization.service';

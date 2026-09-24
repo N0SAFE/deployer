@@ -28,10 +28,10 @@
 
 import { Global, Module } from "@nestjs/common";
 
-import { LocalDatabaseModule } from "@/core/modules/database/local/local-database.module";
-import { NodeConfigRepository } from "@/core/modules/setup/repositories/node-config.repository";
-import { ClusterNodeRepository } from "@/core/modules/swarm/repositories/cluster-node.repository";
-import { ClusterNodeInventoryRepository } from "@/core/modules/swarm/repositories/cluster-node-inventory.repository";
+import { LocalDatabaseModule } from "@repo/nest-database-local/local-database.module";
+import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
+import { ClusterNodeRepository } from "@repo/nest-nodes/cluster-node.repository";
+import { ClusterNodeInventoryRepository } from "@repo/nest-nodes/cluster-node-inventory.repository";
 
 @Global()
 @Module({

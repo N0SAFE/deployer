@@ -156,6 +156,14 @@ ENV PATH="/usr/bin:${PATH}"
 # Copy built application from builder stage
 COPY --from=builder --chown=nextjs:nodejs /app ./
 
+# Pre-create the Turbopack build-cache mountpoint (compose mounts a named
+# volume here). `next build` runs at container start as `nextjs`, so a fresh
+# volume must be writable by uid 1001. Docker seeds a new named volume with the
+# ownership of the image directory it shadows — hence the mkdir + chown.
+# Without this, the first `next build` on a new volume fails with EACCES.
+RUN mkdir -p /app/apps/doc/.next/cache && \
+    chown -R nextjs:nodejs /app/apps/doc/.next
+
 # Switch to nextjs user
 USER nextjs
 

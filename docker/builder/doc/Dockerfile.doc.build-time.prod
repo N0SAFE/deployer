@@ -160,8 +160,14 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
       done
 
 # Build the doc app
+# The `.next/cache` mount is what makes `turbopackFileSystemCacheForBuild` pay
+# off here: without it, each `docker build` starts from a clean layer and the
+# build cache is written into a layer that is discarded. With it, Turbopack's
+# cache survives between builds. `sharing=locked` keeps concurrent builds from
+# corrupting the same cache.
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     --mount=type=cache,target=/root/.cache \
+    --mount=type=cache,target=/app/apps/doc/.next/cache,sharing=locked,id=turbopack-doc-prod-build \
     --mount=type=cache,target=/tmp/turbo-restore,id=turbo-doc-prod-build,sharing=locked \
     set -eux; \
     if [ -d /tmp/turbo-restore/wt ]; then \
@@ -240,7 +246,13 @@ RUN --mount=type=bind,from=builder,source=/app,target=/mnt/builder \
     done && \
     tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
     tar -xf - -C /app --owner=root --group=root && \
-    chown -R nextjs:nodejs /app/packages
+    chown -R nextjs:nodejs /app/packages && \
+    # The build above writes `.next/cache` through a BuildKit cache mount, which
+    # is deliberately NOT committed to the image layer. The runtime still needs
+    # a writable `.next/cache` for the incremental (ISR/fetch) cache, so recreate
+    # it empty and owned by the runtime user.
+    mkdir -p /app/apps/doc/.next/cache && \
+    chown -R nextjs:nodejs /app/apps/doc/.next
 
 # Prune devDependencies from node_modules for the final production image.
 # We installed ALL deps (dev + prod) in the installer stage so the builder

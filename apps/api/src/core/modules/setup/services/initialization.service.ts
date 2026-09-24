@@ -7,7 +7,7 @@ import type {
     SetupStreamEvent,
     SetupStateSnapshot,
 } from '@repo/contracts-entities'
-import { NodeConfigRepository } from '../repositories/node-config.repository'
+import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository"
 import { LocalInitializationService } from './local-initialization.service'
 import { RemoteInitializationService } from './remote-initialization.service'
 import { SetupEventService } from './setup-event.service'

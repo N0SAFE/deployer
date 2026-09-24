@@ -32,7 +32,7 @@ import {
 	sqliteProcessInfoSchema,
 } from "@repo/nest-supervisor-core/supervisor-process-info";
 import { LOCAL_DATABASE_CONNECTION } from "@repo/nest-database-core/database-connection";
-import type { LocalDatabase } from "@/core/modules/database/local/local-database.service";
+import type { LocalDatabase } from "@repo/nest-database-local/local-database.service";
 import { EnvService } from "@repo/nest-env";
 import { splitManagedEnv } from "@repo/env";
 

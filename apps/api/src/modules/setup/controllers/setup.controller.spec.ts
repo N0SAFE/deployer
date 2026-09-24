@@ -5,7 +5,7 @@ import { ORPCError } from "@orpc/server";
 import { SetupController } from "./setup.controller";
 import { InitializationService } from "@/core/modules/setup/services/initialization.service";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
-import { NodeConfigRepository } from "@/core/modules/setup/repositories/node-config.repository";
+import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 
 function createImplementMock() {
     const chainable = {

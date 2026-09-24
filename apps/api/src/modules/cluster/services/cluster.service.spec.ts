@@ -3,8 +3,8 @@ import type { ClusterSnapshot } from "@repo/contracts-entities";
 import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
 import { SwarmFleetService } from "@/core/modules/swarm/services/swarm-fleet.service";
 import { SwarmParticipationService } from "@/core/modules/swarm/services/swarm-participation.service";
-import { ClusterNodeRepository } from "@/core/modules/swarm/repositories/cluster-node.repository";
-import { ClusterNodeInventoryRepository } from "@/core/modules/swarm/repositories/cluster-node-inventory.repository";
+import { ClusterNodeRepository } from "@repo/nest-nodes/cluster-node.repository";
+import { ClusterNodeInventoryRepository } from "@repo/nest-nodes/cluster-node-inventory.repository";
 import { EnvService } from "@repo/nest-env";
 import { ClusterService } from "./cluster.service";
 

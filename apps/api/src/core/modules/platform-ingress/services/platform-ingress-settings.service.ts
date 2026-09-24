@@ -17,7 +17,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { eq } from "drizzle-orm";
 
-import { LocalDatabaseService } from "@/core/modules/database/local/local-database.service";
+import { LocalDatabaseService } from "@repo/nest-database-local/local-database.service";
 import { EnvService } from "@repo/nest-env";
 import { platformSettings } from "@repo/nest-schema/local";
 

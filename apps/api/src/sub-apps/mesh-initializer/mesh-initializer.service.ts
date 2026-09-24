@@ -3,7 +3,7 @@ import type { OnModuleInit } from '@nestjs/common';
 import { SetupWizardBridge, type SetupWizardBridgePayload } from '@/sub-apps/setup-wizard/setup-wizard.bridge';
 import { MeshInitializerBridge } from './mesh-initializer.bridge';
 import { MeshInitializationService } from '@/core/modules/mesh/initialization/services/mesh-initialization.service';
-import { NodeConfigRepository } from '@/core/modules/setup/repositories/node-config.repository';
+import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 
 /**
  * How long (ms) to wait for mesh peer connections before falling back to

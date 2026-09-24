@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common'
 import { isRecord } from "@repo/type-guards"
 import dns from 'node:dns/promises'
 import { isIP } from 'node:net'
-import { NodeConfigRepository } from "@/core/modules/setup/repositories/node-config.repository"
+import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository"
 import { NodeNetworkConfigRepository } from "../repositories/node-network-config.repository"
 
 /**

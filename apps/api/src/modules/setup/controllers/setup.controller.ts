@@ -8,7 +8,7 @@ import { AllowAnonymous } from "@/core/modules/auth/decorators/decorators";
 import { Pool } from "pg";
 import { InitializationService } from "@/core/modules/setup/services/initialization.service";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
-import { NodeConfigRepository } from "@/core/modules/setup/repositories/node-config.repository";
+import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 
 /**
  * Setup wizard surface — intentionally PRE-AUTH by design (the wizard runs

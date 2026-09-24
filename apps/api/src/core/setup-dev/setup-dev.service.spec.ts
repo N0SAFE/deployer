@@ -2,7 +2,7 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { SetupDevService } from './setup-dev.service';
 import { EnvService } from "@repo/nest-env";
-import { NodeConfigRepository } from '../modules/setup/repositories/node-config.repository';
+import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 
 // ─── NodeConfigRepository mock ───────────────────────────────────────────────
 
