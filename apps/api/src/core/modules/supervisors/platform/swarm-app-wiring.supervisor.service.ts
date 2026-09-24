@@ -61,8 +61,8 @@ import {
 	BaseSupervisorService,
 	baseSupervisorPayloadSchema,
 	type SupervisorProbeResult,
-} from "../base-supervisor.service";
-import { baseSupervisorProcessInfoSchema } from "../supervisor-process-info";
+} from "@repo/nest-supervisor-core/base-supervisor.service";
+import { baseSupervisorProcessInfoSchema } from "@repo/nest-supervisor-core/supervisor-process-info";
 
 export const SWARM_APP_WIRING_SUPERVISOR_ID = "platform-app-wiring";
 

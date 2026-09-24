@@ -17,9 +17,9 @@ import { DockerService } from "./docker.service";
 import {
 	BaseSupervisorService,
 	baseSupervisorPayloadSchema,
-} from "@/core/modules/supervisors/base-supervisor.service";
-import { type DockerProcessInfo, type SwarmProcessInfo } from "@/core/modules/supervisors/supervisor-process-info";
-import { baseSupervisorProcessInfoSchema } from "@/core/modules/supervisors/supervisor-process-info";
+} from "@repo/nest-supervisor-core/base-supervisor.service";
+import { type DockerProcessInfo, type SwarmProcessInfo } from "@repo/nest-supervisor-core/supervisor-process-info";
+import { baseSupervisorProcessInfoSchema } from "@repo/nest-supervisor-core/supervisor-process-info";
 import {
 	platformOverlayNetworkName,
 	type DockerSupervisorRuntime,

@@ -32,11 +32,11 @@ import { DockerService } from "@/core/modules/docker/services/docker.service";
 import {
 	baseSupervisorPayloadSchema,
 	type SupervisorProbeResult,
-} from "@/core/modules/supervisors/base-supervisor.service";
+} from "@repo/nest-supervisor-core/base-supervisor.service";
 import {
 	baseSupervisorProcessInfoSchema,
 	swarmProcessInfoSchema,
-} from "@/core/modules/supervisors/supervisor-process-info";
+} from "@repo/nest-supervisor-core/supervisor-process-info";
 import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
 import { EnvService } from "@repo/nest-env";
 import { splitManagedEnv } from "@repo/env";

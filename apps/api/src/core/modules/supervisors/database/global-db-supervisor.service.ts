@@ -35,13 +35,13 @@ import {
 	BaseSupervisorService,
 	baseSupervisorPayloadSchema,
 	type SupervisorProbeResult,
-} from "@/core/modules/supervisors/base-supervisor.service";
+} from "@repo/nest-supervisor-core/base-supervisor.service";
 import {
 	baseSupervisorProcessInfoSchema,
 	dockerProcessInfoSchema,
 	swarmProcessInfoSchema,
 	type DockerProcessInfo,
-} from "@/core/modules/supervisors/supervisor-process-info";
+} from "@repo/nest-supervisor-core/supervisor-process-info";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
 import {
 	PostgresServiceProvisioner,

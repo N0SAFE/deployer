@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import * as globalSchema from '@repo/nest-schema/global';
 import { EnvModule } from "@repo/nest-env";
 import { LocalDatabaseModule } from '../core/modules/database/local/local-database.module';
-import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from '../core/modules/database/database-connection';
+import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "@repo/nest-database-core/database-connection";
 import { GlobalDatabaseService } from '../core/modules/database/global/global-database.service';
 import { AuthModule } from '../core/modules/auth/auth.module';
 import { EnvService } from '@repo/nest-env';

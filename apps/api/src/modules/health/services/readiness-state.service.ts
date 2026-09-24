@@ -11,9 +11,9 @@ import z from "zod/v4";
 
 import { AppLifecyclePhase, AppLifecycleService } from "@repo/nest-lifecycle";
 
-import { SupervisorOrchestratorService } from "@/core/modules/supervisors/supervisor-orchestrator.service";
-import { SupervisorEventBus } from "@/core/modules/supervisors/supervisor-event.bus";
-import type { SupervisorHealthSnapshot } from "@/core/modules/supervisors/base-supervisor.service";
+import { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";
+import { SupervisorEventBus } from "@repo/nest-supervisor-core/supervisor-event.bus";
+import type { SupervisorHealthSnapshot } from "@repo/nest-supervisor-core/base-supervisor.service";
 
 /** The cached platform readiness picture. */
 export interface ReadinessSnapshot {

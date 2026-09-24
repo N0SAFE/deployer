@@ -62,10 +62,12 @@
         "@repo/env": "*",
         "@repo/errors": "*",
         "@repo/logger": "*",
+        "@repo/nest-database-core": "*",
         "@repo/nest-env": "*",
         "@repo/nest-events": "*",
         "@repo/nest-lifecycle": "*",
         "@repo/nest-schema": "*",
+        "@repo/nest-supervisor-core": "*",
         "@repo/orpc-utils": "*",
         "@repo/provider-schema": "*",
         "@repo/type-guards": "*",
@@ -174,7 +176,6 @@
         "@types/node": "catalog:build",
         "@types/react": "catalog:react",
         "@types/react-dom": "catalog:react",
-        "babel-plugin-react-compiler": "catalog:react-compiler",
         "eslint": "catalog:linting",
         "eslint-config-next": "catalog:next",
         "postcss": "catalog:styling",
@@ -591,6 +592,32 @@
         "vitest": "catalog:testing",
       },
     },
+    "packages/nest/database-core": {
+      "name": "@repo/nest-database-core",
+      "version": "1.0.0",
+      "dependencies": {
+        "@nestjs/common": "catalog:api:nest",
+        "@repo/errors": "*",
+        "@repo/nest-schema": "*",
+        "drizzle-orm": "catalog:database",
+      },
+      "devDependencies": {
+        "@repo/config-eslint": "*",
+        "@repo/config-prettier": "*",
+        "@repo/config-typescript": "*",
+        "@repo/config-vitest": "*",
+        "@repo/pkg-build": "*",
+        "@types/node": "catalog:build",
+        "chokidar": "catalog:build",
+        "eslint": "catalog:linting",
+        "rimraf": "catalog:build",
+        "typescript": "catalog:build",
+        "vitest": "catalog:testing",
+      },
+      "peerDependencies": {
+        "@nestjs/common": "catalog:api:nest",
+      },
+    },
     "packages/nest/env": {
       "name": "@repo/nest-env",
       "version": "1.0.0",
@@ -675,6 +702,31 @@
         "@repo/errors": "*",
         "drizzle-orm": "catalog:database",
         "drizzle-zod": "catalog:database",
+        "zod": "catalog:utils",
+      },
+      "devDependencies": {
+        "@repo/config-eslint": "*",
+        "@repo/config-prettier": "*",
+        "@repo/config-typescript": "*",
+        "@repo/config-vitest": "*",
+        "@repo/pkg-build": "*",
+        "@types/node": "catalog:build",
+        "chokidar": "catalog:build",
+        "eslint": "catalog:linting",
+        "rimraf": "catalog:build",
+        "typescript": "catalog:build",
+        "vitest": "catalog:testing",
+      },
+      "peerDependencies": {
+        "@nestjs/common": "catalog:api:nest",
+      },
+    },
+    "packages/nest/supervisor-core": {
+      "name": "@repo/nest-supervisor-core",
+      "version": "1.0.0",
+      "dependencies": {
+        "@nestjs/common": "catalog:api:nest",
+        "rxjs": "catalog:api:nest",
         "zod": "catalog:utils",
       },
       "devDependencies": {
@@ -2170,6 +2222,8 @@
 
     "@repo/logger": ["@repo/logger@workspace:packages/utils/logger"],
 
+    "@repo/nest-database-core": ["@repo/nest-database-core@workspace:packages/nest/database-core"],
+
     "@repo/nest-env": ["@repo/nest-env@workspace:packages/nest/env"],
 
     "@repo/nest-events": ["@repo/nest-events@workspace:packages/nest/events"],
@@ -2177,6 +2231,8 @@
     "@repo/nest-lifecycle": ["@repo/nest-lifecycle@workspace:packages/nest/lifecycle"],
 
     "@repo/nest-schema": ["@repo/nest-schema@workspace:packages/nest/schema"],
+
+    "@repo/nest-supervisor-core": ["@repo/nest-supervisor-core@workspace:packages/nest/supervisor-core"],
 
     "@repo/orpc-utils": ["@repo/orpc-utils@workspace:packages/utils/orpc"],
 
@@ -3023,8 +3079,6 @@
     "b4a": ["b4a@1.8.1", "", { "peerDependencies": { "react-native-b4a": "*" }, "optionalPeers": ["react-native-b4a"] }, "sha512-aiqre1Nr0B/6DgE2N5vwTc+2/oQZ4Wh1t4NznYY4E00y8LCt6NqdRv81so00oo27D8MVKTpUa/MwUUtBLXCoDw=="],
 
     "babel-plugin-macros": ["babel-plugin-macros@3.1.0", "", { "dependencies": { "@babel/runtime": "^7.12.5", "cosmiconfig": "^7.0.0", "resolve": "^1.19.0" } }, "sha512-Cg7TFGpIr01vOQNODXOOaGz2NpCU5gl8x1qJFbb6hbZxR7XrcE2vtbAsTAbJ7/xwJtUuJEw8K8Zr/AE0LHlesg=="],
-
-    "babel-plugin-react-compiler": ["babel-plugin-react-compiler@1.0.0", "", { "dependencies": { "@babel/types": "^7.26.0" } }, "sha512-Ixm8tFfoKKIPYdCCKYTsqv+Fd4IJ0DQqMyEimo+pxUOMUR9cVPlwTrFt9Avu+3cb6Zp3mAzl+t1MrG2fxxKsxw=="],
 
     "babel-plugin-syntax-hermes-parser": ["babel-plugin-syntax-hermes-parser@0.21.1", "", { "dependencies": { "hermes-parser": "0.21.1" } }, "sha512-tUCEa+EykZx3oJXc+PolKz2iwDscCJ2hCONMvEqjAb4jIQH5ZapDd5Brs2Nk4TQpSJ/1Ykz53ksQbevXbF0wxg=="],
 

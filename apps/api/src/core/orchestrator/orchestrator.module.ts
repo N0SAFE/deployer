@@ -31,7 +31,7 @@ import { OrchestratorService } from "./orchestrator.service";
 import { EnvModule } from "@repo/nest-env";
 import { CoreDockerModule } from "../modules/docker/docker.module";
 import { CorePlatformIngressModule } from "../modules/platform-ingress/platform-ingress.module";
-import { SupervisorsModule } from "../modules/supervisors/supervisors.module";
+import { SupervisorsModule } from "@repo/nest-supervisor-core/supervisors.module";
 import { SupervisorsDatabaseModule } from "../modules/supervisors/database/database-supervisors.module";
 import { SupervisorsPlatformModule } from "../modules/supervisors/platform/platform-supervisors.module";
 // Traefik CORE module — owns the instance CONFIG updates (the supervisor only

@@ -22,7 +22,7 @@ import { SetupModule } from "./modules/setup/setup.module";
 // ─── Auth ────────────────────────────────────────────────────────────────────
 import { AuthModule } from "./core/modules/auth/auth.module";
 import { createBetterAuth } from "./config/auth/auth";
-import { GLOBAL_DATABASE_CONNECTION } from "./core/modules/database/database-connection";
+import { GLOBAL_DATABASE_CONNECTION } from "@repo/nest-database-core/database-connection";
 import { EnvService } from "@repo/nest-env";
 import { eq } from "drizzle-orm";
 import * as globalSchema from "@repo/nest-schema/global";
@@ -54,7 +54,7 @@ import { UserModule } from "./modules/user/user.module";
 import { ConfigurationCoreModule } from "./core/modules/configuration/configuration-core.module";
 import { ProjectCoreModule } from "./core/modules/project/project-core.module";
 import { DeploymentCoreModule } from "./core/modules/deployment/deployment-core.module";
-import { SupervisorsModule } from "./core/modules/supervisors/supervisors.module";
+import { SupervisorsModule } from "@repo/nest-supervisor-core/supervisors.module";
 import { SwarmInventoryModule } from "./core/modules/swarm/swarm-inventory.module";
 import { CorePlatformIngressModule } from "./core/modules/platform-ingress/platform-ingress.module";
 

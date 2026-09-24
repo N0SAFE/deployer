@@ -21,7 +21,7 @@ import { EnvService } from "@repo/nest-env";
 import { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
 import { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
 import { platformTraefikContainerName } from "@/core/modules/platform-ingress/services/platform-names";
-import { SupervisorOrchestratorService } from "@/core/modules/supervisors/supervisor-orchestrator.service";
+import { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";
 import { ManagedWebSupervisorService } from "@/core/modules/supervisors/platform/managed-web-supervisor.service";
 import { TraefikConfigRefresher } from "@/core/modules/traefik/services/traefik-config-refresher.service";
 import { CloudflareAppService } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";

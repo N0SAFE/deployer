@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { TraefikConfigRefresher } from "./traefik-config-refresher.service";
 import { TraefikSupervisorService } from "../../supervisors/platform/traefik-supervisor.service";
 import type { TraefikPlatformConfigService } from "./traefik-platform-config.service";
-import type { SupervisorOrchestratorService } from "../../supervisors/supervisor-orchestrator.service";
+import type { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";
 
 describe("TraefikConfigRefresher (core-module config update trigger)", () => {
 	it("writes config THEN re-converges the process, never throwing", async () => {

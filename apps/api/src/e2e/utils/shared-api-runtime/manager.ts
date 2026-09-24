@@ -18,7 +18,7 @@ import { GlobalDatabaseService } from '@/core/modules/database/global/global-dat
 import {
     GLOBAL_DATABASE_CONNECTION,
     GLOBAL_DATABASE_POOL,
-} from '@/core/modules/database/database-connection'
+} from "@repo/nest-database-core/database-connection"
 import { TraefikFileSystemService } from '@/core/modules/traefik/services/traefik-file-system.service'
 import { sharedRequestOverride } from './request-override'
 import {

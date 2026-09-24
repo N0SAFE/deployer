@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import type * as localSchema from '@repo/nest-schema/local';
-import { BaseDatabaseService } from '../shared/database.service';
+import { BaseDatabaseService } from "@repo/nest-database-core/base-database.service";
 
 export type LocalDatabase = BunSQLiteDatabase<typeof localSchema>;
 

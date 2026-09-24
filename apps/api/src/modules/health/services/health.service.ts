@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { HealthRepository } from "../repositories/health.repository";
 import { AppLifecycleService } from "@repo/nest-lifecycle";
-import { SupervisorOrchestratorService } from "@/core/modules/supervisors/supervisor-orchestrator.service";
+import { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";
 
 @Injectable()
 export class HealthService {

@@ -1,16 +1,16 @@
-# Graph Report - v3  (2026-09-09)
+# Graph Report - v3  (2026-09-24)
 
 ## Corpus Check
-- 2718 files · ~2,733,143 words
+- 2797 files · ~2,806,214 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 27475 nodes · 44543 edges · 1475 communities (1268 shown, 207 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 457 edges (avg confidence: 0.74)
+- 29300 nodes · 45337 edges · 1708 communities (1468 shown, 240 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 393 edges (avg confidence: 0.73)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `851b47ac`
+- Built from commit: `5f3ce1dc`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -460,7 +460,6 @@
 - [[_COMMUNITY_fleet.module.ts|fleet.module.ts]]
 - [[_COMMUNITY_DependencyTemplateConfig|DependencyTemplateConfig]]
 - [[_COMMUNITY_fleet-rollback.service.ts|fleet-rollback.service.ts]]
-- [[_COMMUNITY_nest-cli.json|nest-cli.json]]
 - [[_COMMUNITY_app.module.ts|app.module.ts]]
 - [[_COMMUNITY_🔴 Anti-Pattern Catalog (Always Reject)|🔴 Anti-Pattern Catalog (Always Reject)]]
 - [[_COMMUNITY_makeRoute.tsx|makeRoute.tsx]]
@@ -566,7 +565,6 @@
 - [[_COMMUNITY_build.ts|build.ts]]
 - [[_COMMUNITY_.testMethod|.testMethod]]
 - [[_COMMUNITY_package.json|package.json]]
-- [[_COMMUNITY_use-session.ts|use-session.ts]]
 - [[_COMMUNITY_8. Detailed File Contents for Context|8. Detailed File Contents for Context]]
 - [[_COMMUNITY_dependencies|dependencies]]
 - [[_COMMUNITY_peerDependencies|peerDependencies]]
@@ -727,8 +725,6 @@
 - [[_COMMUNITY_zod|zod]]
 - [[_COMMUNITY_🔴 Type-Driven Development — Make Illegal States Unrepresentable|🔴 Type-Driven Development — Make Illegal States Unrepresentable]]
 - [[_COMMUNITY_route.ts|route.ts]]
-- [[_COMMUNITY_page.tsx|page.tsx]]
-- [[_COMMUNITY_page.tsx|page.tsx]]
 - [[_COMMUNITY_page.tsx|page.tsx]]
 - [[_COMMUNITY_page.tsx|page.tsx]]
 - [[_COMMUNITY_sw.ts|sw.ts]]
@@ -1297,8 +1293,10 @@
 - [[_COMMUNITY_README|README.md]]
 - [[_COMMUNITY_role-config-collection.spec.ts|role-config-collection.spec.ts]]
 - [[_COMMUNITY_statement-config-collection.spec.ts|statement-config-collection.spec.ts]]
+- [[_COMMUNITY_source-provider.token.ts|source-provider.token.ts]]
 - [[_COMMUNITY_dockerRunnerOptionsSchema|dockerRunnerOptionsSchema]]
 - [[_COMMUNITY_vitest.setup.ts|vitest.setup.ts]]
+- [[_COMMUNITY_builder.spec.ts|builder.spec.ts]]
 - [[_COMMUNITY_ProjectContextBuilder|ProjectContextBuilder]]
 - [[_COMMUNITY_MigrationJournalService|MigrationJournalService]]
 - [[_COMMUNITY_🔴 Performance — SSE  High-Frequency Streams|🔴 Performance — SSE / High-Frequency Streams]]
@@ -1325,6 +1323,7 @@
 - [[_COMMUNITY_🔴 No Bridges, No Compatibility Layers|🔴 No Bridges, No Compatibility Layers]]
 - [[_COMMUNITY_🔴 Type-Driven Development — Make Illegal States Unrepresentable|🔴 Type-Driven Development — Make Illegal States Unrepresentable]]
 - [[_COMMUNITY_🔴 No Bridges, No Compatibility Layers|🔴 No Bridges, No Compatibility Layers]]
+- [[_COMMUNITY_mesh-server-url.utils.ts|mesh-server-url.utils.ts]]
 - [[_COMMUNITY_eslint-progress-plugin|eslint-progress-plugin.md]]
 - [[_COMMUNITY_engineering-principles.instructions|engineering-principles.instructions.md]]
 - [[_COMMUNITY_🔴 Ripple Effect Analysis|🔴 Ripple Effect Analysis]]
@@ -1447,42 +1446,257 @@
 - [[_COMMUNITY_Project Structure|Project Structure]]
 - [[_COMMUNITY_ORPC Client Configuration ✅|ORPC Client Configuration ✅]]
 - [[_COMMUNITY_🟡 Large Files Requiring Refactoring|🟡 Large Files Requiring Refactoring]]
+- [[_COMMUNITY_platform-self-resolver.ts|platform-self-resolver.ts]]
 - [[_COMMUNITY_standard-operations-additional.test.ts|standard-operations-additional.test.ts]]
 - [[_COMMUNITY_clusterSnapshotContractOutput|clusterSnapshotContractOutput]]
 - [[_COMMUNITY_coreEventStreamListConfigSchemas|coreEventStreamListConfigSchemas]]
+- [[_COMMUNITY_service.schema.test.ts|service.schema.test.ts]]
+- [[_COMMUNITY_mesh-query-plan.ts|mesh-query-plan.ts]]
+- [[_COMMUNITY_dependencies|dependencies]]
+- [[_COMMUNITY_page.tsx|page.tsx]]
+- [[_COMMUNITY_event-iterator.ts|event-iterator.ts]]
+- [[_COMMUNITY_MeshTrustStrictModeService|MeshTrustStrictModeService]]
+- [[_COMMUNITY_ReachabilityController|ReachabilityController]]
+- [[_COMMUNITY_hooks.ts|hooks.ts]]
+- [[_COMMUNITY_type-helpers.ts|type-helpers.ts]]
+- [[_COMMUNITY_.describe|.describe]]
+- [[_COMMUNITY_preview-topology.service.ts|preview-topology.service.ts]]
+- [[_COMMUNITY_devDependencies|devDependencies]]
+- [[_COMMUNITY_node-config.schema.ts|node-config.schema.ts]]
+- [[_COMMUNITY_deployment.schemas.ts|deployment.schemas.ts]]
+- [[_COMMUNITY_GithubDeploymentCacheRepository|GithubDeploymentCacheRepository]]
+- [[_COMMUNITY_GithubRepositoryConfigRepository|GithubRepositoryConfigRepository]]
+- [[_COMMUNITY_DatabaseServiceSupervisorService|DatabaseServiceSupervisorService]]
+- [[_COMMUNITY_ClusterSwarmEventsService|ClusterSwarmEventsService]]
+- [[_COMMUNITY_scripts|scripts]]
+- [[_COMMUNITY_ServiceDomainConfig.tsx|ServiceDomainConfig.tsx]]
+- [[_COMMUNITY_filtering.ts|filtering.ts]]
+- [[_COMMUNITY_publicAccess|publicAccess]]
+- [[_COMMUNITY_github.service.ts|github.service.ts]]
+- [[_COMMUNITY_mesh-filter.types.ts|mesh-filter.types.ts]]
+- [[_COMMUNITY_MeshConnectionRegistry|MeshConnectionRegistry]]
+- [[_COMMUNITY_mesh-base-resource.contract.ts|mesh-base-resource.contract.ts]]
+- [[_COMMUNITY_nest-cli.json|nest-cli.json]]
+- [[_COMMUNITY_import|import]]
+- [[_COMMUNITY_PermissionBuilder|PermissionBuilder]]
+- [[_COMMUNITY_SchemaWithConfig|SchemaWithConfig]]
+- [[_COMMUNITY_DomainConflictService|DomainConflictService]]
+- [[_COMMUNITY_OrSet|OrSet]]
+- [[_COMMUNITY_FleetController|FleetController]]
+- [[_COMMUNITY_compilerOptions|compilerOptions]]
+- [[_COMMUNITY_devDependencies|devDependencies]]
+- [[_COMMUNITY_form.tsx|form.tsx]]
+- [[_COMMUNITY_scripts|scripts]]
+- [[_COMMUNITY_PermissionEngine|PermissionEngine]]
+- [[_COMMUNITY_scripts|scripts]]
+- [[_COMMUNITY_scripts|scripts]]
+- [[_COMMUNITY_Setup App Refactor — Plan|Setup App Refactor — Plan]]
+- [[_COMMUNITY_exports|exports]]
+- [[_COMMUNITY_scripts|scripts]]
+- [[_COMMUNITY_exports|exports]]
+- [[_COMMUNITY_filter-compiler.ts|filter-compiler.ts]]
+- [[_COMMUNITY_import|import]]
+- [[_COMMUNITY_import|import]]
+- [[_COMMUNITY_package.json|package.json]]
+- [[_COMMUNITY_schema.ts|schema.ts]]
+- [[_COMMUNITY_normalize-package-exports.ts|normalize-package-exports.ts]]
+- [[_COMMUNITY_node-config.ts|node-config.ts]]
+- [[_COMMUNITY_SubAppCascadeService|SubAppCascadeService]]
+- [[_COMMUNITY_multi-session-accounts|multi-session-accounts.mdx]]
+- [[_COMMUNITY_organization-detail-inner.tsx|organization-detail-inner.tsx]]
+- [[_COMMUNITY_progress-step.tsx|progress-step.tsx]]
+- [[_COMMUNITY_8. Health & readiness — NestJS Terminus|8. Health & readiness — NestJS Terminus]]
+- [[_COMMUNITY_pkg-build — shared configurable package builder|pkg-build — shared configurable package builder]]
+- [[_COMMUNITY_base.ts|base.ts]]
+- [[_COMMUNITY_permission-engine.ts|permission-engine.ts]]
+- [[_COMMUNITY_package.json|package.json]]
+- [[_COMMUNITY_devDependencies|devDependencies]]
+- [[_COMMUNITY_app-config.service.ts|app-config.service.ts]]
+- [[_COMMUNITY_MeshResourceBuilder|MeshResourceBuilder]]
+- [[_COMMUNITY_project.service.ts|project.service.ts]]
+- [[_COMMUNITY_terminal-tab.tsx|terminal-tab.tsx]]
+- [[_COMMUNITY_ProjectDomainController|ProjectDomainController]]
+- [[_COMMUNITY_.findTemplateById|.findTemplateById]]
+- [[_COMMUNITY_ProviderSchemaController|ProviderSchemaController]]
+- [[_COMMUNITY_logs-viewer.tsx|logs-viewer.tsx]]
+- [[_COMMUNITY_pkgBuild|pkgBuild]]
+- [[_COMMUNITY_swarm-schemas.test.ts|swarm-schemas.test.ts]]
+- [[_COMMUNITY_import|import]]
+- [[_COMMUNITY_resource-graph.ts|resource-graph.ts]]
+- [[_COMMUNITY_domain.adapter.ts|domain.adapter.ts]]
+- [[_COMMUNITY_CoreEventLogRepository|CoreEventLogRepository]]
+- [[_COMMUNITY_index.ts|index.ts]]
+- [[_COMMUNITY_ServiceDomainController|ServiceDomainController]]
+- [[_COMMUNITY_PushController|PushController]]
+- [[_COMMUNITY_docker-image-security-flow.tsx|docker-image-security-flow.tsx]]
+- [[_COMMUNITY_index.tsx|index.tsx]]
+- [[_COMMUNITY_previewUrl.ts|previewUrl.ts]]
+- [[_COMMUNITY_5. Package extraction|5. Package extraction]]
+- [[_COMMUNITY_exports|exports]]
+- [[_COMMUNITY_runtime.ts|runtime.ts]]
+- [[_COMMUNITY_project-domain.interfaces.ts|project-domain.interfaces.ts]]
+- [[_COMMUNITY_DnsProvidersController|DnsProvidersController]]
+- [[_COMMUNITY_swarm-spec.mapper.ts|swarm-spec.mapper.ts]]
+- [[_COMMUNITY_debug-file-watcher.ts|debug-file-watcher.ts]]
+- [[_COMMUNITY_page.tsx|page.tsx]]
+- [[_COMMUNITY_page.tsx|page.tsx]]
+- [[_COMMUNITY_2. Current state (measured)|2. Current state (measured)]]
+- [[_COMMUNITY_common.schema.ts|common.schema.ts]]
+- [[_COMMUNITY_runtime-events.schema.ts|runtime-events.schema.ts]]
+- [[_COMMUNITY_runtime-events.schema.ts|runtime-events.schema.ts]]
+- [[_COMMUNITY_base.schema.ts|base.schema.ts]]
+- [[_COMMUNITY_details.schema.ts|details.schema.ts]]
+- [[_COMMUNITY_runtime-events.schema.ts|runtime-events.schema.ts]]
+- [[_COMMUNITY_mock-config.schema.ts|mock-config.schema.ts]]
+- [[_COMMUNITY_base-event.service.spec.ts|base-event.service.spec.ts]]
+- [[_COMMUNITY_runtime.ts|runtime.ts]]
+- [[_COMMUNITY_tsconfig.json|tsconfig.json]]
+- [[_COMMUNITY_filter-matcher.ts|filter-matcher.ts]]
+- [[_COMMUNITY_default|default]]
+- [[_COMMUNITY_merge-hooks.ts|merge-hooks.ts]]
+- [[_COMMUNITY_align-package-tsconfig-aliases.ts|align-package-tsconfig-aliases.ts]]
+- [[_COMMUNITY_analyze-extraction-order.py|analyze-extraction-order.py]]
+- [[_COMMUNITY_classImportsEdges|classImportsEdges]]
+- [[_COMMUNITY_lineAt|lineAt]]
+- [[_COMMUNITY_How the user gets in — onboarding flow|How the user gets in — onboarding flow]]
+- [[_COMMUNITY_package.json|package.json]]
+- [[_COMMUNITY_security-tab.tsx|security-tab.tsx]]
+- [[_COMMUNITY_service-section-nav.tsx|service-section-nav.tsx]]
+- [[_COMMUNITY_vitest.setup.ts|vitest.setup.ts]]
+- [[_COMMUNITY_11. Compose & Docker changes|11. Compose & Docker changes]]
+- [[_COMMUNITY_networks.schema.ts|networks.schema.ts]]
+- [[_COMMUNITY_pkgBuild|pkgBuild]]
+- [[_COMMUNITY_tabs.tsx|tabs.tsx]]
+- [[_COMMUNITY_10. Stream piping|10. Stream piping]]
+- [[_COMMUNITY_12. Image & build strategy|12. Image & build strategy]]
+- [[_COMMUNITY_list.ts|list.ts]]
+- [[_COMMUNITY_list.ts|list.ts]]
+- [[_COMMUNITY_contract-registry.schema.ts|contract-registry.schema.ts]]
+- [[_COMMUNITY_volumes.schema.ts|volumes.schema.ts]]
+- [[_COMMUNITY_details.schema.ts|details.schema.ts]]
+- [[_COMMUNITY_envelopes.schema.ts|envelopes.schema.ts]]
+- [[_COMMUNITY_database.schema.ts|database.schema.ts]]
+- [[_COMMUNITY_.client|./client]]
+- [[_COMMUNITY_.react|./react]]
+- [[_COMMUNITY_.reactsessionclient|./react/session/client]]
+- [[_COMMUNITY_.server|./server]]
+- [[_COMMUNITY_enums.ts|enums.ts]]
+- [[_COMMUNITY_relativize-bundled-package.ts|relativize-bundled-package.ts]]
+- [[_COMMUNITY_node-mesh-config.ts|node-mesh-config.ts]]
+- [[_COMMUNITY_mounts-tab.tsx|mounts-tab.tsx]]
+- [[_COMMUNITY_redirects.ts|redirects.ts]]
+- [[_COMMUNITY_13. Lifecycle sequences|13. Lifecycle sequences]]
+- [[_COMMUNITY_1. Goal|1. Goal]]
+- [[_COMMUNITY_6. `appssetup` — the new app|6. `apps/setup` — the new app]]
+- [[_COMMUNITY_7. Full API simplification|7. Full API simplification]]
+- [[_COMMUNITY_9. Traefik — two states, one hostname|9. Traefik — two states, one hostname]]
+- [[_COMMUNITY_index.ts|index.ts]]
+- [[_COMMUNITY_.codecscodec-registry|./codecs/codec-registry]]
+- [[_COMMUNITY_.global|./global]]
+- [[_COMMUNITY_.globalanalytics|./global/analytics]]
+- [[_COMMUNITY_.globalauth|./global/auth]]
+- [[_COMMUNITY_.globalcluster|./global/cluster]]
+- [[_COMMUNITY_.globalcluster-migration-state|./global/cluster-migration-state]]
+- [[_COMMUNITY_.globaldeployment|./global/deployment]]
+- [[_COMMUNITY_.globaldeployment.schemas|./global/deployment.schemas]]
+- [[_COMMUNITY_.globaldns-providers|./global/dns-providers]]
+- [[_COMMUNITY_.globaldocker-runtime-activity|./global/docker-runtime-activity]]
+- [[_COMMUNITY_.globaldocker-security-scan|./global/docker-security-scan]]
+- [[_COMMUNITY_.globaldomain|./global/domain]]
+- [[_COMMUNITY_.globalenvironment|./global/environment]]
+- [[_COMMUNITY_.globalevents|./global/events]]
+- [[_COMMUNITY_.globalgithub-provider|./global/github-provider]]
+- [[_COMMUNITY_.globalgitlab-provider|./global/gitlab-provider]]
+- [[_COMMUNITY_.globalhealth|./global/health]]
+- [[_COMMUNITY_.globalimage-project-membership|./global/image-project-membership]]
+- [[_COMMUNITY_.globalnode-network-config|./global/node-network-config]]
+- [[_COMMUNITY_.globalpermissions|./global/permissions]]
+- [[_COMMUNITY_.globalproject-scan-config|./global/project-scan-config]]
+- [[_COMMUNITY_.globalruntime|./global/runtime]]
+- [[_COMMUNITY_.globalschema-version|./global/schema-version]]
+- [[_COMMUNITY_.globalseed-version|./global/seed-version]]
+- [[_COMMUNITY_.globaltraefik|./global/traefik]]
+- [[_COMMUNITY_.globalutilszod-enum|./global/utils/zod-enum]]
+- [[_COMMUNITY_.local|./local]]
+- [[_COMMUNITY_.localcluster-master-history|./local/cluster-master-history]]
+- [[_COMMUNITY_.localcluster-node|./local/cluster-node]]
+- [[_COMMUNITY_.localcluster-nodes|./local/cluster-nodes]]
+- [[_COMMUNITY_.localnode-config|./local/node-config]]
+- [[_COMMUNITY_.localnode-mesh-config|./local/node-mesh-config]]
+- [[_COMMUNITY_.localplatform-settings|./local/platform-settings]]
+- [[_COMMUNITY_table-config.ts|table-config.ts]]
+- [[_COMMUNITY_.builder|./builder]]
+- [[_COMMUNITY_.hooks|./hooks]]
+- [[_COMMUNITY_.query|./query]]
+- [[_COMMUNITY_.standard|./standard]]
+- [[_COMMUNITY_invalidation.ts|invalidation.ts]]
+- [[_COMMUNITY_types.ts|types.ts]]
+- [[_COMMUNITY_conflicts.ts|conflicts.ts]]
+- [[_COMMUNITY_dependencies|dependencies]]
+- [[_COMMUNITY_.parsers|./parsers]]
+- [[_COMMUNITY_.types|./types]]
+- [[_COMMUNITY_analyze-cycle-cost.py|analyze-cycle-cost.py]]
+- [[_COMMUNITY_start|start]]
+- [[_COMMUNITY_TraefikVariableResolverService|TraefikVariableResolverService]]
+- [[_COMMUNITY_TraefikMiddlewareLibraryService|TraefikMiddlewareLibraryService]]
+- [[_COMMUNITY_tmp-sc9-import-cost.ts|tmp-sc9-import-cost.ts]]
+- [[_COMMUNITY_route.ts|route.ts]]
+- [[_COMMUNITY_setup-storage.ts|setup-storage.ts]]
+- [[_COMMUNITY_author|author]]
+- [[_COMMUNITY_details.schema.ts|details.schema.ts]]
+- [[_COMMUNITY_rules.schema.ts|rules.schema.ts]]
+- [[_COMMUNITY_utils.ts|utils.ts]]
+- [[_COMMUNITY_audit-dropped-scripts.ts|audit-dropped-scripts.ts]]
+- [[_COMMUNITY_generatedirectustypes|generate:directus:types]]
+- [[_COMMUNITY_probe-cold.sh script|probe-cold.sh script]]
+- [[_COMMUNITY_t0|t0]]
+- [[_COMMUNITY_query-client.ts|query-client.ts]]
+- [[_COMMUNITY_tmp-sc9-one.ts|tmp-sc9-one.ts]]
+- [[_COMMUNITY_schema.ts|schema.ts]]
+- [[_COMMUNITY_invalidations.ts|invalidations.ts]]
+- [[_COMMUNITY_invalidations.ts|invalidations.ts]]
+- [[_COMMUNITY_patterns.ts|patterns.ts]]
+- [[_COMMUNITY_cycleReport|cycleReport]]
+- [[_COMMUNITY_serviceDependencyTargetFilterSchema|serviceDependencyTargetFilterSchema]]
+- [[_COMMUNITY_projectDevelopmentEnvironmentConfigSchema|projectDevelopmentEnvironmentConfigSchema]]
+- [[_COMMUNITY_projectEnvironmentConfigSchema|projectEnvironmentConfigSchema]]
+- [[_COMMUNITY_projectPreviewEnvironmentConfigSchema|projectPreviewEnvironmentConfigSchema]]
+- [[_COMMUNITY_environmentStatusSchema|environmentStatusSchema]]
+- [[_COMMUNITY_environmentTypeSchema|environmentTypeSchema]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `requireAuth()` - 283 edges
+1. `requireAuth()` - 297 edges
 2. `Per-statement implementation todo lists` - 192 edges
-3. `standardDomainErrorContracts()` - 159 edges
-4. `DockerService` - 143 edges
-5. `isRecord()` - 134 edges
-6. `standard` - 129 edges
-7. `DockerRepository` - 128 edges
-8. `scripts` - 102 edges
-9. `eq()` - 88 edges
-10. `DeploymentService` - 88 edges
+3. `DockerService` - 166 edges
+4. `standardDomainErrorContracts()` - 147 edges
+5. `DockerRepository` - 128 edges
+6. `standard` - 119 edges
+7. `scripts` - 105 edges
+8. `DockerContainerResolutionService` - 87 edges
+9. `SystemMeshTopologyService` - 84 edges
+10. `DeploymentService` - 84 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `createORPCClientWithCookies()` --indirect_call--> `AppContract`  [INFERRED]
-  apps/web/src/lib/orpc/index.ts → packages/contracts/api/index.ts
-- `createBetterAuth()` --calls--> `betterAuthFactory()`  [INFERRED]
-  apps/api/src/config/auth/auth.ts → packages/utils/auth/src/server/auth.ts
-- `masterTokenPlugin()` --calls--> `createAuthMiddleware()`  [INFERRED]
-  packages/utils/auth/src/server/plugins/masterTokenAuth.ts → apps/api/src/core/modules/auth/orpc/middlewares.ts
-- `FluentSelectOptions` --references--> `EventOutput`  [EXTRACTED]
-  apps/api/src/core/modules/events/services/core-event-sync.service.ts → packages/nest/events/src/event-contract.builder.ts
-- `resolveFallbackPayloadMessage()` --calls--> `isRecord()`  [EXTRACTED]
-  apps/web/src/app/dashboard/docker/_components/container-detail-modal/container-detail-modal-trigger.tsx → packages/utils/type-guards/src/index.ts
+- `DashboardServiceConfigurationEnvironmentPage()` --calls--> `useParams()`  [INFERRED]
+  apps/web/src/app/dashboard/projects/[projectId]/services/[serviceId]/configuration/environment/page.tsx → packages/utils/declarative-routing/src/hooks.ts
+- `DashboardServiceConfigurationGeneralPage()` --calls--> `useParams()`  [INFERRED]
+  apps/web/src/app/dashboard/projects/[projectId]/services/[serviceId]/configuration/general/page.tsx → packages/utils/declarative-routing/src/hooks.ts
+- `DashboardServiceConfigurationNetworkPage()` --calls--> `useParams()`  [INFERRED]
+  apps/web/src/app/dashboard/projects/[projectId]/services/[serviceId]/configuration/network/page.tsx → packages/utils/declarative-routing/src/hooks.ts
+- `DashboardServiceConfigurationPreviewPage()` --calls--> `useParams()`  [INFERRED]
+  apps/web/src/app/dashboard/projects/[projectId]/services/[serviceId]/configuration/preview/page.tsx → packages/utils/declarative-routing/src/hooks.ts
+- `DashboardServiceMonitoringPage()` --calls--> `useParams()`  [INFERRED]
+  apps/web/src/app/dashboard/projects/[projectId]/services/[serviceId]/monitoring/page.tsx → packages/utils/declarative-routing/src/hooks.ts
 
 ## Import Cycles
 - 1-file cycle: `packages/utils/orpc/src/builder/plugin/zod.ts -> packages/utils/orpc/src/builder/plugin/zod.ts`
 - 1-file cycle: `packages/utils/orpc/src/utils/observable/contract.ts -> packages/utils/orpc/src/utils/observable/contract.ts`
 - 1-file cycle: `packages/ui/base/src/components/shadcn/sonner.tsx -> packages/ui/base/src/components/shadcn/sonner.tsx`
+- 1-file cycle: `apps/doc/src/lib/source.ts -> apps/doc/src/lib/source.ts`
 - 1-file cycle: `apps/api/src/openapi.ts -> apps/api/src/openapi.ts`
 - 1-file cycle: `apps/doc/.source/browser.ts -> apps/doc/.source/browser.ts`
 - 1-file cycle: `apps/doc/.source/dynamic.ts -> apps/doc/.source/dynamic.ts`
-- 1-file cycle: `apps/doc/src/lib/source.ts -> apps/doc/src/lib/source.ts`
+- 3-file cycle: `packages/contracts/api/modules/project/environments/shared.ts -> packages/utils/orpc/src/index.ts -> packages/utils/orpc/src/utils/observable/link-plugin.ts -> packages/contracts/api/modules/project/environments/shared.ts`
 - 3-file cycle: `packages/utils/orpc/src/builder/core/route-builder.ts -> packages/utils/orpc/src/builder/plugin/index.ts -> packages/utils/orpc/src/builder/plugin/standard.ts -> packages/utils/orpc/src/builder/core/route-builder.ts`
 - 3-file cycle: `packages/utils/orpc/src/builder/core/route-builder.ts -> packages/utils/orpc/src/builder/output/proxy.ts -> packages/utils/orpc/src/builder/output/builder.ts -> packages/utils/orpc/src/builder/core/route-builder.ts`
 - 3-file cycle: `packages/utils/orpc/src/builder/core/route-builder.ts -> packages/utils/orpc/src/builder/plugin/index.ts -> packages/utils/orpc/src/builder/plugin/zod.ts -> packages/utils/orpc/src/builder/core/route-builder.ts`
@@ -1495,13 +1709,12 @@
 - 4-file cycle: `packages/contracts/entities/src/entities/docker/stacks/index.ts -> packages/contracts/entities/src/entities/docker/stacks/relations.schema.ts -> packages/contracts/entities/src/entities/docker/volumes/index.ts -> packages/contracts/entities/src/entities/docker/volumes/relations.schema.ts -> packages/contracts/entities/src/entities/docker/stacks/index.ts`
 - 4-file cycle: `packages/contracts/entities/src/entities/docker/containers/index.ts -> packages/contracts/entities/src/entities/docker/containers/relations.schema.ts -> packages/contracts/entities/src/entities/docker/stacks/index.ts -> packages/contracts/entities/src/entities/docker/stacks/relations.schema.ts -> packages/contracts/entities/src/entities/docker/containers/index.ts`
 - 4-file cycle: `packages/contracts/entities/src/entities/docker/images/index.ts -> packages/contracts/entities/src/entities/docker/images/relations.schema.ts -> packages/contracts/entities/src/entities/docker/stacks/index.ts -> packages/contracts/entities/src/entities/docker/stacks/relations.schema.ts -> packages/contracts/entities/src/entities/docker/images/index.ts`
-- 4-file cycle: `packages/contracts/entities/src/entities/docker/networks/index.ts -> packages/contracts/entities/src/entities/docker/networks/relations.schema.ts -> packages/contracts/entities/src/entities/docker/stacks/index.ts -> packages/contracts/entities/src/entities/docker/stacks/relations.schema.ts -> packages/contracts/entities/src/entities/docker/networks/index.ts`
 
-## Communities (1475 total, 207 thin omitted)
+## Communities (1708 total, 240 thin omitted)
 
 ### Community 0 - "TypeScript Type Utilities"
-Cohesion: 0.08
-Nodes (22): Auth, AuthUtils, AuthUtilsEmpty, AuthPlugin, AuthPluginContext, AuthPluginOptions, assertAuthenticated(), AUTH_MIDDLEWARE_BRAND_VALUE (+14 more)
+Cohesion: 0.07
+Nodes (27): Auth, AuthUtils, AuthUtilsEmpty, AuthPlugin, AuthPluginContext, AuthPluginOptions, assertAuthenticated(), AUTH_MIDDLEWARE_BRAND_VALUE (+19 more)
 
 ### Community 1 - "Mesh Networking Contracts"
 Cohesion: 0.01
@@ -1512,48 +1725,44 @@ Cohesion: 0.01
 Nodes (172): Deployment, DeploymentCompiledPlan, deploymentCompiledPlanSchema, DeploymentCompiledPlanSnapshot, DeploymentCompiledPlanSnapshotByRunResult, deploymentCompiledPlanSnapshotByRunResultSchema, deploymentCompiledPlanSnapshotSchema, DeploymentCompiledRollbackGraph (+164 more)
 
 ### Community 3 - "Admin Auth Plugin"
-Cohesion: 0.03
-Nodes (81): artifactBundleConfigSchema, buildMethodSchema, containerRegistryConfigSchema, CreateServiceFormApi, defaultWizardValues, domainEntrySchema, envVarSchema, githubConfigSchema (+73 more)
+Cohesion: 0.05
+Nodes (28): CreateServiceFormApi, useCreateServiceForm(), ALL_STEPS, CreateServiceWizardProps, StepDef, StepProps, WizardDialog(), RunnerDetectionContext (+20 more)
 
 ### Community 4 - "HTTP/Traefik Router Builder"
 Cohesion: 0.05
-Nodes (63): MiddlewareBuilder, HealthCheckBuilder, LoadBalancerBuilder, ServiceBuilder, CorsOptions, EntrypointConfig, HealthCheck, IPWhiteListConfig (+55 more)
+Nodes (42): MiddlewareBuilder, HealthCheckBuilder, LoadBalancerBuilder, ServiceBuilder, ConfigBuildError, CorsOptions, HealthCheck, IPWhiteListConfig (+34 more)
 
 ### Community 5 - "Declarative Routes"
 Cohesion: 0.01
-Nodes (148): meshEntity, meshOperation, Route, Route, Route, Route, Route, Route (+140 more)
-
-### Community 6 - "Traefik Configuration Repository"
-Cohesion: 0.03
-Nodes (15): CreateTraefikMiddleware, TraefikMiddleware, isNull(), CreateConfigFileInput, CreateDomainRouteInput, CreateMiddlewareInput, CreateServiceConfigInput, CreateServiceTargetInput (+7 more)
+Nodes (158): meshEntity, meshOperation, Route, Route, Route, Route, Route, Route (+150 more)
 
 ### Community 7 - "Permission & Role Checks"
 Cohesion: 0.04
-Nodes (35): SsrAuthGuardMiddleware, AuthWithPlugins, AppMiddlewares, AppPluginRegistry, createAdminWrapper(), createPluginMiddlewares(), createPluginRegistry(), InferPluginsFromRegistry (+27 more)
+Nodes (31): SsrAuthGuardMiddleware, AuthWithPlugins, AppMiddlewares, AppPluginRegistry, createPluginMiddlewares(), PluginRegistry, AdminChecksBuilder, AdminMiddlewareDefinition (+23 more)
 
 ### Community 9 - "Mesh Core & Orchestration"
-Cohesion: 0.04
-Nodes (31): MeshConfigTrustKeys, SystemMeshConfigService, MeshLogicConfig, SystemMeshLogicService, MeshValidationError, ClusterSyncNodeRecord, MeshClusterSyncService, MeshHealthMonitorService (+23 more)
+Cohesion: 0.12
+Nodes (12): MeshPeerSessionService, ID_GENERATOR_TOKEN, IdGenerator, SequentialIdGenerator, SystemIdGenerator, MeshPeerConnectInput, meshPeerConnectionSchema, MeshPeerConnectResult (+4 more)
 
 ### Community 10 - "Docker Container Actions"
 Cohesion: 0.03
-Nodes (102): TerminalSessionEvent, TerminalSessionStoredEvent, TerminalSessionStream, dockerContainerActionsContract, dockerContainersContract, dockerContainerInspectContract, dockerContainerInspectOps, dockerContainerLinkedListContract (+94 more)
+Nodes (88): TerminalSessionEvent, TerminalSessionStoredEvent, TerminalSessionStream, dockerContainerActionsContract, dockerContainersContract, dockerContainerInspectContract, dockerContainerInspectOps, dockerContainerLinkedListContract (+80 more)
 
 ### Community 11 - "Docker Module Wiring"
 Cohesion: 0.03
-Nodes (77): meshConnectPeerContract, meshConsumeJoinGrantContract, meshControlEnvelopePublishContract, meshControlEnvelopePublishOps, meshDisconnectPeerContract, meshEventStreamByIdOps, MeshEventStreamListInput, meshEventStreamOps (+69 more)
+Nodes (79): meshConnectPeerContract, meshConsumeJoinGrantContract, MeshContract, meshControlEnvelopePublishContract, meshControlEnvelopePublishOps, meshDisconnectPeerContract, meshEventStreamByIdOps, MeshEventStreamListInput (+71 more)
 
 ### Community 12 - "Mesh Topology Services"
-Cohesion: 0.04
-Nodes (42): assert(), main(), NodeNetworkConfigData, mapRecord(), ProjectNetworkService, recordTypeSchema, CloudflareAppService, CloudflareCredentials (+34 more)
+Cohesion: 0.11
+Nodes (10): CloudflareDnsProviderService, buildRecordCreateParams(), toDnsRecordShape(), CreateDnsRecordInput, DnsProvider, DnsProviderAccountRef, DnsProviderRecord, DnsProviderZone (+2 more)
 
 ### Community 13 - "Docker Runtime Activity Projection"
 Cohesion: 0.04
-Nodes (94): DockerEntityEvent, dockerEntityEventEnvelopeSchema, dockerEntityEventSchema, DockerEntityRemovedEvent, dockerEntityRemovedEventSchema, DockerEntityStreamChunk, DockerEntityStreamQuery, DockerBuilderRuntimeAction (+86 more)
+Nodes (82): DockerRuntimeSystemEvent, DockerBuilderRuntimeAction, dockerBuilderRuntimeActionSchema, DockerBuilderRuntimeEvent, DockerBuilderRuntimeEventPayload, dockerBuilderRuntimeEventPayloadSchema, dockerBuilderRuntimeEventSchema, DockerConfigRuntimeAction (+74 more)
 
 ### Community 14 - "Mesh Cluster Repository"
-Cohesion: 0.17
-Nodes (9): makeFieldRef(), MeshFieldKey, MeshFieldMap, MeshFieldRef, meshFieldRefSymbol, meshFields(), AnyRecord, SchemaRecordOutput (+1 more)
+Cohesion: 0.13
+Nodes (11): makeFieldRef(), MeshFieldKey, MeshFieldMap, MeshFieldRef, meshFieldRefSymbol, meshFields(), meshExpressionSymbol, AnyRecord (+3 more)
 
 ### Community 15 - "Deployment Pipeline Service"
 Cohesion: 0.08
@@ -1561,119 +1770,119 @@ Nodes (25): CacheStrategy, cacheStrategySchema, DeploymentEnvironment, Deploymen
 
 ### Community 16 - "hooks.ts"
 Cohesion: 0.03
-Nodes (72): DockerRuntimeEventsProviderClientProps, buildDockerExceptionalRuntimeStreamInput(), buildDockerRuntimeStreamInput(), BuildDockerRuntimeStreamInputOptions, buildScopeFilter(), DEFAULT_DOCKER_DOMAIN_STREAM_INPUT, DEFAULT_DOCKER_RUNTIME_STREAM_INPUT, DEFAULT_EXCEPTIONAL_SCOPE_SELECTIONS (+64 more)
+Nodes (71): DockerRuntimeEventsProviderClientProps, buildDockerExceptionalRuntimeStreamInput(), buildDockerRuntimeStreamInput(), BuildDockerRuntimeStreamInputOptions, buildScopeFilter(), DEFAULT_DOCKER_DOMAIN_STREAM_INPUT, DEFAULT_DOCKER_RUNTIME_STREAM_INPUT, DEFAULT_EXCEPTIONAL_SCOPE_SELECTIONS (+63 more)
 
 ### Community 17 - "cn"
-Cohesion: 0.06
-Nodes (17): Sheet(), SheetContent(), SheetDescription(), SheetHeader(), SheetTitle(), Sidebar(), SidebarContext, SidebarContextProps (+9 more)
+Cohesion: 0.05
+Nodes (23): Sheet(), SheetContent(), SheetDescription(), SheetHeader(), SheetTitle(), Sidebar(), SidebarContext, SidebarContextProps (+15 more)
 
 ### Community 18 - "SystemMeshTopologyService"
-Cohesion: 0.04
-Nodes (73): DetailedInputBrand, DetailedOutputBrand, BuiltDetailedInputSchema, createDetailedInputBuilder(), DetailedInputBuilderSchema, HeadersBuilder, IsEmptyObjectSchemaType, isFieldOptional() (+65 more)
+Cohesion: 0.06
+Nodes (57): DetailedOutputBrand, ExtractOutputBody, ExtractOutputHeaders, ExtractOutputStatus, ObservableContractSchema, OutputSchemaProxySchema, BasePluginTransformer, InferOf (+49 more)
 
 ### Community 19 - "types.ts"
 Cohesion: 0.10
-Nodes (34): DockerStack, dockerStackSchema, DockerStackServiceRef, dockerStackServiceRefSchema, DockerStackStatus, dockerStackStatusSchema, DockerStackActivityEntry, dockerStackActivityEntrySchema (+26 more)
+Nodes (20): DockerStackActivityEntry, dockerStackActivityEntrySchema, DockerStackActivityStatus, dockerStackActivityStatusSchema, DockerStackGitSyncState, dockerStackGitSyncStateSchema, DockerStackGitWebhookStatus, dockerStackGitWebhookStatusSchema (+12 more)
 
 ### Community 20 - "index.ts"
 Cohesion: 0.07
-Nodes (26): DelegatedRuntimeRunnerBase, BuildpackRunnerOptions, buildpackRunnerOptionsSchema, DockerComposeRunnerOptions, dockerComposeRunnerOptionsSchema, DockerfileRunnerOptions, dockerfileRunnerOptionsSchema, NixpacksRunnerOptions (+18 more)
+Nodes (24): DelegatedRuntimeRunnerBase, BuildpackRunnerOptions, buildpackRunnerOptionsSchema, DockerComposeRunnerOptions, dockerComposeRunnerOptionsSchema, DockerfileRunnerOptions, dockerfileRunnerOptionsSchema, NixpacksRunnerOptions (+16 more)
 
 ### Community 21 - "index.ts"
 Cohesion: 0.05
-Nodes (42): rollbackStatusSchema, Deployment, DeploymentConnectivityStatus, deploymentConnectivityStatusSchema, DeploymentExecutionProgress, deploymentExecutionProgressSchema, DeploymentLog, deploymentLogSchema (+34 more)
+Nodes (35): DeploymentExecutionCancelInput, deploymentExecutionCancelInputSchema, DeploymentExecutionCancelResult, deploymentExecutionCancelResultSchema, DeploymentExecutionCheckpoint, DeploymentExecutionCheckpointByRunResult, deploymentExecutionCheckpointByRunResultSchema, deploymentExecutionCheckpointSchema (+27 more)
 
 ### Community 22 - "scripts"
 Cohesion: 0.02
-Nodes (102): scripts, add:template, api, build, check, check-env, check-env:api, check-env:doc (+94 more)
+Nodes (105): scripts, add:template, api, build, check, check:di-graph, check:di-graph:cycles, check-env (+97 more)
 
 ### Community 23 - "AuthCoreService"
 Cohesion: 0.02
 Nodes (84): 11. Isomorphic Filter API, 11. Static Service Metadata, 12. Query Manifest System, 13. Reactive Live Queries, 13. Updated `BaseMeshService`, 14. Distributed Aggregation, 14. Internal Topic Derivation, 15. Query Middleware Pipeline (+76 more)
 
 ### Community 24 - "platform-domain.builder.ts"
-Cohesion: 0.15
-Nodes (6): OrganizationsPermissionsPlugin, ExtractBody, ExtractQuery, InferAllFromBuilder, InferParams, InferRolesFromBuilder
+Cohesion: 0.11
+Nodes (12): ApiMethodsWithOrganizationPlugin, AuthWithOrganizationPlugin, OrganizationPluginInstance, OrganizationsPermissionsPlugin, OrganizationsPlugin, OrganizationsPluginWrapperOptions, MinimalAuth, WithAuthPlugins (+4 more)
 
 ### Community 25 - "index.ts"
 Cohesion: 0.02
-Nodes (94): ConfigFile, configFiles, configFileSchema, configFilesRelations, CreateConfigFile, createConfigFileSchema, CreateDomainConfig, createDomainConfigSchema (+86 more)
+Nodes (88): ConfigFile, configFiles, configFileSchema, configFilesRelations, CreateConfigFile, createConfigFileSchema, CreateDomainConfig, createDomainConfigSchema (+80 more)
 
 ### Community 26 - "mesh-connection-registry.ts"
-Cohesion: 0.06
-Nodes (42): MeshConnectionRegistry, PromotionDecision, ConnectionLifecycleEvent, ConsumerRegistration, MeshConnection, MeshStreamEnvelope, NodeTarget, SharedStream (+34 more)
+Cohesion: 0.15
+Nodes (22): always, and(), eq(), reconstructFilter(), exists(), gt(), gte(), inSet() (+14 more)
 
 ### Community 27 - "mesh-contracts.ts"
-Cohesion: 0.04
-Nodes (74): AdminDomainsPage(), DNS_PROVIDER_CONFIG_FIELDS, DomainRow, METHOD_LABELS, CloudflareAppDetailInner(), RECORD_TYPES, recordsQuerySchema, RecordType (+66 more)
+Cohesion: 0.12
+Nodes (19): addressSchema, NodeNetworkConfig(), NodeNetworkView, TunnelHealth, useCloudflareZones(), reachabilityEndpointOperations, ReachabilityEndpoints, enhancedReachability (+11 more)
 
 ### Community 28 - "docker.large.mock.ts"
 Cohesion: 0.09
-Nodes (17): BuilderLogProjection, CONTAINER_LIST_INPUT, DashboardServiceDeploymentsPage(), DateRangePreset, DEPLOYMENT_LIST_INPUT, DeploymentLite, DeploymentMetricProjection, DeploymentRowProjection (+9 more)
+Nodes (16): BuilderLogProjection, CONTAINER_LIST_INPUT, DashboardServiceDeploymentsPage(), DateRangePreset, DEPLOYMENT_LIST_INPUT, DeploymentLite, DeploymentMetricProjection, DeploymentRowProjection (+8 more)
 
 ### Community 29 - "query-builder.ts"
-Cohesion: 0.05
-Nodes (28): MeshCallManyOptions, MeshCallManyResult, cancelEnvelopeSchema, correlationInputSchema, dockerContainerInspectQuerySchema, DockerContainerInspectRequestPayload, DockerContainerInspectResponsePayload, dockerContainerInspectResponsePayloadSchema (+20 more)
+Cohesion: 0.09
+Nodes (5): MeshCallManyOptions, MeshCallManyResult, DockerContainerMeshService, DockerContainerRuntimeMeshService, DockerMeshHandlerRegistrar
 
 ### Community 30 - "DockerRuntimeRunnerService"
 Cohesion: 0.04
-Nodes (45): branchListOutputSchema, createFromPatInputSchema, createGithubAppInputSchema, detectedRunnerSchema, detectRunnerOutputSchema, detectRunnerQuerySchema, githubAppConfigSchema, githubAppCreateContract (+37 more)
+Nodes (54): branchListOutputSchema, createFromPatInputSchema, createGithubAppInputSchema, detectedRunnerSchema, detectRunnerOutputSchema, detectRunnerQuerySchema, githubAppConfigSchema, githubAppCreateContract (+46 more)
 
 ### Community 31 - "DeploymentTriggerInput"
-Cohesion: 0.12
-Nodes (28): DeploymentStoragePolicy, DeploymentStorageBinding, deploymentStorageBindingSchema, DeploymentStorageProvider, DeploymentStorageType, DeploymentStorageUpdateStrategy, deploymentStorageUpdateStrategySchema, asStorageConfigRecord() (+20 more)
+Cohesion: 0.13
+Nodes (27): DeploymentStoragePolicy, DeploymentStorageBinding, deploymentStorageBindingSchema, DeploymentStorageProvider, DeploymentStorageType, DeploymentStorageUpdateStrategy, deploymentStorageUpdateStrategySchema, asStorageConfigRecord() (+19 more)
 
 ### Community 32 - "DeploymentService"
-Cohesion: 0.08
-Nodes (8): DeploymentStateMachineScopeConfigInput, DeploymentEventService, DeploymentRepository, getMetaString(), toDto(), toLogDto(), toRollbackDto(), CANCELLABLE_STATUSES
+Cohesion: 0.03
+Nodes (38): ClusterMetricsProvider, LeadershipEventSink, MasterChangedEvent, activeSnapshot, SwarmLeadershipService, ClusterNodeInventoryRepository, EngineNodeRow, node() (+30 more)
 
 ### Community 33 - "stream.ts"
-Cohesion: 0.15
-Nodes (14): projectGetEnvironmentStatusContract, projectGetAllEnvironmentStatusesContract, projectRefreshEnvironmentStatusContract, availableVariableEntrySchema, environmentStatusOutputSchema, projectAvailableVariableOps, projectEnvironmentParamsSchema, projectEnvironmentStatusOps (+6 more)
+Cohesion: 0.17
+Nodes (12): projectGetEnvironmentStatusContract, projectGetAllEnvironmentStatusesContract, projectRefreshEnvironmentStatusContract, availableVariableEntrySchema, environmentStatusOutputSchema, projectAvailableVariableOps, projectEnvironmentParamsSchema, projectEnvironmentStatusOps (+4 more)
 
 ### Community 34 - "devDependencies"
 Cohesion: 0.04
-Nodes (47): devDependencies, @asteasolutions/zod-to-openapi, babel-plugin-react-compiler, @better-fetch/fetch, dotenv, dotenv-cli, dotenv-expand, eslint (+39 more)
+Nodes (47): devDependencies, @asteasolutions/zod-to-openapi, @better-fetch/fetch, dotenv, dotenv-cli, dotenv-expand, eslint, eslint-config-next (+39 more)
 
 ### Community 35 - "reporting.ts"
 Cohesion: 0.07
-Nodes (33): AnalyticsContract, analyticsGetApplicationMetricsContract, analyticsGetDeploymentMetricsContract, analyticsCreateReportConfigContract, analyticsCreateReportConfigOps, analyticsDeleteReportConfigContract, analyticsDeleteReportConfigOps, analyticsDeleteReportContract (+25 more)
+Nodes (33): AnalyticsContract, analyticsGetServiceHealthContract, analyticsCreateReportConfigContract, analyticsCreateReportConfigOps, analyticsDeleteReportConfigContract, analyticsDeleteReportConfigOps, analyticsDeleteReportContract, analyticsDeleteReportOps (+25 more)
 
 ### Community 36 - "docker.repository.ts"
-Cohesion: 0.11
-Nodes (29): DockerodeContainerInspect, dockerodeContainerInspectSchema, dockerodeContainerListSchema, dockerodeHealthcheckConfigSchema, DockerodeMount, dockerodeMountSchema, DockerodeNetworkAttachment, dockerodeNetworkAttachmentSchema (+21 more)
+Cohesion: 0.33
+Nodes (5): dockerodeImageConfigSchema, DockerodeImageInspect, dockerodeImageInspectSchema, DockerodeImageSummary, dockerodeImageSummarySchema
+
+### Community 38 - "index.ts"
+Cohesion: 0.03
+Nodes (57): getErrorMessage(), isDefinedORPCError(), LedTone, ManagedWebAppView(), ManagedWebAppViewProps, AdminDomainsPage(), DNS_PROVIDER_CONFIG_FIELDS, DomainRow (+49 more)
 
 ### Community 39 - "BaseEventService"
-Cohesion: 0.03
-Nodes (22): testContracts, TestEventService, dxContracts, DxEventService, typedContracts, TypedDeploymentEventService, BASE_EVENT_SERVICE_SYMBOL, BaseEventMergeBuilder (+14 more)
-
-### Community 40 - "ProjectService"
-Cohesion: 0.10
-Nodes (3): transformProject(), ProjectEventService, ProjectService
+Cohesion: 0.06
+Nodes (4): testContracts, TestEventService, BaseEventMergeBuilder, BaseEventService
 
 ### Community 41 - "middlewares.ts"
-Cohesion: 0.04
-Nodes (39): NamespaceEventSubscription, ServiceQuerySelectInput, ServiceSelectionInput, MeshQueryHandlerRegistration, MeshTopicEventPayload, meshTopicEventPayloadSchema, MeshTopicNamespaceDefinition, MeshTopicNamespaceHandle (+31 more)
+Cohesion: 0.02
+Nodes (71): NamespaceEventSubscription, ServiceQuerySelectInput, ServiceSelectionInput, BaseMeshService(), BaseMeshServiceConstructor, buildEntityOperationContracts(), getEntityOperations(), getEntityQueries() (+63 more)
 
 ### Community 42 - "index.ts"
-Cohesion: 0.04
-Nodes (79): deploymentEnvironmentSchema, deploymentStatusSchema, sourceTypeSchema, DockerContainerHealth, dockerContainerHealthSchema, DockerContainerStatus, dockerContainerStatusSchema, DockerListMeta (+71 more)
+Cohesion: 0.07
+Nodes (53): DockerContainerManagedBy, dockerContainerManagedBySchema, dockerContainerSchema, dockerPortBindingSchema, DockerComposeDependencyCondition, dockerComposeDependencyConditionSchema, DockerComposeDependencyEntry, dockerComposeDependencyEntrySchema (+45 more)
 
 ### Community 43 - "build-tools.ts"
-Cohesion: 0.19
-Nodes (24): ConfigSchema, getConfig(), hasConfig(), writeConfig(), OPENAPI_PACKAGES, OPENAPI_SCRIPTS, setup(), setupNext() (+16 more)
+Cohesion: 0.12
+Nodes (31): absoluteFilePath(), Config, ConfigSchema, getConfig(), hasConfig(), writeConfig(), main(), init (+23 more)
 
 ### Community 44 - "index.ts"
-Cohesion: 0.09
-Nodes (12): DockerImageInspectRequestPayload, DockerImagesApplicationService, DockerImagesOrchestratorService, ActiveImageScanStream, DockerImageSecurityScanService, EnsureImageSecurityScanOptions, EnsureImageSecurityScanResult, DockerImageInspectQueryInput (+4 more)
+Cohesion: 0.07
+Nodes (19): DockerImageInspectRequestPayload, DockerImagesApplicationService, DockerImagesOrchestratorService, ActiveImageScanStream, DockerImageSecurityScanService, EnsureImageSecurityScanOptions, EnsureImageSecurityScanResult, DockerImageCatalogRepository (+11 more)
 
 ### Community 45 - "index.ts"
-Cohesion: 0.05
-Nodes (37): COMMON_CAPABILITIES, COMMON_GPU_CAPABILITIES, COMMON_ULIMITS, CONFIG_PRESETS, ConfigSet, DockerCreateContainerModal(), DockerCreateContainerModalProps, DockerCreateContainerPayload (+29 more)
+Cohesion: 0.08
+Nodes (20): COMMON_CAPABILITIES, COMMON_GPU_CAPABILITIES, COMMON_ULIMITS, CONFIG_PRESETS, ConfigSet, DockerCreateContainerModal(), DockerCreateContainerModalProps, DockerCreateContainerPayload (+12 more)
 
 ### Community 46 - "CoreEventSyncService"
-Cohesion: 0.05
-Nodes (28): AliasForService, AnyServiceSelection, buildFuzzyHaystack(), ContractsOf, CoreEventAdapterEvent, CoreEventAdapterInput, CoreEventNamespaceAdapter, CoreEventNamespaceBuilder (+20 more)
+Cohesion: 0.03
+Nodes (37): CoreEventStreamRepository, toDto(), AliasForService, AnyServiceSelection, buildFuzzyHaystack(), ContractsOf, CoreEventAdapterEvent, CoreEventAdapterInput (+29 more)
 
 ### Community 47 - "LocalDatabaseService"
 Cohesion: 0.04
@@ -1684,52 +1893,48 @@ Cohesion: 0.12
 Nodes (16): DependencyAttachmentMode, dependencyAttachmentModeSchema, DependencyEnvironmentDiffStatus, dependencyEnvironmentDiffStatusSchema, DependencyFailureMode, dependencyFailureModeSchema, DependencyHealthGate, dependencyHealthGateSchema (+8 more)
 
 ### Community 49 - "VariableRegistry"
-Cohesion: 0.09
-Nodes (16): AdminMiddlewareDefinition, BaseMiddlewareDefinition, AnyMiddlewareContext, AuthConstraint, CheckResult, ContextResolver, DefaultBody, DefaultParams (+8 more)
+Cohesion: 0.05
+Nodes (32): RequireAdminRoleCheck, AnyMiddlewareDefinition, AuthWithSessionAPI, BaseAuthConstraint, BaseMiddlewareDefinition, InferAuthFromDefinition, InferBuilderFromDefinition, InferRolesFromDefinition (+24 more)
 
 ### Community 50 - "deployment-queue-lifecycle.service.ts"
 Cohesion: 0.05
-Nodes (54): assertClaimedByWorker(), parseClaimResult(), parseDeadLetterJob(), parseDeadLetterListResult(), parseDeadLetterReplayResult(), parseEnqueueResult(), parseHeartbeatResult(), parseQueueJob() (+46 more)
+Nodes (53): assertClaimedByWorker(), parseClaimResult(), parseDeadLetterJob(), parseDeadLetterListResult(), parseDeadLetterReplayResult(), parseEnqueueResult(), parseHeartbeatResult(), parseQueueJob() (+45 more)
 
 ### Community 51 - "context-filter-debug.ts"
-Cohesion: 0.07
-Nodes (44): ContextFilterDebugLogger, ContextFilterDebugPredicate, WEB_CONTEXT_FILTER_VALUE, webLogger, toAbsoluteUrl(), debugMiddleware, debugMiddlewareError, stackMiddlewares() (+36 more)
+Cohesion: 0.11
+Nodes (21): debugMiddleware, debugMiddlewareError, stackMiddlewares(), AddParameters, ConfigFactory, ConfiguredMatcher, CustomNextMiddleware, Matcher (+13 more)
 
 ### Community 52 - "mesh-query-builder-types.ts"
 Cohesion: 0.07
-Nodes (23): MeshQueryBuilder, AccumulateJoins, AnyMeshQueryRef, BuilderItemShape, BuilderResultShape, MeshJoinConfigurator, MeshJoinDescriptor, MeshJoinResultShape (+15 more)
+Nodes (22): MeshQueryBuilder, AccumulateJoins, AnyMeshQueryRef, BuilderItemShape, BuilderResultShape, MeshJoinConfigurator, MeshJoinDescriptor, MeshJoinResultShape (+14 more)
 
 ### Community 53 - "docker-runtime-activity-domain.service.ts"
-Cohesion: 0.06
-Nodes (32): TerminalSession, ComposeConfig, DockerContainerComposeTab(), DockerContainerComposeTabProps, DockerContainerConfigTab(), DockerContainerConfigTabProps, RuntimeConfig, DockerContainerEnvTab() (+24 more)
+Cohesion: 0.08
+Nodes (23): ComposeConfig, DockerContainerComposeTab(), DockerContainerComposeTabProps, DockerContainerConfigTab(), DockerContainerConfigTabProps, RuntimeConfig, DockerContainerEnvTab(), DockerContainerEnvTabProps (+15 more)
 
 ### Community 54 - "index.ts"
 Cohesion: 0.04
 Nodes (48): 1. Overview, 2.1 Shared Postgres Container, 2.2 Parallelism and max concurrency, 2. Architecture, 3.1 Bootstrap sequence (`SharedApiRuntimeManager.startRuntime`), 3.2 Teardown sequence, 3.3 Plugin system, 3. Runtime Lifecycle (+40 more)
 
 ### Community 55 - "index.ts"
-Cohesion: 0.06
-Nodes (70): BuilderFilterField, InferBuilderFieldOperators, InferBuilderFieldValue, NormalizeFilterFields, ALL_FILTER_OPERATORS, ARRAY_OPERATORS, arrayField(), booleanField() (+62 more)
+Cohesion: 0.04
+Nodes (96): BaseStandardOperations, EntityOperationOptions, ListOperationOptions, ListPlainOptions, FilterOperator, standard, userSchema, validCreateUser (+88 more)
 
 ### Community 56 - "core-event-sync.service.ts"
-Cohesion: 0.03
-Nodes (18): SystemMeshEventContracts, SystemMeshEventService, SystemMeshOverlayScopeService, SystemMeshTopologyService, MeshControlPlaneService, MeshEnvelopeSideEffectsService, MeshMembershipService, MeshQueueReplicationService (+10 more)
+Cohesion: 0.02
+Nodes (45): DatabaseNotReadyReporter, isDatabaseNotReadyError(), SystemMeshEventService, MESH_TOPIC_SERVICES, MESH_TOPOLOGY_SERVICES, StubMeshNodeCaller, NodeMeshConfigRepository, NodeMeshConfigRow (+37 more)
 
 ### Community 57 - "DockerRuntimeEventsSourceService"
 Cohesion: 0.06
-Nodes (30): cloudflareCheckRecordContract, cloudflareCreateRecordContract, cloudflareCreateTunnelContract, cloudflareCreateTunnelInputSchema, cloudflareCreateTunnelOutputSchema, cloudflareDeleteRecordContract, cloudflareDeleteTunnelContract, cloudflareDnsRecordCheckInputSchema (+22 more)
+Nodes (31): cloudflareCheckRecordContract, cloudflareCreateRecordContract, cloudflareCreateTunnelContract, cloudflareCreateTunnelInputSchema, cloudflareCreateTunnelOutputSchema, cloudflareDeleteRecordContract, cloudflareDeleteTunnelContract, cloudflareDnsRecordCheckInputSchema (+23 more)
 
 ### Community 58 - "index.ts"
-Cohesion: 0.05
-Nodes (29): createDeploymentCompleteStrategyContext(), DeploymentCompleteStrategyContext, seedTestOwner(), SharedApiRuntimeContext, DbTransaction, ServiceRepository, ServiceRow, toDto() (+21 more)
+Cohesion: 0.14
+Nodes (4): DbTransaction, ServiceRepository, ServiceRow, toDto()
 
 ### Community 59 - "docker-image-detail-modal.tsx"
-Cohesion: 0.10
-Nodes (17): DockerImageDetailContentProps, DockerImageDetailModal(), DockerImageDetailModalProps, DockerImageDetailModalTriggerProps, DockerImageModalTab, DockerImageSecuritySubTab, imageIdsMatch(), inferPullLayerProgress() (+9 more)
-
-### Community 60 - "requireAuth"
-Cohesion: 0.04
-Nodes (3): authMiddleware(), requirePlatformRole(), DeploymentController
+Cohesion: 0.09
+Nodes (16): DockerImageDetailContentProps, DockerImageDetailModalProps, DockerImageDetailModalTriggerProps, DockerImageModalTab, DockerImageSecuritySubTab, imageIdsMatch(), inferPullLayerProgress(), matchesRuntimeImageEvent() (+8 more)
 
 ### Community 61 - "docker-container-runtime-mesh.service.ts"
 Cohesion: 0.02
@@ -1737,47 +1942,47 @@ Nodes (88): cancelEnvelopeSchema, containerCreateDirectoryBodySchema, containerD
 
 ### Community 62 - "dependencies"
 Cohesion: 0.03
-Nodes (70): dependencies, better-auth, circular-json, class-variance-authority, clsx, cmdk, concurrently, cross-env (+62 more)
+Nodes (72): dependencies, better-auth, circular-json, class-variance-authority, clsx, cmdk, concurrently, cross-env (+64 more)
 
 ### Community 63 - "page.tsx"
 Cohesion: 0.13
 Nodes (7): DockerActiveFilterChipsProps, DockerColumnSettingsProps, DockerExpandableRowToggleProps, DockerExpandedTableRowProps, DockerExportActionsProps, DockerSelectionToggleProps, FilterChip
 
 ### Community 64 - "DockerRepository"
-Cohesion: 0.06
-Nodes (3): DockerContainerLinksRepository, DockerRepository, DockerRuntimeActivityRepository
+Cohesion: 0.07
+Nodes (4): DockerContainerLinksRepository, DockerRepository, DockerRuntimeActivityRepository, DockerContainerLinkPath
 
 ### Community 65 - "ServiceDomainMappingRepository"
-Cohesion: 0.02
-Nodes (34): serviceDomainMappings, AppConfigService, DomainAdapter, DomainAlreadyExistsError, DomainNotVerifiedError, BasePathValidationResult, SubdomainAvailabilityResult, SubdomainConflict (+26 more)
+Cohesion: 0.06
+Nodes (10): DomainAdapter, InsertServiceDomainMapping, ServiceDomainMapping, ServiceDomainMappingWithUrls, ServiceMappingWithServiceName, SSLConfig, SSLProvider, ServiceDomainMappingRepository (+2 more)
 
 ### Community 66 - "cn"
 Cohesion: 0.02
-Nodes (124): deploymentCompilePlanContract, deploymentCompilePlanPreviewContract, deploymentCompileRollbackEdgesContract, deploymentPlanCompileOps, deploymentRollbackEdgesCompileOps, customTriggerSourceSchema, deploymentCancelContract, deploymentCancelOps (+116 more)
+Nodes (123): deploymentCompilePlanContract, deploymentCompilePlanPreviewContract, deploymentCompileRollbackEdgesContract, deploymentPlanCompileOps, deploymentRollbackEdgesCompileOps, customTriggerSourceSchema, deploymentCancelContract, deploymentCancelOps (+115 more)
 
 ### Community 67 - "page.tsx"
-Cohesion: 0.05
-Nodes (66): AdminOrganizationDetailInner(), AdminServersPage(), deriveNodeCoordinates(), hashNodeId(), MAP_ANCHOR, AdminSystemPage(), MeshLookupHistoryEntry, MeshRoutePlanHistoryEntry (+58 more)
+Cohesion: 0.03
+Nodes (89): CloudflareAppDetailInner(), RECORD_TYPES, recordsQuerySchema, RecordType, TunnelRow, AdminSystemPage(), MeshLookupHistoryEntry, MeshRoutePlanHistoryEntry (+81 more)
 
 ### Community 68 - "InitializationService"
 Cohesion: 0.02
-Nodes (96): assert(), main(), assert(), main(), logger, DEPLOYER_VERSION, __dirname, __filename (+88 more)
+Nodes (80): bootstrap(), logger, DEPLOYER_VERSION, __dirname, __filename, NodeStartupCheckCommand, PKG_PATH, StartupCheckOutput (+72 more)
 
 ### Community 69 - "BaseTriggerService"
-Cohesion: 0.05
-Nodes (7): toStreamDto(), BASE_PHASE_TRANSITIONS, BASE_RETRY_POLICIES, DeploymentService, DeploymentQueryEvent, DeploymentStreamListInput, ServiceDeploymentEvent
+Cohesion: 0.04
+Nodes (14): DeploymentStateMachineScopeConfigInput, DeploymentEventService, coerceSourceConfig(), DeploymentRepository, toDto(), toRollbackDto(), toStreamDto(), BASE_PHASE_TRANSITIONS (+6 more)
 
 ### Community 70 - "isObjectLike"
-Cohesion: 0.09
-Nodes (52): s, CONFIG_SYMBOL, SchemaWithConfig, withConfig(), comparisonField(), createFieldFilterSchema(), createFilteringConfigSchema(), createFilteringSchema() (+44 more)
+Cohesion: 0.13
+Nodes (34): s, CONFIG_SYMBOL, ObjectSchema, createPaginatedResponseSchema(), createPaginationMetaSchema(), createPaginationSchema(), cursorPagination, DEFAULT_PAGINATION_CONFIG (+26 more)
 
 ### Community 71 - "index.ts"
 Cohesion: 0.05
-Nodes (40): MeshDuplexStreamAuthInput, meshDuplexStreamAuthInputSchema, MeshDuplexStreamAuthOkOutput, meshDuplexStreamAuthOkOutputSchema, MeshDuplexStreamControlAckOutput, meshDuplexStreamControlAckOutputSchema, MeshDuplexStreamControlInput, meshDuplexStreamControlInputSchema (+32 more)
+Nodes (39): MeshDuplexStreamAuthInput, meshDuplexStreamAuthInputSchema, MeshDuplexStreamAuthOkOutput, meshDuplexStreamAuthOkOutputSchema, MeshDuplexStreamControlAckOutput, meshDuplexStreamControlAckOutputSchema, MeshDuplexStreamControlInput, meshDuplexStreamControlInputSchema (+31 more)
 
 ### Community 72 - "index.ts"
-Cohesion: 0.04
-Nodes (60): createOrpcInternal(), projectEnvironmentOps, projectEnvironmentParamsSchema, projectIdParamSchema, projectEnvironmentSchema, getObservableSchemaDetails(), observable, OBSERVABLE_DETAILS_SYMBOL (+52 more)
+Cohesion: 0.07
+Nodes (32): createOrpcInternal(), AliasKeyMethod, ContextOption, createObservableQueryUtils(), enhanceObservableQueryUtils(), ExtractProcedureContext, ExtractProcedureInput, ExtractProcedureOutput (+24 more)
 
 ### Community 74 - "Injectable"
 Cohesion: 0.04
@@ -1785,19 +1990,15 @@ Nodes (47): 10.1 Why Observable-Only (No Separate Promise), 10.2 Why `useFactory
 
 ### Community 75 - "dependencies"
 Cohesion: 0.03
-Nodes (77): dependencies, bcrypt, better-auth, better-sqlite3, chalk, cloudflare, dockerode, drizzle-kit (+69 more)
+Nodes (80): dependencies, bcrypt, better-auth, better-sqlite3, chalk, cloudflare, dockerode, drizzle-kit (+72 more)
 
 ### Community 76 - "PlatformRole"
 Cohesion: 0.12
-Nodes (21): AccessControl, AccessControlResult, AccessControlUser, AccessDeniedError, allowAllPermissions(), allowAllRoles(), allowAnyPermission(), allowOwnerOrRoles() (+13 more)
+Nodes (20): AccessControl, AccessControlResult, AccessControlUser, AccessDeniedError, allowAllPermissions(), allowAllRoles(), allowAnyPermission(), allowOwnerOrRoles() (+12 more)
 
 ### Community 77 - "GlobalDatabaseService"
-Cohesion: 0.01
-Nodes (111): appConfig, AppInstanceEntity, appInstanceEntitySchema, appInstanceKindSchema, appInstances, appInstancesRelations, appInstanceStatusSchema, BaseDockerSupervisorService (+103 more)
-
-### Community 78 - "TraefikFileSystemService"
-Cohesion: 0.04
-Nodes (13): CleanupResult, CompleteServiceConfig, DomainRoute, MiddlewareConfiguration, MiddlewareData, ServiceTarget, SyncAction, SyncOptions (+5 more)
+Cohesion: 0.05
+Nodes (19): DockerSupervisorContainerSpec, AppInstanceService, MintedToken, containerRemove(), ManagedWebSupervisorService, PlatformPaths, PlatformRouteConfigService, PlatformNetwork (+11 more)
 
 ### Community 79 - "auth-core.service.ts"
 Cohesion: 0.10
@@ -1805,19 +2006,19 @@ Nodes (21): 11. Server-Side Joins, 12. Mutations, 13. Optimistic Mutations, 14. 
 
 ### Community 80 - "devDependencies"
 Cohesion: 0.06
-Nodes (36): devDependencies, @anatine/esbuild-decorators, bun-types, concurrently, @nestjs/cli, @nestjs/schematics, @nestjs/testing, postcss (+28 more)
+Nodes (36): devDependencies, @anatine/esbuild-decorators, concurrently, @nestjs/cli, @nestjs/schematics, @nestjs/testing, postcss, @repo/config-eslint (+28 more)
 
 ### Community 81 - "github.module.ts"
-Cohesion: 0.04
-Nodes (36): PreviewNamingInput, PreviewNamingResult, PreviewNamingService, GithubWebhooksController, HandlerFn, implementChainable, makeErrorsParam(), prPayload (+28 more)
+Cohesion: 0.05
+Nodes (15): GithubWebhooksController, HandlerFn, implementChainable, makeErrorsParam(), prPayload, runHandler(), GithubAppsRepository, WebhookIdempotencyService (+7 more)
 
 ### Community 82 - "DeploymentMeshService"
-Cohesion: 0.03
-Nodes (49): BaseMeshService(), BaseMeshServiceConstructor, buildEntityOperationContracts(), getEntityOperations(), getEntityQueries(), MeshCallManyMetrics, MeshCancelEnvelope, MeshChangeTopic (+41 more)
+Cohesion: 0.07
+Nodes (19): DeploymentMeshHandlerRegistrar, DeploymentMeshBase, DeploymentMeshService, deploymentsEntity, DeploymentSummary, deploymentSummarySchema, ListDeploymentsRequestPayload, listDeploymentsRequestPayloadSchema (+11 more)
 
 ### Community 83 - "deployment.service.spec.ts"
-Cohesion: 0.18
-Nodes (12): args, copyStylesToDist(), distCjsDir, distDir, distEsmDir, getFiles(), getSharedConfig(), isTestFile() (+4 more)
+Cohesion: 0.04
+Nodes (81): MANAGED_POSTGRES_CONTAINER_NAME, DockerodeError, DockerSupervisorRuntime, getSupervisorTopology(), PLATFORM_SUPERVISOR_TOPOLOGY, PLATFORM_SUPERVISOR_TOPOLOGY_BY_ID, ResolvedSupervisorRuntime, resolveSupervisorRuntime() (+73 more)
 
 ### Community 84 - "runtime-configuration.schema.ts"
 Cohesion: 0.03
@@ -1832,20 +2033,20 @@ Cohesion: 0.15
 Nodes (15): captionStyle, DataPoint, DocChart(), DocChartProps, figureStyle, parseHeight(), MermaidDiagram(), MermaidDiagramProps (+7 more)
 
 ### Community 87 - "MeshControlEnvelope"
-Cohesion: 0.08
-Nodes (30): FleetWorkloadsPanel(), ServiceRow, TaskRow, ClusterNodeRow, DashboardClusterPage(), DashboardOverviewClient(), DashboardOverviewClientProps, DeploymentLike (+22 more)
+Cohesion: 0.13
+Nodes (20): FleetWorkloadsPanel(), ServiceRow, TaskRow, SwarmConfigPanel(), ClusterNodeRow, DashboardClusterPage(), HeaderLiveStatus(), EMPTY_NODES (+12 more)
 
 ### Community 88 - "index.ts"
-Cohesion: 0.06
-Nodes (31): ConfigBuildError, ConfigNotFoundError, ConfigSyncError, ConfigValidationError, TraefikError, DirectoryError, FileDeleteError, FileExistsError (+23 more)
+Cohesion: 0.07
+Nodes (25): ConfigNotFoundError, ConfigSyncError, ConfigValidationError, TraefikError, DirectoryError, FileDeleteError, FileExistsError, FileNotFoundError (+17 more)
 
 ### Community 89 - "standard-schema-helpers.ts"
 Cohesion: 0.03
-Nodes (44): ErrorDefinitionBuilder, ExtractErrorFromBuilder, ExtractErrorsFromBuilders, UnionToIntersection, BuildInput, BuildOutput, CompactDetailedInputShape, CurrentDetailedInputParts (+36 more)
+Nodes (43): getMasterUser(), SessionHydrator(), error(), ErrorDefinitionBuilder, ExtractErrorFromBuilder, ExtractErrorsFromBuilders, UnionToIntersection, BuildInput (+35 more)
 
 ### Community 90 - "map.tsx"
-Cohesion: 0.09
-Nodes (33): ConnectionState, ConnectionStatus(), Props, Props, Button(), buttonVariants, Command(), CommandDialog() (+25 more)
+Cohesion: 0.06
+Nodes (41): ConnectionState, ConnectionStatus(), Props, Props, ModeCard(), Props, Button(), buttonVariants (+33 more)
 
 ### Community 91 - "devDependencies"
 Cohesion: 0.06
@@ -1856,76 +2057,76 @@ Cohesion: 0.04
 Nodes (45): 1. Sources of Evidence, 2. Hypothesis Evaluation, 3. Circular Dependency Analysis, 4. esbuild-wasm Analysis, 5. Online Research Findings, 6. Root Cause, 7. Fix Applied, 8. Additional Recommendations (+37 more)
 
 ### Community 93 - "index.ts"
-Cohesion: 0.12
-Nodes (26): DeleteRouteBuilder, emptySchema, PageComponent, AuthAdapter, ClientAuthAdapter, ClientSessionProps, CoreRouteElements, NextPageProps (+18 more)
+Cohesion: 0.07
+Nodes (26): AuthAdapter, BasePageProps, ClientAuthAdapter, ClientSessionProps, CoreRouteElements, GetInfo, NextPageProps, PageComponent (+18 more)
 
 ### Community 94 - "mesh-entity.ts"
-Cohesion: 0.06
+Cohesion: 0.05
 Nodes (33): AnyMeshEntity, BoundEntityMutations, BoundEntityQueries, BoundMeshMutation, BoundMeshQuery, getEventTypes(), MeshEntityEventSources, MeshEntityItemKey (+25 more)
 
 ### Community 95 - "deployment.ts"
-Cohesion: 0.06
-Nodes (32): services, environmentAccessLogs, environmentKindEnum, environmentPromotions, environments, environmentServices, environmentStatusEnum, environmentTemplates (+24 more)
+Cohesion: 0.10
+Nodes (15): CollaboratorCreateInput, CollaboratorRow, CollaboratorUpdateInput, EnvironmentCreateInput, EnvironmentRow, EnvironmentUpdateInput, LEGACY_TO_CANONICAL_ROLE, ProjectCreateInput (+7 more)
 
 ### Community 96 - "AnalyticsService"
-Cohesion: 0.15
-Nodes (3): AnalyticsService, formatTime(), round1()
+Cohesion: 0.13
+Nodes (4): AnalyticsDeploymentRow, AnalyticsService, formatTime(), round1()
 
 ### Community 97 - "dependency-graph.mock.ts"
 Cohesion: 0.04
 Nodes (45): 1. Use Consistent URL Patterns, 2. Plan Path Hierarchies, 3. Set Primary URLs, 4. Enable SSL by Default, 5. Validate Before Creating, API Versioning, Basic Mapping, Best Practices (+37 more)
 
 ### Community 98 - "standard-operations.ts"
-Cohesion: 0.07
-Nodes (52): EnvironmentRow, EnvironmentSelector(), EnvironmentSelectorProps, DashboardProjectsPage(), ProjectRow, ProjectContractsCard(), DashboardProjectConfigurationPage(), DashboardProjectEnvironmentsPage() (+44 more)
+Cohesion: 0.06
+Nodes (21): EnvironmentRow, EnvironmentSelector(), EnvironmentSelectorProps, ProjectEndpoints, enhancedProject, isProjectIdUsable(), useProjectCollaborators(), useProjectDeploymentConfig() (+13 more)
 
 ### Community 99 - "MeshTrustStrictModeService"
-Cohesion: 0.04
-Nodes (48): MeshBootstrapStrategy, meshBootstrapStrategySchema, MeshNodeConfig, MeshNodeConfigRegenerateSecretResult, meshNodeConfigRegenerateSecretResultSchema, meshNodeConfigSchema, MeshNodeConfigTestDbInput, meshNodeConfigTestDbInputSchema (+40 more)
+Cohesion: 0.05
+Nodes (36): MeshLinkState, meshLinkStateSchema, MeshMembershipSnapshot, meshMembershipSnapshotSchema, meshNodeLifecycleStateSchema, MeshNodeRole, meshNodeRoleSchema, MeshNodeState (+28 more)
 
 ### Community 100 - "Controller"
 Cohesion: 0.04
 Nodes (44): Advanced Usage, API Reference, Basic Resolution, Basic Validation, Basic Variables, Best Practices, Chained Transformations, Custom Validation (+36 more)
 
 ### Community 101 - "contracts.ts"
-Cohesion: 0.11
-Nodes (6): DetailedInputBuilder, shouldBeOptional(), InputSchemaProxy, createLiveQueryHook(), createQueryHook(), createStreamedQueryHook()
+Cohesion: 0.04
+Nodes (30): createPathParamBuilder(), ExtractPathParams, ParamsToSchemaShape, PathParam, PathParamBuilder, PathParamBuilderWithExisting, SchemaShape, BodyBuilder (+22 more)
 
 ### Community 102 - "data-table.tsx"
-Cohesion: 0.13
-Nodes (8): DataTableColumnHeader(), DataTableColumnHeaderProps, DropdownMenu(), DropdownMenuContent(), DropdownMenuItem(), DropdownMenuSeparator(), DropdownMenuTrigger(), cn()
+Cohesion: 0.07
+Nodes (27): downloadTextFile(), repository, type, url, DataTableColumnHeaderProps, DataTableExport(), DataTableExportProps, convertToCSV() (+19 more)
 
 ### Community 103 - "index.ts"
-Cohesion: 0.13
-Nodes (32): useClientRouteHelpers(), getEmptyPrimitive(), getEnumValues(), getLiteralValue(), getZodObjectDefaults(), getZodObjectShallowDefaults(), inferEmptyValue(), mergeWithDefaults() (+24 more)
+Cohesion: 0.17
+Nodes (19): getEmptyPrimitive(), getEnumValues(), getLiteralValue(), getZodObjectDefaults(), getZodObjectShallowDefaults(), inferEmptyValue(), mergeWithDefaults(), asParserBuilder() (+11 more)
 
 ### Community 104 - "Controller"
 Cohesion: 0.04
 Nodes (44): 11. Static Service Metadata, 12. Query Manifest System, 13. Updated `BaseMeshService`, 14. Internal Topic Derivation, 19. Ordering & Pagination, 1. Vision & Architectural Direction, 21. Join System (Builder-Based), 22. Nested Joins (+36 more)
 
 ### Community 105 - "AppLifecycleService"
-Cohesion: 0.07
-Nodes (19): makeConfigDir(), makeDocker(), makeEnv(), makeService(), TraefikPlatformConfigService, OrchestratorService, AdminBootstrapDecision, asBool() (+11 more)
+Cohesion: 0.27
+Nodes (12): AdminBootstrapDecision, asBool(), describePolicy(), ProvisioningEnv, ProvisioningMode, ProvisioningPolicy, provisioningPolicyFromProcessEnv(), resolveAdminBootstrapDecision() (+4 more)
 
 ### Community 106 - "index.ts"
 Cohesion: 0.09
-Nodes (54): any(), array(), boolean(), coerceBoolean(), coerceNumber(), date(), enumeration(), extend() (+46 more)
-
-### Community 107 - ".error"
-Cohesion: 0.03
-Nodes (21): DockerService, SwarmProcessInfo, services, ServiceSummaryOverrides, ServiceTaskTemplate, swarmInfo, tasks, TaskSummaryOverrides (+13 more)
+Nodes (52): any(), array(), boolean(), coerceBoolean(), coerceNumber(), date(), enumeration(), extend() (+44 more)
 
 ### Community 108 - "SetupStepTracker"
-Cohesion: 0.05
-Nodes (34): DeploymentBuilderKind, deploymentBuilderKindSchema, DeploymentEnvironment, deploymentEnvironmentSchema, DeploymentExecutionStateMachineInput, deploymentExecutionStateMachineInputSchema, DeploymentExecutionStateMachineResolution, DeploymentExecutionStateMachineViolation (+26 more)
+Cohesion: 0.04
+Nodes (37): DeploymentBuilderKind, deploymentBuilderKindSchema, DeploymentEnvironment, deploymentEnvironmentSchema, DeploymentExecutionStateMachineInput, deploymentExecutionStateMachineInputSchema, DeploymentExecutionStateMachineResolution, DeploymentExecutionStateMachineViolation (+29 more)
 
 ### Community 110 - "makeRoute.tsx"
-Cohesion: 0.02
-Nodes (11): requireAuth(), AnalyticsController, ProjectDomainController, ServiceDomainController, FleetController, ProjectController, ProviderSchemaController, DnsProvidersController (+3 more)
+Cohesion: 0.06
+Nodes (3): requireAuth(), ClusterController, ProjectController
 
 ### Community 111 - "index.ts"
-Cohesion: 0.06
-Nodes (35): PushEndpoints, pushInvalidations, BetterAuthError, buildInvalidationProxy(), buildKeysProxy(), buildTruthyInputProxy(), CallableInvalidationConfig, custom() (+27 more)
+Cohesion: 0.08
+Nodes (31): BetterAuthError, buildInvalidationProxy(), buildKeysProxy(), buildTruthyInputProxy(), CallableInvalidationConfig, custom(), CustomContractConfigWithoutSchema, CustomContractConfigWithSchema (+23 more)
+
+### Community 112 - "user.repository.ts"
+Cohesion: 0.12
+Nodes (7): mockAuthUser, CreateUserInput, GetUserOutput, GetUsersInput, UpdateUserInput, UserRepository, UserService
 
 ### Community 113 - "index.ts"
 Cohesion: 0.05
@@ -1936,36 +2137,36 @@ Cohesion: 0.18
 Nodes (6): MeshOpenInternalBridgeInput, MeshStreamRuntimeService, DeploymentStreamBridgeService, DeploymentStreamOrchestratorService, OpenDeploymentStreamInput, DeploymentProgressEvent
 
 ### Community 116 - "deployment-provider-builder-runner-state-machine.service.ts"
-Cohesion: 0.02
-Nodes (96): apiKeys, DnsProviderFeatures, DnsProviderRuntimeState, dnsProviders, projectDomains, projectDomainsRelations, serviceDomainMappingsRelations, sslProviderEnum (+88 more)
+Cohesion: 0.07
+Nodes (13): DeploymentExecutionPlan, DeploymentQueueWorkerService, executionPlanSchema, PhaseRetryPolicy, runtimeConfigurationContextSchema, AppError, BadRequestError, ConflictError (+5 more)
 
 ### Community 117 - "ServiceService"
 Cohesion: 0.05
 Nodes (41): Anti-patterns to reject, API app top-level structure, API Architecture (v3), Architecture guard tests (recommended), Architecture principles (non-negotiable), Complex feature tests, Component taxonomy (what to create), Component tests (+33 more)
 
 ### Community 118 - "traefik-middleware-library.service.ts"
-Cohesion: 0.12
-Nodes (24): AddPrefixOptions, AdminChainOptions, ApiChainOptions, BasicAuthOptions, BufferingOptions, CircuitBreakerOptions, CompressionOptions, CorsMiddlewareOptions (+16 more)
+Cohesion: 0.06
+Nodes (61): EntrypointConfig, DownloadResult, FileContentResult, FileOperationResult, FileSystemNamingConventions, ParsedServiceConfigFileName, TraefikFileSystemPaths, VirtualDirectoryTree (+53 more)
 
 ### Community 119 - "index.ts"
-Cohesion: 0.07
-Nodes (40): ServiceContractRegistry, ServiceContractRegistryMap, serviceContractRegistryMapSchema, serviceContractRegistrySchema, DependencyFilterInputSource, dependencyFilterInputSourceSchema, DependencyFilterOperator, dependencyFilterOperatorSchema (+32 more)
+Cohesion: 0.12
+Nodes (15): DependencyFilterInputSource, dependencyFilterInputSourceSchema, DependencyFilterOperator, dependencyFilterOperatorSchema, DependencyInstanceProvisioning, dependencyInstanceProvisioningSchema, DependencyLinkTarget, dependencyLinkTargetSchema (+7 more)
 
 ### Community 120 - "isRecord"
 Cohesion: 0.05
 Nodes (38): 1. Middleware Definitions, 2. Middleware Checks, 3. Dynamic Value Resolution, 4. Converters, AdminMiddlewareDefinition, API Reference, Architecture Diagram, Best Practices (+30 more)
 
 ### Community 121 - "InternalErrorInsightService"
-Cohesion: 0.18
-Nodes (7): getInternalErrorRequestContext(), INTERNAL_ERROR_CONTEXT_KEY, RequestWithInternalErrorContext, InternalErrorExceptionFilter, InternalErrorCaptureOptions, InternalErrorCaptureResult, APIErrorExceptionFilter
+Cohesion: 0.09
+Nodes (12): getInternalErrorRequestContext(), INTERNAL_ERROR_CONTEXT_KEY, InternalErrorRequestContext, InternalErrorContextMiddleware, RequestWithInternalErrorContext, setInternalErrorRequestContext(), InternalErrorExceptionFilter, InternalErrorCaptureOptions (+4 more)
 
 ### Community 122 - "file-upload-link.ts"
-Cohesion: 0.04
-Nodes (36): projectDeploymentConfigOps, projectGetDeploymentConfigContract, projectDeploymentConfigOps, projectDeploymentConfigUpdateInputSchema, projectUpdateDeploymentConfigContract, projectEnvironmentConfigOps, projectGetEnvironmentConfigContract, projectEnvironmentConfigOps (+28 more)
+Cohesion: 0.03
+Nodes (63): DockerTerminalStreamEvent, projectDeploymentConfigOps, projectGetDeploymentConfigContract, projectDeploymentConfigOps, projectDeploymentConfigUpdateInputSchema, projectUpdateDeploymentConfigContract, projectEnvironmentConfigOps, projectGetEnvironmentConfigContract (+55 more)
 
 ### Community 123 - "index.ts"
-Cohesion: 0.03
-Nodes (66): dockerContainerCreateDirectoryContract, dockerContainerCreateDirectoryOps, dockerContainerDeletePathContract, dockerContainerDeletePathOps, dockerContainerFilesystemContract, dockerContainerFilesContract, dockerContainerFilesOps, dockerContainerReadFileContract (+58 more)
+Cohesion: 0.04
+Nodes (32): DomainRoutingService, GithubDeploymentRule, GithubDeploymentRuleInsert, GithubDeploymentRulesRepository, SystemMeshEventContracts, SetupEventContracts, SetupEventService, DeploymentEventContracts (+24 more)
 
 ### Community 124 - "docker-create-container-modal.tsx"
 Cohesion: 0.14
@@ -1973,15 +2174,11 @@ Nodes (11): DataFetchParams, DockerScanFindingRow, DockerScanFindingsDataTable()
 
 ### Community 125 - "index.ts"
 Cohesion: 0.04
-Nodes (55): setupDomainErrorContracts(), setupInitializeOps, setupListHintsOps, setupNodeStatusOps, setupProbeDbOps, setupProbeMeshOps, setupRemoteAuthOps, setupStateOps (+47 more)
+Nodes (59): setupDomainErrorContracts(), setupInitializeOps, setupListHintsOps, setupNodeStatusOps, setupProbeDbOps, setupProbeMeshOps, setupRemoteAuthOps, setupStateOps (+51 more)
 
 ### Community 126 - "RouteRegistryService"
-Cohesion: 0.08
-Nodes (14): RouteRegistryService, HttpMethod, RouteEntry, RoutePattern, SubAppRegistration, RouterController, RouterModule, SubAppCascadeResult (+6 more)
-
-### Community 127 - "docker-runtime-stream-orchestrator.service.ts"
-Cohesion: 0.09
-Nodes (9): InternalBaseMeshService, cancelEnvelopeSchema, correlationInputSchema, MeshQueueTransitionService, queueTransitionMeshContracts, requestEnvelopeSchema, requestPayloadSchema, responseEnvelopeSchema (+1 more)
+Cohesion: 0.13
+Nodes (11): RouteRegistryService, HttpMethod, RouteEntry, RoutePattern, SubAppRegistration, SubAppCascadeResult, SubAppDefinition, PortAllocator (+3 more)
 
 ### Community 128 - "manager.ts"
 Cohesion: 0.11
@@ -1992,12 +2189,12 @@ Cohesion: 0.05
 Nodes (38): 10) Module startup order and blocking chain, 11) Async module chain, 1) Join an existing mesh, 1) Setup module, 1) Startup gate and container ownership, 2) Create a new mesh, 2) First mesh authentication bootstrap, 2) Mesh orchestration module (+30 more)
 
 ### Community 130 - "auth-module-definition.ts"
-Cohesion: 0.07
-Nodes (20): AllKeysOptional, AnyObjectSchema, AnyObjectSchemaWithShape, ExtendSchemaType, ExtractShape, getSchemaOperations(), InferredToSchemaShape, IsEmptyRecord (+12 more)
+Cohesion: 0.06
+Nodes (25): StandardPluginTransformer, AllKeysOptional, AnyObjectSchema, AnyObjectSchemaWithShape, emptyObjectSchema(), ExtendSchemaType, ExtractShape, getSchemaOperations() (+17 more)
 
 ### Community 131 - "TraefikVariableResolverService"
-Cohesion: 0.09
-Nodes (32): RuntimeCase, collectStreamEvents(), runRemoteSetup(), runSetup(), SetupEvent, SetupResult, collectStreamEvents(), runLocalSetup() (+24 more)
+Cohesion: 0.13
+Nodes (22): createDeploymentQueueWorkflowContext(), RuntimeCase, createSetupWorkflowContext(), buildSharedApiRuntimeContext(), createServiceMapper(), createSharedSetupOrpcClient(), DescribeSharedRuntimeScope, getSharedApiRuntime() (+14 more)
 
 ### Community 133 - "DockerContainerLogEntry"
 Cohesion: 0.05
@@ -2008,24 +2205,20 @@ Cohesion: 0.05
 Nodes (37): 1. Core model: the local SQLite `node_config` row, 2. Boot anatomy, 3. Phase-0 dev bootstrap (`SetupDevService`), 4.10 Case J — CLI-only bootstrap (no HTTP wizard), 4.1 Case A — Composition-managed dev stack, first boot (the common "dev" case), 4.2 Case B — Dev, SETUP_AUTO=true + explicit URL (no compose-managed DB), 4.3 Case C — Dev, SETUP_AUTO=true, no URL → wizard auto-provisions Postgres, 4.4 Case D — Dev, SETUP_AUTO=false / unset → fully manual wizard (+29 more)
 
 ### Community 135 - "helpers.ts"
-Cohesion: 0.05
-Nodes (49): CommonOperators, asWrapper(), ColumnResolver, compileDFilter(), compileOperator(), resolveVar(), ProjectSchema, resolver() (+41 more)
+Cohesion: 0.10
+Nodes (18): DFilter, DFilterOperator, DynamicVars, EngineContext, FilterableScalar, OrVar, PermissionCheckResult, PermissionDecision (+10 more)
 
 ### Community 136 - "index.ts"
-Cohesion: 0.11
-Nodes (19): GC_TIME, RETRY_CONFIG, STALE_TIME, plugin, allConfig(), baseConfig(), BaseConfigOptions, ignoresConfig (+11 more)
-
-### Community 137 - "DockerRuntimeEvent"
-Cohesion: 0.07
-Nodes (7): DockerRuntimeStreamOrchestratorService, DockerRuntimeActivityDomainService, DockerRuntimeOrchestratorService, dockerRuntimeActivityStreamContract, DockerRuntimeActivityStreamInput, dockerRuntimeActivityStreamOps, dockerRuntimeActivityStreamQuerySchema
+Cohesion: 0.13
+Nodes (18): GC_TIME, RETRY_CONFIG, STALE_TIME, allConfig(), baseConfig(), BaseConfigOptions, ignoresConfig, testConfig() (+10 more)
 
 ### Community 138 - "scan.schema.ts"
-Cohesion: 0.07
-Nodes (38): DockerContainerSecurityTabProps, DockerImageLayerEfficiency, dockerImageLayerEfficiencySchema, DockerImageScannerResult, dockerImageScannerResultSchema, DockerImageScannerStatus, dockerImageScannerStatusSchema, dockerImageSecurityScanCompleteEventSchema (+30 more)
+Cohesion: 0.06
+Nodes (34): DockerImageLayerEfficiency, dockerImageLayerEfficiencySchema, DockerImageScannerResult, dockerImageScannerResultSchema, DockerImageScannerStatus, dockerImageScannerStatusSchema, dockerImageSecurityScanCompleteEventSchema, DockerImageSecurityScanCompletePayload (+26 more)
 
 ### Community 139 - "schemas.ts"
-Cohesion: 0.05
-Nodes (42): NodeConfigStatus, nodeConfigStatusSchema, SetupBootstrapStrategy, setupBootstrapStrategySchema, SetupInitializeInput, setupInitializeInputSchema, SetupInitializeLocalInput, setupInitializeLocalInputSchema (+34 more)
+Cohesion: 0.02
+Nodes (87): ConfigFile, configFiles, configFileSchema, configFilesRelations, CreateConfigFile, createConfigFileSchema, CreateDomainConfig, createDomainConfigSchema (+79 more)
 
 ### Community 140 - "generate-hooks.ts"
 Cohesion: 0.06
@@ -2037,54 +2230,58 @@ Nodes (36): Adapter Methods, addOrganizationDomain, addProjectDomain, addService
 
 ### Community 142 - "platform-domain.schema.ts"
 Cohesion: 0.07
-Nodes (22): resetSharedRuntimeRequestOverride(), setSharedRuntimeAuthHeaders(), setSharedRuntimeRequestOverride(), sharedRequestOverride, ClassConstructor, resolveSharedRuntimeMaxConcurrency(), RuntimeModuleBuilder, SharedOrpcResponseMeta (+14 more)
+Nodes (21): ClassConstructor, resolveSharedRuntimeMaxConcurrency(), RuntimeModuleBuilder, RuntimeModuleBuilderOverride, SharedOrpcResponseMeta, SharedOrpcResponseTracker, SharedRuntimeContainerContext, SharedRuntimeDatabaseContext (+13 more)
 
 ### Community 143 - "Startup Architecture v2 — Sub-App Trigger Chain"
 Cohesion: 0.04
 Nodes (45): Clean Teardown Protocol, Concept, Core Concept: Sub-App Trigger Chain, Degraded Mode, Dependency Graph, Design Goals for v2, Error Handling & Recovery, File Manifest (+37 more)
 
 ### Community 144 - "shared-api-runtime.ts"
-Cohesion: 0.06
-Nodes (22): MeshBootstrapConfig, MeshClientContract, meshClientRouter, MeshInitializationService, MeshSetupSession, MeshVersionService, MeshVersionSummary, PeerVersionInfo (+14 more)
+Cohesion: 0.29
+Nodes (6): DEPLOYER_VERSION, __dirname, __filename, PKG_PATH, semverCompare(), semverSatisfies()
 
 ### Community 145 - "startup-architecture.mdx"
 Cohesion: 0.05
 Nodes (42): BootstrapOrchestrator Emits DatabaseReadyTrigger, Complete Timeline, Core Principle, Dependency Graph (Complete), Dependency Graph (DI-Driven), Error Handling, Extending the Pattern: Any Dependency, Any Reason, Files to Create or Modify (+34 more)
 
 ### Community 146 - "page.tsx"
-Cohesion: 0.12
-Nodes (13): debugDockerLogsFilter, UseFilteredLogsParams, chunkToLogLine(), debugRuntimeLogs, ContainerLike, buildLogContainerLabel(), shortId(), truncateMiddle() (+5 more)
+Cohesion: 0.08
+Nodes (23): ContainerStreamEntity, debugContainerLogsStream, resolveFallbackPayloadMessage(), useContainerStreamLogs(), debugDockerLogsFilter, UseFilteredLogsParams, chunkToLogLine(), debugRuntimeLogs (+15 more)
 
 ### Community 148 - "auth.ts"
 Cohesion: 0.05
-Nodes (49): LeafletCircle, LeafletCircleMarker, LeafletFeatureGroup, LeafletLayerGroup, LeafletMapContainer, LeafletMarker, LeafletMarkerClusterGroup, LeafletPolygon (+41 more)
+Nodes (50): DropdownMenu(), DropdownMenuTrigger(), LeafletCircle, LeafletCircleMarker, LeafletFeatureGroup, LeafletLayerGroup, LeafletMapContainer, LeafletMarker (+42 more)
 
 ### Community 149 - "organization.repository.ts"
-Cohesion: 0.12
-Nodes (13): EntityFilterInput, InspectKindResult, KINDS_WITH_FLAT_LIST, ListKindResult, DockerNetworksModule, DockerNetworksOrchestratorService, DockerNetworksDomainService, dockerNetworksContract (+5 more)
+Cohesion: 0.16
+Nodes (8): DockerNetworksOrchestratorService, DockerNetworksDomainService, dockerNetworksContract, dockerListNetworksContract, dockerNetworkListConfigSchemas, DockerNetworkListInput, dockerNetworkListItemSchema, dockerNetworkOps
 
 ### Community 150 - "page.tsx"
 Cohesion: 0.06
 Nodes (36): 1. "DNS record not found", 1. Token Security, 1. Use TXT Records by Default, 2. Provide Clear Instructions, 2. Rate Limiting, 2. "Token mismatch", 3. "Already verified", 3. Implement Retry Logic (+28 more)
+
+### Community 151 - "traefik-config-builder.ts"
+Cohesion: 0.08
+Nodes (8): FleetRepository, AdmissionRequestRow, AllocationRow, FleetService, ServerRow, iso(), mkAllocationRow(), mkServerRow()
 
 ### Community 152 - "DockerContainerRuntimeService"
 Cohesion: 0.08
 Nodes (31): testAuthenticatedContract, TestAuthenticatedInput, testAuthenticatedOps, TestAuthenticatedOutput, testFileDownloadContract, TestFileDownloadInput, testFileDownloadOps, TestFileDownloadOutput (+23 more)
 
 ### Community 153 - "index.ts"
-Cohesion: 0.04
-Nodes (61): DockerContract, healthCheckContract, healthCheckInput, healthCheckOps, healthCheckOutput, healthDetailedContract, healthDetailedInput, healthDetailedOps (+53 more)
+Cohesion: 0.11
+Nodes (28): serviceChildrenContract, serviceChildrenOutputSchema, serviceSubtreeContract, serviceSubtreeNodeSchema, serviceCreateContract, serviceCreateInputSchema, serviceCreateOutputSchema, serviceDeleteContract (+20 more)
 
 ### Community 154 - "page.tsx"
 Cohesion: 0.13
-Nodes (20): DockerEndpoints, applyDefaultEvent(), buildEntityStreamFilter(), chunkToEntity(), DockerLiveApplyFn, DockerLiveEntitiesOptions, DockerLiveEntitiesResult, DockerLiveEntityStatus (+12 more)
+Nodes (20): DockerEndpoints, applyDefaultEvent(), chunkToEntity(), DockerLiveApplyFn, DockerLiveEntitiesOptions, DockerLiveEntitiesResult, DockerLiveEntityStatus, DockerLiveOnMap (+12 more)
 
 ### Community 155 - "index.ts"
-Cohesion: 0.06
-Nodes (29): metadata, formatDate(), getInitials(), ProfileForm(), ProfileFormProps, revalidateAllAction(), CachedSession, cookieLogger (+21 more)
+Cohesion: 0.09
+Nodes (15): revalidateAllAction(), CachedSession, cookieLogger, getRawSessionCookie(), getSessionFromCookie(), hasSessionCookie(), authClient, pages (+7 more)
 
 ### Community 156 - "RoleConfigCollection"
-Cohesion: 0.05
+Cohesion: 0.11
 Nodes (17): AllRoleActions, AllRoleResources, HasAction, HasActionOnResource, HasAllActionsOnResource, HasAnyActionOnResource, HasResource, ReadOnlyRoles (+9 more)
 
 ### Community 157 - "scripts"
@@ -2101,47 +2298,43 @@ Nodes (45): 🔴 Anti-Pattern Catalog (Always Reject), Architecture & Boundary A
 
 ### Community 160 - "page.tsx"
 Cohesion: 0.08
-Nodes (28): createImageColumns(), createImageSubRowColumns(), createImageTableFetchData(), ImageActionMenuOption, ImageColumnsDeps, ImageSubRowColumnsDeps, ImageTableFetchParams, ImageFilterConfig (+20 more)
+Nodes (26): ImageActionMenuOption, ImageColumnsDeps, ImageSubRowColumnsDeps, ImageTableFetchParams, ImageFilterConfig, ImageFilterConfigOption, ImageListQueryFromSchema, ImageListQueryShape (+18 more)
 
 ### Community 161 - "package.json"
-Cohesion: 0.06
-Nodes (33): author, import, require, description, devDependencies, prettier, prettier-plugin-tailwindcss, @repo/config-vitest (+25 more)
+Cohesion: 0.05
+Nodes (40): author, import, require, types, dependencies, description, devDependencies, chokidar (+32 more)
 
 ### Community 162 - "package.json"
-Cohesion: 0.07
-Nodes (26): dependencies, @repo/auth, @repo/contracts-common, @repo/orpc-utils, @repo/provider-schema, @repo/type-guards, zod, devDependencies (+18 more)
+Cohesion: 0.06
+Nodes (35): dependencies, @repo/auth, @repo/contracts-common, @repo/orpc-utils, @repo/provider-schema, @repo/type-guards, zod, devDependencies (+27 more)
 
 ### Community 163 - "utils.ts"
 Cohesion: 0.05
 Nodes (40): keysToSnake(), CamelToPascal, days, FromCamelToSnake, FromPascalToSnake, IntersectArray, IsUnion, KeysFromCamelToPascal (+32 more)
 
 ### Community 164 - "dependencies"
-Cohesion: 0.06
-Nodes (34): dependencies, class-variance-authority, clsx, cmdk, concurrently, date-fns, date-fns-tz, exceljs (+26 more)
+Cohesion: 0.05
+Nodes (37): dependencies, class-variance-authority, clsx, cmdk, concurrently, date-fns, date-fns-tz, exceljs (+29 more)
 
 ### Community 165 - "command.tsx"
-Cohesion: 0.09
-Nodes (20): DataTableViewOptions(), DataTableViewOptionsProps, Badge(), badgeVariants, Command(), CommandEmpty(), CommandGroup(), CommandInput() (+12 more)
-
-### Community 166 - "TestController"
-Cohesion: 0.07
-Nodes (5): publicAccess(), UserSession, SetupController, testContracts, TestController
+Cohesion: 0.08
+Nodes (25): CalendarDatePicker, SubRowsConfig, DataTableToolbar(), DataTableToolbarProps, getButtonSizeClass(), getInputSizeClass(), DataTableViewOptions(), DataTableViewOptionsProps (+17 more)
 
 ### Community 167 - "docker-containers-orchestrator.service.ts"
-Cohesion: 0.07
-Nodes (7): DockerContainerRuntimeService, DockerContainerProcessesTab(), DockerContainerProcessesTabProps, DockerContainerLogsTabProps, LogsTimeRange, DockerContainerLogEntry, DockerContainerProcessEntry
+Cohesion: 0.05
+Nodes (19): DockerContainerRuntimeService, DockerContainerProcessesTab(), DockerContainerProcessesTabProps, DockerFileBrowserProps, DockerDirectoryEntryView, getFilesInDirectory(), getParentPath(), getPathBreadcrumb() (+11 more)
 
 ### Community 168 - "docker-container-runtime.service.ts"
 Cohesion: 0.03
-Nodes (57): MeshJoinGrantConsumeInput, meshJoinGrantConsumeInputSchema, MeshJoinGrantConsumeResult, meshJoinGrantConsumeResultSchema, MeshJoinGrantIssueCommandInput, meshJoinGrantIssueCommandInputSchema, MeshJoinGrantIssueInput, meshJoinGrantIssueInputSchema (+49 more)
+Nodes (59): MeshJoinGrantConsumeInput, meshJoinGrantConsumeInputSchema, MeshJoinGrantConsumeResult, meshJoinGrantConsumeResultSchema, MeshJoinGrantIssueCommandInput, meshJoinGrantIssueCommandInputSchema, MeshJoinGrantIssueInput, meshJoinGrantIssueInputSchema (+51 more)
 
 ### Community 169 - "hooks.ts"
 Cohesion: 0.06
 Nodes (35): Anti-Patterns, Anti-Patterns, Anti-Patterns, Anti-Patterns, Application, 🔴 Bun Runtime Rule (Mandatory), 🔴 Change Order & Validation, 🔴 Code Smell Catalog (+27 more)
 
 ### Community 170 - ".key"
-Cohesion: 0.04
-Nodes (53): Route, Route, convertURLSearchParamsToObject(), PushOptions, useSearchParamState(), BasePageProps, CoreRouteElements, createPathBuilder() (+45 more)
+Cohesion: 0.07
+Nodes (30): Route, BasePageProps, CoreRouteElements, createPathBuilder(), createRouteBuilder(), createRouteInfo(), DeleteRouteBuilder, FetchOptions (+22 more)
 
 ### Community 171 - "DeploymentRepository"
 Cohesion: 0.06
@@ -2165,7 +2358,7 @@ Nodes (34): Architecture Overview, Cache Behavior by Change Type, Compose-Level 
 
 ### Community 177 - "DetailedOutputBuilder"
 Cohesion: 0.09
-Nodes (8): AbstractDomainEventStreamService, BASE_DOMAIN_STREAM_SERVICE_SYMBOL, BaseDomainStreamServiceSymbolized, DomainStreamMergeBuilder, DomainStreamMergeRegisteredOptions, DomainStreamSelection, DomainStreamServiceRegistryEntry, ObservePooledStreamOptions
+Nodes (7): AbstractDomainEventStreamService, BASE_DOMAIN_STREAM_SERVICE_SYMBOL, BaseDomainStreamServiceSymbolized, DomainStreamMergeBuilder, DomainStreamMergeRegisteredOptions, DomainStreamSelection, DomainStreamServiceRegistryEntry
 
 ### Community 178 - "tasks"
 Cohesion: 0.04
@@ -2188,8 +2381,8 @@ Cohesion: 0.06
 Nodes (30): listConfigSchemas, paginationConfigSchema, sortingConfigSchema, sortingFieldsArray, testEntityCheckNameContract, TestEntityCheckNameInput, TestEntityCheckNameOutput, testEntityCountContract (+22 more)
 
 ### Community 185 - "route-method-meta.ts"
-Cohesion: 0.04
-Nodes (36): AppModule, ORPCGlobalContext, account, accountRelations, platformInvite, platformInviteRelations, pushSubscription, pushSubscriptionRelations (+28 more)
+Cohesion: 0.12
+Nodes (7): PushModule, PushRepository, PushSubscriptionEntity, UserVapidKeysEntity, NotificationPayload, PushService, SubscribeInput
 
 ### Community 186 - "init.ts"
 Cohesion: 0.09
@@ -2200,28 +2393,24 @@ Cohesion: 0.10
 Nodes (14): cleanupContract, CleanupInput, CleanupOutput, configChangeContract, ConfigChangeInput, ConfigChangeOutput, configSyncContract, ConfigSyncInput (+6 more)
 
 ### Community 189 - "usePermissions.ts"
-Cohesion: 0.24
-Nodes (15): createRequirePermissionComponents(), PermissionTarget, RequireOrganizationPermissionProps, RequirePermissionProps, RequirePlatformPermissionProps, createPermissionHooks(), CreatePermissionHooksOptions, OrganizationMember (+7 more)
+Cohesion: 0.41
+Nodes (9): createRequirePermissionComponents(), RequirePermissionProps, RequirePlatformPermissionProps, createPermissionHooks(), CreatePermissionHooksOptions, PlatformPermission, SessionData, UsePermissionsResult (+1 more)
 
 ### Community 190 - "compilerOptions"
 Cohesion: 0.07
 Nodes (26): compilerOptions, allowSyntheticDefaultImports, declaration, emitDecoratorMetadata, experimentalDecorators, forceConsistentCasingInFileNames, incremental, lib (+18 more)
 
-### Community 191 - "index.ts"
-Cohesion: 0.17
-Nodes (10): MasterTokenContext, MasterTokenContextValue, MasterTokenProviderProps, MasterTokenActions, clearMasterToken(), getMasterTokenEnabled(), getMasterTokenKey(), MasterTokenManager (+2 more)
-
 ### Community 192 - "TraefikConfigBuilder"
-Cohesion: 0.07
-Nodes (49): REGISTER_RATE_LIMIT, PlatformContract, appInstanceEntityOutputSchema, appInstanceTokenHeadersSchema, disableManagedWebTunnelContract, enableManagedWebTunnelContract, enableManagedWebTunnelInputSchema, enableManagedWebTunnelOutputSchema (+41 more)
+Cohesion: 0.04
+Nodes (57): PlatformController, REGISTER_RATE_LIMIT, AppInstanceContext, rateLimit(), RateLimitBucketEntry, RateLimitOptions, RequestContext, requireAppInstance() (+49 more)
 
 ### Community 193 - "compilerOptions"
 Cohesion: 0.13
 Nodes (14): compilerOptions, esModuleInterop, forceConsistentCasingInFileNames, isolatedModules, lib, module, moduleResolution, noEmit (+6 more)
 
 ### Community 194 - "DashboardSidebar.tsx"
-Cohesion: 0.03
-Nodes (66): codeProviders, dnsProviderTypes, DashboardDeploymentsPage(), DeploymentRow, DeploymentSortKey, SortDirection, DockerSectionTabs(), TABS (+58 more)
+Cohesion: 0.04
+Nodes (45): codeProviders, ProviderRoute, dnsProviderTypes, ProviderRoute, banSchema, DashboardOverviewClient(), DeploymentLike, formatMegabytes() (+37 more)
 
 ### Community 195 - "index.ts"
 Cohesion: 0.10
@@ -2230,6 +2419,10 @@ Nodes (20): clearTimingHistory(), formatDuration(), getPerformanceIcon(), getTim
 ### Community 196 - "PermissionBuilder"
 Cohesion: 0.07
 Nodes (5): InlineRoleEntry, PermissionBuilder, ResourceBuilder, RoleBuilder, RoleBuilderWithMeta
+
+### Community 197 - "traefik.module.ts"
+Cohesion: 0.16
+Nodes (3): TraefikTemplateRepository, TemplateVariableValue, TraefikTemplateService
 
 ### Community 198 - "compilerOptions"
 Cohesion: 0.09
@@ -2244,36 +2437,32 @@ Cohesion: 0.06
 Nodes (32): Complete File Manifest, Deleted Files, Deletion Checklist, Integration Tests, New Files, Phase 0: Trigger System, Phase 1: Sub-App Runner Infrastructure, Phase 2: Sub-App Orchestrator (+24 more)
 
 ### Community 201 - "devDependencies"
-Cohesion: 0.11
-Nodes (18): devDependencies, bun, concurrently, cross-env, dotenv-cli, knip, @n0safe/envcli, @n0safe/rununtil (+10 more)
-
-### Community 202 - "index.ts"
-Cohesion: 0.07
-Nodes (14): ActionsForResource, hasAllPermissions(), hasPermission(), hasResourcePermission(), InvalidActionError, InvalidResourceError, InvalidRoleError, PermissionRequirement (+6 more)
+Cohesion: 0.12
+Nodes (16): devDependencies, concurrently, cross-env, dotenv-cli, knip, @n0safe/envcli, @n0safe/rununtil, @n0safe/trycli (+8 more)
 
 ### Community 203 - "docker.mock.ts"
 Cohesion: 0.08
 Nodes (25): Branch Naming, 🔴 Bun Runtime Rule (Mandatory), 🔴 Change Order & Validation, Commit Policy (from root `AGENTS.md`), Creation Process, 🔴 Documentation Awareness, Documentation Discovery Pattern, 🔴 Documentation Maintenance Protocol (+17 more)
 
 ### Community 204 - "StatementConfigCollection"
-Cohesion: 0.06
-Nodes (10): AllActions, FilteredStatement, HasAllOf, HasAnyOf, OmittedStatement, StatementConfigCollection, WithAction, WithAllActions (+2 more)
+Cohesion: 0.17
+Nodes (10): AllActions, FilteredStatement, HasAllOf, HasAnyOf, OmittedStatement, StrictStatements, WithAction, WithAllActions (+2 more)
 
 ### Community 205 - "hooks.ts"
-Cohesion: 0.08
-Nodes (38): defaultOrpcContextBuilder(), ContainerStreamEntity, debugContainerLogsStream, resolveFallbackPayloadMessage(), useContainerStreamLogs(), coerceContainerLogEntry(), extractContainerLogEntries(), inferLogLevel() (+30 more)
+Cohesion: 0.11
+Nodes (28): buildNuqsParserMap(), buildSchemaDefaults(), createFallbackParser(), createParserForSchema(), emptySchema, extractObjectShape(), extractSchemaDefaultValue(), getInnerSchema() (+20 more)
 
 ### Community 206 - "package.json"
-Cohesion: 0.08
-Nodes (23): dependencies, pino, pino-pretty, @repo/type-guards, description, devDependencies, eslint, @repo/config-eslint (+15 more)
+Cohesion: 0.06
+Nodes (32): dependencies, pino, pino-pretty, @repo/type-guards, description, devDependencies, chokidar, eslint (+24 more)
 
 ### Community 207 - "ApiKeyRepository"
-Cohesion: 0.13
-Nodes (7): ApiKeyRepository, ApiKeyService, CreateApiKeyInput, IssueApiKeyResult, RotateApiKeyResult, mockKeyRecord, mockProject
+Cohesion: 0.11
+Nodes (9): ApiKeyCreateInput, ApiKeyRepository, ApiKeyRow, ApiKeyService, CreateApiKeyInput, IssueApiKeyResult, RotateApiKeyResult, mockKeyRecord (+1 more)
 
 ### Community 208 - "project.module.ts"
-Cohesion: 0.14
-Nodes (7): WebhookCreateInput, WebhookRepository, CreateWebhookInput, RotateWebhookSecretResult, mockProject, mockWebhook, WebhookService
+Cohesion: 0.13
+Nodes (9): WebhookCreateInput, WebhookRepository, WebhookRow, WebhookUpdateInput, CreateWebhookInput, RotateWebhookSecretResult, mockProject, mockWebhook (+1 more)
 
 ### Community 209 - "ProjectDomainRepository"
 Cohesion: 0.06
@@ -2284,20 +2473,20 @@ Cohesion: 0.06
 Nodes (32): scripts, analyze, build, build:no:check, build:static-only, clean, compile, dev (+24 more)
 
 ### Community 211 - "schemas.ts"
-Cohesion: 0.03
-Nodes (86): AddDomainResponse, ProjectDomain, ProjectDomainContract, ServiceDomainMapping, ServiceDomainMappingContract, VerificationInstructions, VerifyDomainResponse, DomainContract (+78 more)
+Cohesion: 0.04
+Nodes (66): DomainContract, addProjectDomainContract, addProjectDomainOutput, getAvailableDomainsForServiceContract, getAvailableDomainsForServiceInput, getAvailableDomainsContract, getAvailableDomainsInput, listProjectDomainsContract (+58 more)
 
 ### Community 212 - "platform-domain.builder.ts"
 Cohesion: 0.06
 Nodes (32): 0) Architecture discipline (mandatory), 10) Import boundaries, 11) Layout strategy, 12) Dynamic routes and typed navigation, 13) Testing and migration checklist, 14) Quick templates, 15) Related docs, 1) High-level map (+24 more)
 
 ### Community 213 - "types.ts"
-Cohesion: 0.05
-Nodes (34): apiKeysRelations, deploymentEnvironmentEnum, deploymentLogs, deploymentLogsRelations, deploymentPhaseEnum, deploymentRollbacksRelations, deploymentRules, deploymentRulesRelations (+26 more)
+Cohesion: 0.04
+Nodes (58): apiKeys, apiKeysRelations, deploymentEnvironmentEnum, deploymentLogs, deploymentLogsRelations, deploymentPhaseEnum, deploymentRollbacks, deploymentRollbacksRelations (+50 more)
 
 ### Community 214 - ".nowMs"
 Cohesion: 0.08
-Nodes (6): logger, traefikConfigBuilder, HttpRouterBuilder, RuleBuilder, RuleMatcher, RuleOperator
+Nodes (4): HttpRouterBuilder, RuleBuilder, RuleMatcher, RuleOperator
 
 ### Community 215 - "index.ts"
 Cohesion: 0.06
@@ -2308,7 +2497,7 @@ Cohesion: 0.06
 Nodes (29): dev-only validation sweep, gotchas, the loop, what the build misses, when this shrinks, when to run it, deciding what to do with a blocking read, per-page decisions: removing `instant = false` (+21 more)
 
 ### Community 217 - "client.tsx"
-Cohesion: 0.09
+Cohesion: 0.08
 Nodes (11): DeploymentBullJobData, DeploymentBullJobPayload, DeploymentExecutionPlan, DeploymentQueueProcessor, executionPlanSchema, PhaseRetryPolicy, runtimeConfigurationContextSchema, DeploymentSourceProvider (+3 more)
 
 ### Community 219 - "schemas.ts"
@@ -2320,32 +2509,28 @@ Cohesion: 0.06
 Nodes (33): 1. **Compile-Time Validation**, 1. `FilteredStatement<TStatement, TActions>`, 1. Input Validation (Action Parameters), 2. **IntelliSense Support**, 2. `OmittedStatement<TStatement, TActions>`, 2. Processing (Type Transformations), 3. Output Precision (Return Types), 3. **Refactoring Safety** (+25 more)
 
 ### Community 221 - "peerDependencies"
-Cohesion: 0.07
-Nodes (17): TLSBuilder, TraefikConfigBuilder, VariableContext, VariableResolver, CompilationOptions, ConfigStats, TraefikConfig, MiddlewaresConfig (+9 more)
+Cohesion: 0.09
+Nodes (13): TLSBuilder, TraefikConfigBuilder, CompilationOptions, ConfigStats, TraefikConfig, MiddlewaresConfig, RoutersConfig, ServicesConfig (+5 more)
 
 ### Community 222 - "devDependencies"
 Cohesion: 0.08
 Nodes (23): devDependencies, @repo/config-prettier, @repo/config-typescript, @repo/config-vitest, tailwind-variants, tailwindcss, tailwindcss-animate, @types/node (+15 more)
 
 ### Community 223 - "index.ts"
-Cohesion: 0.10
-Nodes (23): formatInputDateTimeToIso(), formatIsoToInputDateTime(), sanitizeContainerLogMessage(), LogsSearchInput(), LogsSearchInputProps, LogsViewer(), LogsViewerLine, LogsViewerProps (+15 more)
+Cohesion: 0.21
+Nodes (14): ANSI_FG_BRIGHT_PALETTE, ANSI_FG_PALETTE, applySgrCodes(), buildTerminalLinesFromOutput(), computeSegmentStyle(), defaultSgrState(), parseAnsiColorSequence(), parseAnsiSegments() (+6 more)
 
 ### Community 224 - "service.schema.ts"
-Cohesion: 0.14
-Nodes (33): serviceNetworkConfigSchema, ImplementedContract, implementedContractSchema, MockEngine, mockEngineSchema, MockServiceConfig, mockServiceConfigSchema, artifactBundleProviderConfigSchema (+25 more)
+Cohesion: 0.22
+Nodes (19): composeStackRunnerConfigSchema, executionShape, kubernetesRunnerConfigSchema, manualRunnerConfigSchema, nomadRunnerConfigSchema, orchestratorRunnerConfigSchema, orchestratorSubServiceSchema, runnerConfigSchemaById (+11 more)
 
 ### Community 225 - "utils.ts"
-Cohesion: 0.06
-Nodes (29): days, FromPascalToSnake, IntersectArray, IsUnion, KeysFromCamelToPascal, KeysFromCamelToSnake, KeysFromPascalToCamel, KeysFromPascalToSnake (+21 more)
-
-### Community 226 - "RolesConfig"
-Cohesion: 0.04
-Nodes (8): MeshResourceBuilder, compareHlc(), Hlc, LwwEntry, LwwMap, OrSet, RolesConfig, serializeSearch()
+Cohesion: 0.07
+Nodes (29): CamelToPascal, FromPascalToSnake, IntersectArray, IsUnion, KeysFromCamelToPascal, KeysFromCamelToSnake, KeysFromPascalToCamel, KeysFromPascalToSnake (+21 more)
 
 ### Community 227 - "RolesConfig"
 Cohesion: 0.06
-Nodes (26): BuildScanEventInput, ContainerLinkedDeploymentRecord, ContainerLinkedProjectRecord, ContainerLinkedServiceRecord, ContractFilterKeys, DOCKER_NETWORK_DRIVERS, DOCKER_NETWORK_SCOPES, DockerImageLifecycleRecord (+18 more)
+Nodes (27): SCANNER_META, SCANNER_TYPES, ScannerContainerState, ScannerExecResult, ScannerType, BuildScanEventInput, ContainerLinkedDeploymentRecord, ContainerLinkedProjectRecord (+19 more)
 
 ### Community 228 - "server.ts"
 Cohesion: 0.06
@@ -2353,11 +2538,11 @@ Nodes (31): Access hierarchy, Build cache, Business model, Config-as-code: `depl
 
 ### Community 229 - "index.ts"
 Cohesion: 0.02
-Nodes (53): auth, LoginViewProps, DocCardGridProps, DocCardProps, metadata, mocks, SignInPageLoose, dockerSchema (+45 more)
+Nodes (56): auth, LoginViewProps, DocCardGridProps, DocCardProps, metadata, metadata, metadata, metadata (+48 more)
 
 ### Community 230 - "router-hooks.types.ts"
-Cohesion: 0.05
-Nodes (60): ExtractInput, ExtractMutationContext, ExtractMutationInput, ExtractMutationOutput, ExtractOutput, LiveQueryOptions, StreamedQueryOptions, CustomInvalidationContext (+52 more)
+Cohesion: 0.06
+Nodes (49): CompositeHooksConfig, CompositeHooksOptions, ContractProcedureMetadata, detectOperationType(), inferInvalidations(), isEventIteratorOutput(), OperationType, defineInvalidations() (+41 more)
 
 ### Community 231 - "cluster.ts"
 Cohesion: 0.06
@@ -2365,11 +2550,11 @@ Nodes (31): 1. Admin Creates Invite, 1. Server-Side Configuration, 2. Client-Sid
 
 ### Community 232 - "mesh-type-utils.ts"
 Cohesion: 0.07
-Nodes (19): AggregateResult, Awaited, BuilderItem, BuilderResult, DeepReadonly, EntityItem, EntityItemKey, EntityMutationNames (+11 more)
+Nodes (20): AggregateResult, AnyRecord, Awaited, BuilderItem, BuilderResult, DeepReadonly, EntityItem, EntityItemKey (+12 more)
 
 ### Community 233 - "mesh-filter.ts"
-Cohesion: 0.07
-Nodes (37): AnyRecord, buildQueryPlan(), collectWarnings(), MeshQueryPlan, MeshQueryPlanJoin, MeshQueryPlanOrder, MeshQueryPlanPagination, MeshQueryPlanWarning (+29 more)
+Cohesion: 0.13
+Nodes (21): and(), contains(), endsWith(), eq(), FieldValue, gt(), gte(), inArray() (+13 more)
 
 ### Community 234 - "error"
 Cohesion: 0.04
@@ -2377,7 +2562,7 @@ Nodes (99): TemplateCompatibilityMatrix, TemplateCompatibilityMatrixItem, templa
 
 ### Community 235 - "index.ts"
 Cohesion: 0.05
-Nodes (10): VariableRegistrationError, VariableRegistry, VariableResolutionError, NumberVariable, StringVariable, Variable, VariableMetadata, ValidationResult (+2 more)
+Nodes (17): VariableContext, VariableRegistrationError, VariableRegistry, VariableResolutionError, VariableResolver, Variable, VariableMetadata, ValidationResult (+9 more)
 
 ### Community 236 - "ProviderSchemaService"
 Cohesion: 0.06
@@ -2393,7 +2578,7 @@ Nodes (5): apiUrl, commandLine, nextConfig, PackageJsonShape, workspaceTranspile
 
 ### Community 239 - "utils.test.ts"
 Cohesion: 0.07
-Nodes (29): ArrayContains, CamelToPascal, FromCamelToSnake, ObjectFromCamelToSnake, ObjectFromPascalToCamel, ObjectFromPascalToSnake, ObjectFromSnakeToPascal, OmitNever (+21 more)
+Nodes (29): ArrayContains, days, FromCamelToSnake, ObjectFromCamelToSnake, ObjectFromPascalToCamel, ObjectFromPascalToSnake, ObjectFromSnakeToPascal, OmitNever (+21 more)
 
 ### Community 240 - "platform-domain.schema.ts"
 Cohesion: 0.06
@@ -2416,12 +2601,16 @@ Cohesion: 0.12
 Nodes (17): dependencies, @antfu/ni, boxen, commander, diff, execa, fs-extra, glob (+9 more)
 
 ### Community 245 - "Injectable"
-Cohesion: 0.04
-Nodes (65): projectCollaboratorInviteOps, projectCollaboratorOps, projectCollaboratorParamsSchema, projectIdParamSchema, projectCreateContract, projectCreateInputSchema, projectOps, projectDeleteContract (+57 more)
+Cohesion: 0.05
+Nodes (43): projectGeneralConfigOps, projectGetGeneralConfigContract, projectGeneralConfigOps, projectGeneralConfigUpdateInputSchema, projectUpdateGeneralConfigContract, projectCreateContract, projectCreateInputSchema, projectOps (+35 more)
 
 ### Community 246 - "AbstractDomainEventStreamService"
 Cohesion: 0.06
 Nodes (30): 1) Overview tab, 2) Layers tab, 3.1 Pulling stage, 3.2 Logs stage, 3.3 Results stage, 3) Security tab, 4) Labels tab, A. Images list page (+22 more)
+
+### Community 247 - "drizzle-filter.utils.ts"
+Cohesion: 0.07
+Nodes (8): MeshQueueTransitionService, DeploymentQueueEventContracts, deploymentQueueEventEnvelopeSchema, deploymentQueueEventFilterSchema, DeploymentQueueEventService, DeploymentQueueLifecycleService, QueueListFilters, QueueListOutput
 
 ### Community 248 - "compilerOptions"
 Cohesion: 0.12
@@ -2436,8 +2625,8 @@ Cohesion: 0.09
 Nodes (21): compilerOptions, allowJs, declaration, declarationMap, esModuleInterop, forceConsistentCasingInFileNames, isolatedModules, lib (+13 more)
 
 ### Community 251 - "compilerOptions"
-Cohesion: 0.09
-Nodes (22): compilerOptions, allowJs, declaration, declarationMap, esModuleInterop, forceConsistentCasingInFileNames, module, moduleResolution (+14 more)
+Cohesion: 0.08
+Nodes (24): compilerOptions, allowJs, declaration, declarationMap, esModuleInterop, forceConsistentCasingInFileNames, module, moduleResolution (+16 more)
 
 ### Community 252 - "Current Architecture & Next Steps for Sub-App Orchestration"
 Cohesion: 0.08
@@ -2472,28 +2661,32 @@ Cohesion: 0.06
 Nodes (33): utils, @antfu/ni, @asteasolutions/zod-to-openapi, circular-json, commander, date-fns, date-fns-tz, diff (+25 more)
 
 ### Community 260 - "compilerOptions"
-Cohesion: 0.09
-Nodes (21): compilerOptions, allowJs, declaration, declarationMap, esModuleInterop, forceConsistentCasingInFileNames, module, moduleResolution (+13 more)
+Cohesion: 0.08
+Nodes (23): compilerOptions, allowJs, declaration, declarationMap, esModuleInterop, forceConsistentCasingInFileNames, module, moduleResolution (+15 more)
 
 ### Community 261 - "compilerOptions"
-Cohesion: 0.09
-Nodes (21): compilerOptions, allowJs, declaration, declarationMap, esModuleInterop, forceConsistentCasingInFileNames, module, moduleResolution (+13 more)
+Cohesion: 0.08
+Nodes (24): tsconfig-paths, compilerOptions, allowJs, declaration, declarationMap, esModuleInterop, forceConsistentCasingInFileNames, module (+16 more)
 
 ### Community 262 - "compilerOptions"
 Cohesion: 0.08
 Nodes (25): compilerOptions, allowJs, composite, declaration, declarationMap, esModuleInterop, forceConsistentCasingInFileNames, incremental (+17 more)
 
 ### Community 263 - "package.json"
-Cohesion: 0.09
-Nodes (21): dependencies, @repo/type-guards, zod, devDependencies, @repo/config-typescript, typescript, vitest, @vitest/coverage-v8 (+13 more)
+Cohesion: 0.06
+Nodes (36): import, require, types, dependencies, @repo/type-guards, zod, devDependencies, @repo/config-typescript (+28 more)
 
 ### Community 264 - "entrypoint.prod.ts"
 Cohesion: 0.03
-Nodes (59): projects, ConfigurationCoreModule, RuntimeConfigurationAccessorService, DatabaseModule, GlobalDatabaseModule, CoreDomainModule, ResolvedServiceUrl, RouteSyncResult (+51 more)
+Nodes (80): main(), LoggerMiddleware, authMiddleware(), buildMeshContext(), parseParcour(), readEnv(), resolveSharedSecret(), ConfigurationCoreModule (+72 more)
+
+### Community 265 - "ServiceContextBuilder"
+Cohesion: 0.03
+Nodes (42): EventIteratorSchemaArg, DockerContract, coreEventStreamFindByIdContract, coreEventStreamListConfig, coreEventStreamListContract, coreEventStreamOps, coreEventSyncStreamContract, coreEventSyncStreamOps (+34 more)
 
 ### Community 266 - "SystemMeshConfigService"
-Cohesion: 0.14
-Nodes (19): CoreRouteElements, createPathBuilder(), createRouteBuilder(), DeleteRouteBuilder, FetchOptions, GetInfo, GetRouteBuilder, LinkProps (+11 more)
+Cohesion: 0.10
+Nodes (23): convertURLSearchParamsToObject(), PushOptions, useSearchParams(), CoreRouteElements, createPathBuilder(), createRouteBuilder(), DeleteRouteBuilder, emptySchema (+15 more)
 
 ### Community 267 - "devDependencies"
 Cohesion: 0.07
@@ -2508,8 +2701,8 @@ Cohesion: 0.07
 Nodes (29): 1. Observable-First, Promise as Convenience, 2. Resource Ownership Model, 3. Stream Types, A. Main Mesh Stream (Durable), API Design, B. Global Resource Stream (Durable), C. Node-Specific Streams (Ephemeral), Consumer Patterns (+21 more)
 
 ### Community 270 - "calendar-date-picker.tsx"
-Cohesion: 0.03
-Nodes (33): AnyChildSupervisor, BaseMultiSupervisorService, BackoffOptions, BaseSupervisorPayload, baseSupervisorPayloadSchema, BaseSupervisorService, DEFAULT_BACKOFF, SupervisorHealthSnapshot (+25 more)
+Cohesion: 0.05
+Nodes (22): BackoffOptions, BaseSupervisorPayload, DEFAULT_BACKOFF, SupervisorHealthSnapshot, SupervisorIdentifierInput, SupervisorProbeMeta, supervisorProbeMetaSchema, SupervisorState (+14 more)
 
 ### Community 271 - "Startup v2 — Complete NestJS DI Orchestration Graph"
 Cohesion: 0.08
@@ -2528,8 +2721,8 @@ Cohesion: 0.13
 Nodes (11): MeshSubscriptionManager, SubscriptionRecord, GlobalResourceRegistryEntry, MeshResourceChangeNotifier, MeshSubscriptionEvent, MeshSubscriptionEventType, MeshSubscriptionFilter, MeshSubscriptionHandle (+3 more)
 
 ### Community 275 - "LoadBalancerController"
-Cohesion: 0.16
-Nodes (3): DeploymentExecutionWorkflowService, BuildArtifactResult, RuntimeRunnerExecutionOptions
+Cohesion: 0.11
+Nodes (9): RouteSyncResult, DeploymentExecutionWorkflowService, DeployPhaseRetryPolicy, RuntimeConvergenceConfigResolution, RuntimeConvergenceSource, BuildArtifactResult, HealthGateConfig, RuntimeConvergenceConfig (+1 more)
 
 ### Community 276 - "3.1 Fix `as unknown as` Violations (80+)"
 Cohesion: 0.08
@@ -2537,11 +2730,11 @@ Nodes (23): 3.1.1 Web: `domains/shared/helpers.ts` (10+ violations), 3.1.2 Web: 
 
 ### Community 277 - "index.ts"
 Cohesion: 0.10
-Nodes (26): DockerEntityCacheService, DockerEntityFlatKindPayload, DockerEntityKindPayload, DockerContainerEntity, DockerEntityKind, DockerImageEntity, DockerVolume, DockerVolumeDriver (+18 more)
+Nodes (16): DockerEntityCacheService, DockerEntityFlatKindPayload, DockerEntityKindPayload, DockerContainerEntity, DockerEntityKind, DockerImageEntity, DockerNetwork, DockerNetworkDriver (+8 more)
 
 ### Community 278 - "toolbar.tsx"
-Cohesion: 0.10
-Nodes (32): coerceContainerLogEntry(), CONTAINER_METRICS_STREAM_ACTIONS, debugDockerModalLogs, DockerContainerDetailModalContent(), DockerContainerDetailModalContentProps, DockerContainerDetailModalTriggerProps, DockerTerminalSessionState, extractContainerLogEntries() (+24 more)
+Cohesion: 0.09
+Nodes (34): coerceContainerLogEntry(), CONTAINER_METRICS_STREAM_ACTIONS, debugDockerModalLogs, DockerContainerDetailModalContent(), DockerContainerDetailModalContentProps, DockerContainerDetailModalTrigger(), DockerContainerDetailModalTriggerProps, DockerTerminalSessionState (+26 more)
 
 ### Community 280 - "StatementsConfig"
 Cohesion: 0.05
@@ -2552,28 +2745,28 @@ Cohesion: 0.07
 Nodes (29): 1) Base typed event bus (`BaseEventService`), 2) Deployment event contracts, 3) Replay + live stream composition, 4) Core sync service (namespace adapters), 5) Auto-mirroring from deployment stream definitions to core stream definitions, A) User/business stream endpoints, API surface (two systems), B) Core sync endpoints (+21 more)
 
 ### Community 282 - "package.json"
-Cohesion: 0.10
-Nodes (19): description, devDependencies, eslint, @repo/config-eslint, @repo/config-prettier, @repo/config-typescript, @types/node, typescript (+11 more)
+Cohesion: 0.07
+Nodes (29): dependencies, description, devDependencies, chokidar, eslint, @repo/config-eslint, @repo/config-prettier, @repo/config-typescript (+21 more)
 
 ### Community 283 - "mesh-server-url.utils.ts"
-Cohesion: 0.18
-Nodes (13): metadata, ProfilePage(), PushNotificationSettings(), enhancedPush, usePushActions(), usePushNotifications(), usePushPublicKey(), usePushStats() (+5 more)
+Cohesion: 0.21
+Nodes (11): PushNotificationSettings(), enhancedPush, usePushActions(), usePushNotifications(), usePushPublicKey(), usePushStats(), usePushSubscribe(), usePushSubscriptions() (+3 more)
 
 ### Community 284 - ".handleEvent"
-Cohesion: 0.17
-Nodes (6): MeshTopicContractNotFoundError, MeshTopicNamespaceAlreadyRegisteredError, MeshTopicNamespaceNotFoundError, MeshTopicQueryInvalidResponseError, MeshTopicQueryTimeoutError, MeshBaseDomainError
+Cohesion: 0.08
+Nodes (14): MeshTopicContractNotFoundError, MeshTopicNamespaceAlreadyRegisteredError, MeshTopicNamespaceNotFoundError, MeshTopicQueryInvalidResponseError, MeshTopicQueryTimeoutError, MESH_DOMAIN_ERROR_HTTP_STATUS, MESH_DOMAIN_ERROR_ORPC_CODE, MeshAuthorizationError (+6 more)
 
 ### Community 286 - "app.module.ts"
 Cohesion: 0.07
 Nodes (30): 1. Hierarchical Roles, 1. Import What You Need, 1. Statements, 2. Feature-Based Roles, 2. Roles, 2. Use Pre-Built Configuration, 3. Access Control, 3. Conditional Permissions (+22 more)
 
 ### Community 287 - "page.tsx"
-Cohesion: 0.04
-Nodes (52): dockerRuntimeEventContractEntitySchema, dockerRuntimeEventOps, dockerRuntimeEventsStreamContract, meshBaseResourceContract, meshEntitySchema, meshResourceBodySchema, meshResourceOutputSchema, ops (+44 more)
+Cohesion: 0.03
+Nodes (80): dockerContainerStreamsContract, dockerContainerInspectStreamContract, dockerContainerInspectStreamOps, dockerContainerLogsStreamContract, dockerContainerLogStreamOps, dockerContainerProcessLogsStreamContract, dockerContainerProcessLogStreamOps, dockerContainerProcessesStreamContract (+72 more)
 
 ### Community 288 - "api:nest"
 Cohesion: 0.08
-Nodes (25): express, express-list-routes, nest-commander, @nestjs/cli, @nestjs/common, @nestjs/config, @nestjs/core, nestjs-flub (+17 more)
+Nodes (26): express, express-list-routes, nest-commander, @nestjs/cli, @nestjs/common, @nestjs/config, @nestjs/core, nestjs-flub (+18 more)
 
 ### Community 289 - "package.json"
 Cohesion: 0.07
@@ -2584,8 +2777,8 @@ Cohesion: 0.07
 Nodes (29): Appendix: File Deletion Safety, Best Practices Going Forward, Common Permission Presets, Conclusion, Cross-Resource Presets, Current Imports Across Codebase, ⚠️ **DEPRECATED FILE: statements.ts**, Executive Summary (+21 more)
 
 ### Community 291 - "ConfigurationResolverService"
-Cohesion: 0.10
-Nodes (17): ResolvedRuntimeConfiguration, resolvedRuntimeConfigurationSchema, RuntimeConfigurationContext, RuntimeConfigurationDispatchRule, RuntimeConfigurationResolverInput, RuntimeConfigurationResolverInputByScope, runtimeConfigurationResolverInputSchema, RuntimeConfigurationResolverScopedInput (+9 more)
+Cohesion: 0.12
+Nodes (16): ResolvedRuntimeConfiguration, resolvedRuntimeConfigurationSchema, RuntimeConfigurationContext, RuntimeConfigurationDispatchRule, RuntimeConfigurationResolverInput, RuntimeConfigurationResolverInputByScope, runtimeConfigurationResolverInputSchema, RuntimeConfigurationResolverScopedInput (+8 more)
 
 ### Community 292 - "mesh-doc-compliance-matrix.e2e-spec.ts"
 Cohesion: 0.08
@@ -2596,8 +2789,8 @@ Cohesion: 0.07
 Nodes (10): Database, loadNodeSqlite(), NodeSqliteDatabaseLike, Row, RunResult, SqliteStatementLike, SqlValue, Statement (+2 more)
 
 ### Community 294 - "hooks.ts"
-Cohesion: 0.04
-Nodes (36): AdminProvidersCodeGitlabPage(), gitlabSchema, HintDef, HintResult, HINTS, PostSetupHints(), analyticsEndpoints, FleetEndpoints (+28 more)
+Cohesion: 0.05
+Nodes (28): HintDef, HintResult, HINTS, FleetEndpoints, GitlabAppEndpoints, MeshEndpoints, PushEndpoints, pushInvalidations (+20 more)
 
 ### Community 295 - "progressive-module-initialization.mdx"
 Cohesion: 0.09
@@ -2611,17 +2804,17 @@ Nodes (21): devDependencies, @repo/config-prettier, @repo/config-vitest, typescr
 Cohesion: 0.07
 Nodes (28): 1. Always Use Builder Pattern, 2. Use Variables for Dynamic Values, 3. Store Builders, Not YAML, 4. Validate Before Sync, Adding Routers, Basic Usage, Best Practices, Builder Methods (+20 more)
 
-### Community 301 - "devDependencies"
-Cohesion: 0.09
-Nodes (17): AnalyticsPage(), formatBytes(), TIME_RANGE_LABELS, DeploymentTimeRange, StorageBreakdown, StorageTimeRange, useDeploymentMetrics(), useDeploymentUsage() (+9 more)
+### Community 298 - "utils.ts"
+Cohesion: 0.11
+Nodes (8): createPermission(), hasAllPermissions(), hasAnyPermission(), hasPermission(), hasResourcePermission(), PermissionChecker, Resources, Roles
 
-### Community 302 - "load-balancer.service.ts"
-Cohesion: 0.16
-Nodes (9): MeshInternalRequestService, deriveNodeSecret(), evictExpiredNonces(), seenNonces, signMeshToken(), signPeerServiceToken(), VerifiedPeerToken, verifyMeshToken() (+1 more)
+### Community 301 - "devDependencies"
+Cohesion: 0.08
+Nodes (10): analyticsEndpoints, DeploymentTimeRange, StorageBreakdown, StorageTimeRange, AggregationKind, Granularity, ReportStatus, ResourceKind (+2 more)
 
 ### Community 303 - "LoadBalancerService"
 Cohesion: 0.11
-Nodes (20): DeploymentStoragePolicyResolver, ResolveDeploymentStoragePolicyInput, deploymentStoragePolicyBaseSchema, deploymentStoragePolicyLooseSchema, deploymentStoragePolicySchema, deploymentStoragePolicyWithoutTypeSchema, deploymentStorageTypeInputSchema, localDeploymentStoragePolicySchema (+12 more)
+Nodes (21): DeploymentStoragePolicyResolver, ResolveDeploymentStoragePolicyInput, deploymentStoragePolicyBaseSchema, deploymentStoragePolicyLooseSchema, deploymentStoragePolicySchema, deploymentStoragePolicyWithoutTypeSchema, deploymentStorageTypeInputSchema, localDeploymentStoragePolicySchema (+13 more)
 
 ### Community 304 - "compilerOptions"
 Cohesion: 0.09
@@ -2648,16 +2841,16 @@ Cohesion: 0.09
 Nodes (23): 10. 🔔 Push Notifications, 11. 🩺 Health & Monitoring, 12. 🚢 Fleet Management, 13. 🔗 Mesh (Distributed Coordination), 14. 🧪 Test Utilities, 15. 🎛️ Setup & Initialization, 16. 🧩 Provider Schema, 17. 🔄 GitHub Integration (+15 more)
 
 ### Community 310 - "devDependencies"
-Cohesion: 0.07
-Nodes (30): devDependencies, babel-plugin-macros, chokidar, @darraghor/eslint-plugin-nestjs-typed, eslint, @eslint/compat, eslint-config-nestjs, eslint-config-next (+22 more)
+Cohesion: 0.06
+Nodes (34): devDependencies, babel-plugin-macros, chokidar, @darraghor/eslint-plugin-nestjs-typed, eslint, @eslint/compat, eslint-config-nestjs, eslint-config-next (+26 more)
 
 ### Community 311 - "auth-core.service.ts"
-Cohesion: 0.10
-Nodes (4): DockerRuntimeEventsStreamService, DockerRuntimeMeshRelayService, DockerImageSecurityRepository, dockerContainerRuntimeEventSchema
+Cohesion: 0.08
+Nodes (9): DockerRuntimeActivityProjectorService, DockerRuntimeEventsStreamService, DockerRuntimeMeshRelayService, dockerContainerRuntimeEventSchema, DockerRuntimeActivityCategory, DockerRuntimeActivityEntity, DockerRuntimeActivitySeverity, DockerRuntimeActivityStatus (+1 more)
 
 ### Community 312 - "GitHubService"
-Cohesion: 0.17
-Nodes (9): ActiveUpload, createUploadWorker(), FileUploadContext, fileUploadDebug, FileUploadOpenAPILink, FileUploadProgressEvent, getUploadWorker(), HasFileInType (+1 more)
+Cohesion: 0.12
+Nodes (10): ActiveUpload, createUploadWorker(), FileUploadContext, fileUploadDebug, FileUploadOpenAPILink, FileUploadProgressEvent, getUploadWorker(), HasFileInType (+2 more)
 
 ### Community 313 - "5.1 Address 14 TODO/FIXME Items"
 Cohesion: 0.09
@@ -2668,24 +2861,24 @@ Cohesion: 0.07
 Nodes (28): Add to Consuming Package, Avoid Mega-Packages, Avoid TypeScript Project References, Common Mistakes, Compiled, Conditional Exports (Compiled), Config Packages, Creating Internal Packages (+20 more)
 
 ### Community 315 - "package.json"
-Cohesion: 0.12
-Nodes (16): dependencies, @repo/type-guards, zod, devDependencies, @repo/config-typescript, @types/node, typescript, exports (+8 more)
+Cohesion: 0.08
+Nodes (25): dependencies, @repo/type-guards, zod, devDependencies, chokidar, @repo/config-typescript, @repo/pkg-build, rimraf (+17 more)
 
 ### Community 316 - "state.schema.ts"
-Cohesion: 0.10
-Nodes (20): SetupConfigureDatabaseInput, setupConfigureDatabaseInputSchema, SetupConfigureDatabaseResult, setupConfigureDatabaseResultSchema, SetupBootstrapStrategy, setupBootstrapStrategySchema, SetupState, SetupStateMachine (+12 more)
+Cohesion: 0.12
+Nodes (16): SetupBootstrapStrategy, setupBootstrapStrategySchema, SetupState, SetupStateMachine, setupStateMachineSchema, setupStateSchema, SetupStateSnapshot, setupStateSnapshotSchema (+8 more)
 
 ### Community 317 - "configuration-resolver.service.ts"
 Cohesion: 0.07
 Nodes (27): Affected Files / Locations, API E2E Findings (oRPC + Docker + Traefik), Context, Current E2E Artifacts, Details / Implementation, Details / Implementation, Details / Implementation, Details / Implementation (+19 more)
 
 ### Community 318 - "BaseStateMachineService"
-Cohesion: 0.12
-Nodes (13): CONTAINER_LINK_RESOLVER, ContainerEnrichment, IContainerLinkResolver, DEPLOYMENT_ENVIRONMENT_ALIASES, DeploymentContainerLinkService, ContainerDockerodeNormalizer, ContainerHashInput, DOCKER_CONTAINER_HEALTH_STATUSES (+5 more)
+Cohesion: 0.07
+Nodes (27): CONTAINER_LINK_RESOLVER, ContainerEnrichment, IContainerLinkResolver, DEPLOYMENT_ENVIRONMENT_ALIASES, DeploymentContainerLinkService, ContainerDockerodeNormalizer, ContainerHashInput, DOCKER_CONTAINER_HEALTH_STATUSES (+19 more)
 
 ### Community 319 - "retry.schema.ts"
-Cohesion: 0.12
-Nodes (14): AdminAuthConstraint, AdminPluginFactory, HasPermissionByRoleCheck, HasPermissionCheck, HasRoleCheck, RequireAdminRoleCheck, BaseMiddlewareCheck, createPermissionError() (+6 more)
+Cohesion: 0.13
+Nodes (9): AdminMiddlewareDefinition, HasPermissionByRoleCheck, HasPermissionCheck, HasRoleCheck, PermissionObject, ValueOrResolver, AdminPermissionsPlugin, InferRoleNamesFromBuilder (+1 more)
 
 ### Community 320 - "vitest.config.mts"
 Cohesion: 0.07
@@ -2700,8 +2893,8 @@ Cohesion: 0.07
 Nodes (27): Action-Based Filters, Advanced Functional Operations, Architecture Overview, Before vs After Comparison, Benefits, Benefits of Both Systems, Collection API Examples, Collection API Methods (+19 more)
 
 ### Community 323 - "next.config.ts"
-Cohesion: 0.16
-Nodes (15): domainEnvironmentVariablesSchema, ProjectRuntimeConfig, RequestedEnvironment, runtimeStoragePolicySchema, ServiceRuntimeConfig, parseCpuMillicores(), parseMemoryMb(), PROVIDER_TYPE_SET (+7 more)
+Cohesion: 0.12
+Nodes (17): domainEnvironmentVariablesSchema, ProjectRuntimeConfig, RequestedEnvironment, runtimeStoragePolicySchema, ServiceRuntimeConfig, ConfigurationDefinitionService, parseCpuMillicores(), parseMemoryMb() (+9 more)
 
 ### Community 324 - "devDependencies"
 Cohesion: 0.18
@@ -2716,24 +2909,20 @@ Cohesion: 0.07
 Nodes (28): 10. Logging & Monitoring Architecture, 1. Permission System Architecture, 3. Testing Infrastructure, 6. Error Boundary Architecture, 7. API Layer Abstraction, 8. API Response Standardization, 9. Caching Strategy, Architecture Improvements (+20 more)
 
 ### Community 327 - "devDependencies"
-Cohesion: 0.05
-Nodes (41): description, devDependencies, eslint, @repo/config-eslint, @repo/config-prettier, @repo/config-typescript, server-only, @types/node (+33 more)
+Cohesion: 0.18
+Nodes (11): devDependencies, eslint, @repo/config-eslint, @repo/config-prettier, @repo/config-typescript, server-only, @types/node, @types/react (+3 more)
 
 ### Community 330 - "devDependencies"
 Cohesion: 0.17
 Nodes (12): devDependencies, eslint, @repo/auth, @repo/config-eslint, @repo/config-prettier, @repo/config-typescript, @repo/use-safe-query-param-states-from-zod, server-only (+4 more)
 
 ### Community 331 - "merge-hooks.ts"
-Cohesion: 0.19
-Nodes (16): ConflictWarningScope, getDuplicates(), warnOnConflicts(), mergeHooks(), extractCustomQueryKeys(), extractRouterQueryKeys(), mergeQueryKeys(), CustomHooks (+8 more)
+Cohesion: 0.20
+Nodes (9): CustomHooks, CustomHooksWithKeys, DefineCustomHooksOptions, ExtractKeys, MergedHooks, MergedKeys, MergeHooksConfig, QueryKeyFactory (+1 more)
 
 ### Community 332 - "compilerOptions"
-Cohesion: 0.15
-Nodes (12): compilerOptions, declaration, declarationMap, esModuleInterop, jsx, lib, moduleResolution, outDir (+4 more)
-
-### Community 333 - "index.ts"
 Cohesion: 0.13
-Nodes (4): ProjectRepository, transformCollaborator(), transformEnvironment(), transformTemplate()
+Nodes (14): compilerOptions, declaration, declarationMap, esModuleInterop, jsx, lib, moduleResolution, outDir (+6 more)
 
 ### Community 334 - "update-agent-context.sh"
 Cohesion: 0.23
@@ -2756,96 +2945,100 @@ Cohesion: 0.20
 Nodes (10): args, distCjsDir, distDir, distEsmDir, isTestFile(), packageRoot, runBuild(), setupWatcher() (+2 more)
 
 ### Community 339 - "server.tsx"
-Cohesion: 0.12
+Cohesion: 0.14
 Nodes (21): createPrefetchSession(), createSessionAwareAuthClient(), createSessionQueryOptions(), createUseSession(), SessionQueryResult, useSessionQuery(), createPrefetchSession(), createSessionAwareAuthClient() (+13 more)
 
 ### Community 340 - "nest-cli.json"
-Cohesion: 0.10
-Nodes (20): compilerOptions, entryFile, root, sourceRoot, type, entryFile, root, sourceRoot (+12 more)
+Cohesion: 0.09
+Nodes (21): compilerOptions, entryFile, root, sourceRoot, type, entryFile, root, sourceRoot (+13 more)
 
 ### Community 341 - "AbstractDockerContainerService"
 Cohesion: 0.07
 Nodes (27): apps/api (NestJS Backend), apps/doc (Documentation), Apps Inventory, apps/web (Next.js Frontend), apps/web/src/components/, Complete Repository Inventory, Configuration Files, File Size Analysis (+19 more)
 
 ### Community 342 - "CoreEventServiceQueryBuilder"
-Cohesion: 0.13
-Nodes (24): DockerNetwork, DockerNetworkDriver, dockerNetworkDriverSchema, dockerNetworkSchema, DockerNetworkScope, dockerNetworkScopeSchema, DockerNetworkDiagnostics, dockerNetworkDiagnosticsSchema (+16 more)
+Cohesion: 0.10
+Nodes (28): DockerEntityEvent, dockerEntityEventEnvelopeSchema, dockerEntityEventSchema, DockerEntityRemovedEvent, dockerEntityRemovedEventSchema, dockerEntityStreamChunkSchema, DockerEntityStreamQuery, dockerEntityStreamQuerySchema (+20 more)
 
 ### Community 343 - "catalogs"
-Cohesion: 0.18
-Nodes (11): better-auth, @thallesp/nestjs-better-auth, auth, react-compiler, web, babel-plugin-react-compiler, @million/lint, nprogress (+3 more)
+Cohesion: 0.40
+Nodes (5): web, @million/lint, nprogress, nuqs, @types/nprogress
 
 ### Community 344 - "package.json"
-Cohesion: 0.14
-Nodes (13): author, email, name, bin, declarative-routing, description, exports, files (+5 more)
+Cohesion: 0.13
+Nodes (15): bin, declarative-routing, description, exports, files, import, keywords, license (+7 more)
 
 ### Community 345 - "devDependencies"
-Cohesion: 0.05
-Nodes (40): author, dependencies, concurrently, @repo/type-guards, rimraf, description, devDependencies, drizzle-orm (+32 more)
+Cohesion: 0.04
+Nodes (47): author, dependencies, concurrently, @repo/type-guards, rimraf, description, devDependencies, chokidar (+39 more)
 
 ### Community 346 - "compilerOptions"
-Cohesion: 0.18
-Nodes (10): compilerOptions, esModuleInterop, jsx, lib, moduleResolution, noEmit, skipLibCheck, target (+2 more)
+Cohesion: 0.15
+Nodes (12): compilerOptions, esModuleInterop, jsx, lib, moduleResolution, noEmit, paths, skipLibCheck (+4 more)
 
 ### Community 347 - "dependencies"
-Cohesion: 0.05
-Nodes (40): dependencies, @orpc/client, @orpc/contract, @orpc/shared, @orpc/tanstack-query, @repo/type-guards, rxjs, @standard-schema/spec (+32 more)
+Cohesion: 0.20
+Nodes (10): dependencies, @orpc/client, @orpc/contract, @orpc/shared, @orpc/tanstack-query, @repo/type-guards, rxjs, @standard-schema/spec (+2 more)
 
 ### Community 348 - "devDependencies"
-Cohesion: 0.18
-Nodes (13): betterAuthFactory(), AdminPlugin, ConfiguredRoleNames, InvitePlugin, useAdmin(), useInvite(), ERROR_CODES, Invite (+5 more)
+Cohesion: 0.10
+Nodes (21): betterAuthFactory(), AdminPlugin, ConfiguredRoleNames, InvitePlugin, useAdmin(), useInvite(), ERROR_CODES, Invite (+13 more)
 
 ### Community 349 - "devDependencies"
-Cohesion: 0.05
-Nodes (40): dependencies, nuqs, @repo/type-guards, zod, devDependencies, eslint, next, react (+32 more)
+Cohesion: 0.15
+Nodes (13): devDependencies, eslint, next, react, @repo/config-eslint, @repo/config-prettier, @repo/config-typescript, @repo/config-vitest (+5 more)
 
 ### Community 350 - "template.schema.exhaustive.test.ts"
-Cohesion: 0.08
-Nodes (21): handleProxy(), log, proxyRequest(), CompiledContextFilterPattern, ContextFilterLoggerOptions, ContextFilterLoggerSource, ContextFilterPatternKind, ExtractedSourceIdentity (+13 more)
+Cohesion: 0.07
+Nodes (19): CompiledContextFilterPattern, ContextFilterLogger, ContextFilterLoggerOptions, ContextFilterLoggerSource, ContextFilterPatternKind, ExtractedSourceIdentity, AppLogger, AppLoggerContextFilterOptions (+11 more)
 
 ### Community 351 - "DockerImageAutoScanListenerService"
-Cohesion: 0.04
-Nodes (42): CoreDockerModule, MESH_TOPIC_SERVICES, MESH_TOPOLOGY_SERVICES, MeshCoreModule, StubMeshNodeCaller, DockerCommonModule, DockerContainerRuntimeEventsService, DockerDomainRuntimeEventsService (+34 more)
+Cohesion: 0.06
+Nodes (28): DockerContainerRuntimeEventsService, DockerDomainRuntimeEventsService, DockerKnownSource, DockerRawEvent, DockerRuntimeEventsSourceService, RuntimeEventFieldFilter, RuntimeEventFilterNode, StreamQuery (+20 more)
 
 ### Community 352 - "mesh-test.module.ts"
 Cohesion: 0.07
 Nodes (27): 1. Domain Registration & Verification, 2. Project Assignment with Granularity Rules, 3. Service URL Mapping, API Endpoints, Architecture Overview, Check Availability, Core Capabilities, Database Schema (+19 more)
 
 ### Community 353 - "hooks.ts"
-Cohesion: 0.04
-Nodes (77): redirect(), GET(), SetupGate(), SignUpLink(), loginSchema, GithubManifestCallbackContent(), InstallCallbackContent(), AdminProvidersGithubPage() (+69 more)
+Cohesion: 0.07
+Nodes (31): GET(), GithubManifestCallbackContent(), InstallCallbackContent(), LocalDatabaseStep(), Props, AuthOutcome, Props, RemoteAuthStep() (+23 more)
 
 ### Community 354 - "package.json"
 Cohesion: 0.26
 Nodes (10): configureTraefikPathsForE2E(), apiUrl(), heartbeatOk(), persistToken(), readPersistedToken(), RegisterResponse, registerWithCredentials(), tokenFilePath() (+2 more)
 
 ### Community 355 - "exports"
-Cohesion: 0.17
-Nodes (12): exports, ./mdx, ./nestjs, ./nextjs, import, import, types, import (+4 more)
+Cohesion: 0.13
+Nodes (15): exports, ./mdx, ./nestjs, ./nextjs, ./test, import, import, types (+7 more)
 
 ### Community 356 - "decorators.ts"
 Cohesion: 0.07
-Nodes (26): DNS_PROVIDER_TYPES, DNS_RECORD_TYPES, DnsProviderType, dnsProviderTypeSchema, dnsRecordTypeSchema, PerEnvironmentStrategy, perEnvironmentStrategySchema, RunnerNetworkMode (+18 more)
+Nodes (29): DNS_PROVIDER_TYPES, DNS_RECORD_TYPES, DnsProviderType, dnsProviderTypeSchema, dnsRecordTypeSchema, PerEnvironmentStrategy, perEnvironmentStrategySchema, RunnerNetworkMode (+21 more)
 
 ### Community 357 - "MiddlewareCheck"
 Cohesion: 0.07
 Nodes (27): 1. Always Emit Events for State Changes, 2. Use Appropriate Strategy, 3. Include Timestamps, 4. Handle Subscription Cleanup, 5. Filter at Subscribe Time, ABORT Strategy, Architecture, Best Practices (+19 more)
 
 ### Community 358 - "add.ts"
+Cohesion: 0.10
+Nodes (19): clusterAdmissionRequests, clusterAdmissionRequestsRelations, clusterAdmissionRequestStatusEnum, clusterAllocationModeEnum, clusterJoinGrants, clusterJoinGrantsRelations, clusterJoinGrantStatusEnum, clusterNodeMetrics (+11 more)
+
+### Community 359 - "PermissionBuilder"
 Cohesion: 0.04
-Nodes (42): clusterAdmissionRequests, clusterAdmissionRequestsRelations, clusterAdmissionRequestStatusEnum, clusterAllocationModeEnum, clusterJoinGrants, clusterJoinGrantsRelations, clusterJoinGrantStatusEnum, clusterNodeMetrics (+34 more)
+Nodes (33): ProjectDependenciesPage(), DashboardServiceConfigurationEnvironmentPage(), ENV_META, DashboardServiceConfigurationGeneralPage(), ServiceFields, DashboardServiceConfigurationPreviewPage(), CommandPalette(), PaletteEntry (+25 more)
 
 ### Community 360 - "entity.ts"
-Cohesion: 0.07
-Nodes (18): test(), CLIModule, MigrateCommand, SeedCommand, seedLocal(), NewNodeMeshConfigRow, nodeMeshConfig, NodeMeshConfigRow (+10 more)
+Cohesion: 0.04
+Nodes (26): test(), assert(), main(), assert(), main(), CLIModule, CreateDefaultAdminCommand, CreateDefaultAdminEnv (+18 more)
 
 ### Community 361 - "Migration Plan — Complete Application Perfection"
 Cohesion: 0.09
 Nodes (22): Architecture Reference, 🔐 Auth — 3 Subagents, 12 Action Items, 📦 Deployment — 3 Subagents, 25 Action Items, Detailed Phase Breakdown, 🐳 Docker — 3 Subagents, 14 Action Items, Migration Plan — Complete Application Perfection, Per-Feature Summary (from Subagent Reports), Phase 1: 🧹 Dead Code Removal (135+ files, ~8h) (+14 more)
 
 ### Community 362 - "permission.repository.ts"
-Cohesion: 0.16
-Nodes (5): NewOrgRoleRules, OrgRoleRules, PermissionModule, PermissionRepository, PermissionService
+Cohesion: 0.11
+Nodes (9): PermissionModule, PermissionRepository, PermissionService, ctx, mockEngine, orgRoleRule, rule, NewRoleRules (+1 more)
 
 ### Community 364 - "InternalBaseMeshService"
 Cohesion: 0.06
@@ -2873,31 +3066,31 @@ Nodes (14): Home, convertURLSearchParamsToObject(), createPathBuilder(), emptySc
 
 ### Community 370 - "compilerOptions"
 Cohesion: 0.17
-Nodes (11): compilerOptions, declaration, declarationMap, esModuleInterop, jsx, outDir, rootDir, skipLibCheck (+3 more)
+Nodes (11): compilerOptions, esModuleInterop, jsx, outDir, paths, rootDir, skipLibCheck, target (+3 more)
 
 ### Community 371 - "compilerOptions"
 Cohesion: 0.07
 Nodes (26): API and timeline contract expectations, Decision semantics, Definition of done, E2E, Failure taxonomy (typed), Goal, In scope, Integration (+18 more)
 
 ### Community 372 - "ContainerDockerodeNormalizer"
-Cohesion: 0.07
-Nodes (27): ClusterContract, clusterGetMasterContract, clusterGetNodeResourcesContract, ClusterGetNodeResourcesQuery, clusterGetNodeResourcesQuerySchema, clusterGetSnapshotContract, clusterListNodesContract, clusterListServicesContract (+19 more)
+Cohesion: 0.06
+Nodes (33): ClusterContract, clusterGetMasterContract, clusterGetNodeResourcesContract, ClusterGetNodeResourcesQuery, clusterGetNodeResourcesQuerySchema, clusterGetSnapshotContract, clusterGetSwarmConfigContract, clusterListNodesContract (+25 more)
 
 ### Community 373 - "compilerOptions"
-Cohesion: 0.18
-Nodes (10): compilerOptions, declaration, declarationMap, esModuleInterop, moduleResolution, outDir, skipLibCheck, types (+2 more)
+Cohesion: 0.15
+Nodes (12): compilerOptions, declaration, declarationMap, esModuleInterop, moduleResolution, outDir, paths, skipLibCheck (+4 more)
 
 ### Community 374 - "compilerOptions"
-Cohesion: 0.18
-Nodes (10): compilerOptions, declaration, declarationMap, esModuleInterop, moduleResolution, outDir, skipLibCheck, types (+2 more)
+Cohesion: 0.15
+Nodes (12): compilerOptions, declaration, declarationMap, esModuleInterop, moduleResolution, outDir, paths, skipLibCheck (+4 more)
 
 ### Community 375 - "🧪 Features Using Mock Data"
-Cohesion: 0.11
-Nodes (19): dockerEntityContract, dockerEntityInspectContract, dockerEntityInspectOps, DockerEntityInspectResponse, dockerEntityInspectResponseSchema, dockerEntityListContract, dockerEntityListOps, DockerEntityListResponse (+11 more)
+Cohesion: 0.12
+Nodes (18): dockerEntityContract, dockerEntityInspectContract, dockerEntityInspectOps, DockerEntityInspectResponse, dockerEntityInspectResponseSchema, dockerEntityListContract, dockerEntityListOps, DockerEntityListResponse (+10 more)
 
 ### Community 376 - "index.ts"
-Cohesion: 0.16
-Nodes (14): RoleGuard, AccessControlInstance, ActionsForResource, AllRoleNames, AuthenticatedUserType, CommonPermissionPattern, Permission, PermissionTypes (+6 more)
+Cohesion: 0.06
+Nodes (38): CoreDockerModule, MeshCoreModule, DockerCommonModule, DockerRuntimeActivityPersistenceService, DockerContainersModule, cancelEnvelopeSchema, correlationInputSchema, dockerContainerInspectQuerySchema (+30 more)
 
 ### Community 377 - "test-copilot-setup.ts"
 Cohesion: 0.24
@@ -2908,12 +3101,12 @@ Cohesion: 0.12
 Nodes (15): author, description, chalk, keywords, license, chalk, main, name (+7 more)
 
 ### Community 379 - "CliAuthService"
-Cohesion: 0.14
-Nodes (22): dockerImageSchema, DockerImageInspectDetail, dockerImageInspectDetailSchema, DockerImageLayerEntry, dockerImageLayerEntrySchema, DockerImageRuntimeConfig, dockerImageRuntimeConfigSchema, DockerImageSummary (+14 more)
+Cohesion: 0.21
+Nodes (15): DockerImageInspectDetail, dockerImageInspectDetailSchema, DockerImageLayerEntry, dockerImageLayerEntrySchema, DockerImageRuntimeConfig, dockerImageRuntimeConfigSchema, DockerImageSummary, dockerImageSummarySchema (+7 more)
 
 ### Community 380 - "runtime-configuration-accessor.ts"
-Cohesion: 0.08
-Nodes (24): getPublicKeyContract, getPublicKeyOutputSchema, pushPublicKeyOps, deviceSchema, getStatsContract, getStatsOutputSchema, pushStatsOps, getSubscriptionsContract (+16 more)
+Cohesion: 0.03
+Nodes (71): dockerContainerCreateDirectoryContract, dockerContainerCreateDirectoryOps, dockerContainerDeletePathContract, dockerContainerDeletePathOps, dockerContainerFilesystemContract, dockerContainerFilesContract, dockerContainerFilesOps, dockerContainerReadFileContract (+63 more)
 
 ### Community 381 - "RuntimeRuleDsl"
 Cohesion: 0.06
@@ -2928,8 +3121,8 @@ Cohesion: 0.25
 Nodes (4): 🧪 Features Using Mock Data (DEPRECATED — ALL REMOVED 2026-07-20), Migration Principles Applied, Summary, What Happened to Each Mocked Feature
 
 ### Community 384 - "index.ts"
-Cohesion: 0.08
-Nodes (26): ctx, mockEngine, orgRoleRule, rule, isPlatformRoleAtLeast(), RequirePlatformRole(), RequirePlatformRoleProps, userSchema (+18 more)
+Cohesion: 0.06
+Nodes (31): isPlatformRoleAtLeast(), RequirePlatformRole(), RequirePlatformRoleProps, userSchema, PlatformPermission, PlatformPermissionKeys, platformPermissions, platformSchemaHelpers (+23 more)
 
 ### Community 385 - "test.json"
 Cohesion: 0.20
@@ -2944,32 +3137,32 @@ Cohesion: 0.12
 Nodes (16): Deleted Files (29 files), File Manifest, Implementation Order (Topological), Modified Files (3 files), New Files (est. 25 files), Overview, Phase 0: Foundation Layer, Phase 1: SubAppOrchestrator (+8 more)
 
 ### Community 388 - "tsconfig.json"
-Cohesion: 0.22
-Nodes (8): compilerOptions, moduleResolution, paths, strict, extends, include, @repo/*, @repo/ui/*
+Cohesion: 0.25
+Nodes (7): compilerOptions, moduleResolution, paths, strict, extends, include, @repo/types/*
 
 ### Community 389 - "components.json"
 Cohesion: 0.12
 Nodes (15): aliases, components, hooks, lib, ui, utils, rsc, $schema (+7 more)
 
 ### Community 390 - "package.json"
-Cohesion: 0.18
-Nodes (11): exports, ./styles/globals.css, import, license, main, module, name, require (+3 more)
+Cohesion: 0.10
+Nodes (21): default, import, require, development, import, require, exports, ./styles/globals.css (+13 more)
 
 ### Community 391 - "context-menu.tsx"
 Cohesion: 0.13
 Nodes (14): 1. Entity Definition, 2.1 Full Implementation, 2.2 Key Design Decisions, 2. MeshResourceService — Complete Base Service, 3.1 New `MeshQueryBuilder.join()` Signature, 3.2 Executor Join Execution with Entity Cache, 3.3 User-Facing Examples, 3. Join System — Design Spec (v3) (+6 more)
 
 ### Community 392 - "tsconfig.json"
-Cohesion: 0.22
-Nodes (8): tsconfig-paths, compilerOptions, outDir, paths, plugins, extends, include, @/*
+Cohesion: 0.25
+Nodes (7): compilerOptions, outDir, paths, plugins, extends, include, @repo/ui/*
 
 ### Community 393 - "config.js"
-Cohesion: 0.10
-Nodes (9): deserializeTraefikConfigBuilder(), ContextUtils, ServiceContext, ValidationWarning, VariableInfo, TraefikValidationService, TRAEFIK_VARIABLES, TraefikVariableResolverService (+1 more)
+Cohesion: 0.05
+Nodes (14): ContextUtils, ProjectContext, ProjectContextBuilder, ServiceContext, ServiceContextBuilder, ServiceDomainMapping, ValidationResult, ValidationWarning (+6 more)
 
 ### Community 394 - "compilerOptions"
-Cohesion: 0.20
-Nodes (9): compilerOptions, esModuleInterop, moduleResolution, outDir, rootDir, skipLibCheck, target, extends (+1 more)
+Cohesion: 0.17
+Nodes (11): compilerOptions, esModuleInterop, moduleResolution, outDir, paths, rootDir, skipLibCheck, target (+3 more)
 
 ### Community 395 - "init"
 Cohesion: 0.07
@@ -2989,43 +3182,43 @@ Nodes (11): 3.1 Docker Dashboard (All Docker pages), 3.2 Admin Pages, 3.3 Authen
 
 ### Community 400 - "scripts"
 Cohesion: 0.05
-Nodes (40): dependencies, fumadocs-core, fumadocs-mdx, fumadocs-ui, lucide-react, mermaid, next, react (+32 more)
+Nodes (39): dependencies, fumadocs-core, fumadocs-mdx, fumadocs-ui, lucide-react, mermaid, next, react (+31 more)
 
 ### Community 401 - "development-session.ts"
 Cohesion: 0.15
 Nodes (11): DevelopmentDependencyHandling, DevelopmentExecutionLocation, DevelopmentPolicyService, DevelopmentServiceExecutionPolicy, DevelopmentSessionActionGuards, DevelopmentSessionLifecyclePhase, DevelopmentSessionState, DevelopmentSessionTimelineEvent (+3 more)
 
 ### Community 402 - "vocabulary.schema.ts"
-Cohesion: 0.06
-Nodes (30): dependencies, @nestjs/common, @repo/type-guards, rxjs, zod, description, devDependencies, eslint (+22 more)
+Cohesion: 0.05
+Nodes (39): dependencies, @nestjs/common, @repo/type-guards, rxjs, zod, description, devDependencies, chokidar (+31 more)
 
 ### Community 403 - "utils.ts"
-Cohesion: 0.08
-Nodes (23): buildpackAdvancedSchema, buildpackRuntimeRunnerOptionsSchema, dockerComposeAdvancedSchema, dockerComposeRuntimeRunnerOptionsSchema, dockerfileAdvancedSchema, dockerfileRuntimeRunnerOptionsSchema, dockerRuntimeRunnerOptionsSchema, executionLevelOptionsShape (+15 more)
+Cohesion: 0.09
+Nodes (20): runnerNetworkModeSchema, serviceRunnerStrategySchema, ServiceProviderConfig, serviceProviderConfigSchema, ServiceRunnerConfig, serviceRunnerConfigSchema, buildpackAdvancedSchema, buildpackRuntimeRunnerOptionsSchema (+12 more)
 
 ### Community 404 - "QueryBuilder"
 Cohesion: 0.07
 Nodes (27): 10. Remove Empty/Stub Files, 1. Consolidate RequirePermission Components, 2. Migrate useUsers.ts to ORPC Hooks, 3. Consolidate Permission Exports, 4. Merge Duplicate Test Configurations, 5. Consolidate API Route Utilities, 6. Remove Unused Exports, 7. Consolidate Environment Utilities (+19 more)
 
 ### Community 406 - "LocalEventOutboxDispatcherService"
-Cohesion: 0.04
-Nodes (18): DatabaseFailureTracker, LocalEventOutboxDispatcherService, OutboxRow, LocalEventOutboxRepository, OutboxRow, OutboxState, DeploymentProjectionDriftReport, DeploymentReadModelProjection (+10 more)
+Cohesion: 0.07
+Nodes (12): DatabaseFailureTracker, OutboxRow, OutboxRow, OutboxState, HealthController, mockAuthUser, HealthService, AppLifecycleModule (+4 more)
 
 ### Community 407 - "compilerOptions"
-Cohesion: 0.20
-Nodes (9): compilerOptions, declaration, declarationMap, esModuleInterop, moduleResolution, outDir, skipLibCheck, extends (+1 more)
+Cohesion: 0.17
+Nodes (11): compilerOptions, declaration, declarationMap, esModuleInterop, moduleResolution, outDir, paths, skipLibCheck (+3 more)
 
 ### Community 408 - "compilerOptions"
-Cohesion: 0.20
-Nodes (9): compilerOptions, declaration, declarationMap, esModuleInterop, moduleResolution, outDir, skipLibCheck, extends (+1 more)
+Cohesion: 0.17
+Nodes (11): compilerOptions, declaration, declarationMap, esModuleInterop, moduleResolution, outDir, paths, skipLibCheck (+3 more)
 
 ### Community 409 - "utils.ts"
 Cohesion: 0.24
 Nodes (14): convertToRequiredType(), getExpectedType(), getInnerSchema(), getSchemaShape(), getSchemaTypeName(), parseShape(), ProcessedValue, processSchema() (+6 more)
 
 ### Community 410 - "invalidation.ts"
-Cohesion: 0.25
-Nodes (9): autoInvalidate(), commonPatterns, getProcedureQueryKey(), invalidateProcedure(), refetchProcedure(), RouterProcedure, InvalidationStrategy, ProcedureInvalidationConfig (+1 more)
+Cohesion: 0.60
+Nodes (4): getProcedureQueryKey(), invalidateProcedure(), refetchProcedure(), RouterProcedure
 
 ### Community 411 - "service.service.ts"
 Cohesion: 0.16
@@ -3040,8 +3233,8 @@ Cohesion: 0.13
 Nodes (15): peerDependencies, class-variance-authority, clsx, cmdk, framer-motion, @hookform/resolvers, lucide-react, next-themes (+7 more)
 
 ### Community 414 - "tsconfig.json"
-Cohesion: 0.40
-Nodes (4): ContractProcedureMetadata, detectOperationType(), isEventIteratorOutput(), OperationType
+Cohesion: 0.06
+Nodes (35): registerSchemaCodecs(), configureEncryption(), configureSchemaCodecs(), configureTraefikConfigCodec(), decrypt(), encrypt(), encryptedText, EncryptedTextKeyProvider (+27 more)
 
 ### Community 415 - "AppLoadingScreen.tsx"
 Cohesion: 0.23
@@ -3056,8 +3249,8 @@ Cohesion: 0.08
 Nodes (25): 10. Verification, 1. Install Dependencies, 2. Configure next.config.ts, 3. Create Service Worker, 4. Create Route Handler, 5. Create Serwist Client Export, 6. Update Root Layout, 7. Create Offline Page (+17 more)
 
 ### Community 418 - "form.tsx"
-Cohesion: 0.08
-Nodes (14): DataTableResizer(), Field(), fieldVariants, FormControl, FormDescription, FormFieldContext, FormFieldContextValue, FormItem (+6 more)
+Cohesion: 0.15
+Nodes (4): DataTableResizer(), Field(), fieldVariants, Separator()
 
 ### Community 419 - "environment.schema.ts"
 Cohesion: 0.08
@@ -3068,8 +3261,8 @@ Cohesion: 0.08
 Nodes (25): 1. Clarity, 2. Flexibility, 3. Better Caching, 4. Pruning Support, Benefits of Local Installation, Common Issues, Core Principle: Install Where Used, Dependency Management (+17 more)
 
 ### Community 422 - "ServiceDependencyGraphPanel.tsx"
-Cohesion: 0.04
-Nodes (87): DashboardProjectEnvironmentPage(), ProjectDeploymentsPage(), triggerSchema, SubDepsNodeShape, useProjectDetail(), useDeploymentFilters(), DashboardProjectOverviewPage(), DashboardProjectServicesPage() (+79 more)
+Cohesion: 0.09
+Nodes (20): SubDepsNodeShape, useProjectDetail(), DashboardServicesPage(), PageErrorState(), PageLoadingState(), useDeploymentList(), serviceEndpointOperations, ServiceEndpoints (+12 more)
 
 ### Community 423 - "domain.ts"
 Cohesion: 0.08
@@ -3080,8 +3273,8 @@ Cohesion: 0.12
 Nodes (15): 4.1 Create GitHub ORPC Contract, 4.2.1 Mesh Connect Flow (2 calls), 4.2.2 Setup Wizard Sign-In (2 calls), 4.2 Replace Direct `fetch()` Calls with ORPC (4 files), 4.3.1 Dashboard Sidebar, 4.3.2 RequirePlatformRole JSDoc, 4.3 Fix Hardcoded `href` → Declarative Routing (2 files), 4.4 Consolidate Auth Layers (+7 more)
 
 ### Community 425 - "index.ts"
-Cohesion: 0.13
-Nodes (24): configs, clearDisplay(), clearStatus(), create(), defaultSettings, deregister(), DONE_FILE, exitCallback() (+16 more)
+Cohesion: 0.12
+Nodes (25): configs, plugin, clearDisplay(), clearStatus(), create(), defaultSettings, deregister(), DONE_FILE (+17 more)
 
 ### Community 426 - "SystemMetricsService"
 Cohesion: 0.10
@@ -3089,7 +3282,7 @@ Nodes (21): meshEntity, AnyMeshMutation, MESH_MUTATION_BRAND, meshMutation, Mesh
 
 ### Community 427 - "load-balancer.controller.ts"
 Cohesion: 0.07
-Nodes (20): ProviderSchemaService, builderSchemasCatalog, buildersCatalog, providerSchemasCatalog, providersCatalog, configSchemaFieldSchema, configSchemaSchema, unknownConfigSchema (+12 more)
+Nodes (16): ProviderSchemaService, builderSchemasCatalog, buildersCatalog, providerSchemasCatalog, providersCatalog, configSchemaFieldSchema, configSchemaSchema, unknownConfigSchema (+8 more)
 
 ### Community 428 - "dependencies"
 Cohesion: 0.08
@@ -3104,20 +3297,20 @@ Cohesion: 0.08
 Nodes (24): 1. Initialize Analysis Context, 2. Load Artifacts (Progressive Disclosure), 3. Build Semantic Models, 4. Detection Passes (Token-Efficient Analysis), 5. Severity Assignment, 6. Produce Compact Analysis Report, 7. Provide Next Actions, 8. Offer Remediation (+16 more)
 
 ### Community 431 - "utils.ts"
-Cohesion: 0.16
-Nodes (13): convertToRequiredType(), getAllParamsAsArrays(), getInnerType(), getRequireds(), parseArray(), parseBoolean(), ParsedData, parseNumber() (+5 more)
+Cohesion: 0.28
+Nodes (12): convertToRequiredType(), getAllParamsAsArrays(), getInnerType(), getRequireds(), parseArray(), parseBoolean(), ParsedData, parseNumber() (+4 more)
 
 ### Community 432 - "scripts"
-Cohesion: 0.09
-Nodes (3): AnalyticsModule, AnalyticsDownloadController, AnalyticsRepository
+Cohesion: 0.07
+Nodes (5): AnalyticsModule, AnalyticsDownloadController, AnalyticsRepository, AnalyticsRollbackRow, AnalyticsServiceRow
 
 ### Community 433 - "react.ts"
-Cohesion: 0.15
-Nodes (13): SearchableOption, SearchableSelect(), ConfigField, ConfigSchemaType, DashboardServiceConfigurationProviderPage(), GitHubRepo, UI_TO_ENTITY, ProviderSchemaEndpoints (+5 more)
+Cohesion: 0.12
+Nodes (20): ConfigSection, sectionRoute, ServiceConfigSubNav(), ServiceConfigSubNavProps, DashboardServiceConfigurationPage(), identitySchema, ConfigField, ConfigSchemaType (+12 more)
 
 ### Community 434 - "place-autocomplete.tsx"
-Cohesion: 0.08
-Nodes (24): dependencies, @nestjs/common, rxjs, description, devDependencies, eslint, @repo/config-eslint, @repo/config-prettier (+16 more)
+Cohesion: 0.06
+Nodes (33): dependencies, @nestjs/common, rxjs, description, devDependencies, chokidar, eslint, @repo/config-eslint (+25 more)
 
 ### Community 435 - "case-utils.ts"
 Cohesion: 0.17
@@ -3128,16 +3321,16 @@ Cohesion: 0.18
 Nodes (9): ChartConfig, ChartContext, ChartContextProps, ChartLegendContent(), ChartTooltipContent(), INITIAL_DIMENSION, THEMES, TooltipNameType (+1 more)
 
 ### Community 437 - "builder.ts"
-Cohesion: 0.15
-Nodes (10): ActionsForResource, AllResourceNames, ExtractPermissions, ExtractRolePermissions, ExtractStatementUnion, IsEmptyRecord, MergeDefaultStatements, MergeRecords (+2 more)
+Cohesion: 0.09
+Nodes (16): ActionsForResource, AllResourceNames, createPermissionBuilder(), createPermissionBuilderWithDefaults(), ExtractPermissions, ExtractRolePermissions, ExtractStatementUnion, InlineRoleEntry (+8 more)
 
 ### Community 438 - "index.ts"
 Cohesion: 0.08
 Nodes (17): defineResource(), MeshPartitionPolicy, PartitionPolicyInput, PartitionPolicyResult, isOwnershipPayload(), NodeDescriptor, OwnershipChange, OwnershipResolverService (+9 more)
 
 ### Community 439 - "configuration-definition.service.ts"
-Cohesion: 0.10
-Nodes (19): DockerNetworkDetailModalTrigger(), DockerNetworkDetailModalTriggerProps, DockerVolumeDetailModalTrigger(), DockerVolumeDetailModalTriggerProps, DashboardDockerNetworksPage(), NETWORK_LIST_INPUT, NETWORK_LIST_QUERY_SCHEMA, NetworkProjection (+11 more)
+Cohesion: 0.12
+Nodes (17): DockerNetworkDetailModalTrigger(), DockerNetworkDetailModalTriggerProps, DockerBatchOperationsBar(), DockerBatchOperationsBarProps, DockerSavedViewSelect(), DockerSavedViewSelectProps, DockerVolumeDetailModalTrigger(), DockerVolumeDetailModalTriggerProps (+9 more)
 
 ### Community 440 - "Vulnerability Scanning — Per-Project Architecture"
 Cohesion: 0.13
@@ -3165,19 +3358,11 @@ Nodes (9): dependencies, detect-libc, systeminformation, name, packageManager, p
 
 ### Community 446 - "DependencyTemplateConfig"
 Cohesion: 0.07
-Nodes (33): analyticsApplicationMetricsOps, analyticsApplicationMetricsOutputSchema, analyticsDatabaseMetricsOps, analyticsDatabaseMetricsOutputSchema, analyticsDeploymentMetricsOps, analyticsDeploymentMetricsOutputSchema, analyticsGetDatabaseMetricsContract, analyticsGetRealTimeMetricsContract (+25 more)
+Nodes (33): analyticsApplicationMetricsOps, analyticsApplicationMetricsOutputSchema, analyticsDatabaseMetricsOps, analyticsDatabaseMetricsOutputSchema, analyticsDeploymentMetricsOps, analyticsDeploymentMetricsOutputSchema, analyticsGetApplicationMetricsContract, analyticsGetDatabaseMetricsContract (+25 more)
 
 ### Community 447 - "fleet-rollback.service.ts"
 Cohesion: 0.08
 Nodes (24): `--affected`, `--cache`, Cache Control, `--concurrency`, `--continue`, `--dry` / `--dry=json`, `--env-mode`, Environment (+16 more)
-
-### Community 448 - "nest-cli.json"
-Cohesion: 0.13
-Nodes (6): DockerImageCatalogRepository, dockerImageListConfigSchemas, DockerImageListInput, dockerImageListItemSchema, dockerImageOps, DockerImage
-
-### Community 449 - "app.module.ts"
-Cohesion: 0.11
-Nodes (8): DockerEntityListResult, DockerEntityOrchestratorService, buildDockerEntityEventChunk(), dockerEntityStreamChunkSchema, containerEntity, imageEntity, networkEntity, volumeEntity
 
 ### Community 450 - "🔴 Anti-Pattern Catalog (Always Reject)"
 Cohesion: 0.27
@@ -3188,24 +3373,24 @@ Cohesion: 0.24
 Nodes (9): convertURLSearchParamsToObject(), useSearchParams(), CoreRouteElements, createPathBuilder(), createRouteBuilder(), emptySchema, makeRoute(), RouteBuilder (+1 more)
 
 ### Community 452 - "package.json"
-Cohesion: 0.33
-Nodes (5): files, name, private, type, version
+Cohesion: 0.25
+Nodes (7): dependencies, files, main, name, private, type, version
 
 ### Community 453 - "build.ts"
 Cohesion: 0.10
-Nodes (19): analyticsActivitySummaryOps, analyticsActivitySummaryOutputSchema, analyticsActivitySummaryQuerySchema, analyticsApiUsageOps, analyticsApiUsageOutputSchema, analyticsApiUsageQuerySchema, analyticsDeploymentUsageOps, analyticsDeploymentUsageOutputSchema (+11 more)
+Nodes (19): getUsageInputSchema, analyticsActivitySummaryOps, analyticsActivitySummaryOutputSchema, analyticsActivitySummaryQuerySchema, analyticsApiUsageOps, analyticsApiUsageOutputSchema, analyticsApiUsageQuerySchema, analyticsDeploymentUsageOps (+11 more)
 
 ### Community 454 - "package.json"
 Cohesion: 0.08
 Nodes (24): 1. TraefikService (Facade), 2. TraefikFileSystemService, 3. TraefikSyncService, 4. TraefikValidationService, 5. TraefikTemplateService, 6. TraefikVariableResolverService, 7. TraefikEventService, 8. TraefikMiddlewareLibraryService (+16 more)
 
 ### Community 455 - "exports"
-Cohesion: 0.04
-Nodes (44): author, import, types, description, devDependencies, chokidar, jsdom, @testing-library/jest-dom (+36 more)
+Cohesion: 0.05
+Nodes (41): author, dependencies, description, devDependencies, chokidar, jsdom, @repo/pkg-build, rimraf (+33 more)
 
 ### Community 456 - "check.ts"
-Cohesion: 0.12
-Nodes (8): PlatformController, AppInstanceContext, rateLimit(), RateLimitBucketEntry, RateLimitOptions, RequestContext, requireAppInstance(), standardDomainErrorPayloadSchema
+Cohesion: 0.06
+Nodes (30): SetupView(), SetupViewProps, setupApi, setupKeys, useInitializeStream(), useNodeStatus(), useProbeDatabase(), useProbeMesh() (+22 more)
 
 ### Community 457 - "tsconfig.test.json"
 Cohesion: 0.25
@@ -3216,8 +3401,8 @@ Cohesion: 0.09
 Nodes (10): AddCacheToRouter, CacheOperations, CacheOperationsWithInput, CacheOperationsWithoutInput, createCacheOperations(), EndpointWithCache, enhanceSingleEndpoint(), ExtractQueryInput (+2 more)
 
 ### Community 459 - "configuration.schema.ts"
-Cohesion: 0.08
-Nodes (18): createBetterAuth(), AuthModule, HOOKS, AuthModuleOptions, { ConfigurableModuleClass, OPTIONS_TYPE, ASYNC_OPTIONS_TYPE }, MODULE_OPTIONS_TOKEN, PermissionApiExtras, WithPermissionApis (+10 more)
+Cohesion: 0.06
+Nodes (29): AuthModule, HOOKS, AuthModuleOptions, { ConfigurableModuleClass, OPTIONS_TYPE, ASYNC_OPTIONS_TYPE }, MODULE_OPTIONS_TOKEN, PermissionApiExtras, WithPermissionApis, AuthContextErrorMap (+21 more)
 
 ### Community 460 - "peerDependencies"
 Cohesion: 0.33
@@ -3228,24 +3413,20 @@ Cohesion: 0.14
 Nodes (13): Architecture Decisions, Bridge Pattern, `GlobalDatabaseModule` — Pool Creation, Key Principles, Lifecycle Sequence, Overview, `SetupSubAppModule` — Central Sub-App Runner, Startup Order in AppModule (+5 more)
 
 ### Community 462 - "filtering.ts"
-Cohesion: 0.17
-Nodes (12): ACTIVITY_STREAM_INPUT, ActivityCategory, ActivitySeverity, ActivityStatus, DashboardDockerActivityPage(), formatDate(), resolveContainerId(), resolveResourceName() (+4 more)
+Cohesion: 0.20
+Nodes (7): ACTIVITY_STREAM_INPUT, ActivityCategory, ActivitySeverity, ActivityStatus, DashboardDockerActivityPage(), resolveResourceName(), toSeverityBadgeVariant()
 
 ### Community 463 - "drift-reconciliation.service.ts"
 Cohesion: 0.08
 Nodes (23): [2026-04-06] Docker list UX runtime-table upgrade, [2026-04-06] Docker loading-state UX hardening (pages + detail views), Capability matrix (Dockhand benchmark vs v3 state), Containers page (`/dashboard/docker/containers`), Cross-page non-functional requirements (applies to all Docker pages), Evidence, Exact page functionality contract (Dockhand parity + v3 enhancement ideas), Execution sequence (+15 more)
-
-### Community 464 - "scripts"
-Cohesion: 0.14
-Nodes (3): GitModule, GitService, DeploymentArtifactBuilderService
 
 ### Community 465 - "orpc"
 Cohesion: 0.18
 Nodes (11): orpc, @orpc/client, @orpc/contract, @orpc/json-schema, @orpc/nest, @orpc/openapi, @orpc/openapi-client, @orpc/server (+3 more)
 
 ### Community 466 - "2026-01-01-unified-info-files.migration.ts"
-Cohesion: 0.32
-Nodes (11): migrateDatabaseSchema(), fileExists(), findSourceFile(), migrate(), migrateDirectory(), MigrationOptions, MigrationResult, parseArgs() (+3 more)
+Cohesion: 0.36
+Nodes (10): fileExists(), findSourceFile(), migrate(), migrateDirectory(), MigrationOptions, MigrationResult, parseArgs(), printHelp() (+2 more)
 
 ### Community 467 - "build.ts"
 Cohesion: 0.08
@@ -3268,12 +3449,12 @@ Cohesion: 0.08
 Nodes (23): 08 — Advanced Builder & Control Patterns, Builder should be a default, not a helper, Builder-style API (deep conceptual), CommandBuilder must also be nested-property-aware, Controller wiring in this project (conceptual), Deep builder dimensions (recommended baseline), Deep write controls baseline, Example shape (conceptual) (+15 more)
 
 ### Community 472 - "turbo.json"
-Cohesion: 0.11
-Nodes (36): absoluteFilePath(), main(), init, build, checkRouteFile(), createInfoFile(), findSourceFile(), fixPath() (+28 more)
+Cohesion: 0.13
+Nodes (29): buildFiles(), checkRouteFile(), createInfoFile(), findSourceFile(), fixPath(), ignore, parseInfoFile(), paths (+21 more)
 
 ### Community 473 - "progress-tasks.tsx"
-Cohesion: 0.21
-Nodes (12): collectStreamEvents(), runLocalSetup(), SetupResult, SetupStreamEvent, assertNodeStatusNotPersisted(), assertStateMachineWorkflowShape(), parseNodeConfigStatus(), parseSetupSnapshot() (+4 more)
+Cohesion: 0.07
+Nodes (18): AppModule, ORPCGlobalContext, createBetterAuth(), encryptionKeyProvider, logger, traefikConfigCodec, BootstrapModule, SwarmInventoryModule (+10 more)
 
 ### Community 474 - "🚩 Category 1: Dead Code — Unused Files"
 Cohesion: 0.15
@@ -3292,20 +3473,20 @@ Cohesion: 0.20
 Nodes (3): get_feature_paths(), has_git(), common.sh script
 
 ### Community 478 - "build.ts"
-Cohesion: 0.36
-Nodes (8): cleanup(), copyMigrations(), distDir, main(), runBuild(), runDbGenerate(), runSsrBuild(), srcDir
+Cohesion: 0.08
+Nodes (41): cleanup(), copyMigrations(), distDir, main(), runBuild(), runDbGenerate(), runSsrBuild(), srcDir (+33 more)
 
 ### Community 479 - "entrypoint.dev.ts"
-Cohesion: 0.29
-Nodes (10): DEPLOYER_VERSION, EntrypointConfig, interpretStartupResult(), main(), phaseDiagnostics(), phaseStartupCheck(), phaseValidateEnvironment(), phaseVersionExtraction() (+2 more)
+Cohesion: 0.15
+Nodes (22): checkSwarmState(), DEPLOYER_VERSION, dockerApi(), DockerApiResult, EntrypointConfig, interpretStartupResult(), leaveSwarmIfWeInitiated(), main() (+14 more)
 
 ### Community 480 - "1. API Backend — Product Modules"
 Cohesion: 0.15
 Nodes (13): 1.10 Provider Schema (✅ WORKING), 1.11 Test Endpoints (✅ WORKING), 1.12 Domain Management (✅ WORKING), 1.1 Docker Management (✅ WORKING — Most Complex Feature), 1.2 Deployment Management (✅ WORKING), 1.3 User Management (✅ WORKING), 1.4 Organization Management (✅ WORKING), 1.5 Project Management (✅ WORKING with TODOs) (+5 more)
 
 ### Community 482 - "fleet-failure-containment.service.ts"
-Cohesion: 0.11
-Nodes (9): BridgeResult, SUB_APP_RESULT(), store, SubAppResultStore, logger, SubAppRunner, BaseTriggerService, TriggerPayload (+1 more)
+Cohesion: 0.08
+Nodes (21): createResultBridge(), BridgeResult, SUB_APP_RESULT(), store, SubAppResultStore, logger, SubAppRunner, BaseTriggerService (+13 more)
 
 ### Community 483 - "input-group.tsx"
 Cohesion: 0.25
@@ -3336,23 +3517,23 @@ Cohesion: 0.08
 Nodes (24): 1. All Roles with Delete Permission, 2. All Roles with Project Access, 3. Roles That Can Create Projects, 4. Roles with Full User Management, 5. Roles with Any Write Permission on Projects, 6. Read-Only Roles, 7. Selected Roles with Filtering, 8. Exclude Roles with Dangerous Permissions (+16 more)
 
 ### Community 490 - "package.json"
-Cohesion: 0.05
-Nodes (40): dependencies, @octokit/webhooks-types, @orpc/contract, @orpc/shared, @repo/auth, @repo/contracts-common, @repo/contracts-entities, @repo/orpc-utils (+32 more)
+Cohesion: 0.04
+Nodes (48): dependencies, @octokit/webhooks-types, @orpc/contract, @orpc/shared, @repo/auth, @repo/contracts-common, @repo/contracts-entities, @repo/orpc-utils (+40 more)
 
 ### Community 491 - "dependencies"
 Cohesion: 0.09
 Nodes (23): Accessing Files Across Package Boundaries, Application Packages (`apps/`), Avoid Barrel Files, Common Anti-Patterns, Compiled (Recommended for Libraries), Dependency Management, Exports Best Practices, Install Where Used (+15 more)
 
 ### Community 492 - "exports"
-Cohesion: 0.20
-Nodes (10): exports, ./hooks, ./layout-wrappers, ./layout-wrappers/server, ./page-wrappers, ./page-wrappers/client, ./page-wrappers/server, ./utils (+2 more)
+Cohesion: 0.13
+Nodes (23): exports, ./hooks, ./layout-wrappers, ./layout-wrappers/server, ./page-wrappers/client, ./page-wrappers/server, ./utils, production (+15 more)
 
 ### Community 493 - "tsconfig.test.json"
 Cohesion: 0.29
 Nodes (6): compilerOptions, baseUrl, paths, extends, include, @
 
 ### Community 494 - "DockerRuntimeActivityProjectorService"
-Cohesion: 0.09
+Cohesion: 0.08
 Nodes (23): 1. Always Include Context, 2. Chain Errors, 3. Use Specific Error Classes, 4. Validate Early, Base Error Class, Best Practices, ConfigBuildError, ConfigSyncError (+15 more)
 
 ### Community 495 - "VariableNumber"
@@ -3360,24 +3541,24 @@ Cohesion: 0.25
 Nodes (8): tanstack, @tanstack/eslint-plugin-query, @tanstack/react-devtools, @tanstack/react-form, @tanstack/react-query, @tanstack/react-query-devtools, @tanstack/react-table, @tanstack/react-virtual
 
 ### Community 496 - "exclude"
-Cohesion: 0.16
-Nodes (14): getErrorMessage(), managedWebStateOptions, useDisableManagedWebTunnel(), useEnableManagedWebTunnel(), useManagedWebState(), useRestartManagedWeb(), useSetManagedWebOrigin(), useToggleManagedWeb() (+6 more)
+Cohesion: 0.13
+Nodes (7): managedWebStateOptions, baseOrpc, orpc, orpcClient, ViewsORPCClient, SetupEndpoints, ManagedWebState
 
 ### Community 497 - "page.tsx"
-Cohesion: 0.09
-Nodes (22): DependencyGraphMockScenario, DependencyPolicyAdvanced, EnvPolicy, EnvPolicyMap, FixtureDependency, FixtureGroupMemberDependency, FixtureGroupMemberService, FixtureService (+14 more)
+Cohesion: 0.07
+Nodes (24): PlatformDomainSchemaDeps, platformDomainSchemas, DependencyGraphMockScenario, DependencyPolicyAdvanced, EnvPolicy, EnvPolicyMap, FixtureDependency, FixtureGroupMemberDependency (+16 more)
 
 ### Community 498 - "build"
-Cohesion: 0.16
-Nodes (13): deployments, previewEnvironments, nodeNetworkConfig, GlobalDatabase, hostnameOf(), PlatformRoutesSource, routeNameFromHost(), SupervisedRoute (+5 more)
+Cohesion: 0.05
+Nodes (38): apiKeys, apiKeysRelations, deploymentEnvironmentEnum, deploymentLogs, deploymentLogsRelations, deploymentPhaseEnum, deploymentRollbacks, deploymentRollbacksRelations (+30 more)
 
 ### Community 499 - "scripts"
 Cohesion: 0.09
 Nodes (23): Add Prefix, Authentication, Available Middlewares, Basic Auth, Buffering, Circuit Breaker, Compression, CORS (+15 more)
 
 ### Community 500 - "page.tsx"
-Cohesion: 0.14
-Nodes (11): AnalyticsDeploymentRow, DockerSnapshot, EMPTY_SNAPSHOT, Granularity, GRANULARITY_MS, IN_PROGRESS_STATUSES, SUCCESS_STATUSES, TIME_RANGE_MS (+3 more)
+Cohesion: 0.15
+Nodes (10): DockerSnapshot, EMPTY_SNAPSHOT, Granularity, GRANULARITY_MS, IN_PROGRESS_STATUSES, SUCCESS_STATUSES, TIME_RANGE_MS, TimeRange (+2 more)
 
 ### Community 501 - "exclude"
 Cohesion: 0.25
@@ -3391,33 +3572,37 @@ Nodes (23): 3-Tier Error Pipeline, Anti-Patterns, Client Error Handling, Databas
 Cohesion: 0.17
 Nodes (11): Container Project Resolution Strategy, Core Principle: Project is the Root Scope, Data Model — Scoped Docker Entities, Entity Relationship Diagram, `ImageProjectMembership` (NEW — tracking table), New/Modified Schemas, Orphan Container Handling, `ProjectScanConfig` (NEW — persisted to Postgres) (+3 more)
 
+### Community 504 - "scripts"
+Cohesion: 0.18
+Nodes (4): RedisSupervisorService, makeDockerClient(), makeEnv(), makeSupervisor()
+
 ### Community 505 - "tsconfig.test.json"
 Cohesion: 0.33
 Nodes (5): compilerOptions, paths, extends, include, @
 
 ### Community 506 - "scripts"
 Cohesion: 0.09
-Nodes (4): MeshTrustStrictModeService, MeshTopicDedupStore, PhiAccrualDetector, SlidingDedupWindow
+Nodes (8): meshTopicEventPayloadSchema, Clock, CLOCK_TOKEN, FakeClock, SystemClock, MeshTopicDedupStore, PhiAccrualDetector, SlidingDedupWindow
 
 ### Community 507 - "schemas.ts"
-Cohesion: 0.25
-Nodes (8): RolesAsRoleObjects, InferAllActions, InferPermission, InferResourceNames, InferRoleNames, InferSchemas, assertDefined(), createSchemas()
+Cohesion: 0.17
+Nodes (8): RolesAsRoleObjects, assertDefined(), createSchemas(), InferAllActions, InferPermission, InferResourceNames, InferRoleNames, InferSchemas
 
 ### Community 508 - "dependencies"
-Cohesion: 0.40
-Nodes (5): dependencies, nuqs, query-string, @repo/type-guards, zod
+Cohesion: 0.07
+Nodes (29): setupQueryClient, defaultLabels, initialState, localLabels, remoteLabels, SetupWizardProps, WizardState, WizardStep (+21 more)
 
 ### Community 509 - "scripts"
-Cohesion: 0.15
-Nodes (16): buildServiceModel(), DURATION_MS, normalizeDeploy(), normalizeEnvironment(), normalizeHealthcheck(), normalizeLabels(), normalizeMounts(), normalizePorts() (+8 more)
+Cohesion: 0.06
+Nodes (29): baseInput, toDockerServiceSpec(), toHealthConfig(), toUpdateConfig(), QueueJobLike, RuntimeRunnerRegistryService, buildServiceModel(), DURATION_MS (+21 more)
 
 ### Community 510 - "tsconfig.json"
-Cohesion: 0.50
-Nodes (3): extends, include, $schema
+Cohesion: 0.29
+Nodes (6): compilerOptions, paths, extends, include, @repo/type-guards/*, $schema
 
 ### Community 511 - "scripts"
-Cohesion: 0.28
-Nodes (13): assertAll(), assertAny(), AssertionDefinition, AssertionMetadata, assertNot(), CompositeOperator, CompositePayload, createAssertion() (+5 more)
+Cohesion: 0.16
+Nodes (9): assertAll(), assertAny(), AssertionDefinition, AssertionMetadata, assertNot(), CompositeOperator, CompositePayload, createAssertion() (+1 more)
 
 ### Community 512 - "pagination.ts"
 Cohesion: 0.22
@@ -3432,8 +3617,8 @@ Cohesion: 0.16
 Nodes (8): AuthenticatedUser, AuthHookContext, Session, UserRoles, AFTER_HOOK_KEY, AUTH_MODULE_OPTIONS_KEY, BEFORE_HOOK_KEY, HOOK_KEY
 
 ### Community 515 - "sorting.ts"
-Cohesion: 0.10
-Nodes (5): isExistingFieldFilterConfig(), isSchemaWithOperators(), ListOperationBuilder, normalizeFilterField(), QueryBuilder
+Cohesion: 0.09
+Nodes (8): EntrypointProbe, CapturedSpec, makeDockerService(), makeEnv(), makeSupervisor(), ServiceState, SwarmTaskState, TraefikSupervisorService
 
 ### Community 516 - "SetupStateService"
 Cohesion: 0.09
@@ -3444,20 +3629,24 @@ Cohesion: 0.09
 Nodes (22): Base environment (non-negotiable), Checklist for implementation readiness, Common failure classes, Custom environment variants, Dependency behavior in development mode, Development environment concept (upcoming feature), Environment policy by project, Expected outcomes (+14 more)
 
 ### Community 518 - "package.json"
-Cohesion: 0.50
-Nodes (3): name, private, version
+Cohesion: 0.25
+Nodes (7): name, optionalDependencies, overrides, @types/react, @types/react-dom, private, version
 
 ### Community 519 - "entrypoint.dev.ts"
-Cohesion: 0.16
-Nodes (20): DockerRegistry, DockerRegistryAuthMode, dockerRegistryAuthModeSchema, dockerRegistrySchema, DockerRegistryStatus, dockerRegistryStatusSchema, DockerRegistryRepositoryDetail, dockerRegistryRepositoryDetailSchema (+12 more)
+Cohesion: 0.15
+Nodes (22): DockerRegistryEntity, DockerRegistryEntityList, dockerRegistryEntityListSchema, dockerRegistryEntitySchema, DockerRegistryList, dockerRegistryListSchema, DockerRegistryRelations, dockerRegistryRelationsSchema (+14 more)
 
 ### Community 520 - "dev"
 Cohesion: 0.25
 Nodes (8): dev, concurrently, cross-env, dotenv, dotenv-cli, dotenv-expand, wait-on, wait-port
 
+### Community 521 - "next"
+Cohesion: 0.05
+Nodes (33): API_SRC, artifact, coreFileList, diAdj, diCycles, diEdges, directSet, Edge (+25 more)
+
 ### Community 522 - "docker-compose.mdx"
-Cohesion: 0.19
-Nodes (13): LedTone, ManageWebAppPage(), managedWebEndpointOperations, ManagedWebEndpoints, enhancedManagedWeb, useDisableManagedWebTunnel(), useEnableManagedWebTunnel(), useManagedWebState() (+5 more)
+Cohesion: 0.20
+Nodes (5): managedWebEndpointOperations, ManagedWebEndpoints, enhancedManagedWeb, ManagedWebEndpoints, managedWebInvalidations
 
 ### Community 523 - "build.ts"
 Cohesion: 0.09
@@ -3492,8 +3681,8 @@ Cohesion: 0.33
 Nodes (5): compilerOptions, outDir, extends, include, $schema
 
 ### Community 531 - "package.json"
-Cohesion: 0.25
-Nodes (7): main, name, private, sideEffects, type, types, version
+Cohesion: 0.11
+Nodes (17): dependencies, nuqs, query-string, @repo/type-guards, zod, main, module, name (+9 more)
 
 ### Community 532 - "package.json"
 Cohesion: 0.09
@@ -3512,8 +3701,12 @@ Cohesion: 0.39
 Nodes (7): addTemplate(), getRemotes(), GitRemoteConfig, hasTemplate(), main(), REMOTE_CONFIG, verifyGitRepository()
 
 ### Community 536 - "prepare-render.ts"
-Cohesion: 0.07
-Nodes (19): DebouncedDir, debounceMap, ROOT, WATCH_DIRS, DECLARATIVE_ROUTING_DIST, DECLARATIVE_ROUTING_PKG_DIR, ensureLocalDeclarativeRoutingBuilt(), ensureRoutesGenerated() (+11 more)
+Cohesion: 0.09
+Nodes (17): isSourceMapNoise(), SOURCE_MAP_NOISE, DECLARATIVE_ROUTING_DIST, DECLARATIVE_ROUTING_PKG_DIR, ensureLocalDeclarativeRoutingBuilt(), ensureRoutesGenerated(), main(), startProcesses() (+9 more)
+
+### Community 537 - "index.tsx"
+Cohesion: 0.10
+Nodes (5): PlatformIngressSettingsService, BIND_ERROR_HINTS, DirectPortProxySupervisorService, stableIngressJson(), stableJson()
 
 ### Community 538 - "FencingTokenIssuer"
 Cohesion: 0.09
@@ -3544,8 +3737,8 @@ Cohesion: 0.10
 Nodes (21): Always Prefer Package Tasks, Directory Organization, ESLint Configuration, Extending in Packages, Grouping Packages, Lockfile, Minimum Required Files, No Root tsconfig.json (+13 more)
 
 ### Community 545 - "debug-file-watcher.ts"
-Cohesion: 0.14
-Nodes (15): CloudflareProviderContract, DnsProvidersContract, createDnsProviderInputSchema, DnsProviderAppContract, dnsProviderCheckStateContract, dnsProviderCreateContract, dnsProviderDeleteContract, dnsProviderFeaturesSchema (+7 more)
+Cohesion: 0.13
+Nodes (13): createDnsProviderInputSchema, DnsProviderAppContract, dnsProviderCheckStateContract, dnsProviderCreateContract, dnsProviderDeleteContract, dnsProviderFeaturesSchema, dnsProviderListContract, dnsProviderListOutputSchema (+5 more)
 
 ### Community 546 - "tsconfig.scripts.json"
 Cohesion: 0.40
@@ -3556,16 +3749,16 @@ Cohesion: 0.52
 Nodes (6): print_error(), print_header(), print_info(), print_success(), print_warning(), deploy.sh script
 
 ### Community 548 - "index.ts"
-Cohesion: 0.22
-Nodes (9): componentMap, composedElement, composeWithLayout(), hasLayout(), layoutModules, layouts, modules, ViewComponent (+1 more)
+Cohesion: 0.25
+Nodes (8): componentMap, composedElement, composeWithLayout(), hasLayout(), layoutModules, layouts, modules, ViewComponent
 
 ### Community 549 - "tsconfig.test.json"
 Cohesion: 0.40
 Nodes (4): compilerOptions, baseUrl, extends, include
 
 ### Community 550 - "index.ts"
-Cohesion: 0.16
-Nodes (9): DockerVolumesModule, DockerVolumesOrchestratorService, DockerVolumesDomainService, dockerVolumesContract, dockerListVolumesContract, dockerVolumeListConfigSchemas, DockerVolumeListInput, dockerVolumeListItemSchema (+1 more)
+Cohesion: 0.18
+Nodes (8): DockerVolumesOrchestratorService, DockerVolumesDomainService, dockerVolumesContract, dockerListVolumesContract, dockerVolumeListConfigSchemas, DockerVolumeListInput, dockerVolumeListItemSchema, dockerVolumeOps
 
 ### Community 551 - "build.ts"
 Cohesion: 0.53
@@ -3596,8 +3789,8 @@ Cohesion: 0.20
 Nodes (9): Container Adoption Table, Container Discovery (Existing → Scope Resolution), Container Label Convention, Container Lifecycle — Scoped, Container List API (Scoped), Creation Flow (Deployment-Driven), Cross-Node Container Querying, Environment as Scope (+1 more)
 
 ### Community 559 - "node-startup-check.command.ts"
-Cohesion: 0.13
-Nodes (12): DockerContainerDetailModalTrigger(), DockerImageDetailModalTrigger(), DockerDetailLoadingStateProps, DockerInlineLoadingState(), DockerInlineLoadingStateProps, DockerTableLoadingRows(), DockerTableLoadingRowsProps, buildShellTranscript() (+4 more)
+Cohesion: 0.29
+Nodes (4): DockerDetailLoadingStateProps, DockerInlineLoadingState(), DockerInlineLoadingStateProps, DockerTableLoadingRowsProps
 
 ### Community 560 - "Command"
 Cohesion: 0.10
@@ -3612,8 +3805,8 @@ Cohesion: 0.08
 Nodes (24): Allowed Narrow Casts (and only these), Anti-Patterns, Audit Before Committing, ❌ Banned Patterns, Client Consumption, Client Error Handling (Typed), Contract Composition, Contract Definition (+16 more)
 
 ### Community 563 - "FakeClock"
-Cohesion: 0.20
-Nodes (9): args, distCjsDir, distDir, distEsmDir, isTestFile(), packageRoot, runBuild(), srcDir (+1 more)
+Cohesion: 0.09
+Nodes (14): DockerKnownSource, InspectTrigger, InspectTriggerOrigin, RuntimeEventFieldFilter, RuntimeEventFilterNode, RuntimeFastPathFilters, RuntimeStreamQuery, DockerRuntimeActivityDomainService (+6 more)
 
 ### Community 564 - "🔍 Developer Experience Standards"
 Cohesion: 0.24
@@ -3652,8 +3845,8 @@ Cohesion: 0.22
 Nodes (8): Action Items, Contract Files: ~8 files in packages/contracts/api/modules/docker/, Docker — Contracts Layer (Subagent 3/3), Dockerode Schemas: 4 entity types, Entity Schemas: 8 docker entity types, Gaps, Stream/SSE Schema, Total Operations: ~30+
 
 ### Community 574 - "scripts"
-Cohesion: 0.33
-Nodes (6): scripts, format, format:check, lint, prettify, type-check
+Cohesion: 0.22
+Nodes (9): scripts, build, clean, dev, format, format:check, lint, prettify (+1 more)
 
 ### Community 575 - "package.json"
 Cohesion: 0.10
@@ -3680,8 +3873,8 @@ Cohesion: 0.11
 Nodes (17): deploymentPhaseSchema, DeploymentPhaseGuard, deploymentPhaseGuardSchema, DeploymentPhaseTransition, DeploymentPhaseTransitionApplyInput, deploymentPhaseTransitionApplyInputSchema, DeploymentPhaseTransitionApplyResult, deploymentPhaseTransitionApplyResultSchema (+9 more)
 
 ### Community 581 - "types.ts"
-Cohesion: 0.11
-Nodes (19): ColumnDefWithMeta, ColumnOrderUpdater, DataFetchParams, DataFetchResult, PaginationUpdater, RowSelectionUpdater, SortingUpdater, SubRowsConfig (+11 more)
+Cohesion: 0.06
+Nodes (41): ColumnDefWithMeta, ColumnOrderUpdater, DataFetchParams, DataFetchResult, DataTable(), DataTableProps, PaginationUpdater, RowSelectionUpdater (+33 more)
 
 ### Community 582 - "fix_file"
 Cohesion: 0.22
@@ -3700,8 +3893,8 @@ Cohesion: 0.10
 Nodes (19): 10. Team Tab, 11. Activity Tab, 12. Orchestration Tab, 1. Overview Tab, 2. Services Tab (project-level service list), 3. Dependencies Tab, 4. Deployments Tab, 5. Configuration Tab (+11 more)
 
 ### Community 588 - "search.ts"
-Cohesion: 0.10
-Nodes (19): description, devDependencies, eslint, @repo/config-eslint, @repo/config-prettier, @repo/config-typescript, @types/node, typescript (+11 more)
+Cohesion: 0.07
+Nodes (29): dependencies, description, devDependencies, chokidar, eslint, @repo/config-eslint, @repo/config-prettier, @repo/config-typescript (+21 more)
 
 ### Community 589 - "exports"
 Cohesion: 0.10
@@ -3724,8 +3917,8 @@ Cohesion: 0.10
 Nodes (19): Amendment Process, Code Quality Gates (MANDATORY BEFORE COMMIT), Constitution as Law, Core Principles, Deployment Consistency, Development Workflow Standards, Git & Commit Discipline, Governance (+11 more)
 
 ### Community 597 - "page.tsx"
-Cohesion: 0.11
-Nodes (18): API Reference, Built-in Variables (TRAEFIK_VARIABLES), Instance Methods, Methods, Methods, Methods, Methods, Methods (+10 more)
+Cohesion: 0.12
+Nodes (16): API Reference, Data Types, Instance Methods, Methods, Methods, Methods, Static Methods, TraefikConfigBuilder (+8 more)
 
 ### Community 598 - "deployer-version.ts"
 Cohesion: 0.11
@@ -3736,8 +3929,8 @@ Cohesion: 0.25
 Nodes (7): Execution Timeline (Milliseconds), Key Design Points, Key Files Involved, Startup v2 — Complete Bootstrap Flow, Sub-App Dependency Graph (Topological), The Complete Flow, Trigger Emission → Module Resolution Map
 
 ### Community 600 - "tailwind.config.mts"
-Cohesion: 0.18
-Nodes (14): DataTableExport(), DataTableExportProps, DataTableProps, DataTableToolbar(), DataTableToolbarProps, getButtonSizeClass(), getInputSizeClass(), convertToCSV() (+6 more)
+Cohesion: 0.11
+Nodes (11): SetupAppModule, bootstrap(), log, SETUP_PORT, SetupHealthController, SetupHealthModule, SetupPhaseService, SetupPhase (+3 more)
 
 ### Community 601 - "openapi.template.ts"
 Cohesion: 0.50
@@ -3748,8 +3941,8 @@ Cohesion: 0.25
 Nodes (7): Current Problem, Image Catalog — Scoped, Image Detail: Scoped Scan Results, Image → Project Association Triggers, New Architecture: Image Project Membership, Scoped Image List API, Tracking Table
 
 ### Community 607 - "exports"
-Cohesion: 0.19
-Nodes (14): BaseStandardOperations, EntityOperationOptions, ListOperationOptions, standard, createZodListOptions(), createZodStandardOperations(), InferIdSchema, QueryConfigFromOptions (+6 more)
+Cohesion: 0.10
+Nodes (3): ProjectDomainRepository, DomainVerificationService, DomainProjectService
 
 ### Community 608 - "API Surface — Scoped Docker Endpoints"
 Cohesion: 0.25
@@ -3760,8 +3953,8 @@ Cohesion: 0.25
 Nodes (8): 2.4.1 Service Detail, 2.4.2 Service Configuration Pages (5 pages), 2.4.3 Service Deployments, 2.4.4 Service Logs, 2.4.5 Service Monitoring, 2.4.6 Service Previews, 2.4.7 Service Ops Overview Cards, 2.4 Service Pages (8 pages + 1 component)
 
 ### Community 612 - "layout.tsx"
-Cohesion: 0.24
-Nodes (10): serviceStreamsContract, serviceQueryStreamContract, ServiceStreamEvent, serviceStreamEventContractEntitySchema, serviceStreamEventOps, serviceStreamEventSchema, serviceStreamEventTypeSchema, serviceStreamQueryFiltersSchema (+2 more)
+Cohesion: 0.29
+Nodes (8): serviceStreamsContract, serviceQueryStreamContract, serviceStreamEventContractEntitySchema, serviceStreamEventOps, serviceStreamEventSchema, serviceStreamEventTypeSchema, serviceStreamQueryFiltersSchema, streamEventMetaShape
 
 ### Community 613 - "mock-hooks.ts"
 Cohesion: 0.18
@@ -3776,8 +3969,8 @@ Cohesion: 0.25
 Nodes (7): Contract Files: 17 files, Entity Schemas: 4 files, Issues, Service — Subagent 3/3: Contracts/Entities Layer, Sub-routers: 4, Todo List (Contracts Layer ONLY), Total Operations: 10
 
 ### Community 617 - "./mdx"
-Cohesion: 0.22
-Nodes (14): AdminPlugin, AdminPluginInstance, AdminPluginWrapperOptions, ApiMethodsWithAdminPlugin, AuthWithAdminPlugin, ApiMethodsWithOrganizationPlugin, AuthWithOrganizationPlugin, OrganizationPluginInstance (+6 more)
+Cohesion: 0.14
+Nodes (18): AdminAuthConstraint, AdminPluginFactory, AdminPlugin, AdminPluginInstance, AdminPluginWrapperOptions, ApiMethodsWithAdminPlugin, AuthWithAdminPlugin, AnyPluginWrapper (+10 more)
 
 ### Community 618 - "./nextjs"
 Cohesion: 0.11
@@ -3792,8 +3985,8 @@ Cohesion: 0.25
 Nodes (7): Action Items, Docker — API Layer (Subagent 1/3), Domains (8), Known Issues, Module Structure, Repository Facade, SSE/Stream Infrastructure
 
 ### Community 625 - "🔍 Proposing Structural Changes"
-Cohesion: 0.11
-Nodes (4): StandardPluginTransformer, getSchemaShape(), Input, SHAPE_SYMBOL
+Cohesion: 0.06
+Nodes (25): analyticsReportConfigs, analyticsReportConfigScheduleEnum, analyticsReportFormatEnum, analyticsReports, analyticsReportStatusEnum, appConfig, clusterMigrationState, dockerRuntimeActivities (+17 more)
 
 ### Community 626 - "styling"
 Cohesion: 0.18
@@ -3806,6 +3999,18 @@ Nodes (18): Architecture Overview, CLI Command Exit Codes Summary, `cluster_migr
 ### Community 628 - "post-setup-hints.tsx"
 Cohesion: 0.25
 Nodes (8): styling, clsx, postcss, tailwind-merge, tailwind-variants, tailwindcss, tailwindcss-animate, @tailwindcss/postcss
+
+### Community 629 - "InlineRoleEntry"
+Cohesion: 0.09
+Nodes (5): LocalEventOutboxDispatcherService, LocalEventOutboxRepository, DeploymentProjectionDriftReport, DeploymentReadModelProjection, DeploymentReadModelProjectorService
+
+### Community 630 - "ResourceBuilder"
+Cohesion: 0.09
+Nodes (3): BaseSupervisorService, MultiInstanceSupervisor, SingleInstanceSupervisor
+
+### Community 631 - "RoleBuilderWithMeta"
+Cohesion: 0.07
+Nodes (28): account, accountRelations, platformInvite, platformInviteRelations, pushSubscription, pushSubscriptionRelations, session, sessionRelations (+20 more)
 
 ### Community 632 - "schemas.js"
 Cohesion: 0.18
@@ -3868,28 +4073,32 @@ Cohesion: 0.11
 Nodes (18): 1. Controllers (ORPC Handlers), 2. Services, 3. Adapter, 4. Interfaces, 5. Error Classes, 6. Repositories, Component Responsibilities, DomainAdapter (+10 more)
 
 ### Community 647 - "@orpc/shared"
-Cohesion: 0.11
-Nodes (6): DatabaseProbeService, ProbeResult, DatabaseStartupGuard, GlobalDbSupervisorService, main(), slugify()
+Cohesion: 0.08
+Nodes (10): MANAGED_POSTGRES_VOLUME_NAME, managedPostgresServiceName(), PostgresServiceIdentity, PostgresServiceProvisioner, resolvePostgresIdentity(), platformNetworkName(), platformOverlayForPrefix(), platformOverlayNetworkName() (+2 more)
 
 ### Community 648 - "🔴 Error Handling"
 Cohesion: 0.18
 Nodes (15): builderMetadataOps, builderSchemaOps, builderValidationOps, getAllBuildersContract, getAllProvidersContract, getBuilderSchemaContract, getCompatibleBuildersContract, getCompatibleProvidersContract (+7 more)
 
 ### Community 649 - "@repo/auth"
-Cohesion: 0.16
-Nodes (13): GitHubAppContract, githubWebhookContract, githubWebhookHeadersSchema, githubWebhookPayloadSchema, isInstallationWebhook(), isPullRequestWebhook(), RunnerDetectionHints, runnerDetectionHintsSchema (+5 more)
+Cohesion: 0.17
+Nodes (12): GitHubAppContract, githubCodeProviderContract, createGitlabAppInputSchema, gitlabAppConfigSchema, gitlabAppContract, gitlabAppCreateContract, gitlabAppDeleteContract, gitlabAppListContract (+4 more)
 
 ### Community 650 - "@repo/contracts-common"
-Cohesion: 0.09
-Nodes (11): AnyPluginWrapper, BasePluginWrapper, BasePluginWrapperOptions, PermissionCheckResult, PermissionObject, RoleAssertionError, ExtractPluginType, PluginWrapper (+3 more)
+Cohesion: 0.14
+Nodes (3): BasePluginWrapper, PluginWrapperRegistry, InferSessionFromAuth
 
 ### Community 651 - "🔴 Type Safety — Zero Tolerance for Assertions"
 Cohesion: 0.12
 Nodes (18): bundledPackages, bundledTypescriptInputs, bundleTs6Island, collectPackageDependencies(), entrypoints, externalTypescriptImports, findPackageJson(), getPackageInfo() (+10 more)
 
 ### Community 652 - "🔴 React / Next.js Patterns"
-Cohesion: 0.21
-Nodes (8): CachedUser, MasterTokenOptions, masterTokenPlugin(), userCache, Auth, IEnvService, Session, User
+Cohesion: 0.07
+Nodes (27): services, projectDomains, projectDomainsRelations, serviceDomainMappings, serviceDomainMappingsRelations, sslProviderEnum, verificationMethodEnum, verificationStatusEnum (+19 more)
+
+### Community 653 - "@scalar/nestjs-api-reference"
+Cohesion: 0.14
+Nodes (4): ServiceEventService, ServiceService, ServiceStreamEvent, ServiceStreamQueryInput
 
 ### Community 654 - "🔴 Performance — SSE / High-Frequency Streams"
 Cohesion: 0.15
@@ -3900,12 +4109,12 @@ Cohesion: 0.83
 Nodes (3): main(), startNext(), validateEnvironment()
 
 ### Community 656 - "sub-app-not-available.error.ts"
-Cohesion: 0.12
-Nodes (15): After onboarding, Failure matrix & recovery playbook, Health surface, How the user gets in — onboarding flow, Ingress state matrix (Traefik × proxy), Mental model, Restart matrix, Step 0 — boot pipeline (what happens before the UI) (+7 more)
+Cohesion: 0.18
+Nodes (10): Failure matrix & recovery playbook, Health surface, Ingress state matrix (Traefik × proxy), Mental model, `pending` — deferred, not failed, Restart matrix, Supervisor state machine, Table of contents (+2 more)
 
 ### Community 658 - "CoreEventLogRepository"
-Cohesion: 0.05
-Nodes (28): DockerKnownSource, InspectTrigger, InspectTriggerOrigin, RuntimeEventFieldFilter, RuntimeEventFilterNode, RuntimeFastPathFilters, RuntimeStreamQuery, ContainerMetricsSelector (+20 more)
+Cohesion: 0.08
+Nodes (21): geist, jetBrainsMono, metadata, spaceGrotesk, reactQueryConfig, configureLayoutAuth(), createSessionLayout(), NextLayoutProps (+13 more)
 
 ### Community 661 - "eslint"
 Cohesion: 0.11
@@ -3944,8 +4153,8 @@ Cohesion: 0.11
 Nodes (17): deploymentQueueJobTypeSchema, DeploymentRetryBackoffStrategy, deploymentRetryBackoffStrategySchema, DeploymentRetryNodeType, deploymentRetryNodeTypeSchema, DeploymentRetryPolicy, DeploymentRetryPolicyCatalogResult, deploymentRetryPolicyCatalogResultSchema (+9 more)
 
 ### Community 672 - "🔍 Deep Debugging Protocol"
-Cohesion: 0.14
-Nodes (13): serviceAddDependencyContract, serviceDependencyAddBodySchema, serviceDependencyAddOps, serviceDependencyAddOutputSchema, serviceDependenciesContract, dependencyEdgeSchema, serviceDependenciesListOps, serviceDependenciesListOutputSchema (+5 more)
+Cohesion: 0.10
+Nodes (17): AdminProvidersPage(), ProviderCategory, WizardFormData, SearchableOption, SearchableSelect(), AUTH_SECRET_OPTIONS, GIT_PROVIDERS, GitHubSourcePicker() (+9 more)
 
 ### Community 673 - "2. Tech Stack & Tooling"
 Cohesion: 0.33
@@ -3976,8 +4185,8 @@ Cohesion: 0.12
 Nodes (16): Basic Syntax, By Dependencies/Dependents, By Directory, By Package Name, Combining Filters, Common CI Pattern, Comparison Syntax, Customizing --affected (+8 more)
 
 ### Community 680 - "jest"
-Cohesion: 0.12
-Nodes (16): SwarmEndpointPort, SwarmEndpointPorts, swarmEndpointPortSchema, swarmEndpointPortsSchema, SwarmHealthcheckConfig, swarmHealthcheckConfigSchema, SwarmMount, swarmMountSchema (+8 more)
+Cohesion: 0.11
+Nodes (18): swarmCapabilitiesSchema, SwarmEndpointPort, SwarmEndpointPorts, swarmEndpointPortSchema, swarmEndpointPortsSchema, SwarmHealthcheckConfig, swarmHealthcheckConfigSchema, SwarmMount (+10 more)
 
 ### Community 681 - "@nestjs/testing"
 Cohesion: 0.12
@@ -3991,17 +4200,13 @@ Nodes (17): 1. Database as Source of Truth, 2. Type-Safe Configuration, 3. Varia
 Cohesion: 0.13
 Nodes (14): 1. Executive summary, 2. Readiness matrix (SC1–14), 3. How to read the ordering (dependencies vs serial order), 3bis · Ordering of the W-F* workstreams (Part 2), 4. LEGEND — ID namespace, 6.1 Extension evidence map — FE-1…FE-20, 6. Evidence map, 8. Value / effort rank (SC-EXT13) (+6 more)
 
-### Community 684 - "ts-jest"
-Cohesion: 0.14
-Nodes (11): AnyMiddlewareDefinition, AuthWithSessionAPI, BaseAuthConstraint, InferAuthFromDefinition, InferBuilderFromDefinition, InferRolesFromDefinition, InferSession, InferStatementFromDefinition (+3 more)
-
 ### Community 685 - "ts-node"
 Cohesion: 0.13
 Nodes (15): 5bis. Feature & Polish workstreams (W-F1…W-F14), W-F10 — State-conformance backlog · *Effort M · Owns g2*, W-F11 — Metadata mass-add + doc-rot fix · *Effort M · Owns g4*, W-F12 — Design-system & polish · *Effort M · SC-EXT4 · H prereq (R14)*, W-F13 — `as any` remediation · *Effort M · SC-EXT quality · Codifies `as never as T`*, W-F14 — A11y & responsive · *Effort H · SC-EXT5/SC-EXT11*, W-F1 — Environment vault (flagship) · *Effort M-L · Owns T-F5 · after W-P2/W-P4*, W-F2 — Dependency graph: batch endpoint + real-state option · *Effort M · Owns g1* (+7 more)
 
 ### Community 686 - "tsconfig-paths"
 Cohesion: 0.10
-Nodes (12): SetupStepTracker, LogLine(), ProgressTask, StatusBadge(), TaskCard(), TaskStatus, TaskTemplate, Props (+4 more)
+Nodes (11): SetupStepTracker, LogLine(), ProgressTask, StatusBadge(), TaskCard(), TaskStatus, TaskTemplate, SetupStepId (+3 more)
 
 ### Community 687 - "@types/jest"
 Cohesion: 0.14
@@ -4021,7 +4226,7 @@ Nodes (16): Affected Files / Locations, Context, Definitions, Details / Implemen
 
 ### Community 693 - "cmdk"
 Cohesion: 0.05
-Nodes (39): `cluster_signing_keys` table, Encryption at rest, Environment variable fallback, How each node gets the secret, Key lifecycle, Key rotation — zero downtime, Related documentation, Secret kinds (+31 more)
+Nodes (40): `cluster_signing_keys` table, Encryption at rest, Environment variable fallback, How each node gets the secret, Key lifecycle, Key rotation — zero downtime, Related documentation, Secret kinds (+32 more)
 
 ### Community 694 - "5. 💀 Dead Web Frontend Files"
 Cohesion: 0.33
@@ -4040,12 +4245,12 @@ Cohesion: 0.12
 Nodes (16): Contract, Definition of done, E2E, Endpoint behavior expectations, Failure taxonomy, Goal, In scope, Integration (+8 more)
 
 ### Community 698 - "🔴 Dependency Inversion (DI Tokens)"
-Cohesion: 0.23
-Nodes (6): DockerFileBrowserProps, DockerDirectoryEntryView, getFilesInDirectory(), getParentPath(), getPathBreadcrumb(), DockerFileEntry
+Cohesion: 0.08
+Nodes (16): CreateConfigFileInput, CreateDomainRouteInput, CreateMiddlewareInput, CreateServiceConfigInput, CreateServiceTargetInput, CreateSSLCertificateInput, UpdateServiceConfigInput, TraefikServiceConfig (+8 more)
 
 ### Community 699 - "🔴 Engineering Mindset & Operating Posture"
-Cohesion: 0.05
-Nodes (36): DashboardDockerLogsPage(), debugDockerLogsPage, DEPLOYMENT_LIST_INPUT, ContainerProjection, DashboardDockerPage(), DOCKER_LIST_INPUT, SERVICE_LIST_INPUT, DependencyRecord (+28 more)
+Cohesion: 0.13
+Nodes (15): DependencyRecord, ENV_EDGE_COLORS, EnvironmentGroupNode(), EnvironmentGroupNodeData, getColorForEnvironment(), ServiceDependencyGraphPanel(), ServiceGraphDependency, ServiceGraphDependencyRoute (+7 more)
 
 ### Community 700 - "lucide-react"
 Cohesion: 0.12
@@ -4060,12 +4265,12 @@ Cohesion: 0.12
 Nodes (16): 10. DevOps & Deployment (LOW-MEDIUM), 1. Architecture (CRITICAL), 2. Dependency Injection (CRITICAL), 3. Error Handling (HIGH), 4. Security (HIGH), 5. Performance (HIGH), 6. Testing (MEDIUM-HIGH), 7. Database & ORM (MEDIUM-HIGH) (+8 more)
 
 ### Community 703 - "🔴 Logging"
-Cohesion: 0.33
-Nodes (5): convertURLSearchParamsToObject(), PushOptions, useSearchParams(), emptySchema, RouteBuilder
+Cohesion: 0.07
+Nodes (10): CommonOperators, createCommonOperators(), DynamicCapableQuery, FilterResolvers, FilterWithLogical, FromParam, PaginationInput, PaginationMeta (+2 more)
 
 ### Community 704 - "🔴 Refactor Incrementalism & Atomic Refactors"
-Cohesion: 0.29
-Nodes (8): Config, { parseModuleMock, buildFilesMock, removeFileFromCacheMock, updateBuildFilesMock, parseInfoFileMock, checkRouteFileMock, getConfigMock, absoluteFilePathMock }, existsSyncMock, mkdirSyncMock, readFileSyncMock, readJSONSyncMock, writeFileSyncMock, writeJSONSyncMock
+Cohesion: 0.25
+Nodes (10): buildFileFromTemplate(), buildStringFromTemplate(), templates, { parseModuleMock, buildFilesMock, removeFileFromCacheMock, updateBuildFilesMock, parseInfoFileMock, checkRouteFileMock, getConfigMock, absoluteFilePathMock }, existsSyncMock, mkdirSyncMock, readFileSyncMock, readJSONSyncMock (+2 more)
 
 ### Community 705 - "11. Files to Create, Modify, Delete"
 Cohesion: 0.40
@@ -4136,12 +4341,8 @@ Cohesion: 0.12
 Nodes (17): Auth, Bundle size, 🔍 Code Perfection Standards, Dates & Timezones, Heavy computations, HTTP, i18n / l10n, Input Validation (+9 more)
 
 ### Community 722 - "route.ts"
-Cohesion: 0.12
+Cohesion: 0.11
 Nodes (15): 1. Use Library Over Manual Configuration, 2. Centralize Common Middleware, 3. Layer Middleware Appropriately, 4. Use Chains for Common Patterns, 5. Document Custom Middleware, Admin Panel Chain, API Chain, Best Practices (+7 more)
-
-### Community 725 - "page.tsx"
-Cohesion: 0.22
-Nodes (4): dockerRegistryListConfigSchemas, DockerRegistryListInput, dockerRegistryListItemSchema, dockerRegistryOps
 
 ### Community 729 - "🔴 Monorepo Package Boundaries"
 Cohesion: 0.33
@@ -4180,8 +4381,8 @@ Cohesion: 0.12
 Nodes (16): A. Program governance and scope control, B. Template platform foundation (highest priority), C. Compiler and orchestration core, D. Deploy-to-live vertical slice (MVP-critical), E. Preview environment automation, F. Fleet orchestration and dependency ordering, G. Traefik and networking hardening, H. Provider ecosystem and strategy harmonization (+8 more)
 
 ### Community 742 - "eslint-plugin-react"
-Cohesion: 0.22
-Nodes (8): ProjectDetailLayoutInner(), ProjectDetailSkeleton(), ProjectSection, ProjectSectionNav(), ProjectSectionNavProps, sectionLabel, sectionRoute, sections
+Cohesion: 0.16
+Nodes (12): ProjectDetailLayoutInner(), ProjectDetailSkeleton(), ProjectSection, ProjectSectionNav(), ProjectSectionNavProps, sectionLabel, sectionRoute, sections (+4 more)
 
 ### Community 743 - "eslint-plugin-react-hooks"
 Cohesion: 0.12
@@ -4200,20 +4401,20 @@ Cohesion: 0.13
 Nodes (14): 1.1 Event Structure, 1.2 Accessing the Namespaces via RxJS, 1. The RxJS Event Namespace System, 2.1 Distributed Edge Synchronization, 2.2 Transparent Scalability (The Mesh Abstraction), 2.3 Strict Logical Isolation (Namespaces), 2. Why Use the Mesh? (The Driving Philosophy), 3.1 `Global` (Coordinator Owned) (+6 more)
 
 ### Community 749 - "eslint-config-prettier"
-Cohesion: 0.13
-Nodes (11): DefaultErrorFallback(), DefaultErrorFallbackProps, ErrorBoundary, ErrorBoundaryProps, ErrorBoundaryState, FeatureErrorBoundary(), FeatureErrorBoundaryProps, FeatureErrorFallback() (+3 more)
+Cohesion: 0.07
+Nodes (16): metadata, DefaultErrorFallback(), DefaultErrorFallbackProps, ErrorBoundary, ErrorBoundaryProps, ErrorBoundaryState, ErrorDetails(), FeatureErrorBoundaryProps (+8 more)
 
 ### Community 750 - "@eslint/js"
 Cohesion: 0.15
 Nodes (13): scripts, build, dev, format, format:check, migrate:unified-info-files, prepublish, prettify (+5 more)
 
 ### Community 751 - "globals"
-Cohesion: 0.12
-Nodes (12): DropdownMenu(), DropdownMenuCheckboxItem(), DropdownMenuContent(), DropdownMenuItem(), DropdownMenuLabel(), DropdownMenuRadioGroup(), DropdownMenuRadioItem(), DropdownMenuSeparator() (+4 more)
+Cohesion: 0.07
+Nodes (28): 10. Definition of done, 11. Decisions needed before Phase 1 starts, 12. What this plan deliberately does not do, 1. Read this first — the plan's three structural claims, 2. Deduplication register, 3. Governing assumptions, 4. Workstreams, 5. Dependency graph (+20 more)
 
 ### Community 752 - "tailwindcss"
-Cohesion: 0.22
-Nodes (10): CaseFormat, CaseFormatConfig, convertCase(), ConvertedKeys, DEFAULT_CASE_CONFIG, KeyMappingFunction, toCamelCase(), toKebabCase() (+2 more)
+Cohesion: 0.24
+Nodes (9): CaseFormat, convertCase(), ConvertedKeys, DEFAULT_CASE_CONFIG, KeyMappingFunction, toCamelCase(), toKebabCase(), toPascalCase() (+1 more)
 
 ### Community 753 - "typescript-eslint"
 Cohesion: 0.13
@@ -4228,12 +4429,12 @@ Cohesion: 0.13
 Nodes (14): Affected Files / Locations, Context, Core data model (Phase 1), Details / Implementation, Executive architecture diagram, Hard rules (authoritative), Known Limitations / Caveats, Phase 1 acceptance and sign-off checklist (+6 more)
 
 ### Community 756 - "@typescript/native-preview"
-Cohesion: 0.27
-Nodes (9): all(), base(), NextJSConfig, test(), all(), base(), ReactConfig, test() (+1 more)
+Cohesion: 0.24
+Nodes (10): all(), base(), NextJSConfig, test(), all(), base(), ReactConfig, shadcnLintConfig (+2 more)
 
 ### Community 757 - "@vercel/style-guide"
-Cohesion: 0.17
-Nodes (10): { GET }, Layout(), generateMetadata(), Page(), Layout(), GET(), baseOptions(), getLLMText() (+2 more)
+Cohesion: 0.27
+Nodes (5): { GET }, Layout(), Layout(), baseOptions(), source
 
 ### Community 758 - "vitest"
 Cohesion: 0.13
@@ -4260,12 +4461,12 @@ Cohesion: 0.50
 Nodes (4): 5.1 `@repo/type-guards` Listed but Not Used, 5.2 Dead Dependencies in `packages/ui/base`, 5.3 Potentially Dead Major Deps, 🚩 Category 5: Unused Dependencies (Production Mode)
 
 ### Community 768 - "index.ts"
-Cohesion: 0.05
-Nodes (23): createConditionalStateHook(), SetStateWithPromise, Comparable, ComparisonCache, isDeepEqual(), resetUrlState(), TypedArray, canUseDOM() (+15 more)
+Cohesion: 0.13
+Nodes (15): Comparable, ComparisonCache, isDeepEqual(), resetUrlState(), TypedArray, canUseDOM(), dispatchUrlStateEvent(), ensureUrlStateHistoryPatched() (+7 more)
 
 ### Community 769 - "@repo/config-vitest"
-Cohesion: 0.26
-Nodes (13): OrchestrationModule, buildAllowedOrigins(), CORS_ALLOWED_HEADERS, CorsDecision, isLocalhostOrigin(), normalizeUrl(), resolveCorsDecision(), bootstrap() (+5 more)
+Cohesion: 0.50
+Nodes (6): buildAllowedOrigins(), CORS_ALLOWED_HEADERS, CorsDecision, isLocalhostOrigin(), normalizeUrl(), resolveCorsDecision()
 
 ### Community 770 - "Appendices"
 Cohesion: 0.50
@@ -4280,16 +4481,16 @@ Cohesion: 0.13
 Nodes (15): 🔴 Anti-Pattern Catalog (Always Reject), Architecture & Boundary Anti-Patterns, Configuration & Environment Anti-Patterns, Defensive Code That Hides Bugs, Documentation Anti-Patterns, Error Handling Anti-Patterns (Expanded), Infrastructure Anti-Patterns, Logging / Observability Anti-Patterns (+7 more)
 
 ### Community 773 - "🔴 YAGNI — You Aren't Gonna Need It"
-Cohesion: 0.13
-Nodes (16): CalendarDatePicker, CalendarDatePickerProps, months, multiSelectVariants, DataTablePagination(), DataTablePaginationProps, getButtonSizeClass(), Button() (+8 more)
+Cohesion: 0.12
+Nodes (16): CalendarDatePickerProps, months, multiSelectVariants, DataTablePagination(), DataTablePaginationProps, getButtonSizeClass(), ModeStep(), Props (+8 more)
 
 ### Community 774 - "🔴 Separation of Concerns"
 Cohesion: 0.40
 Nodes (5): 26. Combined Patterns — Real-World Scenarios, Scenario 1: Fully reactive organisation dashboard, Scenario 2: Build log tail — node-targeted, streaming, Scenario 3: Multi-region health aggregate, Scenario 4: Batch saga scale with rollback
 
 ### Community 775 - "🔴 Error Handling Philosophy"
-Cohesion: 0.21
-Nodes (7): InputGroup(), InputGroupAddon(), inputGroupAddonVariants, InputGroupButton(), inputGroupButtonVariants, Input(), Textarea()
+Cohesion: 0.24
+Nodes (6): InputGroup(), InputGroupAddon(), inputGroupAddonVariants, InputGroupButton(), inputGroupButtonVariants, Textarea()
 
 ### Community 776 - "🔴 The Boy Scout Rule"
 Cohesion: 0.15
@@ -4308,8 +4509,8 @@ Cohesion: 0.17
 Nodes (11): background, further reading, next-partial-prefetching-adoption, notes, requires, step 1: audit `<Link prefetch={true}>` (before enabling), step 2: enable the flag, step 3: sweep for URL-data insights (after enabling) (+3 more)
 
 ### Community 780 - "🔴 Documentation Awareness"
-Cohesion: 0.13
-Nodes (13): runnerNetworkModeSchema, serviceRunnerStrategySchema, serviceDependencyLinkPolicySchema, serviceEnvironmentDependencyBehaviorSchema, ServiceProviderConfig, serviceProviderConfigSchema, ServiceRunnerConfig, serviceRunnerConfigSchema (+5 more)
+Cohesion: 0.25
+Nodes (10): PreviewBackendResolution, previewBackendResolutionSchema, PreviewLinkedService, previewLinkedServiceSchema, PreviewSourceTemplate, previewSourceTemplateSchema, ServiceEnvironmentExecutionOverride, serviceEnvironmentExecutionOverrideBaseSchema (+2 more)
 
 ### Community 781 - "🔴 MCP-First Workflow"
 Cohesion: 0.17
@@ -4320,8 +4521,8 @@ Cohesion: 0.50
 Nodes (4): dependsOn, inputs, outputs, build
 
 ### Community 783 - "LoggerMiddleware"
-Cohesion: 0.23
-Nodes (5): AdminPermissionsPlugin, InferRoleNamesFromBuilder, getMasterUser(), SessionHydrator(), error()
+Cohesion: 0.19
+Nodes (3): SyncResult, SyncSummary, TraefikSyncService
 
 ### Community 784 - "build"
 Cohesion: 0.26
@@ -4332,12 +4533,12 @@ Cohesion: 0.14
 Nodes (13): 1) Create a deployment stream definition (business layer), 2.1 Deployment stream definitions, 2.2 Core stream definitions, 2) List stream definitions with typed filters, 3.1 Update deployment stream definition, 3.2 Delete deployment stream definition, 3) Update and delete stream definitions, 4.1 Deployment query stream (`/deployments/stream/query`) (+5 more)
 
 ### Community 786 - "start"
-Cohesion: 0.19
-Nodes (4): CreateDefaultAdminCommand, CreateDefaultAdminEnv, createDefaultAdminEnvSchema, CliAuthService
+Cohesion: 0.08
+Nodes (26): deploymentEnvironmentSchema, deploymentStatusSchema, rollbackStatusSchema, sourceTypeSchema, Deployment, DeploymentConnectivityStatus, deploymentConnectivityStatusSchema, DeploymentExecutionProgress (+18 more)
 
 ### Community 787 - "test:coverage"
-Cohesion: 0.50
-Nodes (4): cache, dependsOn, outputs, init
+Cohesion: 0.08
+Nodes (24): projectDomains, projectDomainsRelations, serviceDomainMappings, serviceDomainMappingsRelations, sslProviderEnum, verificationMethodEnum, verificationStatusEnum, cacheStrategyEnum (+16 more)
 
 ### Community 788 - "test:ui"
 Cohesion: 0.17
@@ -4346,6 +4547,10 @@ Nodes (11): dependencies, nanospinner, picocolors, devDependencies, @types/bun, 
 ### Community 789 - "test:watch"
 Cohesion: 0.13
 Nodes (14): Affected Files / Locations, AGENTS.md — apps/web (Next.js), Anti-pattern (forbidden), Boundaries, Context, Details / Implementation, Evidence, Known Limitations / Caveats (+6 more)
+
+### Community 790 - "dev"
+Cohesion: 0.10
+Nodes (10): defaultOrpcContextBuilder(), DockerContainerMetricsStreamService, resolveFallbackPayloadMessage(), coerceContainerLogEntry(), extractContainerLogEntries(), inferLogLevel(), fetchRemoteAuthSession(), MeshRemoteSessionPayload (+2 more)
 
 ### Community 791 - "docker:build"
 Cohesion: 0.20
@@ -4400,8 +4605,8 @@ Cohesion: 0.23
 Nodes (10): ConfigurationScope, configurationScopeSchema, projectRuntimeConfigSchema, serviceRuntimeConfigSchema, userRuntimeConfigSchema, RuntimeConfigurationDefinition, RuntimeConfigurationDefinitionMap, runtimeConfigurationDefinitions (+2 more)
 
 ### Community 806 - "middlewares.ts"
-Cohesion: 0.18
-Nodes (7): DeploymentCoreModule, PreviewCleanupDecision, PreviewCleanupPolicyService, PreviewCleanupTrigger, PreviewEnvOverlayService, defaultConfig, PreviewTemplateConfig
+Cohesion: 0.09
+Nodes (14): DeploymentCoreModule, PreviewCleanupDecision, PreviewCleanupPolicyService, PreviewCleanupTrigger, PreviewNamingInput, PreviewNamingResult, PreviewNamingService, EmitEvent (+6 more)
 
 ### Community 807 - "docker-host.utils.ts"
 Cohesion: 0.15
@@ -4452,8 +4657,8 @@ Cohesion: 0.18
 Nodes (10): IncidentSeverity, incidentSeveritySchema, IncidentStatus, incidentStatusSchema, NotificationChannel, notificationChannelSchema, NotificationLevel, notificationLevelSchema (+2 more)
 
 ### Community 828 - "eslint.config.mjs"
-Cohesion: 0.33
-Nodes (8): CoreEventScope, coreEventScopeSchema, CoreEventStreamDefinition, coreEventStreamDefinitionSchema, CoreDomainEventEnvelope, coreDomainEventEnvelopeSchema, CoreSyncedEventEnvelope, coreSyncedEventEnvelopeSchema
+Cohesion: 0.40
+Nodes (4): CoreEventScope, coreEventScopeSchema, CoreEventStreamDefinition, coreEventStreamDefinitionSchema
 
 ### Community 831 - "react-day-picker"
 Cohesion: 0.17
@@ -4492,12 +4697,19 @@ Cohesion: 0.22
 Nodes (8): Client-rendered slot routing is not part of the soft-navigation re-render, Deferring an auth gate / top-level `await` in a layout, Edge cases, Initial-load shell vs soft-navigation shell, "Instant" is not "useful shell": the empty-shell failure mode, Parallel routes: each slot is its own boundary, Real-app patterns, The responsive-skeleton mismatch: the shell must match every breakpoint
 
 ### Community 855 - "{ statement: platformStatement, ac: platformAc, roles: platformRoles, schemas: platformSchemas, rolesConfig: platformRolesConfig, roleMeta: platformRoleMeta, }"
-Cohesion: 0.13
-Nodes (7): MESH_DOMAIN_ERROR_HTTP_STATUS, MESH_DOMAIN_ERROR_ORPC_CODE, MeshAuthorizationError, MeshConflictError, MeshDependencyMissingError, MeshNotFoundError, MeshTrustError
+Cohesion: 0.10
+Nodes (21): mapRecord(), ProjectNetworkService, recordTypeSchema, projectGetNetworkContract, projectNetworkOps, ProjectNetworkView, projectNetworkViewSchema, projectUpdateNetworkContract (+13 more)
 
-### Community 856 - "{ statement: projectStatement, ac: projectAc, roles: projectRoles, schemas: projectSchemas, rolesConfig: projectRolesConfig, roleMeta: projectRoleMeta, }"
-Cohesion: 0.20
-Nodes (6): accessPointBaseSchema, accessPointEventInputSchema, PublicAccessPointEvent, PublicAccessPointEventContracts, publicAccessPointEventSchema, PublicAccessPointEventService
+### Community 857 - "{ 
+    statement: organizationStatement, 
+    ac: organizationAc, 
+    roles: organizationRoles, 
+    schemas: organizationSchemas,
+    rolesConfig: organizationRolesConfig,
+    roleMeta: organizationRoleMeta,
+}"
+Cohesion: 0.08
+Nodes (19): clusterMasterHistory, ClusterMasterHistoryInsert, ClusterMasterHistoryRow, clusterNode, ClusterNodeInsert, ClusterNodeRow, clusterNodes, ClusterNodesInsert (+11 more)
 
 ### Community 858 - "{ 
     statement: platformStatement, 
@@ -4509,6 +4721,17 @@ Nodes (6): accessPointBaseSchema, accessPointEventInputSchema, PublicAccessPoint
 }"
 Cohesion: 0.22
 Nodes (8): CRITICAL — DI / Architecture, Fixed in this change set, HIGH — Type safety / data boundaries, MEDIUM, NestJS Best-Practices Audit & Refactor — 2026-08-22 (recheck 2026-08-24), Recommendations (flagged, not silently changed), Summary, Verified compliant (no action needed)
+
+### Community 859 - "{
+    statement: projectStatement,
+    ac: projectAc,
+    roles: projectRoles,
+    schemas: projectSchemas,
+    rolesConfig: projectRolesConfig,
+    roleMeta: projectRoleMeta,
+}"
+Cohesion: 0.12
+Nodes (12): handleProxy(), log, GatewayService, proxyRequest(), proxyViteAsset(), isViteAssetRequest(), log, NO_CONTENT_PATHS (+4 more)
 
 ### Community 860 - "deploymentEnvironmentSchema"
 Cohesion: 0.17
@@ -4535,8 +4758,8 @@ Cohesion: 0.17
 Nodes (11): 1) Clone and initialize, 2) Start development, 3) Validate the workspace, Contributing, Documentation, License, Most used commands, Next.js + NestJS Turborepo Template (+3 more)
 
 ### Community 867 - "sonner"
-Cohesion: 0.13
-Nodes (14): ArtifactBundleProviderConfig, BitbucketProviderConfig, ContainerRegistryProviderConfig, GithubProviderConfig, GitlabProviderConfig, KubernetesRunnerConfig, ManualProviderConfig, ManualRunnerConfig (+6 more)
+Cohesion: 0.09
+Nodes (22): ArtifactBundleProviderConfig, BitbucketProviderConfig, ContainerRegistryProviderConfig, GithubProviderConfig, GitlabProviderConfig, KubernetesRunnerConfig, ManualProviderConfig, ManualRunnerConfig (+14 more)
 
 ### Community 868 - "@tanstack/react-devtools"
 Cohesion: 0.17
@@ -4575,8 +4798,8 @@ Cohesion: 0.18
 Nodes (11): ✅ ARCHITECTURE FIXED, Consumers, Current (Clean) ✅, Dependencies, Docker Module, Documentation Index, Module Responsibilities, Overview (+3 more)
 
 ### Community 878 - "Injectable"
-Cohesion: 0.24
-Nodes (3): ProjectListInput, ProjectStreamEvent, ProjectStreamQueryInput
+Cohesion: 0.15
+Nodes (15): ConnectionState, ConnectionStatus(), Props, accountSchema, LocalAccountStep(), Props, strengthLabels, Props (+7 more)
 
 ### Community 879 - "Inject"
 Cohesion: 0.17
@@ -4615,8 +4838,8 @@ Cohesion: 0.18
 Nodes (11): `@AuthenticatedUser()`, Decorators Reference, Parameter Decorators, Permission-Based Decorators, `@RequireAllRoles(...roles)`, `@RequireCommonPermission(key)`, `@RequirePermissions(permissions)`, `@RequireRole(...roles)` (+3 more)
 
 ### Community 888 - "Module"
-Cohesion: 0.13
-Nodes (14): Actually landed (2026-09-04, SDK-first per user requirement), Dependency graph (summary), Legend, P0 — Foundation & contracts, P1 — Single-node cluster bootstrap, P2 — Swarm execution backend, P3 — Cluster state & reconciliation, P4 — Master election (+6 more)
+Cohesion: 0.12
+Nodes (15): Actually landed (2026-09-04, SDK-first per user requirement), Actually landed (2026-09-17, supervizeurs-on-swarm pass), Dependency graph (summary), Legend, P0 — Foundation & contracts, P1 — Single-node cluster bootstrap, P2 — Swarm execution backend, P3 — Cluster state & reconciliation (+7 more)
 
 ### Community 889 - "Injectable"
 Cohesion: 0.18
@@ -4639,24 +4862,20 @@ Cohesion: 0.20
 Nodes (9): Error Handling, Mocking Auth Context, ORPC Auth Context Layer, Overview, Summary, Table of Contents, Testing, The Problem with Decorators (+1 more)
 
 ### Community 894 - "Global"
-Cohesion: 0.20
-Nodes (11): AuthInstance, createAuthClientFactory(), CreateAuthClientFactoryOptions, DEFAULT_PLUGINS, InferredClientOptions, ServerPlugins, AdminClientPlugin, InviteClientPlugin (+3 more)
+Cohesion: 0.09
+Nodes (20): auth, signInWithEmail(), AuthInstance, createAuthClientFactory(), CreateAuthClientFactoryOptions, DEFAULT_PLUGINS, InferredClientOptions, ServerPlugins (+12 more)
 
 ### Community 895 - "Module"
 Cohesion: 0.14
-Nodes (13): projectCollaborators, deploymentInsertSchema, deploymentSelectSchema, deploymentUpdateSchema, projectCollaboratorInsertSchema, projectCollaboratorSelectSchema, projectCollaboratorUpdateSchema, projectInsertSchema (+5 more)
-
-### Community 896 - "Injectable"
-Cohesion: 0.25
-Nodes (11): AdminUsersPage(), banSchema, enhancedAdmin, useAdminActions(), useAdminBanUser(), useAdminCreateUser(), useAdminListUsers(), useAdminRemoveUser() (+3 more)
+Nodes (7): MeshLogicConfig, SystemMeshLogicService, MeshHealthMonitorService, MeshPeerConnection, MeshPeerHeartbeatInput, MeshPeerHeartbeatResult, MeshPeerLinkMetrics
 
 ### Community 897 - "Global"
 Cohesion: 0.15
 Nodes (11): DEPLOYMENT_ENVIRONMENTS, DockerContainerResolutionOptions, DockerGroupedDaemonDiagnostics, DockerListMeta, DockerListResult, HEALTH_PRIORITY, MeshPeerSessionSummary, ParsedFilterEntry (+3 more)
 
 ### Community 898 - "Module"
-Cohesion: 0.22
-Nodes (6): ExtractPathParams, ParamsToSchemaShape, PathParam, PathParamBuilder, PathParamBuilderWithExisting, SchemaShape
+Cohesion: 0.10
+Nodes (23): artifactBundleConfigSchema, buildMethodSchema, containerRegistryConfigSchema, defaultWizardValues, domainEntrySchema, envVarSchema, githubConfigSchema, healthCheckSchema (+15 more)
 
 ### Community 899 - "Injectable"
 Cohesion: 0.20
@@ -4743,12 +4962,12 @@ Cohesion: 0.22
 Nodes (9): addDomainRoute, addServiceTarget, deleteDomainRoute, deleteServiceTarget, Domain Route Management, Service Target Management, TraefikService (Facade), updateDomainRoute (+1 more)
 
 ### Community 921 - "Controller"
-Cohesion: 0.19
-Nodes (9): PlaceAutocomplete(), PlaceAutocompleteProps, PlaceFeature, PlaceFeatureCollection, PlaceFeatureProperties, PlaceSearchOptions, useDebounce(), usePlaceSearch() (+1 more)
+Cohesion: 0.12
+Nodes (14): Command(), CommandEmpty(), CommandGroup(), CommandItem(), CommandList(), PlaceAutocomplete(), PlaceAutocompleteProps, PlaceFeature (+6 more)
 
 ### Community 922 - "Get"
-Cohesion: 0.40
-Nodes (7): DEFAULT_HEALTH_CHECK, emptyEffectiveConfig(), foldServiceChain(), isDefaultHealthCheckValue(), mergeServiceConfig(), pickHealth(), Service
+Cohesion: 0.23
+Nodes (12): defaultProviderConfig(), defaultRunnerConfig(), DEFAULT_HEALTH_CHECK, emptyEffectiveConfig(), foldServiceChain(), isDefaultHealthCheckValue(), mergeServiceConfig(), pickHealth() (+4 more)
 
 ### Community 923 - "Post"
 Cohesion: 0.46
@@ -4761,6 +4980,10 @@ Nodes (12): 1. Design tokens (Tailwind v4 theme extension), 2. Target informatio
 ### Community 925 - "Module"
 Cohesion: 0.46
 Nodes (6): composeWithLayouts(), createSsrQueryClient(), layoutModules, renderComponent(), renderComponentStream(), renderSegment()
+
+### Community 926 - "Module"
+Cohesion: 0.09
+Nodes (13): MeshResourceQueryBuilder, MeshWhereClauseOperator, MeshWhereClauseScalar, applyWhereInput(), defaultQueryState, MeshResourceQueryState, MeshResourceQueryWhereInput, MeshWhereExpression (+5 more)
 
 ### Community 929 - "Module"
 Cohesion: 0.22
@@ -4839,12 +5062,16 @@ Cohesion: 0.25
 Nodes (7): E2E Testing Strategy (API), Example, Philosophy: oRPC-First, Test Boundaries & Coverage, The Single `SharedApiRuntimeContext`, Transport Metadata Interception (HTTP Assertions), Use Cases for Supertest (`context.http`)
 
 ### Community 949 - "vitest.config.ts"
-Cohesion: 0.25
-Nodes (8): chokidar, @parcel/watcher, rimraf, @types/bun, @types/node, typescript, vite, build
+Cohesion: 0.14
+Nodes (14): better-auth, @thallesp/nestjs-better-auth, chokidar, @parcel/watcher, rimraf, @types/bun, @types/node, typescript (+6 more)
 
 ### Community 950 - "vitest.config.mts"
-Cohesion: 0.25
-Nodes (6): MeshWhereClauseOperator, MeshWhereClauseScalar, applyWhereInput(), defaultQueryState, MeshResourceQueryWhereInput, MeshResourceOfKind
+Cohesion: 0.11
+Nodes (17): RunnerFormData, AutocompleteField(), RunnerDetectionHints, BUILD_METHOD_META, BUILD_METHOD_META_BY_ID, BuildMethod, BuildMethodMeta, RUNNER_DEFAULT_CONFIG (+9 more)
+
+### Community 952 - "vitest.config.mts"
+Cohesion: 0.11
+Nodes (13): buildTasksFromEvents(), ProgressTask, ProgressTasks(), TaskStatus, TaskTemplate, markSetupComplete(), setupLogger, getDescription() (+5 more)
 
 ### Community 953 - "vitest.config.mts"
 Cohesion: 0.25
@@ -4888,7 +5115,7 @@ Nodes (8): 35. Reactive Live Query System, API, Change Event Integration, Implem
 
 ### Community 963 - "drizzle-orm"
 Cohesion: 0.08
-Nodes (12): MeshResourceController, HandlerEntry, MeshResourceDispatcher, nodeInfoEntity, MeshEntityItem, MeshResourceService, NodeInfoTestService, NodeInfoService (+4 more)
+Nodes (12): HandlerEntry, MeshResourceDispatcher, nodeInfoEntity, MeshEntityItem, MeshResourceService, NodeInfoTestService, NodeInfoService, mockDispatcher (+4 more)
 
 ### Community 964 - "terminal-tab.tsx"
 Cohesion: 0.53
@@ -4943,16 +5170,16 @@ Cohesion: 0.25
 Nodes (7): Checklist Format (REQUIRED), Core Concepts Compliance, Outline, Phase Structure, Task Generation Rules, Task Organization, User Input
 
 ### Community 977 - "Injectable"
-Cohesion: 0.32
-Nodes (7): args, cleanup(), distDir, main(), runBuild(), srcDir, watch
+Cohesion: 0.16
+Nodes (14): ConnectionLifecycleEvent, ConsumerRegistration, MeshConnection, MeshStreamEnvelope, NodeTarget, SharedStream, StreamAcquisitionSpec, TypedStreamHandle (+6 more)
 
 ### Community 978 - "yaml"
 Cohesion: 0.25
 Nodes (7): Examples, Features, How It Works, Installation, Options, @repo/runthenkill, Usage
 
 ### Community 979 - "Injectable"
-Cohesion: 0.25
-Nodes (7): AGENTS.md — Auth Package Guide, Client (`@repo/auth/client`), Key Exports, Server (`@repo/auth/server`), Structure, Types, Usage
+Cohesion: 0.20
+Nodes (9): AGENTS.md — Auth Package Guide, Client (`@repo/auth/client`), Key Exports, Related docs, Rules, Server (`@repo/auth/server`), Structure, Types (+1 more)
 
 ### Community 980 - "@orpc/json-schema"
 Cohesion: 0.25
@@ -4991,8 +5218,8 @@ Cohesion: 0.29
 Nodes (7): 3-Tier Error Pipeline, Client Error Handling, 🔴 Error Handling, Layer 1: AppError Hierarchy, Layer 2: ORPC Error Contract, Layer 3: Global Filter, Request Correlation
 
 ### Community 990 - "Catch"
-Cohesion: 0.18
-Nodes (10): MeshControlEnvelopeAck, meshControlEnvelopeAckSchema, MeshControlEnvelopePublishResult, meshControlEnvelopeSchema, MeshControlEnvelopeType, meshControlEnvelopeTypeSchema, MeshEventPublishPayload, meshEventPublishPayloadSchema (+2 more)
+Cohesion: 0.12
+Nodes (12): MeshControlEnvelopeAck, meshControlEnvelopeAckSchema, MeshControlEnvelopePublishResult, meshControlEnvelopeSchema, MeshControlEnvelopeType, meshControlEnvelopeTypeSchema, MeshEventPublishPayload, meshEventPublishPayloadSchema (+4 more)
 
 ### Community 991 - "Injectable"
 Cohesion: 0.29
@@ -5011,8 +5238,8 @@ Cohesion: 0.29
 Nodes (7): App Router Conventions, Component Patterns, Declarative Routing, Feature-Local Structure (mandatory for non-trivial routes), Information Presentation, 🔴 React / Next.js Patterns, State Management
 
 ### Community 995 - "Injectable"
-Cohesion: 0.24
-Nodes (8): analyticsReportConfigs, analyticsReportConfigScheduleEnum, analyticsReportFormatEnum, analyticsReports, analyticsReportStatusEnum, deploymentRollbacks, AnalyticsRollbackRow, AnalyticsServiceRow
+Cohesion: 0.06
+Nodes (26): asRecord(), assert(), detectNodeFramework(), extractDockerfilePorts(), JsonRecord, main(), safeParseJson(), analyticsReportConfigs (+18 more)
 
 ### Community 996 - "Injectable"
 Cohesion: 0.73
@@ -5027,16 +5254,16 @@ Cohesion: 0.29
 Nodes (7): 20b.1 Global platform overview page (`/dashboard`), 20b.2 Project dashboard page (`/projects/:id`), 20b.3 Service monitoring page (`/projects/:id/services/:sid`), 20b.4 Node monitoring page (`/admin/nodes/:id`), 20b.5 Cluster map page (`/admin/cluster`), 20b.6 Analytics & trends page (`/analytics`), 20b. Platform Metrics Dashboard
 
 ### Community 999 - "environment.schema.ts"
-Cohesion: 0.08
-Nodes (28): ENVIRONMENT_KINDS, EnvironmentKind, EnvironmentTrigger, EnvironmentTriggerSource, environmentTriggerSourceSchema, envNameSchema, ProjectEnvironmentDeploymentStrategy, projectEnvironmentDeploymentStrategySchema (+20 more)
+Cohesion: 0.06
+Nodes (34): ENVIRONMENT_KINDS, EnvironmentKind, EnvironmentTrigger, EnvironmentTriggerSource, environmentTriggerSourceSchema, envNameSchema, ProjectEnvironmentDeploymentStrategy, projectEnvironmentDeploymentStrategySchema (+26 more)
 
 ### Community 1000 - "service-ops-overview-cards.tsx"
 Cohesion: 0.29
 Nodes (7): 20c.1 Node types (React Flow custom nodes), 20c.2 Edge types, 20c.3 Graph controls & interactions, 20c.4 Layout strategy, 20c.5 Data sources, 20c.6 Cross-project graph view, 20c. Service Dependency Graph (React Flow)
 
 ### Community 1001 - "tanstack-query.ts"
-Cohesion: 0.11
-Nodes (7): PlatformConfigService, PlatformConsoleController, PlatformManagedWebController, PlatformModule, CONSOLE_SUPERVISOR_ID, PlatformManagedWebService, ManagedWebState
+Cohesion: 0.03
+Nodes (36): GlobalDatabase, CorePlatformIngressModule, EnvHostnameService, HostnameService, booleanValueSchema, PlatformConfigService, hostnameOf(), PlatformRoutesSource (+28 more)
 
 ### Community 1002 - "meshControlEnvelopePublishResultSchema"
 Cohesion: 0.29
@@ -5045,10 +5272,6 @@ Nodes (6): Blocking hierarchy, Mesh orchestration startup model, Observable-firs
 ### Community 1003 - "reflect-metadata"
 Cohesion: 0.29
 Nodes (7): Phase 0 — Baseline and guardrails, Phase 1 — Vertical Slice A: deploy to live URL, Phase 2 — Vertical Slice B: preview environments, Phase 3 — Vertical Slice C: fleet control, Phase 4 — Module parity completion and hardening, Phase 5 — Production readiness, Phase-by-phase roadmap
-
-### Community 1004 - "sync.interfaces.ts"
-Cohesion: 0.18
-Nodes (9): deploymentSchema, meshPeerSessionSchema, setupInitializeInputSchema, TraefikDynamicConfig, traefikDynamicConfigSchema, traefikRuleSchema, traefikServiceSchema, User (+1 more)
 
 ### Community 1005 - "@repo/auth"
 Cohesion: 0.29
@@ -5082,17 +5305,13 @@ Nodes (7): 5. Core Design Principles, Principle 1 — Services are distributed s
 Cohesion: 0.29
 Nodes (6): API track (contracts, services, controllers, orchestration), Cross-track sync (mandatory), How to use this file, Implementation tracks (execute before deep feature coding), Platform Source of Truth — Implementation TODOs, Web/UI track (dashboard, forms, flows, visual orchestration)
 
-### Community 1013 - "resource-graph.ts"
-Cohesion: 0.25
-Nodes (4): MeshResourceQueryState, meshExpressionSymbol, MeshWhereExpression, MeshDirectProtocol
-
 ### Community 1014 - "role.guard.spec.ts"
 Cohesion: 0.29
 Nodes (7): `admin`, Built-in Role Templates, Example: `contractor-readonly-prod`, Example custom role: `ci-bot`, Example custom role: `team-frontend`, `member`, `owner`
 
 ### Community 1015 - "SetupWizardController"
-Cohesion: 0.02
-Nodes (43): main(), assert(), main(), assert(), buildPublicUrl(), main(), buildMeshContext(), parseParcour() (+35 more)
+Cohesion: 0.05
+Nodes (19): assert(), main(), assert(), buildPublicUrl(), main(), accessPointBaseSchema, accessPointEventInputSchema, PublicAccessPointEvent (+11 more)
 
 ### Community 1016 - "compatibility.ts"
 Cohesion: 0.29
@@ -5122,10 +5341,6 @@ Nodes (7): 44.1 Motivation, 44.2 StreamEnhancement Type, 44.3 Enhancement API on
 Cohesion: 0.29
 Nodes (7): 48. Implementation Order (v4), Phase 13 — Server-Side Filter System ← NEW, Phase 14 — Stream Identity ← NEW, Phase 15 — Shared Stream Registry ← NEW, Phase 16 — Stream Enhancement Protocol ← NEW, Phase 17 — Stream Store & Integration ← NEW, Phases 1–12 (v3 — unchanged)
 
-### Community 1023 - "index.ts"
-Cohesion: 0.09
-Nodes (8): asRecord(), assert(), detectNodeFramework(), extractDockerfilePorts(), JsonRecord, main(), safeParseJson(), GitHubService
-
 ### Community 1024 - "5. Core Design Principles"
 Cohesion: 0.29
 Nodes (7): 5. Core Design Principles, Principle 1 — Services are distributed schemas, Principle 2 — Entities are first-class, Principle 3 — Builders are composable, Principle 4 — Transport is infrastructure, Principle 5 — No string literals, Principle 6 — Everything inferable should be inferred
@@ -5139,8 +5354,8 @@ Cohesion: 0.29
 Nodes (6): Anti-Examples: What NOT To Do, Checklist Purpose: "Unit Tests for English", Core Concepts Compliance, Example Checklist Types & Sample Items, Execution Steps, User Input
 
 ### Community 1027 - "build.ts"
-Cohesion: 0.33
-Nodes (5): args, ChokidarModule, rootDir, setupWatcher(), watch
+Cohesion: 0.13
+Nodes (12): DomainPicker(), DomainPickerProps, domainEndpointOperations, domainEndpoints, enhancedDomain, isIdUsable(), useAvailableDomains(), useAvailableDomainsForService() (+4 more)
 
 ### Community 1028 - "Common Issues"
 Cohesion: 0.29
@@ -5179,8 +5394,8 @@ Cohesion: 0.29
 Nodes (7): 3.1 DataTable Component, 3.2 EmptyState Component, 3.3 ErrorState Component, 3.4 LoadingState Component, 3.5 ConfirmDialog Component, 3.6 Refactor Admin Users Page, Phase 3: UI Components
 
 ### Community 1037 - "fix-package-aliases.ts"
-Cohesion: 0.29
-Nodes (3): files, ROOT, SRC
+Cohesion: 0.11
+Nodes (5): dnsProviderEndpointOperations, DnsProviderEndpoints, CLOUDFLARE_RECORD_TYPES, enhancedDnsProviders, dnsProviderInvalidations
 
 ### Community 1038 - "[PROJECT NAME] Development Guidelines"
 Cohesion: 0.29
@@ -5543,24 +5758,24 @@ Cohesion: 0.40
 Nodes (4): AGENTS.md — @repo/bin-runthenkill, Quick Context via MCP, Rules, Usage
 
 ### Community 1131 - "AGENTS.md — @repo/api-contracts"
-Cohesion: 0.40
-Nodes (4): AGENTS.md — @repo/api-contracts, Quick Context via MCP, Rules, Scripts
+Cohesion: 0.29
+Nodes (6): AGENTS.md — @repo/api-contracts, API module ↔ contract module mapping, Quick Context via MCP, Rules, Scripts, Two contract modules that are registered but not fully wired
 
 ### Community 1132 - "tsconfig.json"
-Cohesion: 0.50
-Nodes (3): extends, include, $schema
+Cohesion: 0.29
+Nodes (6): compilerOptions, paths, extends, include, @repo/nest-events/*, $schema
 
 ### Community 1133 - "tsconfig.json"
-Cohesion: 0.50
-Nodes (3): extends, include, $schema
+Cohesion: 0.29
+Nodes (6): compilerOptions, paths, extends, include, @repo/nest-lifecycle/*, $schema
 
 ### Community 1134 - "peerDependenciesMeta"
-Cohesion: 0.40
-Nodes (5): optional, peerDependenciesMeta, nprogress, @tanstack/react-query, optional
+Cohesion: 0.09
+Nodes (21): bin, pkg-build, dependencies, chokidar, picocolors, description, devDependencies, @types/node (+13 more)
 
 ### Community 1135 - "tsconfig.json"
-Cohesion: 0.50
-Nodes (3): extends, include, $schema
+Cohesion: 0.29
+Nodes (6): compilerOptions, paths, extends, include, @repo/errors/*, $schema
 
 ### Community 1136 - "8. Consolidate Query Key Management"
 Cohesion: 0.40
@@ -5603,16 +5818,16 @@ Cohesion: 0.50
 Nodes (3): EMPTY_PUBLIC_ACCESS_POINT_STATE, PublicAccessPointKind, PublicAccessPointState
 
 ### Community 1146 - "SSL Certificate Management"
-Cohesion: 0.36
-Nodes (6): FILTER_DEFAULTS, useProjectFilters(), DeploymentFilterParams, deploymentFilterSchema, ProjectFilterParams, projectFilterSchema
+Cohesion: 0.24
+Nodes (10): DashboardDockerVolumesPage(), FILTER_DEFAULTS, useDeploymentFilters(), useProjectFilters(), DeploymentFilterParams, deploymentFilterSchema, ProjectFilterParams, projectFilterSchema (+2 more)
 
 ### Community 1147 - "Data Types"
 Cohesion: 0.43
 Nodes (6): bad(), COMPOSE_PROJECT_NAME, ok(), require(), local-gate-api-centric.sh script, wait_for()
 
 ### Community 1148 - "TraefikEventService"
-Cohesion: 0.29
-Nodes (5): register(), AppInstancePlugin, AppInstanceTokenProvider, globalRegistry, registerAppInstanceTokenProvider()
+Cohesion: 0.16
+Nodes (4): compareHlc(), Hlc, LwwEntry, LwwMap
 
 ### Community 1149 - "16b. Container Registry"
 Cohesion: 0.50
@@ -5622,13 +5837,21 @@ Nodes (4): Consumer-hosted web (BYO), Development — side by side, Flows per en
 Cohesion: 0.25
 Nodes (8): next, declarative-routing, eslint-config-next, next, @next/bundle-analyzer, next-sitemap, next-themes, nextjs-toploader
 
+### Community 1153 - "Dependency map and parallel workstreams"
+Cohesion: 0.15
+Nodes (16): redirectSameOrigin(), sameOriginUrl(), config, debugAuth, debugAuthError, matcher, withAuth(), debugEnv (+8 more)
+
 ### Community 1154 - "Bootstrap now, split later (lifecycle)"
-Cohesion: 0.38
-Nodes (3): httpStatusToORPCCode(), resolveExceptionMessage(), transformHttpExceptionToORPCError()
+Cohesion: 0.06
+Nodes (22): httpStatusToORPCCode(), resolveExceptionMessage(), transformHttpExceptionToORPCError(), makeLayoutRoute(), makeRoute(), ClientAuthProviders(), makeRoute(), projectEnvironmentOps (+14 more)
+
+### Community 1155 - "How teams should run this day to day"
+Cohesion: 0.13
+Nodes (14): mapRecord(), ServiceNetworkService, serviceGetNetworkContract, serviceNetworkContract, serviceNetworkOps, ServiceNetworkView, serviceNetworkViewSchema, serviceProvisionDnsRecordContract (+6 more)
 
 ### Community 1157 - "styleguide.mdx"
-Cohesion: 0.50
-Nodes (4): downloadTextFile(), repository, type, url
+Cohesion: 0.10
+Nodes (19): 100-Point Enhancement Overview — Deployer Console, A. Information — what each page says (1–10), B. Interaction — how the console responds (11–18), C. Accessibility (19–23), D. Performance (24–28), E. Feedback, errors and empty states (29–33), F. Copy and vocabulary (34–36), G. Platform — capability the docs already promise (37–44) (+11 more)
 
 ### Community 1159 - "16b. Container Registry"
 Cohesion: 0.50
@@ -5978,13 +6201,17 @@ Nodes (3): 4.1 How `.from()` returns the correct builder type, 4.2 Compile-time 
 Cohesion: 0.46
 Nodes (7): checkFile(), main(), printDeploymentInstructions(), RenderDeploymentConfig, testDockerBuild(), verifyDocker(), verifyRequiredFiles()
 
+### Community 1260 - "AGENTS.md — @repo/config-eslint"
+Cohesion: 0.50
+Nodes (3): AGENTS.md — @repo/config-eslint, Rules, @shadcn/lint
+
 ### Community 1261 - "./react"
 Cohesion: 0.67
 Nodes (3): ./react, import, types
 
 ### Community 1262 - "./test"
-Cohesion: 0.67
-Nodes (3): ./test, import, types
+Cohesion: 0.10
+Nodes (19): 100-Point Enhancement Overview — Deployer Console, A. Information — what each page says (1–10), B. Interaction — how the console responds (11–18), C. Accessibility (19–23), D. Performance (24–28), E. Feedback, errors and empty states (29–33), F. Copy and vocabulary (34–36), G. Platform — capability the docs already promise (37–44) (+11 more)
 
 ### Community 1265 - "AGENTS.md — @repo/config-typescript"
 Cohesion: 0.50
@@ -5995,8 +6222,8 @@ Cohesion: 0.50
 Nodes (4): Anti-Patterns, Principles, Single Sources in This Monorepo, 🔴 SSOT — Single Source of Truth
 
 ### Community 1269 - "CURRENT-STATE.md"
-Cohesion: 0.33
-Nodes (4): AuthErrorContent(), AuthErrorType, errorMessages, metadata
+Cohesion: 0.15
+Nodes (10): AuthErrorContent(), AuthErrorType, errorMessages, metadata, convertURLSearchParamsToObject(), PushOptions, useSearchParams(), useSearchParamState() (+2 more)
 
 ### Community 1270 - "UI Component Library"
 Cohesion: 0.67
@@ -6015,16 +6242,32 @@ Cohesion: 0.67
 Nodes (3): Hook Generation System ✅, ORPC System, RouteBuilder API ✅
 
 ### Community 1274 - "🟢 Minor Issues"
-Cohesion: 0.38
-Nodes (5): ButtonGroup(), ButtonGroupSeparator(), ButtonGroupText(), buttonGroupVariants, Separator()
+Cohesion: 0.10
+Nodes (18): ComposeCompatibilityIssue, composeCompatibilityIssueSchema, ComposeCompatibilityReport, composeCompatibilityReportSchema, ComposeCompatibilitySeverity, composeCompatibilitySeveritySchema, ComposeDeploy, composeDeploySchema (+10 more)
+
+### Community 1291 - "role-config-collection.spec.ts"
+Cohesion: 0.10
+Nodes (19): clusterAdmissionRequests, clusterAdmissionRequestsRelations, clusterAdmissionRequestStatusEnum, clusterAllocationModeEnum, clusterJoinGrants, clusterJoinGrantsRelations, clusterJoinGrantStatusEnum, clusterNodeMetrics (+11 more)
+
+### Community 1295 - "source-provider.token.ts"
+Cohesion: 0.11
+Nodes (5): findComposeFiles(), PackageJson, packageJsonSchema, rankComposeFile(), stringRecordSchema
 
 ### Community 1297 - "vitest.setup.ts"
 Cohesion: 0.50
 Nodes (4): Anti-Patterns, Application, 🔴 "Scream" Test for Architecture, Screaming Architecture Principles
 
+### Community 1312 - "builder.spec.ts"
+Cohesion: 0.11
+Nodes (18): 100-Point Platform Enhancement Overview, A. Specified but unbuilt — the phantom surface (1–12), B. Stubs, fabricated data, and silent lies (13–24), C. CI/CD and release engineering (25–33), D. Contracts, schemas and their integrity (34–43), E. API module hygiene and test debt (44–51), F. Observability and alerting (52–58), G. Deployment and release workflow (59–66) (+10 more)
+
 ### Community 1317 - "ProjectContextBuilder"
 Cohesion: 0.38
 Nodes (6): createUseSession(), CreateUseSessionOptions, DEFAULT_SESSION_QUERY_KEY, SessionResult, useQueryCacheSubscription(), useQueryClientSafe()
+
+### Community 1318 - "MigrationJournalService"
+Cohesion: 0.22
+Nodes (6): __dirname, __filename, JOURNAL_PATH, JournalEntry, MigrationJournal, MigrationJournalService
 
 ### Community 1319 - "🔴 Performance — SSE / High-Frequency Streams"
 Cohesion: 0.29
@@ -6035,8 +6278,8 @@ Cohesion: 0.29
 Nodes (7): Check for Dead Code, Check If the Implementation Already Exists, Check the Related Code, Find All Call Sites, 🔴 Pre-Work Investigation Protocol, Read Relevant AGENTS.md First, When Implementing a New Concept, Check Everywhere
 
 ### Community 1321 - "ResourcesAccessor"
-Cohesion: 0.40
-Nodes (3): InternalErrorRequestContext, InternalErrorContextMiddleware, setInternalErrorRequestContext()
+Cohesion: 0.11
+Nodes (18): DockerodeConfigSummary, dockerodeConfigSummarySchema, DockerodeNodeSummary, DockerodeSecretSummary, dockerodeSecretSummarySchema, DockerodeServiceSummary, DockerodeSwarmInfo, DockerodeSwarmInitResponse (+10 more)
 
 ### Community 1322 - "Rig discovery: generate this project's `instant-nav.rig.md`"
 Cohesion: 0.33
@@ -6079,8 +6322,12 @@ Cohesion: 0.33
 Nodes (6): Incrementalism Done Right, 🔴 Refactor Incrementalism & Atomic Refactors, The Atomic Refactor, The "Migration Commit" Anti-Pattern, The Right Pattern, When You CANNOT Do It Atomically
 
 ### Community 1332 - "scripts"
-Cohesion: 0.33
-Nodes (6): scripts, build, format, format:check, prettify, type-check
+Cohesion: 0.25
+Nodes (8): scripts, build, clean, dev, format, format:check, prettify, type-check
+
+### Community 1334 - "RolesAccessor"
+Cohesion: 0.06
+Nodes (17): AbstractDockerContainerService, DockerContainerStartOptions, CreateContainerOptions, CURRENT_LABELS, SwarmNodeAvailability, SwarmNodeRole, SwarmNodeSpecChange, SwarmNodeSpecOperation (+9 more)
 
 ### Community 1335 - "standardize-package-names.ts"
 Cohesion: 0.33
@@ -6194,24 +6441,28 @@ Cohesion: 0.33
 Nodes (6): downloadFile, Filesystem Operations, getFileContent, getProjectFileSystem, getTraefikFileSystem, listProjects
 
 ### Community 1440 - "createPathBuilder"
-Cohesion: 0.11
-Nodes (19): ClientSessionInjectedProps, ComponentWithDisplayName, CoreRouteElements, createPathBuilder(), createUrlBuilder(), FetchOptions, GetRouteBuilder, LinkProps (+11 more)
+Cohesion: 0.14
+Nodes (21): ClientSessionInjectedProps, ComponentWithDisplayName, CoreRouteElements, createPathBuilder(), createRouteFactory(), createUrlBuilder(), DeleteRouteBuilder, emptySchema (+13 more)
+
+### Community 1447 - "DeploymentQueueReconciliationService"
+Cohesion: 0.10
+Nodes (15): DeploymentQueueReconciliationService, CreateRollbackInput, DeploymentCreateInput, DeploymentLogFilters, DeploymentLogRow, DeploymentPhase, DeploymentRollbackRow, DeploymentRow (+7 more)
 
 ### Community 1448 - "doc"
 Cohesion: 0.33
 Nodes (6): doc, fumadocs-core, fumadocs-mdx, fumadocs-ui, @tanstack/charts, @types/mdx
 
 ### Community 1449 - "linting"
-Cohesion: 0.33
-Nodes (6): linting, eslint, @eslint/eslintrc, @eslint/js, prettier, prettier-plugin-tailwindcss
+Cohesion: 0.29
+Nodes (7): linting, eslint, @eslint/eslintrc, @eslint/js, prettier, prettier-plugin-tailwindcss, @shadcn/lint
 
 ### Community 1450 - "standardize-package-names.ts"
 Cohesion: 0.53
 Nodes (5): createReplacePattern(), getAllFiles(), main(), packageRenames, updateFileContent()
 
-### Community 1451 - "cli.ts"
-Cohesion: 0.60
-Nodes (4): bootstrap(), emitStartupCheckErrorPayload(), logger, resolveDeployerVersion()
+### Community 1452 - ".clone"
+Cohesion: 0.18
+Nodes (9): AccountsSection(), activeAccount, mocks, otherAccount, AccountsRead, useDeviceAccounts(), UseDeviceAccountsResult, DeviceAccount (+1 more)
 
 ### Community 1453 - "Synchronization Operations"
 Cohesion: 0.40
@@ -6226,8 +6477,8 @@ Cohesion: 0.40
 Nodes (5): deployServiceConfiguration, getHealthStatus, High-Level Operations, removeServiceConfiguration, validateConfiguration
 
 ### Community 1456 - "swarm-orchestration.mdx"
-Cohesion: 0.40
-Nodes (4): Design & status, Developer workflow, Overview, Related documentation
+Cohesion: 0.25
+Nodes (7): Design & status, Developer workflow, Master: engine leader vs platform master, Node labels — the durable record, Overview, Related documentation, The label map is REPLACED, never merged
 
 ### Community 1457 - "entity.ts"
 Cohesion: 0.40
@@ -6237,13 +6488,25 @@ Nodes (4): TestEntity, TestEntityInput, testEntityInputSchema, testEntitySchema
 Cohesion: 0.50
 Nodes (4): addSSLCertificate, deleteSSLCertificate, SSL Certificate Management, updateSSLCertificate
 
-### Community 1459 - "Data Types"
-Cohesion: 0.50
-Nodes (4): Data Types, TraefikServiceConfig, VirtualDirectoryTree, VirtualFileItem
-
 ### Community 1460 - "TraefikEventService"
 Cohesion: 0.50
 Nodes (4): Emit Methods, Event Contracts, Subscription Methods, TraefikEventService
+
+### Community 1462 - "mode-step.tsx"
+Cohesion: 0.16
+Nodes (8): DeploymentEndpoints, enhancedDeployment, isIdUsable(), useDeployment(), useDeploymentLogs(), useDeploymentRollbackHistory(), useServicePreviews(), deploymentInvalidations
+
+### Community 1463 - "alter-node-id-to-text.ts"
+Cohesion: 0.11
+Nodes (17): 0. Executive summary — the ten biggest gaps, 10. Notifications, 11. Web console — UX, states, i18n, 12. Platform engineering & developer experience, 1. Security & secrets, 2. Deployment lifecycle, 3. Environment variables & configuration, 4. Build & runtime (+9 more)
+
+### Community 1464 - "migrate-global-once.ts"
+Cohesion: 0.11
+Nodes (17): SwarmConfigView, swarmConfigViewSchema, SwarmFoundingSelection, swarmFoundingSelectionSchema, SwarmJoinSelection, swarmJoinSelectionSchema, SwarmNodePolicy, swarmNodePolicySchema (+9 more)
+
+### Community 1465 - "InternalErrorInsightModule"
+Cohesion: 0.11
+Nodes (17): dependencies, drizzle-orm, drizzle-zod, @nestjs/common, @repo/auth, @repo/contracts-common, @repo/contracts-entities, @repo/errors (+9 more)
 
 ### Community 1467 - "Project Structure"
 Cohesion: 0.67
@@ -6257,25 +6520,709 @@ Nodes (3): ORPC Client Configuration ✅, Smart Cookie Handling, URL Resolution
 Cohesion: 0.67
 Nodes (3): High Complexity Files, 🟡 Large Files Requiring Refactoring, Recommended Splits
 
+### Community 1470 - "platform-self-resolver.ts"
+Cohesion: 0.12
+Nodes (16): account, accountRelations, platformInvite, platformInviteRelations, pushSubscription, pushSubscriptionRelations, session, sessionRelations (+8 more)
+
+### Community 1471 - "standard-operations-additional.test.ts"
+Cohesion: 0.14
+Nodes (18): development, production, types, development, import, require, ./permissions, ./react/session (+10 more)
+
+### Community 1474 - "service.schema.test.ts"
+Cohesion: 0.12
+Nodes (13): assert(), main(), cloudflareSdkRecordSchema, cloudflareTunnelConnectionSchema, cloudflareTunnelStatusSchema, cloudflareTunnelSummarySchema, emptyTunnelConnectionShape, NormalizedDnsRecord (+5 more)
+
+### Community 1475 - "mesh-query-plan.ts"
+Cohesion: 0.13
+Nodes (14): MeshQueryStrategy, buildQueryPlan(), collectWarnings(), MeshQueryPlan, MeshQueryPlanJoin, MeshQueryPlanOrder, MeshQueryPlanPagination, MeshQueryPlanWarning (+6 more)
+
+### Community 1476 - "dependencies"
+Cohesion: 0.12
+Nodes (17): dependencies, express, @nestjs/common, @nestjs/core, @nestjs/platform-express, @nestjs/terminus, @orpc/contract, @orpc/nest (+9 more)
+
+### Community 1477 - "page.tsx"
+Cohesion: 0.16
+Nodes (10): ContainerColumnsDeps, ContainerInstanceProjection, ContainerProjection, ContainerTableFetchParams, ContainerTableRow, createContainerColumns(), createContainerTableFetchData(), toContainerTableRows() (+2 more)
+
+### Community 1478 - "event-iterator.ts"
+Cohesion: 0.13
+Nodes (12): createDirectObservable(), deserializeEventIteratorFrame(), DirectObservable, DirectObserver, DirectSubscription, EventDeserializer, EventIteratorFrame, EventIteratorFrameKind (+4 more)
+
+### Community 1481 - "hooks.ts"
+Cohesion: 0.17
+Nodes (9): UserEndpoints, enhancedUser, isIdUsable(), useCreateUser(), useDeleteUser(), useUpdateUser(), useUser(), useUserActions() (+1 more)
+
+### Community 1482 - "type-helpers.ts"
+Cohesion: 0.17
+Nodes (13): AnyContractBuilder, AnyContractProcedureOrBuilder, getProcedureErrorMap(), getProcedureInputSchema(), getProcedureMeta(), getProcedureOutputSchema(), getProcedureRoute(), InferErrorMap (+5 more)
+
+### Community 1484 - "preview-topology.service.ts"
+Cohesion: 0.24
+Nodes (9): ContractRegistry, resolvePreviewTopology(), ResolveResult, TopologyContext, TopologyDependencyEdge, TopologyResolveInput, TopologyServiceRecord, PreviewTopologyService (+1 more)
+
+### Community 1485 - "devDependencies"
+Cohesion: 0.13
+Nodes (15): devDependencies, eslint, @nestjs/cli, @nestjs/schematics, @nestjs/testing, @repo/config-eslint, @repo/config-prettier, @repo/config-typescript (+7 more)
+
+### Community 1486 - "node-config.schema.ts"
+Cohesion: 0.13
+Nodes (14): MeshBootstrapStrategy, meshBootstrapStrategySchema, MeshNodeConfig, MeshNodeConfigRegenerateSecretResult, meshNodeConfigRegenerateSecretResultSchema, meshNodeConfigSchema, MeshNodeConfigTestDbInput, meshNodeConfigTestDbInputSchema (+6 more)
+
+### Community 1487 - "deployment.schemas.ts"
+Cohesion: 0.13
+Nodes (14): deployments, projectCollaborators, deploymentInsertSchema, deploymentSelectSchema, deploymentUpdateSchema, projectCollaboratorInsertSchema, projectCollaboratorSelectSchema, projectCollaboratorUpdateSchema (+6 more)
+
+### Community 1488 - "GithubDeploymentCacheRepository"
+Cohesion: 0.16
+Nodes (3): DeploymentCache, DeploymentCacheInsert, GithubDeploymentCacheRepository
+
+### Community 1489 - "GithubRepositoryConfigRepository"
+Cohesion: 0.14
+Nodes (3): GithubRepositoryConfig, GithubRepositoryConfigInsert, GithubRepositoryConfigRepository
+
+### Community 1493 - "scripts"
+Cohesion: 0.14
+Nodes (14): scripts, clean, dev, format, format:check, lint, prettify, start (+6 more)
+
+### Community 1494 - "ServiceDomainConfig.tsx"
+Cohesion: 0.20
+Nodes (11): AddEntryForm(), EntryRow(), ProjectDomainRow, resolveFullUrl(), sanitizeBasePath(), sanitizeSubdomain(), ServiceDomainConfig(), ServiceDomainConfigProps (+3 more)
+
+### Community 1495 - "filtering.ts"
+Cohesion: 0.22
+Nodes (11): withConfig(), comparisonField(), createFieldFilterSchema(), createFilteringConfigSchema(), createFilteringSchema(), createSimpleFilterSchema(), field(), FieldFilterConfig (+3 more)
+
+### Community 1497 - "github.service.ts"
+Cohesion: 0.15
+Nodes (12): GitHubAppConfig, GitHubCommitAuthor, GitHubCommitInfo, githubContentEntrySchema, githubFileContentSchema, GitHubInstallation, GitHubInstallationAccount, githubManifestResponseSchema (+4 more)
+
+### Community 1498 - "mesh-filter.types.ts"
+Cohesion: 0.28
+Nodes (6): PromotionDecision, generateConnectionId(), generateConsumerId(), generateStreamId(), makeId(), MeshFilterOperator
+
+### Community 1500 - "mesh-base-resource.contract.ts"
+Cohesion: 0.21
+Nodes (6): MeshResourceController, meshBaseResourceContract, meshEntitySchema, meshResourceBodySchema, meshResourceOutputSchema, ops
+
+### Community 1501 - "nest-cli.json"
+Cohesion: 0.15
+Nodes (12): collection, compilerOptions, builder, deleteOutDir, projects, setup, $schema, entryFile (+4 more)
+
+### Community 1502 - "import"
+Cohesion: 0.19
+Nodes (13): ./mesh, ./permissions/plugins, default, development, production, types, default, production (+5 more)
+
+### Community 1504 - "SchemaWithConfig"
+Cohesion: 0.33
+Nodes (7): SchemaWithConfig, createPaginationConfigSchema(), createAdvancedQuery(), createBasicListQuery(), createSearchableListQuery(), QueryBuilder, createSortingConfigSchema()
+
+### Community 1505 - "DomainConflictService"
+Cohesion: 0.18
+Nodes (5): BasePathValidationResult, SubdomainAvailabilityResult, SubdomainConflict, SubdomainValidationResult, DomainConflictService
+
+### Community 1508 - "compilerOptions"
+Cohesion: 0.17
+Nodes (11): compilerOptions, emitDecoratorMetadata, experimentalDecorators, outDir, paths, rootDir, types, exclude (+3 more)
+
+### Community 1509 - "devDependencies"
+Cohesion: 0.17
+Nodes (12): devDependencies, chokidar, eslint, @repo/config-eslint, @repo/config-prettier, @repo/config-typescript, @repo/config-vitest, @repo/pkg-build (+4 more)
+
+### Community 1510 - "form.tsx"
+Cohesion: 0.17
+Nodes (9): FormControl, FormDescription, FormFieldContext, FormFieldContextValue, FormItem, FormItemContext, FormItemContextValue, FormLabel (+1 more)
+
+### Community 1511 - "scripts"
+Cohesion: 0.17
+Nodes (12): scripts, build, clean, dev, format, format:check, lint, prettify (+4 more)
+
+### Community 1512 - "PermissionEngine"
+Cohesion: 0.27
+Nodes (6): ColumnResolver, buildDynamicVars(), PermissionEngine, PermissionEngineOptions, sqlAnd(), sqlOr()
+
+### Community 1513 - "scripts"
+Cohesion: 0.17
+Nodes (12): scripts, build, clean, dev, format, format:check, lint, prettify (+4 more)
+
+### Community 1514 - "scripts"
+Cohesion: 0.17
+Nodes (12): scripts, build, clean, dev, format, format:check, lint, prettify (+4 more)
+
+### Community 1515 - "Setup App Refactor — Plan"
+Cohesion: 0.18
+Nodes (10): 14. Implementation phases, 15. Risks & mitigations, 16. Decisions (settled), 17. Phase 0 — one prerequisite bug to fix first, 3. Target architecture, 4. Responsibility split, Appendix A — Deletion inventory (exact), Setup App Refactor — Plan (+2 more)
+
+### Community 1516 - "exports"
+Cohesion: 0.18
+Nodes (11): exports, ./global/app-config, ./global/platform/app-instance, import, require, types, import, require (+3 more)
+
+### Community 1517 - "scripts"
+Cohesion: 0.18
+Nodes (11): scripts, build, clean, dev, format, format:check, lint, prettify (+3 more)
+
+### Community 1518 - "exports"
+Cohesion: 0.20
+Nodes (10): description, exports, main, module, name, peerDependencies, drizzle-orm, @tanstack/react-query (+2 more)
+
+### Community 1519 - "filter-compiler.ts"
+Cohesion: 0.31
+Nodes (8): asWrapper(), compileDFilter(), compileOperator(), resolveVar(), ProjectSchema, resolver(), sqlAnd(), sqlOr()
+
+### Community 1520 - "import"
+Cohesion: 0.33
+Nodes (11): default, default, import, require, default, default, default, default (+3 more)
+
+### Community 1521 - "import"
+Cohesion: 0.33
+Nodes (11): development, development, import, require, development, development, development, development (+3 more)
+
+### Community 1522 - "package.json"
+Cohesion: 0.18
+Nodes (10): main, module, name, peerDependencies, next, react, private, sideEffects (+2 more)
+
+### Community 1523 - "schema.ts"
+Cohesion: 0.31
+Nodes (9): getSchemaDef(), getZodDefault(), getZodKind(), isZodInteger(), mapTypeString(), unwrapZodSchema(), ZodKind, main() (+1 more)
+
+### Community 1524 - "normalize-package-exports.ts"
+Cohesion: 0.18
+Nodes (5): DRY, Layout, report, root, ROOT_ENTRY_PACKAGES
+
+### Community 1525 - "node-config.ts"
+Cohesion: 0.20
+Nodes (7): NewNodeConfigRow, nodeConfig, NodeConfigRow, SetupState, NewPlatformSettingsRow, platformSettings, PlatformSettingsRow
+
+### Community 1527 - "multi-session-accounts.mdx"
+Cohesion: 0.20
+Nodes (9): Adding an account, Core rule, Endpoints, Related docs, Sign-out revokes the whole browser, Testing, The rule that matters: reload after a switch, What the plugin does (+1 more)
+
+### Community 1528 - "organization-detail-inner.tsx"
+Cohesion: 0.29
+Nodes (8): AdminOrganizationDetailInner(), PageHeader(), useCheckMyFleetAdmission(), useCreateMyFleetAdmissionRequest(), useMyFleetAdmissionRequests(), useMyFleetAllocations(), AuthDashboardAdminOrganizations, AuthDashboardAdminOrganizationsOrganizationId
+
+### Community 1529 - "progress-step.tsx"
+Cohesion: 0.27
+Nodes (7): getDescription(), getHeading(), maskUrl(), ProgressStep(), ProgressStepContext, Props, signInWithEmail()
+
+### Community 1530 - "8. Health & readiness — NestJS Terminus"
+Cohesion: 0.20
+Nodes (10): 8.1 Why Terminus (and what it removes), 8.2 Endpoints — full API, 8.3 Endpoints — setup app, 8.4 Compose wiring, 8.5 How compose gates — and the deadlock to avoid, 8.6 Event-driven state — the probe does NO I/O, 8.7 Package boundary — core functionality only, 8. Health & readiness — NestJS Terminus (+2 more)
+
+### Community 1531 - "pkg-build — shared configurable package builder"
+Cohesion: 0.20
+Nodes (9): Config reference, Conventions, `keepEnv` and `process.env`, pkg-build — shared configurable package builder, The one exception, Usage, Watch mode, Why (+1 more)
+
+### Community 1532 - "base.ts"
+Cohesion: 0.36
+Nodes (7): createBaseConfig(), defaultConfig, findPackagesDir(), workspaceSourceAliases(), createNextJsConfig(), defaultConfig, createReactConfig()
+
+### Community 1533 - "permission-engine.ts"
+Cohesion: 0.27
+Nodes (3): ForbiddenError, ResourceRecordLoader, RoleRuleLoader
+
+### Community 1534 - "package.json"
+Cohesion: 0.22
+Nodes (9): description, exports, import, main, module, name, require, types (+1 more)
+
+### Community 1535 - "devDependencies"
+Cohesion: 0.20
+Nodes (10): devDependencies, eslint, react, @repo/config-eslint, @repo/config-prettier, @repo/config-typescript, @types/react, typescript (+2 more)
+
+### Community 1536 - "app-config.service.ts"
+Cohesion: 0.25
+Nodes (4): AppConfigModule, AppConfigService, GitHubOAuthConfig, GitHubWebhookConfig
+
+### Community 1538 - "project.service.ts"
+Cohesion: 0.25
+Nodes (5): createDeploymentCompleteStrategyContext(), DeploymentCompleteStrategyContext, seedTestOwner(), CollaboratorPermissions, ProjectSettings
+
+### Community 1539 - "terminal-tab.tsx"
+Cohesion: 0.25
+Nodes (7): TerminalSession, DockerContainerTerminalTab(), DockerContainerTerminalTabProps, DockerTerminalSessionViewModel, DockerTerminalProfile, DockerTerminalShell, dockerTerminalShellSchema
+
+### Community 1543 - "logs-viewer.tsx"
+Cohesion: 0.36
+Nodes (6): LogsSearchInput(), LogsSearchInputProps, LogsViewer(), LogsViewerLine, LogsViewerProps, useLogsViewportBehavior()
+
+### Community 1544 - "pkgBuild"
+Cohesion: 0.22
+Nodes (9): pkgBuild, entries, external, flat, formats, root, sourcemap, splitting (+1 more)
+
+### Community 1545 - "swarm-schemas.test.ts"
+Cohesion: 0.22
+Nodes (8): dockerodeNodeSummarySchema, dockerodeServiceSummarySchema, dockerodeSwarmInfoSchema, dockerodeTaskSummarySchema, swarmServiceSpecInputSchema, nodeFixture, serviceFixture, taskFixture
+
+### Community 1546 - "import"
+Cohesion: 0.28
+Nodes (9): default, default, import, require, ./react/session/server, default, development, production (+1 more)
+
+### Community 1547 - "resource-graph.ts"
+Cohesion: 0.33
+Nodes (6): getAncestorChain(), isAncestorOf(), RESOURCE_GRAPH, ResourceGraph, ResourceNode, ResourceParent
+
+### Community 1548 - "domain.adapter.ts"
+Cohesion: 0.25
+Nodes (7): AddDomainResponse, ProjectDomain, ProjectDomainContract, ServiceDomainMapping, ServiceDomainMappingContract, VerificationInstructions, VerifyDomainResponse
+
+### Community 1549 - "CoreEventLogRepository"
+Cohesion: 0.25
+Nodes (3): CoreEventLogPersistInput, CoreEventLogRecord, CoreEventLogRepository
+
+### Community 1550 - "index.ts"
+Cohesion: 0.39
+Nodes (3): GitHubModule, getGitHubDeliveryId(), getGitHubEventType()
+
+### Community 1553 - "docker-image-security-flow.tsx"
+Cohesion: 0.32
+Nodes (5): DockerFlowTabGroup(), DockerFlowTabGroupProps, DockerFlowTabItem, DockerImageSecurityFlowProps, DockerImageSecurityFlowStage
+
+### Community 1554 - "index.tsx"
+Cohesion: 0.36
+Nodes (3): formatInputDateTimeToIso(), formatIsoToInputDateTime(), sanitizeContainerLogMessage()
+
+### Community 1555 - "previewUrl.ts"
+Cohesion: 0.39
+Nodes (6): buildPreviewName(), hashCode(), PreviewNameInput, PreviewNamingStrategy, resolvePreviewUrlPattern(), slugify()
+
+### Community 1556 - "5. Package extraction"
+Cohesion: 0.25
+Nodes (8): 5.1 Rules, 5.2 Target packages, 5.3 Extraction order (MEASURED — supersedes the earlier guess), 5.4 What must NOT be extracted, 5. Package extraction, The corrected order, Two findings that make extraction possible anyway, What "done" looks like for each step
+
+### Community 1558 - "exports"
+Cohesion: 0.25
+Nodes (8): import, require, types, exports, ./defaults, import, require, types
+
+### Community 1559 - "runtime.ts"
+Cohesion: 0.29
+Nodes (6): localBuildCache, localEventOutbox, localJobStateEnum, localOutboxStateEnum, localQueueJobs, localRuntimeProcesses
+
+### Community 1560 - "project-domain.interfaces.ts"
+Cohesion: 0.29
+Nodes (6): AssignDomainInput, AssignDomainResponse, AvailableDomain, GranularityCheckResult, InsertProjectDomain, ProjectDomain
+
+### Community 1562 - "swarm-spec.mapper.ts"
+Cohesion: 0.43
+Nodes (4): baseInput, toDockerServiceSpec(), toHealthConfig(), toUpdateConfig()
+
+### Community 1563 - "debug-file-watcher.ts"
+Cohesion: 0.29
+Nodes (4): DebouncedDir, debounceMap, ROOT, WATCH_DIRS
+
+### Community 1564 - "page.tsx"
+Cohesion: 0.43
+Nodes (6): DashboardDockerLogsPage(), debugDockerLogsPage, DEPLOYMENT_LIST_INPUT, useDockerContainerList(), useDockerRuntimeSseState(), useDockerServiceList()
+
+### Community 1565 - "page.tsx"
+Cohesion: 0.33
+Nodes (4): buildShellTranscript(), DashboardDockerShellPage(), DOCKER_LIST_INPUT, ShellTarget
+
+### Community 1566 - "2. Current state (measured)"
+Cohesion: 0.29
+Nodes (7): 2. Current state (measured), Apps, Compose profiles, Health, Image & build, Setup contract (unchanged by this plan), Why the current API is "weird"
+
+### Community 1567 - "common.schema.ts"
+Cohesion: 0.29
+Nodes (6): DockerContainerHealth, dockerContainerHealthSchema, DockerContainerStatus, dockerContainerStatusSchema, DockerListMeta, dockerListMetaSchema
+
+### Community 1568 - "runtime-events.schema.ts"
+Cohesion: 0.29
+Nodes (6): DockerImageRuntimeAction, dockerImageRuntimeActionSchema, dockerImageRuntimeEventCommonSchema, DockerImageRuntimeEventPayload, dockerImageRuntimeEventPayloadSchema, dockerImageRuntimeEventSchema
+
+### Community 1569 - "runtime-events.schema.ts"
+Cohesion: 0.29
+Nodes (6): DockerNetworkRuntimeAction, dockerNetworkRuntimeActionSchema, dockerNetworkRuntimeEventCommonSchema, DockerNetworkRuntimeEventPayload, dockerNetworkRuntimeEventPayloadSchema, dockerNetworkRuntimeEventSchema
+
+### Community 1570 - "base.schema.ts"
+Cohesion: 0.29
+Nodes (6): DockerRegistry, DockerRegistryAuthMode, dockerRegistryAuthModeSchema, dockerRegistrySchema, DockerRegistryStatus, dockerRegistryStatusSchema
+
+### Community 1571 - "details.schema.ts"
+Cohesion: 0.29
+Nodes (6): DockerRegistryRepositoryDetail, dockerRegistryRepositoryDetailSchema, DockerRegistrySummary, dockerRegistrySummarySchema, DockerRegistryTagDetail, dockerRegistryTagDetailSchema
+
+### Community 1572 - "runtime-events.schema.ts"
+Cohesion: 0.29
+Nodes (6): DockerVolumeRuntimeAction, dockerVolumeRuntimeActionSchema, dockerVolumeRuntimeEventCommonSchema, DockerVolumeRuntimeEventPayload, dockerVolumeRuntimeEventPayloadSchema, dockerVolumeRuntimeEventSchema
+
+### Community 1573 - "mock-config.schema.ts"
+Cohesion: 0.29
+Nodes (6): ImplementedContract, implementedContractSchema, MockEngine, mockEngineSchema, MockServiceConfig, mockServiceConfigSchema
+
+### Community 1574 - "base-event.service.spec.ts"
+Cohesion: 0.29
+Nodes (3): EventLogPersistenceAdapter, testContracts, TinyBatchTestService
+
+### Community 1575 - "runtime.ts"
+Cohesion: 0.29
+Nodes (6): localBuildCache, localEventOutbox, localJobStateEnum, localOutboxStateEnum, localQueueJobs, localRuntimeProcesses
+
+### Community 1576 - "tsconfig.json"
+Cohesion: 0.29
+Nodes (6): compilerOptions, paths, extends, include, @repo/nest-schema/*, $schema
+
+### Community 1577 - "filter-matcher.ts"
+Cohesion: 0.48
+Nodes (5): matchFilter(), matchOperator(), resolveField(), resolveVar(), record
+
+### Community 1578 - "default"
+Cohesion: 0.29
+Nodes (7): production, types, ./page-wrappers, default, react-server, production, types
+
+### Community 1579 - "merge-hooks.ts"
+Cohesion: 0.57
+Nodes (4): mergeHooks(), extractCustomQueryKeys(), extractRouterQueryKeys(), mergeQueryKeys()
+
+### Community 1580 - "align-package-tsconfig-aliases.ts"
+Cohesion: 0.29
+Nodes (4): DRY, EXTENSIONS, packages, root
+
+### Community 1581 - "analyze-extraction-order.py"
+Cohesion: 0.38
+Nodes (6): group_of(), iter_ts(), main(), Resolve an import specifier to a path relative to apps/api/src, or None., Which planned package group a src-relative path belongs to., resolve()
+
+### Community 1582 - "classImportsEdges"
+Cohesion: 0.33
+Nodes (7): classImportsEdges(), decoratorRegions(), matchBracket(), propsAtDepth1(), resolveSpec(), topItems(), tryFile()
+
+### Community 1583 - "lineAt"
+Cohesion: 0.29
+Nodes (7): collectSpecs(), ensureLoaded(), findLine(), importBindings(), lineAt(), lineStarts(), maskComments()
+
+### Community 1585 - "How the user gets in — onboarding flow"
+Cohesion: 0.33
+Nodes (6): After onboarding, How the user gets in — onboarding flow, Step 0 — boot pipeline (what happens before the UI), Step 1 — the onboarding UI (web app, setup gate active), Step 2 — the provisioning pipeline (`LocalInitializationService.initialize`), Step 3 — automatic continuation
+
+### Community 1586 - "package.json"
+Cohesion: 0.33
+Nodes (5): description, main, name, private, version
+
+### Community 1587 - "security-tab.tsx"
+Cohesion: 0.53
+Nodes (5): DockerContainerSecurityTab(), DockerContainerSecurityTabProps, DockerImageSecurityScanEvent, DockerImageSecurityScanSummary, DockerVulnerabilityEntry
+
+### Community 1588 - "service-section-nav.tsx"
+Cohesion: 0.33
+Nodes (4): sectionRoute, sections, ServiceSection, ServiceSectionNavProps
+
+### Community 1589 - "vitest.setup.ts"
+Cohesion: 0.33
+Nodes (3): PostSetupHints(), useRouter(), usePush()
+
+### Community 1590 - "11. Compose & Docker changes"
+Cohesion: 0.33
+Nodes (6): 11.0 The setup container is NOT publicly exposed, 11.1 Dev / dev-supervised — the API stays compose-managed, 11.2 Prod — the API is built locally, then started by setup on the swarm, 11.3 `docker-stack.deploy.yml`, 11.4 `SETUP_MODE` — the only behavioural branch, 11. Compose & Docker changes
+
+### Community 1591 - "networks.schema.ts"
+Cohesion: 0.33
+Nodes (5): dockerodeNetworkContainerAttachmentSchema, dockerodeNetworkIpamConfigSchema, dockerodeNetworkIpamSchema, DockerodeNetworkSummary, dockerodeNetworkSummarySchema
+
+### Community 1592 - "pkgBuild"
+Cohesion: 0.33
+Nodes (6): pkgBuild, copy, entries, include, root, variants
+
+### Community 1595 - "10. Stream piping"
+Cohesion: 0.40
+Nodes (5): 10.1 Rule, 10.2 Implementation, 10.3 What the API keeps, 10.4 Failure handling and re-runnable setup, 10. Stream piping
+
+### Community 1596 - "12. Image & build strategy"
+Cohesion: 0.40
+Nodes (5): 12.1 Where the tag comes from, 12.2 Why not build inside setup, 12.3 SQLite sharing (the one shared piece of state), 12.4 Setup image, 12. Image & build strategy
+
+### Community 1597 - "list.ts"
+Cohesion: 0.40
+Nodes (4): dockerRegistryListConfigSchemas, DockerRegistryListInput, dockerRegistryListItemSchema, dockerRegistryOps
+
+### Community 1598 - "list.ts"
+Cohesion: 0.40
+Nodes (4): dockerStackListConfigSchemas, DockerStackListInput, dockerStackListItemSchema, dockerStackOps
+
+### Community 1599 - "contract-registry.schema.ts"
+Cohesion: 0.40
+Nodes (4): ServiceContractRegistry, ServiceContractRegistryMap, serviceContractRegistryMapSchema, serviceContractRegistrySchema
+
+### Community 1600 - "volumes.schema.ts"
+Cohesion: 0.40
+Nodes (4): DockerodeVolumeEntry, dockerodeVolumeEntrySchema, DockerodeVolumeListResponse, dockerodeVolumeListResponseSchema
+
+### Community 1601 - "details.schema.ts"
+Cohesion: 0.40
+Nodes (4): DockerNetworkDiagnostics, dockerNetworkDiagnosticsSchema, DockerNetworkSummary, dockerNetworkSummarySchema
+
+### Community 1602 - "envelopes.schema.ts"
+Cohesion: 0.40
+Nodes (4): CoreDomainEventEnvelope, coreDomainEventEnvelopeSchema, CoreSyncedEventEnvelope, coreSyncedEventEnvelopeSchema
+
+### Community 1603 - "database.schema.ts"
+Cohesion: 0.40
+Nodes (4): SetupConfigureDatabaseInput, setupConfigureDatabaseInputSchema, SetupConfigureDatabaseResult, setupConfigureDatabaseResultSchema
+
+### Community 1604 - "./client"
+Cohesion: 0.40
+Nodes (5): default, development, production, types, ./client
+
+### Community 1605 - "./react"
+Cohesion: 0.40
+Nodes (5): ./react, default, development, production, types
+
+### Community 1606 - "./react/session/client"
+Cohesion: 0.40
+Nodes (5): ./react/session/client, default, development, production, types
+
+### Community 1607 - "./server"
+Cohesion: 0.40
+Nodes (5): ./server, default, development, production, types
+
+### Community 1608 - "enums.ts"
+Cohesion: 0.40
+Nodes (4): builderCategorySchema, conditionalOperatorSchema, configFieldTypeSchema, providerCategorySchema
+
+### Community 1609 - "relativize-bundled-package.ts"
+Cohesion: 0.40
+Nodes (4): BUNDLED_PACKAGES, DRY, EXTENSIONS, root
+
+### Community 1610 - "node-mesh-config.ts"
+Cohesion: 0.50
+Nodes (3): NewNodeMeshConfigRow, nodeMeshConfig, NodeMeshConfigRow
+
+### Community 1611 - "mounts-tab.tsx"
+Cohesion: 0.50
+Nodes (3): DockerContainerMountsTab(), DockerContainerMountsTabProps, MountItem
+
+### Community 1612 - "redirects.ts"
+Cohesion: 0.83
+Nodes (3): isExternalRedirect(), toExternalRedirectUrl(), toRedirectTarget()
+
+### Community 1613 - "13. Lifecycle sequences"
+Cohesion: 0.50
+Nodes (4): 13.1 Dev — standard (`docker-compose.dev.yml`), 13.2 Dev-supervised (`docker-compose.dev-supervised.yml`) — API supervises, compose does not, 13.3 Prod — setup creates the API on the swarm, 13. Lifecycle sequences
+
+### Community 1614 - "1. Goal"
+Cohesion: 0.50
+Nodes (4): 1. Goal, Non-goals, The three outcomes this buys, Two facts that shape everything below
+
+### Community 1615 - "6. `apps/setup` — the new app"
+Cohesion: 0.50
+Nodes (4): 6.1 Shape, 6.2 What moves here from the API, 6.3 Deliberate duplication policy, 6. `apps/setup` — the new app
+
+### Community 1616 - "7. Full API simplification"
+Cohesion: 0.50
+Nodes (4): 7.1 Delete, 7.2 Keep (moved into the API's normal boot), 7.3 New normal boot order, 7. Full API simplification
+
+### Community 1617 - "9. Traefik — two states, one hostname"
+Cohesion: 0.50
+Nodes (4): 9.1 Hostnames, 9.2 Router rules, 9.3 The transition — and the flaw it fixes, 9. Traefik — two states, one hostname
+
+### Community 1619 - "./codecs/codec-registry"
+Cohesion: 0.50
+Nodes (4): import, require, types, ./codecs/codec-registry
+
+### Community 1620 - "./global"
+Cohesion: 0.50
+Nodes (4): ./global, import, require, types
+
+### Community 1621 - "./global/analytics"
+Cohesion: 0.50
+Nodes (4): ./global/analytics, import, require, types
+
+### Community 1622 - "./global/auth"
+Cohesion: 0.50
+Nodes (4): ./global/auth, import, require, types
+
+### Community 1623 - "./global/cluster"
+Cohesion: 0.50
+Nodes (4): ./global/cluster, import, require, types
+
+### Community 1624 - "./global/cluster-migration-state"
+Cohesion: 0.50
+Nodes (4): ./global/cluster-migration-state, import, require, types
+
+### Community 1625 - "./global/deployment"
+Cohesion: 0.50
+Nodes (4): ./global/deployment, import, require, types
+
+### Community 1626 - "./global/deployment.schemas"
+Cohesion: 0.50
+Nodes (4): ./global/deployment.schemas, import, require, types
+
+### Community 1627 - "./global/dns-providers"
+Cohesion: 0.50
+Nodes (4): ./global/dns-providers, import, require, types
+
+### Community 1628 - "./global/docker-runtime-activity"
+Cohesion: 0.50
+Nodes (4): ./global/docker-runtime-activity, import, require, types
+
+### Community 1629 - "./global/docker-security-scan"
+Cohesion: 0.50
+Nodes (4): ./global/docker-security-scan, import, require, types
+
+### Community 1630 - "./global/domain"
+Cohesion: 0.50
+Nodes (4): ./global/domain, import, require, types
+
+### Community 1631 - "./global/environment"
+Cohesion: 0.50
+Nodes (4): ./global/environment, import, require, types
+
+### Community 1632 - "./global/events"
+Cohesion: 0.50
+Nodes (4): ./global/events, import, require, types
+
+### Community 1633 - "./global/github-provider"
+Cohesion: 0.50
+Nodes (4): ./global/github-provider, import, require, types
+
+### Community 1634 - "./global/gitlab-provider"
+Cohesion: 0.50
+Nodes (4): ./global/gitlab-provider, import, require, types
+
+### Community 1635 - "./global/health"
+Cohesion: 0.50
+Nodes (4): ./global/health, import, require, types
+
+### Community 1636 - "./global/image-project-membership"
+Cohesion: 0.50
+Nodes (4): ./global/image-project-membership, import, require, types
+
+### Community 1637 - "./global/node-network-config"
+Cohesion: 0.50
+Nodes (4): ./global/node-network-config, import, require, types
+
+### Community 1638 - "./global/permissions"
+Cohesion: 0.50
+Nodes (4): ./global/permissions, import, require, types
+
+### Community 1639 - "./global/project-scan-config"
+Cohesion: 0.50
+Nodes (4): ./global/project-scan-config, import, require, types
+
+### Community 1640 - "./global/runtime"
+Cohesion: 0.50
+Nodes (4): ./global/runtime, import, require, types
+
+### Community 1641 - "./global/schema-version"
+Cohesion: 0.50
+Nodes (4): ./global/schema-version, import, require, types
+
+### Community 1642 - "./global/seed-version"
+Cohesion: 0.50
+Nodes (4): ./global/seed-version, import, require, types
+
+### Community 1643 - "./global/traefik"
+Cohesion: 0.50
+Nodes (4): ./global/traefik, import, require, types
+
+### Community 1644 - "./global/utils/zod-enum"
+Cohesion: 0.50
+Nodes (4): ./global/utils/zod-enum, import, require, types
+
+### Community 1645 - "./local"
+Cohesion: 0.50
+Nodes (4): ./local, import, require, types
+
+### Community 1646 - "./local/cluster-master-history"
+Cohesion: 0.50
+Nodes (4): ./local/cluster-master-history, import, require, types
+
+### Community 1647 - "./local/cluster-node"
+Cohesion: 0.50
+Nodes (4): ./local/cluster-node, import, require, types
+
+### Community 1648 - "./local/cluster-nodes"
+Cohesion: 0.50
+Nodes (4): ./local/cluster-nodes, import, require, types
+
+### Community 1649 - "./local/node-config"
+Cohesion: 0.50
+Nodes (4): ./local/node-config, import, require, types
+
+### Community 1650 - "./local/node-mesh-config"
+Cohesion: 0.50
+Nodes (4): ./local/node-mesh-config, import, require, types
+
+### Community 1651 - "./local/platform-settings"
+Cohesion: 0.50
+Nodes (4): ./local/platform-settings, import, require, types
+
+### Community 1653 - "./builder"
+Cohesion: 0.50
+Nodes (4): import, require, types, ./builder
+
+### Community 1654 - "./hooks"
+Cohesion: 0.50
+Nodes (4): ./hooks, import, require, types
+
+### Community 1655 - "./query"
+Cohesion: 0.50
+Nodes (4): ./query, import, require, types
+
+### Community 1656 - "./standard"
+Cohesion: 0.50
+Nodes (4): ./standard, import, require, types
+
+### Community 1658 - "types.ts"
+Cohesion: 0.50
+Nodes (3): InvalidationStrategy, ProcedureInvalidationConfig, ProcedureInvalidator
+
+### Community 1659 - "conflicts.ts"
+Cohesion: 0.67
+Nodes (3): ConflictWarningScope, getDuplicates(), warnOnConflicts()
+
+### Community 1660 - "dependencies"
+Cohesion: 0.50
+Nodes (4): dependencies, nuqs, @repo/type-guards, zod
+
+### Community 1661 - "./parsers"
+Cohesion: 0.50
+Nodes (4): ./parsers, import, require, types
+
+### Community 1662 - "./types"
+Cohesion: 0.50
+Nodes (4): ./types, import, require, types
+
+### Community 1663 - "analyze-cycle-cost.py"
+Cohesion: 0.83
+Nodes (3): iter_ts(), main(), resolve()
+
+### Community 1664 - "start"
+Cohesion: 0.50
+Nodes (4): cache, dependsOn, persistent, start
+
+### Community 1665 - "TraefikVariableResolverService"
+Cohesion: 0.67
+Nodes (3): Built-in Variables (TRAEFIK_VARIABLES), Methods, TraefikVariableResolverService
+
+### Community 1666 - "TraefikMiddlewareLibraryService"
+Cohesion: 0.67
+Nodes (3): Methods, Return Types, TraefikMiddlewareLibraryService
+
+### Community 1671 - "author"
+Cohesion: 0.67
+Nodes (3): author, email, name
+
+### Community 1677 - "generate:directus:types"
+Cohesion: 0.67
+Nodes (3): cache, dependsOn, generate:directus:types
+
 ## Knowledge Gaps
-- **12716 isolated node(s):** `pool`, `DEPLOYER_VERSION`, `EntrypointConfig`, `StartupCheckResult`, `pool` (+12711 more)
+- **14117 isolated node(s):** `Scope Rules`, `Quick Context via MCP`, `Workflows`, `Boundaries`, `Supervised / Compose-managed platform services` (+14112 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **207 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **240 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `isRecord()` connect `hooks.ts` to `index.ts`, `@orpc/shared`, `entrypoint.prod.ts`, `Mesh Core & Orchestration`, `DockerRuntimeEvent`, `Docker Container Actions`, `@repo/auth`, `Docker Runtime Activity Projection`, `Mesh Cluster Repository`, `🔍 Code Perfection Standards`, `helpers.ts`, `ServiceContextBuilder`, `CoreEventLogRepository`, `LoadBalancerController`, `SystemMeshTopologyService`, `organization.repository.ts`, `LocalEventOutboxDispatcherService`, `dev`, `toolbar.tsx`, `mesh-connection-registry.ts`, `page.tsx`, `DockerRuntimeRunnerService`, `DeploymentService`, `docker-entity-domain.service.ts`, `docker-containers-orchestrator.service.ts`, `ProjectService`, `middlewares.ts`, `.key`, `load-balancer.service.ts`, `LoadBalancerService`, `node-startup-check.command.ts`, `ErrorDefinitionBuilder`, `vitest.config.mts`, `core-event-sync.service.ts`, `vitest.config.mts`, `index.ts`, `BaseStateMachineService`, `index.ts`, `DockerRepository`, `nest-cli.json`, `next.config.ts`, `InitializationService`, `page.tsx`, `isObjectLike`, `index.ts`, `TraefikFileSystemService`, `filtering.ts`, `index.ts`, `template.schema.exhaustive.test.ts`, `DockerImageAutoScanListenerService`, `RolesConfig`, `router-hooks.types.ts`, `index.ts`, `index.ts`, `docker-registry-detail-modal.tsx`, `deployment-provider-builder-runner-state-machine.service.ts`, `SetupWizardController`, `InternalErrorInsightService`, `scripts`, `RuntimeRuleDsl`?**
-  _High betweenness centrality (0.018) - this node is a cross-community bridge._
-- **Why does `configureTraefikPathsForE2E()` connect `package.json` to `manager.ts`, `TraefikFileSystemService`?**
-  _High betweenness centrality (0.014) - this node is a cross-community bridge._
-- **What connects `pool`, `DEPLOYER_VERSION`, `EntrypointConfig` to the rest of the system?**
-  _12720 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Why does `zod` connect `InternalErrorInsightModule` to `Declarative Routes`?**
+  _High betweenness centrality (0.022) - this node is a cross-community bridge._
+- **Why does `requireAuth()` connect `makeRoute.tsx` to `TypeScript Type Utilities`, `ProjectDomainController`, `ProviderSchemaController`, `entrypoint.prod.ts`, `ServiceDomainController`, `source-provider.token.ts`, `PushController`, `LocalEventOutboxDispatcherService`, `DnsProvidersController`, `7b. Docker Control Panel (independent, node-scoped)`, `DeploymentService`, `TestController`, `cli.ts`, `core-event-sync.service.ts`, `route-method-meta.ts`, `GitlabAppsController`, `requireAuth`, `TraefikConfigBuilder`, `ReachabilityController`, `page.tsx`, `FleetController`, `meshEventStreamListConfigSchemas`, `shared.ts`, `resource-graph.ts`?**
+  _High betweenness centrality (0.022) - this node is a cross-community bridge._
+- **What connects `Scope Rules`, `Quick Context via MCP`, `Workflows` to the rest of the system?**
+  _14123 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `TypeScript Type Utilities` be split into smaller, more focused modules?**
-  _Cohesion score 0.08048103607770583 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07184325108853411 - nodes in this community are weakly interconnected._
 - **Should `Mesh Networking Contracts` be split into smaller, more focused modules?**
   _Cohesion score 0.010416666666666666 - nodes in this community are weakly interconnected._
 - **Should `Deployment Domain Schemas` be split into smaller, more focused modules?**
   _Cohesion score 0.011560693641618497 - nodes in this community are weakly interconnected._
 - **Should `Admin Auth Plugin` be split into smaller, more focused modules?**
-  _Cohesion score 0.0254968128983877 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.050072568940493466 - nodes in this community are weakly interconnected._

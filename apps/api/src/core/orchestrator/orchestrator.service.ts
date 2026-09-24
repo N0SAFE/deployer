@@ -50,7 +50,7 @@ import { EnvService } from "@repo/nest-env";
 import { SwarmAppWiringSupervisorService } from "../modules/supervisors/platform/swarm-app-wiring.supervisor.service";
 import { ReadinessService, type ReadinessResult } from "../../modules/health/services/readiness.service";
 import { Pool } from "pg";
-import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "../modules/database/database-connection";
+import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "@repo/nest-database-core/database-connection";
 import type { GlobalDatabase } from "../modules/database/global/global-database.service";
 
 import { AppError } from "@repo/errors";

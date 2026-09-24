@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown } from "@nestjs/common";
 import type { Database as BunSqliteDatabase } from "bun:sqlite";
 
-import { LOCAL_DATABASE_CLIENT } from "../database-connection";
+import { LOCAL_DATABASE_CLIENT } from "@repo/nest-database-core/database-connection";
 
 /**
  * LocalDatabaseLifecycleService — closes this context's local SQLite handle.

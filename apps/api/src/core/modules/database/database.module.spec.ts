@@ -1,6 +1,6 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { GLOBAL_DATABASE_CONNECTION, LOCAL_DATABASE_CONNECTION } from './database-connection';
+import { GLOBAL_DATABASE_CONNECTION, LOCAL_DATABASE_CONNECTION } from "@repo/nest-database-core/database-connection";
 import { GlobalDatabaseService } from './global/global-database.service';
 import { LocalDatabaseService } from './local/local-database.service';
 

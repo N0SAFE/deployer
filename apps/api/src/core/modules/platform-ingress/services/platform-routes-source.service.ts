@@ -32,7 +32,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { and, desc, eq } from "drizzle-orm";
 import z from "zod/v4";
 
-import { GLOBAL_DATABASE_CONNECTION } from "@/core/modules/database/database-connection";
+import { GLOBAL_DATABASE_CONNECTION } from "@repo/nest-database-core/database-connection";
 import type { GlobalDatabase } from "@/core/modules/database/global/global-database.service";
 import {
 	deployments,

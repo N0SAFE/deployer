@@ -7,7 +7,7 @@ import {
 	DirectPortProxySupervisorService,
 } from "./direct-port-proxy.supervisor.service";
 import { TraefikSupervisorService } from "./traefik-supervisor.service";
-import { SupervisorEventBus } from "@/core/modules/supervisors/supervisor-event.bus";
+import { SupervisorEventBus } from "@repo/nest-supervisor-core/supervisor-event.bus";
 import type { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
 import type { HostnameService } from "../../platform-ingress/services/hostname.service";
 import type { PlatformIngressSettingsService } from "../../platform-ingress/services/platform-ingress-settings.service";

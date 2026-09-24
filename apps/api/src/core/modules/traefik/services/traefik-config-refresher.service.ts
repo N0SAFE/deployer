@@ -17,7 +17,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 
 import { TraefikPlatformConfigService } from "./traefik-platform-config.service";
-import { SupervisorOrchestratorService } from "../../supervisors/supervisor-orchestrator.service";
+import { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";
 import { TraefikSupervisorService } from "../../supervisors/platform/traefik-supervisor.service";
 
 @Injectable()

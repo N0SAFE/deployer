@@ -13,7 +13,7 @@ import { TraefikPlatformConfigService } from './services/traefik-platform-config
 import { TraefikConfigRefresher } from './services/traefik-config-refresher.service';
 import { DatabaseModule } from '../database/database.module';
 import { EventsModule } from '@/core/modules/events/events.module';
-import { SupervisorsModule } from '../supervisors/supervisors.module';
+import { SupervisorsModule } from "@repo/nest-supervisor-core/supervisors.module";
 import { CorePlatformIngressModule } from '../platform-ingress/platform-ingress.module';
 import { CoreDockerModule } from '../docker/docker.module';
 import { EnvService } from '@repo/nest-env';

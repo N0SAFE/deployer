@@ -22,12 +22,12 @@
 import { Injectable } from "@nestjs/common";
 import z from "zod/v4";
 
-import { BaseMultiSupervisorService, type AnyChildSupervisor } from "../base-multi-supervisor.service";
+import { BaseMultiSupervisorService, type AnyChildSupervisor } from "@repo/nest-supervisor-core/base-multi-supervisor.service";
 import {
 	BaseSupervisorService,
 	baseSupervisorPayloadSchema,
 	type SupervisorProbeResult,
-} from "../base-supervisor.service";
+} from "@repo/nest-supervisor-core/base-supervisor.service";
 import { BaseDockerSupervisorService } from "@/core/modules/docker/services/base-docker-supervisor.service";
 import {
 	resolveSupervisorRuntime,
@@ -37,7 +37,7 @@ import { DockerService } from "@/core/modules/docker/services/docker.service";
 import {
 	baseSupervisorProcessInfoSchema,
 	swarmProcessInfoSchema,
-} from "../supervisor-process-info";
+} from "@repo/nest-supervisor-core/supervisor-process-info";
 import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
 import { EnvService } from "@repo/nest-env";
 import { splitManagedEnv } from "@repo/env";

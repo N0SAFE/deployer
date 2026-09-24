@@ -26,12 +26,12 @@ import {
 	BaseSupervisorService,
 	baseSupervisorPayloadSchema,
 	type SupervisorProbeResult,
-} from "@/core/modules/supervisors/base-supervisor.service";
+} from "@repo/nest-supervisor-core/base-supervisor.service";
 import {
 	baseSupervisorProcessInfoSchema,
 	sqliteProcessInfoSchema,
-} from "@/core/modules/supervisors/supervisor-process-info";
-import { LOCAL_DATABASE_CONNECTION } from "@/core/modules/database/database-connection";
+} from "@repo/nest-supervisor-core/supervisor-process-info";
+import { LOCAL_DATABASE_CONNECTION } from "@repo/nest-database-core/database-connection";
 import type { LocalDatabase } from "@/core/modules/database/local/local-database.service";
 import { EnvService } from "@repo/nest-env";
 import { splitManagedEnv } from "@repo/env";

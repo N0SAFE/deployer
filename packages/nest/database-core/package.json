@@ -1,0 +1,59 @@
+{
+    "name": "@repo/nest-database-core",
+    "version": "1.0.0",
+    "description": "Framework primitives for Drizzle-backed services: the abstract base database service and the connection DI tokens.",
+    "main": "./dist/cjs/index.js",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": {
+            "types": ["./src/index.ts"],
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
+        "./base-database.service": {
+            "types": ["./src/base-database.service.ts"],
+            "import": "./dist/esm/base-database.service.mjs",
+            "require": "./dist/cjs/base-database.service.js"
+        },
+        "./database-connection": {
+            "types": ["./src/database-connection.ts"],
+            "import": "./dist/esm/database-connection.mjs",
+            "require": "./dist/cjs/database-connection.js"
+        }
+    },
+    "scripts": {
+        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "format": "bun run prettify",
+        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "lint": "eslint . --fix --cache --concurrency=auto",
+        "type-check": "tsc --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "build": "bun --bun ../../bin/pkg-build/index.ts",
+        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
+        "clean": "rimraf dist"
+    },
+    "dependencies": {
+        "@nestjs/common": "catalog:api:nest",
+        "@repo/errors": "*",
+        "@repo/nest-schema": "*",
+        "drizzle-orm": "catalog:database"
+    },
+    "peerDependencies": {
+        "@nestjs/common": "catalog:api:nest"
+    },
+    "devDependencies": {
+        "@repo/config-eslint": "*",
+        "@repo/config-prettier": "*",
+        "@repo/config-typescript": "*",
+        "@repo/config-vitest": "*",
+        "@repo/pkg-build": "*",
+        "@types/node": "catalog:build",
+        "chokidar": "catalog:build",
+        "eslint": "catalog:linting",
+        "rimraf": "catalog:build",
+        "typescript": "catalog:build",
+        "vitest": "catalog:testing"
+    },
+    "module": "./dist/esm/index.mjs"
+}

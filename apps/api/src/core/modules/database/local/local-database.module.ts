@@ -6,7 +6,7 @@ import * as path from "path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "url";
 import * as localSchema from "@repo/nest-schema/local";
-import { LOCAL_DATABASE_CLIENT, LOCAL_DATABASE_CONNECTION } from "../database-connection";
+import { LOCAL_DATABASE_CLIENT, LOCAL_DATABASE_CONNECTION } from "@repo/nest-database-core/database-connection";
 import { LocalDatabaseLifecycleService } from "./local-database-lifecycle.service";
 import { LocalDatabaseService } from "./local-database.service";
 

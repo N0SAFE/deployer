@@ -107,7 +107,20 @@ const noCheck = process.env.CHECK_ON_BUILD !== "true";
 const nextConfig: NextConfig = {
   experimental: {
     serverComponentsHmrCache: true,
-    turbopackRustReactCompiler: true
+    turbopackRustReactCompiler: true,
+    // Turbopack filesystem cache — persists compilation work under `.next`
+    // between runs (dev: `.next/dev`, build: `.next/cache`).
+    //
+    // Set explicitly because the resolved Next version is `^16.1.2`:
+    // dev caching became default-on in 16.1.0 but BUILD caching only in
+    // 16.3.0, so relying on the default would silently lose the build cache
+    // on any 16.1.x/16.2.x resolution.
+    //
+    // The cache only pays off if the directory survives the container:
+    // compose mounts a named volume over `.next/dev` (dev) and
+    // `.next/cache` (prod). See docker/compose/common/web/.
+    turbopackFileSystemCacheForDev: true,
+    turbopackFileSystemCacheForBuild: true,
   },
   serverExternalPackages: ["esbuild-wasm"],
   async rewrites() {

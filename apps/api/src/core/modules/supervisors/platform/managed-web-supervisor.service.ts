@@ -26,11 +26,11 @@ import { DockerService } from "@/core/modules/docker/services/docker.service";
 import {
 	baseSupervisorPayloadSchema,
 	type SupervisorProbeResult,
-} from "@/core/modules/supervisors/base-supervisor.service";
+} from "@repo/nest-supervisor-core/base-supervisor.service";
 import {
 	baseSupervisorProcessInfoSchema,
 	swarmProcessInfoSchema,
-} from "@/core/modules/supervisors/supervisor-process-info";
+} from "@repo/nest-supervisor-core/supervisor-process-info";
 import { EnvService } from "@repo/nest-env";
 import z from "zod/v4";
 import {

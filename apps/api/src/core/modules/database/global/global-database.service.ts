@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseDatabaseService } from '../shared/database.service';
+import { BaseDatabaseService } from "@repo/nest-database-core/base-database.service";
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as globalSchema from '@repo/nest-schema/global';
 

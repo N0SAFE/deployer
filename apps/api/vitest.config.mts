@@ -162,6 +162,8 @@ export default defineConfig(
         "@repo/logger": path.resolve(__dirname, "../../packages/utils/logger/src"),
         "@repo/nest-events": path.resolve(__dirname, "../../packages/nest/events/src"),
         "@repo/nest-env": path.resolve(__dirname, "../../packages/nest/env/src"),
+        "@repo/nest-database-core": path.resolve(__dirname, "../../packages/nest/database-core/src"),
+        "@repo/nest-supervisor-core": path.resolve(__dirname, "../../packages/nest/supervisor-core/src"),
         "@repo/nest-schema": path.resolve(__dirname, "../../packages/nest/schema/src"),
         "@repo/nest-lifecycle": path.resolve(__dirname, "../../packages/nest/lifecycle/src"),
         "@repo/orpc-utils": path.resolve(__dirname, "../../packages/utils/orpc/src"),

@@ -1,0 +1,83 @@
+{
+    "name": "@repo/nest-supervisor-core",
+    "version": "1.0.0",
+    "description": "Supervisor framework: converge/probe lifecycle, registry, orchestrator and RxJS event bus. Knows how to supervise, never what.",
+    "main": "./dist/cjs/index.js",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": {
+            "types": ["./src/index.ts"],
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
+        "./base-supervisor.service": {
+            "types": ["./src/base-supervisor.service.ts"],
+            "import": "./dist/esm/base-supervisor.service.mjs",
+            "require": "./dist/cjs/base-supervisor.service.js"
+        },
+        "./base-multi-supervisor.service": {
+            "types": ["./src/base-multi-supervisor.service.ts"],
+            "import": "./dist/esm/base-multi-supervisor.service.mjs",
+            "require": "./dist/cjs/base-multi-supervisor.service.js"
+        },
+        "./supervisor-event.bus": {
+            "types": ["./src/supervisor-event.bus.ts"],
+            "import": "./dist/esm/supervisor-event.bus.mjs",
+            "require": "./dist/cjs/supervisor-event.bus.js"
+        },
+        "./supervisor-orchestrator.service": {
+            "types": ["./src/supervisor-orchestrator.service.ts"],
+            "import": "./dist/esm/supervisor-orchestrator.service.mjs",
+            "require": "./dist/cjs/supervisor-orchestrator.service.js"
+        },
+        "./supervisor-process-info": {
+            "types": ["./src/supervisor-process-info.ts"],
+            "import": "./dist/esm/supervisor-process-info.mjs",
+            "require": "./dist/cjs/supervisor-process-info.js"
+        },
+        "./supervisor-shared": {
+            "types": ["./src/supervisor-shared.ts"],
+            "import": "./dist/esm/supervisor-shared.mjs",
+            "require": "./dist/cjs/supervisor-shared.js"
+        },
+        "./supervisors.module": {
+            "types": ["./src/supervisors.module.ts"],
+            "import": "./dist/esm/supervisors.module.mjs",
+            "require": "./dist/cjs/supervisors.module.js"
+        }
+    },
+    "scripts": {
+        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "format": "bun run prettify",
+        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "lint": "eslint . --fix --cache --concurrency=auto",
+        "type-check": "tsc --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "build": "bun --bun ../../bin/pkg-build/index.ts",
+        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
+        "clean": "rimraf dist"
+    },
+    "dependencies": {
+        "@nestjs/common": "catalog:api:nest",
+        "rxjs": "catalog:api:nest",
+        "zod": "catalog:utils"
+    },
+    "peerDependencies": {
+        "@nestjs/common": "catalog:api:nest"
+    },
+    "devDependencies": {
+        "@repo/config-eslint": "*",
+        "@repo/config-prettier": "*",
+        "@repo/config-typescript": "*",
+        "@repo/config-vitest": "*",
+        "@repo/pkg-build": "*",
+        "@types/node": "catalog:build",
+        "chokidar": "catalog:build",
+        "eslint": "catalog:linting",
+        "rimraf": "catalog:build",
+        "typescript": "catalog:build",
+        "vitest": "catalog:testing"
+    },
+    "module": "./dist/esm/index.mjs"
+}

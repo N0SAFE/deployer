@@ -28,7 +28,7 @@ import { Global, Logger, Module } from '@nestjs/common'
 import { Pool } from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import * as globalSchema from '@repo/nest-schema/global'
-import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from '../database-connection'
+import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "@repo/nest-database-core/database-connection"
 import { GlobalDatabaseService } from './global-database.service'
 import { GlobalDatabaseLifecycleService } from './global-database-lifecycle.service'
 import { NodeConfigRepository } from '../../setup/repositories/node-config.repository'

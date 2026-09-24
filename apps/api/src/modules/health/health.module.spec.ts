@@ -6,21 +6,21 @@ import { Test, type TestingModule } from '@nestjs/testing';
 vi.mock('@/core/modules/database/database.module', () => ({
   DatabaseModule: { global: true, module: class {} },
 }));
-vi.mock('@/core/modules/database/database-connection', () => ({
+vi.mock("@repo/nest-database-core/database-connection", () => ({
   GLOBAL_DATABASE_CONNECTION: 'GLOBAL_DATABASE_CONNECTION',
   LOCAL_DATABASE_CONNECTION: 'LOCAL_DATABASE_CONNECTION',
 }));
 vi.mock('@/core/modules/database/services/global-database.service', () => ({
   GlobalDatabaseService: class {},
 }));
-vi.mock('@/core/modules/supervisors/supervisors.module', () => ({
+vi.mock("@repo/nest-supervisor-core/supervisors.module", () => ({
   SupervisorsModule: { module: class {} },
 }));
-vi.mock('@/core/modules/supervisors/supervisor-shared', () => ({
+vi.mock("@repo/nest-supervisor-core/supervisor-shared", () => ({
   getSharedSupervisorEventBus: () => ({ on: vi.fn(), emit: vi.fn() }),
   getSharedSupervisorRegistry: () => ({ register: vi.fn(), get: vi.fn() }),
 }));
-vi.mock('@/core/modules/supervisors/supervisor-orchestrator.service', () => ({
+vi.mock("@repo/nest-supervisor-core/supervisor-orchestrator.service", () => ({
   SupervisorOrchestratorService: class {},
 }));
 vi.mock('@repo/nest-lifecycle', () => ({
@@ -32,7 +32,7 @@ import { HealthController } from '@/modules/health/controllers/health.controller
 import { HealthService } from '@/modules/health/services/health.service';
 import { HealthRepository } from '@/modules/health/repositories/health.repository';
 import { AppLifecycleService } from '@repo/nest-lifecycle';
-import { SupervisorOrchestratorService } from '@/core/modules/supervisors/supervisor-orchestrator.service';
+import { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";
 
 describe('HealthModule', () => {
   let module: TestingModule;
