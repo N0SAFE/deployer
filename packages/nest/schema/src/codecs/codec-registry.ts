@@ -82,11 +82,23 @@ function requireEncryption(): EncryptedTextKeyProvider {
 	return registry.encryption;
 }
 
-function encrypt(text: string): string {
+/**
+ * Encrypt a secret for storage.
+ *
+ * Exported (rather than kept private to the column) so the on-disk format has
+ * a directly testable surface: the column is a thin adapter over this, and a
+ * format change must fail a test rather than silently produce unreadable rows.
+ *
+ * A per-value random salt means two rows with the same plaintext do not produce
+ * the same ciphertext.
+ *
+ * An empty value is returned unchanged (there is nothing to conceal), so a NULL/
+ * blank column never acquires a ciphertext wrapper.
+ */
+export function encryptSecret(text: string): string {
+	if (!text) return text;
 	try {
 		const key = requireEncryption().resolveKey();
-		// A per-value salt means two rows with the same plaintext do not produce
-		// the same ciphertext.
 		const salt = randomBytes(SALT_LENGTH);
 		const derived = scryptSync(key, salt, KEY_LENGTH);
 		const iv = randomBytes(IV_LENGTH);
@@ -97,18 +109,56 @@ function encrypt(text: string): string {
 
 		return `${salt.toString("hex")}:${iv.toString("hex")}:${cipher.getAuthTag().toString("hex")}:${encrypted}`;
 	} catch (error) {
+		// Preserve the deliberate boot-order error, which names the call to add;
+		// only an UNEXPECTED failure is rewrapped as a generic encrypt error.
+		if (error instanceof AppError) throw error;
 		logger.error("Encryption error:", { error });
 		throw new AppError("Failed to encrypt data", "ENCRYPTION_ERROR");
 	}
 }
 
-function decrypt(payload: string): string {
+/** The four hex segments of a stored ciphertext. */
+interface EncryptedPayload {
+	saltHex: string;
+	ivHex: string;
+	authTagHex: string;
+	encryptedData: string;
+}
+
+/**
+ * Split a stored payload into its parts, validating the shape.
+ *
+ * Each field is checked individually rather than trusting a length count, so a
+ * truncated or over-long value is rejected at the same place the type is
+ * established — no assertion is needed to narrow the tuple.
+ */
+function parseEncryptedPayload(payload: string): EncryptedPayload {
+	const parts = payload.split(":");
+	const [saltHex, ivHex, authTagHex, encryptedData] = parts;
+
+	if (
+		parts.length !== 4 ||
+		saltHex === undefined ||
+		ivHex === undefined ||
+		authTagHex === undefined ||
+		encryptedData === undefined
+	) {
+		throw new AppError("Invalid encrypted data format", "ENCRYPTION_ERROR");
+	}
+
+	return { saltHex, ivHex, authTagHex, encryptedData };
+}
+
+/**
+ * Decrypt a stored secret. Exported alongside {@link encryptSecret} so the
+ * on-disk format has one implementation and one test surface.
+ *
+ * An empty value is returned unchanged, mirroring {@link encryptSecret}.
+ */
+export function decryptSecret(payload: string): string {
+	if (!payload) return payload;
 	try {
-		const parts = payload.split(":");
-		if (parts.length !== 4) {
-			throw new AppError("Invalid encrypted data format", "ENCRYPTION_ERROR");
-		}
-		const [saltHex, ivHex, authTagHex, encryptedData] = parts as [string, string, string, string];
+		const { saltHex, ivHex, authTagHex, encryptedData } = parseEncryptedPayload(payload);
 
 		const salt = Buffer.from(saltHex, "hex");
 		const derived = scryptSync(requireEncryption().resolveKey(), salt, KEY_LENGTH);
@@ -117,6 +167,10 @@ function decrypt(payload: string): string {
 
 		return decipher.update(encryptedData, "hex", "utf8") + decipher.final("utf8");
 	} catch (error) {
+		// Preserve the deliberate AppErrors: a boot-order error names the call to
+		// add, and a malformed payload says it is malformed. Only an UNEXPECTED
+		// failure (crypto/encoding) is rewrapped as a generic decrypt error.
+		if (error instanceof AppError) throw error;
 		logger.error("Decryption error:", { error });
 		throw new AppError("Failed to decrypt data", "ENCRYPTION_ERROR");
 	}
@@ -137,12 +191,10 @@ export const encryptedText = customType<{
 		return "text";
 	},
 	fromDriver(value: string): string {
-		if (!value) return value;
-		return decrypt(value);
+		return decryptSecret(value);
 	},
 	toDriver(value: string): string {
-		if (!value) return value;
-		return encrypt(value);
+		return encryptSecret(value);
 	},
 });
 

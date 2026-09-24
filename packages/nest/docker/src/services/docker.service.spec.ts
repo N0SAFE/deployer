@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import type { DockerConnectionConfig } from "../docker-config";
 import { DockerService } from "./docker.service";
-import { EnvService } from "@/config/env/env.module";
 
 /**
  * Focused unit tests for DockerService.ensureOverlayNetwork's layering guard:
@@ -23,11 +23,12 @@ function makeService(dockerStub: {
   createResolve?: () => Promise<unknown> | unknown;
   createReject?: (err: unknown) => Promise<never>;
 }) {
-  const envService = {
-    get: (key: string) => (key === "DOCKER_HOST" ? "tcp://docker.example.invalid:2375" : undefined),
-  } as unknown as EnvService;
+  const config: DockerConnectionConfig = {
+    host: "tcp://docker.example.invalid:2375",
+    port: undefined,
+  };
 
-  const service = new DockerService(envService);
+  const service = new DockerService(config);
 
   let seq = 0;
   const network = {

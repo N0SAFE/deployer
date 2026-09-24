@@ -20,7 +20,7 @@ import {
     type DockerodeServiceSummary,
 } from "@repo/contracts-entities";
 import { ServiceUnavailableError, TimeoutError } from "@repo/errors";
-import { DockerService } from "@/core/modules/docker/services/docker.service";
+import { DockerService } from "@repo/nest-docker/services/docker.service";
 import { ingressFromLabels, platformRoleFromLabels } from "@repo/nest-nodes/swarm-node-labels";
 
 @Injectable()

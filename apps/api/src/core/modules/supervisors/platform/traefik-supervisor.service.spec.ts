@@ -5,7 +5,7 @@ import { mkdtemp } from "node:fs/promises";
 import { PlatformNetwork, TraefikSupervisorService, type EntrypointProbe } from "./traefik-supervisor.service";
 import { EnvHostnameService } from "../../platform-ingress/services/hostname.service";
 import type { PlatformIngressSettingsService } from "../../platform-ingress/services/platform-ingress-settings.service";
-import type { DockerService } from "@/core/modules/docker/services/docker.service";
+import type { DockerService } from "@repo/nest-docker/services/docker.service";
 import type { EnvService } from "@/config/env/env.module";
 
 /**

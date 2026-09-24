@@ -21,8 +21,8 @@ import { HostnameService } from "../../platform-ingress/services/hostname.servic
 import { AppInstanceService } from "../../platform-ingress/services/app-instance.service";
 import { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
 import { MANAGED_WEB_CONTAINER_BASE_NAME } from "../../platform-ingress/services/platform-names";
-import { BaseDockerSupervisorService } from "@/core/modules/docker/services/base-docker-supervisor.service";
-import { DockerService } from "@/core/modules/docker/services/docker.service";
+import { BaseDockerSupervisorService } from "@repo/nest-docker/services/base-docker-supervisor.service";
+import { DockerService } from "@repo/nest-docker/services/docker.service";
 import {
 	baseSupervisorPayloadSchema,
 	type SupervisorProbeResult,
@@ -36,7 +36,7 @@ import z from "zod/v4";
 import {
 	resolveSupervisorRuntime,
 	type DockerSupervisorRuntime,
-} from "@/core/modules/docker/services/docker-supervisor-runtime";
+} from "@repo/nest-docker/services/docker-supervisor-runtime";
 import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
 import { PlatformNetwork } from "./traefik-supervisor.service";
 import { AppError, ConflictError } from "@repo/errors";

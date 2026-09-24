@@ -52,11 +52,11 @@ import type { Readable } from "node:stream";
 import z from "zod/v4";
 
 import { EnvService } from "@/config/env/env.module";
-import { DockerService } from "@/core/modules/docker/services/docker.service";
+import { DockerService } from "@repo/nest-docker/services/docker.service";
 import {
 	platformNetworkName,
 	platformOverlayForPrefix,
-} from "@/core/modules/docker/services/docker-supervisor-runtime";
+} from "@repo/nest-docker/services/docker-supervisor-runtime";
 import {
 	BaseSupervisorService,
 	baseSupervisorPayloadSchema,

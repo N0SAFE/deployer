@@ -26,7 +26,7 @@ import {
     type SwarmServiceRuntime,
     type SwarmTaskRuntime,
 } from "@repo/contracts-entities";
-import { DockerService } from "@/core/modules/docker/services/docker.service";
+import { DockerService } from "@repo/nest-docker/services/docker.service";
 
 @Injectable()
 export class SwarmFleetService {

@@ -18,8 +18,8 @@
 import { Injectable } from "@nestjs/common";
 import z from "zod/v4";
 
-import { BaseDockerSupervisorService } from "@/core/modules/docker/services/base-docker-supervisor.service";
-import { DockerService } from "@/core/modules/docker/services/docker.service";
+import { BaseDockerSupervisorService } from "@repo/nest-docker/services/base-docker-supervisor.service";
+import { DockerService } from "@repo/nest-docker/services/docker.service";
 import {
 	baseSupervisorPayloadSchema,
 	type SupervisorProbeResult,
@@ -33,7 +33,7 @@ import { splitManagedEnv } from "@repo/env";
 import {
 	resolveSupervisorRuntime,
 	type DockerSupervisorRuntime,
-} from "@/core/modules/docker/services/docker-supervisor-runtime";
+} from "@repo/nest-docker/services/docker-supervisor-runtime";
 import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
 import { PLATFORM_ROLE_LABEL, PlatformNetwork } from "./traefik-supervisor.service";
 

@@ -43,12 +43,12 @@ import {
     MANAGED_POSTGRES_PORT,
     PostgresServiceProvisioner,
     managedPostgresServiceName,
-} from "../modules/docker/containers/postgres/postgres-service.provisioner";
+} from "@repo/nest-docker";
 import { TraefikPlatformConfigService } from "../modules/traefik/services/traefik-platform-config.service";
-import { DockerService } from "../modules/docker/services/docker.service";
+import { DockerService } from "@repo/nest-docker/services/docker.service";
 import { EnvService } from "@/config/env/env.module";
 import { SwarmAppWiringSupervisorService } from "../modules/supervisors/platform/swarm-app-wiring.supervisor.service";
-import { ReadinessService, type ReadinessResult } from "../../modules/health/services/readiness.service";
+import { READINESS_PROBE, type IReadinessProbe, type ReadinessResult } from "./readiness.port";
 import { Pool } from "pg";
 import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "@repo/nest-database-core/database-connection";
 import type { GlobalDatabase } from "../modules/database/global/global-database.service";
@@ -723,8 +723,10 @@ export class OrchestratorService implements OnApplicationBootstrap, OnApplicatio
 
     try {
       // Resolved per call rather than cached: the app is created after boot, so
-      // there is no safe injection point for it in this context.
-      const readiness = this.mainApp.get(ReadinessService, { strict: false });
+      // there is no safe injection point for it in this context. The TOKEN is
+      // core's own port — the health module binds its implementation to it — so
+      // core never imports a product module (SC7).
+      const readiness = this.mainApp.get<IReadinessProbe>(READINESS_PROBE, { strict: false });
       return await readiness.probe();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);

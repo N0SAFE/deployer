@@ -1,5 +1,5 @@
 import { Injectable, type OnModuleDestroy, Logger } from "@nestjs/common";
-import { EnvService } from "@/config/env/env.module";
+import type { ScannerConfig } from "../docker-config";
 import { DockerService } from "./docker.service";
 import { AppError } from "@repo/errors";
 import { isRecord, isObjectLike } from "@repo/type-guards"
@@ -96,7 +96,7 @@ export class ScannerContainerManagerService implements OnModuleDestroy {
 
   constructor(
     private readonly dockerService: DockerService,
-    private readonly envService: EnvService,
+    private readonly config: ScannerConfig,
   ) {}
 
   // -----------------------------------------------------------------------
@@ -462,7 +462,7 @@ export class ScannerContainerManagerService implements OnModuleDestroy {
 
   private getScannerRunnerImage(): string {
     try {
-      return (this.envService.get("SCANNER_RUNNER_IMAGE")) ?? DEFAULT_SCANNER_RUNNER_IMAGE;
+      return this.config.image;
     } catch {
       return DEFAULT_SCANNER_RUNNER_IMAGE;
     }
@@ -470,7 +470,7 @@ export class ScannerContainerManagerService implements OnModuleDestroy {
 
   private getAppIdleTimeoutMs(): number {
     try {
-      return (this.envService.get("SCANNER_APP_IDLE_TIMEOUT_MS")) ?? DEFAULT_APP_IDLE_TIMEOUT_MS;
+      return this.config.idleTimeoutMs;
     } catch {
       return DEFAULT_APP_IDLE_TIMEOUT_MS;
     }
@@ -478,7 +478,7 @@ export class ScannerContainerManagerService implements OnModuleDestroy {
 
   private isAutoScanDisabled(): boolean {
     try {
-      return this.envService.get("DISABLE_AUTO_SCAN");
+      return this.config.autoScanDisabled;
     } catch {
       return false;
     }
@@ -548,7 +548,7 @@ export class ScannerContainerManagerService implements OnModuleDestroy {
     const candidates: string[] = [];
 
     try {
-      const override = this.envService.get("SCANNER_RUNNER_BUILD_CONTEXT");
+      const override = this.config.buildContext;
       if (typeof override === "string" && override.trim().length > 0) {
         candidates.push(path.resolve(override.trim()));
       }

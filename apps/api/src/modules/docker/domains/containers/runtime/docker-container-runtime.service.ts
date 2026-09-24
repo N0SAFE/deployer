@@ -30,7 +30,7 @@ import {
   type DockerFileEntry,
   type DockerTerminalProfile,
 } from "@repo/contracts-entities";
-import { DockerService as CoreDockerService } from "@/core/modules/docker/services/docker.service";
+import { DockerService as CoreDockerService } from "@repo/nest-docker/services/docker.service";
 import { isRecord, isObjectLike } from "@repo/type-guards"
 
 

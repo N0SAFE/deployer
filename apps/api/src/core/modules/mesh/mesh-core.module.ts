@@ -49,7 +49,7 @@ import { ServerConnectionConsumerRegistry } from './connection/mesh-consumer-reg
 import { OwnershipResolverService } from './services/ownership/ownership-resolver.service';
 import { StreamManagerService } from './services/stream-manager/stream-manager.service';
 import { NodeStateModule } from "@/core/modules/node-state/node-state.module";
-import { CoreDockerModule } from '@/core/modules/docker/docker.module';
+import { CoreDockerModule } from "@/core/modules/docker/docker.module";
 import type { MeshNodeCaller } from './services/system-mesh-resource-discovery/query/mesh-query-executor';
 import { MESH_NODE_CALLER_TOKEN } from './tokens';
 

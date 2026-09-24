@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
-	PLATFORM_SUPERVISOR_TOPOLOGY,
 	resolveSupervisorRuntime,
 	swarmRuntimeForScope,
-} from "@/core/modules/docker/services/docker-supervisor-runtime";
+} from "@repo/nest-docker/services/docker-supervisor-runtime";
+import { PLATFORM_SUPERVISOR_TOPOLOGY } from "@/core/modules/supervisors/supervisor-topology";
 import { GLOBAL_DB_SUPERVISOR_ID } from "@/core/modules/supervisors/database/global-db-supervisor.service";
 import { DATABASE_SERVICE_SUPERVISOR_ID } from "@/core/modules/supervisors/database/database-service-supervisor.service";
 import { DIRECT_PORT_PROXY_SUPERVISOR_ID } from "@/core/modules/supervisors/platform/direct-port-proxy.supervisor.service";

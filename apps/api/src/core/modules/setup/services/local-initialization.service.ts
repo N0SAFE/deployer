@@ -11,19 +11,19 @@ import type { SetupInitializeLocalInput } from "@repo/contracts-entities";
 import * as globalSchema from "@repo/nest-schema/global";
 import { user } from "@repo/nest-schema/global/auth";
 import { createBetterAuth } from "@/config/auth/auth";
+
+import { DockerService } from "@repo/nest-docker/services/docker.service";
+import {
+    platformNetworkName,
+    platformOverlayNetworkName,
+} from "@repo/nest-docker/services/docker-supervisor-runtime";
 import {
     PostgresServiceProvisioner,
     MANAGED_POSTGRES_ALIAS,
     MANAGED_POSTGRES_PORT,
     MANAGED_POSTGRES_VOLUME_NAME,
     managedPostgresServiceName,
-    resolvePostgresIdentity,
-} from "@/core/modules/docker/containers/postgres/postgres-service.provisioner";
-import { DockerService } from "@/core/modules/docker/services/docker.service";
-import {
-    platformNetworkName,
-    platformOverlayNetworkName,
-} from "@/core/modules/docker/services/docker-supervisor-runtime";
+} from "@repo/nest-docker/containers/postgres/postgres-service.provisioner";
 import { EnvService } from "@/config/env/env.module";
 import { SwarmBootstrapService } from "@/core/modules/swarm/services/swarm-bootstrap.service";
 import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
@@ -43,6 +43,7 @@ import { resolveDockerHostIp } from "../utils/docker-host.utils";
 import { DEPLOYER_VERSION } from "@/core/utils/deployer-version";
 
 import { AppError, ConflictError } from "@repo/errors";
+import { resolvePostgresIdentity } from "@/core/modules/docker/containers/postgres/postgres-identity";
 /**
  * Local bootstrap flow.
  *

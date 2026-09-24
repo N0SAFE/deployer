@@ -1,12 +1,12 @@
 import { Injectable, Inject, Optional, Logger, NotFoundException } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { DockerService } from "@/core/modules/docker/services/docker.service";
-import { ScannerContainerManagerService } from "@/core/modules/docker/services/scanner-container-manager.service";
+import { DockerService } from "@repo/nest-docker/services/docker.service";
+import { ScannerContainerManagerService } from "@repo/nest-docker/services/scanner-container-manager.service";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { ContainerDockerodeNormalizer } from "../../shared/container-dockerode-normalizer.service";
-import { CONTAINER_LINK_RESOLVER } from "@/core/modules/docker/services/container-link-resolver.interface";
-import type { IContainerLinkResolver } from "@/core/modules/docker/services/container-link-resolver.interface";
+import { CONTAINER_LINK_RESOLVER } from "@repo/nest-docker/services/container-link-resolver.interface";
+import type { IContainerLinkResolver } from "@repo/nest-docker/services/container-link-resolver.interface";
 import {
   dockerImageSecurityLifecycle,
   dockerImageSecurityScanHistory,

@@ -2,10 +2,10 @@ import { Injectable } from "@nestjs/common";
 import { AppError } from "@repo/errors";
 import { splitManagedEnv } from "@repo/env";
 import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
-import type { EnvService } from "@/config/env/env.module";
+import type { PostgresIdentityConfig } from "../../docker-config";
 import { DockerService } from "../../services/docker.service";
 import { platformNetworkName, platformOverlayNetworkName } from "../../services/docker-supervisor-runtime";
-import { toDockerServiceSpec } from "@/core/modules/swarm/services/swarm-spec.mapper";
+import { toDockerServiceSpec } from "../../services/swarm-spec.mapper";
 
 /**
  * PostgresServiceProvisioner — the platform's GLOBAL POSTGRES, as a swarm
@@ -93,13 +93,20 @@ export interface PostgresServiceIdentity {
  * `password authentication failed for user "postgres"` against a healthy
  * database.
  */
-export function resolvePostgresIdentity(env: EnvService): PostgresServiceIdentity {
-    const managed = splitManagedEnv(env).globalDb;
+/**
+ * Build the Postgres identity from the app's configuration.
+ *
+ * The values arrive as DATA; the app decides where they come from (env schema,
+ * settings row, test fixture). `MANAGED_POSTGRES_IMAGE` is the package's own
+ * constant — the image it knows how to provision — so it is not configurable
+ * per app.
+ */
+export function toPostgresIdentity(config: PostgresIdentityConfig): PostgresServiceIdentity {
     return {
-        databaseName: managed.name,
-        username: managed.user,
-        password: managed.password,
-        image: MANAGED_POSTGRES_IMAGE,
+        databaseName: config.databaseName,
+        username: config.username,
+        password: config.password,
+        image: config.image,
     };
 }
 

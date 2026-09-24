@@ -5,8 +5,8 @@ import {
 	GLOBAL_DB_SUPERVISOR_ID,
 } from "./global-db-supervisor.service";
 import { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";
-import type { DockerService } from "@/core/modules/docker/services/docker.service";
-import type { PostgresServiceProvisioner } from "@/core/modules/docker/containers/postgres/postgres-service.provisioner";
+import type { DockerService } from "@repo/nest-docker/services/docker.service";
+import type { PostgresServiceProvisioner } from "@repo/nest-docker/containers/postgres/postgres-service.provisioner";
 import type { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 import type { EnvService } from "@/config/env/env.module";
 

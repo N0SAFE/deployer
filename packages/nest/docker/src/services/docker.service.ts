@@ -12,7 +12,7 @@ import * as path from "path";
 import { PassThrough } from "stream";
 import { execFile } from "node:child_process";
 import { Observable } from "rxjs";
-import { EnvService } from "@/config/env/env.module";
+import type { DockerConnectionConfig } from "../docker-config";
 import { isRecord } from "@repo/type-guards";
 import z from "zod/v4";
 import {
@@ -358,9 +358,9 @@ export class DockerService {
         };
     }
 
-    constructor(private readonly envService: EnvService) {
-        const dockerHost = this.envService.get("DOCKER_HOST");
-        const dockerPort = this.envService.get("DOCKER_PORT");
+    constructor(config: DockerConnectionConfig) {
+        const dockerHost = config.host;
+        const dockerPort = config.port;
 
         const { client, mode, socketPath } = this.resolveDockerClientConfig(dockerHost, dockerPort);
         this.docker = client;

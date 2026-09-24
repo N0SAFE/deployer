@@ -8,7 +8,7 @@ import type { PlatformWebTargetService } from "../../platform-ingress/services/p
 import type { PlatformRoutesSource } from "../../platform-ingress/services/platform-routes-source.service";
 import type { TraefikRepository } from "../repositories/traefik.repository";
 import type { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
-import type { DockerService } from "@/core/modules/docker/services/docker.service";
+import type { DockerService } from "@repo/nest-docker/services/docker.service";
 import type { EnvService } from "@/config/env/env.module";
 
 async function makeConfigDir(): Promise<string> {

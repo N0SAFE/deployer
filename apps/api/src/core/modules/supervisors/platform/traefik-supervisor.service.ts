@@ -21,14 +21,14 @@ import { HostnameService } from "../../platform-ingress/services/hostname.servic
 import { PlatformPaths } from "../../platform-ingress/services/platform-paths";
 import { PlatformIngressSettingsService } from "../../platform-ingress/services/platform-ingress-settings.service";
 import { platformTraefikContainerName } from "../../platform-ingress/services/platform-names";
-import { BaseDockerSupervisorService } from "@/core/modules/docker/services/base-docker-supervisor.service";
+import { BaseDockerSupervisorService } from "@repo/nest-docker/services/base-docker-supervisor.service";
 import {
 	platformOverlayForPrefix,
 	resolveSupervisorRuntime,
 	type DockerSupervisorRuntime,
-} from "@/core/modules/docker/services/docker-supervisor-runtime";
+} from "@repo/nest-docker/services/docker-supervisor-runtime";
 import type { SwarmEndpointPort, SwarmServiceSpecInput } from "@repo/contracts-entities";
-import { DockerService } from "@/core/modules/docker/services/docker.service";
+import { DockerService } from "@repo/nest-docker/services/docker.service";
 import {
 	baseSupervisorPayloadSchema,
 	type SupervisorProbeResult,

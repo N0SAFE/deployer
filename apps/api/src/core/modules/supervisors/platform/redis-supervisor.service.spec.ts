@@ -7,7 +7,7 @@ import {
 	REDIS_INTERNAL_PORT,
 	RedisSupervisorService,
 } from "./redis-supervisor.service";
-import type { DockerService } from "@/core/modules/docker/services/docker.service";
+import type { DockerService } from "@repo/nest-docker/services/docker.service";
 import type { EnvService } from "@/config/env/env.module";
 import type { DockerodeServiceSummary, DockerodeTaskSummary } from "@repo/contracts-entities";
 
@@ -65,6 +65,13 @@ function makeSupervisor(envOverrides: Partial<Record<string, unknown>> = {}, swa
 	const { client, services } = makeDockerClient(swarmActive);
 	const dockerService = {
 		getDockerClient: () => client,
+		// The base class gates convergence on `isSwarmActive()`, which calls this
+		// high-level probe — NOT the raw client's `info()`. Without it the probe
+		// throws, is caught, reports "not active", and every reconcile is DEFERRED,
+		// so a test asserting a created service would fail on an empty map.
+		getSwarmInfo: async () => ({
+			LocalNodeState: swarmActive ? "active" : "inactive",
+		}),
 		ensureOverlayNetwork: vi.fn(async () => undefined),
 		inspectSwarmService: async (name: string) => {
 			const svc = services.get(name);

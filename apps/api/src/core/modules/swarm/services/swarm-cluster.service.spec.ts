@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DockerodeSwarmInfo } from "@repo/contracts-entities";
-import type { DockerService } from "@/core/modules/docker/services/docker.service";
+import type { DockerService } from "@repo/nest-docker/services/docker.service";
 import { SwarmClusterService } from "./swarm-cluster.service";
 
 const inactiveInfo: DockerodeSwarmInfo = {

@@ -9,8 +9,9 @@
 import { Module } from '@nestjs/common';
 import { EnvModule } from "@/config/env/env.module";
 import { EnvService } from "@/config/env/env.module";
-import { DockerService } from '@/core/modules/docker/services/docker.service';
-import { PostgresServiceProvisioner } from '@/core/modules/docker/containers/postgres/postgres-service.provisioner';
+import { DockerService } from "@repo/nest-docker/services/docker.service";
+import type { DockerConnectionConfig } from "@repo/nest-docker/docker-config";
+import { PostgresServiceProvisioner } from "@repo/nest-docker/containers/postgres/postgres-service.provisioner";
 import { LocalDatabaseModule } from "@repo/nest-database-local/local-database.module";
 import { InitializationService } from '@/core/modules/setup/services/initialization.service';
 import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
@@ -35,7 +36,13 @@ import { MeshVersionService } from '@/core/modules/mesh/version/mesh-version.ser
   providers: [
     {
       provide: DockerService,
-      useFactory: (envService: EnvService) => new DockerService(envService),
+      useFactory: (envService: EnvService) => {
+        const config: DockerConnectionConfig = {
+          host: envService.get("DOCKER_HOST"),
+          port: envService.get("DOCKER_PORT"),
+        };
+        return new DockerService(config);
+      },
       inject: [EnvService],
     },
     PostgresServiceProvisioner,

@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  PLATFORM_SUPERVISOR_TOPOLOGY,
-  getSupervisorTopology,
   platformOverlayNetworkName,
   resolveSupervisorRuntime,
   swarmRuntimeForScope,
@@ -54,40 +52,16 @@ describe("resolveSupervisorRuntime — NO legacy container fallback", () => {
   });
 });
 
-describe("supervisor topology classification", () => {
-  it("covers every docker-backed platform supervisor", () => {
-    const ids = PLATFORM_SUPERVISOR_TOPOLOGY.map((t) => t.supervisorId);
-    expect(ids).toContain("platform-ingress-traefik");
-    expect(ids).toContain("platform-redis");
-    expect(ids).toContain("global-db-postgres");
-    expect(ids).toContain("database-service");
-    expect(ids).toContain("platform-direct-port-proxy");
-    expect(ids).toContain("platform-managed-web");
-    expect(ids).toContain("platform-wireguard");
-  });
-
-  it("ingress, direct-port-proxy and wireguard are node-local (swarm-global)", () => {
-    expect(getSupervisorTopology("platform-ingress-traefik")?.scope).toBe("node-local");
-    expect(getSupervisorTopology("platform-direct-port-proxy")?.scope).toBe("node-local");
-    expect(getSupervisorTopology("platform-wireguard")?.scope).toBe("node-local");
-  });
-
-  it("redis, global-db, database-service and managed-web are mesh-wide (replicated)", () => {
-    expect(getSupervisorTopology("platform-redis")?.scope).toBe("mesh-wide");
-    expect(getSupervisorTopology("global-db-postgres")?.scope).toBe("mesh-wide");
-    expect(getSupervisorTopology("database-service")?.scope).toBe("mesh-wide");
-    expect(getSupervisorTopology("platform-managed-web")?.scope).toBe("mesh-wide");
-  });
-
-  it("swarmRuntimeForScope maps node-local→global and mesh-wide→replicated", () => {
+describe("swarmRuntimeForScope", () => {
+  it("maps node-local→global and mesh-wide→replicated", () => {
     expect(swarmRuntimeForScope("node-local")).toBe("swarm-global");
     expect(swarmRuntimeForScope("mesh-wide")).toBe("swarm-replicated");
   });
-
-  it("returns null for unknown supervisors (e.g. local-db sqlite is not docker)", () => {
-    expect(getSupervisorTopology("local-db-sqlite")).toBeNull();
-  });
 });
+
+// NOTE: the platform's OWN topology table (which supervisors exist, and their
+// scope) is app policy, not package mechanism — it is tested beside the table
+// in `apps/api/src/core/modules/supervisors/swarm-only-supervision.acceptance.spec.ts`.
 
 describe("platformOverlayNetworkName", () => {
   it("appends -overlay to a plain platform network name", () => {

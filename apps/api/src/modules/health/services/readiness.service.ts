@@ -1,21 +1,13 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { HealthCheckService } from "@nestjs/terminus";
 
+import type { IReadinessProbe, ReadinessResult } from "@/core/orchestrator/readiness.port";
 import { ReadinessIndicators } from "../indicators/readiness.indicators";
 
-/** The wire shape of the readiness probe response. */
-export interface ReadinessResult {
-  /** HTTP status to send: 200 when every indicator is up, 503 otherwise. */
-  statusCode: number;
-  body: {
-    status: "ok" | "error";
-    /** Per-indicator detail, present only for the components that reported. */
-    info?: Record<string, unknown>;
-    /** Present only when at least one indicator failed. */
-    error?: Record<string, unknown>;
-    checkedAt: string;
-  };
-}
+// Re-exported so existing importers of this module keep working; the contract
+// itself lives in core, because CORE is the consumer (SC7: core must not
+// import a product module, so the interface sits on core's side of the seam).
+export type { ReadinessResult } from "@/core/orchestrator/readiness.port";
 
 /**
  * Readiness probe for the platform.
@@ -34,7 +26,7 @@ export interface ReadinessResult {
  * express handler.
  */
 @Injectable()
-export class ReadinessService {
+export class ReadinessService implements IReadinessProbe {
   private readonly logger = new Logger(ReadinessService.name);
 
   constructor(

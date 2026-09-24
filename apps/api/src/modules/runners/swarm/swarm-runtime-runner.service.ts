@@ -25,14 +25,14 @@ import type {
 import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
 import { verifySwarmRouteAgainstTraefik } from "@/core/modules/traefik/services/swarm-route-verifier";
 import { parsePlacementPolicyLabel, toSwarmPlacement } from "@/core/modules/swarm/services/node-placement.service";
-import { DockerService } from "@/core/modules/docker/services/docker.service";
+import { DockerService } from "@repo/nest-docker/services/docker.service";
 import {
     type DeploymentRuntimeRunner,
     type DeploymentRuntimeRunnerType,
     type RuntimeExecutionInput,
     type RuntimeExecutionResult,
 } from "../runtime-runner.interface";
-import { toDockerServiceSpec } from "@/core/modules/swarm/services/swarm-spec.mapper";
+import { toDockerServiceSpec } from "@repo/nest-docker/services/swarm-spec.mapper";
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 

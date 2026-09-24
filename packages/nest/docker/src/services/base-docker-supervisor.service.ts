@@ -25,7 +25,7 @@ import {
 	type DockerSupervisorRuntime,
 } from "./docker-supervisor-runtime";
 import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
-import { toDockerServiceSpec } from "@/core/modules/swarm/services/swarm-spec.mapper";
+import { toDockerServiceSpec } from "./swarm-spec.mapper";
 
 /** Dockerode API errors carry an HTTP-style statusCode (404 = not found). */
 type DockerodeError = Error & { statusCode?: number };

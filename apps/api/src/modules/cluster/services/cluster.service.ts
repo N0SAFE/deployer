@@ -12,7 +12,7 @@ import type { ClusterMasterView } from "@repo/api-contracts";
 import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
 import { SwarmFleetService } from "@/core/modules/swarm/services/swarm-fleet.service";
 import { SwarmParticipationService } from "@/core/modules/swarm/services/swarm-participation.service";
-import { DockerService } from "@/core/modules/docker/services/docker.service";
+import { DockerService } from "@repo/nest-docker/services/docker.service";
 import {
     ingressFromLabels,
     platformRoleFromLabels,

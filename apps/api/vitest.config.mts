@@ -163,6 +163,7 @@ export default defineConfig(
         "@repo/nest-events": path.resolve(__dirname, "../../packages/nest/events/src"),
         "@repo/nest-env": path.resolve(__dirname, "../../packages/nest/env/src"),
         "@repo/nest-database-core": path.resolve(__dirname, "../../packages/nest/database-core/src"),
+        "@repo/nest-docker": path.resolve(__dirname, "../../packages/nest/docker/src"),
         "@repo/nest-supervisor-core": path.resolve(__dirname, "../../packages/nest/supervisor-core/src"),
         "@repo/nest-database-local": path.resolve(__dirname, "../../packages/nest/database-local/src"),
         "@repo/nest-nodes": path.resolve(__dirname, "../../packages/nest/nodes/src"),

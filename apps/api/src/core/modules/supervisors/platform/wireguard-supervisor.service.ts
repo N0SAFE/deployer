@@ -23,12 +23,12 @@
 import { Inject, Injectable } from "@nestjs/common";
 import z from "zod/v4";
 
-import { BaseDockerSupervisorService } from "@/core/modules/docker/services/base-docker-supervisor.service";
+import { BaseDockerSupervisorService } from "@repo/nest-docker/services/base-docker-supervisor.service";
 import {
 	resolveSupervisorRuntime,
 	type DockerSupervisorRuntime,
-} from "@/core/modules/docker/services/docker-supervisor-runtime";
-import { DockerService } from "@/core/modules/docker/services/docker.service";
+} from "@repo/nest-docker/services/docker-supervisor-runtime";
+import { DockerService } from "@repo/nest-docker/services/docker.service";
 import {
 	baseSupervisorPayloadSchema,
 	type SupervisorProbeResult,

@@ -15,21 +15,70 @@ Both are expected and intentionally different.
 
 ## Workspace structure
 
-- `apps/*`: runtime products (`api`, `web`, `doc`)
+- `apps/*`: runtime products (`api`, `setup`, `web`, `doc`)
 - `packages/contracts/*`: shared contract definitions
 - `packages/utils/*`: shared runtime/tooling helpers
+- `packages/nest/*`: shared NestJS pre-wired building blocks
 - `packages/ui/*`: shared UI library
 - `packages/configs/*`: shared lint/type/test/tooling configuration
 - `packages/bin/*`: internal CLIs used by scripts
 
 ## High-value package examples
 
-- `@repo/api-contracts` → `packages/contracts/api`
-- `@repo/auth` → `packages/utils/auth`
-- `@repo/orpc-utils` → `packages/utils/orpc`
-- `@repo/declarative-routing` → `packages/utils/declarative-routing`
-- `@repo/ui` → `packages/ui/base`
-- `@repo/env` → `packages/utils/env`
+| Import name | Physical path |
+| --- | --- |
+| `@repo/api-contracts` | `packages/contracts/api` |
+| `@repo/contracts-entities` | `packages/contracts/entities` |
+| `@repo/auth` | `packages/utils/auth` |
+| `@repo/orpc-utils` | `packages/utils/orpc` |
+| `@repo/errors` | `packages/utils/errors` |
+| `@repo/logger` | `packages/utils/logger` |
+| `@repo/declarative-routing` | `packages/utils/declarative-routing` |
+| `@repo/env` | `packages/utils/env` |
+| `@repo/ui` | `packages/ui/base` |
+| `@repo/nest-env` | `packages/nest/env` |
+| `@repo/nest-schema` | `packages/nest/schema` |
+| `@repo/nest-database-core` | `packages/nest/database-core` |
+| `@repo/nest-database-local` | `packages/nest/database-local` |
+| `@repo/nest-docker` | `packages/nest/docker` |
+| `@repo/nest-nodes` | `packages/nest/nodes` |
+| `@repo/nest-supervisor-core` | `packages/nest/supervisor-core` |
+| `@repo/nest-lifecycle` | `packages/nest/lifecycle` |
+| `@repo/nest-events` | `packages/nest/events` |
+
+## The `packages/nest/*` family
+
+These are pre-wired NestJS building blocks shared between the Nest apps (`api`,
+`setup`). Each one follows the same split, which is what makes it reusable:
+
+**The package owns the MECHANISM. The app owns the POLICY.**
+
+| Package | Ships | The app supplies |
+| --- | --- | --- |
+| `nest-env` | env loading + validation + a typed `EnvService` | the app's Zod schema |
+| `nest-schema` | drizzle table definitions + the codec registry | the encryption key + traefik builder (via `configureSchemaCodecs`) |
+| `nest-database-core` | `BaseDatabaseService` over any drizzle client | the concrete database service |
+| `nest-database-local` | the SQLite connection + `@Global` module | — |
+| `nest-docker` | the engine client, container lifecycle, swarm-spec mapping | connection + scanner + Postgres-identity CONFIG as data |
+| `nest-nodes` | node/cluster repositories | — |
+| `nest-supervisor-core` | supervisor base classes + event bus | each supervisor's `buildSwarmSpec()` |
+| `nest-lifecycle` | the app-lifecycle phase/event service | — |
+
+Two consequences worth knowing before you add code:
+
+- **No package names a platform service.** `@repo/nest-docker` knows HOW to schedule
+a swarm service; the supervisor topology table (which services exist, on how many
+nodes) stays in the app, because naming our ingress/redis/database is a platform
+decision. The same applies to `PLATFORM_SUPERVISOR_TOPOLOGY` versus the generic
+runtime vocabulary.
+- **No package reads `process.env`.** Configuration arrives as data through a narrow
+interface (`DockerConnectionConfig`, `ScannerConfig`, `PostgresIdentityConfig`) or
+through a `forRoot({ schema })` call, so a second Nest app can use the primitives
+with its own variables instead of inheriting the first app's environment contract.
+
+When adding behaviour, ask which side of that line it falls on. Business logic that
+exactly one app consumes belongs in that app, even if the package is where it would
+be convenient.
 
 ## Dependency model
 
@@ -57,6 +106,10 @@ Avoid deep imports into package internals. Prefer stable public exports from eac
 
 - Confusing import names and physical paths in docs/examples.
 - Introducing app-specific behavior into shared packages without clear boundaries.
+- Exporting business logic from a package when only one app needs it — keep it in
+  that app and expose the shared primitive instead.
+- Hard-coding one app's config (env var names, service names) inside a package
+  instead of taking it as a parameter or a `forRoot` option.
 - Skipping root-level validation after changing shared packages.
 
 ## Related docs

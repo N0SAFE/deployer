@@ -38,7 +38,7 @@ import {
 } from "@repo/contracts-entities";
 import { EnvService } from "@/config/env/env.module";
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
-import { DockerService } from "@/core/modules/docker/services/docker.service";
+import { DockerService } from "@repo/nest-docker/services/docker.service";
 import { ClusterNodeRepository } from "@repo/nest-nodes/cluster-node.repository";
 import { SwarmClusterService } from "./swarm-cluster.service";
 import { platformRoleForPolicy, withIngress, withPlatformRole } from "@repo/nest-nodes/swarm-node-labels";

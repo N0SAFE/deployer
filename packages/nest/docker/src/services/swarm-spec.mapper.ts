@@ -1,4 +1,9 @@
 /**
+ * Moved here from `core/modules/swarm` because it translates OUR swarm-spec
+ * contract into a dockerode `ServiceSpec` — a docker concern, not a swarm-policy
+ * one. It imports nothing but dockerode's TYPES and the contracts, so it has no
+ * app or feature dependency and both `docker` and `swarm` can consume it.
+ *
  * Swarm spec mapper — pure, side-effect-free translations between the
  * platform's canonical `SwarmServiceSpecInput` (Zod-owned, see
  * `packages/contracts/entities/src/entities/swarm/service.spec.schema.ts`)

@@ -26,11 +26,11 @@ import z from "zod/v4";
 
 import {
 	BaseDockerSupervisorService,
-} from "@/core/modules/docker/services/base-docker-supervisor.service";
+} from "@repo/nest-docker/services/base-docker-supervisor.service";
 import {
 	resolveSupervisorRuntime,
 	type DockerSupervisorRuntime,
-} from "@/core/modules/docker/services/docker-supervisor-runtime";
+} from "@repo/nest-docker/services/docker-supervisor-runtime";
 import {
 	BaseSupervisorService,
 	baseSupervisorPayloadSchema,
@@ -42,7 +42,7 @@ import {
 	swarmProcessInfoSchema,
 	type DockerProcessInfo,
 } from "@repo/nest-supervisor-core/supervisor-process-info";
-import { DockerService } from "@/core/modules/docker/services/docker.service";
+import { DockerService } from "@repo/nest-docker/services/docker.service";
 import {
 	PostgresServiceProvisioner,
 	MANAGED_POSTGRES_CONTAINER_NAME,
@@ -51,8 +51,8 @@ import {
 	MANAGED_POSTGRES_VOLUME_NAME,
 	managedPostgresServiceName,
 	type PostgresServiceIdentity,
-} from "@/core/modules/docker/containers/postgres/postgres-service.provisioner";
-import { MANAGED_POSTGRES_ALIAS } from "@/core/modules/docker/containers/postgres/postgres-service.provisioner";
+} from "@repo/nest-docker/containers/postgres/postgres-service.provisioner";
+import { MANAGED_POSTGRES_ALIAS } from "@repo/nest-docker/containers/postgres/postgres-service.provisioner";
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 import { EnvService } from "@/config/env/env.module";
 import { splitManagedEnv } from "@repo/env";

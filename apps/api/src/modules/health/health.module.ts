@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TerminusModule } from '@nestjs/terminus';
+import { READINESS_PROBE } from '@/core/orchestrator/readiness.port';
 import { HealthController } from './controllers/health.controller';
 import { HealthService } from './services/health.service';
 import { HealthRepository } from './repositories/health.repository';
@@ -31,6 +32,11 @@ import { SwarmCoreModule } from '@/core/modules/swarm/swarm.module';
     HealthRepository,
     ReadinessStateService,
     ReadinessService,
+    // Bind the core-owned PORT to this module's implementation. `useExisting`
+    // (not `useClass`) keeps ONE instance: the readiness-state service shares
+    // the probe's cached snapshot, so a second instance would double the
+    // subscriptions for no benefit.
+    { provide: READINESS_PROBE, useExisting: ReadinessService },
     ReadinessIndicators,
   ],
   exports: [HealthService, HealthRepository, ReadinessService, ReadinessStateService],
