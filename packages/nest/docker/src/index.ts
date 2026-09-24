@@ -25,6 +25,9 @@
  * app's environment schema.
  */
 export * from "./docker-config";
+export { DockerModule } from "./docker.module";
+export type { DockerModuleOptions, DockerModuleAsyncOptions } from "./docker.module";
+export { DOCKER_CONNECTION_CONFIG, DOCKER_SCANNER_CONFIG } from "./docker.module";
 export { DockerService } from "./services/docker.service";
 export { AbstractDockerContainerService } from "./services/abstract-docker-container.service";
 export { BaseDockerSupervisorService } from "./services/base-docker-supervisor.service";

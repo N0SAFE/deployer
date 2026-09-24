@@ -13,11 +13,24 @@
  * rows afterwards, so both need the same connection with the same migrations
  * already applied.
  *
+ * HOW TO REGISTER IT
+ *   LocalDatabaseModule.forRoot({ databasePath, migrationsDir })
+ *   LocalDatabaseModule.forRootAsync({ inject: [EnvService], useFactory })
+ *
+ * The APP supplies both values: where its file lives, and where its migration
+ * files live. The package reads no environment variable and derives no path —
+ * it cannot guess either one, and an earlier version that tried produced a
+ * silent failure (see `LocalDatabaseModuleOptions.migrationsDir`).
+ *
  * WHAT IT IS NOT
  * No table definitions (those are in `@repo/nest-schema/local`), no repositories
- * (those are in `@repo/nest-nodes`), and no migrations — the app owns its
- * drizzle config and migration files so `drizzle-kit` resolves them from there.
+ * (those are in `@repo/nest-nodes`), and no migration FILES — the app owns them
+ * so `drizzle-kit` resolves them from its own drizzle config.
  */
 export { LocalDatabaseService } from "./local-database.service";
 export { LocalDatabaseLifecycleService } from "./local-database-lifecycle.service";
 export { LocalDatabaseModule } from "./local-database.module";
+export type {
+	LocalDatabaseModuleOptions,
+	LocalDatabaseModuleAsyncOptions,
+} from "./local-database.module";

@@ -6,29 +6,46 @@
     "types": "./src/index.ts",
     "exports": {
         ".": {
-            "types": ["./src/index.ts"],
+            "types": [
+                "./src/index.ts"
+            ],
             "import": "./dist/esm/index.mjs",
             "require": "./dist/cjs/index.js"
         },
         "./node-config.repository": {
-            "types": ["./src/node-config.repository.ts"],
+            "types": [
+                "./src/node-config.repository.ts"
+            ],
             "import": "./dist/esm/node-config.repository.mjs",
             "require": "./dist/cjs/node-config.repository.js"
         },
         "./cluster-node.repository": {
-            "types": ["./src/cluster-node.repository.ts"],
+            "types": [
+                "./src/cluster-node.repository.ts"
+            ],
             "import": "./dist/esm/cluster-node.repository.mjs",
             "require": "./dist/cjs/cluster-node.repository.js"
         },
         "./cluster-node-inventory.repository": {
-            "types": ["./src/cluster-node-inventory.repository.ts"],
+            "types": [
+                "./src/cluster-node-inventory.repository.ts"
+            ],
             "import": "./dist/esm/cluster-node-inventory.repository.mjs",
             "require": "./dist/cjs/cluster-node-inventory.repository.js"
         },
         "./swarm-node-labels": {
-            "types": ["./src/swarm-node-labels.ts"],
+            "types": [
+                "./src/swarm-node-labels.ts"
+            ],
             "import": "./dist/esm/swarm-node-labels.mjs",
             "require": "./dist/cjs/swarm-node-labels.js"
+        },
+        "./nodes.module": {
+            "types": [
+                "./src/nodes.module.ts"
+            ],
+            "import": "./dist/esm/nodes.module.mjs",
+            "require": "./dist/cjs/nodes.module.js"
         }
     },
     "scripts": {

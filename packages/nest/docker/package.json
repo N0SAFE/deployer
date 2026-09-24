@@ -5,16 +5,83 @@
     "main": "./dist/cjs/index.js",
     "types": "./src/index.ts",
     "exports": {
-        ".": { "types": ["./src/index.ts"], "import": "./dist/esm/index.mjs", "require": "./dist/cjs/index.js" },
-        "./docker-config": { "types": ["./src/docker-config.ts"], "import": "./dist/esm/docker-config.mjs", "require": "./dist/cjs/docker-config.js" },
-        "./services/docker.service": { "types": ["./src/services/docker.service.ts"], "import": "./dist/esm/services/docker.service.mjs", "require": "./dist/cjs/services/docker.service.js" },
-        "./services/abstract-docker-container.service": { "types": ["./src/services/abstract-docker-container.service.ts"], "import": "./dist/esm/services/abstract-docker-container.service.mjs", "require": "./dist/cjs/services/abstract-docker-container.service.js" },
-        "./services/base-docker-supervisor.service": { "types": ["./src/services/base-docker-supervisor.service.ts"], "import": "./dist/esm/services/base-docker-supervisor.service.mjs", "require": "./dist/cjs/services/base-docker-supervisor.service.js" },
-        "./services/container-link-resolver.interface": { "types": ["./src/services/container-link-resolver.interface.ts"], "import": "./dist/esm/services/container-link-resolver.interface.mjs", "require": "./dist/cjs/services/container-link-resolver.interface.js" },
-        "./services/docker-supervisor-runtime": { "types": ["./src/services/docker-supervisor-runtime.ts"], "import": "./dist/esm/services/docker-supervisor-runtime.mjs", "require": "./dist/cjs/services/docker-supervisor-runtime.js" },
-        "./services/swarm-spec.mapper": { "types": ["./src/services/swarm-spec.mapper.ts"], "import": "./dist/esm/services/swarm-spec.mapper.mjs", "require": "./dist/cjs/services/swarm-spec.mapper.js" },
-        "./services/scanner-container-manager.service": { "types": ["./src/services/scanner-container-manager.service.ts"], "import": "./dist/esm/services/scanner-container-manager.service.mjs", "require": "./dist/cjs/services/scanner-container-manager.service.js" },
-        "./containers/postgres/postgres-service.provisioner": { "types": ["./src/containers/postgres/postgres-service.provisioner.ts"], "import": "./dist/esm/containers/postgres/postgres-service.provisioner.mjs", "require": "./dist/cjs/containers/postgres/postgres-service.provisioner.js" }
+        ".": {
+            "types": [
+                "./src/index.ts"
+            ],
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
+        "./docker-config": {
+            "types": [
+                "./src/docker-config.ts"
+            ],
+            "import": "./dist/esm/docker-config.mjs",
+            "require": "./dist/cjs/docker-config.js"
+        },
+        "./services/docker.service": {
+            "types": [
+                "./src/services/docker.service.ts"
+            ],
+            "import": "./dist/esm/services/docker.service.mjs",
+            "require": "./dist/cjs/services/docker.service.js"
+        },
+        "./services/abstract-docker-container.service": {
+            "types": [
+                "./src/services/abstract-docker-container.service.ts"
+            ],
+            "import": "./dist/esm/services/abstract-docker-container.service.mjs",
+            "require": "./dist/cjs/services/abstract-docker-container.service.js"
+        },
+        "./services/base-docker-supervisor.service": {
+            "types": [
+                "./src/services/base-docker-supervisor.service.ts"
+            ],
+            "import": "./dist/esm/services/base-docker-supervisor.service.mjs",
+            "require": "./dist/cjs/services/base-docker-supervisor.service.js"
+        },
+        "./services/container-link-resolver.interface": {
+            "types": [
+                "./src/services/container-link-resolver.interface.ts"
+            ],
+            "import": "./dist/esm/services/container-link-resolver.interface.mjs",
+            "require": "./dist/cjs/services/container-link-resolver.interface.js"
+        },
+        "./services/docker-supervisor-runtime": {
+            "types": [
+                "./src/services/docker-supervisor-runtime.ts"
+            ],
+            "import": "./dist/esm/services/docker-supervisor-runtime.mjs",
+            "require": "./dist/cjs/services/docker-supervisor-runtime.js"
+        },
+        "./services/swarm-spec.mapper": {
+            "types": [
+                "./src/services/swarm-spec.mapper.ts"
+            ],
+            "import": "./dist/esm/services/swarm-spec.mapper.mjs",
+            "require": "./dist/cjs/services/swarm-spec.mapper.js"
+        },
+        "./services/scanner-container-manager.service": {
+            "types": [
+                "./src/services/scanner-container-manager.service.ts"
+            ],
+            "import": "./dist/esm/services/scanner-container-manager.service.mjs",
+            "require": "./dist/cjs/services/scanner-container-manager.service.js"
+        },
+        "./containers/postgres/postgres-service.provisioner": {
+            "types": [
+                "./src/containers/postgres/postgres-service.provisioner.ts"
+            ],
+            "import": "./dist/esm/containers/postgres/postgres-service.provisioner.mjs",
+            "require": "./dist/cjs/containers/postgres/postgres-service.provisioner.js"
+        },
+        "./docker.module": {
+            "types": [
+                "./src/docker.module.ts"
+            ],
+            "import": "./dist/esm/docker.module.mjs",
+            "require": "./dist/cjs/docker.module.js"
+        }
     },
     "scripts": {
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",

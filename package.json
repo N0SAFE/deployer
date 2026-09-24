@@ -43,8 +43,10 @@
                 "declarative-routing": "^0.1.20"
             },
             "auth": {
-                "better-auth": "^1.6.20",
-                "@thallesp/nestjs-better-auth": "^2.2.2"
+                "@better-auth/agent-auth": "0.6.2",
+                "@better-auth/api-key": "^1.7.5",
+                "@thallesp/nestjs-better-auth": "^2.2.2",
+                "better-auth": "^1.6.20"
             },
             "react": {
                 "react": "^19.2.0",
@@ -230,6 +232,7 @@
         "check-env:api": "bun packages/utils/env/src/cli.ts check api",
         "check-env:web": "bun packages/utils/env/src/cli.ts check web",
         "check-env:doc": "bun packages/utils/env/src/cli.ts check doc",
+        "deploy:doc:s3": "bun --bun scripts/deploy-doc-s3.ts",
         "check:swarm:cli-lock": "bash scripts/check-swarm-cli-lock.sh",
         "start": "docker compose -f ./docker/compose/docker-compose.prod.yml down && docker compose -f ./docker/compose/docker-compose.prod.yml up --build",
         "start:local": "turbo start",

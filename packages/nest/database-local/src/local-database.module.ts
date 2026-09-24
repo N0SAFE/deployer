@@ -1,16 +1,67 @@
-import { Global, Logger, Module } from "@nestjs/common";
+import {
+    Global,
+    Logger,
+    Module,
+    type DynamicModule,
+    type InjectionToken,
+    type ModuleMetadata,
+    type OptionalFactoryDependency,
+    type Provider,
+} from "@nestjs/common";
 import { drizzle as drizzleSqlite } from "drizzle-orm/bun-sqlite";
 import { Database as BunSqliteDatabase } from "bun:sqlite";
 import * as fs from "fs";
 import * as path from "path";
 import { createHash } from "node:crypto";
-import { fileURLToPath } from "url";
 import * as localSchema from "@repo/nest-schema/local";
 import { LOCAL_DATABASE_CLIENT, LOCAL_DATABASE_CONNECTION } from "@repo/nest-database-core/database-connection";
 import { LocalDatabaseLifecycleService } from "./local-database-lifecycle.service";
 import { LocalDatabaseService } from "./local-database.service";
 
 const logger = new Logger("LocalDatabaseModule");
+
+/** What `LocalDatabaseModule.forRoot` needs from the consuming app. */
+export interface LocalDatabaseModuleOptions {
+    /**
+     * Where the SQLite file lives.
+     *
+     * REQUIRED, and deliberately so. The package previously defaulted to
+     * `/app/data/local.db` and also read `process.env.NODE_LOCAL_DB_PATH`
+     * itself — an app convention leaking into a shared primitive, which made
+     * the package unusable (and untestable) outside a container.
+     */
+    databasePath: string;
+    /**
+     * Directory holding the app's SQLite migration files.
+     *
+     * The MIGRATIONS ARE THE APP'S DATA: they describe this app's local tables.
+     * The package previously derived the path with a relative `new URL(...)`,
+     * which silently pointed at a non-existent directory the moment the module
+     * moved into a package — the runner then logged "directory not found,
+     * skipping" and booted with an UNMIGRATED schema. Taking it as an option is
+     * what makes the failure impossible instead of silent.
+     */
+    migrationsDir: string;
+}
+
+export interface LocalDatabaseModuleAsyncOptions {
+    /** Modules whose exports the factory injects. */
+    imports?: NonNullable<ModuleMetadata["imports"]>;
+    /** Tokens the factory's parameters are injected from, in order. */
+    inject?: (InjectionToken | OptionalFactoryDependency)[];
+    /** Build the options from the injected dependencies. */
+    useFactory: (
+        ...deps: never[]
+    ) => LocalDatabaseModuleOptions | Promise<LocalDatabaseModuleOptions>;
+}
+
+/**
+ * Internal token carrying the resolved options to the connection factory.
+ *
+ * Both registration paths bind it — `useValue` in the sync path, `useFactory`
+ * in the async one — so the provider list below is identical either way.
+ */
+const LOCAL_DATABASE_OPTIONS = "LOCAL_DATABASE_OPTIONS" as const;
 
 /**
  * Process-level guard: local schema migrations run ONCE per DB path per process.
@@ -25,12 +76,16 @@ const logger = new Logger("LocalDatabaseModule");
  */
 const migratedDbPaths = new Set<string>();
 
-function ensureLocalSchemaMigrated(sqlite: BunSqliteDatabase, dbPath: string): void {
+function ensureLocalSchemaMigrated(
+    sqlite: BunSqliteDatabase,
+    dbPath: string,
+    migrationsDir: string,
+): void {
     if (migratedDbPaths.has(dbPath)) {
         return;
     }
     try {
-        runSqliteMigrations(sqlite);
+        runSqliteMigrations(sqlite, migrationsDir);
         migratedDbPaths.add(dbPath);
     } catch (error) {
         logger.error(`Local SQLite migrations failed for ${dbPath}`, error as Error);
@@ -127,10 +182,7 @@ function backfillAppliedMigrationsIfSchemaExists(
     return true;
 }
 
-function runSqliteMigrations(sqlite: BunSqliteDatabase): void {
-    const migrationsDir = fileURLToPath(
-        new URL("../../../../config/drizzle/local/migrations", import.meta.url)
-    );
+function runSqliteMigrations(sqlite: BunSqliteDatabase, migrationsDir: string): void {
     logger.log(`Checking local migrations at: ${migrationsDir}`);
     if (!fs.existsSync(migrationsDir)) {
         logger.warn(`Local migrations directory not found at ${migrationsDir}, skipping`);
@@ -198,49 +250,110 @@ function runSqliteMigrations(sqlite: BunSqliteDatabase): void {
 }
 
 @Global()
-@Module({
-    providers: [
-        {
-            // The RAW handle, created ONCE per Nest context. Exposed so the
-            // lifecycle service can CLOSE it at shutdown (the Drizzle wrapper
-            // exposes no typed accessor for the underlying client).
-            provide: LOCAL_DATABASE_CLIENT,
-            useFactory: (): BunSqliteDatabase => {
-                logger.log("Initializing local SQLite database connection...");
-                const dbPath = process.env.NODE_LOCAL_DB_PATH ?? "/app/data/local.db";
-                logger.log(`Using local SQLite database path: ${dbPath}`);
-                const dir = path.dirname(dbPath);
-                if (!fs.existsSync(dir)) {
-                    fs.mkdirSync(dir, { recursive: true });
-                }
-                const sqlite = new BunSqliteDatabase(dbPath);
-                sqlite.run("PRAGMA journal_mode = WAL;");
-                sqlite.run("PRAGMA busy_timeout = 5000;");
-                // Migrate ONCE per process per DB path — every later NestJS
-                // context (setup-wizard / mesh-initializer / main-app sub-apps)
-                // skips the scan entirely.
-                ensureLocalSchemaMigrated(sqlite, dbPath);
-                return sqlite;
+@Module({})
+export class LocalDatabaseModule {
+    /**
+     * Register the local SQLite connection with values the app already resolved.
+     *
+     *   LocalDatabaseModule.forRoot({
+     *     databasePath: "/app/data/local.db",
+     *     migrationsDir: fileURLToPath(new URL("../../config/drizzle/local/migrations", import.meta.url)),
+     *   })
+     */
+    static forRoot(options: LocalDatabaseModuleOptions): DynamicModule {
+        return {
+            module: LocalDatabaseModule,
+            providers: [
+                { provide: LOCAL_DATABASE_OPTIONS, useValue: options },
+                ...LocalDatabaseModule.providers(),
+            ],
+            exports: LocalDatabaseModule.exports(),
+        };
+    }
+
+    /**
+     * Register the local SQLite connection with values built from injected
+     * dependencies — typically the app's `EnvService`.
+     *
+     *   LocalDatabaseModule.forRootAsync({
+     *     imports: [EnvModule],
+     *     inject: [EnvService],
+     *     useFactory: (env: EnvService) => ({
+     *       databasePath: env.get("NODE_LOCAL_DB_PATH"),
+     *       migrationsDir: fileURLToPath(new URL("../../config/drizzle/local/migrations", import.meta.url)),
+     *     }),
+     *   })
+     */
+    static forRootAsync(options: LocalDatabaseModuleAsyncOptions): DynamicModule {
+        return {
+            module: LocalDatabaseModule,
+            imports: options.imports ?? [],
+            providers: [
+                {
+                    provide: LOCAL_DATABASE_OPTIONS,
+                    useFactory: options.useFactory,
+                    inject: options.inject ?? [],
+                },
+                ...LocalDatabaseModule.providers(),
+            ],
+            exports: LocalDatabaseModule.exports(),
+        };
+    }
+
+    /**
+     * The provider list, identical for both registration paths.
+     *
+     * The options arrive through the SAME token either way (a `useValue` in the
+     * sync path, a `useFactory` in the async one), so there is exactly one list
+     * and the two paths cannot drift.
+     */
+    private static providers(): Provider[] {
+        return [
+            {
+                // The RAW handle, created ONCE per Nest context. Exposed so the
+                // lifecycle service can CLOSE it at shutdown (the Drizzle wrapper
+                // exposes no typed accessor for the underlying client).
+                provide: LOCAL_DATABASE_CLIENT,
+                useFactory: (options: LocalDatabaseModuleOptions): BunSqliteDatabase => {
+                    const dbPath = options.databasePath;
+                    logger.log("Initializing local SQLite database connection...");
+                    logger.log(`Using local SQLite database path: ${dbPath}`);
+                    const dir = path.dirname(dbPath);
+                    if (!fs.existsSync(dir)) {
+                        fs.mkdirSync(dir, { recursive: true });
+                    }
+                    const sqlite = new BunSqliteDatabase(dbPath);
+                    sqlite.run("PRAGMA journal_mode = WAL;");
+                    sqlite.run("PRAGMA busy_timeout = 5000;");
+                    // Migrate ONCE per process per DB path — every later NestJS
+                    // context (setup-wizard / mesh-initializer / main-app sub-apps)
+                    // skips the scan entirely.
+                    ensureLocalSchemaMigrated(sqlite, dbPath, options.migrationsDir);
+                    return sqlite;
+                },
+                inject: [LOCAL_DATABASE_OPTIONS],
             },
-        },
-        {
-            provide: LOCAL_DATABASE_CONNECTION,
-            useFactory: (sqlite: BunSqliteDatabase) =>
-                drizzleSqlite(sqlite, { schema: localSchema }),
-            inject: [LOCAL_DATABASE_CLIENT],
-        },
-        {
-            provide: LocalDatabaseService,
-            useFactory: (db: ReturnType<typeof drizzleSqlite<typeof localSchema>>) => {
-                return new LocalDatabaseService(db);
+            {
+                provide: LOCAL_DATABASE_CONNECTION,
+                useFactory: (sqlite: BunSqliteDatabase) =>
+                    drizzleSqlite(sqlite, { schema: localSchema }),
+                inject: [LOCAL_DATABASE_CLIENT],
             },
-            inject: [LOCAL_DATABASE_CONNECTION],
-        },
-        // Closes the handle opened by the factory ABOVE, per NestJS context.
-        // Each context opens its own `bun:sqlite` handle, so each must release
-        // it — including the sub-apps, which are closed mid-boot.
-        LocalDatabaseLifecycleService,
-    ],
-    exports: [LocalDatabaseService, LOCAL_DATABASE_CONNECTION, LOCAL_DATABASE_CLIENT],
-})
-export class LocalDatabaseModule {}
+            {
+                provide: LocalDatabaseService,
+                useFactory: (db: ReturnType<typeof drizzleSqlite<typeof localSchema>>) => {
+                    return new LocalDatabaseService(db);
+                },
+                inject: [LOCAL_DATABASE_CONNECTION],
+            },
+            // Closes the handle opened by the factory ABOVE, per NestJS context.
+            // Each context opens its own `bun:sqlite` handle, so each must release
+            // it — including the sub-apps, which are closed mid-boot.
+            LocalDatabaseLifecycleService,
+        ];
+    }
+
+    private static exports(): DynamicModule["exports"] {
+        return [LocalDatabaseService, LOCAL_DATABASE_CONNECTION, LOCAL_DATABASE_CLIENT];
+    }
+}

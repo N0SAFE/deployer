@@ -34,6 +34,8 @@ export type { NodeConfigRow } from "./node-config.repository";
 export type { SetupState } from "@repo/nest-schema/local/node-config";
 
 export { ClusterNodeRepository } from "./cluster-node.repository";
+export { NodesModule } from "./nodes.module";
+
 export { ClusterNodeInventoryRepository } from "./cluster-node-inventory.repository";
 
 export {
