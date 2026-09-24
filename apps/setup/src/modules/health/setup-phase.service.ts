@@ -17,6 +17,21 @@ import type { SetupPhase, SetupPhaseEvent, SetupPhaseSnapshot } from "./setup-ph
  *
  * The phase is only ever moved by the service that does the work; nothing here
  * guesses or infers.
+ *
+ * WHY NOT `@repo/nest-lifecycle`'s `AppLifecycleService`
+ * Both are RxJS phase state machines, but they answer different questions and
+ * must not be merged:
+ *
+ *   - `AppLifecycleService` describes ONE Nest process booting: config → DB
+ *     probe → mesh join → serving. Its phases end when that process is up.
+ *   - This service describes a MULTI-PROCESS handover: found/join the swarm,
+ *     drive the API to provision, retarget the ingress, then exit. Its terminal
+ *     phase (`ready`) means "compose may now start `apps/api`" — a statement
+ *     about OTHER processes, not about this one.
+ *
+ * Folding them together would put the API's bootstrap vocabulary inside this
+ * app's public readiness contract (compose parses only this one's phase), and
+ * would couple the app being retired to the app that outlives it.
  */
 @Injectable()
 export class SetupPhaseService {
