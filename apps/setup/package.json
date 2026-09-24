@@ -33,6 +33,8 @@
     "@repo/errors": "*",
     "@repo/logger": "*",
     "@repo/nest-env": "*",
+    "@repo/nest-reachability": "*",
+    "@repo/nest-swarm": "*",
     "@repo/orpc-utils": "*",
     "express": "catalog:api:nest",
     "reflect-metadata": "catalog:api:nest",

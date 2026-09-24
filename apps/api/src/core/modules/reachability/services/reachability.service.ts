@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common'
-import { isRecord } from "@repo/type-guards"
+import { probeAddress, probePeer } from "@repo/nest-reachability"
 import dns from 'node:dns/promises'
 import { isIP } from 'node:net'
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository"
@@ -325,41 +325,27 @@ export class ReachabilityService {
    * by probing its identity endpoint (/mesh/ping) and health endpoint
    * (/health) over https then http. Does not throw — returns a structured
    * result so callers can decide how to surface a failure.
+   *
+   * The PROBE is the package's generic primitive; which endpoints identify a
+   * node, and what a failure means for the operator, are this platform's.
    */
   async verifyPublicAddress(address: string): Promise<{ valid: boolean; reason?: string; latencyMs?: number; statusCode?: number }> {
     const clean = address.trim().replace(/\/+$/, '')
     if (!clean) return { valid: false, reason: 'Address is empty' }
 
-    // Normalize to a full origin+path: keep whatever scheme/path the user
-    // provided (e.g. https://example.com/base), fall back to https for
-    // hostnames and http for bare IPs.
-    let origin = clean
-    if (!/^https?:\/\//i.test(origin)) {
-      const host = origin.split('/')[0]!
-      origin = isIP(host) !== 0 ? `http://${origin}` : `https://${origin}`
-    }
+    const result = await probeAddress(clean, {
+      paths: ['/mesh/ping', '/health'],
+      tryBothSchemes: true,
+      timeoutMs: 5_000,
+      failureReason: (value) =>
+        `Address "${value}" did not respond on this node's /mesh/ping or /health endpoints. DNS may still be propagating, or a firewall/NAT prevents this node from reaching its own public address.`,
+    })
 
-    const probes: Array<{ label: string; url: string }> = [
-      { label: 'mesh-ping', url: `${origin}/mesh/ping` },
-      { label: 'mesh-ping-http', url: `${origin.replace(/^https/, 'http')}/mesh/ping` },
-      { label: 'health', url: `${origin}/health` },
-      { label: 'health-http', url: `${origin.replace(/^https/, 'http')}/health` },
-    ]
-
-    for (const probe of probes) {
-      try {
-        const start = Date.now()
-        const resp = await fetch(probe.url, { signal: AbortSignal.timeout(5000) })
-        if (resp.ok) {
-          return { valid: true, latencyMs: Date.now() - start, statusCode: resp.status }
-        }
-      } catch {
-        // try the next probe
-      }
-    }
     return {
-      valid: false,
-      reason: `Address "${clean}" did not respond on this node's /mesh/ping or /health endpoints. DNS may still be propagating, or a firewall/NAT prevents this node from reaching its own public address.`,
+      valid: result.valid,
+      reason: result.reason,
+      latencyMs: result.latencyMs,
+      statusCode: result.statusCode,
     }
   }
 
@@ -553,80 +539,29 @@ export class ReachabilityService {
      */
     error?: string
   }> {
-    let parsed: URL
-    try {
-      parsed = new URL(url.trim())
-    } catch {
-      return { url, reachable: false, probeUrl: url, latencyMs: 0, error: "Invalid URL format" }
+    // Delegated to the shared primitive: the probe mechanics (primary path,
+    // liveness fallback, identity extraction) are generic; which paths identify
+    // a node is our convention, passed in as options.
+    const result = await probePeer(url, {
+      primaryPath: '/mesh/ping',
+      fallbackPath: '/health',
+      timeoutMs: 5_000,
+    })
+
+    if (result.reachable) {
+      this.logger.log(`✅ Mesh reachable at ${result.probeUrl} (${String(result.latencyMs)}ms)`)
+    } else {
+      this.logger.warn(`Mesh unreachable at ${url}: ${result.error ?? 'unknown error'}`)
     }
 
-    const start = Date.now()
-    const abort = new AbortController()
-    const timeout = setTimeout(() => { abort.abort() }, 5_000)
-
-    try {
-      this.logger.debug(`Probing mesh reachability at ${parsed.origin}/mesh/ping`)
-      const res = await fetch(`${parsed.origin}/mesh/ping`, {
-        method: 'GET',
-        signal: abort.signal,
-      })
-
-      const latencyMs = Date.now() - start
-
-      if (res.ok) {
-        const json = await res.json().catch(() => ({}))
-        const record = isRecord(json) ? json : {}
-        this.logger.log(`✅ Mesh reachable at ${parsed.origin} (${latencyMs}ms)`)
-        return {
-          url,
-          reachable: true,
-          probeUrl: url,
-          latencyMs,
-          advertisedHost: typeof record.advertisedHost === 'string' && record.advertisedHost.length > 0
-            ? record.advertisedHost
-            : undefined,
-          version: typeof record.version === 'string' ? record.version : undefined,
-        }
-      }
-
-      // ── Fallback: /health ─────────────────────────────────────────────
-      // /mesh/ping is served by the mesh controller (mounted only after a
-      // node finishes setup). During bootstrap — exactly when the remote
-      // wizard probes a peer — a live node may only expose the always-on
-      // /health endpoint (the gateway answers /mesh/ping with 503 until the
-      // main app mounts). So when /mesh/ping is non-2xx, fall back to
-      // /health on the same origin to tell "host is a live deployer node"
-      // apart from "nothing is listening". Mirrors verifyPublicAddress(),
-      // which also treats /health as a node identity signal.
-      this.logger.warn(`Mesh ping HTTP ${String(res.status)} from ${parsed.origin} — falling back to /health`)
-      const healthAbort = new AbortController()
-      const healthTimeout = setTimeout(() => { healthAbort.abort() }, 5_000)
-      try {
-        const healthRes = await fetch(`${parsed.origin}/health`, {
-          method: 'GET',
-          signal: healthAbort.signal,
-        })
-        const healthLatency = Date.now() - start
-        if (healthRes.ok) {
-          this.logger.log(`✅ Mesh host reachable via /health (${parsed.origin}, ping was HTTP ${String(res.status)})`)
-          return {
-            url,
-            reachable: true,
-            probeUrl: `${parsed.origin}/health`,
-            latencyMs: healthLatency,
-          }
-        }
-        return { url, reachable: false, probeUrl: url, latencyMs: healthLatency, error: `HTTP ${String(res.status)} (ping), HTTP ${String(healthRes.status)} (health)` }
-      } finally {
-        clearTimeout(healthTimeout)
-      }
-    } catch (err: unknown) {
-      const latencyMs = Date.now() - start
-      const message = err instanceof Error ? err.message : String(err)
-      this.logger.warn(`Mesh unreachable at ${parsed.origin}: ${message}`)
-      return { url, reachable: false, probeUrl: url, latencyMs, error: message }
-    } finally {
-      clearTimeout(timeout)
+    return {
+      url,
+      reachable: result.reachable,
+      probeUrl: result.probeUrl,
+      latencyMs: result.latencyMs,
+      advertisedHost: result.identity?.advertisedHost,
+      version: result.identity?.version,
+      error: result.error,
     }
   }
 }
