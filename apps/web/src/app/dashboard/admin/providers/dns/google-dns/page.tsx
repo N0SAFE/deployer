@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo
 import { Input } from '@repo/ui/components/shadcn/input'
 import { Label } from '@repo/ui/components/shadcn/label'
 import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Textarea } from '@repo/ui/components/shadcn/textarea'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
@@ -17,6 +18,7 @@ import { Siren, Plus, Trash2, Shield, ArrowLeft, Key } from 'lucide-react'
 import { toast } from 'sonner'
 import { AuthDashboardAdminProvidersDns } from '@/routes'
 import { useDNSProviders, useCreateDNSProvider, useDeleteDNSProvider } from '@/domains/dns-providers/hooks'
+import { EmptyState, PageHeader } from '@/components/dashboard'
 import { z } from 'zod/v4'
 
 const googleDnsSchema = z.object({
@@ -61,20 +63,28 @@ export default function AdminDnsProvidersGoogleDnsPage() {
 
   return (
     <div className="space-y-6">
-      <AuthDashboardAdminProvidersDns.Link><Button variant="ghost" size="sm" className="-ml-2"><ArrowLeft className="mr-1 size-4" />DNS Providers</Button></AuthDashboardAdminProvidersDns.Link>
-      <div className="flex items-center gap-2">
-        <Shield className="size-6 text-blue-500" /><div><h1 className="text-2xl font-semibold tracking-tight">Google Cloud DNS</h1><p className="text-sm text-muted-foreground">Configure service account keys for Google Cloud DNS.</p></div>
-      </div>
-      <Button size="sm" onClick={() => setAddOpen(true)}><Plus className="mr-2 size-4" />Add Service Account</Button>
+      <AuthDashboardAdminProvidersDns.Link><Button variant="ghost" size="sm" className="-ml-2"><ArrowLeft className="mr-1 size-4" />DNS providers</Button></AuthDashboardAdminProvidersDns.Link>
+      <PageHeader
+        title="Google Cloud DNS"
+        description="Configure service account keys for Google Cloud DNS."
+        actions={
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Plus className="mr-2 size-4" />
+            Add service account
+          </Button>
+        }
+      />
 
       <Card>
         <CardHeader><CardTitle>Service Accounts</CardTitle><CardDescription>Configured GCP service account keys for Cloud DNS.</CardDescription></CardHeader>
         <CardContent>
           {providers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Shield className="mb-4 size-12 text-muted-foreground/40" /><p className="text-lg font-medium">No service accounts configured</p>
-              <p className="text-sm text-muted-foreground">Add a GCP service account key to manage Cloud DNS records.</p>
-            </div>
+            <EmptyState
+              icon={Shield}
+              title="No service accounts configured"
+              description="Add a GCP service account key to manage Cloud DNS records."
+              action={{ label: 'Add service account', onClick: () => setAddOpen(true) }}
+            />
           ) : (
             <Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Project</TableHead><TableHead>Zone</TableHead><TableHead>Status</TableHead><TableHead className="w-20">Actions</TableHead></TableRow></TableHeader>
               <TableBody>
@@ -84,7 +94,7 @@ export default function AdminDnsProvidersGoogleDnsPage() {
                     <TableCell>{p.name}</TableCell><TableCell className="text-xs font-mono">{meta[0] ?? '-'}</TableCell>
                     <TableCell className="text-xs">{meta[1] ?? '-'}</TableCell>
                     <TableCell><Badge variant={p.isActive ? 'default' : 'secondary'}>{p.isActive ? 'Active' : 'Inactive'}</Badge></TableCell>
-                    <TableCell><Button variant="ghost" size="icon" className="size-8" onClick={() => { setDeleteId(p.id); setDeleteName(p.name); setDeleteOpen(true) }}><Trash2 className="size-4" /></Button></TableCell>
+                    <TableCell><Button variant="ghost" size="icon" className="size-8" onClick={() => { setDeleteId(p.id); setDeleteName(p.name); setDeleteOpen(true) }} title="Remove" aria-label={`Remove ${p.name}`}><Trash2 className="size-4" /></Button></TableCell>
                   </TableRow>)
                 })}
               </TableBody>
@@ -104,7 +114,7 @@ export default function AdminDnsProvidersGoogleDnsPage() {
             <form.Field name="name">{(f) => <div className="grid gap-2"><Label>Name</Label><Input value={f.state.value as string} onChange={(e) => f.handleChange(e.target.value)} placeholder="My GCP Service Account" /></div>}</form.Field>
             <form.Field name="projectId">{(f) => (<Field><FieldLabel>GCP Project ID</FieldLabel><FieldDescription>Your Google Cloud project ID.</FieldDescription><Input value={f.state.value as string} onChange={(e) => f.handleChange(e.target.value)} placeholder="my-project-123" /></Field>)}</form.Field>
             <form.Field name="managedZone">{(f) => (<Field><FieldLabel>Managed Zone Name</FieldLabel><FieldDescription>Name of the DNS managed zone in Cloud DNS.</FieldDescription><Input value={f.state.value as string} onChange={(e) => f.handleChange(e.target.value)} placeholder="my-zone" /></Field>)}</form.Field>
-            <form.Field name="serviceAccountKey">{(f) => (<Field><FieldLabel>Service Account Key (JSON)</FieldLabel><FieldDescription>Full content of the service account key JSON file. Encrypted at rest.</FieldDescription><textarea className="flex min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs font-mono" value={f.state.value as string} onChange={(e) => f.handleChange(e.target.value)} placeholder='{"type": "service_account", ...}' /></Field>)}</form.Field>
+            <form.Field name="serviceAccountKey">{(f) => (<Field><FieldLabel>Service Account Key (JSON)</FieldLabel><FieldDescription>Full content of the service account key JSON file. Encrypted at rest.</FieldDescription><Textarea className="min-h-25 font-mono text-xs" value={f.state.value as string} onChange={(e) => f.handleChange(e.target.value)} placeholder='{"type": "service_account", ...}' /></Field>)}</form.Field>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>

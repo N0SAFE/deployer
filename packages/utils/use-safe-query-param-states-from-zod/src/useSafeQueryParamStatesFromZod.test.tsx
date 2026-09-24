@@ -6,9 +6,9 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { getZodObjectDefaults } from './defaults'
-import { createParserForZodField } from './parsers'
-import { mergeWithDefaults } from './merge'
+import { getZodObjectDefaults } from '@repo/use-safe-query-param-states-from-zod/defaults'
+import { createParserForZodField } from '@repo/use-safe-query-param-states-from-zod/parsers'
+import { mergeWithDefaults } from '@repo/use-safe-query-param-states-from-zod/merge'
 import { z } from 'zod'
 
 describe('package smoke', () => {

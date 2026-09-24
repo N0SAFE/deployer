@@ -85,6 +85,13 @@
       "when": 1787841587635,
       "tag": "0011_foamy_spirit",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1789986393391,
+      "tag": "0012_lame_serpent_society",
+      "breakpoints": true
     }
   ]
 }

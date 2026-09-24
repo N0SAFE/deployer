@@ -8,7 +8,7 @@ import type {
     apiEnvSchema,
     docEnvSchema,
     webEnvSchema,
-} from "./index";
+} from "@repo/env/index";
 
 type SchemaInputRecord<TSchema extends zod.ZodTypeAny> =
     zod.input<TSchema> extends Record<string, unknown>

@@ -44,6 +44,7 @@ import {
   mapImageSortByToTableSort,
 } from './filter-config'
 import { AuthDashboardDockerImages } from '@/routes/index';
+import { StatStrip, StatStripItem } from '@/components/dashboard'
 
 const DEPLOYMENT_LIST_INPUT = {
   query: {
@@ -446,24 +447,20 @@ export default AuthDashboardDockerImages.Route(function DashboardDockerImagesPag
         )}
 
         <div className="mt-3 space-y-3">
-          <div className="grid gap-2 sm:grid-cols-4">
-            <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
-              <p className="text-muted-foreground">Visible</p>
-              <p className="text-base font-semibold">{filteredGroups.length}</p>
-            </div>
-            <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
-              <p className="text-muted-foreground">Selected</p>
-              <p className="text-base font-semibold">{selectedImageRows.length}</p>
-            </div>
-            <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
-              <p className="text-muted-foreground">Failed refs</p>
-              <p className="text-base font-semibold">{failedImages}</p>
-            </div>
-            <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
-              <p className="text-muted-foreground">Total usage</p>
-              <p className="text-base font-semibold">{filteredGroups.reduce((sum, group) => sum + group.usageCount, 0)}</p>
-            </div>
-          </div>
+          {/* Table baseline — one inline row rather than four nested boxes. */}
+          <StatStrip bare>
+            <StatStripItem label="Visible" value={filteredGroups.length} />
+            <StatStripItem label="Selected" value={selectedImageRows.length} />
+            <StatStripItem
+              label="Failed refs"
+              value={failedImages}
+              tone={failedImages > 0 ? 'danger' : undefined}
+            />
+            <StatStripItem
+              label="Total usage"
+              value={filteredGroups.reduce((sum, group) => sum + group.usageCount, 0)}
+            />
+          </StatStrip>
         </div>
       </div>
       </section>

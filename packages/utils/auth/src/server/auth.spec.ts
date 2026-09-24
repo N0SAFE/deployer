@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { multiSession } from 'better-auth/plugins';
 import { betterAuthFactory } from './auth';
 
 // Mock better-auth
@@ -27,6 +29,7 @@ vi.mock('better-auth/adapters/drizzle', () => ({
 vi.mock('better-auth/plugins', () => ({
   openAPI: vi.fn(() => ({ id: 'openAPI' })),
   admin: vi.fn(() => ({ id: 'admin' })),
+  multiSession: vi.fn(() => ({ id: 'multi-session' })),
 }));
 
 // Mock plugins - all server plugins are now exported from ./plugins
@@ -39,7 +42,7 @@ vi.mock('./plugins', () => ({
 }));
 
 describe('betterAuthFactory', () => {
-  let mockDb: object;
+  let mockDb: ReturnType<typeof drizzle.mock>;
   let mockEnv: {
     DEV_AUTH_KEY: string | undefined;
     DEFAULT_ADMIN_EMAIL: string | undefined;
@@ -55,7 +58,10 @@ describe('betterAuthFactory', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mockDb = { query: vi.fn() };
+    // Shape-correct fake DB: `drizzle.mock()` returns the same NodePgDatabase
+    // type the factory accepts, so the spec exercises the real signature
+    // instead of silencing an `object`-vs-database mismatch at every call.
+    mockDb = drizzle.mock();
     
     mockEnv = {
       DEV_AUTH_KEY: undefined,
@@ -227,6 +233,12 @@ describe('betterAuthFactory', () => {
 
       expect(result.auth.config.plugins).toBeDefined();
       expect(Array.isArray(result.auth.config.plugins)).toBe(true);
+    });
+
+    it('should register multi-session so one browser can hold several accounts', () => {
+      betterAuthFactory(mockDb, mockEnv);
+
+      expect(vi.mocked(multiSession)).toHaveBeenCalledTimes(1);
     });
   });
 

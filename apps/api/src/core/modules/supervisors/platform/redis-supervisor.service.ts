@@ -28,7 +28,7 @@ import {
 	baseSupervisorProcessInfoSchema,
 	swarmProcessInfoSchema,
 } from "@/core/modules/supervisors/supervisor-process-info";
-import { EnvService } from "@/config/env/env.service";
+import { EnvService } from "@repo/nest-env";
 import { splitManagedEnv } from "@repo/env";
 import {
 	resolveSupervisorRuntime,
@@ -114,11 +114,7 @@ export class RedisSupervisorService extends BaseDockerSupervisorService<
 			scope: "mesh-wide",
 		});
 		const runtime: RedisRuntime =
-			resolved.runtime === "managed"
-				? "managed"
-				: resolved.runtime === "unavailable"
-					? "unavailable"
-					: "swarm-replicated";
+			resolved.runtime === "managed" ? "managed" : "swarm-replicated";
 		return { runtime, reason: resolved.reason };
 	}
 
@@ -149,6 +145,7 @@ export class RedisSupervisorService extends BaseDockerSupervisorService<
 			image: this.image(),
 			mode: "replicated",
 			replicas: 1,
+			stopGracePeriodSeconds: 10,
 			env: [],
 			command: this.command(),
 			args: [],
@@ -160,6 +157,7 @@ export class RedisSupervisorService extends BaseDockerSupervisorService<
 			resourcesLimits: {},
 			resourcesReservations: {},
 			networks: [],
+			capabilitiesAdd: [],
 			healthcheck: null,
 			updateConfig: { parallelism: 1, delayMs: 0, order: "start-first", failureAction: "rollback" },
 			endpointPorts: [],
@@ -180,6 +178,10 @@ export class RedisSupervisorService extends BaseDockerSupervisorService<
 		if (managed.enabled) {
 			const managedUrl = managed.url;
 			if (managedUrl !== undefined && managedUrl !== "") return managedUrl;
+
+			// Step 2: explicit override (e.g. an external Redis the deployment doesn't own).
+			const explicit = this.env.get("DEPLOYER_REDIS_URL");
+			if (explicit !== undefined && explicit !== "") return explicit;
 
 			const host = managed.host ?? "redis";
 			const port = managed.port ?? 6379;
@@ -231,7 +233,10 @@ export class RedisSupervisorService extends BaseDockerSupervisorService<
 					PlatformNetwork.name(this.env.get("DEPLOYER_PREFIX") ?? ""),
 				);
 				const spec = this.buildSwarmSpec();
-				spec.networks = [overlay];
+				// Consumers reach Redis by its stable alias (the persisted URLs
+				// point at `deployer-redis[-<prefix>]`), which may differ from
+				// nothing but is declared explicitly so prefixed fleets resolve.
+				this.attachOverlay(spec, overlay, [spec.name]);
 				await this.reconcileSwarmService(spec);
 				await this.verifySwarmConvergence(spec.name);
 			},
@@ -326,6 +331,10 @@ export class RedisSupervisorService extends BaseDockerSupervisorService<
 
 		try {
 			const svc = await this.dockerService.inspectSwarmService(this.serviceName());
+			// Docker types `ID` as optional; a service inspected by name must have one.
+			if (svc.ID === undefined) {
+				throw new Error(`Swarm service "${this.serviceName()}" has no ID`);
+			}
 			const tasks = await this.dockerService.listSwarmServiceTasks(this.serviceName()).catch(() => []);
 			const running = (tasks as Array<{ Status?: { State?: string } }>).filter(
 				(t) => t.Status?.State === "running",

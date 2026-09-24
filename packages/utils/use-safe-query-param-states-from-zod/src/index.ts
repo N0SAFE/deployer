@@ -13,29 +13,29 @@
 export {
     useSafeQueryParamStatesFromZod,
     type SetQueryParamState,
-} from './useSafeQueryParamStatesFromZod'
+} from '@repo/use-safe-query-param-states-from-zod/useSafeQueryParamStatesFromZod'
 
 export {
     useRouteSearchBuilder,
     type RouteBuilderLike,
     type UseRouteSearchBuilderOptions,
     type UseRouteSearchBuilderReturn,
-} from './useRouteSearchBuilder'
+} from '@repo/use-safe-query-param-states-from-zod/useRouteSearchBuilder'
 
-export { createParserForZodField } from './parsers'
-export { getZodObjectDefaults, getZodObjectShallowDefaults } from './defaults'
-export { mergeWithDefaults } from './merge'
-export { useDebouncedCallback } from './useDebouncedCallback'
+export { createParserForZodField } from '@repo/use-safe-query-param-states-from-zod/parsers'
+export { getZodObjectDefaults, getZodObjectShallowDefaults } from '@repo/use-safe-query-param-states-from-zod/defaults'
+export { mergeWithDefaults } from '@repo/use-safe-query-param-states-from-zod/merge'
+export { useDebouncedCallback } from '@repo/use-safe-query-param-states-from-zod/useDebouncedCallback'
 
 export {
     getZodKind,
     getZodDefault,
     isZodInteger,
     unwrapZodSchema,
-} from './schema'
+} from '@repo/use-safe-query-param-states-from-zod/schema'
 
 export type {
     UseSafeQueryParamStatesOptions,
     ZodRawShapeSchema,
     UnknownRecord,
-} from './types'
+} from '@repo/use-safe-query-param-states-from-zod/types'

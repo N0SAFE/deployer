@@ -5,6 +5,8 @@ import {
     clusterMasterSchema,
     clusterNodeSchema,
     clusterSnapshotSchema,
+    swarmConfigViewSchema,
+    swarmParticipationInputSchema,
     swarmNodeResourcesSchema,
     swarmServiceRuntimeSchema,
     swarmTaskRuntimeSchema,
@@ -151,17 +153,69 @@ export const clusterStreamNodeResourcesContract = nodeResourcesOps
     .input((b) => b.query(clusterGetNodeResourcesQuerySchema))
     .output((b) => b.observable(swarmNodeResourcesSchema))
     .build();
+export const clusterStreamNodesContract = inventoryOps
+    .list()
+    .path("/nodes/stream")
+    .input(z.object({ includeDown: z.boolean().optional().default(false) }))
+    .output((b) => b.observable(z.array(clusterNodeInventoryRowSchema)))
+    .build();
+
+export const clusterStreamMasterContract = masterOps
+    .list()
+    .path("/master/stream")
+    .input(z.object({}))
+    .output((b) => b.observable(clusterMasterViewSchema))
+    .build();
+
+export const clusterStreamServicesContract = servicesOps
+    .list()
+    .path("/services/stream")
+    .input(z.object({}))
+    .output((b) => b.observable(z.array(swarmServiceRuntimeSchema)))
+    .build();
+
+export const clusterStreamTasksContract = tasksOps
+    .list()
+    .path("/tasks/stream")
+    .input((b) => b.query(clusterListTasksQuerySchema))
+    .output((b) => b.observable(z.array(swarmTaskRuntimeSchema)))
+    .build();
+
+export const clusterGetSwarmConfigContract = standard
+    .zod(swarmConfigViewSchema, "swarmConfigView")
+    .list()
+    .path("/swarm-config")
+    .input(z.object({}))
+    .output(swarmConfigViewSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build();
+
+/** Persist the participation config and converge immediately (post-setup). */
+export const clusterSetSwarmConfigContract = standard
+    .zod(swarmConfigViewSchema, "swarmConfigView")
+    .create()
+    .path("/swarm-config")
+    .input((b) => b.body(swarmParticipationInputSchema))
+    .output(swarmConfigViewSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build();
 
 export const clusterContract = oc.tag("Cluster").prefix("/cluster").router({
     getSnapshot: clusterGetSnapshotContract,
     streamSnapshot: clusterStreamSnapshotContract,
     listNodes: clusterListNodesContract,
+    streamNodes: clusterStreamNodesContract,
     getMaster: clusterGetMasterContract,
+    streamMaster: clusterStreamMasterContract,
     updateNode: clusterUpdateNodeContract,
     listServices: clusterListServicesContract,
+    streamServices: clusterStreamServicesContract,
     listTasks: clusterListTasksContract,
+    streamTasks: clusterStreamTasksContract,
     getNodeResources: clusterGetNodeResourcesContract,
     streamNodeResources: clusterStreamNodeResourcesContract,
+    getSwarmConfig: clusterGetSwarmConfigContract,
+    setSwarmConfig: clusterSetSwarmConfigContract,
 });
 
 export type ClusterContract = typeof clusterContract;

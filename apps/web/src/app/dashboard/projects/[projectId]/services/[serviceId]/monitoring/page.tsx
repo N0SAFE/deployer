@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import { useProject } from '@/domains/project/hooks'
-import { useService, useServiceDependencies } from '@/domains/service/hooks'
+import { useService, useServiceDependencies, useServiceList } from '@/domains/service/hooks'
 import { useDockerContainerList } from '@/domains/docker/hooks'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
@@ -12,6 +12,7 @@ import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Siren, Activity } from 'lucide-react'
 import { ENV_NAMES } from '@repo/contracts-common'
+import { StatStrip, StatStripItem } from '@/components/dashboard'
 import { statusBadgeVariant } from '../../../_utils/helpers'
 
 const LIST_INPUT = { query: { limit: 300, offset: 0 } } as const
@@ -24,17 +25,22 @@ export default function DashboardServiceMonitoringPage() {
   const { data: projectData, isLoading: projectLoading } = useProject(projectId)
   const { data: serviceData, isLoading: serviceLoading } = useService(serviceId)
   const { data: depsData } = useServiceDependencies(serviceId)
+  const { data: servicesData } = useServiceList({ query: { limit: 300, offset: 0 } })
   const { data: containerData } = useDockerContainerList(LIST_INPUT)
 
   const replicas = useMemo(() => {
-    return (containerData?.data ?? [])
-      .filter((c: any) => c.projectId === projectId && c.serviceId === serviceId)
+    return (containerData?.data ?? []).filter(
+      (c) => c.projectId === projectId && c.serviceId === serviceId,
+    )
   }, [containerData?.data, projectId, serviceId])
 
-  const dependencies = useMemo(() => {
-    if (!depsData) return []
-    return Array.isArray(depsData) ? depsData : (depsData as any).dependencies ?? []
-  }, [depsData])
+  // The contract output is always `{ dependencies, subServices }` — an object,
+  // never a bare array.
+  const dependencies = useMemo(() => depsData?.dependencies ?? [], [depsData])
+  const serviceNamesById = useMemo(
+    () => new Map((servicesData?.data ?? []).map((service) => [service.id, service.name])),
+    [servicesData?.data],
+  )
 
   if (projectLoading || serviceLoading) {
     return (
@@ -58,37 +64,35 @@ export default function DashboardServiceMonitoringPage() {
 
   return (
     <div className="space-y-6">
-      {/* Stats bar */}
-      <div className="flex flex-wrap gap-2">
-        <Badge variant="outline">{ENV_NAMES.length} environments</Badge>
-        <Badge variant="outline">{dependencies.length} dependencies</Badge>
-        <Badge variant="outline">{replicas.length} replicas</Badge>
-      </div>
-
-      {/* Environment health cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Environment health strip — one pair per fixed environment */}
+      <StatStrip
+        trailing={
+          dependencies.length > 0 ? (
+            <span className="text-xs text-muted-foreground">
+              {dependencies.length} dependenc{dependencies.length === 1 ? 'y' : 'ies'}
+            </span>
+          ) : undefined
+        }
+      >
         {ENV_NAMES.map((env) => {
-          const envReplicas = replicas.filter((r: any) => r.environment === env)
-          const healthy = envReplicas.filter((r: any) => ['healthy', 'passing', 'running'].includes((r.health ?? '').toLowerCase()))
-          const allHealthy = envReplicas.length > 0 && healthy.length === envReplicas.length
+          const envReplicas = replicas.filter((r) => r.environment === env)
+          const healthyCount = envReplicas.filter((r) => r.health === 'healthy').length
+          const allHealthy = envReplicas.length > 0 && healthyCount === envReplicas.length
           return (
-            <Card key={env} className={allHealthy ? 'border-emerald-500/40' : envReplicas.length > 0 ? 'border-amber-500/40' : ''}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base capitalize">{env}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <p className="text-2xl font-bold">{envReplicas.length}</p>
-                  <p className="text-xs text-muted-foreground">{healthy.length} healthy replica{healthy.length === 1 ? '' : 's'}</p>
-                  <Badge variant={allHealthy ? 'default' : envReplicas.length > 0 ? 'secondary' : 'outline'}>
-                    {envReplicas.length === 0 ? 'No replicas' : allHealthy ? 'Healthy' : 'Degraded'}
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
+            <StatStripItem
+              key={env}
+              label={env}
+              value={envReplicas.length === 0 ? '—' : String(envReplicas.length)}
+              hint={
+                envReplicas.length === 0
+                  ? 'no replicas'
+                  : `${healthyCount}/${envReplicas.length} healthy`
+              }
+              tone={allHealthy ? 'live' : envReplicas.length > 0 ? 'pending' : undefined}
+            />
           )
         })}
-      </div>
+      </StatStrip>
 
       {/* Replica status */}
       {replicas.length > 0 && (
@@ -145,7 +149,9 @@ export default function DashboardServiceMonitoringPage() {
                 {dependencies.map((dep: any, i: number) => (
                   <TableRow key={dep.id ?? i}>
                     <TableCell className="font-mono text-xs">
-                      {dep.targetId ?? dep.target_service_id ?? dep.dependsOnServiceId ?? dep.depends_on_service_id ?? '-'}
+                      {serviceNamesById.get(
+                        dep.targetId ?? dep.target_service_id ?? dep.dependsOnServiceId ?? dep.depends_on_service_id,
+                      ) ?? 'Unknown service'}
                     </TableCell>
                     <TableCell><Badge variant="outline">{dep.type ?? 'default'}</Badge></TableCell>
                     <TableCell className="text-xs text-muted-foreground">

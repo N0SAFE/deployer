@@ -61,8 +61,12 @@ export default function DashboardServiceConfigurationGeneralPage() {
       setMemory(service.resourceLimits?.memory ?? '')
       setCpu(service.resourceLimits?.cpu ?? '')
       setStorage(service.resourceLimits?.storage ?? '')
-      setKeepArtifacts(service.deploymentRetention?.keepArtifacts ?? true)
-      setAutoCleanup(service.deploymentRetention?.autoCleanup ?? true)
+      // `deploymentRetention` is nullable and its inner flags are optional, so
+      // "unset" is a real state. Defaulting to `true` did not just display an
+      // affirmative value for it — it wrote one: opening this form and saving
+      // persisted keepArtifacts/autoCleanup as ON without the user choosing.
+      setKeepArtifacts(service.deploymentRetention?.keepArtifacts ?? false)
+      setAutoCleanup(service.deploymentRetention?.autoCleanup ?? false)
       setMaxDeployments(String(service.deploymentRetention?.maxSuccessfulDeployments ?? 5))
       setLoaded(true)
     }

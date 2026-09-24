@@ -66,11 +66,49 @@ export const swarmEndpointPortSchema = z.object({
   targetPort: z.number().int().min(1).max(65535),
   publishedPort: z.number().int().min(1).max(65535).optional(),
   protocol: z.enum(['tcp', 'udp']).default('tcp'),
+  /**
+   * How the published port is realised.
+   *   - "ingress" (default) → published on EVERY node through the routing
+   *     mesh (load balanced). Right for mesh-wide services.
+   *   - "host"              → published ONLY on the node running the task,
+   *     bypassing the mesh. Required for NODE-LOCAL entry points: a GLOBAL
+   *     service publishing with the default "ingress" mode is rejected by the
+   *     engine (the mesh load balancer cannot front one task per node), and
+   *     for an ingress that must serve every host independently "host" is the
+   *     semantics we actually want.
+   */
+  publishMode: z.enum(['ingress', 'host']).optional(),
 })
 export type SwarmEndpointPort = z.infer<typeof swarmEndpointPortSchema>
 
 export const swarmEndpointPortsSchema = z.array(swarmEndpointPortSchema).default([])
 export type SwarmEndpointPorts = z.infer<typeof swarmEndpointPortsSchema>
+
+// ─── Network attachments ────────────────────────────────────────────────────
+
+/**
+ * One network a task attaches to, with the DNS ALIASES it answers to.
+ *
+ * Aliases are load-bearing, not cosmetic: consumers address platform services
+ * by their stable alias (`global-db`, `redis`, `traefik`, `db-<instance>`)
+ * while the container may also carry a deployment prefix. A swarm service
+ * without aliases would only answer to its service NAME, so every prefixed
+ * deployment would break the alias-based URLs this platform persists.
+ */
+export const swarmNetworkAttachmentSchema = z.object({
+  target: z.string().min(1),
+  aliases: z.array(z.string().min(1)).default([]),
+})
+export type SwarmNetworkAttachment = z.infer<typeof swarmNetworkAttachmentSchema>
+
+// ─── Linux capabilities ─────────────────────────────────────────────────────
+
+/**
+ * Linux capabilities ADDED to the task container. Default-deny is the engine's
+ * behaviour, so anything beyond the runtime default (e.g. WireGuard needing
+ * `NET_ADMIN` to create its interface) must be requested explicitly.
+ */
+export const swarmCapabilitiesSchema = z.array(z.string().min(1)).default([])
 
 // ─── The canonical spec ─────────────────────────────────────────────────────
 
@@ -99,11 +137,20 @@ export const swarmServiceSpecInputSchema = z.object({
   placementConstraints: z.array(z.string()).default([]),
   resourcesLimits: swarmResourcesShapeSchema.default({}),
   resourcesReservations: swarmResourcesShapeSchema.default({}),
-  /** Overlay network names (created via `ensureOverlayNetwork`). */
-  networks: z.array(z.string().min(1)).default([]),
+  /** Overlay networks the task attaches to (created via `ensureOverlayNetwork`). */
+  networks: z.array(swarmNetworkAttachmentSchema).default([]),
+  /** Linux capabilities ADDED to the task container (e.g. `NET_ADMIN`). */
+  capabilitiesAdd: z.array(z.string().min(1)).optional(),
   healthcheck: swarmHealthcheckConfigSchema,
   updateConfig: swarmUpdateConfigSchema,
   rollbackConfig: swarmUpdateConfigSchema.optional(),
   endpointPorts: swarmEndpointPortsSchema,
+  /**
+   * Seconds the engine waits after SIGTERM before SIGKILL when stopping a
+   * task. STATEFUL services (Postgres, Redis) must set enough of it to shut
+   * down cleanly — a SIGKILL mid-write corrupts the data directory
+   * ("could not locate a valid checkpoint record"). Default matches Docker's.
+   */
+  stopGracePeriodSeconds: z.number().int().min(0).default(10),
 })
 export type SwarmServiceSpecInput = z.infer<typeof swarmServiceSpecInputSchema>

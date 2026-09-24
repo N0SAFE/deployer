@@ -74,7 +74,7 @@ function PortMappingEditor({ value, onChange }: { value: PortMapping[]; onChange
           <span className="text-muted-foreground">→</span>
           <code className="font-mono">{m.containerPort}</code>
           <span className="flex-1" />
-          <Button type="button" variant="ghost" size="icon" className="size-6" onClick={() => { onChange(value.filter((_, idx) => idx !== i)) }}>
+          <Button type="button" variant="ghost" size="icon" className="size-6" aria-label="Remove port mapping" onClick={() => { onChange(value.filter((_, idx) => idx !== i)) }}>
             <X className="size-3" />
           </Button>
         </div>

@@ -49,6 +49,41 @@ For user-facing critical services, target this rule:
 - Standard HTTP/S traffic does **not** require a custom redirect app when Traefik + Swarm routing is correctly configured.
 - There is **no standalone load balancer**: Traefik is the sole reverse proxy; the API's direct-proxy supervisor temporarily takes over ingress only while Traefik is down.
 
+### Traefik must be v3.6 or newer
+
+Traefik ≤ 3.5 does **not** negotiate the Docker Engine API version: its Docker
+provider hardcodes **API 1.24**. Docker Engine ≥ 25 rejects that outright —
+
+```
+client version 1.24 is too old. Minimum supported API version is 1.40
+```
+
+— and the provider then retries forever **without ever reading a single
+container or service label**. The visible symptom is deceptive: Traefik starts
+cleanly, listens on its entrypoint, and every request hangs until it times out
+(the client sees `Gateway Timeout` / `504`). Nothing in the ingress logs says
+"routing is off" — only the provider retry loop reveals it.
+
+There is **no configuration workaround**. Both of these were tested and do
+not work:
+
+| Attempt | Result |
+|---|---|
+| `--providers.docker.apiVersion=1.40` | **Invalid flag** in Traefik v3 — `field not found, node: apiVersion`, container crash-loops |
+| `DOCKER_API_VERSION=1.40` env var | Ignored; the provider still sends 1.24 |
+
+Upgrading the image is the only fix. Verified against this engine:
+
+| Traefik | Provider errors |
+|---|---|
+| v3.3 / v3.4 / v3.5 | persistent `too old` loop |
+| **v3.6** | none |
+
+Both ingress images therefore default to ≥ 3.6: `DEPLOYER_TRAEFIK_IMAGE` (the
+API-supervised ingress) and `MANAGED_TRAEFIK_IMAGE` (operator-managed ingress),
+set in `packages/utils/env/src/index.ts` and the compose files. Pin them
+explicitly if you supply your own ingress image.
+
 ## Recommended release sequence
 
 1. Validate env and configs.

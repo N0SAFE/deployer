@@ -34,7 +34,7 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { NodeConfigRepository } from "../modules/setup/repositories/node-config.repository";
 import { DEPLOYER_VERSION } from "../utils/deployer-version";
-import { EnvService } from "@/config/env/env.service";
+import { EnvService } from "@repo/nest-env";
 import { splitManagedEnv } from "@repo/env";
 import {
   describePolicy,

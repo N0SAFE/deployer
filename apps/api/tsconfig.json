@@ -13,7 +13,7 @@
     "outDir": "./dist",
     "types": [
       "node",
-      "bun-types",
+      "bun",
       "vitest/globals",
       "vite/client"
     ],

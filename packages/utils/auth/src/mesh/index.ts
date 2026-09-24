@@ -166,10 +166,10 @@ export function signPeerServiceToken(
     const issuedAtMs = now;
     const expiresAtMs = now + ttlMs;
     const nodeSecret = deriveNodeSecret(sharedSecret, nodeId);
-    const msg = `v2|${issuedAtMs}|${expiresAtMs}|${nodeId}`;
+    const msg = `v2|${String(issuedAtMs)}|${String(expiresAtMs)}|${nodeId}`;
     const sig = createHmac("sha256", nodeSecret).update(msg).digest("hex");
     return {
-        token: `v2.${issuedAtMs}.${expiresAtMs}.${nodeId}.${sig}`,
+        token: `v2.${String(issuedAtMs)}.${String(expiresAtMs)}.${nodeId}.${sig}`,
         expiresAt: new Date(expiresAtMs).toISOString(),
     };
 }

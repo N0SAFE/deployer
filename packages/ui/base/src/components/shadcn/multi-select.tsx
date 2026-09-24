@@ -3,11 +3,11 @@
 import * as React from "react"
 import { Check, ChevronDown, X } from "lucide-react"
 
-import { cn } from "../../lib/utils"
-import { Badge } from "./badge"
-import { Button } from "./button"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "./command"
-import { Popover, PopoverContent, PopoverTrigger } from "./popover"
+import { cn } from "@repo/ui/lib/utils"
+import { Badge } from "@repo/ui/components/shadcn/badge"
+import { Button } from "@repo/ui/components/shadcn/button"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@repo/ui/components/shadcn/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/shadcn/popover"
 
 export interface MultiSelectOption {
   value: string

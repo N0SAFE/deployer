@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { nanoid } from 'nanoid';
 import { eq } from 'drizzle-orm';
 import { Roles } from '@repo/auth/permissions';
-import * as schema from '../../config/drizzle/global/schema';
+import * as schema from '@repo/nest-schema/global';
 import { AuthCoreService } from '../../core/modules/auth/services/auth-core.service';
 import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service';
 
@@ -220,7 +220,6 @@ export class CliAuthService {
     const accountId = nanoid();
     await this.databaseService.db.insert(schema.account).values({
       id: accountId,
-      issuer: 'credential',
       userId,
       accountId: userId,
       providerId: 'credential',
@@ -345,7 +344,6 @@ export class CliAuthService {
       
       await this.databaseService.db.insert(schema.account).values({
         id: nanoid(),
-        issuer: 'credential',
         userId,
         accountId: userId,
         providerId: 'credential',
@@ -437,7 +435,6 @@ export class CliAuthService {
       
       await this.databaseService.db.insert(schema.account).values({
         id: nanoid(),
-        issuer: 'credential',
         userId,
         accountId: userId,
         providerId: 'credential',

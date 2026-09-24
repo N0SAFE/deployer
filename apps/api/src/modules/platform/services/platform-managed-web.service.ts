@@ -15,8 +15,9 @@
  */
 
 import { Injectable, Logger } from "@nestjs/common";
+import { BadRequestError, ServiceUnavailableError } from "@repo/errors";
 
-import { EnvService } from "@/config/env/env.service";
+import { EnvService } from "@repo/nest-env";
 import { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
 import { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
 import { platformTraefikContainerName } from "@/core/modules/platform-ingress/services/platform-names";
@@ -113,9 +114,7 @@ export class PlatformManagedWebService {
 			await this.tunnelService
 				.deleteTunnel(provider.providerId, created.tunnel.id)
 				.catch(() => undefined);
-			throw new Error(
-				`could not resolve "${hostname}" to a zone on the Cloudflare account — the tunnel was rolled back`,
-			);
+			throw new BadRequestError(`could not resolve "${hostname}" to a zone on the Cloudflare account — the tunnel was rolled back`);
 		}
 
 		// Ingress → the platform TRAEFIK (web:80): cloudflared delivers to
@@ -138,9 +137,7 @@ export class PlatformManagedWebService {
 					hostname: tunnelHostname,
 				})
 				.catch(() => undefined);
-			throw new Error(
-				`ingress configuration failed (${err instanceof Error ? err.message : String(err)}) — tunnel rolled back`,
-			);
+			throw new ServiceUnavailableError(`ingress configuration failed (${err instanceof Error ? err.message : String(err)}) — tunnel rolled back`);
 		}
 
 		await this.platformConfig.setManagedWebTunnel({
@@ -185,9 +182,7 @@ export class PlatformManagedWebService {
 		const apps = await this.cloudflareApps.listTunnelCapableApps();
 		const first = apps[0];
 		if (first === undefined) {
-			throw new Error(
-				"no Cloudflare app is configured for tunnels — add one in Providers → DNS → Cloudflare first",
-			);
+			throw new BadRequestError("no Cloudflare app is configured for tunnels — add one in Providers → DNS → Cloudflare first");
 		}
 		return { providerId: first.id };
 	}

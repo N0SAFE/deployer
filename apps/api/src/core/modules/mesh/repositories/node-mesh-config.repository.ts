@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { LocalDatabaseService } from "@/core/modules/database/services/local-database.service";
-import { nodeMeshConfig } from "@/config/drizzle/local/schema";
+import { nodeMeshConfig } from "@repo/nest-schema/local";
 
 export type NodeMeshConfigRow = typeof nodeMeshConfig.$inferSelect;
 

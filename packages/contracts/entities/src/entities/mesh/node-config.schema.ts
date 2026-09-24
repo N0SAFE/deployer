@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { meshNodeRoleSchema, meshRoutingModeSchema, meshPartitionConsistencyModeSchema, meshNodeLifecycleStateSchema } from "./topology.schema";
+import { meshNodeRoleSchema, meshRoutingModeSchema, meshPartitionConsistencyModeSchema, meshNodeLifecycleStateSchema } from "@repo/contracts-entities/entities/mesh/topology.schema";
 
 /**
  * Bootstrap strategy for how this node was configured.

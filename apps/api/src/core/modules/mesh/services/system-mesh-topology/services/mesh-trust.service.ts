@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { DatabaseNotReadyReporter } from "@/core/modules/database/services/db-not-ready";
 import type { MeshControlEnvelope, MeshTrustKey, MeshTrustSecretKey } from "@repo/contracts-entities";
 import { CLOCK_TOKEN, type Clock } from "../../../shared/primitives/clock";
 import { ID_GENERATOR_TOKEN, type IdGenerator } from "../../../shared/primitives/id-generator";
@@ -28,6 +29,7 @@ export class MeshTrustService {
     private readonly expectedPeers = new Map<string, Set<string>>();
     private readonly rotatedAt = new Map<string, string>();
     private activeKeyId: string | null = null;
+    private readonly dbNotReady = new DatabaseNotReadyReporter();
 
     constructor(
         @Inject(CLOCK_TOKEN) private readonly clock: Clock,
@@ -46,7 +48,7 @@ export class MeshTrustService {
                 if (k.status === "active") this.activeKeyId = k.keyId;
             }
         } catch (error) {
-            this.logger.warn(`Trust key hydration failed: ${this.errMsg(error)}`);
+            this.dbNotReady.report(this.logger, "Trust key hydration failed", this.errMsg(error), error);
         }
     }
 

@@ -3,7 +3,7 @@ import { deploymentEnvironmentSchema } from "@repo/contracts-common";
 import {
     deploymentConnectivityStatusSchema,
     deploymentObservabilityContextSchema,
-} from "./base.schema";
+} from "@repo/contracts-entities/entities/deployment/base.schema";
 
 export const deploymentQueueJobTypeSchema = z.enum([
     "deploy",

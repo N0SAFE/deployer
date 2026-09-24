@@ -1,13 +1,14 @@
 import { Logger, type OnModuleDestroy } from '@nestjs/common';
 import { EMPTY, merge, Observable, Subject } from 'rxjs';
 import { filter as rxFilter, map } from 'rxjs/operators';
-import { observableToAsyncIterable } from './observable.utils';
+import { observableToAsyncIterable } from '@repo/nest-events/observable.utils';
+import { isTransientDatabaseError } from '@repo/nest-events/db-not-ready';
 import type {
   EventContracts,
   EventContract,
   EventInput,
   EventOutput,
-} from './event-contract.builder';
+} from '@repo/nest-events/event-contract.builder';
 import { isRecord } from '@repo/type-guards';
 
 export const BASE_EVENT_SERVICE_SYMBOL = Symbol.for('core.events.base-service');
@@ -306,7 +307,22 @@ export abstract class BaseEventService<
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          this.logger.warn(`Skipping persisted replay for '${String(eventName)}': ${message}`);
+          // First-boot / supervisor-recreated DB: the global database (or its
+          // schema) may not be ready yet, so every topic's persisted replay
+          // fails identically. Same once-then-debug treatment as the flush path
+          // — real query errors still warn.
+          if (isTransientDatabaseError(error)) {
+            if (this.persistenceOutageActive) {
+              this.logger.debug(`Skipping persisted replay for '${String(eventName)}': ${message}`);
+            } else {
+              this.persistenceOutageActive = true;
+              this.logger.warn(
+                `Skipping persisted replay for '${String(eventName)}' (db not ready yet): ${message}`,
+              );
+            }
+          } else {
+            this.logger.warn(`Skipping persisted replay for '${String(eventName)}': ${message}`);
+          }
         }
       })();
 
@@ -437,7 +453,19 @@ export abstract class BaseEventService<
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          this.logger.warn(`Skipping persisted query replay for '${String(eventName)}': ${message}`);
+          // Same pre-migration dedupe as the keyed replay path above.
+          if (isTransientDatabaseError(error)) {
+            if (this.persistenceOutageActive) {
+              this.logger.debug(`Skipping persisted query replay for '${String(eventName)}': ${message}`);
+            } else {
+              this.persistenceOutageActive = true;
+              this.logger.warn(
+                `Skipping persisted query replay for '${String(eventName)}' (db not ready yet): ${message}`,
+              );
+            }
+          } else {
+            this.logger.warn(`Skipping persisted query replay for '${String(eventName)}': ${message}`);
+          }
         }
       })();
 

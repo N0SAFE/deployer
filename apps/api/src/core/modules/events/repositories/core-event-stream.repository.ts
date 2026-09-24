@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { eq } from "drizzle-orm";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
-import { coreEventStreams } from "@/config/drizzle/global/schema/events";
+import { coreEventStreams } from "@repo/nest-schema/global/events";
 import type { CoreEventStreamListInput } from "@repo/api-contracts";
 import { coreEventStreamDefinitionSchema, type CoreEventStreamDefinition } from "@repo/contracts-entities";
 

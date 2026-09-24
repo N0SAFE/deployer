@@ -21,11 +21,12 @@
  *     `reconcile`/`probe` via `runReconcileChildren` / `runProbeChildren`.
  */
 
-import z from "zod/v4";
+import type z from "zod/v4";
 
+import type {
+	baseSupervisorPayloadSchema} from "./base-supervisor.service";
 import {
 	BaseSupervisorService,
-	baseSupervisorPayloadSchema,
 	type SupervisorProbeResult,
 } from "./base-supervisor.service";
 
@@ -63,10 +64,10 @@ export abstract class BaseMultiSupervisorService<
 	}
 
 	/** Aggregate the children's latest health SNAPSHOTS (typed per child). */
-	protected async runProbeChildren(): Promise<Array<ReturnType<AnyChildSupervisor["getHealth"]> extends Promise<infer S> ? S : never>> {
+	protected async runProbeChildren(): Promise<(ReturnType<AnyChildSupervisor["getHealth"]> extends Promise<infer S> ? S : never)[]> {
 		const keys = this.activeKeys;
 		const snapshots = await Promise.all(keys.map((key) => this.buildInstance(key).getHealthAndNotify()));
-		return snapshots as Array<ReturnType<AnyChildSupervisor["getHealth"]> extends Promise<infer S> ? S : never>;
+		return snapshots;
 	}
 
 	/** Remove children whose key is no longer in the desired set. */

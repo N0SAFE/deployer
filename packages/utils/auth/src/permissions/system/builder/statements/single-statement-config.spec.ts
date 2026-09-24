@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { StatementConfig } from './single-statement-config';
+import { StatementConfig } from '@repo/auth/permissions/system/builder/statements/single-statement-config';
 
 describe('StatementConfig', () => {
   describe('Basic Operations', () => {

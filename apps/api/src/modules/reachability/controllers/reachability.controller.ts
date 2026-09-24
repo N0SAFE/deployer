@@ -339,7 +339,6 @@ export class ReachabilityController {
             name,
             hostname: tunnel.hostname ?? undefined,
         });
-
         // Point the tunnel's ingress at the platform TRAEFIK (web:80) — all
         // public traffic enters Traefik, which routes this hostname to the
         // API (dynamic-domain.yml). Without this rule Cloudflare answers

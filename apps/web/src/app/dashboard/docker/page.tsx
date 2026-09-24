@@ -1,7 +1,5 @@
 'use client'
 
-import Link from 'next/link'
-import { AuthDashboardDockerActivity, AuthDashboardDockerContainers, AuthDashboardDockerImages, AuthDashboardDockerLogs, AuthDashboardDockerNetworks, AuthDashboardDockerVolumes } from '@/routes'
 import { useMemo } from 'react'
 import { DockerContainerDetailModalTrigger } from './_components/container-detail-modal'
 import { DockerInlineLoadingState, DockerTableLoadingRows } from './_components/docker-loading-states'
@@ -27,7 +25,21 @@ import {
 import { Bot, Boxes, Server } from 'lucide-react'
 import type { DockerContainer } from '@repo/contracts-entities'
 import { cn } from '@/lib/utils'
-import { EnvironmentBadge, StatusBadge } from '@/components/dashboard'
+import { EnvironmentBadge, StatStrip, StatStripItem, StatusBadge, type StatusTone } from '@/components/dashboard'
+import type { DockerRuntimeSseState } from '@/domains/docker/hooks'
+import { formatDateTime as formatDate } from '@/lib/format/date'
+
+/**
+ * Live-state tones for the runtime event stream. A bare word like "disconnected"
+ * reads as neutral text; the same word in a status tone reads as a problem, which
+ * is what it is — the page stops updating when the stream drops.
+ */
+const RUNTIME_STREAM_TONES: Record<DockerRuntimeSseState['status'], StatusTone> = {
+  connected: 'live',
+  connecting: 'pending',
+  disconnected: 'danger',
+  error: 'danger',
+}
 
 const DOCKER_LIST_INPUT = {
   query: {
@@ -42,12 +54,6 @@ const SERVICE_LIST_INPUT = {
     offset: 0,
   },
 } as const
-
-function formatDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleString()
-}
 
 function shortId(id: string): string {
   return id.slice(0, 8)
@@ -241,11 +247,20 @@ export default function DashboardDockerPage() {
             </Table>
           </div>
 
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">Fleet nodes <span className="font-semibold text-foreground">{fleetServers.length}</span></div>
-            <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">Runtime stream <span className="font-semibold text-foreground">{runtimeSseStatus}</span></div>
-            <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">Projects with services <span className="font-semibold text-foreground">{networkCount}</span></div>
-          </div>
+          {/*
+            Three facts about the list above, as ONE dense row. As three separate
+            bordered boxes they cost three borders, three fills and three sets of
+            padding to carry three short values.
+          */}
+          <StatStrip className="mt-3">
+            <StatStripItem icon={Server} label="Fleet nodes" value={fleetServers.length} />
+            <StatStripItem
+              label="Runtime stream"
+              value={runtimeSseStatus}
+              tone={RUNTIME_STREAM_TONES[runtimeSseStatus]}
+            />
+            <StatStripItem label="Projects with services" value={networkCount} />
+          </StatStrip>
 
           <div className="mt-4 rounded-xl border border-border/60 bg-background/40 p-3">
             <div className="mb-3 flex items-center justify-between gap-2">

@@ -6,7 +6,7 @@
  */
 
 // System registry and types
-export * from './system';
+export * from '@repo/auth/permissions/plugins/system/index';
 
 // Admin permissions plugin — the mesh is the single tenant, so the admin
 // plugin is the only scoped wrapper we ship.
@@ -17,4 +17,4 @@ export {
   type AuthWithAdminPlugin,
   type AdminPluginWrapperOptions,
   type ApiMethodsWithAdminPlugin,
-} from './admin.permissions.plugin';
+} from '@repo/auth/permissions/plugins/admin.permissions.plugin';

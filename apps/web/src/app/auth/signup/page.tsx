@@ -18,10 +18,11 @@ import React from 'react'
 import redirect from '@/actions/redirect'
 import { AlertCircle, Spinner } from '@repo/ui/components/atomics/atoms/Icon'
 import { signupSchema } from './schema'
-import { AuthSignup, AuthSignin, Setup } from '@/routes'
+import { AuthSignup, AuthSignin } from '@/routes'
 import { UserPlus } from 'lucide-react'
 import { authClient } from '@/lib/auth'
 import { useSetupState } from '@/domains/setup/hooks'
+import { setupDestinationUrl } from '@/lib/setup-url'
 import { useRouter } from 'next/navigation'
 
 // Use the Route wrapper to get type-safe, Suspense-wrapped search params
@@ -79,13 +80,12 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
 
     React.useEffect(() => {
         if (setupStatus.data?.needsSetup) {
+            // Same-deployment route: the web app serves its own /setup, so a
+            // normal same-origin navigation is correct.
             router.replace(
-                Setup(
-                    {},
-                    {
-                        redirectTo: searchParams.redirectTo ?? searchParams.callbackUrl,
-                    }
-                )
+                setupDestinationUrl({
+                    redirectTo: searchParams.redirectTo ?? searchParams.callbackUrl,
+                })
             )
         }
     }, [setupStatus.data, router, searchParams.callbackUrl, searchParams.redirectTo])

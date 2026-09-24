@@ -79,8 +79,8 @@ describe("Mesh E2E: Reactive Subquery + Shared SSE", () => {
     serverConsumerRegistry.attach(cB, filterB);
 
     const stream$ = new Subject<any>();
-    const a$ = connectionRegistry.buildConsumerObservable(stream$, cA);
-    const b$ = connectionRegistry.buildConsumerObservable(stream$, cB);
+    const a$ = connectionRegistry.buildConsumerObservable<{ deploymentId: string }>(stream$, cA);
+    const b$ = connectionRegistry.buildConsumerObservable<{ deploymentId: string }>(stream$, cB);
 
     const receivedA: string[] = [];
     const receivedB: string[] = [];

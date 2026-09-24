@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import z from 'zod/v4';
-import { RouteBuilder, route } from '../core/route-builder';
-import type { InferSchemaInput } from '../../types/types';
+import { RouteBuilder, route } from '@repo/orpc-utils/builder/core/route-builder';
+import type { InferSchemaInput } from '@repo/orpc-utils/types/types';
 
 const SHAPE_SYMBOL = Symbol.for('standard-schema:shape');
 

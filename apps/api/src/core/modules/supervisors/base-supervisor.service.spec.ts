@@ -32,12 +32,12 @@ class MultiInstanceSupervisor extends BaseSupervisorService<typeof testPayloadSc
 	}
 
 	// Unused, but required by the abstract contract.
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	 
 	private raiseRuntimeError(): Promise<SupervisorProbeResult<typeof testPayloadSchema>> {
 		throw new Error("not probed in identifier tests");
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	 
 	protected buildDegradedPayload(_detail: string): TestPayload {
 		return { checkedAt: new Date().toISOString(), latencyMs: 0, n: 0 };
 	}

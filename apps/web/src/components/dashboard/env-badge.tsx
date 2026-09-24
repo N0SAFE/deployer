@@ -20,19 +20,19 @@ import { cn } from '@/lib/utils'
 type EnvTone = 'production' | 'staging' | 'preview' | 'development' | 'unknown'
 
 const envToneClasses: Record<EnvTone, string> = {
-  production: 'text-rose-600 dark:text-rose-400',
-  staging: 'text-amber-600 dark:text-amber-400',
-  preview: 'text-violet-600 dark:text-violet-400',
-  development: 'text-sky-600 dark:text-sky-400',
+  production: 'text-status-danger',
+  staging: 'text-status-pending',
+  preview: 'text-primary',
+  development: 'text-status-busy',
   unknown: 'text-muted-foreground',
 }
 
 const envDotClasses: Record<EnvTone, string> = {
-  production: 'bg-rose-500',
-  staging: 'bg-amber-500',
-  preview: 'bg-violet-500',
-  development: 'bg-sky-500',
-  unknown: 'bg-muted-foreground',
+  production: 'bg-status-danger',
+  staging: 'bg-status-pending',
+  preview: 'bg-primary',
+  development: 'bg-status-busy',
+  unknown: 'bg-status-idle',
 }
 
 export function environmentTone(environment: string | null | undefined): EnvTone {

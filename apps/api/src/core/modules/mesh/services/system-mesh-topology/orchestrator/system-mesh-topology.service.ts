@@ -436,7 +436,7 @@ export class SystemMeshTopologyService
      */
     async consumeJoinGrant(
         input: MeshJoinGrantConsumeInput
-    ): Promise<Omit<MeshJoinGrantConsumeResult, "peerServiceToken" | "peerServiceTokenExpiresAt" | "meshSharedSecret">> {
+    ): Promise<Omit<MeshJoinGrantConsumeResult, "peerServiceToken" | "peerServiceTokenExpiresAt" | "meshSharedSecret" | "swarmGrant">> {
         const repo = this.requireClusterRepository(
             'consume bootstrap join grants'
         )

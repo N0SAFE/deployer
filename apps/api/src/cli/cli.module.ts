@@ -1,13 +1,13 @@
 import { Logger, Module } from '@nestjs/common';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import * as globalSchema from '@/config/drizzle/global/schema';
-import { EnvModule } from '../config/env/env.module';
+import * as globalSchema from '@repo/nest-schema/global';
+import { EnvModule } from "@repo/nest-env";
 import { LocalDatabaseModule } from '../core/modules/database/local/local-database.module';
 import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from '../core/modules/database/database-connection';
 import { GlobalDatabaseService } from '../core/modules/database/global/global-database.service';
 import { AuthModule } from '../core/modules/auth/auth.module';
-import { EnvService } from '@/config/env/env.service';
+import { EnvService } from '@repo/nest-env';
 import { createBetterAuth } from '@/config/auth/auth';
 import { CliAuthService } from './services/cli-auth.service';
 import { SeedCommand } from './commands/seed.command/index';
@@ -18,6 +18,7 @@ import { NodeStartupCheckCommand } from './commands/node-startup-check.command';
 import { SetupDbCommand } from './commands/setup-db.command';
 import { MigrationJournalService } from '@/core/utils/migration-journal.service';
 import { NodeConfigRepository } from '@/core/modules/setup/repositories/node-config.repository';
+import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
 
 const logger = new Logger('CLIModule');
 
@@ -56,6 +57,9 @@ function resolveCliDatabaseUrl(envService: EnvService, nodeConfig: NodeConfigRep
   imports: [
     EnvModule,
     LocalDatabaseModule,
+    // CLI runs as its OWN Nest context, so the node-state owner is imported
+    // explicitly (one declaration per repository — SC8 guard).
+    NodeStateModule,
     AuthModule.forRootAsync({
       imports: [EnvModule],
       useFactory: createBetterAuth,
@@ -91,7 +95,6 @@ function resolveCliDatabaseUrl(envService: EnvService, nodeConfig: NodeConfigRep
       inject: [GLOBAL_DATABASE_CONNECTION],
     },
     // ── CLI Commands ────────────────────────────────────────────────────
-    NodeConfigRepository,
     CliAuthService,
     SetupDbCommand,
     SeedCommand,

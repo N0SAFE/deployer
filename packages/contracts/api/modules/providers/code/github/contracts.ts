@@ -71,7 +71,7 @@ const selfCheckOutputSchema = z.object({
  */
 const manifestInitInputSchema = z.object({
     /** Absolute URL of the web-app callback page (validated http/https). */
-    redirectUrl: z.string().url().optional(),
+    redirectUrl: z.url().optional(),
 });
 
 const manifestInitOutputSchema = z.object({

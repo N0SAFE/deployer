@@ -13,6 +13,7 @@ import { createORPCClient } from "@orpc/client";
 import { OpenAPILink } from "@orpc/openapi-client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { appContract, type AppContract } from "@repo/api-contracts";
+import { createObservableQueryUtils, type ObservableQueryUtils, ObservableLinkPlugin } from "@repo/orpc-utils";
 import type { ContractRouterClient } from "@orpc/contract";
 
 export type ViewsORPCClient = ContractRouterClient<AppContract>;
@@ -25,8 +26,15 @@ export const orpcClient = createORPCClient<ViewsORPCClient>(
     fetch(request, init) {
       return fetch(request, { ...init, credentials: "include" });
     },
+    // ObservableLinkPlugin is what makes the SSE progress stream usable from
+    // TanStack Query (`experimental_streamedObservableOptions`). Without it the
+    // setup wizard could not subscribe to its own provisioning events.
+    plugins: [new ObservableLinkPlugin(appContract)],
   }),
 );
 
 /** TanStack Query utils (queryOptions / mutationOptions per op). */
-export const orpc = createTanstackQueryUtils(orpcClient);
+const baseOrpc = createTanstackQueryUtils(orpcClient);
+
+export const orpc: ObservableQueryUtils<typeof baseOrpc> =
+  createObservableQueryUtils(baseOrpc);

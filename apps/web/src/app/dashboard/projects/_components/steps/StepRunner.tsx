@@ -86,7 +86,7 @@ function KeyValueEditor({ value, onChange, keyPlaceholder, valuePlaceholder }: {
             placeholder={valuePlaceholder}
             className="h-7 flex-1 font-mono text-xs"
           />
-          <Button type="button" variant="ghost" size="icon" className="size-6 shrink-0" onClick={() => {
+          <Button type="button" variant="ghost" size="icon" className="size-6 shrink-0" aria-label={`Remove variable ${k}`} onClick={() => {
             const nv: Record<string, string> = {}
             for (const [kk, vv] of Object.entries(value)) { if (kk !== k) nv[kk] = vv }
             update(nv)
@@ -172,7 +172,7 @@ function SubPortMappingEditor({ value, onChange }: {
           <span className="text-muted-foreground">→</span>
           <code className="font-mono">{m.containerPort}</code>
           <span className="flex-1" />
-          <Button type="button" variant="ghost" size="icon" className="size-5" onClick={() => { onChange(value.filter((_, idx) => idx !== i)) }}>
+          <Button type="button" variant="ghost" size="icon" className="size-5" aria-label="Remove port mapping" onClick={() => { onChange(value.filter((_, idx) => idx !== i)) }}>
             <X className="size-3" />
           </Button>
         </div>
@@ -228,7 +228,7 @@ function SubServiceRow({ svc, index, expanded, onToggle, onRemove }: {
           {svc.image ? <code className="truncate font-mono text-[10px] text-muted-foreground">{svc.image}</code> : null}
         </button>
         {facts && <span className="hidden shrink-0 text-[10px] text-muted-foreground sm:block">{facts}</span>}
-        <Button type="button" variant="ghost" size="icon" className="size-6 shrink-0" onClick={onRemove}>
+        <Button type="button" variant="ghost" size="icon" className="size-6 shrink-0" aria-label={`Remove ${svc.name || 'service'}`} onClick={onRemove}>
           <X className="size-3" />
         </Button>
       </div>

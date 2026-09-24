@@ -2,11 +2,15 @@ import { Controller } from "@nestjs/common";
 import { Implement, implement } from "@orpc/nest";
 import { clusterContract } from "@repo/api-contracts";
 import { ClusterService } from "../services/cluster.service";
+import { ClusterSwarmEventsService } from "../events/cluster-swarm-events.service";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 
 @Controller()
 export class ClusterController {
-    constructor(private readonly clusterService: ClusterService) {}
+    constructor(
+        private readonly clusterService: ClusterService,
+        private readonly clusterEvents: ClusterSwarmEventsService,
+    ) {}
 
     @Implement(clusterContract.getSnapshot)
     getSnapshot() {
@@ -19,9 +23,7 @@ export class ClusterController {
     streamSnapshot() {
         return implement(clusterContract.streamSnapshot)
             .use(requireAuth())
-            .handler(() => {
-                return this.clusterService.snapshotStream$();
-            });
+            .handler(() => this.clusterEvents.observeSnapshot());
     }
 
     @Implement(clusterContract.listNodes)
@@ -31,11 +33,39 @@ export class ClusterController {
             .handler(async ({ input }) => this.clusterService.listNodes(input.includeDown ?? false));
     }
 
+    @Implement(clusterContract.streamNodes)
+    streamNodes() {
+        return implement(clusterContract.streamNodes)
+            .use(requireAuth())
+            .handler(({ input }) => this.clusterEvents.observeNodes(input.includeDown ?? false));
+    }
+
     @Implement(clusterContract.getMaster)
     getMaster() {
         return implement(clusterContract.getMaster)
             .use(requireAuth())
             .handler(async () => this.clusterService.getMaster());
+    }
+
+    @Implement(clusterContract.getSwarmConfig)
+    getSwarmConfig() {
+        return implement(clusterContract.getSwarmConfig)
+            .use(requireAuth())
+            .handler(async () => this.clusterService.getSwarmConfig());
+    }
+
+    @Implement(clusterContract.setSwarmConfig)
+    setSwarmConfig() {
+        return implement(clusterContract.setSwarmConfig)
+            .use(requireAuth())
+            .handler(async ({ input }) => this.clusterService.setSwarmConfig(input));
+    }
+
+    @Implement(clusterContract.streamMaster)
+    streamMaster() {
+        return implement(clusterContract.streamMaster)
+            .use(requireAuth())
+            .handler(() => this.clusterEvents.observeMaster());
     }
 
     @Implement(clusterContract.updateNode)
@@ -57,6 +87,13 @@ export class ClusterController {
             .handler(async () => this.clusterService.listServices());
     }
 
+    @Implement(clusterContract.streamServices)
+    streamServices() {
+        return implement(clusterContract.streamServices)
+            .use(requireAuth())
+            .handler(() => this.clusterEvents.observeServices());
+    }
+
     @Implement(clusterContract.listTasks)
     listTasks() {
         return implement(clusterContract.listTasks)
@@ -66,6 +103,15 @@ export class ClusterController {
                     serviceId: input.query?.serviceId,
                     nodeId: input.query?.nodeId,
                 }),
+            );
+    }
+
+    @Implement(clusterContract.streamTasks)
+    streamTasks() {
+        return implement(clusterContract.streamTasks)
+            .use(requireAuth())
+            .handler(({ input }) =>
+                this.clusterEvents.observeTasks(input.query?.serviceId, input.query?.nodeId),
             );
     }
 
@@ -83,6 +129,8 @@ export class ClusterController {
         return implement(clusterContract.streamNodeResources)
             .use(requireAuth())
             .handler(({ input }) => {
+                // Node resources derives from the same swarm event stream
+                // but needs per-node filtering — use the snapshot + fleet data
                 return this.clusterService.nodeResourcesStream$(input.query.nodeId);
             });
     }

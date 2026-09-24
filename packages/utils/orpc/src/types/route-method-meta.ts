@@ -1,8 +1,8 @@
  
 import type { HTTPMethod } from "@orpc/contract";
-import type { AnyContractBuilder, AnyContractProcedureOrBuilder } from "./type-helpers";
-import { getProcedureMeta, withMeta } from "./type-helpers";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import type { AnyContractBuilder, AnyContractProcedureOrBuilder } from "@repo/orpc-utils/types/type-helpers";
+import { getProcedureMeta, withMeta } from "@repo/orpc-utils/types/type-helpers";
+import { isRecord } from "@repo/type-guards"
 
 /**
  * @fileoverview Mount method helper for ORPC contracts

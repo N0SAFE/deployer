@@ -20,7 +20,7 @@ import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/
 import { Siren, RefreshCw, Rocket, RotateCcw, XCircle, Play, Trash2, ScrollText } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, shortId } from '../_utils/helpers'
-import { StatusBadge } from '@/components/dashboard'
+import { StatusBadge, EmptyState, FilteredEmptyState } from '@/components/dashboard'
 import { filterProjectTopLevelServices } from '@/domains/service/hierarchy'
 import { AuthDashboardProjectsProjectIdServicesServiceIdLogs } from '@/routes'
 import { z } from 'zod/v4'
@@ -293,11 +293,25 @@ export default function ProjectDeploymentsPage() {
           </div>
 
           {filteredDeployments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Rocket className="mb-4 size-12 text-muted-foreground/40" />
-              <p className="text-lg font-medium">No deployments yet</p>
-              <p className="text-sm text-muted-foreground">Trigger a deployment to get started.</p>
-            </div>
+            /*
+              Two different facts, previously told the same way. Filtering to a
+              service with no deploys showed "No deployments yet — trigger a
+              deployment to get started", which is false: deployments exist,
+              you just filtered them out.
+            */
+            serviceFilter !== 'all' ? (
+              <FilteredEmptyState
+                label="No deployments for this service."
+                onClear={() => { setServiceFilter('all') }}
+              />
+            ) : (
+              <EmptyState
+                icon={Rocket}
+                title="No deployments yet"
+                description="Trigger a deployment to get started."
+                action={{ label: 'Trigger deployment', onClick: () => { setTriggerOpen(true) } }}
+              />
+            )
           ) : (
             <Table>
               <TableHeader>
@@ -313,9 +327,12 @@ export default function ProjectDeploymentsPage() {
               <TableBody>
                 {filteredDeployments.map((dep: any, index: number) => {
                   const status = (dep.status ?? dep.state ?? '').toLowerCase()
+                  // Read the id once and reuse it: the row already needed it for
+                  // the ID cell, and the action labels below need it too.
+                  const displayId = shortId(dep.id)
                   return (
                     <TableRow key={dep.id ?? index}>
-                      <TableCell className="font-mono text-xs">{shortId(dep.id)}</TableCell>
+                      <TableCell className="font-mono text-xs">{displayId}</TableCell>
                       <TableCell><StatusBadge status={status} className="text-[11px]" /></TableCell>
                       <TableCell>{dep.environment ?? '-'}</TableCell>
                       <TableCell>{dep.serviceName ?? dep.service_id ?? dep.serviceId ?? '-'}</TableCell>
@@ -334,16 +351,16 @@ export default function ProjectDeploymentsPage() {
                             </AuthDashboardProjectsProjectIdServicesServiceIdLogs.Link>
                           ) : null}
                           {(status === 'pending' || status === 'queued' || status === 'building' || status === 'deploying') && (
-                            <Button variant="ghost" size="icon" className="size-7" onClick={() => { setCancelId(dep.id); setCancelOpen(true) }} title="Cancel"><XCircle className="size-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="size-7" onClick={() => { setCancelId(dep.id); setCancelOpen(true) }} title="Cancel" aria-label={`Cancel deployment ${displayId}`}><XCircle className="size-3.5" /></Button>
                           )}
                           {(status === 'success' || status === 'failed') && (
-                            <Button variant="ghost" size="icon" className="size-7" onClick={() => { setRollbackId(dep.id); setRollbackOpen(true) }} title="Rollback"><RotateCcw className="size-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="size-7" onClick={() => { setRollbackId(dep.id); setRollbackOpen(true) }} title="Rollback" aria-label={`Roll back deployment ${displayId}`}><RotateCcw className="size-3.5" /></Button>
                           )}
                           {status === 'failed' && (
-                            <Button variant="ghost" size="icon" className="size-7" onClick={() => handleRetry(dep.id)} title="Retry"><Play className="size-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="size-7" onClick={() => { void handleRetry(dep.id) }} title="Retry" aria-label={`Retry deployment ${displayId}`}><Play className="size-3.5" /></Button>
                           )}
                           {status !== 'pending' && status !== 'queued' && status !== 'building' && status !== 'deploying' && (
-                            <Button variant="ghost" size="icon" className="size-7" onClick={() => { setDeleteId(dep.id); setDeleteOpen(true) }} title="Delete"><Trash2 className="size-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="size-7" onClick={() => { setDeleteId(dep.id); setDeleteOpen(true) }} title="Delete" aria-label={`Delete deployment ${displayId}`}><Trash2 className="size-3.5" /></Button>
                           )}
                         </div>
                       </TableCell>

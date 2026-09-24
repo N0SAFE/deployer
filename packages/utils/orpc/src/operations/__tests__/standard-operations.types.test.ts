@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import z from 'zod/v4';
-import { standard } from '../zod/standard-operations';
-import { createFilterConfig } from '../zod/list-builder';
-import { voidSchema } from '../../types/standard-schema-helpers';
+import { standard } from '@repo/orpc-utils/operations/zod/standard-operations';
+import { createFilterConfig } from '@repo/orpc-utils/operations/zod/list-builder';
+import { voidSchema } from '@repo/orpc-utils/types/standard-schema-helpers';
 
 // ──────────────────── test data ────────────────────────────────────────────────
 
@@ -156,7 +156,6 @@ describe('StandardOperations - Type Inference', () => {
     it('input schema — rejects missing required field', () => {
       const { input } = schemas(userOps.create());
       const { name: _name, ...noName } = validCreateUser;
-      void _name;
       expect((input as z.ZodType).safeParse(noName).success).toBe(false);
     });
 
@@ -214,7 +213,6 @@ describe('StandardOperations - Type Inference', () => {
     it('output schema — rejects missing required fields', () => {
       const { output } = schemas(userOps.update());
       const { email: _e, ...noEmail } = validUser;
-      void _e;
       expect((output as z.ZodType).safeParse(noEmail).success).toBe(false);
     });
   });
@@ -303,7 +301,7 @@ describe('StandardOperations - Type Inference', () => {
         const { input } = schemas(userOps.list());
         // Bare list() uses a Zod undefined schema, not a custom voidSchema
         expect(input).toBeDefined();
-        expect(input!['~standard']).toBeDefined();
+        expect(input).toHaveProperty('~standard');
       });
 
       it('input schema — accepts undefined', () => {

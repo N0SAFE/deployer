@@ -87,7 +87,7 @@ export class MeshVersionService {
         let version: string;
         try {
           // The ping endpoint returns { ok: true, version, advertisedHost }
-          const pingResult = await session.client.ping();
+          const pingResult = await session.client.ping({});
           version = pingResult.version ?? "unknown";
         } finally {
           await session.close().catch(() => {});
@@ -196,7 +196,7 @@ export class MeshVersionService {
         peerServiceToken: undefined, // ping is public
       });
       try {
-        const pingResult = await session.client.ping();
+        const pingResult = await session.client.ping({});
         return pingResult.version;
       } finally {
         await session.close().catch(() => { void 0 });

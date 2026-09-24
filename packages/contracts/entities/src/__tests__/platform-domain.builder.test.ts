@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { platformDomainSchemas } from '../contracts/platform-domain.builder'
+import { platformDomainSchemas } from '@repo/contracts-entities/contracts/platform-domain.builder'
 
 function createBaseScenario() {
   return {

@@ -44,15 +44,49 @@ Testing and checks:
 ## Supervised / Compose-managed platform services
 
 Platform services (global Postgres, Redis, local SQLite, Traefik, per-node
-WireGuard sidecar, DB service primitive) are either **API-supervised** (the
-default in `prod` / `dev-supervised`) or **compose-managed** (the `dev`
-profile — Docker Compose owns the container). The `MANAGED_<SERVICE>_ENABLED`
-env flags + `MANAGED_<SERVICE>_<KEY>` reach-config live in the shared
-`@repo/env` schema (`packages/utils/env/src/index.ts`); `splitManagedEnv`
-splits the flat vars into the nested `managed[service].key` / `.enabled`
-shape.
+WireGuard sidecar, DB service primitive, failover proxy, managed web) are
+**API-supervised as SWARM SERVICES** (the default) or **deployment-managed**
+(`MANAGED_<SERVICE>_ENABLED=true` — compose/operator owns the process and the
+supervisor only wires networks). The `MANAGED_<SERVICE>_ENABLED` env flags +
+`MANAGED_<SERVICE>_<KEY>` reach-config live in the shared `@repo/env` schema
+(`packages/utils/env/src/index.ts`); `splitManagedEnv` splits the flat vars
+into the nested `managed[service].key` / `.enabled` shape.
+
+**There is no plain-container runtime.** Each supervisor declares a `scope` and
+`resolveSupervisorRuntime` maps it to a swarm mode:
+
+| Scope | Runtime | Examples |
+|---|---|---|
+| `node-local` | `swarm-global` (one task per node) | Traefik ingress, WireGuard, failover proxy |
+| `mesh-wide` | `swarm-replicated` (one shared service) | global Postgres, Redis, database-service instances, managed web |
+| — | `managed` | `MANAGED_*_ENABLED=true` → link-only wiring, never spawn |
+| — | `unavailable` | engine is not a swarm member → **degrade**, never fall back to a container |
+
+`SwarmBootstrapService` converges the engine at boot **before** the setup
+wizard, so the swarm runtime is always available; a supervisor that still finds
+no active swarm reports `unavailable` with an actionable message instead of
+spawning a second, container-based copy of its process.
+
+Swarm service specs need three things beyond the obvious fields, and getting
+them wrong breaks node-local services:
+
+- **network `aliases`** — consumers resolve platform services by stable alias
+  (`global-db`, `redis`, `traefik`, `db-<instance>`), which a prefixed
+  deployment's service name does not match;
+- **`publishMode: host`** — a GLOBAL service cannot publish through the routing
+  mesh, and per-node bind conflicts must stay visible rather than be
+  load-balanced away;
+- **`capabilitiesAdd`** — WireGuard needs `NET_ADMIN`.
+
+The global Postgres spec lives in `PostgresServiceProvisioner` (ONE builder
+shared by setup and `GlobalDbSupervisorService`) so the two can never drift
+into two different databases.
 
 Rules when touching supervisors (`src/core/modules/supervisors/`):
+
+- A supervisor NEVER spawns a plain container. Declare `buildSwarmSpec()`
+  (+ `scope`) and call `reconcileSwarmService()`; the base class throws if
+  `buildContainerSpec()` (the removed legacy path) is reached.
 
 - A `true` `MANAGED_<SERVICE>_ENABLED` MUST skip the supervisor entirely (no
   registration → no spawn, no convergence). Implement via `onModuleInit`

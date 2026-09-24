@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { invalidateProcedure } from './query-key';
+import { invalidateProcedure } from '@repo/orpc-utils/hooks/invalidation/query-key';
 
 /**
  * Auto-detect and execute invalidations based on mutation semantics.

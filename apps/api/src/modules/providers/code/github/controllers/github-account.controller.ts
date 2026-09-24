@@ -122,7 +122,7 @@ export class GitHubAppsController {
             .use(requireAuth())
             .handler(async ({ input, errors }) => {
                 const body = input.body;
-                const values: Partial<typeof import("@/config/drizzle/global/schema").githubApps.$inferInsert> = {};
+                const values: Partial<typeof import("@repo/nest-schema/global").githubApps.$inferInsert> = {};
                 if (body?.name) values.name = body.name;
                 if (body?.clientId) values.clientId = body.clientId;
                 if (body?.clientSecret) values.clientSecret = body.clientSecret;

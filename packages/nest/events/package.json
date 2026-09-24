@@ -2,10 +2,25 @@
     "name": "@repo/nest-events",
     "version": "1.0.0",
     "description": "NestJS + RxJS typed event system with Zod validation. Provides BaseEventService, EventContractBuilder, BasePooledEventService, and stream pool utilities.",
-    "main": "./src/index.ts",
+    "main": "./dist/cjs/index.js",
     "types": "./src/index.ts",
     "exports": {
-        ".": "./src/index.ts"
+        ".": {
+            "types": [
+                "./src/index.ts",
+                "./src/index.tsx"
+            ],
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
+        "./*": {
+            "types": [
+                "./src/*.ts",
+                "./src/*.tsx"
+            ],
+            "import": "./dist/esm/*.mjs",
+            "require": "./dist/cjs/*.js"
+        }
     },
     "scripts": {
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
@@ -15,7 +30,10 @@
         "type-check": "tsc --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",
-        "test:coverage": "vitest run --coverage"
+        "test:coverage": "vitest run --coverage",
+        "build": "bun --bun ../../bin/pkg-build/index.ts",
+        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
+        "clean": "rimraf dist"
     },
     "dependencies": {
         "@nestjs/common": "catalog:api:nest",
@@ -33,6 +51,10 @@
         "@types/node": "catalog:build",
         "eslint": "catalog:linting",
         "typescript": "catalog:build",
-        "vitest": "catalog:testing"
-    }
+        "vitest": "catalog:testing",
+        "chokidar": "catalog:build",
+        "rimraf": "catalog:build",
+        "@repo/pkg-build": "*"
+    },
+    "module": "./dist/esm/index.mjs"
 }

@@ -41,8 +41,8 @@ export {
 	type PreviewBackendResolution,
 	previewLinkedServiceSchema,
 	type PreviewLinkedService,
-} from './entities/configuration'
-export * from './entities/project'
+} from '@repo/contracts-entities/entities/configuration/index'
+export * from '@repo/contracts-entities/entities/project/index'
 export {
 	serviceSchema,
 	serviceObjectShape,
@@ -68,7 +68,7 @@ export {
 	mockEngineSchema,
 	mockServiceConfigSchema,
 	implementedContractSchema,
-} from './entities/service.schema'
+} from '@repo/contracts-entities/entities/service.schema'
 
 export type {
 	Service,
@@ -77,9 +77,9 @@ export type {
 	MockEngine,
 	MockServiceConfig,
 	ImplementedContract,
-} from './entities/service.schema'
-export * from './entities/deployment'
-export * from './entities/provider'
+} from '@repo/contracts-entities/entities/service.schema'
+export * from '@repo/contracts-entities/entities/deployment/index'
+export * from '@repo/contracts-entities/entities/provider/index'
 export {
 	dockerContainerStatusSchema,
 	dockerContainerHealthSchema,
@@ -246,7 +246,7 @@ export {
 	dockerImageSecurityScanStageSchema,
 	dockerImageSecurityScanEventTypeSchema,
 	dockerImageSecurityScanEventSchema,
-} from './entities/docker.schema'
+} from '@repo/contracts-entities/entities/docker.schema'
 
 export type {
 	DockerContainerStatus,
@@ -413,14 +413,14 @@ export type {
 	DockerImageSecurityScanStage,
 	DockerImageSecurityScanEventType,
 	DockerImageSecurityScanEvent,
-} from './entities/docker.schema'
-export * from './entities/docker/dockerode'
-export * from './entities/user'
-export * from './entities/template'
-export * from './entities/setup'
-export * from './entities/event-stream'
-export * from './entities/mesh'
-export * from './entities/traefik'
-export * from './entities/swarm'
-export * from './contracts/platform-domain.builder'
-export * from './types/domain.types'
+} from '@repo/contracts-entities/entities/docker.schema'
+export * from '@repo/contracts-entities/entities/docker/dockerode/index'
+export * from '@repo/contracts-entities/entities/user/index'
+export * from '@repo/contracts-entities/entities/template/index'
+export * from '@repo/contracts-entities/entities/setup/index'
+export * from '@repo/contracts-entities/entities/event-stream/index'
+export * from '@repo/contracts-entities/entities/mesh/index'
+export * from '@repo/contracts-entities/entities/traefik/index'
+export * from '@repo/contracts-entities/entities/swarm/index'
+export * from '@repo/contracts-entities/contracts/platform-domain.builder'
+export * from '@repo/contracts-entities/types/domain.types'

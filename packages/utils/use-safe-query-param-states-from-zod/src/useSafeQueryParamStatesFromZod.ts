@@ -16,11 +16,11 @@ import { useQueryStates } from 'nuqs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { z } from 'zod'
 
-import { getZodObjectDefaults } from './defaults'
-import { mergeWithDefaults } from './merge'
-import { createParserForZodField } from './parsers'
-import type { UnknownRecord, UseSafeQueryParamStatesOptions } from './types'
-import { useDebouncedCallback } from './useDebouncedCallback'
+import { getZodObjectDefaults } from '@repo/use-safe-query-param-states-from-zod/defaults'
+import { mergeWithDefaults } from '@repo/use-safe-query-param-states-from-zod/merge'
+import { createParserForZodField } from '@repo/use-safe-query-param-states-from-zod/parsers'
+import type { UnknownRecord, UseSafeQueryParamStatesOptions } from '@repo/use-safe-query-param-states-from-zod/types'
+import { useDebouncedCallback } from '@repo/use-safe-query-param-states-from-zod/useDebouncedCallback'
 
 /**
  * Build a `nuqs` parser map from a Zod object schema. The result is
@@ -53,8 +53,8 @@ function pickNuqsOptions(
 ): Omit<UseSafeQueryParamStatesOptions, 'delay' | 'resetKeys'> | undefined {
     if (!options) return undefined
     const { delay: _delay, resetKeys: _resetKeys, ...nuqsOptions } = options
-    void _delay
-    void _resetKeys
+    _delay
+    _resetKeys
     return nuqsOptions
 }
 

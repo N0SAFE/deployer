@@ -17,21 +17,21 @@ import { toDate, formatInTimeZone } from "date-fns-tz";
 import { DateRange } from "react-day-picker";
 import { cva, VariantProps } from "class-variance-authority";
 
-import { cn } from "../lib/utils";
-import { Button } from "./shadcn/button";
+import { cn } from "@repo/ui/lib/utils";
+import { Button } from "@repo/ui/components/shadcn/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger
-} from "./shadcn/popover";
+} from "@repo/ui/components/shadcn/popover";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
-} from "./shadcn/select";
-import { Calendar } from "./shadcn/calendar";
+} from "@repo/ui/components/shadcn/select";
+import { Calendar } from "@repo/ui/components/shadcn/calendar";
 
 const months = [
   "January",
@@ -122,9 +122,9 @@ export const CalendarDatePicker = React.forwardRef<
 
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-    const handleClose = () => setIsPopoverOpen(false);
+    const handleClose = () => { setIsPopoverOpen(false); };
 
-    const handleTogglePopover = () => setIsPopoverOpen((prev) => !prev);
+    const handleTogglePopover = () => { setIsPopoverOpen((prev) => !prev); };
 
     const selectDateRange = (from: Date, to: Date, range: string) => {
       const startDate = startOfDay(toDate(from, { timeZone }));
@@ -141,13 +141,16 @@ export const CalendarDatePicker = React.forwardRef<
 
     const handleDateSelect = (range: DateRange | undefined) => {
       if (range) {
-        let from = startOfDay(toDate(range.from as Date, { timeZone }));
+        // `DateRange.from` is optional in react-day-picker; narrow instead of
+        // asserting so a partial range is handled rather than crashing.
+        if (!range.from) return;
+        let from = startOfDay(toDate(range.from, { timeZone }));
         let to = range.to ? endOfDay(toDate(range.to, { timeZone })) : from;
         if (numberOfMonths === 1) {
           if (range.from !== date.from) {
             to = from;
-          } else {
-            from = startOfDay(toDate(range.to as Date, { timeZone }));
+          } else if (range.to) {
+            from = startOfDay(toDate(range.to, { timeZone }));
           }
         }
         onDateSelect({ from, to });
@@ -308,15 +311,18 @@ export const CalendarDatePicker = React.forwardRef<
       event.preventDefault();
       setSelectedRange(null);
       if (highlightedPart === "firstDay") {
-        const newDate = new Date(date.from as Date);
+        // Both bounds are optional; a partial range has nothing to step within.
+        if (!date.from || !date.to) return;
+        const newDate = new Date(date.from);
         const increment = event.deltaY > 0 ? -1 : 1;
         newDate.setDate(newDate.getDate() + increment);
-        if (newDate <= (date.to as Date)) {
-          numberOfMonths === 2
-            ? onDateSelect({ from: newDate, to: new Date(date.to as Date) })
-            : onDateSelect({ from: newDate, to: newDate });
+        if (newDate <= date.to) {
+          onDateSelect({
+            from: newDate,
+            to: numberOfMonths === 2 ? new Date(date.to) : newDate,
+          });
           setMonthFrom(newDate);
-        } else if (newDate > (date.to as Date) && numberOfMonths === 1) {
+        } else if (newDate > date.to && numberOfMonths === 1) {
           onDateSelect({ from: newDate, to: newDate });
           setMonthFrom(newDate);
         }
@@ -328,11 +334,12 @@ export const CalendarDatePicker = React.forwardRef<
         const newYear = yearFrom + (event.deltaY > 0 ? -1 : 1);
         handleYearChange(newYear, "from");
       } else if (highlightedPart === "secondDay") {
-        const newDate = new Date(date.to as Date);
+        if (!date.from || !date.to) return;
+        const newDate = new Date(date.to);
         const increment = event.deltaY > 0 ? -1 : 1;
         newDate.setDate(newDate.getDate() + increment);
-        if (newDate >= (date.from as Date)) {
-          onDateSelect({ from: new Date(date.from as Date), to: newDate });
+        if (newDate >= date.from) {
+          onDateSelect({ from: new Date(date.from), to: newDate });
           setMonthTo(newDate);
         }
       } else if (highlightedPart === "secondMonth") {
@@ -426,7 +433,7 @@ export const CalendarDatePicker = React.forwardRef<
                           highlightedPart === "firstDay" &&
                             "underline font-bold"
                         )}
-                        onMouseOver={() => handleMouseOver("firstDay")}
+                        onMouseOver={() => { handleMouseOver("firstDay"); }}
                         onMouseLeave={handleMouseLeave}
                       >
                         {formatWithTz(date.from, "dd")}
@@ -438,7 +445,7 @@ export const CalendarDatePicker = React.forwardRef<
                           highlightedPart === "firstMonth" &&
                             "underline font-bold"
                         )}
-                        onMouseOver={() => handleMouseOver("firstMonth")}
+                        onMouseOver={() => { handleMouseOver("firstMonth"); }}
                         onMouseLeave={handleMouseLeave}
                       >
                         {formatWithTz(date.from, "LLL")}
@@ -451,7 +458,7 @@ export const CalendarDatePicker = React.forwardRef<
                           highlightedPart === "firstYear" &&
                             "underline font-bold"
                         )}
-                        onMouseOver={() => handleMouseOver("firstYear")}
+                        onMouseOver={() => { handleMouseOver("firstYear"); }}
                         onMouseLeave={handleMouseLeave}
                       >
                         {formatWithTz(date.from, "y")}
@@ -466,7 +473,7 @@ export const CalendarDatePicker = React.forwardRef<
                               highlightedPart === "secondDay" &&
                                 "underline font-bold"
                             )}
-                            onMouseOver={() => handleMouseOver("secondDay")}
+                            onMouseOver={() => { handleMouseOver("secondDay"); }}
                             onMouseLeave={handleMouseLeave}
                           >
                             {formatWithTz(date.to, "dd")}
@@ -478,7 +485,7 @@ export const CalendarDatePicker = React.forwardRef<
                               highlightedPart === "secondMonth" &&
                                 "underline font-bold"
                             )}
-                            onMouseOver={() => handleMouseOver("secondMonth")}
+                            onMouseOver={() => { handleMouseOver("secondMonth"); }}
                             onMouseLeave={handleMouseLeave}
                           >
                             {formatWithTz(date.to, "LLL")}
@@ -491,7 +498,7 @@ export const CalendarDatePicker = React.forwardRef<
                               highlightedPart === "secondYear" &&
                                 "underline font-bold"
                             )}
-                            onMouseOver={() => handleMouseOver("secondYear")}
+                            onMouseOver={() => { handleMouseOver("secondYear"); }}
                             onMouseLeave={handleMouseLeave}
                           >
                             {formatWithTz(date.to, "y")}
@@ -507,7 +514,7 @@ export const CalendarDatePicker = React.forwardRef<
                           "date-part",
                           highlightedPart === "day" && "underline font-bold"
                         )}
-                        onMouseOver={() => handleMouseOver("day")}
+                        onMouseOver={() => { handleMouseOver("day"); }}
                         onMouseLeave={handleMouseLeave}
                       >
                         {formatWithTz(date.from, "dd")}
@@ -518,7 +525,7 @@ export const CalendarDatePicker = React.forwardRef<
                           "date-part",
                           highlightedPart === "month" && "underline font-bold"
                         )}
-                        onMouseOver={() => handleMouseOver("month")}
+                        onMouseOver={() => { handleMouseOver("month"); }}
                         onMouseLeave={handleMouseLeave}
                       >
                         {formatWithTz(date.from, "LLL")}
@@ -530,7 +537,7 @@ export const CalendarDatePicker = React.forwardRef<
                           "date-part",
                           highlightedPart === "year" && "underline font-bold"
                         )}
-                        onMouseOver={() => handleMouseOver("year")}
+                        onMouseOver={() => { handleMouseOver("year"); }}
                         onMouseLeave={handleMouseLeave}
                       >
                         {formatWithTz(date.from, "y")}

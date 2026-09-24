@@ -94,6 +94,14 @@ export const swarmInitOptionsSchema = z
   .passthrough()
 export type SwarmInitOptions = z.infer<typeof swarmInitOptionsSchema>
 
+/**
+ * Response of `POST /swarm/init`: the engine answers with a bare JSON STRING
+ * holding the id of the node that founded the cluster — not a swarm object.
+ * (The object shape is `GET /swarm`, i.e. `dockerodeSwarmInspectSchema`.)
+ */
+export const dockerodeSwarmInitResponseSchema = z.string().min(1)
+export type DockerodeSwarmInitResponse = z.infer<typeof dockerodeSwarmInitResponseSchema>
+
 export const swarmJoinOptionsSchema = z
   .object({
     ListenAddr: z.string().optional(),
@@ -108,7 +116,7 @@ export type SwarmJoinOptions = z.infer<typeof swarmJoinOptionsSchema>
 
 export const dockerodeServiceSummarySchema = z
   .object({
-    ID: z.string().min(1),
+    ID: z.string().min(1).optional(),
     Version: z
       .object({
         Index: z.number().default(0),

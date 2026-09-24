@@ -2,36 +2,36 @@ export {
   dockerRegistryAuthModeSchema,
   dockerRegistryStatusSchema,
   dockerRegistrySchema,
-} from './base.schema'
+} from '@repo/contracts-entities/entities/docker/registries/base.schema'
 
 export type {
   DockerRegistryAuthMode,
   DockerRegistryStatus,
   DockerRegistry,
-} from './base.schema'
+} from '@repo/contracts-entities/entities/docker/registries/base.schema'
 
 export {
   dockerRegistryListSchema,
   dockerRegistryRelationsSchema,
   dockerRegistryEntitySchema,
   dockerRegistryEntityListSchema,
-} from './relations.schema'
+} from '@repo/contracts-entities/entities/docker/registries/relations.schema'
 
 export type {
   DockerRegistryList,
   DockerRegistryRelations,
   DockerRegistryEntity,
   DockerRegistryEntityList,
-} from './relations.schema'
+} from '@repo/contracts-entities/entities/docker/registries/relations.schema'
 
 export {
   dockerRegistrySummarySchema,
   dockerRegistryTagDetailSchema,
   dockerRegistryRepositoryDetailSchema,
-} from './details.schema'
+} from '@repo/contracts-entities/entities/docker/registries/details.schema'
 
 export type {
   DockerRegistrySummary,
   DockerRegistryTagDetail,
   DockerRegistryRepositoryDetail,
-} from './details.schema'
+} from '@repo/contracts-entities/entities/docker/registries/details.schema'

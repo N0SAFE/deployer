@@ -24,7 +24,7 @@ import { DataTable } from '@repo/ui/components/data-table/data-table'
 import { AlertTriangle, Plus, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import type { DockerContainer } from '@repo/contracts-entities'
 import { cn } from '@/lib/utils'
-import { StatusDot } from '@/components/dashboard'
+import { StatusDot, StatStrip, StatStripItem } from '@/components/dashboard'
 import { useSafeQueryParamStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
 import { toast } from 'sonner'
 import {
@@ -884,31 +884,30 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
         </div>
 
         <div className="space-y-3 border-t border-border/60 p-3">
-          <div className="grid gap-2 sm:grid-cols-4">
-            <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
-              <p className="text-muted-foreground">Visible</p>
-              <p className="text-base font-semibold tabular-nums">{filteredContainers.length}</p>
-            </div>
-            <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
-              <p className="text-muted-foreground">Selected</p>
-              <p className="text-base font-semibold tabular-nums">{selectedContainers.length}</p>
-            </div>
-            <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
-              <p className="text-muted-foreground">Healthy</p>
-              <p className="flex items-center gap-1.5 text-base font-semibold tabular-nums">
-                <StatusDot tone="live" />
-                {healthyCount}
-              </p>
-            </div>
-            <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
-              <p className="text-muted-foreground">Failed</p>
-              <p className="flex items-center gap-1.5 text-base font-semibold tabular-nums">
-                <StatusDot tone={failedCount > 0 ? 'danger' : 'neutral'} />
-                {failedCount}
-              </p>
-            </div>
-          </div>
-
+          {/* Table baseline — one inline row rather than four nested boxes. */}
+          <StatStrip bare>
+            <StatStripItem label="Visible" value={filteredContainers.length} />
+            <StatStripItem label="Selected" value={selectedContainers.length} />
+            <StatStripItem
+              label="Healthy"
+              value={
+                <span className="flex items-center gap-1.5">
+                  <StatusDot tone="live" />
+                  {healthyCount}
+                </span>
+              }
+            />
+            <StatStripItem
+              label="Failed"
+              value={
+                <span className="flex items-center gap-1.5">
+                  <StatusDot tone={failedCount > 0 ? 'danger' : 'neutral'} />
+                  {failedCount}
+                </span>
+              }
+              tone={failedCount > 0 ? 'danger' : undefined}
+            />
+          </StatStrip>
         </div>
       </section>
     </div>

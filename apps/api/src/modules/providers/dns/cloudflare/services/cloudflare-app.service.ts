@@ -20,9 +20,9 @@ import { DnsProvidersRepository } from "../../shared/repositories/dns-providers.
 import { toCloudflareErrorMessage } from "./cloudflare.helpers";
 
 import { AppError } from "@repo/errors";
-type DnsProviderRow = typeof import("@/config/drizzle/global/schema").dnsProviders.$inferSelect;
-export type DnsProviderRuntimeState = import("@/config/drizzle/global/schema").DnsProviderRuntimeState;
-export type DnsProviderFeatures = import("@/config/drizzle/global/schema").DnsProviderFeatures;
+type DnsProviderRow = typeof import("@repo/nest-schema/global").dnsProviders.$inferSelect;
+export type DnsProviderRuntimeState = import("@repo/nest-schema/global").DnsProviderRuntimeState;
+export type DnsProviderFeatures = import("@repo/nest-schema/global").DnsProviderFeatures;
 
 const cloudflareCredentialsSchema = z.object({
     apiToken: z.string().min(1),

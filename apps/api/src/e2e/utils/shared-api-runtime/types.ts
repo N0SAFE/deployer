@@ -8,12 +8,22 @@ import type { Auth } from '@/auth'
 
 export interface SharedPostgresContainerHandle {
     getConnectionUri(): string
-    stop(): Promise<void>
+    // `unknown`, not `void`: testcontainers' StartedPostgreSqlContainer.stop()
+    // resolves to StoppedTestContainer, which is not assignable to Promise<void>.
+    stop(): Promise<unknown>
+}
+
+/**
+ * What `overrideProvider(...)` returns. Nest applies `.useValue(...)` on the
+ * override handle, not on the builder itself — modelling it as a direct builder
+ * method made `TestingModuleBuilder` structurally incompatible.
+ */
+export interface RuntimeModuleBuilderOverride {
+    useValue(value: unknown): RuntimeModuleBuilder
 }
 
 export interface RuntimeModuleBuilder {
-    overrideProvider(token: unknown): RuntimeModuleBuilder
-    useValue(value: unknown): RuntimeModuleBuilder
+    overrideProvider(token: unknown): RuntimeModuleBuilderOverride
     setLogger(logger: unknown): RuntimeModuleBuilder
     compile(): Promise<TestingModule>
 }

@@ -3,7 +3,7 @@ import { Matcher, MiddlewareFactory } from './utils/types'
 import { envIsValid, validateEnvSafe } from '#/env'
 import { nextjsRegexpPageOnly, nextNoApi, noPublic } from './utils/static'
 import { matcherHandler } from './utils/utils'
-import { toAbsoluteUrl } from '@/lib/utils'
+import { redirectSameOrigin, sameOriginUrl } from './utils/redirects'
 import { InternalMiddlewareErrorEnv } from '@/routes'
 import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 
@@ -43,16 +43,14 @@ const withEnv: MiddlewareFactory = (next: NextProxy) => {
                         return next(request, _next)
                     }
                     if (process.env.NODE_ENV === 'development') {
-                        const errorUrl = toAbsoluteUrl(
-                            InternalMiddlewareErrorEnv({}, {
-                                from: request.url
-                            })
-                        )
+                        const errorUrl = InternalMiddlewareErrorEnv({}, {
+                            from: request.url
+                        })
                         debugEnv('Environment invalid, redirecting to error page', {
                             from: request.url,
-                            to: errorUrl
+                            to: sameOriginUrl(request, errorUrl)
                         })
-                        return NextResponse.redirect(errorUrl)
+                        return redirectSameOrigin(request, errorUrl)
                     } else {
                         const errorData = validateEnvSafe(process.env).error
                         debugEnvError('Environment validation failed in production', {

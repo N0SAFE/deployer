@@ -1,9 +1,9 @@
 import z from "zod/v4";
-import { meshControlEnvelopeAckSchema, meshControlEnvelopeSchema } from "./control.schema";
+import { meshControlEnvelopeAckSchema, meshControlEnvelopeSchema } from "@repo/contracts-entities/entities/mesh/control.schema";
 import {
     meshMembershipReconcileInputSchema,
     meshMembershipReconcileResultSchema,
-} from "./routing-resources.schema";
+} from "@repo/contracts-entities/entities/mesh/routing-resources.schema";
 import {
     meshPeerConnectionSchema,
     meshPeerHeartbeatInputSchema,
@@ -13,7 +13,7 @@ import {
     meshTopologyEventSchema,
     meshNodeStateSchema,
     meshMembershipSnapshotSchema,
-} from "./topology.schema";
+} from "@repo/contracts-entities/entities/mesh/topology.schema";
 
 export const meshDuplexStreamAuthInputSchema = z.object({
     type: z.literal("auth"),

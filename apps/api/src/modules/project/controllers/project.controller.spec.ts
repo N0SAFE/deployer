@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ProjectController } from '@/modules/project/controllers/project.controller';
 import { ProjectService } from '@/modules/project/services/project.service';
 import { ProjectNetworkService } from '@/modules/project/services/project-network.service';
+import { ProjectRepository } from '@/modules/project/repositories/project.repository';
 
 // Create a chainable mock for implement().use().handler()
 function createImplementMock() {
@@ -38,6 +39,7 @@ vi.mock('@/core/modules/auth/orpc/middlewares', () => ({
 describe('ProjectController', () => {
     let controller: ProjectController;
     let service: ProjectService;
+       let projectRepository: ProjectRepository;
 
     beforeEach(async () => {
         const mockProjectService = {
@@ -73,8 +75,6 @@ describe('ProjectController', () => {
             updateResourceConfig: vi.fn(),
             getNotificationConfig: vi.fn(),
             updateNotificationConfig: vi.fn(),
-            resolveVariables: vi.fn(),
-            getAvailableVariables: vi.fn(),
             getEnvironmentStatus: vi.fn(),
             getAllEnvironmentStatuses: vi.fn(),
             refreshEnvironmentStatus: vi.fn(),
@@ -95,11 +95,18 @@ describe('ProjectController', () => {
                         saveNetwork: vi.fn(),
                     }),
                 },
+                   {
+                       provide: ProjectRepository,
+                       useValue: {
+                           countEnabledServicesForEnvironment: vi.fn(),
+                       },
+                   },
             ],
         }).compile();
 
         controller = module.get<ProjectController>(ProjectController);
         service = module.get<ProjectService>(ProjectService);
+           projectRepository = module.get<ProjectRepository>(ProjectRepository);
     });
 
     it('should be defined', () => {
@@ -140,8 +147,6 @@ describe('ProjectController', () => {
             'updateResourceConfig',
             'getNotificationConfig',
             'updateNotificationConfig',
-            'resolveVariables',
-            'getAvailableVariables',
             'getEnvironmentStatus',
             'getAllEnvironmentStatuses',
             'refreshEnvironmentStatus',

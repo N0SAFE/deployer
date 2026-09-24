@@ -1,4 +1,4 @@
-import type { BuilderMetadata } from "../domain";
+import type { BuilderMetadata } from "@repo/provider-schema/domain/index";
 
 export const buildersCatalog: BuilderMetadata[] = [
     {

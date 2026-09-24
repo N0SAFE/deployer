@@ -7,8 +7,8 @@ import {
 import { Matcher, MiddlewareFactory } from './utils/types'
 import { validateEnvPath } from '#/env'
 import { nextjsRegexpPageOnly, nextNoApi } from './utils/static'
+import { redirectSameOrigin, sameOriginUrl } from './utils/redirects'
 import { orpc } from '@/lib/orpc'
-import { toAbsoluteUrl } from '@/lib/utils'
 import { InternalMiddlewareErrorHealthCheck } from '@/routes'
 import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 
@@ -63,24 +63,22 @@ const withHealthCheck: MiddlewareFactory = (next: NextProxy) => {
                             )
                             return NextResponse.next()
                         } else {
-                            const errorUrl = toAbsoluteUrl(
-                                InternalMiddlewareErrorHealthCheck(
-                                    {},
-                                    {
-                                        json: JSON.stringify(data),
-                                        from: request.url,
-                                    }
-                                )
+                            const errorPath = InternalMiddlewareErrorHealthCheck(
+                                {},
+                                {
+                                    json: JSON.stringify(data),
+                                    from: request.url,
+                                }
                             )
                             debugHealthCheckError(
                                 'API health check failed, redirecting to error page',
                                 {
                                     from: request.url,
-                                    to: errorUrl,
+                                    to: sameOriginUrl(request, errorPath),
                                     healthData: data,
                                 }
                             )
-                            return NextResponse.redirect(errorUrl)
+                            return redirectSameOrigin(request, errorPath)
                         }
                     }
                 } catch (e: unknown) {
@@ -107,23 +105,21 @@ const withHealthCheck: MiddlewareFactory = (next: NextProxy) => {
                         debugHealthCheck('Already on error page, proceeding')
                         return NextResponse.next()
                     } else {
-                        const errorUrl = toAbsoluteUrl(
-                            InternalMiddlewareErrorHealthCheck(
-                                {},
-                                {
-                                    json: JSON.stringify(errorData),
-                                    from: request.url,
-                                }
-                            )
+                        const errorPath = InternalMiddlewareErrorHealthCheck(
+                            {},
+                            {
+                                json: JSON.stringify(errorData),
+                                from: request.url,
+                            }
                         )
                         debugHealthCheckError(
                             'Redirecting to error page due to health check exception',
                             {
                                 from: request.url,
-                                to: errorUrl,
+                                to: sameOriginUrl(request, errorPath),
                             }
                         )
-                        return NextResponse.redirect(errorUrl)
+                        return redirectSameOrigin(request, errorPath)
                     }
                 }
             } catch {
@@ -134,30 +130,30 @@ const withHealthCheck: MiddlewareFactory = (next: NextProxy) => {
                     debugHealthCheck('Already on error page, proceeding')
                     return NextResponse.next()
                 } else {
-                    const errorUrl = toAbsoluteUrl(
-                        InternalMiddlewareErrorHealthCheck(
-                            {},
-                            {
-                                from: request.url,
-                            }
-                        )
+                    const errorPath = InternalMiddlewareErrorHealthCheck(
+                        {},
+                        {
+                            from: request.url,
+                        }
                     )
                     debugHealthCheckError(
                         'Redirecting to error page due to unexpected error',
                         {
                             from: request.url,
-                            to: errorUrl,
+                            to: sameOriginUrl(request, errorPath),
                         }
                     )
-                    return NextResponse.redirect(errorUrl)
+                    return redirectSameOrigin(request, errorPath)
                 }
             }
         }
 
         if (request.nextUrl.pathname === errorPageRenderingPath) {
-            const redirectUrl =
-                request.nextUrl.searchParams.get('from') ??
-                request.nextUrl.origin + '/'
+            // `?from=` is an operator-supplied absolute URL (an external
+            // destination) — honour it as-is; otherwise come home to THIS
+            // origin, derived from the request rather than from config.
+            const fromParam = request.nextUrl.searchParams.get('from')
+            const redirectUrl = fromParam ?? new URL('/', request.url).toString()
             debugHealthCheck(
                 'Redirecting from health check error page to origin',
                 {

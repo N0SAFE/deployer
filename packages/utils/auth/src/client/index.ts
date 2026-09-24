@@ -1,6 +1,6 @@
 // Export the client factory
-export { createAuthClientFactory } from "./auth-client";
-export type { CreateAuthClientFactoryOptions } from "./auth-client";
+export { createAuthClientFactory } from "@repo/auth/client/auth-client";
+export type { CreateAuthClientFactoryOptions } from "@repo/auth/client/auth-client";
 
 // Export all client plugins from the plugins index
-export * from "./plugins";
+export * from "@repo/auth/client/plugins/index";

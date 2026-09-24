@@ -25,7 +25,7 @@ import {
 	type DockerSupervisorRuntime,
 } from "./docker-supervisor-runtime";
 import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
-import { toDockerServiceSpec } from "@/modules/runners/swarm/swarm-spec.mapper";
+import { toDockerServiceSpec } from "@/core/modules/swarm/services/swarm-spec.mapper";
 
 /** Dockerode API errors carry an HTTP-style statusCode (404 = not found). */
 type DockerodeError = Error & { statusCode?: number };
@@ -59,6 +59,51 @@ export abstract class BaseDockerSupervisorService<
 	/** The shared dockerode client for all supervisor operations. */
 	protected get client(): Docker {
 		return this.dockerService.getDockerClient();
+	}
+
+	/**
+	 * True when the local engine is an ACTIVE swarm member. Drives runtime
+	 * resolution: a supervisor runs its process as a swarm service when the
+	 * engine is active, and as a plain container otherwise (pre-setup or
+	 * swarm participation disabled). Cheap `GET /info` probe — never throws.
+	 */
+	protected async isSwarmActive(): Promise<boolean> {
+		try {
+			const info = await this.dockerService.getSwarmInfo();
+			return info.LocalNodeState === "active";
+		} catch {
+			return false;
+		}
+	}
+
+	/**
+	 * Whether this supervisor's resource can ONLY exist on a swarm. Defaults to
+	 * true because the container fallback was removed repo-wide: every docker
+	 * supervisor either schedules a swarm service or a `managed` (compose/
+	 * operator-owned) process. A supervisor that can still be driven WITHOUT an
+	 * active swarm overrides this to false.
+	 */
+	protected isSwarmOnly(): boolean {
+		return true;
+	}
+
+	/**
+	 * Defer every docker supervisor until its resource can actually exist.
+	 *
+	 * On a node that is not yet a swarm manager, a swarm converge cannot
+	 * succeed — it fails with `This node is not a swarm manager`, burns the
+	 * retry budget and reports DEGRADED for what is really "the cluster does
+	 * not exist yet". The cluster is created BY SETUP, so before setup the
+	 * honest answer is `pending`: deferred, not failed.
+	 *
+	 * `managed` resources (compose/operator-owned) are exempt — they exist
+	 * independently of the local engine's state, so a managed supervisor
+	 * converges normally and only links its network.
+	 */
+	protected override async convergenceBlocker(): Promise<string | null> {
+		if (!this.isSwarmOnly()) return null;
+		if (await this.isSwarmActive()) return null;
+		return "deferred until an active swarm exists — the cluster entry mode (create vs join) is decided during setup";
 	}
 
 	/**
@@ -177,8 +222,19 @@ export abstract class BaseDockerSupervisorService<
 			await this.client.getContainer(name).remove({ force: true });
 		} catch (error: unknown) {
 			const msg = error instanceof Error ? error.message : String(error);
+			const statusCode = (error as DockerodeError).statusCode;
 			// "no such container" (or a 404 status) means nothing to remove.
-			if (msg.includes("no such container") || (error as DockerodeError).statusCode === 404) return;
+			// A 409 "removal ... already in progress" means a previous
+			// convergence pass is already removing it — the desired end state
+			// (absent) is guaranteed, so treat it like 404 instead of racing.
+			if (
+				msg.includes("no such container") ||
+				statusCode === 404 ||
+				statusCode === 409 ||
+				msg.includes("already in progress")
+			) {
+				return;
+			}
 			throw error;
 		}
 	}
@@ -292,12 +348,29 @@ export abstract class BaseDockerSupervisorService<
 				image: spec.image,
 				command: spec.command,
 				labels: spec.labels,
-				networkName: spec.networks[0] ?? null,
+				networkName: spec.networks[0]?.target ?? null,
 				mode: spec.mode,
 				replicas: spec.replicas,
 			},
 			live,
 		};
+	}
+
+	/**
+	 * Attach a swarm service to the platform overlay, registering the given
+	 * ALIASES on it. Consumers address platform services by their stable alias
+	 * (`global-db`, `redis`, `traefik`, `db-<instance>`) — which is exactly how
+	 * the persisted connection URLs point at them — so the alias must be
+	 * declared on the network attachment, not merely implied by the service
+	 * name (a prefixed deployment's service name differs from its alias).
+	 */
+	protected attachOverlay(
+		spec: SwarmServiceSpecInput,
+		overlay: string,
+		aliases: readonly string[] = [],
+	): SwarmServiceSpecInput {
+		spec.networks = [{ target: overlay, aliases: [...aliases] }];
+		return spec;
 	}
 
 	/**
@@ -324,14 +397,16 @@ export abstract class BaseDockerSupervisorService<
 		}
 	}
 
-	/** Remove a platform swarm service if it exists (tolerates already-gone). */
+	/**
+	 * Remove a platform swarm service if it exists.
+	 *
+	 * Idempotent by delegation: `DockerService.removeSwarmService` already
+	 * treats "already gone" (404) and "engine not a swarm manager/part of a
+	 * swarm" (403/503 — the pre-setup / swarm-deferred phase) as no-ops, so
+	 * this is a thin pass-through kept for supervisor readability.
+	 */
 	protected async removeSwarmServiceIfExists(name: string): Promise<void> {
-		try {
-			await this.dockerService.removeSwarmService(name);
-		} catch (error: unknown) {
-			if (error instanceof NotFoundException) return;
-			throw error;
-		}
+		await this.dockerService.removeSwarmService(name);
 	}
 
 	/**

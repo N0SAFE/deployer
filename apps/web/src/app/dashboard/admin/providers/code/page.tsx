@@ -7,16 +7,33 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo
 import { ArrowLeft, GitFork, Plus, Code2, Container } from 'lucide-react'
 import { PageHeader } from '@/components/dashboard'
 
-const codeProviders: Array<{
+/**
+ * The only part of a route builder this grid renders: a typed `Link`.
+ *
+ * Declaring it structurally is what removes the `as unknown as` assertion this
+ * used to need to reach `.Link` off a route builder. A route builder's `Link`
+ * takes optional props plus its own params, so it satisfies this shape directly.
+ */
+interface ProviderRoute {
+  Link: React.ComponentType<{ children?: React.ReactNode }>
+}
+
+/**
+ * Every provider listed here has a working configuration page. There is
+ * deliberately no "coming soon" state: the four providers that used to carry
+ * one (GitLab, Docker Hub, and the same stale marker on the DNS grid) had
+ * complete CRUD pages behind a disabled button, so the UI advertised a
+ * finished feature as unfinished and left it unreachable.
+ */
+const codeProviders: {
   id: string
   name: string
   description: string
   icon: React.ElementType
   color: string
   bgColor: string
-  route: React.ElementType | null
-  status: 'active' | 'coming-soon'
-}> = [
+  route: ProviderRoute
+}[] = [
   {
     id: 'github',
     name: 'GitHub',
@@ -25,7 +42,6 @@ const codeProviders: Array<{
     color: 'text-gray-700 dark:text-gray-300',
     bgColor: 'bg-gray-100 dark:bg-gray-800',
     route: AuthDashboardAdminProvidersCodeGithub,
-    status: 'active',
   },
   {
     id: 'gitlab',
@@ -35,7 +51,6 @@ const codeProviders: Array<{
     color: 'text-orange-600 dark:text-orange-400',
     bgColor: 'bg-orange-100 dark:bg-orange-950/50',
     route: AuthDashboardAdminProvidersCodeGitlab,
-    status: 'coming-soon',
   },
   {
     id: 'docker-hub',
@@ -45,7 +60,6 @@ const codeProviders: Array<{
     color: 'text-blue-600 dark:text-blue-400',
     bgColor: 'bg-blue-100 dark:bg-blue-950/50',
     route: AuthDashboardAdminProvidersCodeDockerHub,
-    status: 'coming-soon',
   },
 ]
 
@@ -67,9 +81,9 @@ export default function AdminProvidersCodePage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {codeProviders.map((provider) => {
           const Icon = provider.icon
-          const isComingSoon = provider.status === 'coming-soon'
+          const ConfigureLink = provider.route.Link
           return (
-            <Card key={provider.id} className={`hover:border-border/80 transition-colors ${isComingSoon ? 'opacity-60' : 'cursor-pointer'}`}>
+            <Card key={provider.id} className="cursor-pointer transition-colors hover:border-border/80">
               <CardHeader className="flex flex-row items-start gap-4">
                 <div className={`rounded-lg p-2.5 ${provider.bgColor}`}>
                   <Icon className={`size-5 ${provider.color}`} />
@@ -82,19 +96,12 @@ export default function AdminProvidersCodePage() {
                 </div>
               </CardHeader>
               <CardContent>
-                {!isComingSoon && provider.route ? (() => {
-                  const RouteLink = provider.route as unknown as { Link: React.ElementType }
-                  return (
-                    <RouteLink.Link>
-                      <Button size="sm" className="w-full">
-                        <Plus className="mr-2 size-4" />
-                        Configure
-                      </Button>
-                    </RouteLink.Link>
-                  )
-                })() : (
-                  <Button size="sm" className="w-full" disabled>Coming Soon</Button>
-                )}
+                <ConfigureLink>
+                  <Button size="sm" className="w-full">
+                    <Plus className="mr-2 size-4" />
+                    Configure
+                  </Button>
+                </ConfigureLink>
               </CardContent>
             </Card>
           )

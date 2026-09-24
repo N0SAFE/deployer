@@ -5,8 +5,8 @@
  * the converters can turn them into decorators or middlewares.
  */
 
-import type { AssertionDefinition, CompositePayload } from './assertion'
-import { createAssertion, assertAll, assertAny, assertNot } from './assertion'
+import type { AssertionDefinition, CompositePayload } from '@repo/auth/permissions/plugins/system/assertion'
+import { createAssertion, assertAll, assertAny, assertNot } from '@repo/auth/permissions/plugins/system/assertion'
 
 // Re-export everything from assertion for convenience
 export { 

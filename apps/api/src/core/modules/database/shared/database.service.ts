@@ -1,8 +1,8 @@
 import { AppError } from "@repo/errors";
 import { Logger } from '@nestjs/common'
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
-import type * as globalSchema from '@/config/drizzle/global/schema'
-import type * as localSchema from '@/config/drizzle/local/schema'
+import type * as globalSchema from '@repo/nest-schema/global'
+import type * as localSchema from '@repo/nest-schema/local'
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
 
 export abstract class BaseDatabaseService<

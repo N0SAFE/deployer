@@ -1,7 +1,7 @@
 export {
   userSchema,
-} from './base.schema'
+} from '@repo/contracts-entities/entities/user/base.schema'
 
 export type {
   User,
-} from './base.schema'
+} from '@repo/contracts-entities/entities/user/base.schema'

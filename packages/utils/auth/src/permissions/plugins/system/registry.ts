@@ -6,7 +6,7 @@
  * Auth is provided once at registry creation, then only headers (and optional session) are needed per-request.
  */
 
-import type { InferSessionFromAuth } from "./base-plugin-wrapper";
+import type { InferSessionFromAuth } from "@repo/auth/permissions/plugins/system/base-plugin-wrapper";
 import type { Auth as BetterAuthInstance } from 'better-auth';
 
 /**

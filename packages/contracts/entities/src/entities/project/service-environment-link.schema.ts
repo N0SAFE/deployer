@@ -1,5 +1,5 @@
 import z from 'zod/v4'
-import { serviceEnvironmentExecutionOverrideSchema } from '../configuration/service-overrides.schema'
+import { serviceEnvironmentExecutionOverrideSchema } from '@repo/contracts-entities/entities/configuration/service-overrides.schema'
 
 /**
  * SERVICE × ENVIRONMENT LINK — a service's membership + overrides in a given

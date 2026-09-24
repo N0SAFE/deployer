@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { invitePlugin } from './invite';
+import { invitePlugin } from '@repo/auth/server/plugins/invite';
 import * as z from 'zod';
 
 // Mock better-auth modules

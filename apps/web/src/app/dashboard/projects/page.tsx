@@ -180,7 +180,10 @@ export default function DashboardProjectsPage() {
           {filteredProjects.map((project) => {
             const id = project.id
             const name = project.name ?? id
-            const updatedAt = project.updatedAt ?? new Date().toISOString()
+            // Read, do not invent: `project.updatedAt ?? new Date()` stamped the
+            // CURRENT time on any project the API had no timestamp for, so the
+            // card reported "just updated" for something that never was.
+            const updatedAt = project.updatedAt
             const depStatus = project.latestDeployment?.status
 
             return (
@@ -202,7 +205,9 @@ export default function DashboardProjectsPage() {
                 <CardContent className="space-y-2 pt-0">
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span className="font-mono">{shortId(id)}</span>
-                    <span>{formatDate(updatedAt)}</span>
+                    <span title="Last updated">
+                      {updatedAt === undefined || updatedAt === '' ? '—' : formatDate(updatedAt)}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <AuthDashboardProjectsProjectIdConfiguration.Link projectId={id}>

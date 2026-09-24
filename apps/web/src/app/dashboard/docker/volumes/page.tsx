@@ -25,6 +25,8 @@ import { Separator } from '@repo/ui/components/shadcn/separator'
 import { Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSafeQueryParamStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
+import { StatStrip, StatStripItem } from '@/components/dashboard'
+import { formatDateTime as formatDate } from '@/lib/format/date'
 
 const VOLUME_LIST_INPUT = {
   query: {
@@ -54,12 +56,6 @@ interface VolumeProjection {
 
 function shortId(id: string): string {
   return id.slice(0, 8)
-}
-
-function formatDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleString()
 }
 
 export default function DashboardDockerVolumesPage() {
@@ -443,23 +439,18 @@ export default function DashboardDockerVolumesPage() {
           />
         </div>
 
-        <div className="mt-3 grid gap-2 sm:grid-cols-4">
-          <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
-            <p className="text-muted-foreground">Visible</p>
-            <p className="text-base font-semibold">{filteredVolumes.length}</p>
-          </div>
-          <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
-            <p className="text-muted-foreground">Selected</p>
-            <p className="text-base font-semibold">{selectedIds.size}</p>
-          </div>
-          <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
-            <p className="text-muted-foreground">Active</p>
-            <p className="text-base font-semibold">{activeVolumes}</p>
-          </div>
-          <div className="rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
-            <p className="text-muted-foreground">Inactive</p>
-            <p className="text-base font-semibold">{filteredVolumes.length - activeVolumes}</p>
-          </div>
+        <div className="mt-3">
+          {/* Table baseline — one inline row rather than four nested boxes. */}
+          <StatStrip bare>
+            <StatStripItem label="Visible" value={filteredVolumes.length} />
+            <StatStripItem label="Selected" value={selectedIds.size} />
+            <StatStripItem label="Active" value={activeVolumes} />
+            <StatStripItem
+              label="Inactive"
+              value={filteredVolumes.length - activeVolumes}
+              tone={filteredVolumes.length - activeVolumes > 0 ? 'pending' : undefined}
+            />
+          </StatStrip>
         </div>
 
         <div className="mt-3">

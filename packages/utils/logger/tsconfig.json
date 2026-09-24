@@ -6,7 +6,15 @@
     "moduleResolution": "bundler",
     "outDir": "./dist",
     "rootDir": ".",
-    "target": "ES2020"
+    "target": "ES2020",
+    "paths": {
+      "@repo/logger/*": [
+        "./src/*"
+      ]
+    }
   },
-  "include": ["src/**/*", "eslint.config.ts"]
+  "include": [
+    "src/**/*",
+    "eslint.config.ts"
+  ]
 }

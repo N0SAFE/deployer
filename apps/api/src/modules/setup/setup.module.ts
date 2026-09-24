@@ -25,7 +25,6 @@ import { SetupController } from "./controllers/setup.controller";
 @Module({
     imports: [CoreInitializationModule, CoreReachabilityModule],
     controllers: [SetupController],
-    providers: [],
     exports: [CoreInitializationModule],
 })
 export class SetupModule {}

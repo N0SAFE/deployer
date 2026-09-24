@@ -19,20 +19,18 @@ services:
     ports:
       - "${DRIZZLE_STUDIO_PORT:-4983}:4983"
     depends_on:
-      global-db:
-        condition: service_healthy
       redis:
         condition: service_healthy
     environment:
       # ── Compose-managed services ──
-      # Every supervised platform service is owned by compose in dev — the
-      # API supervisors skip spawning (MANAGED_*_ENABLED=true).
-      MANAGED_GLOBAL_DB_ENABLED: "true"
-      MANAGED_GLOBAL_DB_HOST: global-db
-      MANAGED_GLOBAL_DB_PORT: "5432"
-      MANAGED_GLOBAL_DB_USER: deployer
-      MANAGED_GLOBAL_DB_PASSWORD: deployer
-      MANAGED_GLOBAL_DB_NAME: deployer
+      # Every supervised platform service is owned by compose in dev EXCEPT
+      # the global Postgres: that one is scheduled by the API as a swarm
+      # service (GlobalDbSupervisorService -> deployer-postgres, replicated,
+      # alias global-db), so dev runs the same code path as every other fleet
+      # size. MANAGED_GLOBAL_DB_ENABLED must stay false, otherwise the global
+      # DB supervisor skips registration and dev stays on a container while
+      # prod runs a service.
+      MANAGED_GLOBAL_DB_ENABLED: "false"
       MANAGED_REDIS_ENABLED: "true"
       MANAGED_REDIS_HOST: redis
       MANAGED_REDIS_PORT: "6379"
@@ -82,22 +80,6 @@ services:
       app_network_dev: {}
 
   # ── Platform services (extend common bases) ───────────────────────
-  global-db:
-    extends:
-      file: ./common/database/global/docker-compose.config.yml
-      service: global-db
-    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-global-db
-    networks:
-      app_network_dev:
-        aliases:
-          - global-db
-      deployer_platform:
-        aliases:
-          - global-db
-      shared:
-        aliases:
-          - global-db
-
   redis:
     extends:
       file: ./common/redis/docker-compose.config.yml
@@ -122,9 +104,8 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-drizzle-gateway
     environment:
       DATABASE_URL_Deployer: postgresql://${MANAGED_GLOBAL_DB_USER:-deployer}:${MANAGED_GLOBAL_DB_PASSWORD:-deployer}@global-db:5432/${MANAGED_GLOBAL_DB_NAME:-deployer}
-    depends_on:
-      global-db:
-        condition: service_healthy
+    # The global database is a swarm service the API schedules; the gateway
+    # reaches it by its overlay alias (global-db) once it is up.
     networks:
       shared: {}
 

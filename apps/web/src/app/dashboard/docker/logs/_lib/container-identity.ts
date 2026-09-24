@@ -2,11 +2,7 @@ export function shortId(id: string): string {
   return id.slice(0, 8)
 }
 
-export function formatDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleString()
-}
+export { formatDateTime as formatDate } from '@/lib/format/date'
 
 export function truncateMiddle(value: string, maxLength = 9): string {
   const normalized = value.trim()

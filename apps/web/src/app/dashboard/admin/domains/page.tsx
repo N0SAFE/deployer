@@ -20,6 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
 import { Field, FieldLabel, FieldDescription } from '@repo/ui/components/shadcn/field'
 import { Siren, Plus, Trash2, Globe, CheckCircle2, Clock, XCircle, RefreshCw, Copy, Building2, Network, Cloud, Loader2 } from 'lucide-react'
+import { EmptyState } from '@/components/dashboard'
 import { toast } from 'sonner'
 import { z } from 'zod/v4'
 
@@ -295,13 +296,11 @@ export default function AdminDomainsPage() {
 
   if (projects.length === 0) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <Building2 className="mb-4 size-12 text-muted-foreground/40" />
-          <p className="text-lg font-medium">No projects yet</p>
-          <p className="text-sm text-muted-foreground">Create a project first — domains belong to projects.</p>
-        </CardContent>
-      </Card>
+      <EmptyState
+        icon={Building2}
+        title="No projects yet"
+        description="Domains belong to projects, so create one first."
+      />
     )
   }
 
@@ -519,13 +518,12 @@ export default function AdminDomainsPage() {
       </Dialog>
 
       {(domainRows.length === 0) ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Globe className="mb-4 size-12 text-muted-foreground/40" />
-            <p className="text-lg font-medium">No domains configured</p>
-            <p className="text-sm text-muted-foreground">Add a domain to enable project domain assignment and service URL mapping.</p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Globe}
+          title="No domains configured"
+          description="Add a domain to enable project domain assignment and service URL mapping."
+          action={{ label: 'Add domain', onClick: () => { setAddOpen(true) } }}
+        />
       ) : (
         <Card>
           <CardHeader><CardTitle>Project Domains</CardTitle><CardDescription>{domainRows.length} domain{domainRows.length !== 1 ? 's' : ''} — reachability checks run automatically on load</CardDescription></CardHeader>
@@ -575,7 +573,7 @@ export default function AdminDomainsPage() {
                             <p className="text-xs font-mono text-muted-foreground break-all">{recordName}</p>
                             <div className="flex items-center gap-1">
                               <code className="text-xs bg-muted px-1.5 py-0.5 rounded break-all">{token}</code>
-                              <Button variant="ghost" size="icon" className="size-5 shrink-0" onClick={() => { navigator.clipboard.writeText(token); toast.success('Copied!') }}>
+                              <Button variant="ghost" size="icon" className="size-5 shrink-0" aria-label="Copy token" onClick={() => { navigator.clipboard.writeText(token); toast.success('Copied!') }}>
                                 <Copy className="size-3" />
                               </Button>
                             </div>
@@ -597,7 +595,7 @@ export default function AdminDomainsPage() {
                           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => runReachabilityCheck(domain, domainId)}>
                             <RefreshCw className={`size-3 ${reachabilityMap[domainId]?.loading ? 'animate-spin' : ''}`} />
                           </Button>
-                          <Button variant="ghost" size="icon" className="size-7" onClick={() => { setDeleteId(domainId); setDeleteName(domain); setDeleteOpen(true) }}>
+                          <Button variant="ghost" size="icon" className="size-7" aria-label={`Remove ${domain}`} onClick={() => { setDeleteId(domainId); setDeleteName(domain); setDeleteOpen(true) }}>
                             <Trash2 className="size-3.5" />
                           </Button>
                         </div>

@@ -18,7 +18,7 @@ export {
     type CreateUseSessionOptions,
     type CreateGetSessionOptions,
     type PrefetchSessionOptions,
-} from './session'
+} from '@repo/auth/react/session/index'
 
 // Re-export permission hooks factory and types
 export {
@@ -27,16 +27,16 @@ export {
     type CreatePermissionHooksOptions,
     type UseSessionResult,
     type SessionData,
-} from './usePermissions'
+} from '@repo/auth/react/usePermissions'
 
 // Re-export permission components factory
 export {
     createRequirePermissionComponents,
     type RequirePlatformPermissionProps,
     type RequirePermissionProps,
-} from './RequirePermission'
+} from '@repo/auth/react/RequirePermission'
 
 // Re-export permission types
 export type {
     PlatformPermission,
-} from './usePermissions'
+} from '@repo/auth/react/usePermissions'

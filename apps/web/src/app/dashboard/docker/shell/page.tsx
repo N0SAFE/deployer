@@ -22,6 +22,7 @@ import {
 } from '@repo/ui/components/shadcn/table'
 import { Play, Search, Square, TerminalSquare } from 'lucide-react'
 import type { DockerContainer } from '@repo/contracts-entities'
+import { formatDateTime as formatDate } from '@/lib/format/date'
 
 const DOCKER_LIST_INPUT = {
   query: {
@@ -29,11 +30,6 @@ const DOCKER_LIST_INPUT = {
     offset: 0,
   },
 } as const
-
-function formatDate(value: string): string {
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleString()
-}
 
 function toBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   const normalized = status.toLowerCase()

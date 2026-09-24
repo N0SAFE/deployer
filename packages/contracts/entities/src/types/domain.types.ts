@@ -1,5 +1,5 @@
 import z from 'zod'
-import { platformDomainSchemas } from '../contracts/platform-domain.builder'
+import { platformDomainSchemas } from '@repo/contracts-entities/contracts/platform-domain.builder'
 
 export type MockProject = z.infer<typeof platformDomainSchemas.mockProjectSchema>
 export type FixtureGroupMemberService = z.infer<typeof platformDomainSchemas.fixtureGroupMemberServiceSchema>

@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { builderCategorySchema, providerCategorySchema } from "./enums";
+import { builderCategorySchema, providerCategorySchema } from "@repo/provider-schema/domain/enums";
 
 export const providerMetadataSchema = z.object({
     id: z.string(),

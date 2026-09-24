@@ -74,6 +74,7 @@
         "cross-env": "catalog:dev",
         "date-fns": "catalog:utils",
         "date-fns-tz": "catalog:utils",
+        "dockerode": "^5.0.1",
         "emblor": "^1.4.8",
         "esbuild-wasm": "^0.28.1",
         "exceljs": "catalog:utils",
@@ -100,6 +101,7 @@
         "react-use": "catalog:react",
         "react-window": "^2.2.7",
         "recharts": "catalog:ui",
+        "server-only": "^0.0.1",
         "serwist": "9.5.11",
         "shadcn": "catalog:ui",
         "sonner": "catalog:ui",
@@ -123,6 +125,7 @@
         "@testing-library/jest-dom": "catalog:testing",
         "@testing-library/react": "catalog:testing",
         "@testing-library/user-event": "catalog:testing",
+        "@types/dockerode": "^4.0.1",
         "@types/geojson": "^7946.0.16",
         "@types/leaflet": "^1.9.22",
         "@types/leaflet-draw": "^1.0.13",
@@ -131,17 +134,14 @@
         "@types/mdx": "catalog:doc",
         "@types/node": "catalog:build",
         "@types/nprogress": "catalog:web",
-        "@types/dockerode": "^4.0.1",
         "@types/react": "catalog:react",
         "@types/react-dom": "catalog:react",
         "@vitejs/plugin-react": "catalog:testing",
         "@vitest/coverage-v8": "catalog:testing",
         "@vitest/ui": "catalog:testing",
-        "babel-plugin-react-compiler": "catalog:react-compiler",
         "dotenv": "catalog:dev",
         "dotenv-cli": "catalog:dev",
         "dotenv-expand": "catalog:dev",
-        "dockerode": "^5.0.0",
         "eslint": "catalog:linting",
         "eslint-config-next": "catalog:next",
         "estree-walker": "^3.0.3",
@@ -152,9 +152,14 @@
         "tailwind-merge": "catalog:styling",
         "tailwind-variants": "catalog:styling",
         "tailwindcss": "catalog:styling",
+        "typescript": "catalog:build",
         "vitest": "catalog:testing",
         "wait-on": "catalog:dev",
-        "wait-port": "catalog:dev",
-        "typescript": "catalog:build"
+        "wait-port": "catalog:dev"
+    },
+    "optionalDependencies": {},
+    "overrides": {
+        "@types/react": "19.2.2",
+        "@types/react-dom": "19.2.2"
     }
 }

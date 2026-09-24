@@ -3,7 +3,7 @@ import { deploymentEnvironmentSchema } from "@repo/contracts-common";
 import {
     deploymentExecutionProgressSchema,
     deploymentObservabilityContextSchema,
-} from "./base.schema";
+} from "@repo/contracts-entities/entities/deployment/base.schema";
 
 export const deploymentPlanNodeSchema = z.object({
     id: z.string().min(1),

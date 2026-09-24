@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { templateKindSchema, templateScopeSchema, templateVersionSchema } from "../template";
+import { templateKindSchema, templateScopeSchema, templateVersionSchema } from "@repo/contracts-entities/entities/template/index";
 
 export const deploymentTemplateProvenanceSourceSchema = z.enum(["template", "inlineOverride", "runtimeDefault"]);
 export type DeploymentTemplateProvenanceSource = z.infer<typeof deploymentTemplateProvenanceSourceSchema>;

@@ -6,7 +6,7 @@ import {
   clusterServerAllocations,
   clusterAdmissionRequests,
   clusterNodeMetrics,
-} from "@/config/drizzle/global/schema";
+} from "@repo/nest-schema/global";
 
 /**
  * FleetRepository — the data-access layer for the cluster fleet model

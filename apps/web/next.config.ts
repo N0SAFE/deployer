@@ -105,6 +105,10 @@ const apiUrl = new URL(envSchema.shape.API_URL.parse(process.env.API_URL));
 const noCheck = process.env.CHECK_ON_BUILD !== "true";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverComponentsHmrCache: true,
+    turbopackRustReactCompiler: true
+  },
   serverExternalPackages: ["esbuild-wasm"],
   async rewrites() {
     return [
@@ -185,6 +189,11 @@ const nextConfig: NextConfig = {
         protocol: "https",
       },
     ],
+  },
+  logging: {
+    fetches: {
+      hmrRefreshes: true,
+    },
   },
 
   // postcss.config.mjs is intentionally disabled — Turbopack handles Tailwind v4

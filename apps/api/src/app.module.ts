@@ -1,10 +1,15 @@
 import "reflect-metadata";
+// The Drizzle schema lives in `@repo/nest-schema` and needs two pieces of APP
+// behaviour: the encryption key and the traefik config builder. Both are
+// application POLICY (which env var holds the key, whether a missing one is
+// fatal), so the package asks for them instead of owning them.
+import { registerSchemaCodecs } from "./config/drizzle/schema-codecs";
 import { Logger, type MiddlewareConsumer, Module, RequestMethod, type NestModule } from "@nestjs/common";
 import { RenderModule } from "@nestjs-ssr/react";
 import { DatabaseModule } from "./core/modules/database/database.module";
 import { LoggerMiddleware } from "./core/middlewares/logger.middleware";
 import { SsrAuthGuardMiddleware } from "./core/middlewares/ssr-auth-guard.middleware";
-import { EnvModule } from "./config/env/env.module";
+import { EnvModule } from "@repo/nest-env";
 import { EventsModule } from "./core/modules/events/events.module";
 import { InternalErrorContextMiddleware } from "./core/middlewares/internal-error/internal-error-context.middleware";
 import { InternalErrorInsightService } from "./core/middlewares/internal-error/internal-error-insight.service";
@@ -18,9 +23,9 @@ import { SetupModule } from "./modules/setup/setup.module";
 import { AuthModule } from "./core/modules/auth/auth.module";
 import { createBetterAuth } from "./config/auth/auth";
 import { GLOBAL_DATABASE_CONNECTION } from "./core/modules/database/database-connection";
-import { EnvService } from "./config/env/env.service";
+import { EnvService } from "@repo/nest-env";
 import { eq } from "drizzle-orm";
-import * as globalSchema from "@/config/drizzle/global/schema";
+import * as globalSchema from "@repo/nest-schema/global";
 
 // ─── ORPC Auth Plugin ───────────────────────────────────────────────────────
 import { ORPCModule } from '@orpc/nest';
@@ -42,7 +47,6 @@ import { ProjectModule } from "./modules/project/project.module";
 import { ProviderSchemaModule } from "./modules/provider-schema/provider-schema.module";
 import { PushModule } from "./modules/push/push.module";
 import { ServiceModule } from "./modules/service/service.module";
-import { TestModule } from "./modules/test/test.module";
 import { ReachabilityModule } from "./modules/reachability/reachability.module";
 import { UserModule } from "./modules/user/user.module";
 
@@ -51,6 +55,7 @@ import { ConfigurationCoreModule } from "./core/modules/configuration/configurat
 import { ProjectCoreModule } from "./core/modules/project/project-core.module";
 import { DeploymentCoreModule } from "./core/modules/deployment/deployment-core.module";
 import { SupervisorsModule } from "./core/modules/supervisors/supervisors.module";
+import { SwarmInventoryModule } from "./core/modules/swarm/swarm-inventory.module";
 import { CorePlatformIngressModule } from "./core/modules/platform-ingress/platform-ingress.module";
 
 import { AuthCoreService } from "./core/modules/auth/services/auth-core.service";
@@ -59,6 +64,11 @@ import { logOrpcErrors, transformNestJSErrorToOrpcError } from "./core/modules/a
 import { SmartCoercionPlugin } from "@orpc/json-schema";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { REQUEST } from "@nestjs/core";
+
+// Registered at MODULE LOAD, not in a lifecycle hook: the column codecs run
+// at QUERY time and the first query can happen during bootstrap — before any
+// `onModuleInit`. Doing it here means it cannot be ordered wrong.
+registerSchemaCodecs();
 
 declare module "@orpc/nest" {
     /**
@@ -110,6 +120,10 @@ declare module "@orpc/nest" {
         // registry + event bus, so health aggregation here observes the
         // gateway-owned supervisors without a second copy.
         SupervisorsModule,
+        // POST-SETUP swarm half: fleet inventory + shared cluster_nodes
+        // enrolment. Needs the global Postgres, so it lives in the main app
+        // (which boots after migrations), never in the pre-setup gateway.
+        SwarmInventoryModule,
         // Platform helper services (hostname, route config, app-instance,
         // platform settings) — consumed here by the app-instance token plugin.
         CorePlatformIngressModule,
@@ -170,7 +184,6 @@ declare module "@orpc/nest" {
         PushModule,
         ServiceModule,
         SetupModule,
-        TestModule,
         UserModule,
         ReachabilityModule,
     ],

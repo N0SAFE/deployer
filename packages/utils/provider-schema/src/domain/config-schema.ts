@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { conditionalOperatorSchema, configFieldTypeSchema } from "./enums";
+import { conditionalOperatorSchema, configFieldTypeSchema } from "@repo/provider-schema/domain/enums";
 
 export const configSchemaFieldSchema = z.object({
     key: z.string(),

@@ -6,12 +6,12 @@
  */
 
  
-import type { AnySchema, HTTPMethod, ErrorMap } from "../../types/types";
-import type { VoidSchema } from "../../types/standard-schema-helpers";
-import { StandardPluginTransformer } from "../plugin";
-import type { BasePluginTransformer } from "../plugin";
-import type { RouteBuilder, DetailedOutput } from "../core/route-builder";
-import { DetailedOutputBuilder } from "./builder";
+import type { AnySchema, HTTPMethod, ErrorMap } from "@repo/orpc-utils/types/types";
+import type { VoidSchema } from "@repo/orpc-utils/types/standard-schema-helpers";
+import { StandardPluginTransformer } from "@repo/orpc-utils/builder/plugin/index";
+import type { BasePluginTransformer } from "@repo/orpc-utils/builder/plugin/index";
+import type { RouteBuilder, DetailedOutput } from "@repo/orpc-utils/builder/core/route-builder";
+import { DetailedOutputBuilder } from "@repo/orpc-utils/builder/output/builder";
 
 export {
     type ExtractOutputBody,
@@ -20,7 +20,7 @@ export {
     type OutputSchemaProxySchema,
     isDetailedMode,
     DetailedOutputBuilder,
-} from "./builder";
+} from "@repo/orpc-utils/builder/output/builder";
 
 /**
  * Route-aware output schema proxy.

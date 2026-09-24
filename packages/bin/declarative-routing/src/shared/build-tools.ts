@@ -6,7 +6,7 @@ import { glob } from "glob";
 import { getConfig, absoluteFilePath } from "../config";
 import type { Config } from "../config";
 import { buildFileFromTemplate, buildStringFromTemplate } from "../template";
-import { getDiffContent, upperFirst, jsClean, showDiff } from "../shared/utils";
+import { getDiffContent, upperFirst, jsClean, showDiff } from "./utils";
 
 type RouteInfo = {
   importPath: string;

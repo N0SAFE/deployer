@@ -1,4 +1,4 @@
-import type { EnvService } from "@/config/env/env.service";
+import type { EnvService } from "@repo/nest-env";
 
 /**
  * Résout l'URL publique du serveur local.

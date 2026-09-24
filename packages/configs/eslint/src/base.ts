@@ -41,6 +41,22 @@ export const baseConfig = (options: BaseConfigOptions = {}) => {
                 "@typescript-eslint/no-extraneous-class": "off",
                 "@typescript-eslint/unified-signatures": "off",
                 "@typescript-eslint/no-unnecessary-type-parameters": "off",
+                // A leading underscore is this codebase's marker for a binding that
+                // must be declared but is intentionally not read. That is not a
+                // hypothetical: `infer _TContext, infer TInput, infer _TOutput,
+                // infer _TError` are positional in `Client<...>`, so the unused
+                // slots cannot be omitted. Without this, the only way to express
+                // that was a per-line `eslint-disable-next-line`.
+                "@typescript-eslint/no-unused-vars": [
+                    "error",
+                    {
+                        argsIgnorePattern: "^_",
+                        varsIgnorePattern: "^_",
+                        caughtErrorsIgnorePattern: "^_",
+                        destructuredArrayIgnorePattern: "^_",
+                        ignoreRestSiblings: true,
+                    },
+                ],
             }
         }
     ]);

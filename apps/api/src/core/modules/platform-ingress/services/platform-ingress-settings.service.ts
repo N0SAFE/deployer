@@ -18,8 +18,8 @@ import { Injectable, Logger } from "@nestjs/common";
 import { eq } from "drizzle-orm";
 
 import { LocalDatabaseService } from "@/core/modules/database/local/local-database.service";
-import { EnvService } from "@/config/env/env.service";
-import { platformSettings } from "@/config/drizzle/local/schema";
+import { EnvService } from "@repo/nest-env";
+import { platformSettings } from "@repo/nest-schema/local";
 
 /** Local settings key — the host port the platform Traefik publishes. */
 export const INGRESS_ENTRY_PORT_KEY = "ingress.entry_port";

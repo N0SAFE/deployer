@@ -15,6 +15,7 @@ import { Field, FieldLabel, FieldDescription } from '@repo/ui/components/shadcn/
 import { Siren, Plus, Trash2, Container, ArrowLeft, Key, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { AuthDashboardAdminProvidersCode } from '@/routes'
+import { EmptyState, PageHeader } from '@/components/dashboard'
 import { z } from 'zod/v4'
 
 const dockerSchema = z.object({
@@ -45,20 +46,28 @@ export default function AdminProvidersCodeDockerHubPage() {
 
   return (
     <div className="space-y-6">
-      <AuthDashboardAdminProvidersCode.Link><Button variant="ghost" size="sm" className="-ml-2"><ArrowLeft className="mr-1 size-4" />Code Providers</Button></AuthDashboardAdminProvidersCode.Link>
-      <div className="flex items-center gap-2">
-        <Container className="size-6 text-blue-500" /><div><h1 className="text-2xl font-semibold tracking-tight">Docker Hub</h1><p className="text-sm text-muted-foreground">Configure container registry credentials for image access.</p></div>
-      </div>
-      <Button size="sm" onClick={() => setAddOpen(true)}><Plus className="mr-2 size-4" />Add Registry Credentials</Button>
+      <AuthDashboardAdminProvidersCode.Link><Button variant="ghost" size="sm" className="-ml-2"><ArrowLeft className="mr-1 size-4" />Code providers</Button></AuthDashboardAdminProvidersCode.Link>
+      <PageHeader
+        title="Docker Hub"
+        description="Configure container registry credentials for image access."
+        actions={
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Plus className="mr-2 size-4" />
+            Add registry credentials
+          </Button>
+        }
+      />
 
       <Card>
         <CardHeader><CardTitle>Registry Credentials</CardTitle><CardDescription>Docker Hub accounts configured for container image access.</CardDescription></CardHeader>
         <CardContent>
           {items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Container className="mb-4 size-12 text-muted-foreground/40" /><p className="text-lg font-medium">No credentials configured</p>
-              <p className="text-sm text-muted-foreground">Add Docker Hub credentials to access private container images.</p>
-            </div>
+            <EmptyState
+              icon={Container}
+              title="No credentials configured"
+              description="Add Docker Hub credentials to access private container images."
+              action={{ label: 'Add registry credentials', onClick: () => setAddOpen(true) }}
+            />
           ) : (
             <Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Username</TableHead><TableHead>Registry</TableHead><TableHead>Status</TableHead><TableHead className="w-20">Actions</TableHead></TableRow></TableHeader>
               <TableBody>{items.map((item) => (
@@ -66,7 +75,7 @@ export default function AdminProvidersCodeDockerHubPage() {
                   <TableCell className="font-medium">{item.name}</TableCell><TableCell>{item.username}</TableCell>
                   <TableCell className="text-xs">{item.registry}</TableCell>
                   <TableCell><Badge variant="default">Active</Badge></TableCell>
-                  <TableCell><Button variant="ghost" size="icon" className="size-8" onClick={() => { setDeleteId(item.id); setDeleteName(item.name); setDeleteOpen(true) }}><Trash2 className="size-4" /></Button></TableCell>
+                  <TableCell><Button variant="ghost" size="icon" className="size-8" aria-label={`Remove ${item.name}`} onClick={() => { setDeleteId(item.id); setDeleteName(item.name); setDeleteOpen(true) }}><Trash2 className="size-4" /></Button></TableCell>
                 </TableRow>
               ))}</TableBody>
             </Table>

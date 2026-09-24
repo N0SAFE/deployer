@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, gt, inArray, isNull } from "drizzle-orm";
-import { clusterJoinGrants, clusterNodeMetrics, clusterNodes, clusterSigningKeys, resourceOwnershipIndex } from "@/config/drizzle/global/schema";
+import { clusterJoinGrants, clusterNodeMetrics, clusterNodes, clusterSigningKeys, resourceOwnershipIndex } from "@repo/nest-schema/global";
 import type { MeshResourceIndexUpsertInput, MeshResourceLocation } from "@repo/contracts-entities";
 import { GlobalDatabaseService } from "../../database/global/global-database.service";
 import { NodeConfigRepository } from "../../setup/repositories/node-config.repository";
@@ -256,6 +256,8 @@ export class SystemMeshClusterRepository {
         displayName?: string;
         capabilities?: Record<string, unknown> | null;
         metadata?: Record<string, unknown> | null;
+        /** Role the JOINING node asked for; the mesh decides what it grants. */
+        requestedSwarmPolicy?: "auto" | "manager" | "worker";
     }): Promise<{
         grantId: string;
         nodeId: string;

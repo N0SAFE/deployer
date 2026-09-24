@@ -9,7 +9,7 @@
     ],
     "exports": {
         ".": {
-            "types": "./src/index.ts",
+            "types": "./dist/types/index.d.ts",
             "import": "./dist/index.js"
         },
         "./library": {
@@ -42,15 +42,18 @@
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "type-check": "tsc --noEmit"
+        "type-check": "tsc --noEmit",
+        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
+        "clean": "rimraf dist"
     },
     "devDependencies": {
-        "@repo/config-eslint-plugins-progress": "*",
         "@darraghor/eslint-plugin-nestjs-typed": "^7.1.22",
         "@eslint/compat": "^2.0.1",
         "@eslint/js": "catalog:linting",
+        "@repo/config-eslint-plugins-progress": "*",
         "@repo/config-prettier": "*",
         "@repo/config-vitest": "*",
+        "@shadcn/lint": "catalog:linting",
         "@tanstack/eslint-plugin-query": "catalog:tanstack",
         "@types/node": "catalog:build",
         "@typescript-eslint/eslint-plugin": "^8.67.0",
@@ -74,6 +77,11 @@
         "tailwindcss": "catalog:styling",
         "typescript": "^6",
         "typescript-eslint": "^8.61.1",
-        "vitest": "catalog:testing"
-    }
+        "vitest": "catalog:testing",
+        "rimraf": "catalog:build",
+        "@repo/pkg-build": "*"
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/types/index.d.ts",
+    "dependencies": {}
 }

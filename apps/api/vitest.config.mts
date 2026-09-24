@@ -148,6 +148,27 @@ export default defineConfig(
       alias: {
         "@": path.resolve(__dirname, "./src"),
         "~": path.resolve(__dirname, "./"),
+        // Workspace packages resolve to their `src` **directory**. Code imports
+        // deep subpaths (e.g. `@repo/orpc-utils/builder/core/route-builder`), so
+        // the alias must map the package name to a directory — mapping to
+        // `${pkg}/src/index.ts` leaves subpaths to fall through to `dist/`,
+        // which tests must not load.
+        "@repo/auth": path.resolve(__dirname, "../../packages/utils/auth/src"),
+        "@repo/api-contracts": path.resolve(__dirname, "../../packages/contracts/api"),
+        "@repo/contracts-common": path.resolve(__dirname, "../../packages/contracts/common/src"),
+        "@repo/contracts-entities": path.resolve(__dirname, "../../packages/contracts/entities/src"),
+        "@repo/env": path.resolve(__dirname, "../../packages/utils/env/src"),
+        "@repo/errors": path.resolve(__dirname, "../../packages/utils/errors/src"),
+        "@repo/logger": path.resolve(__dirname, "../../packages/utils/logger/src"),
+        "@repo/nest-events": path.resolve(__dirname, "../../packages/nest/events/src"),
+        "@repo/nest-env": path.resolve(__dirname, "../../packages/nest/env/src"),
+        "@repo/nest-schema": path.resolve(__dirname, "../../packages/nest/schema/src"),
+        "@repo/nest-lifecycle": path.resolve(__dirname, "../../packages/nest/lifecycle/src"),
+        "@repo/orpc-utils": path.resolve(__dirname, "../../packages/utils/orpc/src"),
+        "@repo/provider-schema": path.resolve(__dirname, "../../packages/utils/provider-schema/src"),
+        "@repo/type-guards": path.resolve(__dirname, "../../packages/utils/type-guards/src"),
+        "@repo/types": path.resolve(__dirname, "../../packages/types/src"),
+        "@repo/ui": path.resolve(__dirname, "../../packages/ui/base/src"),
         // When vitest runs under Node (VS Code extension), bun: protocol imports
         // cannot resolve. Alias bun:sqlite to our node:sqlite-backed shim so
         // drizzle-orm/bun-sqlite and local-db-supervisor tests work in Node.

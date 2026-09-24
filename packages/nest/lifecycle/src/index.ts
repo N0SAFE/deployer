@@ -29,10 +29,10 @@
  * ```
  */
 
-export { AppLifecycleModule } from './app-lifecycle.module';
+export { AppLifecycleModule } from '@repo/nest-lifecycle/app-lifecycle.module';
 export {
   AppLifecycleService,
   AppLifecyclePhase,
   BootstrapStep,
-} from './app-lifecycle.service';
-export type { AppLifecycleEvent } from './app-lifecycle.service';
+} from '@repo/nest-lifecycle/app-lifecycle.service';
+export type { AppLifecycleEvent } from '@repo/nest-lifecycle/app-lifecycle.service';

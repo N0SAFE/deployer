@@ -32,13 +32,22 @@ import {
 
 export type StatusTone = 'live' | 'pending' | 'danger' | 'busy' | 'neutral'
 
+/**
+ * Tone → token class. These read the `--status-*` semantic tokens, so a given
+ * tone is byte-identical everywhere it appears and adapts to the theme. Never
+ * substitute a palette step (`emerald-500`, `amber-500`, …) here — that is how
+ * "healthy" drifted into three different greens across the console.
+ */
 export const statusToneClasses: Record<StatusTone, string> = {
-  live: 'bg-emerald-500 dark:bg-emerald-400',
-  pending: 'bg-amber-500 dark:bg-amber-400',
-  danger: 'bg-rose-500 dark:bg-rose-400',
-  busy: 'bg-sky-500 dark:bg-sky-400',
-  neutral: 'bg-muted-foreground',
+  live: 'bg-status-live',
+  pending: 'bg-status-pending',
+  danger: 'bg-status-danger',
+  busy: 'bg-status-busy',
+  neutral: 'bg-status-idle',
 }
+
+/** The badge variant a status resolves to — the canonical union for adapters. */
+export type StatusBadgeVariant = StatusMeta['variant']
 
 /** Derive a tone from a raw status string (docker, service, deployment, stream). */
 export function statusToneFrom(status: string | null | undefined): StatusTone {
@@ -47,6 +56,7 @@ export function statusToneFrom(status: string | null | undefined): StatusTone {
     value === 'live' || value === 'healthy' || value === 'running' || value === 'active'
     || value === 'connected' || value === 'success' || value === 'verified'
     || value === 'synced' || value === 'ready' || value === 'deployed' || value === 'ok'
+    || value === 'completed'
   ) {
     return 'live'
   }
@@ -68,24 +78,24 @@ export function statusToneFrom(status: string | null | undefined): StatusTone {
 }
 
 interface StatusMeta {
-  variant: 'success' | 'warning' | 'destructive' | 'secondary' | 'outline' | 'default'
+  variant: 'success' | 'warning' | 'destructive' | 'info' | 'secondary' | 'outline' | 'default'
   icon: LucideIcon
   dotClass: string
   animate?: boolean
 }
 
-const SUCCESS: StatusMeta = { variant: 'success', icon: CircleCheck, dotClass: 'bg-emerald-500' }
-const WARNING: StatusMeta = { variant: 'warning', icon: TriangleAlert, dotClass: 'bg-amber-500' }
-const DESTRUCTIVE: StatusMeta = { variant: 'destructive', icon: CircleX, dotClass: 'bg-rose-500' }
-const INFO: StatusMeta = { variant: 'default', icon: Rocket, dotClass: 'bg-sky-500', animate: true }
-const NEUTRAL: StatusMeta = { variant: 'secondary', icon: Pause, dotClass: 'bg-muted-foreground' }
+const SUCCESS: StatusMeta = { variant: 'success', icon: CircleCheck, dotClass: 'bg-status-live' }
+const WARNING: StatusMeta = { variant: 'warning', icon: TriangleAlert, dotClass: 'bg-status-pending' }
+const DESTRUCTIVE: StatusMeta = { variant: 'destructive', icon: CircleX, dotClass: 'bg-status-danger' }
+const INFO: StatusMeta = { variant: 'info', icon: Rocket, dotClass: 'bg-status-busy', animate: true }
+const NEUTRAL: StatusMeta = { variant: 'secondary', icon: Pause, dotClass: 'bg-status-idle' }
 const UNKNOWN: StatusMeta = { variant: 'outline', icon: CircleHelp, dotClass: 'bg-muted' }
 
 const STATUS_META: Record<string, StatusMeta> = {
-  // success / emerald
+  // success / live
   running: SUCCESS, healthy: SUCCESS, ready: SUCCESS, success: SUCCESS,
   active: SUCCESS, deployed: SUCCESS, live: SUCCESS, connected: SUCCESS,
-  verified: SUCCESS, synced: SUCCESS, ok: SUCCESS,
+  verified: SUCCESS, synced: SUCCESS, ok: SUCCESS, completed: SUCCESS,
   // warning / amber
   degraded: WARNING, 'at-risk': WARNING, warning: WARNING, queued: WARNING,
   pending: WARNING, starting: WARNING, restarting: WARNING,

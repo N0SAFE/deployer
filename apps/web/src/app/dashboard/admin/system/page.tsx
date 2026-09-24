@@ -57,16 +57,9 @@ import { Switch } from '@repo/ui/components/shadcn/switch'
 import { Progress } from '@repo/ui/components/shadcn/progress'
 import { Label } from '@repo/ui/components/shadcn/label'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@repo/ui/components/shadcn/tooltip'
-import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@repo/ui/components/shadcn/card'
@@ -83,23 +76,22 @@ import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
+import { Textarea } from '@repo/ui/components/shadcn/textarea'
 import {
   AlertCircle,
-  ArrowUpDown,
   Building2,
   CheckCircle2,
+  Cpu,
   Globe,
+  Inbox,
   Key,
-  Mail,
   Network,
   PlugZap,
   RefreshCw,
-  Scan,
   Server,
   Settings,
   Shield,
   ShieldAlert,
-  ShieldCheck,
   Sliders,
   Unplug,
   Users,
@@ -108,7 +100,78 @@ import {
 import type { MeshNodeRole, MeshRoutingMode, MeshPartitionConsistencyMode } from '@repo/contracts-entities'
 import Image from 'next/image'
 import { toast } from 'sonner'
-import { PageHeader } from '@/components/dashboard'
+import { PageHeader, StatStrip, StatStripItem } from '@/components/dashboard'
+import { AuthDashboardAdminUsers, AuthDashboardNodesNodeId } from '@/routes'
+import { formatDate, formatDateTime, formatTime } from '@/lib/format/date'
+import { useHydrated } from '@/lib/use-hydrated'
+
+/**
+ * Heading for the content of a tab.
+ *
+ * Each tab used to open with a Card that wrapped a grid of Cards. The outer box
+ * existed only to group its children — and every child already draws its own
+ * border — so the tab rendered a frame inside a frame, with the group's heading
+ * demoted to a 14px card title above a second 16px card title. A heading groups
+ * the section without drawing a second box around it.
+ */
+function SectionIntro({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="space-y-1">
+      <h2 className="text-sm font-semibold">{title}</h2>
+      <p className="text-xs text-muted-foreground">{description}</p>
+    </div>
+  )
+}
+
+/**
+ * A count inside a tab trigger.
+ *
+ * The tabs used to be silent, so the only way to find out that admission
+ * requests were waiting was to open the one tab that lists them. Nothing is
+ * rendered for `undefined` or `0`: an unloaded total must not read as "none",
+ * and a zero badge is noise on every tab of an empty install.
+ *
+ * `attention` marks a count that represents queued work — the one kind of
+ * number in a tab strip that is asking to be acted on.
+ */
+function TabCount({
+  value,
+  attention = false,
+}: {
+  value: number | undefined
+  attention?: boolean
+}) {
+  if (value === undefined || value === 0) return null
+  return (
+    <span
+      className={
+        attention
+          ? 'ml-0.5 rounded-full bg-status-pending/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-status-pending'
+          : 'ml-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground'
+      }
+    >
+      {value}
+    </span>
+  )
+}
+
+/**
+ * Utilisation percentage → the colour of its bar.
+ *
+ * Both capacity bars carried their own copy of this threshold logic and named
+ * literal colours (`bg-red-500`), while the rest of this file already reads the
+ * palette's `status-*` tokens. One function, one threshold pair, and the theme
+ * keeps ownership of what "nearly full" looks like.
+ *
+ * `null` means the node publishes no limit (its capacity is unbounded), which
+ * is a different state from "empty" and is drawn as such.
+ */
+function utilisationIndicatorClass(pct: number | null): string {
+  if (pct === null) return '*:data-[slot=progress-indicator]:bg-status-idle'
+  if (pct >= 90) return '*:data-[slot=progress-indicator]:bg-status-danger'
+  if (pct >= 70) return '*:data-[slot=progress-indicator]:bg-status-pending'
+  return '*:data-[slot=progress-indicator]:bg-status-live'
+}
 
 type MeshRoutePlanHistoryEntry = {
   at: string
@@ -130,10 +193,18 @@ type MeshLookupHistoryEntry = {
 export default function AdminSystemPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  /**
+   * Every figure in the summary strip comes from a client query, so none of them
+   * can be known while the server renders this page. Gating them on `hydrated`
+   * keeps the server HTML and the client's first render identical — otherwise the
+   * server writes an em dash, a warm client cache writes a number, and React
+   * throws the subtree away and re-renders it.
+   */
+  const hydrated = useHydrated()
   const pendingInvitations = [] as Array<{ id: string; email: string; role: string; status: string; expiresAt: string }>
   
   // Use domain-based user hooks
-  const { data: usersData, isLoading: usersLoading } = useUserList({
+  const { data: usersData, isLoading: usersLoadingRaw } = useUserList({
     query: {
       limit: 100,
       offset: 0,
@@ -145,15 +216,24 @@ export default function AdminSystemPage() {
   // queryClient.prefetchQuery({ queryKey: userQueryKeys.list({ limit: 100 }), ... })
 
   const users = usersData?.data ?? []
-  const { data: fleetServersData, isLoading: fleetServersLoading } = useFleetServers()
-  const { data: fleetAllocationsData, isLoading: fleetAllocationsLoading } = useFleetAllocations()
+  const { data: fleetServersData, isLoading: fleetServersLoadingRaw } = useFleetServers()
+  const { data: fleetAllocationsData, isLoading: fleetAllocationsLoadingRaw } = useFleetAllocations()
   const [admissionRequestStatusFilter, setAdmissionRequestStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'cancelled'>('pending')
 
   const [reviewerNote, setReviewerNote] = useState('')
   const [decisionServerNodeId, setDecisionServerNodeId] = useState('')
-  const { data: fleetAdmissionRequestsData, isLoading: fleetAdmissionRequestsLoading } = useFleetAdmissionRequests({
+  const { data: fleetAdmissionRequestsData, isLoading: fleetAdmissionRequestsLoadingRaw } = useFleetAdmissionRequests({
     status: admissionRequestStatusFilter,
   })
+  /**
+   * The summary strip is page-level, but the admission list below is filtered by
+   * a control INSIDE the Fleet tab. Reading the strip's count off the filtered
+   * list would relabel approved or rejected requests as "awaiting approval" the
+   * instant that filter changed, so it gets its own pending-only query. When the
+   * tab filter is already `pending` the query keys match and TanStack serves
+   * both from one fetch.
+   */
+  const { data: pendingAdmissionsData } = useFleetAdmissionRequests({ status: 'pending' })
   const upsertFleetAllocation = useUpsertFleetAllocation()
   const deleteFleetAllocation = useDeleteFleetAllocation()
   const resolveFleetAdmissionRequest = useResolveFleetAdmissionRequest()
@@ -171,7 +251,7 @@ export default function AdminSystemPage() {
   const { data: trustSecrets, isLoading: trustSecretsLoading } = useMeshTrustKeyringSecrets({ enabled: false })
   const rotateKey = useMeshTrustKeyringRotate()
   const { data: keyringConvergence, isLoading: keyringConvergenceLoading } = useMeshTrustKeyringConvergenceStatus()
-  const { data: strictReadiness, isLoading: strictReadinessLoading } = useMeshTrustStrictReadiness()
+  const { data: strictReadiness, isLoading: strictReadinessLoadingRaw } = useMeshTrustStrictReadiness()
   const setStrictMode = useMeshTrustStrictModeSet()
   const { data: rolloutPlan, isLoading: rolloutPlanLoading } = useMeshTrustStrictRolloutPlan({ enabled: false })
   const rollbackStrict = useMeshTrustStrictRollback()
@@ -241,11 +321,32 @@ export default function AdminSystemPage() {
   const fleetServers = fleetServersData?.items ?? []
   const fleetAllocations = fleetAllocationsData?.items ?? []
   const fleetAdmissionRequests = fleetAdmissionRequestsData?.items ?? []
+  const pendingAdmissions = pendingAdmissionsData?.items ?? []
   const localNode = meshState?.localNode
   const snapshotData = meshState?.snapshot
   const meshEventStreams = meshEventStreamsData?.data ?? []
   const activeMeshEventStreams = meshEventStreams.filter((stream) => stream.isActive).length
-  const isMeshStateLoading = meshStreamStatus === 'connecting' && !meshState
+
+  /**
+   * Hydration-aware loading flags.
+   *
+   * Every list and figure on this page comes from a CLIENT query, so the server
+   * renders with an empty cache: `isLoading` is true there and false on a warm
+   * client. A render branch keyed on the raw flag therefore emits a skeleton into
+   * the server HTML and real rows in the client's first render, and React reports
+   * "server rendered HTML didn't match the client" before discarding the subtree.
+   *
+   * Folding `!hydrated` into each flag fixes every branch at once instead of
+   * per-branch, and keeps the two renders identical by construction: during SSR
+   * and the first client pass both sides take the loading path.
+   */
+  const usersLoading = !hydrated || usersLoadingRaw
+  const fleetServersLoading = !hydrated || fleetServersLoadingRaw
+  const fleetAllocationsLoading = !hydrated || fleetAllocationsLoadingRaw
+  const fleetAdmissionRequestsLoading = !hydrated || fleetAdmissionRequestsLoadingRaw
+  const strictReadinessLoading = !hydrated || strictReadinessLoadingRaw
+  const isMeshStateLoading = !hydrated || (meshStreamStatus === 'connecting' && !meshState)
+
   const surfaceCardClass =
     'border-border/60 bg-card/40 backdrop-blur-xl'
 
@@ -690,11 +791,6 @@ export default function AdminSystemPage() {
     return id.length > len ? id.slice(0, len) : id
   }
 
-  const formatTimestamp = (iso: string | null | undefined): string => {
-    if (!iso) return '—'
-    try { return new Date(iso).toLocaleString() } catch { return iso }
-  }
-
   return (
     <div className="container mx-auto max-w-360 py-6 space-y-6">
         {/* ── Header ────────────────────────────────────────────────────── */}
@@ -708,58 +804,117 @@ export default function AdminSystemPage() {
             </Badge>
           }
         />
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
-            <Users className="h-3.5 w-3.5" />
-            {usersLoading ? '…' : `${users.length} users`}
-          </Badge>
-          <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
-            <Building2 className="h-3.5 w-3.5" />
-            {fleetServersLoading ? '…' : `${fleetServers.length} servers`}
-          </Badge>
-          <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
-            <Mail className="h-3.5 w-3.5" />
-            {fleetAllocationsLoading ? '…' : `${fleetAllocations.length} allocations`}
-          </Badge>
-          <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
-            <Network className="h-3.5 w-3.5" />
-            {isMeshStateLoading ? '…' : `${peers.length} peers`}
-          </Badge>
-          <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
-            <Server className="h-3.5 w-3.5" />
-            {isMeshStateLoading ? '…' : `${fleetServers.length} servers`}
-          </Badge>
-          <Badge variant="outline" className="gap-1.5 px-3 py-1.5">
-            <Shield className="h-3.5 w-3.5" />
-            {strictReadinessLoading ? '…' : strictReadiness?.strictConfigured ? (strictReadiness.strictEnforced ? 'Strict ON' : 'Strict OFF') : 'N/A'}
-          </Badge>
-          {meshStreamError && (
-            <Badge variant="destructive" className="gap-1.5 px-3 py-1.5">
-              <AlertCircle className="h-3.5 w-3.5" />
-              {meshStreamError}
-            </Badge>
-          )}
-        </div>
+        {/*
+          Ordered by what an operator can act on, not by what is easiest to
+          count. "Awaiting approval" leads because it is the only value here
+          that represents work queued for a human decision; the totals follow.
+          The stream state is set apart on the right, because it is the one
+          value that can be *wrong* and should not read as one more total.
+
+          `undefined` while loading renders an em dash rather than 0: "not
+          measured yet" and "none" are different facts, and only one of them
+          means nothing needs doing.
+        */}
+        <StatStrip
+          trailing={
+            meshStreamError ? (
+              <Badge variant="destructive" className="gap-1.5">
+                <AlertCircle className="h-3.5 w-3.5" />
+                {meshStreamError}
+              </Badge>
+            ) : undefined
+          }
+        >
+          <StatStripItem
+            icon={Inbox}
+            label="Awaiting approval"
+            value={hydrated ? pendingAdmissions.length : undefined}
+            hint={
+              hydrated
+                ? pendingAdmissions.length === 0
+                  ? 'nothing queued'
+                  : 'needs a decision'
+                : undefined
+            }
+            tone={hydrated && pendingAdmissions.length > 0 ? 'pending' : undefined}
+          />
+          <StatStripItem
+            icon={Server}
+            label="Servers"
+            value={hydrated ? fleetServers.length : undefined}
+            hint={
+              hydrated
+                ? `${String(fleetServers.filter((s) => s.healthy).length)} healthy`
+                : undefined
+            }
+          />
+          <StatStripItem
+            icon={Cpu}
+            label="Capacity allocations"
+            value={hydrated ? fleetAllocations.length : undefined}
+          />
+          <StatStripItem
+            icon={Network}
+            label="Peers"
+            value={hydrated ? peers.length : undefined}
+            hint={
+              hydrated ? `${String(peers.filter((p) => p.state === 'up').length)} up` : undefined
+            }
+          />
+          <StatStripItem
+            icon={Users}
+            label="Users"
+            value={hydrated ? users.length : undefined}
+          />
+          <StatStripItem
+            icon={Shield}
+            label="Strict keyring"
+            value={
+              hydrated
+                ? strictReadiness?.strictConfigured
+                  ? strictReadiness.strictEnforced
+                    ? 'On'
+                    : 'Off'
+                  : 'Not configured'
+                : undefined
+            }
+          />
+        </StatStrip>
 
         {/* ── Tabs ──────────────────────────────────────────────────────── */}
-        <Tabs defaultValue="fleet" className="space-y-4" orientation="vertical">
+        {/*
+          No `orientation="vertical"` here: the list is laid out horizontally,
+          and the vertical orientation only changes which arrow keys move
+          between tabs — so it made ←/→ dead and ↑/↓ jump the page instead.
+        */}
+        <Tabs defaultValue="fleet" className="space-y-4">
           <TabsList className="inline-flex w-full md:w-auto">
-            <TabsTrigger value="fleet" className="gap-2"><Server className="h-4 w-4" /> Fleet & Capacity</TabsTrigger>
-            <TabsTrigger value="mesh" className="gap-2"><Network className="h-4 w-4" /> Mesh Overview</TabsTrigger>
-            <TabsTrigger value="directory" className="gap-2"><Building2 className="h-4 w-4" /> Directory</TabsTrigger>
-            <TabsTrigger value="node-config" className="gap-2"><Settings className="h-4 w-4" /> Node Configuration</TabsTrigger>
+            <TabsTrigger value="fleet" className="gap-2">
+              <Server className="h-4 w-4" />
+              Fleet & Capacity
+              <TabCount value={hydrated ? pendingAdmissions.length : undefined} attention />
+            </TabsTrigger>
+            <TabsTrigger value="mesh" className="gap-2">
+              <Network className="h-4 w-4" />
+              Mesh & Routing
+              <TabCount value={hydrated ? peers.length : undefined} />
+            </TabsTrigger>
+            <TabsTrigger value="directory" className="gap-2">
+              <Building2 className="h-4 w-4" />
+              Directory
+              <TabCount value={hydrated ? users.length : undefined} />
+            </TabsTrigger>
+            <TabsTrigger value="node-config" className="gap-2">
+              <Settings className="h-4 w-4" />
+              Node Configuration
+            </TabsTrigger>
           </TabsList>
 
-        <TabsContent value="fleet" className="space-y-6">
-      <Card className={surfaceCardClass}>
-        <CardHeader>
-          <CardTitle>Superadmin Capacity Manager (Phase 1)</CardTitle>
-          <CardDescription>
-            Manage server allocations: assign CPU/RAM capacity to cluster nodes.
-            Each instance stays on its own single database.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
+        <TabsContent value="fleet" className="space-y-4">
+          <SectionIntro
+            title="Capacity"
+            description="Assign CPU and memory to each node. Every service keeps its own database."
+          />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
@@ -790,7 +945,21 @@ export default function AdminSystemPage() {
                         <div key={server.nodeId} className="rounded-lg border bg-card p-3 space-y-2 shadow-xs">
                           <div className="flex items-start justify-between">
                             <div className="min-w-0 flex-1">
-                              <p className="font-mono text-sm truncate" title={server.nodeId}>{server.nodeId}</p>
+                              {/*
+                                The id was inert text. It is now the way into that
+                                node's workspace, which is where its history,
+                                metrics and per-node settings live — the things
+                                this card cannot show. Truncated ids were
+                                previously unresolvable from here: you could see
+                                four servers but had no route to any of them.
+                              */}
+                              <AuthDashboardNodesNodeId.Link
+                                nodeId={server.nodeId}
+                                className="font-mono text-sm truncate block hover:underline"
+                                title={server.nodeId}
+                              >
+                                {server.nodeId}
+                              </AuthDashboardNodesNodeId.Link>
                               <p className="text-xs text-muted-foreground truncate" title={server.serverUrl}>{server.serverUrl}</p>
                             </div>
                             <div className="flex items-center gap-1.5 ml-2 shrink-0">
@@ -810,13 +979,8 @@ export default function AdminSystemPage() {
                               </div>
                               <Progress
                                 value={cpuPct ?? 0}
-                                className={`h-1.5 ${
-                                  cpuPct != null && cpuPct >= 90
-                                    ? '*:data-[slot=progress-indicator]:bg-red-500'
-                                    : cpuPct != null && cpuPct >= 70
-                                      ? '*:data-[slot=progress-indicator]:bg-yellow-500'
-                                      : '*:data-[slot=progress-indicator]:bg-green-500'
-                                }`}
+                                aria-label="CPU utilisation"
+                                className={`h-1.5 ${utilisationIndicatorClass(cpuPct)}`}
                               />
                               <p className="text-muted-foreground">{String(usedCpu)}m / {maxCpu != null ? `${String(maxCpu)}m` : '∞'}</p>
                             </div>
@@ -829,13 +993,8 @@ export default function AdminSystemPage() {
                               </div>
                               <Progress
                                 value={memPct ?? 0}
-                                className={`h-1.5 ${
-                                  memPct != null && memPct >= 90
-                                    ? '*:data-[slot=progress-indicator]:bg-red-500'
-                                    : memPct != null && memPct >= 70
-                                      ? '*:data-[slot=progress-indicator]:bg-yellow-500'
-                                      : '*:data-[slot=progress-indicator]:bg-green-500'
-                                }`}
+                                aria-label="Memory utilisation"
+                                className={`h-1.5 ${utilisationIndicatorClass(memPct)}`}
                               />
                               <p className="text-muted-foreground">{String(usedMem)}MB / {maxMem != null ? `${String(maxMem)}MB` : '∞'}</p>
                             </div>
@@ -855,6 +1014,7 @@ export default function AdminSystemPage() {
                                 value={capacityEditMaxCpu}
                                 onChange={(e) => { setCapacityEditMaxCpu(e.target.value) }}
                                 placeholder="Max CPU (m)"
+                                aria-label={`Max CPU millicores for ${server.nodeId.slice(0, 8)}`}
                               />
                               <Input
                                 className="h-7 text-xs"
@@ -863,6 +1023,7 @@ export default function AdminSystemPage() {
                                 value={capacityEditMaxMem}
                                 onChange={(e) => { setCapacityEditMaxMem(e.target.value) }}
                                 placeholder="Max RAM (MB)"
+                                aria-label={`Max memory MB for ${server.nodeId.slice(0, 8)}`}
                               />
                               <Button
                                 type="button"
@@ -916,52 +1077,104 @@ export default function AdminSystemPage() {
                 <CardTitle className="text-base">Assign Capacity</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <select aria-label="Select server"
-                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                  value={allocationServerNodeId}
-                  onChange={(event) => {
-                    setAllocationServerNodeId(event.target.value)
-                  }}
-                >
-                  <option value="">Select server</option>
-                  {fleetServers.map((server) => (
-                    <option key={server.nodeId} value={server.nodeId}>
-                      {server.displayName ?? server.nodeId.slice(0, 8)} · {server.serverUrl}
-                    </option>
-                  ))}
-                </select>
+                {/*
+                  Every control here was named by its placeholder, so the moment
+                  a value was typed the field's meaning disappeared. They have
+                  real labels now — and the mode select no longer announces
+                  itself to a screen reader as "shared_slice", which is a value,
+                  not a name.
+                */}
+                <div className="space-y-1">
+                  <Label htmlFor="alloc-server" className="text-xs text-muted-foreground">
+                    Fleet server
+                  </Label>
+                  <select id="alloc-server"
+                    className="h-10 w-full rounded-md border bg-background px-3 text-sm disabled:opacity-50"
+                    value={allocationServerNodeId}
+                    disabled={!hydrated}
+                    onChange={(event) => {
+                      setAllocationServerNodeId(event.target.value)
+                    }}
+                  >
+                    <option value="">Select server</option>
+                    {/*
+                      The option carries what the choice is actually about —
+                      headroom on that machine. The hostname was here before, but
+                      it is already printed on the server's own card above, while
+                      "how much is left" appeared nowhere in this form.
 
-                <select aria-label="shared_slice"
-                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                  value={allocationMode}
-                  onChange={(event) => {
-                    setAllocationMode(event.target.value as 'dedicated_full' | 'dedicated_slice' | 'shared_slice')
-                  }}
-                >
-                  <option value="shared_slice">shared_slice</option>
-                  <option value="dedicated_slice">dedicated_slice</option>
-                  <option value="dedicated_full">dedicated_full</option>
-                </select>
+                      Gated on `hydrated`: `fleetServers` is empty while the server
+                      renders (no query cache) and populated in the browser, so
+                      emitting these options unconditionally gave React a <select>
+                      with one option in the server HTML and several in the
+                      client's first render — the "server rendered HTML didn't
+                      match the client" mismatch. The select stays disabled until
+                      the list is real, so it cannot be opened against an empty set.
+                    */}
+                    {hydrated
+                      ? fleetServers.map((server) => {
+                          const usedCpu = server.allocationSummary.cpuMillicores
+                          const maxCpu = server.maxCpuMillicores
+                          return (
+                            <option key={server.nodeId} value={server.nodeId}>
+                              {server.displayName ?? server.nodeId.slice(0, 8)}
+                              {' · '}
+                              {maxCpu != null
+                                ? `${String(usedCpu)} / ${String(maxCpu)}m CPU used`
+                                : `${String(usedCpu)}m CPU used, no limit set`}
+                            </option>
+                          )
+                        })
+                      : null}
+                  </select>
+                </div>
 
-                <Input
-                  type="number"
-                  min={0}
-                  value={allocationCpuMillicores}
-                  onChange={(event) => {
-                    setAllocationCpuMillicores(Number(event.target.value) || 0)
-                  }}
-                  placeholder="CPU millicores (1000 = 1 vCPU)"
-                />
+                <div className="space-y-1">
+                  <Label htmlFor="alloc-mode" className="text-xs text-muted-foreground">
+                    Allocation mode
+                  </Label>
+                  <select id="alloc-mode"
+                    className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    value={allocationMode}
+                    onChange={(event) => {
+                      setAllocationMode(event.target.value as 'dedicated_full' | 'dedicated_slice' | 'shared_slice')
+                    }}
+                  >
+                    <option value="shared_slice">Shared slice — share the node</option>
+                    <option value="dedicated_slice">Dedicated slice — reserved capacity</option>
+                    <option value="dedicated_full">Dedicated — whole node</option>
+                  </select>
+                </div>
 
-                <Input
-                  type="number"
-                  min={0}
-                  value={allocationMemoryMb}
-                  onChange={(event) => {
-                    setAllocationMemoryMb(Number(event.target.value) || 0)
-                  }}
-                  placeholder="Memory MB"
-                />
+                <div className="space-y-1">
+                  <Label htmlFor="alloc-cpu" className="text-xs text-muted-foreground">
+                    CPU millicores (1000 = 1 vCPU)
+                  </Label>
+                  <Input
+                    id="alloc-cpu"
+                    type="number"
+                    min={0}
+                    value={allocationCpuMillicores}
+                    onChange={(event) => {
+                      setAllocationCpuMillicores(Number(event.target.value) || 0)
+                    }}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="alloc-mem" className="text-xs text-muted-foreground">
+                    Memory (MB)
+                  </Label>
+                  <Input
+                    id="alloc-mem"
+                    type="number"
+                    min={0}
+                    value={allocationMemoryMb}
+                    onChange={(event) => {
+                      setAllocationMemoryMb(Number(event.target.value) || 0)
+                    }}
+                  />
+                </div>
 
                 <Input
                   type="number"
@@ -986,6 +1199,11 @@ export default function AdminSystemPage() {
               </CardContent>
             </Card>
           </div>
+
+          <SectionIntro
+            title="Review allocations"
+            description="What each server has actually promised, across every registered server. Remove one to release its capacity back to the node."
+          />
 
           <Card>
             <CardHeader>
@@ -1037,46 +1255,104 @@ export default function AdminSystemPage() {
             </CardContent>
           </Card>
 
+          <SectionIntro
+            title="Approve new servers"
+            description="Requests from nodes asking to join this cluster's capacity pool. Approving one grants it an allocation."
+          />
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Pending Admission Requests</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {/*
+                These four controls drive one decision — approve, reject, or hold
+                a request — but described themselves only through placeholders, so
+                their meaning vanished the moment anything was typed. The status
+                filter also announced itself to a screen reader as "pending", its
+                current value rather than its purpose.
+              */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <select aria-label="pending"
-                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                  value={admissionRequestStatusFilter}
-                  onChange={(event) => {
-                    setAdmissionRequestStatusFilter(event.target.value as 'pending' | 'approved' | 'rejected' | 'cancelled')
-                  }}
-                >
-                  <option value="pending">pending</option>
-                  <option value="approved">approved</option>
-                  <option value="rejected">rejected</option>
-                  <option value="cancelled">cancelled</option>
-                </select>
+                <div className="space-y-1">
+                  <Label htmlFor="admission-status" className="text-xs text-muted-foreground">
+                    Show requests
+                  </Label>
+                  <select id="admission-status"
+                    className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    value={admissionRequestStatusFilter}
+                    onChange={(event) => {
+                      setAdmissionRequestStatusFilter(event.target.value as 'pending' | 'approved' | 'rejected' | 'cancelled')
+                    }}
+                  >
+                    <option value="pending">Awaiting a decision</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
 
-                <Input
-                  value={decisionServerNodeId}
-                  onChange={(event) => {
-                    setDecisionServerNodeId(event.target.value)
-                  }}
-                  placeholder="Decision server node id (optional)"
-                />
+                <div className="space-y-1">
+                  <Label htmlFor="admission-node" className="text-xs text-muted-foreground">
+                    Decision server node id (optional)
+                  </Label>
+                  <Input
+                    id="admission-node"
+                    className="h-10 font-mono text-xs"
+                    value={decisionServerNodeId}
+                    onChange={(event) => {
+                      setDecisionServerNodeId(event.target.value)
+                    }}
+                  />
+                </div>
 
-                <Input
-                  value={reviewerNote}
-                  onChange={(event) => {
-                    setReviewerNote(event.target.value)
-                  }}
-                  placeholder="Reviewer note (optional)"
-                />
+                <div className="space-y-1 md:col-span-2">
+                  <Label htmlFor="admission-note" className="text-xs text-muted-foreground">
+                    Reviewer note (optional)
+                  </Label>
+                  <Input
+                    id="admission-note"
+                    className="h-10"
+                    value={reviewerNote}
+                    onChange={(event) => {
+                      setReviewerNote(event.target.value)
+                    }}
+                  />
+                </div>
               </div>
 
               {fleetAdmissionRequestsLoading ? (
                 <Skeleton className="h-24 w-full" />
               ) : fleetAdmissionRequests.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No admission requests for current filters.</p>
+                /*
+                  The empty state used to be one grey sentence. Which sentence is
+                  needed depends on WHY it is empty, and those are different
+                  answers: nothing is waiting (good, stop looking at this card), or
+                  this filter has no matches (change the filter).
+                */
+                admissionRequestStatusFilter === 'pending' ? (
+                  <div className="flex flex-col items-center gap-1.5 py-8 text-center">
+                    <CheckCircle2 className="h-8 w-8 text-status-live/60" />
+                    <p className="text-sm font-medium">Nothing awaiting approval</p>
+                    <p className="text-xs text-muted-foreground">
+                      New admission requests appear here for review.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2 py-8 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      No {admissionRequestStatusFilter} requests.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs"
+                      onClick={() => { setAdmissionRequestStatusFilter('pending') }}
+                    >
+                      Show requests awaiting a decision
+                    </Button>
+                  </div>
+                )
               ) : (
                 <Table>
                   <TableHeader>
@@ -1100,7 +1376,7 @@ export default function AdminSystemPage() {
                             {request.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>{new Date(request.createdAt).toLocaleString()}</TableCell>
+                        <TableCell>{formatDateTime(request.createdAt)}</TableCell>
                         <TableCell className="space-x-2">
                           <Button
                             type="button"
@@ -1131,25 +1407,13 @@ export default function AdminSystemPage() {
               )}
             </CardContent>
           </Card>
-        </CardContent>
-      </Card>
-
         </TabsContent>
 
-        <TabsContent value="mesh" className="space-y-6">
-
-      <Card className={surfaceCardClass}>
-        <CardHeader>
-          <CardTitle>Mesh Control Plane (Temporary)</CardTitle>
-          <CardDescription>
-            Link instances directly and inspect mesh topology.
-          </CardDescription>
-          <CardDescription>
-            Stream: <span className="font-semibold">{meshStreamStatus}</span>
-            {meshStreamError ? ` · ${meshStreamError}` : ''}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
+        <TabsContent value="mesh" className="space-y-4">
+          <SectionIntro
+            title="Mesh control plane"
+            description="Link instances and inspect how traffic is routed between them. Stream state is shown above."
+          />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">Local node</p>
@@ -1258,7 +1522,14 @@ export default function AdminSystemPage() {
                         nodesConnectable={false}
                         elementsSelectable={false}
                         zoomOnDoubleClick={false}
-                        proOptions={{ hideAttribution: true }}
+                        /*
+                          The attribution badge is shown. `proOptions={{ hideAttribution: true }}`
+                          was set here, and React Flow only permits that with a React Flow
+                          Pro subscription — without one it breaches the licence, and the
+                          dev server logs a warning saying exactly that on every render.
+                          If this project DOES hold a Pro licence, restoring the original
+                          line is correct; leaving it off is the safe default until then.
+                        */
                       >
                         <MiniMap zoomable pannable />
                         <Controls showInteractive={false} />
@@ -1373,26 +1644,38 @@ export default function AdminSystemPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <select aria-label="stream"
-                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                  value={lookupKind}
-                  onChange={(event) => {
-                    setLookupKind(event.target.value as 'stream' | 'queue' | 'deployment' | 'log')
-                  }}
-                >
-                  <option value="stream">stream</option>
-                  <option value="queue">queue</option>
-                  <option value="deployment">deployment</option>
-                  <option value="log">log</option>
-                </select>
+                <div className="space-y-1">
+                  <Label htmlFor="lookup-kind" className="text-xs text-muted-foreground">
+                    Resource kind
+                  </Label>
+                  <select id="lookup-kind"
+                    className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    value={lookupKind}
+                    onChange={(event) => {
+                      setLookupKind(event.target.value as 'stream' | 'queue' | 'deployment' | 'log')
+                    }}
+                  >
+                    <option value="stream">Stream</option>
+                    <option value="queue">Queue</option>
+                    <option value="deployment">Deployment</option>
+                    <option value="log">Log</option>
+                  </select>
+                </div>
 
-                <Input
-                  placeholder="resource key (e.g. stream uuid)"
-                  value={lookupKey}
-                  onChange={(event) => {
+                <div className="space-y-1">
+                  <Label htmlFor="lookup-key" className="text-xs text-muted-foreground">
+                    {lookupKind} key
+                  </Label>
+                  <Input
+                    id="lookup-key"
+                    className="font-mono text-xs"
+                    placeholder="e.g. 7f3c1a92-…"
+                    value={lookupKey}
+                    onChange={(event) => {
                     setLookupKey(event.target.value)
                   }}
                 />
+                </div>
 
                 <Button
                   type="button"
@@ -1448,7 +1731,7 @@ export default function AdminSystemPage() {
                         <div key={`${entry.streamId}-${entry.at}-${String(index)}`} className="rounded border p-2 text-xs">
                           <p className="font-mono break-all">{entry.streamId}</p>
                           <p className="text-muted-foreground">
-                            {new Date(entry.at).toLocaleTimeString()} · selected {entry.selected}/{entry.candidates}
+                            {formatTime(entry.at)} · selected {entry.selected}/{entry.candidates}
                             {entry.topOwner ? ` · owner ${entry.topOwner.slice(0, 8)}` : ''}
                           </p>
                         </div>
@@ -1467,7 +1750,7 @@ export default function AdminSystemPage() {
                         <div key={`${entry.kind}-${entry.key}-${entry.at}-${String(index)}`} className="rounded border p-2 text-xs">
                           <p className="font-mono break-all">{entry.kind}:{entry.key}</p>
                           <p className="text-muted-foreground">
-                            {new Date(entry.at).toLocaleTimeString()} · {entry.found ? 'found' : 'missing'}
+                            {formatTime(entry.at)} · {entry.found ? 'found' : 'missing'}
                             {entry.owner ? ` · owner ${entry.owner.slice(0, 8)}` : ''}
                             {` · candidates ${String(entry.candidates)}`}
                           </p>
@@ -1479,133 +1762,125 @@ export default function AdminSystemPage() {
               </CardContent>
             </Card>
           </div>
-        </CardContent>
-      </Card>
-
         </TabsContent>
 
-        <TabsContent value="directory" className="space-y-6">
+        <TabsContent value="directory" className="space-y-4">
+          {/*
+            This tab rendered the user list TWICE: a "Directory" card and a
+            "Recent Users" card, the second being the first ten rows of the
+            first. The redundant copy was also the worse one — it read every
+            field through `as Record<string, unknown>`, which threw away the
+            types the query already had, so `user.emial` would have compiled.
 
-      {/* Directory — the mesh is the single tenant, so the directory shows users. */}
-      <Card className={surfaceCardClass}>
-        <CardHeader>
-          <CardTitle>Directory</CardTitle>
-          <CardDescription>
-            {users.length} user{users.length !== 1 ? 's' : ''} in the mesh
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {usersLoading ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map(i => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
+            One table remains. It keeps the richer columns from the second card
+            and drops the type assertions, and it links to User management for
+            the actions this tab never offered.
+          */}
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold">Directory</h2>
+              <p className="text-xs text-muted-foreground">
+                {usersLoading
+                  ? 'Loading members…'
+                  : `${String(users.length)} user${users.length === 1 ? '' : 's'} in the mesh`}
+              </p>
             </div>
-          ) : users && users.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((user) => (
-                  <TableRow key={(user as Record<string, unknown>).id as string}>
-                    <TableCell className="font-medium">{(user as Record<string, unknown>).name as string ?? '—'}</TableCell>
-                    <TableCell>{(user as Record<string, unknown>).email as string ?? '—'}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{(user as Record<string, unknown>).role as string ?? 'member'}</Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              No users yet
-            </p>
-          )}
-        </CardContent>
-      </Card>
+            <Button asChild variant="outline" size="sm">
+              <AuthDashboardAdminUsers.Link>Manage users</AuthDashboardAdminUsers.Link>
+            </Button>
+          </div>
 
-      {/* Recent Users Table */}
-      <Card className={surfaceCardClass}>
-        <CardHeader>
-          <CardTitle>Recent Users</CardTitle>
-          <CardDescription>
-            Latest {Math.min(users.length, 10)} users in the system
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {usersLoading ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map(i => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : users.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created At</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.slice(0, 10).map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        {user.image ? (
-                          <Image src={user.image} alt={user.name} width={24} height={24} className="h-6 w-6 rounded-full" />
-                        ) : (
-                          <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-xs">
-                            {user.name[0]?.toUpperCase()}
+          <Card className={surfaceCardClass}>
+            <CardContent className="pt-6">
+              {usersLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : users.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Created</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {user.image ? (
+                              <Image
+                                src={user.image}
+                                alt=""
+                                width={24}
+                                height={24}
+                                className="h-6 w-6 rounded-full"
+                              />
+                            ) : (
+                              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs">
+                                {user.name[0]?.toUpperCase() ?? '?'}
+                              </div>
+                            )}
+                            {user.name}
                           </div>
-                        )}
-                        {user.name}
-                      </div>
-                    </TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                        {user.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={user.banned ? 'destructive' : 'outline'}
-                        className={user.banned ? '' : 'border-green-500 text-green-600'}
-                      >
-                        {user.banned ? 'Banned' : 'Active'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {new Date(user.createdAt).toLocaleDateString()}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              No users found
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
+                        </TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>
+                          <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                            {user.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {/* Semantic status tokens, not literal green — the
+                              palette owns what "active" looks like. */}
+                          <Badge
+                            variant="outline"
+                            className={
+                              user.banned
+                                ? 'border-status-danger/40 text-status-danger'
+                                : 'border-status-live/40 text-status-live'
+                            }
+                          >
+                            {user.banned ? 'Banned' : 'Active'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs tabular-nums text-muted-foreground">
+                          {formatDate(user.createdAt)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No users yet.
+                </p>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
           {/* ══════════════════════════════════════════════════════════════════
              NODE CONFIG TAB
           ══════════════════════════════════════════════════════════════════ */}
-          <TabsContent value="node-config" className="space-y-6">
+          <TabsContent value="node-config" className="space-y-4">
+            {/*
+              Six cards used to run down this tab as one flat list — identity,
+              networking, trust material, credentials and a connectivity probe,
+              all at the same visual weight and in no stated order. The other
+              tabs already open with a SectionIntro; this one now does too, and
+              splits the six by what an operator is actually doing at the time.
+            */}
+            <SectionIntro
+              title="This node"
+              description="Identity, network binding and persisted strategy for the node running this API. Changes take effect on the next service restart."
+            />
             <NodeNetworkConfig />
             {/* Node Configuration Editor */}
             <Card className={surfaceCardClass}>
@@ -1652,40 +1927,60 @@ export default function AdminSystemPage() {
               <CardContent>
                 {showConfigForm ? (
                   <div className="space-y-4">
+                    {/*
+                      Every field here had a visible name rendered as a plain
+                      `<p>`. A sighted user reads "Node ID" above the box; a
+                      screen-reader user heard "edit text, UUID" and nothing
+                      else, because a `<p>` is not a label and was never
+                      associated with the input. Each name is now a
+                      `<Label htmlFor>` pointing at the field's id.
+                    */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Node ID</p>
-                        <Input value={editNodeId} onChange={(e) => setEditNodeId(e.target.value)} placeholder="UUID" className="font-mono text-xs" />
+                        <Label htmlFor="node-config-id" className="text-xs text-muted-foreground">
+                          Node ID
+                        </Label>
+                        <Input id="node-config-id" value={editNodeId} onChange={(e) => { setEditNodeId(e.target.value) }} placeholder="UUID" className="font-mono text-xs" />
                       </div>
                       <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Strategy</p>
-                        <select aria-label="local"
+                        <Label htmlFor="node-config-strategy" className="text-xs text-muted-foreground">
+                          Strategy
+                        </Label>
+                        <select id="node-config-strategy"
                           className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors"
                           value={editStrategy}
-                          onChange={(e) => setEditStrategy(e.target.value as 'local' | 'remote')}
+                          onChange={(e) => { setEditStrategy(e.target.value as 'local' | 'remote') }}
                         >
                           <option value="local">local</option>
                           <option value="remote">remote</option>
                         </select>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Region</p>
-                        <Input value={editRegion} onChange={(e) => setEditRegion(e.target.value)} placeholder="e.g. eu-west-1" className="text-xs" />
+                        <Label htmlFor="node-config-region" className="text-xs text-muted-foreground">
+                          Region
+                        </Label>
+                        <Input id="node-config-region" value={editRegion} onChange={(e) => { setEditRegion(e.target.value) }} placeholder="e.g. eu-west-1" className="text-xs" />
                       </div>
                       <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Zone</p>
-                        <Input value={editZone} onChange={(e) => setEditZone(e.target.value)} placeholder="e.g. eu-west-1a" className="text-xs" />
+                        <Label htmlFor="node-config-zone" className="text-xs text-muted-foreground">
+                          Zone
+                        </Label>
+                        <Input id="node-config-zone" value={editZone} onChange={(e) => { setEditZone(e.target.value) }} placeholder="e.g. eu-west-1a" className="text-xs" />
                       </div>
                       <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Version</p>
-                        <Input value={editVersion} onChange={(e) => setEditVersion(e.target.value)} placeholder="e.g. 1.0.0" className="text-xs" />
+                        <Label htmlFor="node-config-version" className="text-xs text-muted-foreground">
+                          Version
+                        </Label>
+                        <Input id="node-config-version" value={editVersion} onChange={(e) => { setEditVersion(e.target.value) }} placeholder="e.g. 1.0.0" className="text-xs" />
                       </div>
                       <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Routing Mode</p>
-                        <select aria-label="Default"
+                        <Label htmlFor="node-config-routing" className="text-xs text-muted-foreground">
+                          Routing Mode
+                        </Label>
+                        <select id="node-config-routing"
                           className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors"
                           value={editRoutingMode}
-                          onChange={(e) => setEditRoutingMode(e.target.value)}
+                          onChange={(e) => { setEditRoutingMode(e.target.value) }}
                         >
                           <option value="">Default</option>
                           <option value="latency">latency</option>
@@ -1695,11 +1990,13 @@ export default function AdminSystemPage() {
                         </select>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Consistency Mode</p>
-                        <select aria-label="Default"
+                        <Label htmlFor="node-config-consistency" className="text-xs text-muted-foreground">
+                          Consistency Mode
+                        </Label>
+                        <select id="node-config-consistency"
                           className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors"
                           value={editConsistencyMode}
-                          onChange={(e) => setEditConsistencyMode(e.target.value)}
+                          onChange={(e) => { setEditConsistencyMode(e.target.value) }}
                         >
                           <option value="">Default</option>
                           <option value="ap">AP (eventual)</option>
@@ -1708,21 +2005,28 @@ export default function AdminSystemPage() {
                         </select>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Roles (comma-separated)</p>
-                        <Input value={editRoles} onChange={(e) => setEditRoles(e.target.value)} placeholder="edge, relay" className="text-xs" />
+                        <Label htmlFor="node-config-roles" className="text-xs text-muted-foreground">
+                          Roles (comma-separated)
+                        </Label>
+                        <Input id="node-config-roles" value={editRoles} onChange={(e) => { setEditRoles(e.target.value) }} placeholder="edge, relay" className="text-xs" />
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Database URL</p>
-                      <Input value={editDatabaseUrl} onChange={(e) => setEditDatabaseUrl(e.target.value)} placeholder="postgresql://..." className="font-mono text-xs" />
+                      <Label htmlFor="node-config-db-url" className="text-xs text-muted-foreground">
+                        Database URL
+                      </Label>
+                      <Input id="node-config-db-url" value={editDatabaseUrl} onChange={(e) => { setEditDatabaseUrl(e.target.value) }} placeholder="postgresql://..." className="font-mono text-xs" />
                     </div>
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Mesh URLs (one per line)</p>
-                      <textarea
-                        className="flex min-h-15 w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-mono"
+                      <Label htmlFor="node-config-mesh-urls" className="text-xs text-muted-foreground">
+                        Mesh URLs (one per line)
+                      </Label>
+                      <Textarea
+                        id="node-config-mesh-urls"
+                        className="min-h-15 font-mono text-xs"
                         value={editMeshUrls}
-                        onChange={(e) => setEditMeshUrls(e.target.value)}
-                        placeholder="https://mesh-1:3001&#10;https://mesh-2:3001"
+                        onChange={(e) => { setEditMeshUrls(e.target.value) }}
+                        placeholder={'https://mesh-1:3001\nhttps://mesh-2:3001'}
                         rows={3}
                       />
                     </div>
@@ -1748,7 +2052,7 @@ export default function AdminSystemPage() {
                     </div>
                     <div className="rounded-lg border bg-card p-3 space-y-1">
                       <p className="text-xs text-muted-foreground">Configured At</p>
-                      <p className="text-sm">{formatTimestamp(nodeConfig?.configuredAt ?? nodeStatus?.configuredAt?.toString())}</p>
+                      <p className="text-sm">{formatDateTime(nodeConfig?.configuredAt ?? nodeStatus?.configuredAt?.toString())}</p>
                     </div>
                     <div className="rounded-lg border bg-card p-3 space-y-1">
                       <p className="text-xs text-muted-foreground">Region</p>
@@ -1796,7 +2100,7 @@ export default function AdminSystemPage() {
                       <p className="text-xs text-muted-foreground">Mesh Shared Secret</p>
                       <p className="text-sm">
                         {nodeConfig?.meshSharedSecretUpdatedAt ? (
-                          <Badge variant="outline" className="text-green-600">Set ({formatTimestamp(nodeConfig.meshSharedSecretUpdatedAt)})</Badge>
+                          <Badge variant="outline" className="text-green-600">Set ({formatDateTime(nodeConfig.meshSharedSecretUpdatedAt)})</Badge>
                         ) : (
                           <Badge variant="secondary">Not set</Badge>
                         )}
@@ -1943,12 +2247,17 @@ export default function AdminSystemPage() {
                       )}
                     </p>
                     {keyringConvergence.lastRotatedAt && (
-                      <p className="text-xs text-muted-foreground mt-1">Last rotation: {formatTimestamp(keyringConvergence.lastRotatedAt)}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Last rotation: {formatDateTime(keyringConvergence.lastRotatedAt)}</p>
                     )}
                   </div>
                 )}
               </CardContent>
             </Card>
+
+            <SectionIntro
+              title="Trust and credentials"
+              description="How peers prove they belong to this mesh, and the shared secret they present. Rotating either one requires every peer to re-enroll."
+            />
 
             {/* Strict Mode */}
             <Card className={surfaceCardClass}>
@@ -1972,8 +2281,15 @@ export default function AdminSystemPage() {
                       </Badge>
                     )}
                     <div className="flex items-center gap-2">
-                      <p className="text-xs text-muted-foreground">Strict mode</p>
+                      {/* `Switch` renders a <button> (Radix Root), so a
+                          <label htmlFor> would not associate. Name it via
+                          aria-labelledby instead — previously this control had
+                          no accessible name at all. */}
+                      <span id="mesh-strict-mode-label" className="text-xs text-muted-foreground">
+                        Strict mode
+                      </span>
                       <Switch
+                        aria-labelledby="mesh-strict-mode-label"
                         checked={strictEnabled}
                         onCheckedChange={(checked) => void handleToggleStrictMode(checked)}
                         disabled={setStrictMode.isPending}
@@ -1984,51 +2300,38 @@ export default function AdminSystemPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {strictReadinessLoading ? (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-20" />)}
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-10" />)}
                   </div>
                 ) : strictReadiness ? (
                   <>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="rounded-lg border bg-card p-3 space-y-1">
-                        <p className="text-xs text-muted-foreground">Ready</p>
-                        <div className="flex items-center gap-2">
-                          {strictReadiness.ready ? (
-                            <CheckCircle2 className="h-5 w-5 text-green-500" />
-                          ) : (
-                            <XCircle className="h-5 w-5 text-red-500" />
-                          )}
-                          <span className="text-sm font-semibold">{strictReadiness.ready ? 'Ready' : 'Not Ready'}</span>
-                        </div>
-                      </div>
-                      <div className="rounded-lg border bg-card p-3 space-y-1">
-                        <p className="text-xs text-muted-foreground">Convergence</p>
-                        <div className="flex items-center gap-2">
-                          {strictReadiness.converged ? (
-                            <CheckCircle2 className="h-5 w-5 text-green-500" />
-                          ) : (
-                            <AlertCircle className="h-5 w-5 text-amber-500" />
-                          )}
-                          <span className="text-sm font-semibold">{Math.round(strictReadiness.ackRatio * 100)}%</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">{strictReadiness.receivedAcks}/{strictReadiness.expectedAcks} nodes</p>
-                      </div>
-                      <div className="rounded-lg border bg-card p-3 space-y-1">
-                        <p className="text-xs text-muted-foreground">Ack Ratio</p>
-                        <Progress value={strictReadiness.ackRatio * 100} className="h-2 mt-2" />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          min {strictReadiness.minAckRatio * 100}% · max age {strictReadiness.maxAckAgeSeconds}s
-                        </p>
-                      </div>
-                      <div className="rounded-lg border bg-card p-3 space-y-1">
-                        <p className="text-xs text-muted-foreground">Active Key Age</p>
-                        <p className="text-sm font-semibold">
-                          {strictReadiness.lastRotationAgeSeconds != null
+                    <StatStrip bare>
+                      <StatStripItem
+                        icon={strictReadiness.ready ? CheckCircle2 : XCircle}
+                        label="Ready"
+                        value={strictReadiness.ready ? 'Ready' : 'Not ready'}
+                        tone={strictReadiness.ready ? 'live' : 'danger'}
+                      />
+                      <StatStripItem
+                        icon={strictReadiness.converged ? CheckCircle2 : AlertCircle}
+                        label="Convergence"
+                        value={`${Math.round(strictReadiness.ackRatio * 100)}%`}
+                        hint={`${strictReadiness.receivedAcks}/${strictReadiness.expectedAcks} nodes · min ${strictReadiness.minAckRatio * 100}%`}
+                        tone={strictReadiness.converged ? 'live' : 'pending'}
+                      />
+                      <StatStripItem
+                        label="Max ack age"
+                        value={`${strictReadiness.maxAckAgeSeconds}s`}
+                      />
+                      <StatStripItem
+                        label="Active key age"
+                        value={
+                          strictReadiness.lastRotationAgeSeconds != null
                             ? `${Math.round(strictReadiness.lastRotationAgeSeconds / 60)}m`
-                            : '—'}
-                        </p>
-                      </div>
-                    </div>
+                            : '—'
+                        }
+                      />
+                    </StatStrip>
 
                     {strictReadiness.reasons.length > 0 && (
                       <div className="rounded-lg border bg-card p-3 space-y-2">
@@ -2111,7 +2414,7 @@ export default function AdminSystemPage() {
                   </div>
                   {nodeConfig?.meshSharedSecretUpdatedAt && (
                     <p className="text-xs text-muted-foreground">
-                      Last rotated: {formatTimestamp(nodeConfig.meshSharedSecretUpdatedAt)}
+                      Last rotated: {formatDateTime(nodeConfig.meshSharedSecretUpdatedAt)}
                     </p>
                   )}
                 </div>
@@ -2144,6 +2447,11 @@ export default function AdminSystemPage() {
                 )}
               </CardContent>
             </Card>
+
+            <SectionIntro
+              title="Connectivity and cluster state"
+              description="Verify a database before committing it to the node config, and read the mesh membership snapshot."
+            />
 
             {/* Database Connection Test */}
             <Card className={surfaceCardClass}>
@@ -2210,24 +2518,36 @@ export default function AdminSystemPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="rounded-lg border bg-card p-3 space-y-1">
-                    <p className="text-xs text-muted-foreground">Membership Version</p>
-                    <p className="text-2xl font-bold">{snapshotData?.version ?? 0}</p>
-                  </div>
-                  <div className="rounded-lg border bg-card p-3 space-y-1">
-                    <p className="text-xs text-muted-foreground">Total Peers</p>
-                    <p className="text-2xl font-bold">{peers.length}</p>
-                    <p className="text-xs text-muted-foreground">{peers.filter((p) => p.state === 'up').length} up · {peers.filter((p) => p.state === 'degraded').length} degraded</p>
-                  </div>
-                  <div className="rounded-lg border bg-card p-3 space-y-1">
-                    <p className="text-xs text-muted-foreground">Trust Keyring</p>
-                    <p className="text-2xl font-bold">{trustKeyring?.keys.length ?? 0}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {trustKeyring?.activeKeyId ? `Active: ${shortId(trustKeyring.activeKeyId)}` : 'No active key'}
-                    </p>
-                  </div>
-                </div>
+                {/*
+                  Three bordered tiles inside a bordered Card, each inflating a
+                  small integer to 2xl. The inner borders existed only to
+                  separate the three from each other, which the Card — and now
+                  the row's own spacing — already does.
+
+                  `?? 0` is gone too: while the snapshot is loading, "we do not
+                  know yet" was being reported as the confident value zero.
+                */}
+                <StatStrip bare>
+                  <StatStripItem
+                    label="Membership version"
+                    value={snapshotData?.version}
+                    hint="moves on every topology change"
+                  />
+                  <StatStripItem
+                    label="Peers"
+                    value={peers.length}
+                    hint={`${String(peers.filter((p) => p.state === 'up').length)} up · ${String(peers.filter((p) => p.state === 'degraded').length)} degraded`}
+                  />
+                  <StatStripItem
+                    label="Trust keys"
+                    value={trustKeyring?.keys.length}
+                    hint={
+                      trustKeyring?.activeKeyId
+                        ? `active ${shortId(trustKeyring.activeKeyId)}`
+                        : 'no active key'
+                    }
+                  />
+                </StatStrip>
               </CardContent>
             </Card>
           </TabsContent>

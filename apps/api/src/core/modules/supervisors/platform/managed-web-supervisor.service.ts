@@ -21,10 +21,7 @@ import { HostnameService } from "../../platform-ingress/services/hostname.servic
 import { AppInstanceService } from "../../platform-ingress/services/app-instance.service";
 import { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
 import { MANAGED_WEB_CONTAINER_BASE_NAME } from "../../platform-ingress/services/platform-names";
-import {
-	BaseDockerSupervisorService,
-	type DockerSupervisorContainerSpec,
-} from "@/core/modules/docker/services/base-docker-supervisor.service";
+import { BaseDockerSupervisorService } from "@/core/modules/docker/services/base-docker-supervisor.service";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
 import {
 	baseSupervisorPayloadSchema,
@@ -32,31 +29,26 @@ import {
 } from "@/core/modules/supervisors/base-supervisor.service";
 import {
 	baseSupervisorProcessInfoSchema,
-	dockerProcessInfoSchema,
+	swarmProcessInfoSchema,
 } from "@/core/modules/supervisors/supervisor-process-info";
-import { EnvService } from "@/config/env/env.service";
+import { EnvService } from "@repo/nest-env";
 import z from "zod/v4";
+import {
+	resolveSupervisorRuntime,
+	type DockerSupervisorRuntime,
+} from "@/core/modules/docker/services/docker-supervisor-runtime";
+import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
 import { PlatformNetwork } from "./traefik-supervisor.service";
+import { AppError, ConflictError } from "@repo/errors";
 
 export const PLATFORM_MANAGED_WEB_ROLE = "managed-web";
 export const PLATFORM_MANAGED_WEB_SUPERVISOR_ID = "platform-managed-web";
 
-/** Rich health payload: container state + sizes + desired-state mode. */
+/** Rich health payload: console service state + desired-state mode. */
 export const managedWebSupervisorPayloadSchema = baseSupervisorPayloadSchema.extend({
 	desired: z.enum(["enabled", "disabled"]),
-	container: z
-		.object({
-			id: z.string(),
-			name: z.string(),
-			image: z.string(),
-			running: z.boolean(),
-			exitCode: z.number().int().nullable(),
-			sizeRw: z.number().int().min(0).nullable(),
-			sizeRootFs: z.number().int().min(0).nullable(),
-			startedAt: z.string().datetime().nullable(),
-			hostname: z.string(),
-		})
-		.nullable(),
+	/** Live view of the console swarm service (null when absent). */
+	service: swarmProcessInfoSchema.shape.live.nullable(),
 });
 export type ManagedWebSupervisorPayload = z.output<typeof managedWebSupervisorPayloadSchema>;
 
@@ -65,7 +57,7 @@ export type ManagedWebSupervisorPayload = z.output<typeof managedWebSupervisorPa
  * `getProcessInfo()` — the container process + the origins it serves.
  */
 export const managedWebProcessInfoSchema = baseSupervisorProcessInfoSchema.extend({
-	process: dockerProcessInfoSchema,
+	process: swarmProcessInfoSchema,
 	urls: z.object({
 		/** HTTP origin the managed web app serves. */
 		webUrl: z.string(),
@@ -96,17 +88,45 @@ export class ManagedWebSupervisorService extends BaseDockerSupervisorService<
 		super(dockerService);
 	}
 
-	protected buildContainerSpec(): DockerSupervisorContainerSpec {
+	/** Runtime: mesh-wide → swarm-replicated (one console for the platform). */
+	protected async effectiveRuntime(): Promise<DockerSupervisorRuntime> {
+		return (
+			await resolveSupervisorRuntime({
+				managed: false,
+				rawRuntime: process.env.SUPERVISOR_RUNTIME,
+				swarmActive: await this.isSwarmActive(),
+				scope: "mesh-wide",
+			})
+		).runtime;
+	}
+
+	protected buildSwarmSpec(): SwarmServiceSpecInput {
 		const prefix = this.env.get("DEPLOYER_PREFIX");
+		const name = prefix === "" ? MANAGED_WEB_CONTAINER_BASE_NAME : `${MANAGED_WEB_CONTAINER_BASE_NAME}-${prefix}`;
 		return {
-			name: prefix === "" ? MANAGED_WEB_CONTAINER_BASE_NAME : `${MANAGED_WEB_CONTAINER_BASE_NAME}-${prefix}`,
+			name,
 			image: this.env.get("MANAGED_WEB_APP_IMAGE") ?? "deployer-web:latest",
-			networkName: PlatformNetwork.name(prefix),
-			restartPolicy: "unless-stopped",
+			mode: "replicated",
+			replicas: 1,
+			env: [],
+			command: [],
+			args: [],
 			labels: {
 				"deployer.platform.role": PLATFORM_MANAGED_WEB_ROLE,
 				"deployer.platform.web-hostname": this.hostnameService.webHostname(),
 			},
+			containerLabels: {},
+			mounts: [],
+			placementPreferences: [],
+			placementConstraints: [],
+			resourcesLimits: {},
+			resourcesReservations: {},
+			networks: [],
+			capabilitiesAdd: [],
+			healthcheck: null,
+			updateConfig: { parallelism: 1, delayMs: 0, order: "start-first", failureAction: "rollback" },
+			stopGracePeriodSeconds: 10,
+			endpointPorts: [],
 		};
 	}
 
@@ -116,93 +136,120 @@ export class ManagedWebSupervisorService extends BaseDockerSupervisorService<
 			return;
 		}
 
-		await this.runWithBackoff(
-			"Managed web convergence",
-			async () => {
-				const baseSpec = this.buildContainerSpec();
-				const networkId = baseSpec.networkName !== undefined ? await this.ensureNetwork(baseSpec.networkName) : undefined;
+		const runtime = await this.effectiveRuntime();
 
-				const inspect = await this.inspectContainer(baseSpec.name);
-				if (inspect === null) {
-					// Fresh spawn: rotate token, inject env, create.
-					const spec = await this.buildManagedWebSpec();
-					await this.pullImage(spec.image);
-					const container = await this.createContainer(spec, networkId);
-					await container.start();
-				} else if (!inspect.State.Running) {
-					// Exited container may hold a stale/revoked env token —
-					// recreation guarantees a fresh valid one.
-					await containerRemove(this.client, baseSpec.name);
-					const spec = await this.buildManagedWebSpec();
-					await this.pullImage(spec.image);
-					const container = await this.createContainer(spec, networkId);
-					await container.start();
-				}
-				// Healthy + running: leave it alone — its env token stays valid.
+		if (runtime === "managed") {
+			// The deployment owns the console — nothing to converge.
+			return;
+		}
+		if (runtime === "unavailable") {
+			throw new AppError(
+				"Managed web console requires an active swarm engine (no container fallback) — SwarmBootstrapService should have converged the engine",
+				"SWARM_UNAVAILABLE",
+				{ supervisor: "platform-managed-web" },
+			);
+		}
+
+		await this.runWithBackoff(
+			"Managed web (swarm) convergence",
+			async () => {
+				const overlay = await this.ensureSwarmNetwork(PlatformNetwork.name(this.env.get("DEPLOYER_PREFIX") ?? ""));
+				const spec = this.buildSwarmSpec();
+				spec.env = await this.managedWebEnv();
+				spec.networks = [{ target: overlay, aliases: [spec.name] }];
+				await this.reconcileSwarmService(spec);
+				const svc = await this.dockerService.inspectSwarmService(spec.name).catch(() => null);
+				if (!svc?.ID) throw new ConflictError(`managed web swarm service '${spec.name}'`, "was not created");
 			},
 			{ maxAttempts: 3 },
 		);
+	}
 
-		// NOTE: the web HOSTNAME ROUTE is owned by the Traefik supervisor
-		// (writeDynamicConfig → dynamic-web.yml) — the ingress is the single
-		// source of routes and it knows the resolved web target (managed web
-		// or the external web name). This supervisor only ensures the
-		// container exists. writeWebRoute was removed: it proxied to the API
-		// backend and never ran while the managed web was disabled, so
-		// web.deployer.localhost 404'd in dev side-by-side.
+	/**
+	 * The env the console needs to boot: the platform API origin plus a valid
+	 * APP-INSTANCE token. The token is rotated on every convergence — the
+	 * previous one may have been revoked while the service was down, and a
+	 * service update replaces the task anyway.
+	 */
+	private async managedWebEnv(): Promise<string[]> {
+		const minted = await this.appInstances.create({
+			label: `managed-web-${this.env.get("DEPLOYER_PREFIX") || "default"}`,
+			kind: "managed",
+		});
+		return [
+			`NEXT_PUBLIC_API_URL=${this.hostnameService.apiOrigin()}`,
+			`WEB_INSTANCE_TOKEN=${minted.appToken}`,
+		];
 	}
 
 	protected async probe(): Promise<SupervisorProbeResult<typeof managedWebSupervisorPayloadSchema>> {
 		const startedAt = Date.now();
 		const desired = (await this.desiredEnabled()) ? "enabled" : "disabled";
-		const spec = this.buildContainerSpec();
-		const inspect = await this.inspectContainer(spec.name);
-		const details = inspect as unknown as {
-			SizeRw?: number;
-			SizeRootFs?: number;
-			State?: { StartedAt?: string };
-		} | null;
-		const container =
-			inspect === null
-				? null
-				: {
-						id: inspect.Id,
-						name: spec.name,
-						image: spec.image,
-						running: inspect.State.Running,
-						exitCode: inspect.State.ExitCode ?? null,
-						sizeRw: details?.SizeRw ?? null,
-						sizeRootFs: details?.SizeRootFs ?? null,
-						startedAt: details?.State?.StartedAt ?? null,
-						hostname: this.hostnameService.webHostname(),
-					};
+		const spec = this.buildSwarmSpec();
+		const live = await this.liveService(spec.name);
 
 		if (desired === "disabled") {
 			return {
 				healthy: true,
 				detail: "managed web disabled by flag",
-				payload: { checkedAt: new Date().toISOString(), latencyMs: Date.now() - startedAt, desired, container: null },
+				payload: { checkedAt: new Date().toISOString(), latencyMs: Date.now() - startedAt, desired, service: null },
 			};
 		}
-		if (inspect === null) {
+		if (!live.exists) {
 			return {
 				healthy: false,
-				detail: "container missing while flag enabled",
-				payload: { checkedAt: new Date().toISOString(), latencyMs: Date.now() - startedAt, desired, container: null },
+				detail: "service missing while flag enabled",
+				payload: { checkedAt: new Date().toISOString(), latencyMs: Date.now() - startedAt, desired, service: null },
 			};
 		}
-		if (!inspect.State.Running) {
+		if (live.runningTasks === 0) {
 			return {
 				healthy: false,
-				detail: `container not running (exit ${String(inspect.State.ExitCode ?? "?")})`,
-				payload: { checkedAt: new Date().toISOString(), latencyMs: Date.now() - startedAt, desired, container },
+				detail: "service has no running task",
+				payload: { checkedAt: new Date().toISOString(), latencyMs: Date.now() - startedAt, desired, service: live.snapshot },
 			};
 		}
 		return {
 			healthy: true,
 			detail: `serving ${this.hostnameService.webHostname()}`,
-			payload: { checkedAt: new Date().toISOString(), latencyMs: Date.now() - startedAt, desired, container },
+			payload: { checkedAt: new Date().toISOString(), latencyMs: Date.now() - startedAt, desired, service: live.snapshot },
 		};
+	}
+
+	/** The console service's live state (absent → exists=false). */
+	private async liveService(name: string): Promise<{
+		exists: boolean;
+		runningTasks: number;
+		snapshot: {
+			serviceId: string | null;
+			exists: boolean | null;
+			createdAt: string | null;
+			updatedAt: string | null;
+			serviceName: string | null;
+			runningTasks: number | null;
+			totalTasks: number | null;
+		} | null;
+	}> {
+		try {
+			const service = await this.dockerService.inspectSwarmService(name);
+			const tasks = await this.dockerService.listSwarmServiceTasks(name).catch(() => []);
+			const runningTasks = tasks.filter((task) => task.Status.State === "running").length;
+			return {
+				exists: true,
+				runningTasks,
+				snapshot: {
+					serviceId: service.ID ?? null,
+					exists: true,
+					createdAt: service.CreatedAt ?? null,
+					updatedAt: service.UpdatedAt ?? null,
+					serviceName: service.Spec.Name ?? null,
+					runningTasks,
+					totalTasks: tasks.length,
+				},
+			};
+		} catch {
+			return { exists: false, runningTasks: 0, snapshot: null };
+		}
 	}
 
 	/** Payload shape when the probe mechanism itself fails. */
@@ -211,14 +258,14 @@ export class ManagedWebSupervisorService extends BaseDockerSupervisorService<
 			checkedAt: new Date().toISOString(),
 			latencyMs: 0,
 			desired: "disabled",
-			container: null,
+			service: null,
 		};
 	}
 
 	/** The entire config + live state of the managed web process. */
 	protected async buildProcessInfo(): Promise<Record<string, unknown>> {
 		return {
-			process: await this.describeDockerProcess(this.buildContainerSpec()),
+			process: await this.describeSwarmProcess(this.buildSwarmSpec()),
 			urls: {
 				webUrl: this.hostnameService.webOrigin(),
 				apiUrl: this.hostnameService.apiOrigin(),
@@ -232,76 +279,9 @@ export class ManagedWebSupervisorService extends BaseDockerSupervisorService<
 		return await this.platformConfig.isManagedWebAppEnabled();
 	}
 
-	/** Full desired-state spec including provisioned token + env injection.
-	 *  Call ONLY on create/recreate paths — minting revokes the previous
-	 *  managed instance, which would break a healthy running container. */
-	private async buildManagedWebSpec(): Promise<DockerSupervisorContainerSpec> {
-		const base = this.buildContainerSpec();
-
-		// Rotate: raw tokens are never stored, so mint fresh each convergence
-		// and revoke the previous managed instance (only the newest container
-		// carries an env token that works).
-		// .catch(null) guards against missing app_instances table during
-		// early boot or first-time migration — the table may not exist yet
-		// if global Postgres migrations haven't been applied.
-		const previous = await this.appInstances.findManaged().catch((): null => null);
-		if (previous !== null) await this.appInstances.revoke(previous.id).catch(() => {});
-		const minted = await this.appInstances.create({
-			label: `managed-web-${this.env.get("DEPLOYER_PREFIX") || "default"}`,
-			kind: "managed",
-		});
-
-		const apiPort = String(this.env.get("API_PORT"));
-		const webHostname = this.hostnameService.webHostname();
-		// The managed web app's OWN public surface: a custom origin (domain /
-		// IP) and/or a dedicated tunnel hostname. These also terminate at the
-		// platform Traefik (Host → web) so the operator can publish the web
-		// app independently of the node's global address.
-		const customHosts: string[] = [];
-		const customOrigin = await this.platformConfig.getManagedWebOrigin();
-		if (customOrigin !== null) customHosts.push(customOrigin);
-		const webTunnel = await this.platformConfig.getManagedWebTunnel();
-		if (webTunnel !== null) customHosts.push(webTunnel.hostname);
-
-		// Public app URL = the operator-configured origin when set, else the
-		// dedicated web tunnel hostname when set, else the platform web
-		// hostname (web.<base>.localhost) dev surface.
-		const publicAppUrl = customOrigin ?? webTunnel?.hostname ?? webHostname;
-
-		// Dev-HMR allowlist: exact routed hostnames (+ subdomain wildcard over
-		// the platform base domain). The custom origin/tunnel hostname must be
-		// allowed too — the operator's browser hits that origin. Next rejects
-		// a bare '*' — `*.{parent-domain}` is the correct whole-domain form.
-		const webBaseDomain = webHostname.split(".").slice(1).join(".");
-		const allowedDevOrigins = [
-			webHostname,
-			...(webBaseDomain ? [`*.${webBaseDomain}`] : []),
-			...customHosts,
-		].join(",");
-
-		return {
-			...base,
-			env: [
-				"NODE_ENV=production",
-				// Server-side calls go over the PRIVATE platform network to the
-				// API container name — not through the host gateway — so no
-				// host port is required for internal traffic.
-				`API_URL=http://${this.resolveApiContainerName()}:${apiPort}`,
-				`NEXT_PUBLIC_API_URL=http://${this.hostnameService.apiHostname()}`,
-				`NEXT_PUBLIC_APP_URL=http://${publicAppUrl}`,
-				`NEXT_ALLOWED_DEV_ORIGINS=${allowedDevOrigins}`,
-				`APP_INSTANCE_TOKEN=${minted.appToken}`,
-			],
-		};
-	}
-
-	/** Remove the managed container when the flag turns off. */
+	/** Remove the console service when the flag turns off. */
 	private async removeManagedWeb(): Promise<void> {
-		const spec = this.buildContainerSpec();
-		const inspect = await this.inspectContainer(spec.name);
-		if (inspect !== null) {
-			await containerRemove(this.client, spec.name);
-		}
+		await this.removeSwarmServiceIfExists(this.buildSwarmSpec().name);
 		// Teardown kills trust immediately.
 		const managed = await this.appInstances.findManaged().catch(() => null);
 		if (managed !== null) await this.appInstances.revoke(managed.id);
@@ -317,15 +297,4 @@ export class ManagedWebSupervisorService extends BaseDockerSupervisorService<
 		}
 		return "host.docker.internal";
 	}
-}
-
-/** Force-remove helper tolerating already-gone containers. */
-async function containerRemove(client: ReturnType<DockerService["getDockerClient"]>, name: string): Promise<void> {
-	await client
-		.getContainer(name)
-		.remove({ force: true })
-		.catch((error: Error & { statusCode?: number }) => {
-			if (error.statusCode === 404) return;
-			throw error;
-		});
 }

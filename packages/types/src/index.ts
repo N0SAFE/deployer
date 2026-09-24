@@ -3,4 +3,4 @@
  * Re-exports all type utilities from utils.ts
  */
 
-export * from './utils.js';
+export * from '@repo/types/utils.js';

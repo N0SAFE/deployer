@@ -3,10 +3,10 @@
  * Pure Standard Schema implementation without Zod dependency
  */
 
-import type { AnySchema, ObjectSchema, SchemaWithConfig } from "../types";
-import { CONFIG_SYMBOL, withConfig } from "../types";
-import { s } from "../schema";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import type { AnySchema, ObjectSchema, SchemaWithConfig } from "@repo/orpc-utils/operations/base/types";
+import { CONFIG_SYMBOL, withConfig } from "@repo/orpc-utils/operations/base/types";
+import { s } from "@repo/orpc-utils/operations/base/schema";
+import { isRecord } from "@repo/type-guards"
 
 /**
  * Pagination configuration options

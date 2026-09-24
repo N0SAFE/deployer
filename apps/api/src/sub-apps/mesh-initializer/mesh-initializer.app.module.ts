@@ -9,7 +9,7 @@
 import { Module } from '@nestjs/common';
 import { MeshInitializerService } from './mesh-initializer.service';
 import { MeshInitializationModule } from '@/core/modules/mesh/initialization/mesh-initialization.module';
-import { NodeConfigRepository } from '@/core/modules/setup/repositories/node-config.repository';
+import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
 import { LocalDatabaseModule } from '@/core/modules/database/local/local-database.module';
 import { SetupWizardBridge } from '@/sub-apps/setup-wizard/setup-wizard.bridge';
 import { MeshInitializerBridge } from './mesh-initializer.bridge';
@@ -18,10 +18,13 @@ import { MeshInitializerBridge } from './mesh-initializer.bridge';
   imports: [
     MeshInitializationModule,
     LocalDatabaseModule,
+    // Sub-apps run in their OWN Nest context, so @Global() from the main app
+    // does not reach them — the module must be imported explicitly. Importing
+    // it (rather than redeclaring the provider) keeps ONE owner per repository.
+    NodeStateModule,
   ],
   providers: [
     MeshInitializerService,
-    NodeConfigRepository,
     SetupWizardBridge,
     MeshInitializerBridge,
   ],

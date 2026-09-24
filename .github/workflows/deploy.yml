@@ -86,6 +86,11 @@ jobs:
     permissions:
       contents: read
       packages: write  # Needed to push to GHCR
+    outputs:
+      # Exposed so the `release` job can read the pushed image. Step outputs are
+      # NOT visible across jobs, so `release` reading `steps.meta.outputs.base`
+      # silently interpolated an empty string into the release notes.
+      image_base: ${{ steps.meta.outputs.base }}
 
     steps:
       - name: 📚 Checkout repository
@@ -149,7 +154,7 @@ jobs:
           echo "docker pull ${{ steps.meta.outputs.base }}:latest" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "# Recreate the container with the new image:" >> $GITHUB_STEP_SUMMARY
-          echo "docker compose -f docker/compose/docker-compose.deployer.yml up -d" >> $GITHUB_STEP_SUMMARY
+          echo "docker compose -f docker/compose/deployer/docker-compose.deployer.yml up -d" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
   # ── Job 3: Create GitHub Release (only for version tags) ──────────────────
@@ -176,7 +181,7 @@ jobs:
           echo "### 📦 Docker Image" >> /tmp/release-notes.md
           echo "" >> /tmp/release-notes.md
           echo '```bash' >> /tmp/release-notes.md
-          echo "docker pull ${{ steps.meta.outputs.base }}:$VERSION" >> /tmp/release-notes.md
+          echo "docker pull ${{ needs.build-and-push.outputs.image_base }}:$VERSION" >> /tmp/release-notes.md
           echo '```' >> /tmp/release-notes.md
           echo "" >> /tmp/release-notes.md
           echo "### 📋 Changes" >> /tmp/release-notes.md

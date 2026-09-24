@@ -1,4 +1,4 @@
-import type { ConfigSchema } from "../domain";
+import type { ConfigSchema } from "@repo/provider-schema/domain/index";
 
 export const builderSchemasCatalog: Record<string, ConfigSchema> = {
     dockerfile: {

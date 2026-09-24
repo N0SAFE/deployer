@@ -6,7 +6,7 @@ import {
   serviceTraefikTemplates,
   type ProviderTraefikTemplate,
   type ServiceTraefikTemplate,
-} from '@/config/drizzle/global/schema/traefik';
+} from "@repo/nest-schema/global/traefik";
 
 @Injectable()
 export class TraefikTemplateRepository {

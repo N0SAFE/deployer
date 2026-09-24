@@ -4,7 +4,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { clusterEndpoints } from "./endpoints";
 import { clusterInvalidations } from "./invalidations";
 import { wrapWithInvalidations } from "@/domains/shared/helpers";
-import type { ClusterSnapshot, SwarmNodeResources } from "@repo/contracts-entities";
+import type { ClusterMasterView, ClusterNodeInventoryRow } from "@repo/api-contracts";
+import type { ClusterSnapshot, SwarmConfigView, SwarmNodeResources, SwarmServiceRuntime, SwarmTaskRuntime } from "@repo/contracts-entities";
+import type { SwarmParticipationInput } from "@repo/contracts-entities";
 
 const enhancedCluster = wrapWithInvalidations(clusterEndpoints, clusterInvalidations);
 
@@ -48,23 +50,62 @@ export function useClusterNodes(
   input?: { includeDown?: boolean },
   options?: { enabled?: boolean },
 ) {
-  return useQuery(
+  const enabled = options?.enabled ?? true
+  const includeDown = input?.includeDown ?? false
+
+  const queryResult = useQuery(
     enhancedCluster.listNodes.queryOptions({
-      input: { includeDown: input?.includeDown ?? false },
-      enabled: options?.enabled ?? true,
-      refetchInterval: 30_000,
+      input: { includeDown },
+      enabled,
+      refetchInterval: false,
     }),
-  );
+  )
+
+  const streamResult = useQuery(
+    clusterEndpoints.streamNodes.experimental_liveObservableOptions({
+      input: { includeDown },
+      enabled,
+    }),
+  )
+
+  const streamData = streamResult.data as ClusterNodeInventoryRow[] | undefined
+  const data = streamData ?? queryResult.data
+
+  return {
+    ...queryResult,
+    data,
+    isPending: queryResult.isPending && !streamData,
+    isError: queryResult.isError && !streamData,
+  }
 }
 
 export function useClusterMaster(options?: { enabled?: boolean }) {
-  return useQuery(
+  const enabled = options?.enabled ?? true
+
+  const queryResult = useQuery(
     enhancedCluster.getMaster.queryOptions({
       input: {},
-      enabled: options?.enabled ?? true,
-      refetchInterval: 15_000,
+      enabled,
+      refetchInterval: false,
     }),
-  );
+  )
+
+  const streamResult = useQuery(
+    clusterEndpoints.streamMaster.experimental_liveObservableOptions({
+      input: {},
+      enabled,
+    }),
+  )
+
+  const streamData = streamResult.data as ClusterMasterView | undefined
+  const data = streamData ?? queryResult.data
+
+  return {
+    ...queryResult,
+    data,
+    isPending: queryResult.isPending && !streamData,
+    isError: queryResult.isError && !streamData,
+  }
 }
 
 export function useUpdateClusterNode() {
@@ -75,16 +116,56 @@ export function useUpdateClusterNode() {
   );
 }
 
+// ─── Swarm participation (mode + policy + join) ────────────────────────────
+
+/** Current swarm participation view (mode/policy/engine state/join tokens). */
+export function useSwarmConfig(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true
+  return useQuery(
+    clusterEndpoints.swarmConfig.get.queryOptions({
+      input: {},
+      enabled,
+      refetchInterval: 15_000,
+    }),
+  )
+}
+
+/** Persist + converge the participation config (invalidated via the panel). */
+export function useSetSwarmConfig() {
+  return useMutation(clusterEndpoints.swarmConfig.set.mutationOptions());
+}
+
+export type { SwarmParticipationInput, SwarmConfigView };
+
+
 // ─── Fleet workload surface ────────────────────────────────────────────────
 
 /** Mesh-wide swarm services (mode + desired/running task counts). */
 export function useClusterServices(options?: { enabled?: boolean }) {
-  return useQuery(
-    enhancedCluster.services.list.queryOptions({
-      enabled: options?.enabled ?? true,
-      refetchInterval: 15_000,
+  const enabled = options?.enabled ?? true
+
+  const queryResult = useQuery({
+    ...enhancedCluster.services.list.queryOptions({ input: {} }),
+    enabled,
+    refetchInterval: false,
+  })
+
+  const streamResult = useQuery(
+    clusterEndpoints.services.stream.experimental_liveObservableOptions({
+      input: {},
+      enabled,
     }),
-  );
+  )
+
+  const streamData = streamResult.data as SwarmServiceRuntime[] | undefined
+  const data = streamData ?? queryResult.data
+
+  return {
+    ...queryResult,
+    data,
+    isPending: queryResult.isPending && !streamData,
+    isError: queryResult.isError && !streamData,
+  }
 }
 
 /** Swarm tasks, optionally filtered by service and/or node. */
@@ -92,7 +173,9 @@ export function useClusterTasks(
   input?: { serviceId?: string; nodeId?: string },
   options?: { enabled?: boolean },
 ) {
-  return useQuery(
+  const enabled = options?.enabled ?? true
+
+  const queryResult = useQuery(
     enhancedCluster.tasks.list.queryOptions({
       input: {
         query: {
@@ -100,10 +183,32 @@ export function useClusterTasks(
           nodeId: input?.nodeId,
         },
       },
-      enabled: options?.enabled ?? true,
-      refetchInterval: 10_000,
+      enabled,
+      refetchInterval: false,
     }),
-  );
+  )
+
+  const streamResult = useQuery(
+    clusterEndpoints.tasks.stream.experimental_liveObservableOptions({
+      input: {
+        query: {
+          serviceId: input?.serviceId,
+          nodeId: input?.nodeId,
+        },
+      },
+      enabled,
+    }),
+  )
+
+  const streamData = streamResult.data as SwarmTaskRuntime[] | undefined
+  const data = streamData ?? queryResult.data
+
+  return {
+    ...queryResult,
+    data,
+    isPending: queryResult.isPending && !streamData,
+    isError: queryResult.isError && !streamData,
+  }
 }
 
 /** Per-node resource aggregation (swarm view + local engine artifacts). */
@@ -131,7 +236,19 @@ export function useNodeResources(nodeId: string, options?: { enabled?: boolean }
   return {
     ...queryResult,
     data,
+    /*
+      All three flags are adjusted for the live stream, so a consumer gets the
+      same answer whichever name it reads.
+
+      `isLoading` used to leak through the spread untouched, while only
+      `isPending` and `isError` were corrected. Every consumer of this hook reads
+      `isLoading` — so the careful adjustment below was dead code, and a node
+      page whose REST call kept failing rendered a loading skeleton forever
+      instead of the error state the hook had already computed.
+    */
+    isLoading: queryResult.isLoading && !streamData,
     isPending: queryResult.isPending && !streamData,
     isError: queryResult.isError && !streamData,
+    error: streamData ? null : queryResult.error,
   }
 }

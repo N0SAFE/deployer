@@ -9,7 +9,7 @@ export {
 	dockerImageSecurityScanStageSchema,
 	dockerImageSecurityScanEventTypeSchema,
 	dockerImageSecurityScanEventSchema,
-} from './scanning'
+} from '@repo/contracts-entities/entities/docker/security/scanning/index'
 
 export type {
 	DockerVulnerabilitySeverity,
@@ -22,4 +22,4 @@ export type {
 	DockerImageSecurityScanStage,
 	DockerImageSecurityScanEventType,
 	DockerImageSecurityScanEvent,
-} from './scanning'
+} from '@repo/contracts-entities/entities/docker/security/scanning/index'

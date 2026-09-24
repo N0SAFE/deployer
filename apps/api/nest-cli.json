@@ -4,6 +4,7 @@
   "sourceRoot": "src",
   "monorepo": true,
   "compilerOptions": {
+    "builder": "rspack",
     "deleteOutDir": false
   },
   "projects": {

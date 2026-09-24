@@ -22,7 +22,7 @@ const VideoOrPlaceholder: React.FC<
     return (
         <video
             // eslint-disable-next-line @typescript-eslint/no-require-imports
-            src={require('../../../assets/video/placeholder.mp4') as string}
+            src={require('@repo/ui/assets/video/placeholder.mp4') as string}
             {...props}
         >
             {children}

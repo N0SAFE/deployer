@@ -32,6 +32,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Siren, Plus, Pencil, Trash2, Copy, Layers, RefreshCw } from 'lucide-react'
+import { EmptyState } from '@/components/dashboard'
 import { toast } from 'sonner'
 import { shortId } from '../_utils/helpers'
 import {
@@ -343,11 +344,12 @@ export default function DashboardProjectEnvironmentsPage() {
         </CardHeader>
         <CardContent>
           {environments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Layers className="mb-4 size-12 text-muted-foreground/40" />
-              <p className="text-lg font-medium">No environments configured</p>
-              <p className="text-sm text-muted-foreground">Create an environment to get started.</p>
-            </div>
+            <EmptyState
+              icon={Layers}
+              title="No environments configured"
+              description="Create an environment to get started."
+              action={{ label: 'Create environment', onClick: () => { setCreateDialogOpen(true) } }}
+            />
           ) : (
             <Table>
               <TableHeader>
@@ -436,17 +438,36 @@ export default function DashboardProjectEnvironmentsPage() {
                         </div>
                       </TableCell>
                       {environments.map((env: any) => {
-                        const link = envLinkMap.get(`${svc.id}:${env.id}`)
-                        const enabled = link?.isEnabled ?? true
                         const cellKey = `${svc.id}:${env.id}`
+                        const link = envLinkMap.get(cellKey)
+                        // Tri-state, because these are three different facts:
+                        //   no link row            → never configured
+                        //   link.isEnabled === true  → active in this environment
+                        //   link.isEnabled === false → deliberately switched off
+                        // `?? true` collapsed the first into the second, so every
+                        // unconfigured cell rendered as ACTIVE: the matrix claimed a
+                        // service was live in an environment where nothing had ever
+                        // been set up, and the operator had no way to tell the two
+                        // apart. Toggling upserts the row, so "off" is reachable
+                        // without inventing one.
+                        const isConfigured = link !== undefined
+                        const enabled = link?.isEnabled === true
                         const cellPending = pendingLinkKeys.has(cellKey)
                         return (
                           <TableCell key={env.id} className="text-center">
                             <Switch
                               checked={enabled}
-                              onCheckedChange={(v) => toggleServiceEnvLink(svc.id, env.id, v)}
+                              onCheckedChange={(v) => {
+                                void toggleServiceEnvLink(svc.id, env.id, v)
+                              }}
                               disabled={cellPending}
-                              aria-label={`${svc.name} in ${env.name}`}
+                              aria-label={
+                                isConfigured
+                                  ? `${svc.name} in ${env.name}`
+                                  : `${svc.name} in ${env.name} — not configured`
+                              }
+                              title={isConfigured ? undefined : 'Not configured — turn on to enable'}
+                              className={isConfigured ? undefined : 'opacity-40'}
                             />
                           </TableCell>
                         )
@@ -503,8 +524,8 @@ export default function DashboardProjectEnvironmentsPage() {
                     <TableCell className="text-muted-foreground">{tpl.description ?? '-'}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="size-8" onClick={() => handleOpenEditTpl(tpl)}><Pencil className="size-4" /></Button>
-                        <Button variant="ghost" size="icon" className="size-8" onClick={() => handleOpenDeleteTpl(tpl)}><Trash2 className="size-4" /></Button>
+                        <Button variant="ghost" size="icon" className="size-8" aria-label={`Edit ${tpl.name}`} onClick={() => handleOpenEditTpl(tpl)}><Pencil className="size-4" /></Button>
+                        <Button variant="ghost" size="icon" className="size-8" aria-label={`Remove ${tpl.name}`} onClick={() => handleOpenDeleteTpl(tpl)}><Trash2 className="size-4" /></Button>
                       </div>
                     </TableCell>
                   </TableRow>

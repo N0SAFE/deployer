@@ -29,8 +29,3 @@ export default function OfflinePage() {
     </div>
   );
 }
-
-export const metadata: Metadata = {
-    title: "Offline",
-    description: "The platform is temporarily offline",
-}

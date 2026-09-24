@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { and, eq, lt } from "drizzle-orm";
 import { GlobalDatabaseService } from "@/core/modules/database/global/global-database.service";
-import * as globalSchema from "@/config/drizzle/global/schema";
+import * as globalSchema from "@repo/nest-schema/global";
 
 const PREVIEW_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 

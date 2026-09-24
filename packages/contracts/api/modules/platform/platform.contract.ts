@@ -59,8 +59,12 @@ export const revokeAppInstanceOutputSchema = z.object({
 /** Status of the platform Traefik resource. */
 export const ingressTraefikStateSchema = z.object({
 	supervisorId: z.string(),
-	/** "converged" | "degraded" | "idle" — degraded = the port is NOT serving. */
-	state: z.enum(["idle", "converging", "converged", "degraded"]),
+	/**
+	 * "converged" | "degraded" | "pending" | "idle" | "converging" — degraded
+	 * means the port is NOT serving; pending means convergence is deferred
+	 * because the cluster does not exist yet (pre-setup).
+	 */
+	state: z.enum(["idle", "converging", "converged", "degraded", "pending"]),
 	healthy: z.boolean(),
 	detail: z.string().nullable(),
 	warnings: z.array(z.string()),
@@ -97,7 +101,7 @@ export const ingressGlobalNetworkSchema = z.object({
 	reachability: z
 		.object({
 			reachable: z.boolean(),
-			checkedAt: z.string().datetime().nullable(),
+			checkedAt: z.iso.datetime().nullable(),
 			reason: z.string().nullable(),
 			/** When the domain fails AND entry port != 80, this flag drives the alert. */
 			suspectedEntryPortMismatch: z.boolean(),

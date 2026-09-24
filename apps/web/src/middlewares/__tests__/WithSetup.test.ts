@@ -24,10 +24,6 @@ describe("WithSetup middleware", () => {
     vi.resetModules();
     vi.clearAllMocks();
 
-    vi.doMock("@/lib/utils", () => ({
-      toAbsoluteUrl: mockToAbsoluteUrl,
-    }));
-
     vi.doMock("../utils/utils", () => ({
       matcherHandler: mockMatcherHandler,
     }));
@@ -41,12 +37,11 @@ describe("WithSetup middleware", () => {
       createContextFilterDebugLogger: mockCreateContextFilterDebugLogger,
     }));
 
-    vi.doMock("@/routes/index", () => ({
-      Setup: vi.fn((_: unknown = {}, search: Record<string, string> = {}) => {
-        const params = new URLSearchParams(search);
-        const query = params.toString();
-        return query ? `/setup?${query}` : "/setup";
-      }),
+    // Setup is served by the API, not the web app: the matcher forwards to the
+    // API origin rather than a client-side web route.
+    vi.doMock("@/lib/setup-url", () => ({
+      setupDestinationUrl: ({ redirectTo }: { redirectTo?: string } = {}) =>
+        `http://localhost:3005/setup${redirectTo ? `?redirectTo=${encodeURIComponent(redirectTo)}` : ""}`,
     }));
 
     mockMatcherHandler.mockReturnValue({ hit: false });
@@ -54,7 +49,7 @@ describe("WithSetup middleware", () => {
 
   const createRequest = (url: string) => new NextRequest(url);
 
-  it("redirects any page request to setup when setup is required", async () => {
+  it("redirects any page request to the API-served setup page when setup is required", async () => {
     mocks.getStateCall.mockResolvedValueOnce({ needsSetup: true });
 
     const { default: withSetup } = await import("../WithSetup");
@@ -65,24 +60,10 @@ describe("WithSetup middleware", () => {
     const response = await middleware(request, {} as NextFetchEvent);
     const location = response?.headers.get("location") ?? "";
 
-    expect(location).toContain("/setup");
-    expect(location).toContain("redirectTo=%2Fauth%2Fsignin%3FredirectTo%3D%252Fdashboard");
+    // The API serves onboarding, so the redirect crosses origins.
+    expect(location).toContain("localhost:3005/setup");
+    expect(location).toContain("redirectTo=");
     expect(next).not.toHaveBeenCalled();
-  });
-
-  it("does not redirect setup route to itself when setup is required", async () => {
-    mocks.getStateCall.mockResolvedValueOnce({ needsSetup: true });
-
-    const { default: withSetup } = await import("../WithSetup");
-    const nextResponse = NextResponse.next();
-    const next = vi.fn().mockReturnValue(nextResponse);
-    const middleware = withSetup(next);
-
-    const request = createRequest("http://localhost:3003/setup?redirectTo=%2Fdashboard");
-    const response = await middleware(request, {} as NextFetchEvent);
-
-    expect(next).toHaveBeenCalled();
-    expect(response).toBe(nextResponse);
   });
 
   it("passes through when setup is already completed", async () => {

@@ -13,8 +13,9 @@ import {
   CardTitle,
 } from '@repo/ui/components/shadcn/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
-import { ArrowRight, Cpu, HardDrive, Info, Network, Server, TerminalSquare } from 'lucide-react'
-import { PageHeader, PageLoadingState, PageErrorState, StatusBadge, ScopeLabel, StatusDot } from '@/components/dashboard'
+import { ArrowRight, Cpu, HardDrive, Info, Layers, Network, Server, TerminalSquare } from 'lucide-react'
+import { PageHeader, PageLoadingState, PageErrorState, StatusBadge, ScopeLabel, StatusDot, StatStrip, StatStripItem } from '@/components/dashboard'
+import { formatDateTime } from '@/lib/format/date'
 import { useFleetServers, useFleetAllocations } from '@/domains/fleet/hooks'
 import { useDeploymentList } from '@/domains/deployment/hooks'
 import { useMeshLocalNode, useMeshNodeConfig, useMeshSseState } from '@/domains/mesh/hooks'
@@ -223,62 +224,46 @@ export default function DashboardNodeDetailPage() {
 
       {tab === 'overview' ? (
         <div className="space-y-5">
-          {/* Health strip */}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                  <Server className="size-4 text-muted-foreground" /> Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex items-center gap-2 text-sm">
-                <StatusDot status={statusOf(node.status)} />
-                {statusOf(node.status)}
-                {node.healthy ? ' · healthy' : ' · unhealthy'}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                  <Cpu className="size-4 text-muted-foreground" /> CPU
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-2xl font-semibold">
-                {pct(node.metrics?.cpuUsage)}
-                <span className="text-sm font-normal text-muted-foreground">
-                  {' '}
-                  /{' '}
-                  {node.maxCpuMillicores != null
-                    ? `${(node.maxCpuMillicores / 1000).toFixed(1)} vCPU`
-                    : 'unlimited'}
+          {/* Node vitals, as one dense row — the tabs below are the content. */}
+          <StatStrip>
+            <StatStripItem
+              icon={Server}
+              label="Status"
+              value={
+                <span className="flex items-center gap-1.5">
+                  <StatusDot status={statusOf(node.status)} />
+                  {statusOf(node.status)}
                 </span>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                  <HardDrive className="size-4 text-muted-foreground" /> Memory
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-2xl font-semibold">
-                {pct(node.metrics?.memoryUsage)}
-                <span className="text-sm font-normal text-muted-foreground">
-                  {' '}
-                  / {formatBytes(node.maxMemoryMb)}
+              }
+              tone={node.healthy ? 'live' : 'danger'}
+              hint={node.healthy ? 'healthy' : 'unhealthy'}
+            />
+            <StatStripItem
+              icon={Cpu}
+              label="CPU"
+              value={pct(node.metrics?.cpuUsage)}
+              hint={
+                node.maxCpuMillicores != null
+                  ? `${(node.maxCpuMillicores / 1000).toFixed(1)} vCPU`
+                  : 'unlimited'
+              }
+            />
+            <StatStripItem
+              icon={HardDrive}
+              label="Memory"
+              value={pct(node.metrics?.memoryUsage)}
+              hint={formatBytes(node.maxMemoryMb)}
+            />
+            <StatStripItem
+              icon={Info}
+              label="Endpoint"
+              value={
+                <span className="font-mono text-xs text-muted-foreground">
+                  {node.serverUrl ?? '—'}
                 </span>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                  <Info className="size-4 text-muted-foreground" /> Endpoint
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="truncate font-mono text-xs text-muted-foreground">
-                {node.serverUrl ?? '—'}
-              </CardContent>
-            </Card>
-          </div>
+              }
+            />
+          </StatStrip>
 
           {/* Mesh presence */}
           <Card>
@@ -300,7 +285,7 @@ export default function DashboardNodeDetailPage() {
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Last seen</span>
                 <span className="font-medium">
-                  {node.lastSeenAt ? new Date(node.lastSeenAt).toLocaleString() : '—'}
+                  {node.lastSeenAt ? formatDateTime(node.lastSeenAt) : '—'}
                 </span>
               </div>
             </CardContent>
@@ -392,7 +377,7 @@ export default function DashboardNodeDetailPage() {
                         <TableCell className="text-xs text-muted-foreground">{d.environment ?? '—'}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {d.deployStartedAt ?? d.createdAt
-                            ? new Date(d.deployStartedAt ?? d.createdAt ?? '').toLocaleString()
+                            ? formatDateTime(d.deployStartedAt ?? d.createdAt)
                             : '—'}
                         </TableCell>
                       </TableRow>
@@ -525,38 +510,40 @@ function NodeFleetResources({ nodeId, isLocal }: { nodeId: string; isLocal: bool
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Services</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{serviceCount}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Tasks</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{taskCount}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Images</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{imageCount}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Networks</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{networkCount}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Volumes</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{volumeCount}</CardContent>
-        </Card>
-      </div>
+      {/*
+        Five bordered cards, each carrying a single integer, became one row.
+        The cards spent roughly 100px of vertical space and five columns to
+        deliver five numbers, and they pushed the tables below the fold.
+
+        The strip also marks the SCOPE of each figure, which the cards made
+        ambiguous. Services and Tasks are swarm-wide facts about this node;
+        images, networks and volumes are read from the engine serving the
+        dashboard, which is only the node in the URL when you happen to be
+        looking at your own. Two of the five cards presented that second, weaker
+        claim with the same confidence as the first.
+      */}
+      <StatStrip>
+        <StatStripItem icon={Server} label="Services" value={serviceCount} hint="swarm-wide" />
+        <StatStripItem icon={Cpu} label="Tasks" value={taskCount} hint="swarm-wide" />
+        <StatStripItem
+          icon={Layers}
+          label="Images"
+          value={imageCount}
+          hint={isLocal ? 'this node' : 'dashboard node'}
+        />
+        <StatStripItem
+          icon={Network}
+          label="Networks"
+          value={networkCount}
+          hint={isLocal ? 'this node' : 'dashboard node'}
+        />
+        <StatStripItem
+          icon={HardDrive}
+          label="Volumes"
+          value={volumeCount}
+          hint={isLocal ? 'this node' : 'dashboard node'}
+        />
+      </StatStrip>
 
       <Card>
         <CardHeader>

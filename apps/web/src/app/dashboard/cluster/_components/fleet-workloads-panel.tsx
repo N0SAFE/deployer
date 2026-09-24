@@ -18,7 +18,7 @@ import {
 } from '@repo/ui/components/shadcn/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
 import { Boxes, Globe, Layers, ListTree } from 'lucide-react'
-import { PageErrorState, PageLoadingState, StatusBadge } from '@/components/dashboard'
+import { PageErrorState, PageLoadingState, StatStrip, StatStripItem, StatusBadge } from '@/components/dashboard'
 import { useClusterServices, useClusterTasks } from '@/domains/cluster/hooks'
 
 interface ServiceRow {
@@ -104,43 +104,17 @@ export function FleetWorkloadsPanel() {
   return (
     <div className="space-y-5">
       {/* Fleet health strip */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <Boxes className="size-4 text-muted-foreground" /> Services
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{services.length}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <Globe className="size-4 text-muted-foreground" /> Global
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{globalCount}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <ListTree className="size-4 text-muted-foreground" /> Tasks
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{tasks.length}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <Layers className="size-4 text-muted-foreground" /> Running
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {runningTasks}
-            <span className="text-sm font-normal text-muted-foreground"> / {tasks.length}</span>
-          </CardContent>
-        </Card>
-      </div>
+      <StatStrip>
+        <StatStripItem icon={Boxes} label="Services" value={services.length} />
+        <StatStripItem icon={Globe} label="Global" value={globalCount} hint={globalCount > 0 ? 'on every node' : undefined} />
+        <StatStripItem icon={ListTree} label="Tasks" value={tasks.length} />
+        <StatStripItem
+          icon={Layers}
+          label="Running"
+          value={`${runningTasks} / ${tasks.length}`}
+          tone={runningTasks === tasks.length ? 'live' : tasks.length === 0 ? undefined : 'pending'}
+        />
+      </StatStrip>
 
       {/* Services */}
       <Card>

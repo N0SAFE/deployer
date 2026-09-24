@@ -3,8 +3,8 @@
 // ** import types
 import type { JSX } from "react";
 import type { Table } from "@tanstack/react-table";
-import type { ExportableData, DataTransformFunction } from "./utils/export-utils";
-import type { TableConfig } from "./utils/table-config";
+import type { ExportableData, DataTransformFunction } from "@repo/ui/components/data-table/utils/export-utils";
+import type { TableConfig } from "@repo/ui/components/data-table/utils/table-config";
 
 // ** import core packages
 import { useState } from "react";
@@ -12,16 +12,16 @@ import { DownloadIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 // ** import components
-import { Button } from "../shadcn/button";
+import { Button } from "@repo/ui/components/shadcn/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "../shadcn/dropdown-menu";
+} from "@repo/ui/components/shadcn/dropdown-menu";
 
 // ** import utils
-import { exportData, exportToCSV, exportToExcel } from "./utils/export-utils";
+import { exportData, exportToCSV, exportToExcel } from "@repo/ui/components/data-table/utils/export-utils";
 
 interface DataTableExportProps<TData extends ExportableData> {
   table: Table<TData>;
@@ -31,7 +31,7 @@ interface DataTableExportProps<TData extends ExportableData> {
   getAllItems?: () => Promise<TData[]>;
   entityName?: string;
   columnMapping?: Record<string, string>;
-  columnWidths?: Array<{ wch: number }>;
+  columnWidths?: { wch: number }[];
   headers?: string[];
   transformFunction?: DataTransformFunction<TData>;
   size?: 'sm' | 'default' | 'lg';
@@ -51,7 +51,7 @@ interface DataTableExportProps<TData extends ExportableData> {
   subRowExportConfig?: {
     entityName: string;
     columnMapping: Record<string, string>;
-    columnWidths: Array<{ wch: number }>;
+    columnWidths: { wch: number }[];
     headers: string[];
     transformFunction?: DataTransformFunction<TData>;
   };
@@ -110,11 +110,11 @@ export function DataTableExport<TData extends ExportableData>({
       });
 
       const success = type === "csv"
-        ? exportToCSV(parentData, `${entityName}-parents-export-${Date.now()}`, headers, columnMapping, transformFunction)
-        : await exportToExcel(parentData, `${entityName}-parents-export-${Date.now()}`, columnMapping, columnWidths, headers, transformFunction);
+        ? exportToCSV(parentData, `${entityName}-parents-export-${String(Date.now())}`, headers, columnMapping, transformFunction)
+        : await exportToExcel(parentData, `${entityName}-parents-export-${String(Date.now())}`, columnMapping, columnWidths, headers, transformFunction);
 
       if (success) {
-        toast.success(`Exported ${parentData.length} parent rows`, { id: "export-parents-toast" });
+        toast.success(`Exported ${String(parentData.length)} parent rows`, { id: "export-parents-toast" });
       }
     } catch (error) {
       console.error("Error exporting parents:", error);
@@ -151,11 +151,11 @@ export function DataTableExport<TData extends ExportableData>({
       });
 
       const success = type === "csv"
-        ? exportToCSV(subrowData, `${subRowExportConfig.entityName}-export-${Date.now()}`, subRowExportConfig.headers, subRowExportConfig.columnMapping, subRowExportConfig.transformFunction)
-        : await exportToExcel(subrowData, `${subRowExportConfig.entityName}-export-${Date.now()}`, subRowExportConfig.columnMapping, subRowExportConfig.columnWidths, subRowExportConfig.headers, subRowExportConfig.transformFunction);
+        ? exportToCSV(subrowData, `${subRowExportConfig.entityName}-export-${String(Date.now())}`, subRowExportConfig.headers, subRowExportConfig.columnMapping, subRowExportConfig.transformFunction)
+        : await exportToExcel(subrowData, `${subRowExportConfig.entityName}-export-${String(Date.now())}`, subRowExportConfig.columnMapping, subRowExportConfig.columnWidths, subRowExportConfig.headers, subRowExportConfig.transformFunction);
 
       if (success) {
-        toast.success(`Exported ${subrowData.length} subrows`, { id: "export-subrows-toast" });
+        toast.success(`Exported ${String(subrowData.length)} subrows`, { id: "export-subrows-toast" });
       }
     } catch (error) {
       console.error("Error exporting subrows:", error);
@@ -341,8 +341,8 @@ export function DataTableExport<TData extends ExportableData>({
       await exportData(
         type,
         fetchExportData,
-        () => setIsLoading(true),
-        () => setIsLoading(false),
+        () => { setIsLoading(true); },
+        () => { setIsLoading(false); },
         {
           entityName,
           headers: exportHeaders,
@@ -474,7 +474,7 @@ export function DataTableExport<TData extends ExportableData>({
       
       if (success) {
         toast.success("Export successful", {
-          description: `Exported all ${allData.length} ${entityName} to ${type.toUpperCase()}.`,
+          description: `Exported all ${String(allData.length)} ${entityName} to ${type.toUpperCase()}.`,
           id: "export-data-toast"
         });
       }
@@ -499,7 +499,7 @@ export function DataTableExport<TData extends ExportableData>({
         variant="outline"
         size={size}
         disabled={isLoading}
-        onClick={() => handleExport(exportType)}
+        onClick={() => { void handleExport(exportType) }}
       >
         {isLoading ? (
           <>
@@ -544,22 +544,22 @@ export function DataTableExport<TData extends ExportableData>({
           // Subrow tables: Show 4 options
           <>
             {parentCount > 0 && enableCsv && (
-              <DropdownMenuItem onClick={() => handleExportParents("csv")} disabled={isLoading}>
+              <DropdownMenuItem onClick={() => { void handleExportParents("csv") }} disabled={isLoading}>
                 Export Parents as CSV ({parentCount})
               </DropdownMenuItem>
             )}
             {parentCount > 0 && enableExcel && (
-              <DropdownMenuItem onClick={() => handleExportParents("excel")} disabled={isLoading}>
+              <DropdownMenuItem onClick={() => { void handleExportParents("excel") }} disabled={isLoading}>
                 Export Parents as Excel ({parentCount})
               </DropdownMenuItem>
             )}
             {subrowCount > 0 && enableCsv && (
-              <DropdownMenuItem onClick={() => handleExportSubrows("csv")} disabled={isLoading}>
+              <DropdownMenuItem onClick={() => { void handleExportSubrows("csv") }} disabled={isLoading}>
                 Export Subrows as CSV ({subrowCount})
               </DropdownMenuItem>
             )}
             {subrowCount > 0 && enableExcel && (
-              <DropdownMenuItem onClick={() => handleExportSubrows("excel")} disabled={isLoading}>
+              <DropdownMenuItem onClick={() => { void handleExportSubrows("excel") }} disabled={isLoading}>
                 Export Subrows as Excel ({subrowCount})
               </DropdownMenuItem>
             )}
@@ -567,31 +567,31 @@ export function DataTableExport<TData extends ExportableData>({
         ) : hasSelection ? (
           // Normal tables: Show 2 options
           <>
-            <DropdownMenuItem onClick={() => handleExport("csv")} disabled={isLoading}>
+            <DropdownMenuItem onClick={() => { void handleExport("csv") }} disabled={isLoading}>
               Export Selected as CSV
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleExport("excel")} disabled={isLoading}>
+            <DropdownMenuItem onClick={() => { void handleExport("excel") }} disabled={isLoading}>
               Export Selected as XLS
             </DropdownMenuItem>
           </>
         ) : (
           <>
-            <DropdownMenuItem onClick={() => handleExport("csv")} disabled={isLoading}>
+            <DropdownMenuItem onClick={() => { void handleExport("csv") }} disabled={isLoading}>
               Export Current Page as CSV
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleExport("excel")} disabled={isLoading}>
+            <DropdownMenuItem onClick={() => { void handleExport("excel") }} disabled={isLoading}>
               Export Current Page as XLS
             </DropdownMenuItem>
             {getAllItems && (
               <>
                 <DropdownMenuItem 
-                  onClick={() => exportAllPages("csv")} 
+                  onClick={() => { void exportAllPages("csv") }} 
                   disabled={isLoading}
                 >
                   Export All Pages as CSV
                 </DropdownMenuItem>
                 <DropdownMenuItem 
-                  onClick={() => exportAllPages("excel")} 
+                  onClick={() => { void exportAllPages("excel") }} 
                   disabled={isLoading}
                 >
                   Export All Pages as XLS

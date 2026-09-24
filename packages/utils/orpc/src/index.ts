@@ -1,8 +1,8 @@
 // Re-export all builder functionality
-export * from "./builder";
+export * from "@repo/orpc-utils/builder/index";
 
 // Re-export filter operators used by entity schemas
-export { ALL_FILTER_OPERATORS, type FilterOperator } from "./operations/base/utils";
+export { ALL_FILTER_OPERATORS, type FilterOperator } from "@repo/orpc-utils/operations/base/utils/index";
 
 // Re-export standard operations (unified entry point)
 export {
@@ -22,18 +22,18 @@ export {
     type ListOperationOptions,
     type ListPlainOptions,
     type BuilderFilterField,
-} from "./standard";
+} from "@repo/orpc-utils/standard/index";
 
 // Explicitly re-export the standard module's ComputeInputSchema/ComputeOutputSchema
 // (overrides the query module's version which uses flattened filter fields)
 export type {
     ComputeInputSchema,
     ComputeOutputSchema,
-} from "./operations/zod/utils/query-builder";
+} from "@repo/orpc-utils/operations/zod/utils/query-builder";
 
 // Convenience re-exports for most common use cases
-export { RouteBuilder, route } from "./builder/core/route-builder";
-export type { InferInputSchema, InferOutputSchema, AnyContractBuilder, AnyContractProcedureOrBuilder } from "./types/type-helpers";
+export { RouteBuilder, route } from "@repo/orpc-utils/builder/core/route-builder";
+export type { InferInputSchema, InferOutputSchema, AnyContractBuilder, AnyContractProcedureOrBuilder } from "@repo/orpc-utils/types/type-helpers";
 export {
     observable,
     getObservableSchemaDetails,
@@ -42,7 +42,7 @@ export {
     type ObservableObserver,
     type ObservableSubscription,
     type ObservableSchemaDetails,
-} from "./utils/observable/contract";
+} from "@repo/orpc-utils/utils/observable/contract";
 export {
     createDirectObservable,
     createEventIteratorFrame,
@@ -59,21 +59,20 @@ export {
     type EventIteratorProtocolVersion,
     type EventSerializer,
     type EventDeserializer,
-} from "./observable/event-iterator";
+} from "@repo/orpc-utils/observable/event-iterator";
 export {
     ObservableLinkPlugin,
-} from "./utils/observable/link-plugin";
+} from "@repo/orpc-utils/utils/observable/link-plugin";
 export {
     createObservableQueryUtils,
     type ObservableQueryMode,
-    type ObservablePipeInvoker,
     type ObservablePipeTransform,
     type ObservableQueryFnOptions,
     type StreamedObservableOptionsConfig,
     type LiveObservableOptionsConfig,
     type ObservableProcedureQueryUtils,
     type ObservableQueryUtils,
-} from "./observable/tanstack-query";
+} from "@repo/orpc-utils/observable/tanstack-query";
 
 // Re-export RxJS primitives to avoid requiring direct app-level rxjs installs.
 export {
@@ -96,7 +95,7 @@ export {
     type MeshDomainErrorPayload,
     type MeshErrorCode,
     type MeshErrorResponse,
-} from "./mesh-errors";
+} from "@repo/orpc-utils/mesh-errors";
 
 // Re-export the generic product-domain error definitions (non-mesh) so
 // every contract that can throw a domain error can declare typed errors.
@@ -110,4 +109,4 @@ export {
     standardErrorActions,
     standardErrorOptions,
     type StandardDomainErrorPayload,
-} from "./standard-errors";
+} from "@repo/orpc-utils/standard-errors";

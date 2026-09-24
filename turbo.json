@@ -1,5 +1,5 @@
 {
-  "$schema": "https://turbo.build/schema.json",
+  "$schema": "https://v2-11-3.turborepo.dev/schema.json",
   "ui": "tui",
   "remoteCache": {
     "enabled": true
@@ -175,6 +175,12 @@
         "vitest.config.*",
         "vitest.setup.*"
       ]
+    },
+    "test:e2e": {
+      "dependsOn": [
+        "@repo/config-vitest#build"
+      ],
+      "cache": false
     },
     "test:watch": {
       "cache": false,

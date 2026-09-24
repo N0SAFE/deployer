@@ -23,6 +23,7 @@ import { ManagedWebSupervisorService } from "./managed-web-supervisor.service";
 import { DirectPortProxySupervisorService } from "./direct-port-proxy.supervisor.service";
 import { RedisSupervisorService } from "./redis-supervisor.service";
 import { WireGuardSupervisorService } from "./wireguard-supervisor.service";
+import { SwarmAppWiringSupervisorService } from "./swarm-app-wiring.supervisor.service";
 
 @Global()
 @Module({
@@ -33,6 +34,7 @@ import { WireGuardSupervisorService } from "./wireguard-supervisor.service";
 		DirectPortProxySupervisorService,
 		RedisSupervisorService,
 		WireGuardSupervisorService,
+		SwarmAppWiringSupervisorService,
 	],
 	exports: [
 		TraefikSupervisorService,
@@ -40,6 +42,7 @@ import { WireGuardSupervisorService } from "./wireguard-supervisor.service";
 		DirectPortProxySupervisorService,
 		RedisSupervisorService,
 		WireGuardSupervisorService,
+		SwarmAppWiringSupervisorService,
 	],
 })
 export class SupervisorsPlatformModule {}

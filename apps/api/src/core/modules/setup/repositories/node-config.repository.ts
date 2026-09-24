@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ConflictError } from "@repo/errors";
-import { nodeConfig } from "@/config/drizzle/local/schema";
+import { nodeConfig } from "@repo/nest-schema/local";
 import { LocalDatabaseService } from "../../database/local/local-database.service";
 import { isRecord, isObjectLike } from "@repo/type-guards"
 

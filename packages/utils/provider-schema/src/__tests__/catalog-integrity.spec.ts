@@ -6,7 +6,7 @@ import {
     providersCatalog,
     providerConfigValidators,
     providerSchemasCatalog,
-} from "../index";
+} from "@repo/provider-schema/index";
 
 describe("provider-schema catalog integrity", () => {
     it("keeps provider catalogs, schemas, and validators aligned", () => {

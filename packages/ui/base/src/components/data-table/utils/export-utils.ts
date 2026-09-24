@@ -4,6 +4,54 @@ import { toast } from "sonner";
 
 // Generic type for exportable data - should have string keys and values that can be converted to string
 // Allow arrays for hierarchical data (subRows)
+/** The subset of the ExcelJS surface this module uses. */
+interface ExcelJSWorksheet {
+  columns: { header: string; key: string; width: number }[];
+  addRow(row: Record<string, unknown>): void;
+  getRow(index: number): { font: unknown; fill: unknown };
+}
+
+interface ExcelJSWorkbook {
+  addWorksheet(name: string): ExcelJSWorksheet;
+  xlsx: { writeBuffer(): Promise<ArrayBuffer> };
+}
+
+/**
+ * ExcelJS ships a minified bundle for size, loaded first, with the regular
+ * entry as fallback. The minified path has no declarations (see
+ * `src/types/exceljs-dist.d.ts`), so the shape is verified at runtime rather
+ * than asserted.
+ */
+interface ExcelJSRuntime {
+  Workbook: new () => ExcelJSWorkbook;
+}
+
+function isExcelJSRuntime(value: unknown): value is ExcelJSRuntime {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'Workbook' in value &&
+    typeof Reflect.get(value, 'Workbook') === 'function'
+  );
+}
+
+function requireExcelJSRuntime(value: unknown): ExcelJSRuntime {
+  if (!isExcelJSRuntime(value)) {
+    throw new Error('exceljs module did not expose a Workbook constructor');
+  }
+  return value;
+}
+
+async function loadExcelJS(): Promise<ExcelJSRuntime> {
+  try {
+    const minified = await import('exceljs/dist/exceljs.min.js');
+    return requireExcelJSRuntime(minified.default);
+  } catch {
+    const regular = await import('exceljs');
+    return requireExcelJSRuntime(regular.default);
+  }
+}
+
 export type ExportableData = Record<string, unknown>;
 
 /**
@@ -11,12 +59,12 @@ export type ExportableData = Record<string, unknown>;
  */
 export function flattenHierarchicalData<T extends ExportableData>(
   data: T[],
-  subRowsField: string = 'subRows',
-  includeDepth: boolean = false
+  subRowsField = 'subRows',
+  includeDepth = false
 ): T[] {
   const flattened: T[] = [];
 
-  const flatten = (items: T[], depth: number = 0) => {
+  const flatten = (items: T[], depth = 0) => {
     items.forEach((item) => {
       const { [subRowsField]: subRows, ...itemData } = item as Record<string, unknown>;
       flattened.push(
@@ -40,7 +88,7 @@ export function flattenHierarchicalData<T extends ExportableData>(
  */
 export function exportParentRowsOnly<T extends ExportableData>(
   data: T[],
-  subRowsField: string = 'subRows'
+  subRowsField = 'subRows'
 ): T[] {
   return data.map((item) => {
     const { [subRowsField]: _, ...parentData } = item as Record<string, unknown>;
@@ -171,7 +219,7 @@ export async function exportToExcel<T extends ExportableData>(
   data: T[],
   filename: string,
   columnMapping?: Record<string, string>,
-  columnWidths?: Array<{ wch: number }>,
+  columnWidths?: { wch: number }[],
   headers?: string[],
   transformFunction?: DataTransformFunction<T>
 ): Promise<boolean> {
@@ -186,23 +234,14 @@ export async function exportToExcel<T extends ExportableData>(
   }
 
   try {
-    let ExcelJS: { Workbook: new () => { addWorksheet: (name: string) => any; xlsx: { writeBuffer: () => Promise<ArrayBuffer> } } };
-
-    try {
-      // @ts-ignore - Try to import the minified version first for better performance, fallback to regular if it fails
-      const excelJSImport = await import("exceljs/dist/exceljs.min.js");
-      ExcelJS = (excelJSImport.default ?? excelJSImport) as typeof ExcelJS;
-    } catch {
-      const excelJSImport = await import("exceljs");
-      ExcelJS = (excelJSImport.default ?? excelJSImport) as typeof ExcelJS;
-    }
+    const ExcelJS = await loadExcelJS();
 
     // If no column mapping is provided, create one from the data keys
     const mapping = columnMapping ||
-      Object.keys(data[0] || {}).reduce((acc, key) => {
+      Object.keys(data[0] || {}).reduce<Record<string, string>>((acc, key) => {
         acc[key] = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
         return acc;
-      }, {} as Record<string, string>);
+      }, {});
 
     // Create a new workbook and worksheet
     const workbook = new ExcelJS.Workbook();
@@ -266,7 +305,7 @@ export async function exportData<T extends ExportableData>(
   options?: {
     headers?: string[];
     columnMapping?: Record<string, string>;
-    columnWidths?: Array<{ wch: number }>;
+    columnWidths?: { wch: number }[];
     entityName?: string;
     transformFunction?: DataTransformFunction<T>;
   }
@@ -320,7 +359,7 @@ export async function exportData<T extends ExportableData>(
       );
       if (success) {
         toast.success("Export successful", {
-          description: `Exported ${exportData.length} ${entityName} to CSV.`,
+          description: `Exported ${String(exportData.length)} ${entityName} to CSV.`,
           id: TOAST_ID
         });
       }
@@ -335,7 +374,7 @@ export async function exportData<T extends ExportableData>(
       );
       if (success) {
         toast.success("Export successful", {
-          description: `Exported ${exportData.length} ${entityName} to Excel.`,
+          description: `Exported ${String(exportData.length)} ${entityName} to Excel.`,
           id: TOAST_ID
         });
       }

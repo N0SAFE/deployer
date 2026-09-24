@@ -1,5 +1,5 @@
-import { ensureUrlStateHistoryPatched } from "./history-sync";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { ensureUrlStateHistoryPatched } from "@repo/ui/components/data-table/utils/history-sync";
+import { isRecord } from "@repo/type-guards"
 
 
 /**
@@ -18,7 +18,7 @@ class ComparisonCache {
 
   getCacheKey(a: Comparable, b: Comparable): string | null {
     // Only cache for primitive values to avoid memory leaks
-    if (typeof a !== 'object' && typeof b !== 'object' && a !== null && b !== null) {
+    if (typeof a !== 'object' && typeof b !== 'object') {
       return `${typeof a}:${String(a)}|${typeof b}:${String(b)}`;
     }
     return null;
@@ -194,7 +194,7 @@ export function isDeepEqual(a: Comparable, b: Comparable): boolean {
       }
       
       // Compare values
-      for (const key of keysA) {
+      for (const _key of keysA) {
         if (!compare(Reflect.get(isRecord(a) ? a : {}, "key") as Comparable, Reflect.get(isRecord(b) ? b : {}, "key") as Comparable)) return false;
       }
       
@@ -232,7 +232,7 @@ export function memoize<T>(fn: (...args: unknown[]) => T): (...args: unknown[]) 
     
     if (cache.has(key)) {
       const cachedValue = cache.get(key);
-      return cachedValue !== undefined ? cachedValue : fn(...args);
+      return cachedValue ?? fn(...args);
     }
     
     const result = fn(...args);

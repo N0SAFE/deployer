@@ -5,8 +5,8 @@ import { AppError } from "@repo/errors";
 import {
   serviceDomainMappings,
   projectDomains,
-} from '@/config/drizzle/global/schema/domain';
-import { previewEnvironments } from '@/config/drizzle/global/schema/deployment';
+} from "@repo/nest-schema/global/domain";
+import { previewEnvironments } from "@repo/nest-schema/global/deployment";
 
 type ServiceDomainMapping = typeof serviceDomainMappings.$inferSelect;
 type InsertServiceDomainMapping = typeof serviceDomainMappings.$inferInsert;
@@ -325,7 +325,7 @@ export class ServiceDomainMappingRepository {
     subdomain: string | null;
     basePath: string | null;
   }[]> {
-    const { services } = await import('@/config/drizzle/global/schema');
+    const { services } = await import('@repo/nest-schema/global');
     
     const conditions = [
       eq(serviceDomainMappings.projectDomainId, projectDomainId),

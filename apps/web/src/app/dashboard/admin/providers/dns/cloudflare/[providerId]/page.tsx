@@ -1,9 +1,10 @@
 'use client'
 
 import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
-import { useMemo, useState } from 'react'
+import { Suspense, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useSafeQueryParamStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
+import CloudflareDetailLoading from './loading'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
 import { Badge } from '@repo/ui/components/shadcn/badge'
@@ -83,7 +84,22 @@ interface TunnelRow {
 }
 
 export default function CloudflareAppDetailPage() {
-  return <CloudflareAppDetailInner />
+  return (
+    /*
+     * This route reads the URL twice before it can paint: `useParams` for the
+     * provider id, and the filter-state hook, which resolves the pathname to bind
+     * its search params. Neither is available while the route is prerendered, so
+     * without a boundary above them Next.js refuses to build the static shell and
+     * logs `blocking-prerender-client-hook` (digest CLIENT_HOOK_DYNAMIC).
+     *
+     * The boundary lets the shell commit and the interactive page stream in behind
+     * the same skeleton `loading.tsx` already renders — imported rather than
+     * copied so the two cannot drift apart.
+     */
+    <Suspense fallback={<CloudflareDetailLoading />}>
+      <CloudflareAppDetailInner />
+    </Suspense>
+  )
 }
 
 function CloudflareAppDetailInner() {

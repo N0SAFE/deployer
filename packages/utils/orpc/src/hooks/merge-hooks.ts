@@ -1,9 +1,9 @@
-import { warnOnConflicts } from './merge/conflicts';
+import { warnOnConflicts } from '@repo/orpc-utils/hooks/merge/conflicts';
 import {
   extractCustomQueryKeys,
   extractRouterQueryKeys,
   mergeQueryKeys,
-} from './merge/keys';
+} from '@repo/orpc-utils/hooks/merge/keys';
 import type {
   CustomHooks,
   CustomHooksWithKeys,
@@ -11,7 +11,7 @@ import type {
   MergeHooksConfig,
   MergedHooks,
   QueryKeys,
-} from './merge/types';
+} from '@repo/orpc-utils/hooks/merge/types';
 /**
  * @fileoverview Utilities for merging ORPC-generated hooks with custom hooks
  * 
@@ -58,38 +58,38 @@ import type {
  * Type for query key factory functions
  * Each key factory returns a readonly tuple representing a query key
  */
-export type { QueryKeyFactory } from './merge/types';
+export type { QueryKeyFactory } from '@repo/orpc-utils/hooks/merge/types';
 
 /**
  * Type for a keys object containing query key factories
  */
-export type { QueryKeys } from './merge/types';
+export type { QueryKeys } from '@repo/orpc-utils/hooks/merge/types';
 
 /**
  * Type for custom hook definitions
  */
-export type { CustomHooks } from './merge/types';
+export type { CustomHooks } from '@repo/orpc-utils/hooks/merge/types';
 
 /**
  * Extract keys type from a hooks object (router or custom)
  */
-export type { ExtractKeys } from './merge/types';
+export type { ExtractKeys } from '@repo/orpc-utils/hooks/merge/types';
 
 /**
  * Configuration for merging hooks
  */
-export type { MergeHooksConfig } from './merge/types';
+export type { MergeHooksConfig } from '@repo/orpc-utils/hooks/merge/types';
 
 /**
  * Combined keys from all hook sources
  */
-export type { MergedKeys } from './merge/types';
+export type { MergedKeys } from '@repo/orpc-utils/hooks/merge/types';
 
 /**
  * Merged hooks type - combines router, composite, and custom hooks
  * Also combines `keys` from all sources
  */
-export type { MergedHooks } from './merge/types';
+export type { MergedHooks } from '@repo/orpc-utils/hooks/merge/types';
 
 /**
  * Merge ORPC-generated hooks with custom hooks into a unified API
@@ -158,9 +158,9 @@ export function mergeHooks<
 
   // Merge all hooks with custom hooks taking precedence
   // Remove queryKeys/keys from individual sources, add unified keys
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const { queryKeys: _queryKeys, ...routerWithoutKeys } = router as TRouter & { queryKeys?: unknown }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const { keys: _keys, ...customWithoutKeys } = custom as TCustom & { keys?: unknown }
   
   // NOTE: The cast through unknown is necessary because:
@@ -180,12 +180,12 @@ export function mergeHooks<
 /**
  * Custom hooks with optional keys - the result type
  */
-export type { CustomHooksWithKeys } from './merge/types';
+export type { CustomHooksWithKeys } from '@repo/orpc-utils/hooks/merge/types';
 
 /**
  * Options for defineCustomHooks
  */
-export type { DefineCustomHooksOptions } from './merge/types';
+export type { DefineCustomHooksOptions } from '@repo/orpc-utils/hooks/merge/types';
 
 /**
  * Helper to define custom hooks with type inference and optional keys

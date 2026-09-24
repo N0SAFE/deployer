@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { openAPI } from "better-auth/plugins";
+import { multiSession, openAPI } from "better-auth/plugins";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import {
     masterTokenPlugin,
@@ -133,6 +133,13 @@ export const betterAuthFactory = <TSchema extends Record<string, unknown> = Reco
         },
         plugins: [
             useAdmin(),
+            // One browser, several identities. Better Auth keeps a signed
+            // `{prefix}.session_token_multi-<token>` cookie per signed-in account, and
+            // `set-active` only swaps which of them is the primary session cookie —
+            // signing in again is never required to switch. Capped at 5 accounts
+            // (Better Auth's `maximumSessions` default): a 6th sign-in still
+            // authenticates, it is just not retained in the device list.
+            multiSession(),
             masterTokenPlugin({
                 devAuthKey: DEV_AUTH_KEY ?? "",
                 enabled: ENABLE_MASTER_TOKEN ?? (!!DEV_AUTH_KEY && !!DEFAULT_ADMIN_EMAIL),

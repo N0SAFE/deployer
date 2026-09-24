@@ -22,9 +22,9 @@
  * Adding a new validation library = new plugin class + `$Infer` interface.
  */
 
-export { BasePluginTransformer, type PluginInfer, type InferOf, type IsPluginZod } from "./base";
-export { StandardPluginTransformer, type StandardPluginInfer } from "./standard";
-export { ZodPluginTransformer, type ZodPluginInfer, type ZodShapeField } from "./zod";
+export { BasePluginTransformer, type PluginInfer, type InferOf, type IsPluginZod } from "@repo/orpc-utils/builder/plugin/base";
+export { StandardPluginTransformer, type StandardPluginInfer } from "@repo/orpc-utils/builder/plugin/standard";
+export { ZodPluginTransformer, type ZodPluginInfer, type ZodShapeField } from "@repo/orpc-utils/builder/plugin/zod";
 export type {
     PluginEmptyObject,
     PluginVoid,
@@ -45,4 +45,4 @@ export type {
     PluginExtractOutputHeaders,
     PluginOutputProxySchema,
     IsPluginZod as IsPluginZodType,
-} from "./types";
+} from "@repo/orpc-utils/builder/plugin/types";

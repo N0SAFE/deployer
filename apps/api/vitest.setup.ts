@@ -101,4 +101,13 @@ vi.mock('@orpc/nest', () => ({
       };
     }),
   })),
+  // Modules that import a service transitively pull in `AppModule` (or a
+  // sub-app module), which configures ORPC. Without these two the import graph
+  // fails to evaluate, so ANY spec touching such a module failed to collect.
+  // Returned as inert stubs: these specs assert service behaviour, not the
+  // ORPC transport.
+  ORPCModule: {
+    forRoot: vi.fn(() => ({ module: class MockORPCModule {} })),
+    forRootAsync: vi.fn(() => ({ module: class MockORPCModule {} })),
+  },
 }));

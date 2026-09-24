@@ -17,6 +17,7 @@ import { Siren, Plus, Trash2, Cloud, ArrowLeft, Settings2, ShieldCheck, ShieldAl
 import { toast } from 'sonner'
 import { AuthDashboardAdminProvidersDns, AuthDashboardAdminProvidersDnsCloudflareProviderId } from '@/routes'
 import { useDNSProviders, useCreateDNSProvider, useUpdateDNSProvider, useDeleteDNSProvider, useCheckProviderState } from '@/domains/dns-providers/hooks'
+import { EmptyState, PageHeader } from '@/components/dashboard'
 import { z } from 'zod/v4'
 
 const tokenFormSchema = z.object({
@@ -148,22 +149,17 @@ export default function AdminDnsProvidersCloudflarePage() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <AuthDashboardAdminProvidersDns.Link>
-          <Button variant="ghost" size="sm" className="-ml-2"><ArrowLeft className="mr-1 size-4" />DNS Providers</Button>
+          <Button variant="ghost" size="sm" className="-ml-2"><ArrowLeft className="mr-1 size-4" />DNS providers</Button>
         </AuthDashboardAdminProvidersDns.Link>
       </div>
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Cloud className="size-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Cloudflare Apps</h1>
-            <p className="text-sm text-muted-foreground">
-              Each app is one Cloudflare account connection (API token). App state is checked at runtime.
-            </p>
-          </div>
-        </div>
-        <Button size="sm" onClick={() => setAddOpen(true)}><Plus className="mr-2 size-4" />Add Cloudflare App</Button>
-      </div>
+      <PageHeader
+        title="Cloudflare"
+        description="Each app is one Cloudflare account connection (API token). App state is checked at runtime."
+        actions={
+          <Button size="sm" onClick={() => setAddOpen(true)}><Plus className="mr-2 size-4" />Add Cloudflare app</Button>
+        }
+      />
 
       {/* Feature availability banner — gating for other modules */}
       <Alert className={tunnelEnabledApps > 0 ? 'border-primary/40 bg-primary/5' : ''}>
@@ -178,18 +174,12 @@ export default function AdminDnsProvidersCloudflarePage() {
 
       {/* Apps grid */}
       {providers.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <Cloud className="size-10 text-muted-foreground" />
-            <div>
-              <p className="font-medium">No Cloudflare app yet</p>
-              <p className="text-sm text-muted-foreground">
-                Add your first API token to manage DNS records and (optionally) host tunnels.
-              </p>
-            </div>
-            <Button size="sm" onClick={() => setAddOpen(true)}><Plus className="mr-2 size-4" />Add Cloudflare App</Button>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Cloud}
+          title="No Cloudflare app yet"
+          description="Add your first API token to manage DNS records and (optionally) host tunnels."
+          action={{ label: 'Add Cloudflare app', onClick: () => setAddOpen(true) }}
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {providers.map((app) => (

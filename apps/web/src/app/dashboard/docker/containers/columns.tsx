@@ -3,6 +3,7 @@ import type { DockerContainer } from '@repo/contracts-entities'
 import type React from 'react'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { DataTableColumnHeader } from '@repo/ui/components/data-table/column-header'
+import { formatDateTime as formatDate } from '@/lib/format/date'
 
 // NOTE: these are `type` aliases, not `interface` — type aliases receive an
 // implicit index signature and are therefore assignable to the DataTable's
@@ -56,11 +57,6 @@ export interface ContainerTableFetchParams {
   to_date: string
   sort_by: string
   sort_order: string
-}
-
-function formatDate(value: string): string {
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleString()
 }
 
 function shortId(id: string): string {

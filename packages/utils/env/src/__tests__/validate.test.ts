@@ -14,7 +14,7 @@ import {
   validateAllEnv,
   validateAllEnvSafe,
   allEnvIsValid,
-} from '../validate'
+} from '@repo/env/validate'
 
 describe('API Environment Validation', () => {
   const validApiEnv = {

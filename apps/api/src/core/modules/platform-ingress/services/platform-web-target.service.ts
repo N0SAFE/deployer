@@ -21,7 +21,7 @@
 
 import { Injectable } from "@nestjs/common";
 
-import { EnvService } from "@/config/env/env.service";
+import { EnvService } from "@repo/nest-env";
 import { PlatformConfigService } from "./platform-config.service";
 import { MANAGED_WEB_CONTAINER_BASE_NAME } from "./platform-names";
 

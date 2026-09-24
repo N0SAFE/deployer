@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+  import { DatabaseNotReadyReporter } from "@/core/modules/database/services/db-not-ready";
   import type {
       MeshResourceIndexUpsertInput,
       MeshResourceIndexUpsertResult,
@@ -18,6 +19,7 @@ import { SystemMeshClusterRepository } from "../../../repositories/system-mesh-c
   export class MeshResourceRegistryService {
       private readonly logger = new Logger(MeshResourceRegistryService.name);
       private readonly index = new Map<string, MeshResourceLocation[]>();
+      private readonly dbNotReady = new DatabaseNotReadyReporter();
 
       constructor(
           private readonly meshLogic: SystemMeshLogicService,
@@ -38,7 +40,7 @@ import { SystemMeshClusterRepository } from "../../../repositories/system-mesh-c
                   this.logger.log(`Hydrated ${String(locations.length)} resource ownership entries`);
               }
           } catch (error) {
-              this.logger.warn(`Resource hydration failed: ${this.errMsg(error)}`);
+              this.dbNotReady.report(this.logger, "Resource hydration failed", this.errMsg(error), error);
           }
       }
 
@@ -80,10 +82,9 @@ import { SystemMeshClusterRepository } from "../../../repositories/system-mesh-c
               upserted += 1;
           }
 
-          // Fire-and-forget avec log explicite (le caller reçoit accepted:true)
           if (this.clusterRepository) {
               void this.clusterRepository.persistResourceIndexUpsert(input).catch((e: unknown) => {
-                  this.logger.warn(`Resource index persist failed: ${this.errMsg(e)}`);
+                  this.dbNotReady.report(this.logger, "Resource index persist failed", this.errMsg(e), e);
               });
           }
 

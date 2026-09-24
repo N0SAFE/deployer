@@ -6,7 +6,7 @@
  * Client-only functions (hooks) will throw errors if called on the server.
  */
 
-import { DEFAULT_SESSION_QUERY_KEY } from './shared'
+import { DEFAULT_SESSION_QUERY_KEY } from '@repo/auth/react/session/shared'
 import type { 
     CreateGetSessionOptions, 
     PrefetchSessionOptions,
@@ -14,10 +14,10 @@ import type {
     CreateSessionAwareAuthClientOptions,
     MinimalAuthClient,
     SessionResult,
-} from './shared'
+} from '@repo/auth/react/session/shared'
 
 // Re-export all shared types and constants (same as client.ts)
-export { DEFAULT_SESSION_QUERY_KEY } from './shared'
+export { DEFAULT_SESSION_QUERY_KEY } from '@repo/auth/react/session/shared'
 export type { 
     SessionResult,
     BetterAuthSessionResult,
@@ -26,18 +26,18 @@ export type {
     MinimalAuthClient,
     CreateGetSessionOptions, 
     PrefetchSessionOptions,
-} from './shared'
+} from '@repo/auth/react/session/shared'
 
 // Re-export SessionHydration component
 export { 
     SessionHydration, 
     createSessionHydration,
     type SessionHydrationProps,
-} from './SessionHydration'
+} from '@repo/auth/react/session/SessionHydration'
 
 // =============================================================================
 // CLIENT-ONLY STUBS (throw errors when called on server)
-// These exist so that imports from '@repo/auth/react/session' work isomorphically
+// These exist so that imports from '@repo/auth/react/session/index' work isomorphically
 // =============================================================================
 
 /**
@@ -62,7 +62,7 @@ export function useQueryCacheSubscription(): never {
  * The factory itself doesn't throw so code importing it on server compiles.
  */
 export function createUseSession<TData>(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     _options: CreateUseSessionOptions<TData>
 ): () => SessionResult<TData> {
     return function useSession(): SessionResult<TData> {
@@ -123,7 +123,7 @@ export function createSessionAwareAuthClient<
  * ```ts
  * // In your app's auth setup
  * import { createGetSession } from '@repo/auth/react/session/server'
- * import { auth } from './auth'
+ * import { auth } from '@/react/session/auth'
  * 
  * export const getSession = createGetSession({
  *   fetchSession: () => auth.api.getSession({ headers: {cookie: (await cookies()).toString()} }),
@@ -148,7 +148,7 @@ export function createGetSession<TData>(
  * ```ts
  * // In a Server Component
  * import { createSessionQueryOptions } from '@repo/auth/react/session/server'
- * import { getSession } from './auth'
+ * import { getSession } from '@/react/session/auth'
  * 
  * const queryClient = new QueryClient()
  * await queryClient.prefetchQuery(
@@ -187,7 +187,7 @@ export function createSessionQueryOptions<TData>(
  * ```ts
  * // In your app's auth setup
  * import { createPrefetchSession } from '@repo/auth/react/session/server'
- * import { getSession } from './auth'
+ * import { getSession } from '@/react/session/auth'
  * 
  * export const prefetchSession = createPrefetchSession({
  *   fetchSession: getSession,

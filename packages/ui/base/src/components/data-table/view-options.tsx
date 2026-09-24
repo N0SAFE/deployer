@@ -2,7 +2,7 @@
 
 import type { Table, Column } from "@tanstack/react-table";
 import { Check, GripVertical, Settings2, RotateCcw } from "lucide-react";
-import { Button } from "../shadcn/button";
+import { Button } from "@repo/ui/components/shadcn/button";
 import {
   Command,
   CommandEmpty,
@@ -11,13 +11,13 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from "../shadcn/command";
+} from "@repo/ui/components/shadcn/command";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "../shadcn/popover";
-import { cn } from "../../lib/utils";
+} from "@repo/ui/components/shadcn/popover";
+import { cn } from "@repo/ui/lib/utils";
 import * as React from "react";
 import { useCallback, useEffect, useState, useMemo } from "react";
 
@@ -75,9 +75,14 @@ export function DataTableViewOptions<TData>({
     try {
       const savedOrder = localStorage.getItem(COLUMN_ORDER_STORAGE_KEY);
       if (savedOrder) {
-        const columnOrder = JSON.parse(savedOrder);
-        // Apply saved column order to the table
-        table.setColumnOrder(columnOrder);
+        // localStorage is untrusted: narrow to string[] before use.
+        const parsed: unknown = JSON.parse(savedOrder);
+        const columnOrder = Array.isArray(parsed)
+          ? parsed.filter((key): key is string => typeof key === "string")
+          : [];
+        if (columnOrder.length > 0) {
+          table.setColumnOrder(columnOrder);
+        }
       }
     } catch (error) {
       console.error("Error loading column order:", error);

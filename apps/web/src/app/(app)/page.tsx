@@ -138,6 +138,8 @@ export default function Page(): JSX.Element {
 }
 
 export const metadata: Metadata = {
-    title: "Deployer",
+    // `absolute` opts out of the root template (`%s · Deployer`). Without it
+    // the landing page renders the product name twice — "Deployer · Deployer".
+    title: { absolute: "Deployer" },
     description: "Self-hosted deployment platform for containers, services and providers",
 }

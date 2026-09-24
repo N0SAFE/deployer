@@ -7,7 +7,7 @@ import type { Row } from "@tanstack/react-table";
 import { ChevronRight } from "lucide-react";
 
 // ** import utils
-import { cn } from "../../lib/utils";
+import { cn } from "@repo/ui/lib/utils";
 
 interface ExpandIconProps<TData> {
   row: Row<TData>;
@@ -26,7 +26,7 @@ export function ExpandIcon<TData>({
   }
 
   // Hide icon if only 1 subrow and hideWhenSingle is true
-  if (hideWhenSingle && row.subRows && row.subRows.length === 1) {
+  if (hideWhenSingle && row.subRows.length === 1) {
     return <div className="w-4" />;
   }
 

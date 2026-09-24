@@ -22,7 +22,7 @@ import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/
 import { Siren, Plus, Search, Settings, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, shortId } from '../_utils/helpers'
-import { StatusBadge } from '@/components/dashboard'
+import { StatusBadge, EmptyState, FilteredEmptyState } from '@/components/dashboard'
 import { filterProjectTopLevelServices } from '@/domains/service/hierarchy'
 import {
   Dialog,
@@ -516,21 +516,24 @@ export default function DashboardProjectServicesPage() {
         </CardHeader>
         <CardContent>
           {filteredServices.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Siren className="mb-4 size-12 text-muted-foreground/40" />
-              <p className="text-lg font-medium">No services found</p>
-              <p className="text-sm text-muted-foreground">
-                {searchQuery || statusFilter !== 'all'
-                  ? 'Try adjusting your search or filters.'
-                  : 'Create a service to get started.'}
-              </p>
-              {!searchQuery && statusFilter === 'all' && (
-                <Button className="mt-4" size="sm" onClick={() => setCreateDialogOpen(true)}>
-                  <Plus className="mr-2 size-4" />
-                  Create your first service
-                </Button>
-              )}
-            </div>
+            /*
+              "No services found" is two different facts. Filtering to a status
+              with no matches is not the same as having no services, and only
+              one of them invites you to create one.
+            */
+            searchQuery || statusFilter !== 'all' ? (
+              <FilteredEmptyState
+                label="No services match your search or filters."
+                onClear={() => { setSearchQuery(''); setStatusFilter('all') }}
+              />
+            ) : (
+              <EmptyState
+                icon={Siren}
+                title="No services found"
+                description="Create a service to get started."
+                action={{ label: 'Create your first service', onClick: () => { setCreateDialogOpen(true) } }}
+              />
+            )
           ) : (
             <Table>
               <TableHeader>

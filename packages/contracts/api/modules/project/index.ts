@@ -45,10 +45,8 @@ import {
 } from "./config";
 import {
     projectGetAllEnvironmentStatusesContract,
-    projectGetAvailableVariablesContract,
     projectGetEnvironmentStatusContract,
     projectRefreshEnvironmentStatusContract,
-    projectResolveVariablesContract,
 } from "./utils";
 import { projectQueryStreamContract } from "./stream";
 import {
@@ -97,9 +95,7 @@ export const projectContract = oc.tag("Project").prefix("/projects").router({
     updateResourceConfig: projectUpdateResourceConfigContract,
     getNotificationConfig: projectGetNotificationConfigContract,
     updateNotificationConfig: projectUpdateNotificationConfigContract,
-    // Variable resolution and monitoring
-    resolveVariables: projectResolveVariablesContract,
-    getAvailableVariables: projectGetAvailableVariablesContract,
+    // Environment status and monitoring
     getEnvironmentStatus: projectGetEnvironmentStatusContract,
     getAllEnvironmentStatuses: projectGetAllEnvironmentStatusesContract,
     refreshEnvironmentStatus: projectRefreshEnvironmentStatusContract,

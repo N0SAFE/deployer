@@ -7,11 +7,11 @@
  */
 
 import { Global, Module } from '@nestjs/common';
-import { EnvService } from '@/config/env/env.service';
+import { EnvService } from '@repo/nest-env';
 import { DockerService } from './services/docker.service';
 import { ScannerContainerManagerService } from './services/scanner-container-manager.service';
-import { PostgresContainerService } from './containers/postgres/postgres-container.service';
-import { EnvModule } from '@/config/env/env.module';
+import { PostgresServiceProvisioner } from './containers/postgres/postgres-service.provisioner';
+import { EnvModule } from '@repo/nest-env';
 
 @Global()
 @Module({
@@ -25,8 +25,8 @@ import { EnvModule } from '@/config/env/env.module';
       inject: [EnvService],
     },
     ScannerContainerManagerService,
-    PostgresContainerService,
+    PostgresServiceProvisioner,
   ],
-  exports: [DockerService, ScannerContainerManagerService, PostgresContainerService],
+  exports: [DockerService, ScannerContainerManagerService, PostgresServiceProvisioner],
 })
 export class CoreDockerModule {}

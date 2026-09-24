@@ -1,13 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { ConflictError } from "@repo/errors";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
-import { services, serviceDependencies, projects } from "@/config/drizzle/global/schema/deployment";
-import { localEventOutbox } from "@/config/drizzle/global/schema/runtime";
+import { services, serviceDependencies, projects } from "@repo/nest-schema/global/deployment";
+import { localEventOutbox } from "@repo/nest-schema/global/runtime";
 import { and, eq, ilike, asc, isNull, inArray } from "drizzle-orm";
 import type { PgTransaction } from "drizzle-orm/pg-core";
 import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import type { ExtractTablesWithRelations } from "drizzle-orm";
-import type * as globalSchema from "@/config/drizzle/global/schema";
+import type * as globalSchema from "@repo/nest-schema/global";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { TraefikConfigBuilder } from "@/core/modules/traefik/config-builder/builders";
 import type { ServiceListInput } from "@repo/api-contracts/modules/service/list";
@@ -17,6 +17,7 @@ import { serviceNetworkConfigSchema } from "@repo/contracts-entities";
 import { serviceProviderConfigUnionSchema, serviceRunnerConfigUnionSchema, implementedContractSchema, previewSourceTemplateSchema } from "@repo/contracts-entities";
 import * as crypto from "node:crypto";
 import { isRecord } from "@repo/type-guards"
+import { readTraefikConfig } from "@repo/nest-schema/codecs/codec-registry";
 
 
 
@@ -31,7 +32,12 @@ type DbTransaction = PgTransaction<
 >;
 
 function toDto(row: ServiceRow) {
-    const builtConfig = row.traefikConfig?.build();
+    // The schema package's column is typed `unknown` (it cannot name this app's
+    // builder), so the type is re-applied here through the package's generic
+    // reader — no cast at the call site, and the app's builder type is enforced.
+    const builtConfig = row.traefikConfig
+        ? readTraefikConfig<TraefikConfigBuilder>(JSON.stringify(row.traefikConfig)).build()
+        : undefined;
     // Parse configs through the contract union schemas so the DTO type IS the
     // entity schema's inferred type (Zod-as-source-of-truth). Invalid legacy
     // configs degrade to null rather than crashing the whole list.

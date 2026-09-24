@@ -12,6 +12,7 @@ import {
 import {
     meshJoinGrantConsumeResultSchema,
     meshJoinGrantIssueResultSchema,
+    type MeshSwarmJoinGrant,
 } from "@repo/contracts-entities";
 import { signMeshToken } from "@repo/auth/mesh";
 import { MeshValidationError } from "../../services/system-mesh-topology/domain/mesh-errors";
@@ -62,6 +63,12 @@ export interface MeshBootstrapConfig {
      */
     peerServiceToken: string | null;
     peerServiceTokenExpiresAt: string | null;
+    /**
+     * SWARM join credentials + the FLEET's role decision for this node, or
+     * null when the target mesh has no converged swarm to hand over (this node
+     * then defers its own convergence instead of founding a rival cluster).
+     */
+    swarmGrant: MeshSwarmJoinGrant | null;
     /**
      * The mesh shared secret that all nodes in the cluster share.
      * Used by `requireMesh()` / `requireInternalMesh()` to verify peer
@@ -115,6 +122,7 @@ export class MeshInitializationService {
         meshUrl: string,
         grantToken: string,
         serverUrl: string,
+        requestedSwarmPolicy?: "auto" | "manager" | "worker",
     ): Promise<MeshBootstrapConfig> {
         const normalized = this.normalizeUrl(meshUrl);
         await this.validateRemoteMesh(normalized.origin);
@@ -143,6 +151,10 @@ export class MeshInitializationService {
             grantToken,
             nodeId,
             serverUrl,
+            // The role THIS node asks for. The mesh answers with what it
+            // actually grants (`result.swarmGrant.role`) — a node requesting
+            // "auto" is a candidate, not an entitlement.
+            requestedSwarmPolicy,
         });
         // The response crosses a trust boundary (remote mesh node) — validate
         // it through the contract's output schema so the types are truthful.
@@ -159,6 +171,7 @@ export class MeshInitializationService {
             peerServiceToken,
             peerServiceTokenExpiresAt,
             meshSharedSecret,
+            swarmGrant:  result.swarmGrant,
         };
     }
 
@@ -244,7 +257,7 @@ export class MeshInitializationService {
                 ? { "x-mesh-internal-key": peerServiceToken }
                 : undefined,
         );
-        const remoteLocalNode = await client.getLocalNode();
+        const remoteLocalNode = await client.getLocalNode({});
 
         return {
             remoteNodeId:  remoteLocalNode.nodeId,
@@ -281,8 +294,8 @@ export class MeshInitializationService {
         const session = await this.connectToMesh(meshUrl, { peerServiceToken });
         try {
             const [localNode, peerSessions] = await Promise.all([
-                session.client.getLocalNode(),
-                session.client.listPeerSessions(),
+                session.client.getLocalNode({}),
+                session.client.listPeerSessions({}),
             ]);
 
             const nodeUrls = new Set<string>();
@@ -389,7 +402,7 @@ export class MeshInitializationService {
         // has a valid `MeshSetupSession` client.
         const client = this.createRemoteClient(baseUrl);
         try {
-            await client.ping();
+            await client.ping({});
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : String(err);
             throw new MeshValidationError(`Cannot reach mesh at ${baseUrl}: ${message}`);

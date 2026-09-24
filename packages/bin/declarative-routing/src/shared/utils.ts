@@ -36,9 +36,19 @@ export function addPackageJSONScripts(scripts: Record<string, string>) {
   });
 }
 
-export async function getPackageManager(): Promise<
-  "yarn" | "pnpm" | "bun" | "npm" | "deno"
-> {
+type SupportedPackageManager = "yarn" | "pnpm" | "bun" | "npm" | "deno";
+
+/**
+ * `detect()` can return managers this CLI emits no commands for
+ * (`aube`, `nub`, `pnpm-rush`, `yarn@berry`, ...). Narrow with an explicit
+ * allow-list rather than asserting, so an unrecognised manager falls back
+ * to npm instead of being passed on untyped.
+ */
+function isSupportedPackageManager(value: string): value is SupportedPackageManager {
+  return value === "yarn" || value === "pnpm" || value === "bun" || value === "npm" || value === "deno";
+}
+
+export async function getPackageManager(): Promise<SupportedPackageManager> {
   const packageManager = await detect({
     programmatic: true,
     cwd: process.cwd()
@@ -48,7 +58,8 @@ export async function getPackageManager(): Promise<
   if (packageManager === "pnpm@6") return "pnpm";
   if (packageManager === "bun") return "bun";
 
-  return packageManager ?? "npm";
+  const resolved = packageManager ?? "npm";
+  return isSupportedPackageManager(resolved) ? resolved : "npm";
 }
 
 export async function addPackages(packages: string[], dev = false) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { serviceSchema } from '../entities/service.schema'
+import { serviceSchema } from '@repo/contracts-entities/entities/service.schema'
 
 describe('service schema validation', () => {
   const baseService = {

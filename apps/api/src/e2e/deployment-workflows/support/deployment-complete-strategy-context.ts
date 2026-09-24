@@ -5,7 +5,7 @@ import { ProjectService } from "@/modules/project/services/project.service";
 import { ServiceService } from "@/modules/service/services/service.service";
 import { DeploymentService } from "@/modules/deployment/services/deployment.service";
 import { TraefikService } from "@/core/modules/traefik/services/traefik.service";
-import { user } from "@/config/drizzle/global/schema/auth";
+import { user } from "@repo/nest-schema/global/auth";
 
 export interface DeploymentCompleteStrategyContext {
   ownerId: string;

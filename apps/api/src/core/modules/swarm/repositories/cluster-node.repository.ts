@@ -17,7 +17,7 @@ import {
     clusterNode,
     clusterMasterHistory,
     type ClusterNodeRow,
-} from "@/config/drizzle/local/schema";
+} from "@repo/nest-schema/local";
 import { LocalDatabaseService } from "@/core/modules/database/local/local-database.service";
 
 @Injectable()

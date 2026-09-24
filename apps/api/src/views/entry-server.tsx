@@ -21,7 +21,7 @@ function createSsrQueryClient(): QueryClient {
 // @ts-ignore - Vite-specific API
 const layoutModules = import.meta.glob('@/views/layout.tsx', {
   eager: true,
-}) as Record<string, { default: React.ComponentType<any> }>;
+}) as Record<string, { default: React.ComponentType }>;
 
 const layoutPath = Object.keys(layoutModules)[0];
 const RootLayout = layoutPath ? (layoutModules[layoutPath]?.default ?? null) : null;

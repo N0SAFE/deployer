@@ -32,7 +32,7 @@ export function createKeyboardNavigationHandler<TData>(
           
         if (rowElement) {
           // Get the row index from the data-row-index attribute or the row id
-          const rowId = rowElement.getAttribute('data-row-index') || rowElement.id;
+          const rowId = rowElement.getAttribute('data-row-index') ?? rowElement.id;
           if (rowId) {
             // Find the row by index and toggle its selection
             const rowIndex = Number.parseInt(rowId.replace(/^row-/, ''), 10);
@@ -41,7 +41,7 @@ export function createKeyboardNavigationHandler<TData>(
               if (e.key === " ") {
                 // Space toggles selection
                 row.toggleSelected();
-              } else if (e.key === "Enter" && onRowActivate) {
+              } else if (onRowActivate) {
                 // Enter activates the row
                 onRowActivate(row.original, rowIndex);
               }

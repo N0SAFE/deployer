@@ -3,23 +3,24 @@
 import { X } from "lucide-react";
 import type { Table } from "@tanstack/react-table";
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Settings, Undo2, TrashIcon, EyeOff, CheckSquare, MoveHorizontal } from "lucide-react";
+import { Settings, Undo2, EyeOff, CheckSquare, MoveHorizontal } from "lucide-react";
+import type { SubRowsConfig } from "@repo/ui/components/data-table/data-table";
 
-import { Button } from "../shadcn/button";
-import { Input } from "../shadcn/input";
+import { Button } from "@repo/ui/components/shadcn/button";
+import { Input } from "@repo/ui/components/shadcn/input";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "../shadcn/popover";
-import { CalendarDatePicker } from "../calendar-date-picker";
-import { DataTableViewOptions } from "./view-options";
-import { DataTableExport } from "./data-export";
-import type { DataTransformFunction, ExportableData } from "./utils/export-utils";
-import { resetUrlState } from "./utils/deep-utils";
-import { parseDateFromUrl } from "./utils/url-state";
-import type { TableConfig } from "./utils/table-config";
-import { formatDate } from "./utils/date-format";
+} from "@repo/ui/components/shadcn/popover";
+import { CalendarDatePicker } from "@repo/ui/components/calendar-date-picker";
+import { DataTableViewOptions } from "@repo/ui/components/data-table/view-options";
+import { DataTableExport } from "@repo/ui/components/data-table/data-export";
+import type { DataTransformFunction, ExportableData } from "@repo/ui/components/data-table/utils/export-utils";
+import { resetUrlState } from "@repo/ui/components/data-table/utils/deep-utils";
+import { parseDateFromUrl } from "@repo/ui/components/data-table/utils/url-state";
+import type { TableConfig } from "@repo/ui/components/data-table/utils/table-config";
+import { formatDate } from "@repo/ui/components/data-table/utils/date-format";
 
 // Helper functions for component sizing
 const getInputSizeClass = (size: 'sm' | 'default' | 'lg') => {
@@ -67,13 +68,18 @@ interface DataTableToolbarProps<TData extends ExportableData> {
   resetColumnOrder?: () => void;
   entityName?: string;
   columnMapping?: Record<string, string>;
-  columnWidths?: Array<{ wch: number }>;
+  columnWidths?: { wch: number }[];
   headers?: string[];
   transformFunction?: DataTransformFunction<TData>;
   customToolbarComponent?: React.ReactNode;
   // Subrow props
-  subRowsConfig?: any;
-  getSelectedParentsAndSubrows?: () => { parents: TData[]; subrows: any[]; parentIds: any[]; subrowIds: any[] };
+  subRowsConfig?: SubRowsConfig<TData>;
+  getSelectedParentsAndSubrows?: () => {
+    parents: TData[];
+    subrows: { parentId: string | number; subrow: TData }[];
+    parentIds: (string | number)[];
+    subrowIds: (string | number)[];
+  };
   getSelectedParentRows?: () => Promise<TData[]>;
   getSelectedSubRows?: () => Promise<TData[]>;
   totalParentCount?: number;
@@ -83,7 +89,7 @@ interface DataTableToolbarProps<TData extends ExportableData> {
   subRowExportConfig?: {
     entityName: string;
     columnMapping: Record<string, string>;
-    columnWidths: Array<{ wch: number }>;
+    columnWidths: { wch: number }[];
     headers: string[];
     transformFunction?: DataTransformFunction<TData>;
   };
@@ -182,13 +188,13 @@ export function DataTableToolbar<TData extends ExportableData>({
       return lastSetDates.current;
     }
 
-    const fromDate = dateRange?.from_date ? parseDateFromUrl(dateRange.from_date) : undefined;
-    const toDate = dateRange?.to_date ? parseDateFromUrl(dateRange.to_date) : undefined;
+    const fromDate = dateRange.from_date ? parseDateFromUrl(dateRange.from_date) : undefined;
+    const toDate = dateRange.to_date ? parseDateFromUrl(dateRange.to_date) : undefined;
 
     lastSetDates.current = { from: fromDate, to: toDate };
 
     return { from: fromDate, to: toDate };
-  }, [dateRange?.from_date, dateRange?.to_date]);
+  }, [dateRange.from_date, dateRange.to_date]);
 
   // Initial state with date values from URL
   const [dates, setDates] = useState<{
@@ -346,7 +352,7 @@ export function DataTableToolbar<TData extends ExportableData>({
   // The actual data fetching happens in the export component
   const selectedItems =
     totalSelectedItems > 0
-      ? new Array(totalSelectedItems).fill({} as TData)
+      ? new Array(totalSelectedItems).fill({})
       : [];
 
   // Get all available items data for export
@@ -499,7 +505,7 @@ export function DataTableToolbar<TData extends ExportableData>({
                     variant="outline"
                     size={config.size}
                     className="justify-start"
-                    onClick={() => table.resetColumnVisibility()}
+                    onClick={() => { table.resetColumnVisibility(); }}
                   >
                     <EyeOff className="mr-2 h-4 w-4" />
                     Show All Columns

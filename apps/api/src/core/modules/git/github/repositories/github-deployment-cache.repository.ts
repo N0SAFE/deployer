@@ -16,7 +16,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service';
-import { deploymentCache } from '@/config/drizzle/global/schema';
+import { deploymentCache } from '@repo/nest-schema/global';
 import { eq, and, desc } from 'drizzle-orm';
 
 import { AppError } from "@repo/errors";

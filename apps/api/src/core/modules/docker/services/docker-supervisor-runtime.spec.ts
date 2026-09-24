@@ -29,8 +29,23 @@ describe("resolveSupervisorRuntime — NO legacy container fallback", () => {
   });
 
   it("swarm not active + not managed → unavailable (NO container fallback)", () => {
+    // The engine is converged at boot by SwarmBootstrapService, so a
+    // non-active engine means convergence FAILED. There is deliberately no
+    // plain-container fallback: a second convergence path per supervisor
+    // would be a bridge, and the supervisor surfaces the failure instead.
     const res = resolveSupervisorRuntime({ managed: false, swarmActive: false, scope: "node-local" });
     expect(res.runtime).toBe("unavailable");
+    expect(res.reason).toContain("SwarmBootstrapService");
+  });
+
+  it("unavailable applies to mesh-wide scope too", () => {
+    const res = resolveSupervisorRuntime({ managed: false, swarmActive: false, scope: "mesh-wide" });
+    expect(res.runtime).toBe("unavailable");
+  });
+
+  it("managed always wins, even on an active swarm (deployment owns the process)", () => {
+    const res = resolveSupervisorRuntime({ managed: true, swarmActive: true, scope: "mesh-wide" });
+    expect(res.runtime).toBe("managed");
   });
 
   it("unknown scope defaults to mesh-wide (safest: replicated, not per-node)", () => {
@@ -48,13 +63,13 @@ describe("supervisor topology classification", () => {
     expect(ids).toContain("database-service");
     expect(ids).toContain("platform-direct-port-proxy");
     expect(ids).toContain("platform-managed-web");
-    expect(ids).toContain("wireguard");
+    expect(ids).toContain("platform-wireguard");
   });
 
   it("ingress, direct-port-proxy and wireguard are node-local (swarm-global)", () => {
     expect(getSupervisorTopology("platform-ingress-traefik")?.scope).toBe("node-local");
     expect(getSupervisorTopology("platform-direct-port-proxy")?.scope).toBe("node-local");
-    expect(getSupervisorTopology("wireguard")?.scope).toBe("node-local");
+    expect(getSupervisorTopology("platform-wireguard")?.scope).toBe("node-local");
   });
 
   it("redis, global-db, database-service and managed-web are mesh-wide (replicated)", () => {

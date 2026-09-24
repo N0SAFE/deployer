@@ -7,8 +7,8 @@ import {
 } from "next/server";
 import { ConfigFactory, Matcher, MiddlewareFactory } from "./utils/types";
 import { nextjsRegexpPageOnly, nextNoApi } from "./utils/static";
+import { redirectSameOrigin } from "./utils/redirects";
 import { validateEnvSafe } from "#/env";
-import { toAbsoluteUrl } from "@/lib/utils";
 import { AuthSignin } from "@/routes/index";
 import { createContextFilterDebugLogger } from "@/lib/logging/context-filter-debug";
 import { getCookieCache, getSessionCookie } from "better-auth/cookies";
@@ -96,15 +96,14 @@ const withAuth: MiddlewareFactory = (next: NextProxy) => {
       debugAuth(
         `Redirecting unauthenticated user from ${request.nextUrl.pathname} to signin`,
       );
-      return NextResponse.redirect(
-        toAbsoluteUrl(
-          AuthSignin(
-            {},
-            {
-              redirectTo:
-                request.nextUrl.pathname + (request.nextUrl.search ?? ""),
-            },
-          ),
+      return redirectSameOrigin(
+        request,
+        AuthSignin(
+          {},
+          {
+            redirectTo:
+              request.nextUrl.pathname + (request.nextUrl.search ?? ""),
+          },
         ),
       );
     }

@@ -1,6 +1,5 @@
 import { Inject, Injectable, type OnModuleDestroy, Logger } from "@nestjs/common";
-  import { createHash } from "node:crypto";
-  import {
+  import { createHash } from "node:crypto";  import { DatabaseNotReadyReporter } from "@/core/modules/database/services/db-not-ready";  import {
       meshNodeStateSchema,
       meshPeerConnectionSchema,
       type MeshNodeState,
@@ -40,6 +39,7 @@ import { Inject, Injectable, type OnModuleDestroy, Logger } from "@nestjs/common
       private readonly logger = new Logger(MeshClusterSyncService.name);
       private bootstrapAttempted = false;
       private syncTimer: ReturnType<typeof setInterval> | null = null;
+      private readonly dbNotReady = new DatabaseNotReadyReporter();
 
       constructor(
           @Inject(CLOCK_TOKEN) private readonly clock: Clock,
@@ -65,7 +65,7 @@ import { Inject, Injectable, type OnModuleDestroy, Logger } from "@nestjs/common
                   metadata: { source: "startup-registration" },
               });
           } catch (error) {
-              this.logger.warn(`Local node startup registration failed: ${this.errMsg(error)}`);
+              this.dbNotReady.report(this.logger, "Local node startup registration failed", this.errMsg(error), error);
           }
       }
 
@@ -149,7 +149,7 @@ import { Inject, Injectable, type OnModuleDestroy, Logger } from "@nestjs/common
                   );
               }
           } catch (error) {
-              this.logger.warn(`Mesh DB sync (${reason}) failed: ${this.errMsg(error)}`);
+              this.dbNotReady.report(this.logger, `Mesh DB sync (${reason}) failed`, this.errMsg(error), error);
           }
       }
 

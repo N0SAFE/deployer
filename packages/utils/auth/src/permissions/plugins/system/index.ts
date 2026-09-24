@@ -6,12 +6,12 @@ export {
   PluginWrapperRegistry,
   type PluginWrapper,
   type PluginWrapperFactory,
-} from './registry';
+} from '@repo/auth/permissions/plugins/system/registry';
 
 export {
   type WithAuthPlugins,
   type MinimalAuth,
-} from './auth-with-plugins';
+} from '@repo/auth/permissions/plugins/system/auth-with-plugins';
 
 export {
   BasePluginWrapper,
@@ -24,14 +24,14 @@ export {
   // Error classes for assertion failures
   PermissionAssertionError,
   RoleAssertionError,
-} from './base-plugin-wrapper';
+} from '@repo/auth/permissions/plugins/system/base-plugin-wrapper';
 
 export {
   type AnyPermissionBuilder,
   type InferStatementFromBuilder,
   type InferRolesFromBuilder,
   type InferRoleNamesFromBuilder,
-} from './type-inference';
+} from '@repo/auth/permissions/plugins/system/type-inference';
 
 // Assertion system - for creating plugin methods that return assertion definitions
 export {
@@ -48,4 +48,4 @@ export {
   isAssertionDefinition,
   isAssertionMetadata,
   isCompositeAssertion,
-} from './assertion';
+} from '@repo/auth/permissions/plugins/system/assertion';

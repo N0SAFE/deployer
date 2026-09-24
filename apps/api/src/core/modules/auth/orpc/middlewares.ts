@@ -15,8 +15,8 @@ import { AUTH_MIDDLEWARE_BRAND_VALUE } from './types'
 import { os } from '@orpc/server'
 import { standardErrorOptions, STANDARD_DOMAIN_ERROR_DEFS } from '@repo/orpc-utils'
 import { verifyMeshToken, verifyPeerServiceToken } from '@repo/auth/mesh'
-import { EnvService } from '@/config/env/env.service'
-import type { Env } from '@/config/env/env'
+import { EnvService } from '@repo/nest-env'
+import type { ApiEnv as Env } from '@repo/env'
 import type { ORPCGlobalContext } from '@orpc/nest'
 
 const readEnv = <K extends keyof Env>(key: K): Env[K] => {

@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { sql as rawSql, type SQL } from "drizzle-orm";
-import { compileDFilter, type ColumnResolver } from "./filter-compiler";
-import { MAX_FILTER_DEPTH } from "./filter-matcher";
-import type { DFilter } from "./types";
-import { Variable } from "./types";
+import { compileDFilter, type ColumnResolver } from "@repo/auth/permissions/engine/filter-compiler";
+import { MAX_FILTER_DEPTH } from "@repo/auth/permissions/engine/filter-matcher";
+import type { DFilter } from "@repo/auth/permissions/engine/types";
+import { Variable } from "@repo/auth/permissions/engine/types";
 
 // ---------------------------------------------------------------------------
 // Test schema
@@ -204,11 +204,12 @@ describe("compileDFilter — Variable instances", () => {
     });
 
     it("_eq with Variable throws when variable is not in context", () => {
+        const emptyVars: Partial<{ userId: string }> = {};
         expect(() =>
             compileDFilter(
                 { ownerId: { _eq: new Variable("userId") } },
                 resolver,
-                {}, // provide TVars context; empty → throws at runtime
+                emptyVars,
             ),
         ).toThrow(/userId/);
     });
@@ -232,8 +233,9 @@ describe("compileDFilter — Variable instances", () => {
     });
 
     it("_in with Variable throws when variable is not in context", () => {
+        const emptyVars: Partial<{ teamIds: string[] }> = {};
         expect(() =>
-            compileDFilter({ ownerId: { _in: new Variable("teamIds") } }, resolver, {}),
+            compileDFilter({ ownerId: { _in: new Variable("teamIds") } }, resolver, emptyVars),
         ).toThrow(/teamIds/);
     });
 

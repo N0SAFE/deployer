@@ -4,23 +4,14 @@
  * Generic utility functions extracted from the monolithic page.tsx.
  */
 
-import { statusMeta } from '@/components/dashboard'
+import { statusMeta, type StatusBadgeVariant } from '@/components/dashboard'
+import { formatDateTime } from '@/lib/format/date'
 
 /**
  * Format an ISO date string to a locale date string.
  */
 export function formatDate(value: string | number | Date | null | undefined): string {
-  if (!value) return ''
-  try {
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(value))
-  } catch {
-    return ''
-  }
+  return formatDateTime(value, '')
 }
 
 /**
@@ -41,7 +32,7 @@ export function shortId(value: string | null | undefined): string {
  */
 export function statusBadgeVariant(
   status: string | null | undefined,
-): 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' {
+): StatusBadgeVariant {
   return statusMeta(status).variant
 }
 

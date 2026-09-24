@@ -29,8 +29,13 @@ export const baseSupervisorProcessInfoSchema = z.object({
 	supervisorId: z.string(),
 	/** Human description of the supervised resource. */
 	description: z.string(),
-	/** Last convergence lifecycle state. */
-	state: z.enum(["idle", "converging", "converged", "degraded"]),
+	/**
+	 * Last convergence lifecycle state. `pending` = deferred because a
+	 * precondition does not exist yet (e.g. a swarm-only service before setup
+	 * created the cluster) — distinct from `degraded`, which means an attempt
+	 * was made and failed.
+	 */
+	state: z.enum(["idle", "converging", "converged", "degraded", "pending"]),
 	/** Real health (result of the latest probe, see getHealth). */
 	healthy: z.boolean(),
 	/** Convergence/probe detail (degradation reason, …). */

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { ROUTE_METHOD_META_KEY } from '../../types/route-method-meta';
+import { ROUTE_METHOD_META_KEY } from '@repo/orpc-utils/types/route-method-meta';
 import type { HTTPMethod } from '@orpc/contract';
 
 const reactQueryMocks = vi.hoisted(() => {
@@ -11,7 +11,7 @@ const reactQueryMocks = vi.hoisted(() => {
 
 vi.mock('@tanstack/react-query', () => reactQueryMocks);
 
-import { createRouterHooks, defineInvalidations } from '../generate-hooks';
+import { createRouterHooks, defineInvalidations } from '@repo/orpc-utils/hooks/generate-hooks';
 
 /**
  * Helper to create a mock procedure with RouteBuilder metadata.
@@ -64,7 +64,7 @@ describe('generate-hooks', () => {
       }),
     } as const;
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const resolver = vi.fn((_data: unknown, _variables: unknown, _context: unknown) => ({
       list: undefined,
     }));

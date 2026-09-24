@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { InitializationService } from "./services/initialization.service";
-import { NodeConfigRepository } from "./repositories/node-config.repository";
+import { NodeStateModule } from "@/core/modules/node-state/node-state.module";
 import { RemoteInitializationService } from "./services/remote-initialization.service";
 import { LocalInitializationService } from "./services/local-initialization.service";
 import { SetupEventService } from "./services/setup-event.service";
@@ -9,6 +9,7 @@ import { LocalDatabaseModule } from "../database/local/local-database.module";
 import { CoreDockerModule } from "../docker/docker.module";
 import { CoreReachabilityModule } from "../reachability/core-reachability.module";
 import { MeshVersionService } from "../mesh/version/mesh-version.service";
+import { SwarmCoreModule } from "@/core/modules/swarm/swarm.module";
 
 /**
  * Global Setup Module
@@ -23,15 +24,17 @@ import { MeshVersionService } from "../mesh/version/mesh-version.service";
  * when the database is not yet configured.
  */
 @Module({
-    imports: [MeshInitializationModule, LocalDatabaseModule, CoreDockerModule, CoreReachabilityModule],
+    // SwarmCoreModule is SETUP-SAFE (no post-setup resources, no mesh import),
+    // so the wizard can create/join the cluster as part of its own flow.
+    // Previously this import closed a cycle via MeshCoreModule → SetupModule.
+    imports: [MeshInitializationModule, LocalDatabaseModule, CoreDockerModule, CoreReachabilityModule, SwarmCoreModule, NodeStateModule],
     providers: [
         LocalInitializationService,
         RemoteInitializationService,
         InitializationService,
         SetupEventService,
-        NodeConfigRepository,
         MeshVersionService,
     ],
-    exports: [InitializationService, NodeConfigRepository, LocalInitializationService, RemoteInitializationService, SetupEventService, MeshVersionService],
+    exports: [InitializationService, LocalInitializationService, RemoteInitializationService, SetupEventService, MeshVersionService],
 })
 export class CoreInitializationModule {}

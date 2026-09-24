@@ -127,7 +127,7 @@ export class SupervisorOrchestratorService implements OnApplicationBootstrap {
 
 	private findSupervisorByClass<T extends AnySupervisor>(supervisorClass: new (...args: any[]) => T): T | null {
 		for (const supervisor of this.supervisors.values()) {
-			if (supervisor instanceof supervisorClass) return supervisor as T;
+			if (supervisor instanceof supervisorClass) return supervisor;
 		}
 		return null;
 	}
@@ -225,9 +225,15 @@ export class SupervisorOrchestratorService implements OnApplicationBootstrap {
 
 		void this.ensureAll().then((results) => {
 			for (const [id, state] of results) {
+				const supervisor = this.supervisors.get(id);
 				if (state === "degraded") {
-					const supervisor = this.supervisors.get(id);
 					this.logger.warn(`⚠️ Supervisor "${id}" DEGRADED after boot convergence: ${supervisor?.getStateSnapshot().detail ?? "unknown"}`);
+				} else if (state === "pending") {
+					// Not a failure: the precondition does not exist yet (e.g. a
+					// swarm-only service before setup created the cluster). Normal
+					// INFO, never a warning — the recovery is `recoverPending()`
+					// once setup converges the engine.
+					this.logger.log(`⏳ Supervisor "${id}" deferred (pending): ${supervisor?.getStateSnapshot().detail ?? "awaiting prerequisite"}`);
 				} else {
 					this.logger.log(`✅ Supervisor "${id}" ${state}`);
 				}

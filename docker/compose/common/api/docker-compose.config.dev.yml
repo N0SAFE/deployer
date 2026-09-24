@@ -105,7 +105,9 @@ services:
             - "**/.parcel-cache/"
             - "**/.vite/"
             - "**/*.log"
-            - "**/logs/"
+            # Not "**/logs/": that also excludes any directory NAMED logs,
+            # including route segments, so real source silently stopped syncing.
+            # Log files are already ignored by the rule above.
             - .git/
             - .gitignore
             - docker/

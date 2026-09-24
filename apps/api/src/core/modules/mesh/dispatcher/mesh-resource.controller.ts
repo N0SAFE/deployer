@@ -22,13 +22,16 @@ export class MeshResourceController {
     private readonly dispatcher: MeshResourceDispatcher,
   ) {}
 
-  @Implement(meshBaseResourceContract as any)
+  @Implement(meshBaseResourceContract)
   handle() {
-    return (implement as any)(meshBaseResourceContract)
-      .handler(async ({ input }: any) => {
-        const { entityKey, methodName } = input.params;
-        const result = await this.dispatcher.dispatch(entityKey, methodName, input.body);
-        return { body: result };
-      });
+    return implement(meshBaseResourceContract).handler(async ({ input }) => {
+      const { entityKey, methodName } = input.params;
+      const result = await this.dispatcher.dispatch(
+        entityKey,
+        methodName,
+        input.body,
+      );
+      return { status: 200 as const, headers: {}, body: result };
+    });
   }
 }

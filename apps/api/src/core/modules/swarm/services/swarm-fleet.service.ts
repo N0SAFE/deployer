@@ -118,7 +118,8 @@ export class SwarmFleetService {
             .filter((s) => {
                 const mode = s.Spec.Mode;
                 const isGlobal = Boolean(mode?.Global);
-                return isGlobal || taskServiceIds.has(s.ID);
+                // Only services with an ID can be matched to tasks/queried later.
+                return isGlobal || (s.ID !== undefined && taskServiceIds.has(s.ID));
             })
             .map((s) => this.toServiceRuntime(s, tasks));
 

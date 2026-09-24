@@ -9,6 +9,7 @@
  */
 
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
+import { DatabaseNotReadyReporter } from "@/core/modules/database/services/db-not-ready";
 import { SwarmClusterService } from "../services/swarm-cluster.service";
 import { GlobalClusterNodesRepository } from "../repositories/global-cluster-nodes.repository";
 import {
@@ -18,11 +19,14 @@ import {
 
 @Injectable()
 export class NodeInventoryService implements OnModuleInit, OnModuleDestroy {
-    private static readonly DEFAULT_SYNC_INTERVAL_MS = 30_000;
+    /** Cadence of the fleet inventory sweep. */
+    private static readonly SYNC_INTERVAL_MS = 30_000;
+    /** Grace before the first sweep so the engine can settle after boot. */
     private static readonly START_DELAY_MS = 5_000;
 
     private readonly logger = new Logger(NodeInventoryService.name);
     private timer: NodeJS.Timeout | null = null;
+    private readonly dbNotReady = new DatabaseNotReadyReporter();
 
     constructor(
         private readonly clusterService: SwarmClusterService,
@@ -35,8 +39,11 @@ export class NodeInventoryService implements OnModuleInit, OnModuleDestroy {
         // IMMEDIATELY (not after the first 5s sweep) so mesh resource-ownership
         // inserts (FK → cluster_nodes.node_id) never fail at registration.
         void this.globalClusterNodes.enrollLocalNode().catch((error: unknown) => {
-            this.logger.warn(
-                `Global node enrollment failed: ${error instanceof Error ? error.message : String(error)}`,
+            this.dbNotReady.report(
+                this.logger,
+                "Global node enrollment failed",
+                error instanceof Error ? error.message : String(error),
+                error,
             );
         });
 
@@ -48,7 +55,7 @@ export class NodeInventoryService implements OnModuleInit, OnModuleDestroy {
                             `Fleet inventory sync failed: ${error instanceof Error ? error.message : String(error)}`,
                         );
                     })
-                    .finally(() => this.scheduleNext());
+                    .finally(() => { this.scheduleNext(); });
             },
             NodeInventoryService.START_DELAY_MS,
         );
@@ -62,7 +69,7 @@ export class NodeInventoryService implements OnModuleInit, OnModuleDestroy {
     }
 
     private get intervalMs(): number {
-        return 30_000; // env knob follow-up: SWARM_INVENTORY_SYNC_MS
+        return NodeInventoryService.SYNC_INTERVAL_MS;
     }
 
     private scheduleNext(): void {
@@ -76,7 +83,7 @@ export class NodeInventoryService implements OnModuleInit, OnModuleDestroy {
                         `Fleet inventory sync failed: ${error instanceof Error ? error.message : String(error)}`,
                     );
                 })
-                .finally(() => this.scheduleNext());
+                .finally(() => { this.scheduleNext(); });
         }, this.intervalMs);
     }
 
@@ -107,8 +114,11 @@ export class NodeInventoryService implements OnModuleInit, OnModuleDestroy {
                 swarmNodeId: snapshot.localNode.nodeId,
             });
         } catch (error: unknown) {
-            this.logger.warn(
-                `Global node enrollment failed: ${error instanceof Error ? error.message : String(error)}`,
+            this.dbNotReady.report(
+                this.logger,
+                "Global node enrollment failed",
+                error instanceof Error ? error.message : String(error),
+                error,
             );
         }
         return nodes.length;

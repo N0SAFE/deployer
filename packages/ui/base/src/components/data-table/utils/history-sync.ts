@@ -1,4 +1,4 @@
-import { DATA_TABLE_URL_STATE_EVENT } from "./url-events";
+import { DATA_TABLE_URL_STATE_EVENT } from "@repo/ui/components/data-table/utils/url-events";
 
 let patched = false;
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import z from 'zod/v4';
-import { RouteBuilder } from '../core/route-builder';
+import { RouteBuilder } from '@repo/orpc-utils/builder/core/route-builder';
 
 describe('ErrorDefinitionBuilder', () => {
   it('should define errors with fluent builder syntax', () => {
@@ -85,14 +85,12 @@ describe('ErrorDefinitionBuilder', () => {
     
     // Type should show 'NOT_FOUND' | 'UNAUTHORIZED' for the keys
     const _errorsCheck: keyof Errors = 'NOT_FOUND';
-    void _errorsCheck; // Type check only - verify TypeScript accepts this
 
     // Type verification: the union output should be properly typed
     type Output = typeof route extends RouteBuilder<any, infer TOutput, any, any, any> ? TOutput : never;
     
     // Log type to see what we're getting (this will show in IDE hover)
     const _outputCheck: Output = null!;
-    void _outputCheck;
 
     const contract = route.build();
     expect(contract).toBeDefined();

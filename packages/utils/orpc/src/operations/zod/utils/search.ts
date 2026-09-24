@@ -13,13 +13,13 @@ import * as z from "zod";
 import {
     type SearchConfig as BaseSearchConfig,
     type SearchSchemaOutput as BaseSearchSchemaOutput,
-} from "../../base/utils/search";
+} from "@repo/orpc-utils/operations/base/utils/search";
 import {
     CONFIG_SYMBOL,
     withConfig,
     getConfig,
     type ZodSchemaWithConfig,
-} from "./pagination";
+} from "@repo/orpc-utils/operations/zod/utils/pagination";
 
 // Re-export base types for external use
 export type { BaseSearchConfig, BaseSearchSchemaOutput };

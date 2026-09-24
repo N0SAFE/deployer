@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { RoleConfigCollection } from './role-config-collection';
-import { RoleConfig } from './single-role-config';
+import { RoleConfigCollection } from '@repo/auth/permissions/system/builder/roles/role-config-collection';
+import { RoleConfig } from '@repo/auth/permissions/system/builder/roles/single-role-config';
 
 describe('RoleConfigCollection', () => {
   const mockRoles = {

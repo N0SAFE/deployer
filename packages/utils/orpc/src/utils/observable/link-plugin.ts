@@ -2,9 +2,8 @@ import { get } from "@orpc/shared";
 import { isContractProcedure, getEventIteratorSchemaDetails } from "@orpc/contract";
 import type { StandardLinkPlugin, StandardLinkOptions } from "@orpc/client/standard";
 import type { ClientContext } from "@orpc/client";
-import { OBSERVABLE_DETAILS_SYMBOL, toAsyncIteratorFromObservable, type Observable } from "../../observable/contract";
-import { reconstructObservableFromEventIterator } from "../../observable/event-iterator";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { OBSERVABLE_DETAILS_SYMBOL, toAsyncIteratorFromObservable, type Observable } from "@repo/orpc-utils/observable/contract";
+import { reconstructObservableFromEventIterator } from "@repo/orpc-utils/observable/event-iterator";
 
 /**
  * StandardLinkPlugin that reconciles Observable ↔ AsyncIterable at the transport boundary.

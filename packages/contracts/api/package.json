@@ -13,12 +13,12 @@
     },
     "scripts": {
         "clean": "rm -rf dist",
-        "build": "bun scripts/build.ts",
+        "build": "bun --bun ../../bin/pkg-build/index.ts",
         "compile": "bun x cross-env COMPILE_MODE=true bun run build",
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "dev": "bun --bun run build -- --watch",
+        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
         "lint": "bunx eslint . --cache --concurrency=auto",
         "type-check": "tsc --noEmit"
     },
@@ -47,5 +47,22 @@
         "eslint": "catalog:linting",
         "@repo/config-typescript": "*",
         "typescript": "catalog:build"
+    },
+    "pkgBuild": {
+        "root": ".",
+        "entries": [
+            "index.ts"
+        ],
+        "formats": [
+            "esm"
+        ],
+        "flat": true,
+        "target": "bun",
+        "minify": true,
+        "external": [
+            "@orpc/contract",
+            "@orpc/shared",
+            "zod"
+        ]
     }
 }

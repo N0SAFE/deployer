@@ -7,19 +7,19 @@
  * - Data dependencies (list depends on items)
  */
 
-import { autoInvalidate } from './invalidation/auto';
-import { invalidateProcedure, refetchProcedure } from './invalidation/query-key';
+import { autoInvalidate } from '@repo/orpc-utils/hooks/invalidation/auto';
+import { invalidateProcedure, refetchProcedure } from '@repo/orpc-utils/hooks/invalidation/query-key';
 import type {
   InvalidationStrategy,
   ProcedureInvalidationConfig,
   ProcedureInvalidator,
-} from './invalidation/types';
+} from '@repo/orpc-utils/hooks/invalidation/types';
 
 export type {
   InvalidationStrategy,
   ProcedureInvalidationConfig,
   ProcedureInvalidator,
-} from './invalidation/types';
+} from '@repo/orpc-utils/hooks/invalidation/types';
 
 /**
  * Create a procedure invalidator with smart defaults
@@ -78,4 +78,4 @@ export function createProcedureInvalidator(
   };
 }
 
-export { commonPatterns } from './invalidation/patterns';
+export { commonPatterns } from '@repo/orpc-utils/hooks/invalidation/patterns';

@@ -12,9 +12,9 @@ import {
     BaseStandardOperations,
     type EntityOperationOptions as BaseEntityOperationOptions,
     type ListPlainOptions as BaseListPlainOptions,
-} from "../base/standard-operations";
-import type { SchemaWithConfig } from "../base/types";
-import { CONFIG_SYMBOL } from "../base/types";
+} from "@repo/orpc-utils/operations/base/standard-operations";
+import type { SchemaWithConfig } from "@repo/orpc-utils/operations/base/types";
+import { CONFIG_SYMBOL } from "@repo/orpc-utils/operations/base/types";
 import {
     createPaginationConfigSchema,
     createSortingConfigSchema,
@@ -30,10 +30,10 @@ import {
     type ComputeInputSchema,
     type ComputeOutputSchema,
     type QueryBuilder,
-} from "./utils";
+} from "@repo/orpc-utils/operations/zod/utils/index";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- DetailedOutputBrand/DetailedInputBrand are imported so inferred declaration types can name them (TS4053)
-import { RouteBuilder, DetailedOutputBrand, DetailedInputBrand } from "../../builder/core/route-builder";
-import { ZodPluginTransformer } from "../../builder/index";
+import { RouteBuilder, DetailedOutputBrand, DetailedInputBrand } from "@repo/orpc-utils/builder/core/route-builder";
+import { ZodPluginTransformer } from "@repo/orpc-utils/builder/index";
 
 /**
  * Zod entity schema type - requires ZodObject for schema manipulation
@@ -656,15 +656,13 @@ export class ZodStandardOperations<
 
     // ==================== Utility Operations ====================
 
-    count(options?: { filtering?: SchemaWithConfig<unknown> }) {
+    count() {
         const builder = this.createBuilder({
             method: "GET",
             summary: `Count ${this.entityName}s`,
             description: `Get the total count of ${this.entityName}s`,
         })
             .path("/count");
-
-        void options;
 
         return builder
             .input((b) => b.query(z.object({ filter: z.any().optional() })))
@@ -1160,7 +1158,7 @@ export class ZodStandardOperations<
     streamingList(options?: (ZodListOperationOptions & { path?: HTTPPath }) | (BaseListPlainOptions & { path?: HTTPPath })) {
         const listOptions = options && "path" in options
             ? (() => {
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                 
                 const { path: _path, ...rest } = options;
                 return Object.keys(rest).length > 0 ? rest : undefined;
             })()

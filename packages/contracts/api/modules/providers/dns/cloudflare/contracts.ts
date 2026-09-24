@@ -107,7 +107,6 @@ const cloudflareDnsRecordListOutputSchema = z.object({
 });
 
 const cloudflareDnsRecordCheckInputSchema = z.object({
-    zoneId: z.string().min(1),
     recordName: z.string().min(1),
     recordType: z.enum(cloudflareDnsRecordTypes).optional(),
     /** When provided, `matchContent` reports whether a record's content equals it (trailing-dot + case insensitive). */
@@ -159,7 +158,7 @@ export const cloudflareCheckRecordContract = cloudflareRecordCheckOps
     .list()
     .input((b) => b
         .params((p) => p`/dns/cloudflare/${p("providerId", z.string())}/zones/${p("zoneId", z.string())}/check`)
-        .query(z.object({ recordName: z.string(), recordType: z.enum(cloudflareDnsRecordTypes).optional(), recordContent: z.string().min(1).optional() })),
+        .query(cloudflareDnsRecordCheckInputSchema),
     )
     .output(cloudflareDnsRecordCheckOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])

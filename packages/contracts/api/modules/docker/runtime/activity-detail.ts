@@ -3,7 +3,7 @@ import { dockerRuntimeActivityEntitySchema } from "@repo/contracts-entities";
 import z from "zod/v4";
 
 export const dockerRuntimeActivityDetailQuerySchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
 });
 
 const dockerRuntimeActivityDetailOps = standard.zod(

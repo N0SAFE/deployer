@@ -1,6 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
-// TODO: Install @nestjs/schedule to enable cron-based auto-verification
-// import { Cron, CronExpression } from '@nestjs/schedule';
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import {
   ProjectDomainNotFoundError,
   DnsLookupError,
@@ -16,11 +14,25 @@ import * as dns from 'dns/promises';
 import { randomBytes } from 'crypto';
 import { ProjectDomainRepository } from '../repositories/project-domain.repository';
 
+const AUTO_VERIFICATION_INTERVAL_MS = 60 * 60 * 1000;
+
 @Injectable()
-export class DomainVerificationService {
+export class DomainVerificationService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DomainVerificationService.name);
+  private autoVerificationTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(private readonly projectDomainRepository: ProjectDomainRepository) {}
+
+  onModuleInit(): void {
+    this.autoVerificationTimer = setInterval(() => {
+      void this.autoVerifyPendingDomains();
+    }, AUTO_VERIFICATION_INTERVAL_MS);
+    this.autoVerificationTimer.unref?.();
+  }
+
+  onModuleDestroy(): void {
+    if (this.autoVerificationTimer) clearInterval(this.autoVerificationTimer);
+  }
 
   /**
    * Generate a unique verification token for domain ownership.
@@ -236,8 +248,7 @@ The verification will be checked automatically within an hour, or you can trigge
   }
 
   /**
-   * Auto-verify pending domains (runs hourly)
-   * TODO: Uncomment @Cron decorator when @nestjs/schedule is installed
+  * Auto-verify pending domains (runs hourly).
    */
   // @Cron(CronExpression.EVERY_HOUR)
   async autoVerifyPendingDomains() {

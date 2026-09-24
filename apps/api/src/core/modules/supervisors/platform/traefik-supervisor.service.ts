@@ -21,10 +21,13 @@ import { HostnameService } from "../../platform-ingress/services/hostname.servic
 import { PlatformPaths } from "../../platform-ingress/services/platform-paths";
 import { PlatformIngressSettingsService } from "../../platform-ingress/services/platform-ingress-settings.service";
 import { platformTraefikContainerName } from "../../platform-ingress/services/platform-names";
+import { BaseDockerSupervisorService } from "@/core/modules/docker/services/base-docker-supervisor.service";
 import {
-	BaseDockerSupervisorService,
-	type DockerSupervisorContainerSpec,
-} from "@/core/modules/docker/services/base-docker-supervisor.service";
+	platformOverlayForPrefix,
+	resolveSupervisorRuntime,
+	type DockerSupervisorRuntime,
+} from "@/core/modules/docker/services/docker-supervisor-runtime";
+import type { SwarmEndpointPort, SwarmServiceSpecInput } from "@repo/contracts-entities";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
 import {
 	baseSupervisorPayloadSchema,
@@ -32,9 +35,9 @@ import {
 } from "@/core/modules/supervisors/base-supervisor.service";
 import {
 	baseSupervisorProcessInfoSchema,
-	dockerProcessInfoSchema,
+	swarmProcessInfoSchema,
 } from "@/core/modules/supervisors/supervisor-process-info";
-import { EnvService } from "@/config/env/env.service";
+import { EnvService } from "@repo/nest-env";
 import { splitManagedEnv } from "@repo/env";
 import { resolveDockerHostIp } from "@/core/modules/setup/utils/docker-host.utils";
 
@@ -51,19 +54,8 @@ export const PLATFORM_INGRESS_SUPERVISOR_ID = "platform-ingress-traefik";
  * measurement that could not be obtained (container missing, probe failed).
  */
 export const traefikSupervisorPayloadSchema = baseSupervisorPayloadSchema.extend({
-	container: z
-		.object({
-			id: z.string(),
-			name: z.string(),
-			image: z.string(),
-			running: z.boolean(),
-			exitCode: z.number().int().nullable(),
-			sizeRw: z.number().int().min(0).nullable(),
-			sizeRootFs: z.number().int().min(0).nullable(),
-			restartCount: z.number().int().min(0),
-			startedAt: z.string().datetime().nullable(),
-		})
-		.nullable(),
+	/** Live view of the ingress swarm service (null when absent). */
+	service: swarmProcessInfoSchema.shape.live.nullable(),
 	entrypoint: z
 		.object({
 			host: z.string(),
@@ -96,7 +88,7 @@ export interface EntrypointProbe {
  * it (entry port, entry/api/web URLs) and the dynamic-config locations.
  */
 export const traefikProcessInfoSchema = baseSupervisorProcessInfoSchema.extend({
-	process: dockerProcessInfoSchema,
+	process: swarmProcessInfoSchema,
 	entry: z.object({
 		/** Configured entry port the ingress publishes (default 80). */
 		port: z.number().int().min(1),
@@ -184,22 +176,43 @@ export class TraefikSupervisorService extends BaseDockerSupervisorService<
 		return splitManagedEnv(this.env).traefik.enabled === true;
 	}
 
-	/** Deterministic container spec for the platform Traefik. The HTTP
-	 *  entrypoint is published outside production; headless deployments (prod
-	 *  behind the user's own proxy, or dev when the host port is taken) keep
-	 *  the entrypoint internal. Routing comes from the builder-generated
-	 *  dynamic config (file provider); the docker provider stays enabled for
-	 *  label-based discovery of future containers.
+	/**
+	 * Resolve the runtime. Ingress is NODE-LOCAL → `swarm-global` (one task per
+	 * node), `managed` when compose/operator owns it, and `unavailable` when the
+	 * engine is not a swarm member (no container fallback — see
+	 * `resolveSupervisorRuntime`).
+	 */
+	private async effectiveRuntime(): Promise<DockerSupervisorRuntime> {
+		return (
+			await resolveSupervisorRuntime({
+				managed: this.isExternallyManaged(),
+				rawRuntime: process.env.SUPERVISOR_RUNTIME,
+				swarmActive: await this.isSwarmActive(),
+				scope: "node-local",
+			})
+		).runtime;
+	}
+
+	/** Swarm service name — one GLOBAL task per node (node-local ingress). */
+	private swarmServiceName(): string {
+		return platformTraefikContainerName(this.env.get("DEPLOYER_PREFIX"));
+	}
+
+	/**
+	 * Desired SWARM spec for the platform ingress.
 	 *
-	 *  `hostPort` semantics:
-	 *    - `undefined` → default (dev: env-configured port, prod: headless)
-	 *    - `null`      → force HEADLESS (no host binding — port-conflict
-	 *                    fallback)
-	 *    - a number    → publish that specific host port */
-	protected buildContainerSpec(hostPort: number | null | undefined = undefined): DockerSupervisorContainerSpec {
+	 * GLOBAL mode: every node publishes its own entry ports and routes for the
+	 * tasks scheduled on it — the single-node case is identical (one task), so
+	 * there is one code path for every fleet size.
+	 *
+	 * `PublishMode: host` is required, not cosmetic: with the default ingress
+	 * mode a global service is rejected by the engine (the routing-mesh load
+	 * balancer cannot front one task per node), and bind failures for a taken
+	 * port must be reported per node rather than silently load balanced.
+	 */
+	protected buildSwarmSpec(hostPort: number | null | undefined = undefined): SwarmServiceSpecInput {
 		const prefix = this.env.get("DEPLOYER_PREFIX");
-		const socketPath =
-			this.env.get("DOCKER_HOST")?.replace("unix://", "") ?? "/var/run/docker.sock";
+		const socketPath = this.env.get("DOCKER_HOST")?.replace("unix://", "") ?? "/var/run/docker.sock";
 		const isProduction = this.env.get("NODE_ENV") === "production";
 		const port =
 			hostPort === null
@@ -210,15 +223,14 @@ export class TraefikSupervisorService extends BaseDockerSupervisorService<
 						? undefined
 						: this.env.get("DEPLOYER_TRAEFIK_HTTP_PORT");
 
-		// W5 TLS scaffolding: `DEPLOYER_TRAEFIK_TLS_ENABLED=true` adds the
-		// websecure (443) entrypoint + an HTTP→HTTPS redirect. TLS serves
-		// Traefik's built-in SELF-SIGNED default certificate until a real
-		// certificate source (file store / ACME) is configured — perfect for
-		// the first production deploy behind the platform hostname; opt-out
-		// (default) keeps the plain-HTTP dev/localhost flows untouched.
 		const tlsEnabled = this.env.get("DEPLOYER_TRAEFIK_TLS_ENABLED") === true;
+
+		// The docker provider must read SWARM services (workloads are services,
+		// not containers) alongside the file provider that carries the
+		// platform's own generated routes.
 		const command = [
 			"--providers.docker=true",
+			"--providers.docker.swarmMode=true",
 			"--providers.docker.exposedbydefault=false",
 			"--providers.file.directory=/config",
 			"--providers.file.watch=true",
@@ -233,120 +245,139 @@ export class TraefikSupervisorService extends BaseDockerSupervisorService<
 				: []),
 		];
 
+		const endpointPorts: SwarmEndpointPort[] = [];
+		if (port !== undefined) {
+			endpointPorts.push({ protocol: "tcp", publishedPort: port, targetPort: 80, publishMode: "host" });
+		}
+		if (tlsEnabled) {
+			endpointPorts.push({ protocol: "tcp", publishedPort: 443, targetPort: 443, publishMode: "host" });
+		}
+
 		return {
-			name: platformTraefikContainerName(prefix),
+			name: this.swarmServiceName(),
 			image: this.env.get("DEPLOYER_TRAEFIK_IMAGE"),
-			networkName: PlatformNetwork.name(prefix),
+			mode: "global",
+			replicas: 1,
+			env: [],
 			command,
-			// Config files are shared via a NAMED VOLUME: the API writes them
-			// under /app/traefik-configs (mounted from the volume by compose)
-			// and Traefik mounts the same volume at /config. Binding the
-			// volume name (not a container-internal path) is what makes the
-			// file provider actually see the generated configs.
-			binds: [`${socketPath}:/var/run/docker.sock:ro`, `${this.traefikConfigVolume()}:${TRAEFIK_CONFIG_MOUNT}:ro`],
-			portBindings: port === undefined ? undefined : {
-				"80/tcp": [{ HostPort: String(port) }],
-				...(tlsEnabled ? { "443/tcp": [{ HostPort: String(443) }] } : {}),
-			},
-			restartPolicy: "unless-stopped",
+			args: [],
 			labels: {
 				[PLATFORM_ROLE_LABEL]: PLATFORM_INGRESS_ROLE,
 				"deployer.platform.api-hostname": this.hostnameService.apiHostname(),
 				...(tlsEnabled ? { "deployer.traefik.tls": "enabled" } : {}),
 				// Record the desired ENTRY PORT — the reconcile compares this
-				// label to recreate the container when the web changes it.
+				// label to re-converge when the web changes it.
 				...(port !== undefined ? { [TraefikSupervisorService.ENTRY_PORT_LABEL]: String(port) } : {}),
 			},
+			containerLabels: {},
+			mounts: [
+				{ type: "bind", source: socketPath, target: "/var/run/docker.sock", readOnly: true },
+				{ type: "volume", source: this.traefikConfigVolume(), target: TRAEFIK_CONFIG_MOUNT, readOnly: true },
+			],
+			placementPreferences: [],
+			// Node-local ingress only makes sense where routing is desired.
+			placementConstraints: [],
+			resourcesLimits: {},
+			resourcesReservations: {},
+			networks: [],
+			healthcheck: null,
+			updateConfig: { parallelism: 1, delayMs: 0, order: "start-first", failureAction: "rollback" },
+			stopGracePeriodSeconds: 10,
+			endpointPorts,
 		};
 	}
 
-	/** One idempotent convergence pass: resolve the ENTRY PORT (local settings,
-	 *  default 80) → network → attach API → write routes → inspect → create/
-	 *  start → verify.
+	/**
+	 * Swarm-global convergence: ensure the overlay + config volume exist, then
+	 * idempotently converge the ingress service.
 	 *
-	 *  ENTRY-PORT SEMANTICS:
+	 * A bind failure on the entry port means the port is taken ON SOME NODE.
+	 * The service is removed (so no partial/looping state is left) and the
+	 * deterministic `EntryPortConflictError` is thrown — the backoff will not
+	 * retry it, and the web surfaces the conflict so the operator can pick a
+	 * free port.
+	 */
+	private async reconcileSwarm(desiredPort: number | null | undefined): Promise<void> {
+		const spec = this.buildSwarmSpec(desiredPort);
+		try {
+			await this.ensureVolume(this.traefikConfigVolume());
+			const overlay = await this.ensureSwarmNetwork(PlatformNetwork.name(this.env.get("DEPLOYER_PREFIX")));
+			this.attachOverlay(spec, overlay, [spec.name]);
+			await this.reconcileSwarmService(spec);
+			await this.connectSelfToOverlay(overlay);
+		} catch (startError) {
+			if (!this.isPortBindError(startError)) throw startError;
+			this.logger.warn(`Entry port ${String(desiredPort ?? "-")} unavailable — Traefik DEGRADED`);
+			await this.removeSwarmServiceIfExists(spec.name);
+			throw new EntryPortConflictError(desiredPort ?? 80);
+		}
+	}
+
+	/** Attach THIS API container to the platform overlay (bridge head between
+	 *  the compose-managed and swarm planes). No-op outside Docker. */
+	private async connectSelfToOverlay(overlay: string): Promise<void> {
+		const selfId = process.env.HOSTNAME;
+		if (selfId === undefined || !/^[0-9a-f]{12,64}$/.test(selfId)) return;
+		await this.client.getNetwork(overlay).connect({ Container: selfId }).catch(() => undefined);
+	}
+
+	/**
+	 * One idempotent convergence pass: resolve the ENTRY PORT (local settings,
+	 * default 80) → network → attach API → write routes → converge → verify.
+	 *
+	 * ENTRY-PORT SEMANTICS:
 	 *    - Desired host port comes from the local settings (entry port), NOT a
 	 *      silent auto-headless fallback. Default is 80.
 	 *    - When the port is unavailable (already bound), the reconcile THROWS
 	 *      → the supervisor is marked DEGRADED (an ERROR the web can see).
 	 *      The web then lets the operator set a different entry port; changing
-	 *      it (re-label) RECREATES the container on the new port and rechecks.
+	 *      it (re-label) RECONVERGES the service on the new port and rechecks.
 	 *    - Production headless (no host port, behind the user's own proxy) is
 	 *      the only case with no host binding. */
 	protected async reconcile(): Promise<void> {
+		const runtime = await this.effectiveRuntime();
+
+		if (runtime === "managed") {
+			// Compose/operator owns the ingress — the platform only needs its
+			// own config generated (the traefik core module does that) and the
+			// app containers reachable on the overlay.
+			await this.connectSelfToOverlay(platformOverlayForPrefix(this.env.get("DEPLOYER_PREFIX"))).catch(
+				() => undefined,
+			);
+			return;
+		}
+
+		if (runtime === "unavailable") {
+			throw new Error(
+				"Platform ingress requires an active swarm engine or managed (compose/operator) ownership — " +
+					"no legacy container fallback. SwarmBootstrapService should have converged the engine.",
+			);
+		}
+
 		await this.runWithBackoff(
 			"Platform ingress convergence",
 			async () => {
 				const entry = await this.settings.getPlatformEntry();
 				const desiredPort = this.isProduction() ? null : entry.port;
-				const spec = this.buildContainerSpec(desiredPort);
-
-				const networkId = spec.networkName !== undefined ? await this.ensureNetwork(spec.networkName) : undefined;
-
-				// Ensure the shared config volume exists (compose usually creates
-				// it; belt-and-suspenders for dockerode-only deployments).
-				await this.ensureVolume(this.traefikConfigVolume());
-
-				// The API must be reachable from inside the platform network for
-				// Traefik to forward to it. Attach our own container idempotently.
-				if (networkId !== undefined) {
-					await this.connectSelfToNetwork(networkId);
-				}
-
-				// NOTE: config files (dynamic-*.yml) are handled by the TRAEFIK
-				// CORE module (TraefikPlatformConfigService) — the file-provider
+				// Config files (dynamic-*.yml) are handled by the TRAEFIK CORE
+				// module (TraefikPlatformConfigService) — the file-provider
 				// watcher reloads them; this supervisor only ensures the PROCESS.
-
-				const inspect = await this.inspectContainer(spec.name);
-				// Recreate when the DESIRED entry port changed (label mismatch) —
-				// the web setting a new port must restart Traefik on it.
-				const labelPort = inspect !== null ? await this.readEntryPortLabel(inspect.Id) : null;
-				const portChanged = desiredPort !== null && labelPort !== null && desiredPort !== labelPort;
-
-				try {
-					if (inspect === null) {
-						// Fresh create on the (possibly new) entry port.
-						await this.pullImage(spec.image);
-						const container = await this.createContainer(spec, networkId);
-						await container.start();
-					} else if (portChanged) {
-						this.logger.log(`Entry port changed ${String(labelPort)} → ${String(desiredPort)} — recreating Traefik`);
-						await this.removeZombieContainer(spec.name);
-						await this.pullImage(spec.image);
-						const container = await this.createContainer(spec, networkId);
-						await container.start();
-					} else if (!inspect.State.Running) {
-						await this.client.getContainer(spec.name).start();
-					}
-				} catch (startError) {
-					// Entry port unavailable (already bound elsewhere) → remove
-					// the broken container and throw a CONFLICT error that
-					// skips further backoff retries (it is deterministic — the
-					// same port will keep failing). The supervisor is marked
-					// DEGRADED; the web surfaces this error and lets the
-					// operator set a free entry port (recreate-on-change).
-					if (!this.isPortBindError(startError)) throw startError;
-					this.logger.warn(`Entry port ${String(desiredPort ?? "-")} unavailable — Traefik DEGRADED`);
-					await this.removeZombieContainer(spec.name);
-					throw new EntryPortConflictError(desiredPort ?? 80);
-				}
-
-				await this.verifyConvergence(spec);
+				await this.reconcileSwarm(desiredPort);
+				await this.verifySwarmConvergence(this.buildSwarmSpec(desiredPort));
 			},
 			{ maxAttempts: 5 },
 		);
 	}
 
-	/** Read the desired entry port recorded on an existing container (label). */
-	private async readEntryPortLabel(containerId: string): Promise<number | null> {
-		try {
-			const info = await this.client.getContainer(containerId).inspect();
-			const raw = ((info.Config?.Labels ?? {}) as Record<string, string>)[TraefikSupervisorService.ENTRY_PORT_LABEL];
-			if (raw === undefined) return null;
-			const parsed = Number.parseInt(raw, 10);
-			return Number.isFinite(parsed) ? parsed : null;
-		} catch {
-			return null;
+	/** Confirm the ingress service exists and has a running task on this node. */
+	private async verifySwarmConvergence(spec: SwarmServiceSpecInput): Promise<void> {
+		const service = await this.dockerService.inspectSwarmService(spec.name);
+		if (service.ID === "") {
+			throw new Error(`platform ingress swarm service '${spec.name}' was not created`);
+		}
+		const tasks = await this.dockerService.listSwarmServiceTasks(spec.name).catch(() => []);
+		if (tasks.length > 0 && tasks.every((task) => task.Status.State !== "running")) {
+			throw new Error(`platform ingress swarm service '${spec.name}' has no running task`);
 		}
 	}
 
@@ -369,12 +400,6 @@ export class TraefikSupervisorService extends BaseDockerSupervisorService<
 			message.includes("failed to bind host port") ||
 			message.includes("bind: address")
 		);
-	}
-
-	/** Force-remove a partially-created container, tolerating already-gone. */
-	private async removeZombieContainer(name: string): Promise<void> {
-		await this.removeContainerIfExists(name);
-		this.logger.warn(`Removed zombie Traefik container "${name}" from the failed bind attempt`);
 	}
 
 	/** Directory on the API-side mount of the shared config volume (base of the
@@ -423,119 +448,50 @@ export class TraefikSupervisorService extends BaseDockerSupervisorService<
 		return selfId;
 	}
 
-	/** Idempotently attach our own container to the platform network. The API
-	 *  is usually ALREADY attached (compose declares the platform network) —
-	 *  the check is by NAME or ID and Docker's 403 “already exists” race is
-	 *  treated as benign. */
-	private async connectSelfToNetwork(networkId: string): Promise<void> {
-		const selfId = process.env.HOSTNAME;
-		if (selfId === undefined || !/^[0-9a-f]{12,64}$/.test(selfId)) return; // not in Docker
-
-		const ownName = await this.resolveOwnContainerName();
-		const network = this.client.getNetwork(networkId);
-		const isAttached = async (): Promise<boolean> => {
-			const details = await network.inspect().catch(() => null);
-			return Object.values(details?.Containers ?? {}).some((entry) => {
-				if (typeof entry !== "object" || entry === null) return false;
-				const name = (entry as { Name?: string }).Name?.replace(/^\//, "") ?? "";
-				return name === ownName;
-			});
-		};
-		if (await isAttached()) return;
-
-		try {
-			await network.connect({ Container: selfId });
-		} catch (error) {
-			// Docker BANS connecting an already-attached endpoint (403 “…
-			// already exists in network …”). That message is the PROOF the
-			// container is already on the network (compose attached it) —
-			// treat it as benign. Everything else: recheck by name, and only
-			// rethrow when we're definitely absent.
-			const message = error instanceof Error ? error.message : String(error);
-			if (message.includes("already exists")) return;
-			const attached = await isAttached();
-			if (!attached) throw error;
-		}
-	}
-
 	/**
-	 * REAL health observation: container state + sizes (docker inspect), real
-	 * entrypoint HTTP probe across candidate hosts (status code + latency) and
-	 * dynamic-config file size. Never throws for an unhealthy resource — the
-	 * payload records exactly what is broken.
+	 * REAL health observation: ingress service/task state, real entrypoint HTTP
+	 * probe across candidate hosts (status code + latency) and dynamic-config
+	 * file size. Never throws for an unhealthy resource — the payload records
+	 * exactly what is broken.
+	 *
+	 * A GLOBAL service runs one task per node, so health is judged on the LOCAL
+	 * task (the task this API's node runs) plus the entrypoint probe: another
+	 * node being down must not make THIS node's ingress report unhealthy.
 	 */
 	protected async probe(): Promise<SupervisorProbeResult<typeof traefikSupervisorPayloadSchema>> {
-		const spec = this.buildContainerSpec();
 		const startedAt = Date.now();
+		const spec = this.buildSwarmSpec();
 
-		const inspect = await this.inspectContainer(spec.name);
-		const inspectDetails = inspect as unknown as {
-			SizeRw?: number;
-			SizeRootFs?: number;
-			RestartCount?: number;
-			State?: { StartedAt?: string };
-		} | null;
-		const container =
-			inspect === null
+		const localTask = await this.localServiceTask(spec.name);
+		const service =
+			localTask === null
 				? null
 				: {
-						id: inspect.Id,
-						name: spec.name,
-						image: spec.image,
-						running: inspect.State.Running,
-						exitCode: inspect.State.ExitCode ?? null,
-						sizeRw: inspectDetails?.SizeRw ?? null,
-						sizeRootFs: inspectDetails?.SizeRootFs ?? null,
-						restartCount: inspectDetails?.RestartCount ?? 0,
-						startedAt: inspectDetails?.State?.StartedAt ?? null,
+						serviceId: localTask.serviceId,
+						exists: true,
+						createdAt: null,
+						updatedAt: null,
+						serviceName: spec.name,
+						runningTasks: localTask.state === "running" ? 1 : 0,
+						totalTasks: 1,
 					};
+
+		const entrypoint = await this.probeEntrypoint(await this.resolveProbeCandidates(spec.name));
 
 		let healthy: boolean;
 		let detail: string;
-		let entrypoint: EntrypointProbe;
-		if (spec.portBindings === undefined) {
-			// Headless (prod behind user's own proxy, or host-port conflict):
-			// the entrypoint has no host-reachable mapping, but when running
-			// inside Docker we can still do a REAL HTTP probe via the
-			// container name over the platform network (docker embedded DNS).
-			// Bare-metal keeps the running-state check only.
-			if (this.runsInsideContainer()) {
-				entrypoint = await this.probeEntrypoint(await this.resolveProbeCandidates(spec.name));
-				if (inspect === null) {
-					healthy = false;
-					detail = "container missing";
-				} else if (!inspect.State.Running) {
-					healthy = false;
-					detail = `container not running (exit ${String(inspect.State.ExitCode ?? "?")})`;
-				} else if (!entrypoint.reachable) {
-					healthy = false;
-					detail = `container running but entrypoint unreachable over the platform network`;
-				} else {
-					healthy = true;
-					detail = `routing ${this.hostnameService.apiHostname()} (internal entrypoint, HTTP ${String(entrypoint.statusCode ?? "?")})`;
-				}
-			} else {
-				entrypoint = { reachable: true, host: "(internal)", port: 80, statusCode: null, latencyMs: null };
-				if (inspect === null) {
-					healthy = false;
-					detail = "container missing";
-				} else if (!inspect.State.Running) {
-					healthy = false;
-					detail = `container not running (exit ${String(inspect.State.ExitCode ?? "?")})`;
-				} else {
-					healthy = true;
-					detail = `routing ${this.hostnameService.apiHostname()} (internal entrypoint)`;
-				}
-			}
+		if (service === null) {
+			healthy = false;
+			detail = "ingress swarm service missing on this node";
+		} else if (service.runningTasks === 0) {
+			healthy = false;
+			detail = `ingress task not running on this node (state=${localTask?.state ?? "unknown"})`;
+		} else if (!entrypoint.reachable) {
+			healthy = false;
+			detail = `ingress running but entrypoint unreachable (${entrypoint.host})`;
 		} else {
-			entrypoint = await this.probeEntrypoint(await this.resolveProbeCandidates(spec.name));
-			if (entrypoint.reachable) {
-				healthy = true;
-				detail = `routing ${this.hostnameService.apiHostname()} via ${entrypoint.host}:${String(entrypoint.port)} (HTTP ${String(entrypoint.statusCode ?? "?")})`;
-			} else {
-				healthy = false;
-				detail = `entrypoint unreachable (${entrypoint.host}): HTTP probe failed`;
-			}
+			healthy = true;
+			detail = `routing ${this.hostnameService.apiHostname()} via ${entrypoint.host}:${String(entrypoint.port)} (HTTP ${String(entrypoint.statusCode ?? "?")})`;
 		}
 
 		// Dynamic config artifact measurement.
@@ -555,7 +511,7 @@ export class TraefikSupervisorService extends BaseDockerSupervisorService<
 			payload: {
 				checkedAt: new Date().toISOString(),
 				latencyMs: Date.now() - startedAt,
-				container,
+				service,
 				entrypoint,
 				config: {
 					apiHostname: this.hostnameService.apiHostname(),
@@ -567,12 +523,44 @@ export class TraefikSupervisorService extends BaseDockerSupervisorService<
 		};
 	}
 
+	/**
+	 * The task of a GLOBAL service that runs on THIS node, with its state.
+	 * Returns null when the service or the local task is absent.
+	 */
+	private async localServiceTask(
+		serviceName: string,
+	): Promise<{ serviceId: string | null; state: string } | null> {
+		try {
+			const service = await this.dockerService.inspectSwarmService(serviceName);
+			const tasks = await this.dockerService.listSwarmServiceTasks(serviceName).catch(() => []);
+			const selfNodeId = await this.selfNodeId();
+			const local =
+				selfNodeId === null
+					? tasks[0]
+					: tasks.find((task) => task.NodeID === selfNodeId);
+			if (local === undefined) return null;
+			return { serviceId: service.ID ?? null, state: local.Status.State };
+		} catch {
+			return null;
+		}
+	}
+
+	/** This node's engine id (read once per call — survives node re-joins). */
+	private async selfNodeId(): Promise<string | null> {
+		try {
+			const info = await this.dockerService.getSwarmInfo();
+			return info.NodeID === "" ? null : info.NodeID;
+		} catch {
+			return null;
+		}
+	}
+
 	/** Payload shape when the probe mechanism itself fails (docker socket down, etc.). */
 	protected buildDegradedPayload(_detail: string): z.output<typeof traefikSupervisorPayloadSchema> {
 		return {
 			checkedAt: new Date().toISOString(),
 			latencyMs: 0,
-			container: null,
+			service: null,
 			entrypoint: null,
 			config: {
 				apiHostname: this.hostnameService.apiHostname(),
@@ -591,10 +579,10 @@ export class TraefikSupervisorService extends BaseDockerSupervisorService<
 	protected async buildProcessInfo(): Promise<Record<string, unknown>> {
 		const entry = await this.settings.getPlatformEntry();
 		const desiredPort = this.isProduction() ? null : entry.port;
-		const spec = this.buildContainerSpec(desiredPort);
-		const published = spec.portBindings !== undefined;
+		const spec = this.buildSwarmSpec(desiredPort);
+		const published = spec.endpointPorts.length > 0;
 		return {
-			process: await this.describeDockerProcess(spec),
+			process: await this.describeSwarmProcess(spec),
 			entry: {
 				port: entry.port,
 				isDefault80: entry.isDefault80,
@@ -610,28 +598,6 @@ export class TraefikSupervisorService extends BaseDockerSupervisorService<
 				dynamicApiFile: PlatformPaths.apiConfigFile(this.platformConfigDir()),
 			},
 		};
-	}
-
-	/** Proof of convergence right after create/start within a backoff attempt. */
-	private async verifyConvergence(spec: DockerSupervisorContainerSpec): Promise<void> {
-		if (spec.portBindings !== undefined) {
-			// The outer runWithBackoff retries the entire reconcile pass,
-			// so a transient refusal (Traefik still binding) resolves on the
-			// next attempt with backoff delay.
-			const probe = await this.probeEntrypoint(await this.resolveProbeCandidates(spec.name));
-			if (!probe.reachable) {
-				throw new Error(`ingress entrypoint not reachable after start (${probe.host}:${String(probe.port)})`);
-			}
-			return;
-		}
-		// No published port (headless prod behind user's own proxy) — re-read
-		// state after a short settle window; Traefik exits fast on bad config,
-		// so still-running shortly after start is a solid liveness signal.
-		await this.delay(TraefikSupervisorService.SETTLE_WINDOW_MS);
-		const inspect = await this.inspectContainer(spec.name);
-		if (inspect === null || !inspect.State.Running) {
-			throw new Error(`ingress container exited during settle window (exit ${String(inspect?.State.ExitCode ?? "missing")})`);
-		}
 	}
 
 	/** True when this process runs inside a Docker container. */

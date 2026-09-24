@@ -6,13 +6,22 @@
 
 import { Injectable, Logger } from "@nestjs/common";
 import { Observable } from "rxjs";
-import type { ClusterSnapshot, ClusterNode, SwarmNodeResources, SwarmServiceRuntime, SwarmTaskRuntime } from "@repo/contracts-entities";
+import type { ClusterPlatformRole, ClusterSnapshot, ClusterNode, SwarmNodeResources, SwarmServiceRuntime, SwarmTaskRuntime, SwarmConfigView, SwarmParticipationInput } from "@repo/contracts-entities";
 import { clusterNodeInventoryRowSchema } from "@repo/api-contracts";
 import type { ClusterMasterView } from "@repo/api-contracts";
 import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
 import { SwarmFleetService } from "@/core/modules/swarm/services/swarm-fleet.service";
+import { SwarmParticipationService } from "@/core/modules/swarm/services/swarm-participation.service";
+import { DockerService } from "@/core/modules/docker/services/docker.service";
+import {
+    ingressFromLabels,
+    platformRoleFromLabels,
+    withIngress,
+    withPlatformRole,
+} from "@/core/modules/swarm/swarm-node-labels";
 import { ClusterNodeRepository } from "@/core/modules/swarm/repositories/cluster-node.repository";
 import { ClusterNodeInventoryRepository } from "@/core/modules/swarm/repositories/cluster-node-inventory.repository";
+import { EnvService } from "@repo/nest-env";
 
 @Injectable()
 export class ClusterService {
@@ -21,9 +30,21 @@ export class ClusterService {
     constructor(
         private readonly swarmClusterService: SwarmClusterService,
         private readonly swarmFleetService: SwarmFleetService,
+        private readonly participation: SwarmParticipationService,
         private readonly clusterNodeRepository: ClusterNodeRepository,
         private readonly inventoryRepository: ClusterNodeInventoryRepository,
+        private readonly env: EnvService,
     ) {}
+
+    /** Swarm participation read-model (mode/policy/engine state). */
+    async getSwarmConfig(): Promise<SwarmConfigView> {
+        return this.participation.view();
+    }
+
+    /** Persist + converge the participation config; returns the fresh view. */
+    async setSwarmConfig(input: SwarmParticipationInput): Promise<SwarmConfigView> {
+        return this.participation.applyConfig(input);
+    }
 
     /** Local engine's current Swarm snapshot (typed). */
     async getSnapshot(): Promise<ClusterSnapshot> {
@@ -41,21 +62,6 @@ export class ClusterService {
             };
             push();
             const timer = setInterval(push, 10_000);
-            return () => clearInterval(timer);
-        });
-    }
-
-    /** Observable stream of cluster snapshots at 30s intervals. */
-    snapshotStream$() {
-        return new Observable<ClusterSnapshot>((subscriber) => {
-            const push = () => {
-                this.swarmClusterService
-                    .getLocalClusterSnapshot()
-                    .then((snapshot) => subscriber.next(snapshot))
-                    .catch((err) => this.logger.warn(`Snapshot stream error: ${err}`));
-            };
-            push(); // initial push
-            const timer = setInterval(push, 30_000);
             return () => clearInterval(timer);
         });
     }
@@ -114,6 +120,11 @@ export class ClusterService {
 
     /**
      * Current controlling-master view (elected node + term + heartbeat state).
+     *
+     * This is the PLATFORM master (the mesh election result persisted by
+     * `SwarmLeadershipService`), not the Raft leader reported in the engine
+     * snapshot. The staleness window uses the SAME env knobs as the election
+     * watchdog, so the view can never disagree with the elector.
      */
     async getMaster(): Promise<ClusterMasterView> {
         const row = this.clusterNodeRepository.find();
@@ -121,8 +132,8 @@ export class ClusterService {
             return null;
         }
         const heartbeatAt = row.lastHeartbeatAt ? Date.parse(row.lastHeartbeatAt) : 0;
-        const ttlMs = 30_000;
-        const graceMs = 15_000;
+        const ttlMs = this.env.get("SWARM_HEARTBEAT_TTL_MS");
+        const graceMs = this.env.get("SWARM_MASTER_GRACE_MS");
         const stale = heartbeatAt > 0 && Date.now() - heartbeatAt > ttlMs + graceMs;
         return {
             nodeId: row.masterNodeId,
@@ -136,63 +147,72 @@ export class ClusterService {
 
     /**
      * Update a node's platform role / ingress labels via the SDK
-     * (node.update Spec.Labels — SW-031) and persist to the inventory.
+     * (node.update Spec.Labels — SW-031) and persist to the local inventory.
+     *
+     * The LABELS are the durable record: the local inventory is a cache the
+     * periodic sweep rebuilds from `docker node ls`, so the role must be
+     * written onto the node — otherwise it is erased on the next sweep.
      */
     async updateNodeLabels(nodeId: string, input: {
-        platformRole?: "both" | "control" | "worker";
+        platformRole?: ClusterPlatformRole;
         ingress?: boolean;
     }): Promise<ClusterNode> {
-        const node = await this.swarmClusterService.inspectSwarmNode(nodeId);
-
-        const labels = { ...(node.Spec?.Labels ?? {}) };
-        if (input.ingress === true) {
-            labels["deployer.ingress"] = "true";
-        } else if (input.ingress === false) {
-            delete labels["deployer.ingress"];
-        }
-
-        const row = this.clusterNodeRepository.find();
-        const platformRole = input.platformRole ?? (row?.platformRole ?? "both");
+        const before = await this.swarmClusterService.inspectSwarmNode(nodeId);
 
         await this.swarmClusterService.updateSwarmNodeLabels(
             nodeId,
-            node.Version.Index,
-            labels,
+            before.Version.Index,
+            withIngress(
+                withPlatformRole(before.Spec?.Labels ?? {}, input.platformRole ?? null),
+                input.ingress ?? null,
+            ),
         );
 
-        // Persist the updated role/ingress into the local inventory.
+        // Re-read the ENGINE and answer from THAT — the node as it now IS, not as
+        // it was asked to be. Deriving the response from the requested values
+        // reported success for a label write the engine had not applied (and, via
+        // `upsertFromEngine` below, poisoned the inventory cache with it until the
+        // next sweep). The cache is now rebuilt from the same source the sweep
+        // uses, so a partial write is visible immediately instead of being masked.
+        const node = await this.swarmClusterService.inspectSwarmNode(nodeId);
+        const labels = node.Spec?.Labels ?? {};
         const hostname = node.Description?.Hostname ?? "";
+        const swarmRole = DockerService.resolveSwarmNodeRole(node);
+        const platformRole = platformRoleFromLabels(labels);
+        const isIngress = ingressFromLabels(labels);
+        const isMaster = node.ManagerStatus?.Leader === true;
+        const availability =
+            node.Spec?.Availability === "pause" || node.Spec?.Availability === "drain"
+                ? node.Spec.Availability
+                : "active";
+        const capacity = {
+            nanoCpus: node.Description?.Resources?.NanoCPUs ?? null,
+            memoryBytes: node.Description?.Resources?.MemoryBytes ?? null,
+        };
+
+        // Persist the engine's actual role/ingress into the local inventory (cache).
         this.inventoryRepository.upsertFromEngine({
             nodeId,
             hostname,
-            swarmRole: node.Spec?.Role === "manager" ? "manager" : "worker",
+            swarmRole,
             platformRole,
-            isLeader: node.ManagerStatus?.Leader === true,
-            isIngress: labels["deployer.ingress"] === "true",
-            availability:
-                node.Spec?.Availability === "pause" || node.Spec?.Availability === "drain"
-                    ? node.Spec.Availability
-                    : "active",
-            nanoCpus: node.Description?.Resources?.NanoCPUs ?? null,
-            memoryBytes: node.Description?.Resources?.MemoryBytes ?? null,
+            isLeader: isMaster,
+            isIngress,
+            availability,
+            nanoCpus: capacity.nanoCpus,
+            memoryBytes: capacity.memoryBytes,
             labels,
         });
 
         return {
             nodeId,
             hostname,
-            swarmRole: node.Spec?.Role === "manager" ? "manager" : "worker",
+            swarmRole,
             platformRole,
-            isMaster: node.ManagerStatus?.Leader === true,
-            isIngress: labels["deployer.ingress"] === "true",
-            availability:
-                node.Spec?.Availability === "pause" || node.Spec?.Availability === "drain"
-                    ? node.Spec.Availability
-                    : "active",
-            capacity: {
-                nanoCpus: node.Description?.Resources?.NanoCPUs ?? null,
-                memoryBytes: node.Description?.Resources?.MemoryBytes ?? null,
-            },
+            isMaster,
+            isIngress,
+            availability,
+            capacity,
             labels,
             lastHeartbeatAt: new Date().toISOString(),
         };

@@ -334,7 +334,10 @@ export class InitializationService implements OnModuleInit {
     }
 
     private async runLocalFlow(
-        input: { name: string; email: string; password: string; existingDatabaseUrl?: string; serverUrl: string },
+        input: {
+            name: string; email: string; password: string; existingDatabaseUrl?: string; serverUrl: string;
+            swarm?: { mode?: "create" | "join"; policy?: "auto" | "manager" | "worker"; advertiseAddr?: string | null; joinToken?: string | null; joinAddrs?: string[] };
+        },
         tracker: SetupStepTracker,
         emit: EmitEvent,
     ): Promise<{ nodeId: string; databaseUrl: string }> {

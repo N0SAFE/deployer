@@ -46,7 +46,7 @@ export interface MinimalAuthClient<TSession = unknown> {
 /**
  * Options for creating a session-aware auth client
  */
-export interface CreateSessionAwareAuthClientOptions<TSession = unknown> {
+export interface CreateSessionAwareAuthClientOptions<_TSession = unknown> {
     /**
      * Query key used for session data in React Query cache
      * @default ['session']

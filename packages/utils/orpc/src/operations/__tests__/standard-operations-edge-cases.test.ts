@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import z from 'zod/v4';
-import { standard } from '../zod/standard-operations';
-import { createFilterConfig } from '../zod/list-builder';
+import { standard } from '@repo/orpc-utils/operations/zod/standard-operations';
+import { createFilterConfig } from '@repo/orpc-utils/operations/zod/list-builder';
 
 describe('Standard Operations - Advanced Edge Cases', () => {
   const userSchema = z.object({

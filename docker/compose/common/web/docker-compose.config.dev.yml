@@ -67,12 +67,16 @@ services:
       - turbo_cache_dev:/root/.cache/turbo
     develop:
       watch:
-        # Restart when Docker Compose configuration changes
+        # Restart when Docker Compose configuration changes.
+        # NOTE the `common/` segment: this file lives at
+        # docker/compose/common/web/, and a rule pointing at
+        # docker/compose/web/ matches nothing, so editing the watch config
+        # itself never took effect until the stack was restarted by hand.
         - action: restart
-          path: ../../../../
+          path: ../../../..
           target: /app
           include:
-            - docker/compose/web/docker-compose.config.dev.yml
+            - docker/compose/common/web/docker-compose.config.dev.yml
             - docker/compose/docker-compose.dev.yml
         # Rebuild when critical dependency or config files change
         - action: rebuild
@@ -115,7 +119,12 @@ services:
             - "**/.parcel-cache/"
             - "**/.vite/"
             - "**/*.log"
-            - "**/logs/"
+            # Deliberately NOT "**/logs/". That pattern reads like "log output",
+            # but `logs` is a ROUTE segment in this app
+            # (app/dashboard/**/logs/page.tsx), so it silently excluded real
+            # source from the sync: edits to the service-logs and docker-logs
+            # pages never reached the container. Log FILES are already covered
+            # by the "**/*.log" rule above.
             - .git/
             - .gitignore
             - docker/

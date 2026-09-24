@@ -5,7 +5,6 @@ import { spawn } from 'child_process'
 import { existsSync, rmSync, mkdirSync, cpSync } from 'fs'
 import * as path from 'path'
 
-// @ts-expect-error -- Bun provides import.meta.dir
 const __dirname = import.meta.dir
 const srcDir = path.join(__dirname, '..', 'src')
 const distDir = path.join(__dirname, '..', 'dist')
@@ -62,10 +61,26 @@ async function runBuild(): Promise<void> {
       entry: '[dir]/[name].[ext]',
       chunk: 'chunk-[hash].[ext]',
     },
+    // Keep these external — they must be resolved at runtime from node_modules,
+    // not inlined into the bundle:
+    //
+    //   class-transformer, @nestjs/microservices, @nestjs/platform-socket.io
+    //     Optional NestJS peers. @nestjs/core requires them lazily and tolerates
+    //     their absence; bundling turns that optional require into a hard
+    //     build-time failure.
+    //
+    //   vite, @vitejs/plugin-react
+    //     Vite 8 statically references its *optional* peer
+    //     `@vitejs/devtools/config` from inside its own node chunk. Bundling
+    //     vite therefore fails to resolve a package that is legitimately
+    //     absent. Vite is only used by the SSR dev server, which runs from
+    //     node_modules in every environment, so it does not need bundling.
     external: [
       "class-transformer",
       "@nestjs/microservices",
       "@nestjs/platform-socket.io",
+      "vite",
+      "@vitejs/plugin-react",
     ]
   } as BuildConfig
 

@@ -15,8 +15,8 @@ import {
     type PaginationConfig as BasePaginationConfig,
     type PaginationSchemaOutput as BasePaginationSchemaOutput,
     type PaginationMetaSchemaOutput as BasePaginationMetaSchemaOutput,
-} from "../../base/utils/pagination";
-import { CONFIG_SYMBOL } from "../../base/types";
+} from "@repo/orpc-utils/operations/base/utils/pagination";
+import { CONFIG_SYMBOL } from "@repo/orpc-utils/operations/base/types";
 
 // Re-export base types for external use
 export type { BasePaginationConfig, BasePaginationSchemaOutput, BasePaginationMetaSchemaOutput };

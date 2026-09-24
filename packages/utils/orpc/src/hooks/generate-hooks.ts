@@ -15,20 +15,20 @@ import {
   createStreamedQueryHook,
   type ExtractMutationInput,
   type ExtractMutationOutput,
-} from './core/hook-factories';
+} from '@repo/orpc-utils/hooks/core/hook-factories';
 import {
   detectOperationType,
   inferInvalidations,
-} from './core/operation-detection';
+} from '@repo/orpc-utils/hooks/core/operation-detection';
 import type {
-} from "./types";
-import { isRecord, isObjectLike } from "@repo/type-guards";
+} from "@repo/orpc-utils/hooks/types/index";
+import { isObjectLike } from "@repo/type-guards";
 import type {
   InvalidationConfig,
   MutationProcedureNames,
   RouterHooks,
   RouterHooksOptions,
-} from './types';
+} from '@repo/orpc-utils/hooks/types/index';
 
 // Re-export runtime helpers/types for stable public API
 export {
@@ -36,7 +36,7 @@ export {
   createMutationHook,
   createStreamedQueryHook,
   createLiveQueryHook,
-} from './core/hook-factories';
+} from '@repo/orpc-utils/hooks/core/hook-factories';
 export type {
   ExtractInput,
   ExtractOutput,
@@ -44,14 +44,14 @@ export type {
   ExtractMutationOutput,
   StreamedQueryOptions,
   LiveQueryOptions,
-} from './core/hook-factories';
+} from '@repo/orpc-utils/hooks/core/hook-factories';
 
 export {
   detectOperationType,
   inferInvalidations,
   isEventIteratorOutput,
-} from './core/operation-detection';
-export type { OperationType } from './core/operation-detection';
+} from '@repo/orpc-utils/hooks/core/operation-detection';
+export type { OperationType } from '@repo/orpc-utils/hooks/core/operation-detection';
 
 // Re-export all generate-hooks public types from dedicated type module
 export type {
@@ -73,7 +73,7 @@ export type {
   ExtractCustomHookInput,
   ExtractCustomHookOutput,
   CustomInvalidationContext,
-} from './types';
+} from '@repo/orpc-utils/hooks/types/index';
 
 /**
  * Generate all hooks for an ORPC router with automatic cache invalidation.
@@ -195,7 +195,7 @@ export function createRouterHooks<TContract extends object, TRouter extends obje
       const results: { queryKey: unknown; input?: unknown; scope?: 'all' | 'exact' }[] = [];
 
       const add = (queryName: string, input: unknown, scope: 'all' | 'exact') => {
-        const queryProcedure = router[queryName] as Record<string, unknown> | undefined;
+        const queryProcedure = (router as Record<string, { queryKey?: unknown } | undefined>)[queryName];
         if (!queryProcedure?.queryKey) {
           if (options.debug) {
             console.warn(`Query procedure "${queryName}" not found for invalidation`);

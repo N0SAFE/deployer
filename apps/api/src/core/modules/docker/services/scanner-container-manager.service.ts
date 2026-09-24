@@ -1,5 +1,5 @@
 import { Injectable, type OnModuleDestroy, Logger } from "@nestjs/common";
-import { EnvService } from "@/config/env/env.service";
+import { EnvService } from "@repo/nest-env";
 import { DockerService } from "./docker.service";
 import { AppError } from "@repo/errors";
 import { isRecord, isObjectLike } from "@repo/type-guards"

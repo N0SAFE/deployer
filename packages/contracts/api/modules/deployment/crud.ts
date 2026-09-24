@@ -300,7 +300,18 @@ const deploymentRetryOps = standard.zod(deploymentRetryOutputSchema, "deployment
 
 export const deploymentRetryContract = deploymentRetryOps
     .create()
-    .input((b) => b.params((p) => p`/${p("id", z.uuid())}/retry`))
+    .input((b) =>
+        b
+            .params((p) => p`/${p("id", z.uuid())}/retry`)
+            // Retry needs nothing beyond the id: it re-runs THIS deployment and
+            // returns the id of the new one. Declaring the (empty) body is not
+            // cosmetic — without it the input type is seeded from the OUTPUT
+            // schema, so callers were told to supply `retryDeploymentId` and
+            // `message`: the id of the deployment the call is about to create,
+            // and its own success message. That is unsatisfiable, and it is why
+            // every caller bypassed the type with `as any`.
+            .body(z.object({})),
+    )
     .output(deploymentRetryOutputSchema)
     .errors((e) => [
         // 404 for unknown id; 409 when retry isn't allowed from this state.

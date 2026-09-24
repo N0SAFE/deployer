@@ -1,13 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
+import { NotFoundException } from "@nestjs/common";
 import {
 	GlobalDbSupervisorService,
 	GLOBAL_DB_SUPERVISOR_ID,
 } from "./global-db-supervisor.service";
 import { SupervisorOrchestratorService } from "@/core/modules/supervisors/supervisor-orchestrator.service";
 import type { DockerService } from "@/core/modules/docker/services/docker.service";
-import type { PostgresContainerService } from "@/core/modules/docker/containers/postgres/postgres-container.service";
+import type { PostgresServiceProvisioner } from "@/core/modules/docker/containers/postgres/postgres-service.provisioner";
 import type { NodeConfigRepository } from "@/core/modules/setup/repositories/node-config.repository";
-import type { EnvService } from "@/config/env/env.service";
+import type { EnvService } from "@repo/nest-env";
 
 type InspectResult = {
 	Id: string;
@@ -17,6 +18,9 @@ type InspectResult = {
 };
 
 function makeMocks(provisioning: "local" | "external" | null = "local") {
+	// Port 1 is never open: the "unreachable" probe test must not depend on the
+	// host's 5432 being free (the managed Postgres container publishes exactly
+	// that port, so using it made the fixture flap between runs).
 	const nodeConfigRepository = {
 		find: vi.fn(() =>
 			provisioning === null
@@ -25,16 +29,38 @@ function makeMocks(provisioning: "local" | "external" | null = "local") {
 						nodeId: "n1",
 						strategy: "local",
 						setupState: "setup_done",
-						databaseUrl: "postgres://deployer:deployer@127.0.0.1:5432/deployer",
+						databaseUrl: "postgres://deployer:deployer@127.0.0.1:1/deployer",
 						databaseProvisioning: provisioning,
 						configuredAt: "2026-01-01T00:00:00.000Z",
 					}),
 	} as unknown as NodeConfigRepository;
 
-	const started = vi.fn(async () => ({ id: "pg-1" } as Awaited<ReturnType<PostgresContainerService["startPostgresContainer"]>>));
-	const postgresContainerService = {
-		startPostgresContainer: started,
-	} as unknown as PostgresContainerService;
+	const startPostgresContainer = vi.fn(async () => ({ id: "pg-1" }));
+	const provisioner = {
+		buildSpec: vi.fn(() => ({
+			name: "deployer-postgres",
+			image: "postgres:16-alpine",
+			mode: "replicated" as const,
+			replicas: 1,
+			env: [],
+			command: [],
+			args: [],
+			labels: {},
+			containerLabels: {},
+			mounts: [],
+			placementPreferences: [],
+			placementConstraints: [],
+			resourcesLimits: {},
+			resourcesReservations: {},
+			networks: [],
+			healthcheck: null,
+			updateConfig: { parallelism: 1, delayMs: 0, order: "start-first" as const, failureAction: "rollback" as const },
+			endpointPorts: [],
+			stopGracePeriodSeconds: 60,
+		})),
+		attachOverlay: vi.fn((spec: unknown) => spec),
+		ensureOverlay: vi.fn(async () => "deployer-platform-overlay"),
+	} as unknown as PostgresServiceProvisioner;
 
 	const inspectContainer = vi.fn(async (): Promise<InspectResult | null> => ({
 		Id: "pg-1",
@@ -51,14 +77,31 @@ function makeMocks(provisioning: "local" | "external" | null = "local") {
 		getDockerClient: () => ({
 			getContainer: vi.fn(() => ({
 				inspect: inspectContainer,
+				remove: vi.fn(async () => undefined),
 			})),
 			getVolume: vi.fn(() => ({
 				inspect: inspectVolume,
 			})),
 		}),
+		getSwarmInfo: async () => ({
+			NodeID: "n1",
+			NodeAddr: "",
+			LocalNodeState: "active",
+			ControlAvailable: true,
+			Error: "",
+			RemoteManagers: null,
+			Nodes: 1,
+			Managers: 1,
+		}),
+		inspectSwarmService: vi.fn(async () => ({ ID: "svc-1", Version: { Index: 1 }, Spec: { Name: "deployer-postgres" } })),
+		createSwarmService: vi.fn(async () => ({ ID: "svc-1" })),
+		updateSwarmService: vi.fn(async () => undefined),
+		removeSwarmService: vi.fn(async () => undefined),
+		ensureOverlayNetwork: vi.fn(async () => "net-id"),
+		listSwarmServiceTasks: vi.fn(async () => [{ Status: { State: "running" } }]),
 	} as unknown as DockerService;
 
-	return { nodeConfigRepository, postgresContainerService, dockerService, started, inspectContainer, inspectVolume };
+	return { nodeConfigRepository, provisioner, dockerService, startPostgresContainer, inspectContainer, inspectVolume };
 }
 
 function makeSupervisor(mocks: ReturnType<typeof makeMocks>): GlobalDbSupervisorService {
@@ -71,8 +114,8 @@ function makeSupervisor(mocks: ReturnType<typeof makeMocks>): GlobalDbSupervisor
 		}),
 	} as unknown as EnvService;
 	return new GlobalDbSupervisorService(
-		mocks.postgresContainerService,
 		mocks.dockerService,
+		mocks.provisioner,
 		mocks.nodeConfigRepository,
 		env,
 	);
@@ -115,14 +158,15 @@ describe("GlobalDbSupervisorService — conditional registration", () => {
 });
 
 describe("GlobalDbSupervisorService — reconcile", () => {
-	it("ensures the managed container runs for a locally-managed database", async () => {
+	it("ensures the swarm service runs for a locally-managed database", async () => {
 		const mocks = makeMocks("local");
 		const supervisor = makeSupervisor(mocks);
 
 		const state = await supervisor.ensureDesiredState();
 
 		expect(state).toBe("converged");
-		expect(mocks.started).toHaveBeenCalledTimes(1);
+		// Swarm path: inspectSwarmService → reconcileSwarmService → updateSwarmService
+		expect(mocks.dockerService.inspectSwarmService).toHaveBeenCalled();
 	});
 
 	it("does NOT touch the container for an external database", async () => {
@@ -132,7 +176,7 @@ describe("GlobalDbSupervisorService — reconcile", () => {
 		const state = await supervisor.ensureDesiredState();
 
 		expect(state).toBe("converged");
-		expect(mocks.started).not.toHaveBeenCalled();
+		expect(mocks.startPostgresContainer).not.toHaveBeenCalled();
 	});
 });
 
@@ -150,19 +194,20 @@ describe("GlobalDbSupervisorService — probe / health", () => {
 		// Discriminated union resolves to the "managed" branch.
 		expect(health.payload.mode).toBe("managed");
 		if (health.payload.mode === "managed") {
-			expect(health.payload.container).not.toBeNull();
-			expect(health.payload.container?.sizeRw).toBe(12_345);
-			expect(health.payload.container?.sizeRootFs).toBe(98_765);
+			expect(health.payload.service).not.toBeNull();
+			expect(health.payload.service?.runningTasks).toBe(1);
 			expect(health.payload.volume?.sizeBytes).toBe(4_567_890);
 			expect(mocks.inspectVolume).toHaveBeenCalled();
 		}
 	});
 
-	it("reports unhealthy when the managed container is missing (local DB)", async () => {
+	it("reports unhealthy when the managed swarm service is missing (local DB)", async () => {
 		const mocks = makeMocks("local");
 		const supervisor = makeSupervisor(mocks);
 		await supervisor.ensureDesiredState();
-		mocks.inspectContainer.mockResolvedValueOnce(null);
+		(mocks.dockerService.inspectSwarmService as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+			new NotFoundException("service not found"),
+		);
 
 		const health = await supervisor.getHealth();
 
@@ -170,23 +215,25 @@ describe("GlobalDbSupervisorService — probe / health", () => {
 		expect(health.detail).toContain("missing");
 		expect(health.payload.mode).toBe("managed");
 		if (health.payload.mode === "managed") {
-			expect(health.payload.container).toBeNull();
+			expect(health.payload.service).toBeNull();
 		}
 	});
 
-	it("reports unhealthy when the managed container is stopped (local DB)", async () => {
+	it("reports unhealthy when the managed swarm service has no running task (local DB)", async () => {
 		const mocks = makeMocks("local");
 		const supervisor = makeSupervisor(mocks);
 		await supervisor.ensureDesiredState();
-		mocks.inspectContainer.mockResolvedValueOnce({ Id: "pg-1", State: { Running: false, ExitCode: 1 } });
+		(mocks.dockerService.listSwarmServiceTasks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+			{ Status: { State: "pending" } },
+		]);
 
 		const health = await supervisor.getHealth();
 
 		expect(health.healthy).toBe(false);
-		expect(health.detail).toContain("not running");
+		expect(health.detail).toContain("no running task");
 		expect(health.payload.mode).toBe("managed");
 		if (health.payload.mode === "managed") {
-			expect(health.payload.container?.running).toBe(false);
+			expect(health.payload.service?.runningTasks).toBe(0);
 		}
 	});
 
@@ -217,29 +264,31 @@ describe("GlobalDbSupervisorService — process info", () => {
 		const info = await supervisor.getProcessInfo();
 
 		expect(info.supervisorId).toBe(GLOBAL_DB_SUPERVISOR_ID);
-		expect(info.process.kind).toBe("docker");
-		expect(info.process.desired.name).toBe("deployer-postgres-dev");
+		expect(info.process.kind).toBe("swarm");
+		expect(info.process.desired.name).toBe("deployer-postgres");
 		expect(info.process.desired.image).toBe("postgres:16-alpine");
-		expect(info.process.desired.binds).toContain("deployer_postgres_data:/var/lib/postgresql/data");
-		expect(info.process.live.running).toBe(true);
-		expect(info.process.live.containerId).toBe("pg-1");
+		expect(info.process.desired.mode).toBe("replicated");
+		expect(info.process.live.exists).toBe(true);
+		expect(info.process.live.serviceId).toBe("svc-1");
 		expect(info.connection.database).toBe("deployer");
 		expect(info.connection.host).toBe("127.0.0.1");
-		expect(info.connection.port).toBe(5432);
+		expect(info.connection.port).toBe(1);
 		// Display-safe DSN never leaks the password.
 		expect(info.connection.urlSafe).not.toContain(":deployer@");
 	});
 
-	it("reports missing container state when the managed container is gone", async () => {
+	it("reports missing service state when the managed swarm service is gone", async () => {
 		const mocks = makeMocks("local");
-		// Both the health probe AND the process-info inspector see no container.
-		mocks.inspectContainer.mockResolvedValue(null);
+		// Both the health probe AND the process-info inspector see no service.
+		(mocks.dockerService.inspectSwarmService as ReturnType<typeof vi.fn>).mockRejectedValue(
+			new NotFoundException("service not found"),
+		);
 		const supervisor = makeSupervisor(mocks);
 
 		const info = await supervisor.getProcessInfo();
 
-		expect(info.process.live.running).toBeNull();
-		expect(info.process.live.containerId).toBeNull();
+		expect(info.process.live.exists).toBe(false);
+		expect(info.process.live.serviceId).toBeNull();
 		expect(info.connection.database).toBe("deployer");
 	});
 });

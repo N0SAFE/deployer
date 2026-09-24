@@ -7,16 +7,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo
 import { ArrowLeft, Cloud, Plus, Globe, Shield } from 'lucide-react'
 import { PageHeader } from '@/components/dashboard'
 
-const dnsProviderTypes: Array<{
+/**
+ * The only part of a route builder this grid renders: a typed `Link`.
+ *
+ * Declaring it structurally is what removes the `as unknown as` assertion this
+ * used to need to reach `.Link` off a route builder.
+ */
+interface ProviderRoute {
+  Link: React.ComponentType<{ children?: React.ReactNode }>
+}
+
+/**
+ * Every provider listed here has a working configuration page. The "coming
+ * soon" state this grid used to carry marked Route53 and Google Cloud DNS as
+ * unfinished while both had complete CRUD pages — a disabled button is not a
+ * neutral placeholder when the thing behind it already works.
+ */
+const dnsProviderTypes: {
   id: string
   name: string
   description: string
   icon: React.ElementType
   color: string
   bgColor: string
-  route: React.ElementType | null
-  status: 'active' | 'coming-soon'
-}> = [
+  route: ProviderRoute
+}[] = [
   {
     id: 'cloudflare',
     name: 'Cloudflare',
@@ -25,7 +40,6 @@ const dnsProviderTypes: Array<{
     color: 'text-orange-600 dark:text-orange-400',
     bgColor: 'bg-orange-100 dark:bg-orange-950/50',
     route: AuthDashboardAdminProvidersDnsCloudflare,
-    status: 'active',
   },
   {
     id: 'route53',
@@ -35,7 +49,6 @@ const dnsProviderTypes: Array<{
     color: 'text-amber-600 dark:text-amber-400',
     bgColor: 'bg-amber-100 dark:bg-amber-950/50',
     route: AuthDashboardAdminProvidersDnsRoute53,
-    status: 'coming-soon',
   },
   {
     id: 'google-dns',
@@ -45,7 +58,6 @@ const dnsProviderTypes: Array<{
     color: 'text-blue-600 dark:text-blue-400',
     bgColor: 'bg-blue-100 dark:bg-blue-950/50',
     route: AuthDashboardAdminProvidersDnsGoogleDns,
-    status: 'coming-soon',
   },
 ]
 
@@ -67,9 +79,9 @@ export default function AdminDnsProvidersPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {dnsProviderTypes.map((provider) => {
           const Icon = provider.icon
-          const isComingSoon = provider.status === 'coming-soon'
+          const ConfigureLink = provider.route.Link
           return (
-            <Card key={provider.id} className={`hover:border-border/80 transition-colors ${isComingSoon ? 'opacity-60' : ''}`}>
+            <Card key={provider.id} className="cursor-pointer transition-colors hover:border-border/80">
               <CardHeader className="flex flex-row items-start gap-4">
                 <div className={`rounded-lg p-2.5 ${provider.bgColor}`}>
                   <Icon className={`size-5 ${provider.color}`} />
@@ -82,22 +94,12 @@ export default function AdminDnsProvidersPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                {!isComingSoon && provider.route ? (() => {
-                  const RouteLink = provider.route as unknown as { Link: React.ElementType }
-                  return (
-                    <RouteLink.Link>
-                      <Button size="sm" className="w-full">
-                        <Plus className="mr-2 size-4" />
-                        Configure
-                      </Button>
-                    </RouteLink.Link>
-                  )
-                })() : (
-                  <Button size="sm" className="w-full" disabled>
+                <ConfigureLink>
+                  <Button size="sm" className="w-full">
                     <Plus className="mr-2 size-4" />
-                    Coming Soon
+                    Configure
                   </Button>
-                )}
+                </ConfigureLink>
               </CardContent>
             </Card>
           )

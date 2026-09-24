@@ -4,7 +4,11 @@ import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from 
 import { useMemo, useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { useService, useUpdateService } from '@/domains/service/hooks'
-import { useProjectVariableTemplates } from '@/domains/project/hooks'
+import {
+  useProjectVariableTemplates,
+  useProjectServiceEnvironmentLinks,
+  useUpsertServiceEnvironmentLink,
+} from '@/domains/project/hooks'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
@@ -34,6 +38,8 @@ export default function DashboardServiceConfigurationEnvironmentPage() {
 
   const { data: serviceData, isLoading: serviceLoading } = useService(serviceId)
   const { data: templatesData } = useProjectVariableTemplates(projectId)
+  const { data: envLinksData } = useProjectServiceEnvironmentLinks(projectId)
+  const upsertServiceEnvironmentLink = useUpsertServiceEnvironmentLink()
   const updateService = useUpdateService()
   const service = (serviceData ?? null) as Record<string, unknown> | null
 
@@ -48,33 +54,70 @@ export default function DashboardServiceConfigurationEnvironmentPage() {
     return t?.templates ?? []
   }, [templatesData])
 
-  // The service's currently-enabled envs (display + Edit/Cancel reseed).
-  const enabledEnvs = ((service?.enabledEnvironments ?? service?.enabled_environments ?? ENV_NAMES) as EnvName[])
+  /**
+   * Enabled environments come from the `service_environments` link rows — the
+   * only place membership is actually persisted. The service entity has no
+   * `enabledEnvironments` field, so the previous `?? ENV_NAMES` fallback read a
+   * phantom property and answered "all four" for every service regardless of
+   * configuration (and the save sent that same phantom key, which Zod stripped).
+   */
+  const envIdByName = useMemo(() => {
+    const map = new Map<EnvName, string>()
+    for (const link of envLinksData?.links ?? []) {
+      if (link.serviceId !== serviceId) continue
+      if ((ENV_NAMES as readonly string[]).includes(link.environmentName)) {
+        map.set(link.environmentName as EnvName, link.environmentId)
+      }
+    }
+    return map
+  }, [envLinksData, serviceId])
+
+  const enabledEnvs = useMemo<EnvName[]>(() => {
+    const enabled = new Set<EnvName>()
+    for (const link of envLinksData?.links ?? []) {
+      if (link.serviceId !== serviceId || !link.isEnabled) continue
+      if ((ENV_NAMES as readonly string[]).includes(link.environmentName)) {
+        enabled.add(link.environmentName as EnvName)
+      }
+    }
+    return ENV_NAMES.filter((env) => enabled.has(env))
+  }, [envLinksData, serviceId])
 
   // Seed once when the service loads (useEffect — not render-time setState,
   // which would break re-seeding when React re-renders with fresh data).
   useEffect(() => {
     if (!loaded && service) {
-      const envs = (service?.enabledEnvironments ?? service?.enabled_environments ?? ENV_NAMES) as EnvName[]
-      setEditEnabledEnvs([...envs])
+      setEditEnabledEnvs([...enabledEnvs])
       const rawVars = (service.environmentVariables ?? service.environment_variables ?? {}) as Record<string, string> | undefined
       setVars(Object.entries(rawVars ?? {}).map(([key, value]) => ({ key, value })))
       setLoaded(true)
     }
-  }, [loaded, service])
+  }, [loaded, service, enabledEnvs])
 
-  if (serviceLoading) return <div className="space-y-6"><Skeleton className="h-8 w-48" /><Skeleton className="h-48 w-full" /></div>
+  if (serviceLoading) return <div className="space-y-6"><Skeleton className="h-8 w-48" /><Skeleton className="h-48 w-full rounded-xl" /></div>
   if (!service) return <Alert variant="destructive"><Siren className="size-4" /><AlertTitle>Not found</AlertTitle><AlertDescription>Service not found.</AlertDescription></Alert>
 
   const handleSave = async () => {
     try {
       const envVars: Record<string, string> = {}
       for (const v of vars) { if (v.key.trim()) envVars[v.key.trim()] = v.value }
-      await updateService.mutateAsync({
-        id: serviceId,
-        enabledEnvironments: editEnabledEnvs,
-        environmentVariables: envVars,
-      } as never)
+
+      // Membership is persisted on the link rows, not on the service.
+      await Promise.all(
+        ENV_NAMES.map(async (env) => {
+          const environmentId = envIdByName.get(env)
+          if (!environmentId) return
+          const shouldBeEnabled = editEnabledEnvs.includes(env)
+          const currentlyEnabled = enabledEnvs.includes(env)
+          if (shouldBeEnabled === currentlyEnabled) return
+          await upsertServiceEnvironmentLink.mutateAsync({
+            params: { id: projectId },
+            body: { serviceId, environmentId, isEnabled: shouldBeEnabled },
+          })
+        }),
+      )
+
+      await updateService.mutateAsync({ id: serviceId, environmentVariables: envVars })
       toast.success('Environment configuration saved')
       setEditing(false)
     } catch (err) {

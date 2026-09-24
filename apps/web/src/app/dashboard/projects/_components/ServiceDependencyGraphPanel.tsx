@@ -877,7 +877,13 @@ export function ServiceDependencyGraphPanel({
           fitViewOptions={{ padding: 0.2 }}
           minZoom={0.3}
           maxZoom={1.6}
-          proOptions={{ hideAttribution: true }}
+          /*
+            Attribution left visible. `proOptions={{ hideAttribution: true }}`
+            used to sit here, and React Flow permits that only under a React Flow
+            Pro subscription — without one it breaches the licence, which is why
+            the dev server warned on every render. Restore it only if this project
+            actually holds that subscription.
+          */
           onNodeClick={handleNodeClick}
         >
           <MiniMap pannable zoomable />

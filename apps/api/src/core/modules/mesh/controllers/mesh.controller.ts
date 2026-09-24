@@ -9,8 +9,9 @@ import { AllowAnonymous } from "@/core/modules/auth/decorators/decorators";
 import { CoreEventSyncService } from "@/core/modules/events/services/core-event-sync.service";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { SystemMetricsService } from "@/core/modules/system-metrics/services/system-metrics.service";
-import { EnvService } from "@/config/env/env.service";
+import { EnvService } from "@repo/nest-env";
 import { NodeConfigRepository } from "@/core/modules/setup/repositories/node-config.repository";
+import { SwarmJoinGrantService } from "@/core/modules/swarm/services/swarm-join-grant.service";
 import { signPeerServiceToken } from "@repo/auth/mesh";
 import * as crypto from "node:crypto";
 import { Client } from "pg";
@@ -37,6 +38,8 @@ export class MeshController {
         private readonly systemMetricsService: SystemMetricsService,
         private readonly envService: EnvService,
         private readonly nodeConfigRepository: NodeConfigRepository,
+        /** Builds the FLEET's swarm role decision for a joining node. */
+        private readonly swarmJoinGrant: SwarmJoinGrantService,
     ) {}
 
     // ─── Auth context helpers ──────────────────────────────────────────────
@@ -603,12 +606,21 @@ export class MeshController {
                     ?? process.env.MESH_STREAM_SHARED_SECRET?.trim()
                     ?? null;
 
+                // SWARM GRANT — the fleet, not the joiner, decides the role.
+                // Promoting a node into the Raft quorum is a cluster-wide
+                // decision (quorum size, election weight, blast radius), so it
+                // is answered HERE, by the node that already owns the cluster.
+                // The joiner converges its engine from this response, which is
+                // why a node can neither promote itself nor found a rival swarm.
+                const swarmGrant = await this.swarmJoinGrant.buildGrant(input.requestedSwarmPolicy);
+
                 if (!meshSharedSecret) {
                     return {
                         ...result,
                         peerServiceToken: null,
                         peerServiceTokenExpiresAt: null,
                         meshSharedSecret: null,
+                        swarmGrant,
                     };
                 }
 
@@ -619,6 +631,7 @@ export class MeshController {
                     peerServiceToken: issued.token,
                     peerServiceTokenExpiresAt: issued.expiresAt,
                     meshSharedSecret,
+                    swarmGrant,
                 };
             });
     }

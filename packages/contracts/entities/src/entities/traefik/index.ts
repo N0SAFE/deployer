@@ -1,12 +1,12 @@
 export {
   traefikRuleSchema,
   traefikServiceSchema,
-} from './rules.schema'
+} from '@repo/contracts-entities/entities/traefik/rules.schema'
 
 export {
   traefikDynamicConfigSchema,
-} from './dynamic-config.schema'
+} from '@repo/contracts-entities/entities/traefik/dynamic-config.schema'
 
 export type {
   TraefikDynamicConfig,
-} from './dynamic-config.schema'
+} from '@repo/contracts-entities/entities/traefik/dynamic-config.schema'

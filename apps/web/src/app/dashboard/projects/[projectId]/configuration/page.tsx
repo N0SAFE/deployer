@@ -283,10 +283,11 @@ export default function DashboardProjectConfigurationPage() {
               <div className="flex items-center gap-2"><Switch checked={editSecurity.enableBasicAuth ?? false} onCheckedChange={(v) => setEditSecurity({...editSecurity, enableBasicAuth: v})} /><Label>Basic auth</Label></div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
               <div><span className="text-muted-foreground">HTTPS redirect:</span> {securityConfig?.enableHttpsRedirect ? 'Enabled' : 'Disabled'}</div>
               <div><span className="text-muted-foreground">Basic auth:</span> {securityConfig?.enableBasicAuth ? 'Enabled' : 'Disabled'}</div>
-              <div><span className="text-muted-foreground">Allowed domains:</span> {(securityConfig as any)?.allowedDomains?.length ?? 0}</div>
+              <div><span className="text-muted-foreground">Allowed domains:</span> {securityConfig?.allowedDomains.length ?? 0}</div>
+              <div><span className="text-muted-foreground">IP whitelist:</span> {securityConfig?.ipWhitelist.length ?? 0}</div>
             </div>
           )}
         </CardContent>
@@ -324,12 +325,21 @@ export default function DashboardProjectConfigurationPage() {
       {/* ═══════ NOTIFICATION CONFIG ═══════ */}
       <Card className="border-border/60 bg-card/40 backdrop-blur-xl">
         <CardHeader className="flex flex-row items-center justify-between">
-          <div><CardTitle className="text-base">Notification Config</CardTitle><CardDescription>Email and Slack notification settings.</CardDescription></div>
+          <div><CardTitle className="text-base">Notification Config</CardTitle><CardDescription>Stored per-project notification preferences.</CardDescription></div>
           {editingNotification ? (
             <div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => setEditingNotification(false)}>Cancel</Button><Button size="sm" onClick={handleSaveNotification} disabled={updateNotificationConfig.isPending}>{updateNotificationConfig.isPending ? 'Saving...' : 'Save'}</Button></div>
           ) : <Button size="sm" variant="outline" onClick={() => setEditingNotification(true)}>Edit</Button>}
         </CardHeader>
         <CardContent>
+          {/* These preferences are persisted and read back, but NO transport
+              consumes them yet — nothing sends email or posts to Slack. The
+              card used to render "Enabled"/"Notify" badges for that state,
+              which read as a working delivery guarantee. Say what is true
+              instead of removing the settings, so saved choices survive the
+              delivery feature landing. */}
+          <p className="mb-3 text-xs text-muted-foreground">
+            Delivery is not wired up yet — nothing sends email or posts to Slack. These preferences are saved and will take effect once notifications ship.
+          </p>
           {editingNotification ? (
             <div className="space-y-3">
               <div className="flex items-center gap-2"><Switch checked={editNotification.enableEmailNotifications ?? false} onCheckedChange={(v) => setEditNotification({...editNotification, enableEmailNotifications: v})} /><Label>Email notifications</Label></div>
@@ -339,10 +349,10 @@ export default function DashboardProjectConfigurationPage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-              <div><span className="text-muted-foreground">Email:</span> {notificationConfig?.enableEmailNotifications ? 'Enabled' : 'Disabled'}</div>
-              <div><span className="text-muted-foreground">Slack:</span> {notificationConfig?.enableSlackNotifications ? 'Enabled' : 'Disabled'}</div>
-              <div><span className="text-muted-foreground">Deploy success:</span> {notificationConfig?.notifyOnDeploymentSuccess ? 'Notify' : 'Silent'}</div>
-              <div><span className="text-muted-foreground">Deploy failure:</span> {notificationConfig?.notifyOnDeploymentFailure ? 'Notify' : 'Silent'}</div>
+              <div><span className="text-muted-foreground">Email:</span> {notificationConfig?.enableEmailNotifications ? 'On (pending)' : 'Off'}</div>
+              <div><span className="text-muted-foreground">Slack:</span> {notificationConfig?.enableSlackNotifications ? 'On (pending)' : 'Off'}</div>
+              <div><span className="text-muted-foreground">Deploy success:</span> {notificationConfig?.notifyOnDeploymentSuccess ? 'On (pending)' : 'Off'}</div>
+              <div><span className="text-muted-foreground">Deploy failure:</span> {notificationConfig?.notifyOnDeploymentFailure ? 'On (pending)' : 'Off'}</div>
             </div>
           )}
         </CardContent>

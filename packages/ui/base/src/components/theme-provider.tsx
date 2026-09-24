@@ -2,7 +2,7 @@
 
 import {
     ThemeProvider as StaticNextThemesProvider,
-    ThemeProviderProps,
+    type ThemeProviderProps,
 } from 'next-themes'
 
 const NextThemesProvider = StaticNextThemesProvider

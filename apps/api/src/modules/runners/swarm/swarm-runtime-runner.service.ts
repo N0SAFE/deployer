@@ -14,7 +14,7 @@
  */
 
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { BadRequestError, ConflictError, TimeoutError } from "@repo/errors";
+import { AppError, BadRequestError, ConflictError, TimeoutError } from "@repo/errors";
 import type {
     DockerodeServiceSummary,
     DockerodeTaskSummary,
@@ -32,7 +32,7 @@ import {
     type RuntimeExecutionInput,
     type RuntimeExecutionResult,
 } from "../runtime-runner.interface";
-import { toDockerServiceSpec } from "./swarm-spec.mapper";
+import { toDockerServiceSpec } from "@/core/modules/swarm/services/swarm-spec.mapper";
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -121,9 +121,12 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
               }
             : null;
 
-        const networks: string[] = [];
+        const networks: SwarmServiceSpecInput["networks"] = [];
         if (networkMode && networkMode !== "host" && networkMode !== "none") {
-            networks.push(networkMode);
+            // Alias the service name on every network it joins: a swarm service
+            // without aliases only answers to its own name, which breaks the
+            // alias-based URLs this platform persists.
+            networks.push({ target: networkMode, aliases: [serviceName] });
         }
         if (deployment.projectId) {
             const overlayName = `deployer-${deployment.projectId}`;
@@ -138,8 +141,8 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
                 },
                 enableIpv6: false,
             });
-            if (!networks.includes(overlayName)) {
-                networks.push(overlayName);
+            if (!networks.some((attachment) => attachment.target === overlayName)) {
+                networks.push({ target: overlayName, aliases: [serviceName] });
             }
         }
 
@@ -165,6 +168,9 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
                     : {}),
             },
             resourcesReservations: {},
+            // Each overlay is attached with the service name as its DNS alias, so
+            // sibling services and Traefik reach this deployment by the same name
+            // they already use.
             networks,
             healthcheck,
             updateConfig: {
@@ -174,11 +180,14 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
                 failureAction: "rollback",
             },
             endpointPorts: [],
+            capabilitiesAdd: [],
+            // Give workloads a window to shut down on their own terms.
+            stopGracePeriodSeconds: 30,
         };
         const spec = toDockerServiceSpec(specInput);
 
         this.logger.log(
-            `Deploying swarm service ${serviceName} (image=${containerImage}, attachments=${networks.length > 0 ? networks.join(",") : "none"})`,
+            `Deploying swarm service ${serviceName} (image=${containerImage}, attachments=${networks.length > 0 ? networks.map((n) => n.target).join(",") : "none"})`,
         );
 
         // ── Idempotent create-or-update ──────────────────────────────────────
@@ -194,10 +203,20 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
             if (error instanceof NotFoundException) {
                 serviceSummary = await this.dockerService.createSwarmService(spec);
                 created = true;
-                this.logger.log(`Created swarm service ${serviceName} (id=${serviceSummary.ID})`);
+                this.logger.log(`Created swarm service ${serviceName} (id=${serviceSummary.ID ?? "unknown"})`);
             } else {
                 throw error;
             }
+        }
+
+        // Docker types `ID` as optional; a service we just created or
+        // inspected must have one. Fail fast rather than assert a string.
+        if (serviceSummary.ID === undefined) {
+            throw new AppError(
+                `Swarm service ${serviceName} was inspected without an ID`,
+                "SWARM_SERVICE_MISSING_ID",
+                { serviceName },
+            );
         }
 
         // ── Health gate: wait for tasks to reach Running within budget ───────

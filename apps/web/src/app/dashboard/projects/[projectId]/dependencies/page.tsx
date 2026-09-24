@@ -195,6 +195,9 @@ export default function ProjectDependenciesPage() {
   const filteredServices = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     return graphServices.filter((service) => {
+      if (environment !== 'all' && !graphServiceEnvironments[service.id]?.includes(environment)) {
+        return false
+      }
       if (statusFilter !== 'all') {
         const isActive = service.isActive ? 'active' : 'inactive'
         if (isActive !== statusFilter) return false
@@ -205,7 +208,7 @@ export default function ProjectDependenciesPage() {
       }
       return true
     })
-  }, [graphServices, searchQuery, statusFilter])
+  }, [environment, graphServiceEnvironments, graphServices, searchQuery, statusFilter])
 
   // Only keep dependencies whose endpoints are still visible.
   const filteredDependencies = useMemo(() => {

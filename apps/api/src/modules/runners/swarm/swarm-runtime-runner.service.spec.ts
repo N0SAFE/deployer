@@ -100,7 +100,7 @@ describe("SwarmRuntimeRunnerService", () => {
             inspectSwarmService: vi
                 .fn()
                 .mockRejectedValue(new NotFoundException("Swarm service not found: deployer-service-1-deployme")),
-            updateSwarmService: vi.fn().mockResolvedValue(serviceSummary),
+            updateSwarmService: vi.fn().mockResolvedValue(undefined),
             createSwarmService: vi.fn().mockResolvedValue(serviceSummary),
             listSwarmServiceTasks: vi.fn().mockResolvedValue([runningTask]),
             removeSwarmService: vi.fn().mockResolvedValue(undefined),

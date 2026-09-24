@@ -3,10 +3,13 @@ import { Injectable, Logger } from '@nestjs/common'
 import type { SetupInitializeRemoteInput } from '@repo/contracts-entities'
 import { NodeConfigRepository } from '../repositories/node-config.repository'
 import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service'
-import { EnvService } from '@/config/env/env.service'
+import { EnvService } from '@repo/nest-env'
 import { runStep, type EmitEvent, SetupStepTracker } from '../utils/setup-runner.utils'
 import { DEPLOYER_VERSION, semverCompare } from '@/core/utils/deployer-version'
 import { MeshVersionService } from '../../mesh/version/mesh-version.service'
+import type { MeshSwarmJoinGrant } from '@repo/contracts-entities'
+import { SwarmBootstrapService } from '@/core/modules/swarm/services/swarm-bootstrap.service'
+import { SwarmClusterService } from '@/core/modules/swarm/services/swarm-cluster.service'
 
 @Injectable()
 export class RemoteInitializationService {
@@ -17,6 +20,10 @@ export class RemoteInitializationService {
         private readonly nodeConfigRepository: NodeConfigRepository,
         private readonly envService: EnvService,
         private readonly meshVersionService: MeshVersionService,
+        /** Joins this node to the FLEET's swarm from the grant the mesh issued. */
+        private readonly swarmBootstrap: SwarmBootstrapService,
+        /** Read-back of the engine state for the finalize report. */
+        private readonly swarmCluster: SwarmClusterService,
     ) {}
 
     /**
@@ -37,6 +44,8 @@ export class RemoteInitializationService {
         let peerServiceToken: string | null = null
         let peerServiceTokenExpiresAt: string | null = null
         let meshSharedSecret: string | null = null
+        /** The fleet's swarm role decision for this node (null = none offered). */
+        let swarmGrant: MeshSwarmJoinGrant | null = null
 
         // Resolve the local server URL once so we can pass it to the
         // remote mesh as the address it should use to reach us back.
@@ -66,13 +75,28 @@ export class RemoteInitializationService {
                 input.meshUrl,
                 grantToken,
                 serverUrl ?? new URL(input.meshUrl).origin,
+                // The role THIS node asked for in the wizard. The mesh replies
+                // with what it actually grants — requesting "auto" makes the
+                // node a CANDIDATE for master, not a manager by right.
+                input.swarm?.policy,
             )
             nodeId = bootstrapConfig.nodeId
             databaseUrl = bootstrapConfig.databaseUrl
             peerServiceToken = bootstrapConfig.peerServiceToken
             peerServiceTokenExpiresAt = bootstrapConfig.peerServiceTokenExpiresAt
             meshSharedSecret = bootstrapConfig.meshSharedSecret
+            swarmGrant = bootstrapConfig.swarmGrant
             stepLog(`✅ Handshake successful — remote node ${bootstrapConfig.nodeId}`)
+
+            // The FLEET decides the swarm role; report its answer here so the
+            // operator sees the outcome at the point the decision was made.
+            if (swarmGrant === null) {
+                stepLog("⚠️  The mesh has no Swarm cluster to hand over — swarm convergence deferred");
+            } else {
+                stepLog(`✅ Swarm role granted by the mesh: ${swarmGrant.role}`);
+                stepLog(`  reason  = ${swarmGrant.reason}`);
+                stepLog(`  control = ${swarmGrant.controlPlaneAddrs.join(", ")}`);
+            }
         })
 
         // ── Version Check ──────────────────────────────────────────────
@@ -145,9 +169,52 @@ export class RemoteInitializationService {
                 peerServiceTokenExpiresAt: peerServiceTokenExpiresAt ?? undefined,
                 meshSharedSecret: meshSharedSecret ?? undefined,
                 meshSharedSecretUpdatedAt: meshSharedSecret ? now : undefined,
+                // The FLEET's role decision, persisted so a restart re-converges
+                // from the same answer instead of re-asking the mesh.
+                swarmConfig:
+                    swarmGrant === null
+                        ? undefined
+                        : {
+                              mode: 'join' as const,
+                              // "auto" = MAY be master. The mesh already answered
+                              // whether this node actually is (swarmGrant.role),
+                              // so a granted manager keeps the mixed policy.
+                              policy: swarmGrant.role === 'manager' ? ('auto' as const) : ('worker' as const),
+                              advertiseAddr: null,
+                              joinToken:
+                                  swarmGrant.role === 'manager'
+                                      ? (swarmGrant.managerToken ?? swarmGrant.workerToken)
+                                      : swarmGrant.workerToken,
+                              joinAddrs: swarmGrant.controlPlaneAddrs,
+                          },
                 updatedAt: now,
             })
             stepLog('✅ Node config persisted')
+
+            // ── Join the FLEET's swarm ─────────────────────────────────────
+            // The role comes from the mesh, never from this node's own ambition:
+            // the manager join token is withheld unless the fleet admitted this
+            // node to quorum. Deferred (not fatal) when the mesh offered no
+            // cluster — a node whose fleet has no swarm yet must still complete
+            // setup and can converge later from the Cluster page.
+            if (swarmGrant === null) {
+                stepLog('⚠️  No Swarm cluster offered by the mesh — convergence deferred')
+                return
+            }
+
+            stepLog(`▸ Joining the mesh Swarm cluster as ${swarmGrant.role}…`)
+            stepLog(`  control = ${swarmGrant.controlPlaneAddrs.join(', ')}`)
+            await this.swarmBootstrap.converge('setup')
+            const snapshot = await this.swarmCluster.getLocalClusterSnapshot()
+
+            if (snapshot.localNodeState === 'active') {
+                stepLog('✅ Joined the Swarm cluster')
+                stepLog(`  role   = ${snapshot.localNode.swarmRole}`)
+                stepLog(`  master = ${snapshot.master?.nodeId ?? 'elected elsewhere'}`)
+                stepLog(`  nodes  = ${String(snapshot.nodeCount)} (managers ${String(snapshot.managerCount)})`)
+            } else {
+                stepLog(`⚠️  Swarm join not active (state=${snapshot.localNodeState}) — retry from the Cluster page`)
+            }
         })
 
         return { nodeId, databaseUrl }

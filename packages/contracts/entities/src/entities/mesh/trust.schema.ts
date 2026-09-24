@@ -29,8 +29,47 @@ export const meshJoinGrantConsumeInputSchema = z.object({
     displayName: z.string().min(1).max(255).optional(),
     capabilities: z.record(z.string(), z.unknown()).nullable().optional(),
     metadata: z.record(z.string(), z.unknown()).nullable().optional(),
+    /**
+     * The role the JOINING node asked to hold, as selected in its setup
+     * wizard. The mesh decides the role it ACTUALLY grants (`swarmGrant`
+     * below) — a node requesting "auto" (may be master or worker) is a
+     * CANDIDATE, not an entitlement: the fleet only promotes it once quorum
+     * sizing and the master-weight score justify another manager.
+     */
+    requestedSwarmPolicy: z.enum(["auto", "manager", "worker"]).optional(),
 });
 export type MeshJoinGrantConsumeInput = z.infer<typeof meshJoinGrantConsumeInputSchema>;
+
+/**
+ * The SWARM join credentials + role decision the mesh hands to a joining node.
+ *
+ * Swarm membership is a FLEET decision, not a local one: a node cannot promote
+ * itself to manager, and it must not invent its own cluster. So the mesh (the
+ * cluster owner) issues this alongside the mesh grant, and the joining node
+ * converges its engine from it during setup.
+ *
+ * Presence of this block means "join the fleet's swarm". Its absence means the
+ * mesh has no swarm to hand over (not converged yet) — the joining node then
+ * defers its own convergence rather than founding a competing cluster.
+ */
+export const meshSwarmJoinGrantSchema = z.object({
+    /** Manager join token — required when `role === "manager"`. */
+    managerToken: z.string().min(1).nullable(),
+    /** Worker join token — always present; every node can serve as capacity. */
+    workerToken: z.string().min(1),
+    /** Control-plane addresses ("host:port") to join through. */
+    controlPlaneAddrs: z.array(z.string().min(1)).min(1),
+    /**
+     * The role the FLEET grants — the authoritative answer, which may differ
+     * from what the node requested:
+     *   - "manager" → the mesh admitted it to quorum (it may become master).
+     *   - "worker"  → capacity only; the fleet declined another manager.
+     */
+    role: z.enum(["manager", "worker"]),
+    /** Why the fleet decided this (shown in the setup stream + cluster UI). */
+    reason: z.string().min(1),
+});
+export type MeshSwarmJoinGrant = z.infer<typeof meshSwarmJoinGrantSchema>;
 
 export const meshJoinGrantConsumeResultSchema = z.object({
     accepted: z.boolean(),
@@ -74,6 +113,12 @@ export const meshJoinGrantConsumeResultSchema = z.object({
      * peer service tokens cannot be issued.
      */
     meshSharedSecret: z.string().min(1).nullable(),
+    /**
+     * SWARM join credentials + the fleet's role decision for this node, or
+     * null when the mesh has no converged swarm to hand over (the joining node
+     * then defers its own convergence instead of founding a rival cluster).
+     */
+    swarmGrant: meshSwarmJoinGrantSchema.nullable().default(null),
 });
 export type MeshJoinGrantConsumeResult = z.infer<typeof meshJoinGrantConsumeResultSchema>;
 

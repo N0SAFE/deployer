@@ -39,8 +39,15 @@ import { SupervisorOrchestratorService } from "./supervisor-orchestrator.service
 import { SupervisorEventBus } from "./supervisor-event.bus";
 import { baseSupervisorProcessInfoSchema } from "./supervisor-process-info";
 
-/** Lifecycle state of a supervisor's last convergence attempt. */
-export type SupervisorState = "idle" | "converging" | "converged" | "degraded";
+/**
+ * Lifecycle state of a supervisor's last convergence attempt.
+ *
+ * `pending` is deliberately distinct from `degraded`: it means "the
+ * precondition for this resource does not exist yet, so convergence was never
+ * attempted" (e.g. a swarm-only service before setup created the cluster).
+ * `degraded` means "convergence was attempted and failed".
+ */
+export type SupervisorState = "idle" | "converging" | "converged" | "degraded" | "pending";
 
 /** Shared measurement fields every supervisor payload must carry. */
 export const supervisorProbeMetaSchema = z.object({
@@ -292,8 +299,40 @@ export abstract class BaseSupervisorService<
 	 */
 	protected abstract buildProcessInfo(): Promise<Record<string, unknown>>;
 
+	/**
+	 * Precondition that makes convergence IMPOSSIBLE right now, or null when
+	 * convergence can proceed. Base: never blocked (every non-docker supervisor
+	 * reconciles against something that exists from the first millisecond).
+	 *
+	 * The docker base overrides this to defer swarm-only resources until the
+	 * engine is an active swarm member. Returning a reason is how a supervisor
+	 * says "not yet" WITHOUT pretending the operation failed.
+	 */
+	protected async convergenceBlocker(): Promise<string | null> {
+		return null;
+	}
+
+	/**
+	 * Record a deferred convergence (`pending`) without attempting the resource.
+	 * Emitted like any other transition so subscribers (health aggregation, the
+	 * failover proxy, the web pages) observe it.
+	 */
+	protected deferConvergence(reason: string): SupervisorState {
+		this.state = "pending";
+		this.detail = reason;
+		this.emitEvent("state-changed");
+		return this.state;
+	}
+
 	/** Drive convergence once, recording state transitions. Never throws. */
 	async ensureDesiredState(): Promise<SupervisorState> {
+		// A blocked supervisor must NOT reach `reconcile()`: the resource cannot
+		// exist yet, so the attempt would fail, burn the retry budget and report
+		// a misleading DEGRADED. Defer instead — the recovery path is a later
+		// `convergeNow()` once the precondition holds (e.g. after setup).
+		const blocked = await this.convergenceBlocker();
+		if (blocked !== null) return this.deferConvergence(blocked);
+
 		this.state = "converging";
 		this.emitEvent("state-changed");
 		try {

@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { and, eq } from "drizzle-orm";
 import { GlobalDatabaseService } from "@/core/modules/database/global/global-database.service";
-import * as globalSchema from "@/config/drizzle/global/schema";
+import * as globalSchema from "@repo/nest-schema/global";
 
 /**
  * GitlabAppsRepository — the single data-access layer for GitLab account

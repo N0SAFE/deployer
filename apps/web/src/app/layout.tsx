@@ -31,7 +31,13 @@ const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-displ
 const jetBrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' })
 
 export const metadata: Metadata = {
-    title: 'Deployer',
+    // Template: every route's own title becomes "<Page> · Deployer", so the
+    // console reads consistently in tabs, history and bookmarks without each
+    // page repeating the product name.
+    title: {
+        default: 'Deployer',
+        template: '%s · Deployer',
+    },
     description: 'Self-hosted deployment platform',
 }
 

@@ -16,8 +16,7 @@ import React from 'react'
 import queryString from 'query-string'
 import { z } from 'zod'
 import type {
-} from "../types";
-import { isRecord, isObjectLike } from "@repo/type-guards";
+} from "@repo/declarative-routing/types";
 import type {
     Session,
     ServerAuthAdapter,
@@ -30,7 +29,8 @@ import type {
     RouteRuntimeConfig,
     PageRouteHelpers,
     RouteSearchPatch,
-} from '../types'
+} from '@repo/declarative-routing/types'
+import { isObjectLike } from "@repo/type-guards"
 
 // ============================================================================
 // Configuration - Must be set before using session wrappers
@@ -49,7 +49,7 @@ let dehydrateQueryClient: ((client: unknown) => unknown) | null = null
  * ```tsx
  * // In your app's route setup
  * import { configureServerAuth } from '@repo/declarative-routing/page-wrappers'
- * import { getSession } from '@/lib/auth'
+ * import { getSession } from '../../../../lib/auth'
  * import { QueryClient, HydrationBoundary, dehydrate } from '@tanstack/react-query'
  * 
  * configureServerAuth({
@@ -122,16 +122,20 @@ function asPageComponent<T>(component: React.ComponentType<T>): React.ComponentT
 function extractAdditionalProps<T extends object>(
     props: T
 ): Omit<T, 'params' | 'searchParams' | 'children' | 'route'> {
-    const { params, searchParams, children, route, ...rest } = props as T & {
+    // Bind with `_` so the omit-by-rest pattern needs no bare statements to
+    // "use" the discarded names.
+    const {
+        params: _params,
+        searchParams: _searchParams,
+        children: _children,
+        route: _route,
+        ...rest
+    } = props as T & {
         params?: unknown
         searchParams?: unknown
         children?: unknown
         route?: unknown
     }
-    void params
-    void searchParams
-    void children
-    void route
     return rest
 }
 
@@ -174,10 +178,9 @@ function createServerRouteHelpers<
 
     const navigate = (
         input?: RouteNavigationInput<Params, Search>,
-        options?: RouteNavigationOptions
+        _options?: RouteNavigationOptions
     ) => {
         // same method surface as client; server implementation only computes URL
-        void options
         return buildUrl(
             (input?.params ?? (params as z.input<Params>)),
             (input?.search ?? (search as z.input<Search>))
@@ -186,11 +189,10 @@ function createServerRouteHelpers<
 
     const replace = (
         input?: RouteNavigationInput<Params, Search>,
-        options?: RouteNavigationOptions
+        _options?: RouteNavigationOptions
     ) => {
         // same method surface as client; server implementation only computes URL
-        void options
-        return navigate(input)
+            return navigate(input)
     }
 
     const setSearch = (value: z.input<Search> | null) => {
@@ -225,10 +227,11 @@ function createServerRouteHelpers<
         return Promise.resolve(buildUrl(nextParams, search as z.input<Search>))
     }
 
-    const setSearchParams = (_value: z.input<Search> | null) => {
-        // Server-side: no-op, just return a resolved promise. The URL is
-        // already on the response; client navigation takes care of state.
-        return Promise.resolve()
+    // Server-side no-op. Declared `void` because the method surface it is
+    // assigned to expects a void return; returning a resolved promise served
+    // no purpose (nothing awaited it) and tripped no-misused-promises.
+    const setSearchParams = (_value: z.input<Search> | null): void => {
+        // The URL is already on the response; client navigation handles state.
     }
 
     return {
@@ -373,7 +376,7 @@ export function createSessionPage<
 ): React.ComponentType<NextPagePropsInternal<Params, Search> & BasePageProps & Omit<AdditionalProps, 'session'>> {
     type WrapperProps = NextPagePropsInternal<Params, Search> & BasePageProps & Omit<AdditionalProps, 'session'>
     
-    const { checkCookie = true, sessionCookie = DEFAULT_SESSION_COOKIE } = options ?? {}
+    const { checkCookie = true, sessionCookie: _sessionCookie = DEFAULT_SESSION_COOKIE } = options ?? {}
     
     async function SessionFetchingPage(props: WrapperProps): Promise<React.ReactNode> {
         const authAdapter = getServerAuthAdapter()
@@ -442,7 +445,6 @@ export function createSessionPage<
     WrappedComponent.displayName = `ServerSessionPage(${displayName})`
     
     // Suppress unused variable warning for sessionCookie
-    void sessionCookie
     
     return asPageComponent<WrapperProps>(WrappedComponent)
 }
@@ -485,7 +487,7 @@ export type CreatePageWrappersConfig<S extends Session = Session> = {
  * ```tsx
  * // apps/web/src/routes/makeRoute.tsx
  * import { createPageWrappers } from '@repo/declarative-routing/page-wrappers/server'
- * import { getSession } from '@/lib/auth'
+ * import { getSession } from '../../../../lib/auth'
  * import { QueryClient, HydrationBoundary, dehydrate } from '@tanstack/react-query'
  * import { cookies } from 'next/headers'
  * 
@@ -593,4 +595,4 @@ export type {
     RouteNavigationInput,
     RouteNavigationOptions,
     RouteSearchPatch,
-} from '../types'
+} from '@repo/declarative-routing/types'

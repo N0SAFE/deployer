@@ -16,7 +16,7 @@ import { Input } from '@repo/ui/components/shadcn/input'
 import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
 import { Toggle } from '@repo/ui/components/shadcn/toggle'
 import { ArrowLeft, Pause, Play, Search, Siren, WrapText } from 'lucide-react'
-import { ServiceSectionNav } from '../_components/service-section-nav'
+import { formatDateTime as formatDate } from '@/lib/format/date'
 
 const LIST_INPUT = {
   query: {
@@ -33,15 +33,6 @@ interface ServiceLogLine {
   status: string
   message: string
   timestamp: string
-}
-
-interface ServiceItem {
-  id: string
-  name: string
-}
-
-interface ProjectItem {
-  id: string
 }
 
 interface DockerContainerLite {
@@ -62,12 +53,6 @@ interface DeploymentLite {
   status: string
   environment: string
   updatedAt: string
-}
-
-function formatDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleString()
 }
 
 export default function DashboardServiceLogsPage() {
@@ -132,6 +117,17 @@ export default function DashboardServiceLogsPage() {
 
   const effectiveSelectedReplicaNames = selectionTouched ? selectedReplicaNames : preselectedReplicaNames
 
+  /**
+   * KNOWN GAP — these are not log lines.
+   *
+   * Every entry below is a sentence composed from a deployment status, a
+   * container status, or the mesh state, so a page whose whole job is "show me
+   * what this service printed" contains none of its actual output and cannot
+   * answer "why did it fail". Real evidence is already fetchable —
+   * `useDeploymentLogs` (domains/deployment/hooks) for build/deploy output and
+   * `useDockerContainerLogsSnapshot` for a replica's stdout. Wiring those in is
+   * the fix; this list is what the page showed before them.
+   */
   const logs = useMemo<ServiceLogLine[]>(() => {
     const projected: ServiceLogLine[] = []
     const serviceDeployments = allDeployments.filter(

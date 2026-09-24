@@ -3,27 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  AuthDashboard,
-  AuthDashboardAdminDomains,
-  AuthDashboardAdminProviders,
-  AuthDashboardAdminSystem,
-  AuthDashboardAdminUsers,
-  AuthDashboardConfiguration,
-  AuthDashboardDeployments,
-  AuthDashboardDocker,
-  AuthDashboardDockerActivity,
-  AuthDashboardDockerContainers,
-  AuthDashboardDockerImages,
-  AuthDashboardDockerLogs,
-  AuthDashboardDockerNetworks,
-  AuthDashboardDockerShell,
-  AuthDashboardDockerVolumes,
-  AuthDashboardNodes,
-  AuthDashboardProfile,
-  AuthDashboardProjects,
   AuthDashboardProjectsProjectId,
   AuthDashboardProjectsProjectIdServicesServiceId,
-  AuthDashboardServices,
 } from '@/routes'
 import {
   CommandDialog,
@@ -35,29 +16,11 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from '@repo/ui/components/shadcn/command'
-import {
-  Container,
-  FolderKanban,
-  Globe,
-  LayoutDashboard,
-  Rocket,
-  Server,
-  Settings,
-  UserCircle2,
-  Users,
-  GitFork,
-  Activity,
-  Boxes,
-  Layers,
-  Network,
-  HardDrive,
-  ScrollText,
-  TerminalSquare,
-  SlidersHorizontal,
-  type LucideIcon,
-} from 'lucide-react'
+import { FolderKanban, Server, type LucideIcon } from 'lucide-react'
 import { useProjectList } from '@/domains/project/hooks'
 import { useServiceList } from '@/domains/service/hooks'
+import { useSession } from '@/lib/auth'
+import { NAV_GROUPS } from './navigation'
 import { subscribeCommandPalette } from './command-palette-store'
 
 interface PaletteEntry {
@@ -71,32 +34,28 @@ interface PaletteEntry {
 }
 
 /**
- * Static navigation catalog — every dashboard destination, with the same
- * vocabulary as the sidebar. `href` is resolved through the typed route
- * builders so navigation never hardcodes paths.
+ * The palette's navigation section, flattened from the shared navigation model.
+ *
+ * Flattened rather than written out here, because this list used to duplicate
+ * the sidebar's catalogue and drifted from it: the two surfaces offered the
+ * same pages under different names. The group label is kept as a prefix because
+ * the palette draws no group headers — without it, "Containers" is
+ * indistinguishable from any other container-flavoured result.
  */
-const NAV_ENTRIES: PaletteEntry[] = [
-  { id: 'nav:overview', label: 'Command center', hint: 'Dashboard overview', icon: LayoutDashboard, href: AuthDashboard(), shortcut: 'g o', keywords: 'home overview dashboard start' },
-  { id: 'nav:projects', label: 'Projects', hint: 'All projects', icon: FolderKanban, href: AuthDashboardProjects(), shortcut: 'g p', keywords: 'folders infrastructure apps' },
-  { id: 'nav:deployments', label: 'Deployments', hint: 'Timeline & rollouts', icon: Rocket, href: AuthDashboardDeployments(), shortcut: 'g d', keywords: 'rollout release timeline' },
-  { id: 'nav:services', label: 'Services', hint: 'Service inventory', icon: Server, href: AuthDashboardServices(), shortcut: 'g s', keywords: 'runners instances health' },
-  { id: 'nav:docker', label: 'Engine · Overview', hint: 'Resources of the connected node', icon: Container, href: AuthDashboardDocker(), shortcut: 'g c', keywords: 'container images runtime node engine' },
-  { id: 'nav:docker-containers', label: 'Engine · Tasks / Containers', icon: Boxes, href: AuthDashboardDockerContainers(), keywords: 'container task runtime service' },
-  { id: 'nav:docker-images', label: 'Engine · Images', icon: Layers, href: AuthDashboardDockerImages(), keywords: 'images registry builds' },
-  { id: 'nav:docker-networks', label: 'Engine · Networks', icon: Network, href: AuthDashboardDockerNetworks(), keywords: 'networks bridge overlay' },
-  { id: 'nav:docker-volumes', label: 'Engine · Volumes', icon: HardDrive, href: AuthDashboardDockerVolumes(), keywords: 'volumes storage mounts' },
-  { id: 'nav:docker-activity', label: 'Engine · Activity', icon: Activity, href: AuthDashboardDockerActivity(), keywords: 'activity events log' },
-  { id: 'nav:docker-logs', label: 'Engine · Logs', icon: ScrollText, href: AuthDashboardDockerLogs(), keywords: 'logs streaming output' },
-  { id: 'nav:docker-shell', label: 'Engine · Shell', icon: TerminalSquare, href: AuthDashboardDockerShell(), keywords: 'shell terminal exec' },
-  { id: 'nav:nodes', label: 'Nodes', hint: 'Fleet, allocation & topology', icon: Server, href: AuthDashboardNodes(), shortcut: 'g n', keywords: 'nodes fleet servers mesh topology' },
-  { id: 'nav:configuration', label: 'Configuration', hint: 'Mesh-wide & per-node settings', icon: SlidersHorizontal, href: AuthDashboardConfiguration(), keywords: 'configuration settings node mesh' },
-
-  { id: 'nav:admin-users', label: 'Admin · Users', icon: Users, href: AuthDashboardAdminUsers(), keywords: 'users roles permissions' },
-  { id: 'nav:admin-domains', label: 'Admin · Domains', icon: Globe, href: AuthDashboardAdminDomains(), keywords: 'domains dns verify' },
-  { id: 'nav:admin-providers', label: 'Admin · Providers', icon: GitFork, href: AuthDashboardAdminProviders(), keywords: 'providers code dns cloudflare' },
-  { id: 'nav:admin-system', label: 'Admin · System', hint: 'Control plane', icon: Settings, href: AuthDashboardAdminSystem(), shortcut: 'g a', keywords: 'system mesh fleet readiness' },
-  { id: 'nav:profile', label: 'Profile', hint: 'Account settings', icon: UserCircle2, href: AuthDashboardProfile(), shortcut: 'g u', keywords: 'account user settings' },
-]
+function navigationEntries(isAdmin: boolean): PaletteEntry[] {
+  return NAV_GROUPS.filter((group) => group.adminOnly !== true || isAdmin).flatMap(
+    (group) =>
+      group.items.map((item) => ({
+        id: `nav:${group.id}:${item.url}`,
+        label: `${group.label} · ${item.title}`,
+        hint: item.hint,
+        icon: item.icon,
+        href: item.url,
+        shortcut: item.shortcut,
+        keywords: `${item.keywords ?? ''} ${group.label}`.trim(),
+      })),
+  )
+}
 
 /** Substring-in-order fuzzy match (same matcher as the sidebar). */
 function fuzzyMatch(text: string, query: string): boolean {
@@ -130,33 +89,57 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
 
+  const { data: session } = useSession()
+  // Mirrors the rail's gate: someone who cannot see the Admin Panel in the
+  // sidebar should not be offered its pages by search either.
+  const isAdmin = session?.user.role === 'admin' || session?.user.role === 'superAdmin'
+  const navEntries = useMemo(() => navigationEntries(isAdmin), [isAdmin])
+
   const { data: projectsData } = useProjectList({ query: { limit: 100, offset: 0 } })
   const { data: servicesData } = useServiceList({ query: { limit: 100, offset: 0 } })
 
-  const projects = (projectsData as { data?: ProjectLike[] } | undefined)?.data ?? []
-  const services = ((servicesData as { data?: ServiceLike[] } | undefined)?.data ?? []).filter(
-    (s) => s.projectId !== null && s.projectId !== undefined && s.project_id !== null && s.project_id !== undefined,
+  // Memoised on the query result, not rebuilt per render: these feed the
+  // `useMemo`s below, and a new array identity every render would make those
+  // recompute on every keystroke for no reason.
+  const projects = useMemo(
+    () => (projectsData as { data?: ProjectLike[] } | undefined)?.data ?? [],
+    [projectsData],
+  )
+  const services = useMemo(
+    () =>
+      ((servicesData as { data?: ServiceLike[] } | undefined)?.data ?? []).filter(
+        (s) =>
+          s.projectId !== null &&
+          s.projectId !== undefined &&
+          s.project_id !== null &&
+          s.project_id !== undefined,
+      ),
+    [servicesData],
   )
 
-  useEffect(() => subscribeCommandPalette(() => setOpen(true)), [])
+  useEffect(
+    () =>
+      subscribeCommandPalette(() => {
+        setOpen(true)
+      }),
+    [],
+  )
 
   const filteredNav = useMemo(() => {
-    if (!query.trim()) return NAV_ENTRIES
-    return NAV_ENTRIES.filter((entry) =>
+    if (!query.trim()) return navEntries
+    return navEntries.filter((entry) =>
       fuzzyMatch(`${entry.label} ${entry.hint ?? ''} ${entry.keywords ?? ''}`, query),
     )
-  }, [query])
+  }, [query, navEntries])
 
   const filteredProjects = useMemo(() => {
-    const source = projects as ProjectLike[]
-    if (!query.trim()) return source.slice(0, 6)
-    return source.filter((p) => fuzzyMatch(`${p.name ?? ''} ${p.id}`, query)).slice(0, 6)
+    if (!query.trim()) return projects.slice(0, 6)
+    return projects.filter((p) => fuzzyMatch(`${p.name ?? ''} ${p.id}`, query)).slice(0, 6)
   }, [projects, query])
 
   const filteredServices = useMemo(() => {
-    const source = services as ServiceLike[]
-    if (!query.trim()) return source.slice(0, 6)
-    return source.filter((s) => fuzzyMatch(`${s.name ?? ''} ${s.id}`, query)).slice(0, 6)
+    if (!query.trim()) return services.slice(0, 6)
+    return services.filter((s) => fuzzyMatch(`${s.name ?? ''} ${s.id}`, query)).slice(0, 6)
   }, [services, query])
 
   const noResults =
@@ -186,7 +169,13 @@ export function CommandPalette() {
         {filteredNav.length > 0 ? (
           <CommandGroup heading="Pages">
             {filteredNav.map((entry) => (
-              <CommandItem key={entry.id} value={entry.id} onSelect={() => go(entry.href)}>
+              <CommandItem
+                key={entry.id}
+                value={entry.id}
+                onSelect={() => {
+                  go(entry.href)
+                }}
+              >
                 <entry.icon className="size-4" />
                 <span className="flex-1 truncate">{entry.label}</span>
                 {entry.hint ? <span className="mr-1 truncate text-xs text-muted-foreground">{entry.hint}</span> : null}
@@ -203,7 +192,13 @@ export function CommandPalette() {
               {filteredProjects.map((project) => {
                 const name = project.name ?? project.id
                 return (
-                  <CommandItem key={`project:${project.id}`} value={`project:${project.id}`} onSelect={() => go(AuthDashboardProjectsProjectId({ projectId: project.id }))}>
+                  <CommandItem
+                    key={`project:${project.id}`}
+                    value={`project:${project.id}`}
+                    onSelect={() => {
+                      go(AuthDashboardProjectsProjectId({ projectId: project.id }))
+                    }}
+                  >
                     <FolderKanban className="size-4" />
                     <span className="flex-1 truncate">{name}</span>
                     <span className="mr-1 text-xs text-muted-foreground">project</span>
@@ -225,7 +220,14 @@ export function CommandPalette() {
                   <CommandItem
                     key={`service:${service.id}`}
                     value={`service:${service.id}`}
-                    onSelect={() => go(AuthDashboardProjectsProjectIdServicesServiceId({ projectId, serviceId: service.id }))}
+                    onSelect={() => {
+                      go(
+                        AuthDashboardProjectsProjectIdServicesServiceId({
+                          projectId,
+                          serviceId: service.id,
+                        }),
+                      )
+                    }}
                   >
                     <Server className="size-4" />
                     <span className="flex-1 truncate">{name}</span>

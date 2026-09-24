@@ -20,7 +20,9 @@ import { Input } from '@repo/ui/components/shadcn/input'
 import { ScrollArea } from '@repo/ui/components/shadcn/scroll-area'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/shadcn/tabs'
-import { Search } from 'lucide-react'
+import { Boxes, Cpu, HeartPulse, Search, TrendingUp } from 'lucide-react'
+import { StatStrip, StatStripItem } from '@/components/dashboard'
+import { formatDateTime as formatDate } from '@/lib/format/date'
 import type {
   DockerContainer,
   DockerContainerLogEntry,
@@ -113,12 +115,6 @@ interface BuilderLogProjection {
 
 function shortId(id: string): string {
   return id.slice(0, 8)
-}
-
-function formatDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleString()
 }
 
 function formatPercent(value: number | null): string {
@@ -933,30 +929,48 @@ export default function DashboardServiceDeploymentsPage() {
                   </TabsList>
 
                   <TabsContent value="overview" className="space-y-3">
-                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                      <div className="rounded-md border border-border/60 bg-background/45 px-3 py-2 text-xs">
-                        <p className="text-muted-foreground">Replicas</p>
-                        <p className="text-base font-semibold">
-                          {selectedDeploymentReplicas.length} / {selectedDeploymentMetrics.runningReplicas} running
-                        </p>
-                      </div>
-                      <div className="rounded-md border border-border/60 bg-background/45 px-3 py-2 text-xs">
-                        <p className="text-muted-foreground">Healthy</p>
-                        <p className="text-base font-semibold">{selectedDeploymentMetrics.healthyReplicas}</p>
-                      </div>
-                      <div className="rounded-md border border-border/60 bg-background/45 px-3 py-2 text-xs">
-                        <p className="text-muted-foreground">Avg CPU / Mem</p>
-                        <p className="text-base font-semibold">
-                          {formatPercent(selectedDeploymentMetrics.avgCpu)} / {formatPercent(selectedDeploymentMetrics.avgMemory)}
-                        </p>
-                      </div>
-                      <div className="rounded-md border border-border/60 bg-background/45 px-3 py-2 text-xs">
-                        <p className="text-muted-foreground">Peak CPU / Mem</p>
-                        <p className="text-base font-semibold">
-                          {formatPercent(selectedDeploymentMetrics.peakCpu)} / {formatPercent(selectedDeploymentMetrics.peakMemory)}
-                        </p>
-                      </div>
-                    </div>
+                    {/*
+                      Four metrics defining what happened to this rollout. As a
+                      2×2 grid of bordered tiles they cost ~110px of a panel the
+                      user already scrolled to; as one row they cost ~40px and
+                      sit on the same baseline as the health snapshot below.
+                    */}
+                    <StatStrip bare>
+                      <StatStripItem
+                        icon={Boxes}
+                        label="Replicas"
+                        value={`${String(selectedDeploymentReplicas.length)} / ${String(selectedDeploymentMetrics.runningReplicas)}`}
+                        hint="running"
+                      />
+                      <StatStripItem
+                        icon={HeartPulse}
+                        label="Healthy"
+                        value={selectedDeploymentMetrics.healthyReplicas}
+                        hint={
+                          selectedDeploymentReplicas.length > 0
+                            ? `of ${String(selectedDeploymentReplicas.length)}`
+                            : undefined
+                        }
+                        tone={
+                          selectedDeploymentReplicas.length === 0
+                            ? undefined
+                            : selectedDeploymentMetrics.healthyReplicas ===
+                                selectedDeploymentReplicas.length
+                              ? 'live'
+                              : 'pending'
+                        }
+                      />
+                      <StatStripItem
+                        icon={Cpu}
+                        label="Avg CPU / Mem"
+                        value={`${formatPercent(selectedDeploymentMetrics.avgCpu)} / ${formatPercent(selectedDeploymentMetrics.avgMemory)}`}
+                      />
+                      <StatStripItem
+                        icon={TrendingUp}
+                        label="Peak CPU / Mem"
+                        value={`${formatPercent(selectedDeploymentMetrics.peakCpu)} / ${formatPercent(selectedDeploymentMetrics.peakMemory)}`}
+                      />
+                    </StatStrip>
 
                     <div className="rounded-md border border-border/60 bg-background/45 px-3 py-2 text-xs">
                       <p className="font-medium">Replica health snapshot</p>

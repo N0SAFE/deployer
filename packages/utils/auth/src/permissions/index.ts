@@ -3,7 +3,7 @@
 // ============================================================================
 
 // Export all system classes and types (PermissionBuilder, RoleBuilder, etc.)
-export * from "./system";
+export * from "@repo/auth/permissions/system/index";
 
 // ============================================================================
 // PLATFORM PERMISSION EXPORTS
@@ -18,23 +18,23 @@ export {
     platformSchemas,
     platformRoleMeta,
     platformRolesConfig,
-} from "./config";
+} from "@repo/auth/permissions/config";
 
 // Platform builder (for generic plugin type inference)
-export { platformBuilder } from "./config";
+export { platformBuilder } from "@repo/auth/permissions/config";
 
 // Platform roles
 export {
     PLATFORM_ROLES,
     type PlatformRole,
-} from "./config";
+} from "@repo/auth/permissions/config";
 
 // Platform resources
 export {
     PLATFORM_RESOURCES,
     type PlatformResource,
     type PlatformActionsForResource,
-} from "./config";
+} from "@repo/auth/permissions/config";
 
 // ============================================================================
 // ============================================================================
@@ -45,7 +45,7 @@ export {
     PROJECT_ROLES,
     type ProjectRole,
     projectRoleMeta,
-} from "./config";
+} from "@repo/auth/permissions/config";
 
 // ============================================================================
 // COMMON PERMISSIONS & UTILITIES
@@ -56,18 +56,18 @@ export {
     platformPermissions,
     type PlatformPermissionKeys,
     type PlatformPermission,
-} from "./common";
+} from "@repo/auth/permissions/common";
 
 // Export schema helpers
 export {
     platformSchemaHelpers,
-} from "./common";
+} from "@repo/auth/permissions/common";
 
 // Export utilities
-export * from './utils';
+export * from '@repo/auth/permissions/utils';
 
 // Export access control utilities
-export * from './access-control';
+export * from '@repo/auth/permissions/access-control';
 
 // ============================================================================
 // PERMISSION ENGINE (resource-rule evaluation)
@@ -75,11 +75,11 @@ export * from './access-control';
 
 // Core engine: PermissionEngine, ForbiddenError, types, resource graph,
 // filter matcher, and rule validator exported from a single entry point.
-export * from './engine';
+export * from '@repo/auth/permissions/engine/index';
 
 // ============================================================================
 // PLUGIN WRAPPERS (V2 PERMISSIONS)
 // ============================================================================
 
 // Export plugin system (registry, base types, auth-with-plugins)
-export * from './plugins';
+export * from '@repo/auth/permissions/plugins/index';

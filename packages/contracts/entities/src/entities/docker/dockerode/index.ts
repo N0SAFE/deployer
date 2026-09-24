@@ -33,7 +33,7 @@ export {
   type DockerodeContainerList,
   type DockerodeNetworkAttachment,
   type DockerodePortMap,
-} from "./containers.schema"
+} from "@repo/contracts-entities/entities/docker/dockerode/containers.schema"
 
 export {
   dockerodeImageSummarySchema,
@@ -41,7 +41,7 @@ export {
   dockerodeImageInspectSchema,
   type DockerodeImageSummary,
   type DockerodeImageInspect,
-} from "./images.schema"
+} from "@repo/contracts-entities/entities/docker/dockerode/images.schema"
 
 export {
   dockerodeNetworkIpamConfigSchema,
@@ -49,11 +49,11 @@ export {
   dockerodeNetworkContainerAttachmentSchema,
   dockerodeNetworkSummarySchema,
   type DockerodeNetworkSummary,
-} from "./networks.schema"
+} from "@repo/contracts-entities/entities/docker/dockerode/networks.schema"
 
 export {
   dockerodeVolumeEntrySchema,
   dockerodeVolumeListResponseSchema,
   type DockerodeVolumeEntry,
   type DockerodeVolumeListResponse,
-} from "./volumes.schema"
+} from "@repo/contracts-entities/entities/docker/dockerode/volumes.schema"

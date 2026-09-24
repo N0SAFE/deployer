@@ -1,5 +1,5 @@
 import z from 'zod'
-import { envNameSchema } from './environment.schema'
+import { envNameSchema } from '@repo/contracts-common/environment.schema'
 
 export const deploymentStatusSchema = z.enum(['pending', 'queued', 'building', 'deploying', 'success', 'failed', 'cancelled'])
 export type DeploymentStatus = z.infer<typeof deploymentStatusSchema>

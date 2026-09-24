@@ -7,12 +7,12 @@
 
 import { oc } from "@orpc/contract";
 import type { ContractProcedure } from "@orpc/contract";
-import type { HTTPPath, AnySchema } from "../../types/types";
+import type { HTTPPath, AnySchema } from "@repo/orpc-utils/types/types";
 import type { 
     RouteMetadata, 
     HTTPMethod, 
     ErrorMap,
-} from "../../types/types";
+} from "@repo/orpc-utils/types/types";
 import type { 
     SchemaShape, 
     ObjectSchema, 
@@ -20,13 +20,13 @@ import type {
     VoidSchema,
     NeverSchema,
     ShouldBeOptional,
-} from "../../types/standard-schema-helpers";
+} from "@repo/orpc-utils/types/standard-schema-helpers";
 import {
     voidSchema,
     objectSchema,
     optionalSchema,
     literalSchema,
-} from "../../types/standard-schema-helpers";
+} from "@repo/orpc-utils/types/standard-schema-helpers";
 import {
     BasePluginTransformer,
     StandardPluginTransformer,
@@ -36,11 +36,11 @@ import {
     type PluginBrandedInputParts,
     type PluginBuildInput,
     type PluginBuildOutput,
-} from "../plugin";
-import { type DetailedInputBuilderSchema, DetailedInputBuilder } from "../input/builder";
-import { InputSchemaProxy } from "../input/proxy";
-import { createOutputSchemaProxy, type OutputSchemaProxy, type OutputSchemaProxySchema } from "../output/proxy";
-import { error, type ErrorDefinitionBuilder, type ExtractErrorsFromBuilders } from "./error-builder";
+} from "@repo/orpc-utils/builder/plugin/index";
+import { type DetailedInputBuilderSchema, DetailedInputBuilder } from "@repo/orpc-utils/builder/input/builder";
+import { InputSchemaProxy } from "@repo/orpc-utils/builder/input/proxy";
+import { createOutputSchemaProxy, type OutputSchemaProxy, type OutputSchemaProxySchema } from "@repo/orpc-utils/builder/output/proxy";
+import { error, type ErrorDefinitionBuilder, type ExtractErrorsFromBuilders } from "@repo/orpc-utils/builder/core/error-builder";
 
 // ============================================================================
 // DETAILED INPUT TYPE (for requests: params, query, body, headers)

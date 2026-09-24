@@ -105,9 +105,16 @@ vi.mock("@/lib/orpc/typed-errors", () => ({
   }),
 }));
 
-vi.mock("@/components/setup/setup-wizard", () => ({
+// The wizard now lives in the shared UI package (one implementation for the
+// API and the web app), so the mock must target that specifier — mocking the
+// old local path silently stopped applying and pulled in the real wizard tree.
+vi.mock("@repo/ui/components/setup/setup-wizard", () => ({
   SetupWizard: () => <div>Setup Wizard</div>,
 }));
+
+// The adapter supplies the wizard's data access and eagerly imports the auth
+// client; it is irrelevant here because the wizard itself is mocked.
+vi.mock("@/domains/setup/api", () => ({ setupApi: {} }));
 
 vi.mock("./_component/ErrorScreen", () => ({
   ErrorScreen: ({ message }: { message: string }) => <div>{message}</div>,

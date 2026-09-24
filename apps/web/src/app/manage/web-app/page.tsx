@@ -132,7 +132,7 @@ export default function ManageWebAppPage() {
       ? 'gray'
       : !enabled
         ? 'red'
-        : state.supervisorState === 'converging'
+        : state.supervisorState === 'converging' || state.supervisorState === 'pending'
           ? 'amber'
           : state.healthy === false
             ? 'red'

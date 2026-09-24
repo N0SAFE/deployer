@@ -4,16 +4,13 @@
     "strict": true,
     "moduleResolution": "bundler",
     "paths": {
-      "@repo/ui/*": [
-        "./*"
-      ],
-      "@repo/*": [
-        "../*"
+      "@repo/types/*": [
+        "./src/*"
       ]
-    },
+    }
   },
   "include": [
-    "**/*.ts",
+    "src/**/*.ts",
     "eslint.config.ts"
   ]
 }

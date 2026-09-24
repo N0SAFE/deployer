@@ -1,17 +1,17 @@
 export {
   serviceProviderConfigSchema,
   serviceRunnerConfigSchema,
-} from './service-config.schema'
+} from '@repo/contracts-entities/entities/configuration/service-config.schema'
 
 export type {
   ServiceProviderConfig,
   ServiceRunnerConfig,
-} from './service-config.schema'
+} from '@repo/contracts-entities/entities/configuration/service-config.schema'
 
 export {
   serviceDependencyLinkPolicySchema,
   serviceDependencyTargetFilterSchema,
-} from './dependency-targeting.schema'
+} from '@repo/contracts-entities/entities/configuration/dependency-targeting.schema'
 
 export type {
   DependencyFilterInputSource,
@@ -20,17 +20,17 @@ export type {
   DependencyInstanceProvisioning,
   ServiceDependencyLinkPolicy,
   ServiceDependencyTargetFilter,
-} from './dependency-targeting.schema'
+} from '@repo/contracts-entities/entities/configuration/dependency-targeting.schema'
 
 export {
   serviceEnvironmentExecutionOverrideSchema,
   serviceEnvironmentExecutionOverrideByEnvSchema,
-} from './service-overrides.schema'
+} from '@repo/contracts-entities/entities/configuration/service-overrides.schema'
 
 export type {
   ServiceEnvironmentExecutionOverride,
   ServiceEnvironmentExecutionOverrideByEnv,
-} from './service-overrides.schema'
+} from '@repo/contracts-entities/entities/configuration/service-overrides.schema'
 
 export {
   projectBaseEnvironmentConfigSchema,
@@ -41,7 +41,7 @@ export {
   projectEnvironmentConfigOverrideSchema,
   projectDerivedEnvironmentConfigSchema,
   projectEnvironmentExtensionConfigSchema,
-} from './project-environment.schema'
+} from '@repo/contracts-entities/entities/configuration/project-environment.schema'
 
 export type {
   ProjectBaseEnvironmentConfig,
@@ -52,26 +52,26 @@ export type {
   ProjectEnvironmentConfigOverride,
   ProjectDerivedEnvironmentConfig,
   ProjectEnvironmentExtensionConfig,
-} from './project-environment.schema'
+} from '@repo/contracts-entities/entities/configuration/project-environment.schema'
 
 export {
   serviceContractRegistrySchema,
   serviceContractRegistryMapSchema,
-} from './contract-registry.schema'
+} from '@repo/contracts-entities/entities/configuration/contract-registry.schema'
 
 export type {
   ServiceContractRegistry,
   ServiceContractRegistryMap,
-} from './contract-registry.schema'
+} from '@repo/contracts-entities/entities/configuration/contract-registry.schema'
 
 export {
   previewSourceTemplateSchema,
   previewBackendResolutionSchema,
   previewLinkedServiceSchema,
-} from './preview-template.schema'
+} from '@repo/contracts-entities/entities/configuration/preview-template.schema'
 
 export type {
   PreviewSourceTemplate,
   PreviewBackendResolution,
   PreviewLinkedService,
-} from './preview-template.schema'
+} from '@repo/contracts-entities/entities/configuration/preview-template.schema'

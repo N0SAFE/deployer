@@ -1,24 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { BaseDatabaseService } from '../shared/database.service';
-import { Pool } from 'pg';
-import { drizzle } from 'drizzle-orm/node-postgres';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import * as globalSchema from '@/config/drizzle/global/schema';
+import * as globalSchema from '@repo/nest-schema/global';
 
 export type GlobalDatabase = NodePgDatabase<typeof globalSchema>;
 
+/**
+ * Typed handle on the GLOBAL Postgres database.
+ *
+ * The connection is a SINGLE shared `pg.Pool` created by `GlobalDatabaseModule`
+ * and injected as `GLOBAL_DATABASE_CONNECTION`; this service is a thin typed
+ * wrapper over that Drizzle instance. It deliberately does NOT own the pool —
+ * the pool's lifecycle belongs to `GlobalDatabaseLifecycleService`, so the
+ * connection can never be duplicated (a second pool would double the connection
+ * count and keep the event loop alive at shutdown).
+ */
 @Injectable()
-export class GlobalDatabaseService extends BaseDatabaseService<GlobalDatabase> {
-    /**
-     * Initialize the database connection with the given URL.
-     * Creates a pg.Pool and a Drizzle instance, then sets the internal db handle.
-     * Safe to call multiple times — re-initializes if already set.
-     */
-    async initialize(databaseUrl: string): Promise<void> {
-        this.logger.log('📦 Initializing global database pool…');
-        const pool = new Pool({ connectionString: databaseUrl });
-        const db = drizzle(pool, { schema: globalSchema }) as GlobalDatabase;
-        this.init(db);
-        this.logger.log('✅ Global database initialized');
-    }
-}
+export class GlobalDatabaseService extends BaseDatabaseService<GlobalDatabase> {}

@@ -2,7 +2,7 @@ import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/com
 import type { Subscription } from "rxjs";
 import type { DockerRuntimeEvent } from "@repo/contracts-entities";
 import { AppLogger } from "@repo/logger";
-import { EnvService } from "@/config/env/env.service";
+import { EnvService } from "@repo/nest-env";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { DockerRuntimeEventsStreamService } from "../../../common/events/docker-runtime-events-stream.service";
 import { DockerRuntimeMeshRelayService } from "../../../common/mesh/docker-runtime-mesh-relay.service";

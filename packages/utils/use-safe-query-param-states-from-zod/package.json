@@ -4,13 +4,40 @@
     "private": true,
     "sideEffects": false,
     "type": "module",
-    "main": "./src/index.ts",
+    "main": "./dist/cjs/index.js",
     "types": "./src/index.ts",
     "exports": {
-        ".": "./src/index.ts",
-        "./parsers": "./src/parsers.ts",
-        "./defaults": "./src/defaults.ts",
-        "./types": "./src/types.ts"
+        ".": {
+            "types": [
+                "./src/index.ts",
+                "./src/index.tsx"
+            ],
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
+        "./*": {
+            "types": [
+                "./src/*.ts",
+                "./src/*.tsx"
+            ],
+            "import": "./dist/esm/*.mjs",
+            "require": "./dist/cjs/*.js"
+        },
+        "./parsers": {
+            "types": "./src/parsers.ts",
+            "import": "./dist/esm/parsers.mjs",
+            "require": "./dist/cjs/parsers.js"
+        },
+        "./defaults": {
+            "types": "./src/defaults.ts",
+            "import": "./dist/esm/defaults.mjs",
+            "require": "./dist/cjs/defaults.js"
+        },
+        "./types": {
+            "types": "./src/types.ts",
+            "import": "./dist/esm/types.mjs",
+            "require": "./dist/cjs/types.js"
+        }
     },
     "scripts": {
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
@@ -20,7 +47,10 @@
         "type-check": "tsc --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",
-        "test:coverage": "vitest run --coverage"
+        "test:coverage": "vitest run --coverage",
+        "build": "bun --bun ../../bin/pkg-build/index.ts",
+        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
+        "clean": "rimraf dist"
     },
     "dependencies": {
         "@repo/type-guards": "*",
@@ -44,5 +74,6 @@
     "peerDependencies": {
         "next": ">=15.0.0",
         "react": ">=19.2.8"
-    }
+    },
+    "module": "./dist/esm/index.mjs"
 }

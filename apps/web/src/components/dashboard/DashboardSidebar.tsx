@@ -1,31 +1,21 @@
 'use client'
 
-import { 
+import {
   ChevronRight,
-  Users, 
-  Settings, 
-  Server,
-  Container,
-  Rocket,
-  Home, 
-  Shield, 
-  UserCircle,
-  LayoutDashboard,
   ChevronUp,
-  LogOut,
   FolderKanban,
+  Home,
+  LogOut,
   Search,
-  GitFork,
-  Globe,
-  Network,
-  Activity,
-  Boxes,
-  Image as ImageIcon,
-  ScrollText,
-  TerminalSquare,
-  ServerCog,
-  HardDrive,
+  Shield,
+  UserCircle,
 } from 'lucide-react'
+import {
+  NAV_GROUPS,
+  hasActiveNavChild,
+  isNavItemActive,
+  type NavItem,
+} from './navigation'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import ModeToggle from '@repo/ui/components/shadcn/mode-toggle'
@@ -69,113 +59,64 @@ import {
 } from '@repo/ui/components/shadcn/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@repo/ui/components/shadcn/avatar'
 
-interface NavItem {
-  title: string
-  url: string
-  icon: React.ElementType
-  exact?: boolean
-  items?: { title: string; url: string }[]
+/**
+ * One rail entry, rendered from the shared navigation model.
+ *
+ * Entries carrying `items` get a real nested submenu. Before this, only the
+ * Node engine group honoured `items` and the Admin group ignored the field
+ * entirely, so the eight provider sub-entries were rendered nowhere at all -
+ * the data existed and no surface ever drew it.
+ */
+function NavEntry({ item, pathname }: { item: NavItem; pathname: string }) {
+  const isActive = isNavItemActive(item, pathname)
+  const hasChildren = (item.items?.length ?? 0) > 0
+
+  const entry = (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
+        <Link href={item.url}>
+          <item.icon />
+          <span>{item.title}</span>
+        </Link>
+      </SidebarMenuButton>
+      {hasChildren ? (
+        <>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuAction className="group-data-[state=open]/collapsible:rotate-90">
+              <ChevronRight />
+              <span className="sr-only">{`Toggle ${item.title}`}</span>
+            </SidebarMenuAction>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <SidebarMenuSub>
+              {item.items?.map((subItem) => (
+                <SidebarMenuSubItem key={subItem.url}>
+                  <SidebarMenuSubButton asChild isActive={isNavItemActive(subItem, pathname)}>
+                    <Link href={subItem.url}>
+                      <span>{subItem.title}</span>
+                    </Link>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              ))}
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        </>
+      ) : null}
+    </SidebarMenuItem>
+  )
+
+  if (!hasChildren) return entry
+
+  return (
+    <Collapsible
+      asChild
+      defaultOpen={isActive || hasActiveNavChild(item, pathname)}
+      className="group/collapsible"
+    >
+      {entry}
+    </Collapsible>
+  )
 }
-
-/** Fleet group: overview + the cluster spine + the fleet node list. */
-const fleetNavItems: NavItem[] = [
-  {
-    title: 'Overview',
-    url: '/dashboard',
-    icon: LayoutDashboard,
-    exact: true,
-  },
-  {
-    title: 'Fleet',
-    url: '/dashboard/nodes',
-    icon: Network,
-  },
-  {
-    title: 'Cluster',
-    url: '/dashboard/cluster',
-    icon: Server,
-  },
-]
-
-/** Mesh-wide workload group: services, deployments, domains span every node. */
-const workloadNavItems: NavItem[] = [
-  {
-    title: 'Deployments',
-    url: '/dashboard/deployments',
-    icon: Rocket,
-  },
-  {
-    title: 'Services',
-    url: '/dashboard/services',
-    icon: ServerCog,
-  },
-  {
-    title: 'Domains',
-    url: '/dashboard/admin/domains',
-    icon: Globe,
-  },
-  {
-    title: 'Analytics',
-    url: '/dashboard/analytics',
-    icon: Activity,
-  },
-]
-
-/** The connected node's engine resources (node-scoped, not a docker hub). */
-const engineNavItems: NavItem[] = [
-  {
-    title: 'Overview',
-    url: '/dashboard/docker',
-    icon: Boxes,
-  },
-  {
-    title: 'Tasks · Containers',
-    url: '/dashboard/docker/containers',
-    icon: Container,
-  },
-  { title: 'Images', url: '/dashboard/docker/images', icon: ImageIcon },
-  { title: 'Networks', url: '/dashboard/docker/networks', icon: Network },
-  { title: 'Volumes', url: '/dashboard/docker/volumes', icon: HardDrive },
-  { title: 'Logs', url: '/dashboard/docker/logs', icon: ScrollText },
-  { title: 'Shell', url: '/dashboard/docker/shell', icon: TerminalSquare },
-  { title: 'Activity', url: '/dashboard/docker/activity', icon: Activity },
-]
-
-const adminNavItems: NavItem[] = [
-  { 
-    title: 'Users', 
-    url: '/dashboard/admin/users',
-    icon: Users,
-  },
-  {
-    title: 'Providers',
-    url: '/dashboard/admin/providers',
-    icon: GitFork,
-    items: [
-      { title: 'Code Providers', url: '/dashboard/admin/providers/code' },
-      { title: '▸ GitHub', url: '/dashboard/admin/providers/code/github' },
-      { title: '▸ GitLab', url: '/dashboard/admin/providers/code/gitlab' },
-      { title: '▸ Docker Hub', url: '/dashboard/admin/providers/code/docker-hub' },
-      { title: 'DNS Providers', url: '/dashboard/admin/providers/dns' },
-      { title: '▸ Cloudflare', url: '/dashboard/admin/providers/dns/cloudflare' },
-      { title: '▸ Route53', url: '/dashboard/admin/providers/dns/route53' },
-      { title: '▸ Google DNS', url: '/dashboard/admin/providers/dns/google-dns' },
-    ],
-  },
-  { 
-    title: 'System', 
-    url: '/dashboard/admin/system',
-    icon: Settings,
-  },
-]
-
-const accountNavItems: NavItem[] = [
-  { 
-    title: 'Profile', 
-    url: '/dashboard/profile',
-    icon: UserCircle,
-  },
-]
 
 function getInitials(name: string | undefined): string {
   if (!name) return 'U'
@@ -364,16 +305,7 @@ function DashboardSidebarInner() {
   // Check if user has admin role
   const isAdmin = session?.user.role === 'admin' || session?.user.role === 'superAdmin'
 
-  const isActive = (item: Pick<NavItem, 'url' | 'exact'>) => {
-    if (item.exact) {
-      return pathname === item.url
-    }
-    return pathname.startsWith(item.url)
-  }
-
-  const hasActiveChild = (item: NavItem) => {
-    return item.items?.some((subItem) => pathname.startsWith(subItem.url)) ?? false
-  }
+  const visibleGroups = NAV_GROUPS.filter((group) => group.adminOnly !== true || isAdmin)
 
   const handleSignOut = async () => {
     await signOut()
@@ -425,146 +357,27 @@ function DashboardSidebarInner() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Fleet group: overview + cluster spine + fleet nodes */}
-        <SidebarGroup>
-          <SidebarGroupLabel>
-            <Network className="size-3 mr-1" />
-            Fleet
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {fleetNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.title}>
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Workloads group — mesh-wide */}
-        <SidebarGroup>
-          <SidebarGroupLabel>
-            <Rocket className="size-3 mr-1" />
-            Workloads
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {workloadNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.title}>
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-              {/* Inline Projects Section */}
-              <ProjectsSidebarSection />
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Node scope — the connected node's engine (no global 'Docker' hub) */}
-        <SidebarGroup>
-          <SidebarGroupLabel>
-            <Server className="size-3 mr-1" />
-            Connected node · Engine
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {engineNavItems.map((item) => (
-                <Collapsible
-                  key={item.title}
-                  asChild
-                  defaultOpen={isActive(item) || hasActiveChild(item)}
-                  className="group/collapsible"
-                >
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.title}>
-                      <Link href={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                    {item.items?.length ? (
-                      <>
-                        <CollapsibleTrigger asChild>
-                          <SidebarMenuAction className="group-data-[state=open]/collapsible:rotate-90">
-                            <ChevronRight />
-                            <span className="sr-only">Toggle</span>
-                          </SidebarMenuAction>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <SidebarMenuSub>
-                            {item.items.map((subItem) => (
-                              <SidebarMenuSubItem key={subItem.title}>
-                                <SidebarMenuSubButton asChild isActive={pathname === subItem.url || pathname.startsWith(`${subItem.url}/`)}>
-                                  <Link href={subItem.url}>
-                                    <span>{subItem.title}</span>
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            ))}
-                          </SidebarMenuSub>
-                        </CollapsibleContent>
-                      </>
-                    ) : null}
-                  </SidebarMenuItem>
-                </Collapsible>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Admin Section - Only shown for admins */}
-        {isAdmin && (
-          <SidebarGroup>
+        {/*
+          One map over the shared navigation model. The rail and the ⌘K palette
+          read the same list, so the same page can no longer be called two
+          different things depending on which surface you searched in.
+        */}
+        {visibleGroups.map((group) => (
+          <SidebarGroup key={group.id}>
             <SidebarGroupLabel>
-              <Shield className="size-3 mr-1" />
-              Admin Panel
+              <group.icon className="size-3 mr-1" />
+              {group.label}
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {adminNavItems.map((item) => (
-                  <SidebarMenuItem key={item.url}>
-                    <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.title}>
-                      <Link href={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                {group.items.map((item) => (
+                  <NavEntry key={item.url} item={item} pathname={pathname} />
                 ))}
+                {group.hostsProjectTree ? <ProjectsSidebarSection /> : null}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-        )}
-
-        {/* Account Section */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Account</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {accountNavItems.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton asChild isActive={isActive(item)} tooltip={item.title}>
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarSeparator />

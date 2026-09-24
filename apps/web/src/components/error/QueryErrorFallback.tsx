@@ -56,11 +56,11 @@ export function QueryErrorFallback({ error, onReset }: QueryErrorFallbackProps):
           <div
             className={cn(
               'flex size-20 items-center justify-center rounded-full',
-              isNetworkError ? 'bg-amber-500/10' : 'bg-destructive/10',
+              isNetworkError ? 'bg-status-pending/10' : 'bg-destructive/10',
             )}
           >
             {isNetworkError ? (
-              <WifiOff className="size-10 text-amber-600 dark:text-amber-400" />
+              <WifiOff className="size-10 text-status-pending" />
             ) : (
               <AlertCircle className="size-10 text-destructive" />
             )}

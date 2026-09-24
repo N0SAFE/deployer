@@ -107,7 +107,9 @@ export default function DashboardServiceConfigurationNetworkPage() {
       setZoneName(n?.zoneName ?? '')
       setRecordType(n?.recordType ?? 'CNAME')
       setRecordContent(n?.recordContent ?? '')
-      setProxied(n?.proxied ?? true)
+      // `?? true` rendered Cloudflare proxying as ON for a service with no
+      // network config, i.e. it asserted a setting that had never been made.
+      setProxied(n?.proxied ?? false)
       setAutoProvision(n?.autoProvision ?? false)
       setExpose(n?.expose ?? false)
       setTlsEnabled(Boolean(n?.tls?.enabled))

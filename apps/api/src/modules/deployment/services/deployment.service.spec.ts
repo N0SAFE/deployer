@@ -23,6 +23,13 @@ import { UploadBundleRegistryService } from "@/modules/providers/code/upload/ser
 import { CustomSourceProviderService } from "@/modules/providers/code/custom/services/custom-source-provider.service";
 import { RuntimeRunnerRegistryService } from "@/modules/runners/runtime-runner-registry.service";
 import { DockerRuntimeRunnerService } from "@/modules/runners/docker/docker-runtime-runner.service";
+import { DockerfileRuntimeRunnerService } from "@/modules/runners/dockerfile/dockerfile-runtime-runner.service";
+import { DockerComposeRuntimeRunnerService } from "@/modules/runners/docker-compose/docker-compose-runtime-runner.service";
+import { NixpacksRuntimeRunnerService } from "@/modules/runners/nixpacks/nixpacks-runtime-runner.service";
+import { BuildpackRuntimeRunnerService } from "@/modules/runners/buildpack/buildpack-runtime-runner.service";
+import { RailpackRuntimeRunnerService } from "@/modules/runners/railpack/railpack-runtime-runner.service";
+import { SwarmRuntimeRunnerService } from "@/modules/runners/swarm/swarm-runtime-runner.service";
+import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
 import { DeploymentExecutionWorkflowService } from './deployment-execution-workflow.service';
 import { DeploymentQueueLifecycleService } from '../queue/deployment-queue-lifecycle.service';
 import { DeploymentQueueEventService } from '../queue/deployment-queue-event.service';
@@ -455,8 +462,24 @@ describe('DeploymentService', () => {
                 },
                 {
                     provide: RuntimeRunnerRegistryService,
+                    // All seven runners are required by the registry, so the
+                    // test supplies every one — the same set RunnersModule
+                    // provides. Five of them need only the already-mocked
+                    // DockerRuntimeRunnerService; swarm additionally needs a
+                    // cluster service, mocked here because this suite never
+                    // exercises the swarm path.
                     useFactory: (dockerRuntimeRunnerService: DockerRuntimeRunnerService) =>
-                        new RuntimeRunnerRegistryService(dockerRuntimeRunnerService),
+                        new RuntimeRunnerRegistryService(
+                            dockerRuntimeRunnerService,
+                            new DockerfileRuntimeRunnerService(dockerRuntimeRunnerService),
+                            new DockerComposeRuntimeRunnerService(dockerRuntimeRunnerService),
+                            new NixpacksRuntimeRunnerService(dockerRuntimeRunnerService),
+                            new BuildpackRuntimeRunnerService(dockerRuntimeRunnerService),
+                            new RailpackRuntimeRunnerService(dockerRuntimeRunnerService),
+                            new SwarmRuntimeRunnerService(mockDockerService, {
+                                getSwarmState: vi.fn().mockResolvedValue({ active: false }),
+                            } as unknown as SwarmClusterService),
+                        ),
                     inject: [DockerRuntimeRunnerService],
                 },
                 {

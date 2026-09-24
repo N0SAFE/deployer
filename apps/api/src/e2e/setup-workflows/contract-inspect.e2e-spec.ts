@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { setupContract } from "@repo/api-contracts";
 import { isContractProcedure, getEventIteratorSchemaDetails } from "@orpc/contract";
 
+type EventIteratorSchemaArg = Parameters<typeof getEventIteratorSchemaDetails>[0];
+
 describe("contract observable detection", () => {
   const endpoints = ["initialize", "getInitializeStream"];
 
@@ -11,7 +13,7 @@ describe("contract observable detection", () => {
       expect(isContractProcedure(proc)).toBe(true);
 
       const orpc = (proc as { "~orpc": Record<string, unknown> })["~orpc"];
-      const outputSchema = orpc?.outputSchema as Record<string, unknown> | undefined;
+      const outputSchema = orpc?.outputSchema as EventIteratorSchemaArg;
       expect(outputSchema).toBeDefined();
 
       // Check getEventIteratorSchemaDetails (what ObservableLinkPlugin checks)
@@ -19,7 +21,7 @@ describe("contract observable detection", () => {
       expect(ei).toBeDefined();
       
       // Also check for OBSERVABLE_DETAILS_SYMBOL on ~standard
-      const standard = (outputSchema as Record<string, unknown>)["~standard"] as Record<PropertyKey, unknown> | undefined;
+      const standard = outputSchema === undefined ? undefined : Reflect.get(outputSchema, "~standard");
       expect(standard).toBeDefined();
       
       const symbols = Object.getOwnPropertySymbols(standard!);

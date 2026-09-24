@@ -539,7 +539,8 @@ http:
       // Add middleware
       builder.addMiddleware('rate-limit', m => m.rateLimit({ average: 100 }));
 
-      // Update router to use middleware (need to rebuild)
+      // Update router: addRouter is upsert-by-name, so re-adding 'original'
+      // replaces the loaded entry rather than appending a second one.
       builder.addRouter('original', r =>
         r.rule('Host(`original.com`)').service('svc1').middleware('rate-limit')
       );
@@ -548,6 +549,23 @@ http:
 
       expect(config.http?.middlewares?.['rate-limit']).toBeDefined();
       expect(config.http?.routers?.original?.middlewares).toContain('rate-limit');
+      expect(Object.keys(config.http?.routers ?? {})).toEqual(['original']);
+    });
+
+    it('should validate a router replacement the same way as an insertion', () => {
+      const builder = TraefikConfigBuilder.load(`
+http:
+  routers:
+    original:
+      rule: "Host(\`original.com\`)"
+      service: svc1
+`);
+
+      // Replacing by name must still satisfy HttpRouterBuilder.build(),
+      // which requires both rule and service.
+      expect(() =>
+        builder.addRouter('original', r => r.rule('Host(`changed.com`)'))
+      ).toThrow();
     });
   });
 

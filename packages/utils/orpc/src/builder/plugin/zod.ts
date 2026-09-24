@@ -18,10 +18,10 @@
  
 import * as z from "zod";
 import type { Schema } from "@orpc/contract";
-import type { AnySchema } from "../../types/types";
-import type { SchemaShape, OptionalSchema, LiteralSchema, VoidSchema, NeverSchema, ObjectSchema } from "../../types/standard-schema-helpers";
-import { BasePluginTransformer, type PluginInfer } from "./base";
-import { DetailedInputBrand, DetailedOutputBrand } from "../core/route-builder";
+import type { AnySchema } from "@repo/orpc-utils/types/types";
+import type { SchemaShape, OptionalSchema, LiteralSchema, VoidSchema, NeverSchema, ObjectSchema } from "@repo/orpc-utils/types/standard-schema-helpers";
+import { BasePluginTransformer, type PluginInfer } from "@repo/orpc-utils/builder/plugin/base";
+import { DetailedInputBrand, DetailedOutputBrand } from "@repo/orpc-utils/builder/core/route-builder";
 
 /**
  * Make a shape field satisfy `z.ZodObject`'s `SomeType` constraint (`_zod`)
@@ -144,7 +144,7 @@ export type ZodDetailedOutput<
     THeaders extends AnySchema,
     TBody extends AnySchema,
 > = z.ZodObject<{
-    status: ZodField<ReturnType<typeof import("../../types/standard-schema-helpers").literalSchema<TStatus>>>;
+    status: ZodField<ReturnType<typeof import("@repo/orpc-utils/types/standard-schema-helpers").literalSchema<TStatus>>>;
     body: ZodShapeField<ZodField<TBody>>;
 } & (ZodIsEmptyObjectSchemaType<THeaders> extends true ? Record<never, never> : { headers: ZodShapeField<ZodField<THeaders>> })> & { readonly [DetailedOutputBrand]: true };
 

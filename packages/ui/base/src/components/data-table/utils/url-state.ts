@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // ** import utils
-import { isDeepEqual } from "./deep-utils";
-import { DATA_TABLE_URL_STATE_EVENT } from "./url-events";
-import { ensureUrlStateHistoryPatched } from "./history-sync";
+import { isDeepEqual } from "@repo/ui/components/data-table/utils/deep-utils";
+import { DATA_TABLE_URL_STATE_EVENT } from "@repo/ui/components/data-table/utils/url-events";
+import { ensureUrlStateHistoryPatched } from "@repo/ui/components/data-table/utils/history-sync";
 
 function canUseDOM(): boolean {
   return typeof window !== "undefined" && typeof window.location !== "undefined";
@@ -113,12 +113,12 @@ export function useUrlState<T>(
 
   // Custom serialization/deserialization functions
   const serialize =
-    options.serialize ||
+    options.serialize ??
     ((value: T) =>
       typeof value === "object" ? JSON.stringify(value) : String(value));
 
   const deserialize =
-    options.deserialize ||
+    options.deserialize ??
     ((value: string) => {
       try {
         if (typeof defaultValue === "number") {
@@ -152,14 +152,14 @@ export function useUrlState<T>(
             }
             return defaultValue;
           } catch (e) {
-            console.warn(`Error parsing JSON from URL parameter ${key}: ${e}`);
+            console.warn(`Error parsing JSON from URL parameter ${key}: ${String(e)}`);
             return defaultValue;
           }
         }
 
         return value as unknown as T;
       } catch (e) {
-        console.warn(`Error deserializing URL parameter ${key}: ${e}`);
+        console.warn(`Error deserializing URL parameter ${key}: ${String(e)}`);
         return defaultValue;
       }
     });
@@ -171,7 +171,7 @@ export function useUrlState<T>(
     // Check if we have a pending update for this key that hasn't been applied yet
     if (batchUpdateState.pendingUpdates.has(key)) {
       const pendingUpdate = batchUpdateState.pendingUpdates.get(key);
-      if (pendingUpdate && typeof pendingUpdate.value !== 'undefined') {
+      if (pendingUpdate?.value !== undefined) {
         return pendingUpdate.value as T;
       }
     }
@@ -224,8 +224,7 @@ export function useUrlState<T>(
     // Check if searchParams actually changed
     const searchParamsString = searchParams.toString();
     if (
-      prevSearchParamsRef.current &&
-      prevSearchParamsRef.current.toString() === searchParamsString
+      prevSearchParamsRef.current?.toString() === searchParamsString
     ) {
       return;
     }
@@ -248,7 +247,7 @@ export function useUrlState<T>(
       setValue(newValue);
     } else if (
       batchUpdateState.pendingUpdates.has(key) &&
-      areEqual(batchUpdateState.pendingUpdates.get(key)?.value as unknown as T, newValue)
+      areEqual(batchUpdateState.pendingUpdates.get(key)?.value as T, newValue)
     ) {
       // If our pending update has been applied, we can remove it from the map
       batchUpdateState.pendingUpdates.delete(key);
@@ -314,13 +313,13 @@ export function useUrlState<T>(
         // We need to ensure this "page" entry has appropriate functions.
         // For now, assume standard defaults for "page" if it's not already managed by its own useUrlState.
         // A more robust solution might involve a shared registry or context for URL state configurations.
-        const pageEntry: PendingUpdateEntry<number> = batchUpdateState.pendingUpdates.get("page") as PendingUpdateEntry<number> || {
+        const pageEntry: PendingUpdateEntry<number> = batchUpdateState.pendingUpdates.get("page") as PendingUpdateEntry<number> | undefined ?? {
           value: 1,
           defaultValue: 1, // Assuming default page is 1
           serialize: (v: number) => String(v),
           areEqual: (a: number, b: number) => a === b,
         };
-        batchUpdateState.pendingUpdates.set("page", { ...pageEntry, value: 1 } as PendingUpdateEntry<unknown>);
+        batchUpdateState.pendingUpdates.set("page", { ...pageEntry, value: 1 } as PendingUpdateEntry);
       }
 
       // If we're in a batch update, delay URL change
@@ -380,7 +379,7 @@ export function useUrlState<T>(
               // If sortOrder isn't being updated in this batch, ensure it's included
               if (!sortOrderInBatch) {
                 // Get current sortOrder value from URL or use default
-                const currentSortOrder = params.get("sortOrder") || defaultSortOrder;
+                const currentSortOrder = params.get("sortOrder") ?? defaultSortOrder;
                 params.set("sortOrder", currentSortOrder);
               }
             } 
@@ -433,7 +432,7 @@ export function useUrlState<T>(
           }
 
           // Update the URL immediately and resolve
-          updateUrlNow(params).then(resolve);
+          void updateUrlNow(params).then(resolve);
         };
 
         // Process batch in microtask

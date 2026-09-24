@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { coreDomainEventEnvelopeSchema } from "../event-stream";
+import { coreDomainEventEnvelopeSchema } from "@repo/contracts-entities/entities/event-stream/index";
 
 export const meshControlEnvelopeTypeSchema = z.enum([
     "hello",

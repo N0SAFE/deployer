@@ -3,7 +3,7 @@
  * Uses Standard Schema instead of Zod
  */
 
-import type { AnySchema } from "../../types/types";
+import type { AnySchema } from "@repo/orpc-utils/types/types";
 
 /**
  * Schema shape type imported for PathParamBuilderWithExisting

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { RESOURCE_GRAPH, getAncestorChain, isAncestorOf, MAX_CASCADE_DEPTH } from "./resource-graph";
-import type { ProjectResource } from "./types";
+import { RESOURCE_GRAPH, getAncestorChain, isAncestorOf, MAX_CASCADE_DEPTH } from "@repo/auth/permissions/engine/resource-graph";
+import type { ProjectResource } from "@repo/auth/permissions/engine/types";
 
 describe("RESOURCE_GRAPH", () => {
     it("has an entry for every ProjectResource", () => {

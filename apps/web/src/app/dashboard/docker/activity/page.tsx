@@ -14,6 +14,13 @@ import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@repo/ui/components/shadcn/popover'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@repo/ui/components/shadcn/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -22,8 +29,10 @@ import {
   TableRow,
 } from '@repo/ui/components/shadcn/table'
 import { Activity, Search } from 'lucide-react'
+import { StatusBadge, type StatusBadgeVariant } from '@/components/dashboard'
 import type { DockerRuntimeActivityEntity } from '@repo/contracts-entities'
 import { isRecord, isObjectLike } from "@repo/type-guards"
+import { formatDateTime as formatDate } from '@/lib/format/date'
 
 
 /**
@@ -38,23 +47,11 @@ function shortId(id: string): string {
   return id.slice(0, 8)
 }
 
-function formatDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleString()
-}
-
-function toStatusBadgeVariant(status: ActivityStatus): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'completed') return 'default'
-  if (status === 'error') return 'destructive'
-  if (status === 'running') return 'secondary'
-  if (status === 'queued') return 'outline'
-  return 'secondary'
-}
-
-function toSeverityBadgeVariant(severity: ActivitySeverity): 'default' | 'secondary' | 'destructive' | 'outline' {
+function toSeverityBadgeVariant(severity: ActivitySeverity): StatusBadgeVariant {
+  // Severity is its own axis (how bad an EVENT was), not resource health, so it
+  // maps to a variant directly instead of going through the status matrix.
   if (severity === 'error') return 'destructive'
-  if (severity === 'warning') return 'secondary'
+  if (severity === 'warning') return 'warning'
   return 'outline'
 }
 
@@ -296,8 +293,8 @@ export default function DashboardDockerActivityPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Activity className="h-4 w-4" />
             <h2 className="text-sm font-semibold">Activity</h2>
-            <Badge className="" variant="outline">{filteredActivities.length}</Badge>
-            <Badge className="" variant={runtimeSseStatus === 'error' ? 'destructive' : runtimeSseStatus === 'connected' ? 'default' : 'secondary'}>
+            <Badge variant="outline">{filteredActivities.length}</Badge>
+            <Badge variant={runtimeSseStatus === 'error' ? 'destructive' : runtimeSseStatus === 'connected' ? 'default' : 'secondary'}>
               stream {runtimeSseStatus}
             </Badge>
             <Popover>
@@ -348,58 +345,65 @@ export default function DashboardDockerActivityPage() {
                 }}
                 className="pl-9"
                 placeholder="Search activity"
+                aria-label="Search activity"
               />
             </div>
-            <select aria-label="All categories"
-              className="h-10 rounded-md border bg-background px-3 text-sm"
+            <Select
               value={categoryFilter}
-              onChange={(event) => {
-                setCategoryFilter(event.target.value as 'all' | ActivityCategory)
-              }}
+              onValueChange={(value) => setCategoryFilter(value as 'all' | ActivityCategory)}
             >
-              <option value="all">All categories</option>
-              <option value="image-scanning">Image scanning</option>
-              <option value="runtime-event">Runtime events</option>
-            </select>
-            <select aria-label="All status"
-              className="h-10 rounded-md border bg-background px-3 text-sm"
+              <SelectTrigger aria-label="Filter by category">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                <SelectItem value="image-scanning">Image scanning</SelectItem>
+                <SelectItem value="runtime-event">Runtime events</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
               value={statusFilter}
-              onChange={(event) => {
-                setStatusFilter(event.target.value as 'all' | ActivityStatus)
-              }}
+              onValueChange={(value) => setStatusFilter(value as 'all' | ActivityStatus)}
             >
-              <option value="all">All status</option>
-              <option value="queued">Queued</option>
-              <option value="running">Running</option>
-              <option value="completed">Completed</option>
-              <option value="error">Error</option>
-              <option value="info">Info</option>
-            </select>
-            <select aria-label="All severities"
-              className="h-10 rounded-md border bg-background px-3 text-sm"
+              <SelectTrigger aria-label="Filter by status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All status</SelectItem>
+                <SelectItem value="queued">Queued</SelectItem>
+                <SelectItem value="running">Running</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="error">Error</SelectItem>
+                <SelectItem value="info">Info</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
               value={severityFilter}
-              onChange={(event) => {
-                setSeverityFilter(event.target.value as 'all' | ActivitySeverity)
-              }}
+              onValueChange={(value) => setSeverityFilter(value as 'all' | ActivitySeverity)}
             >
-              <option value="all">All severities</option>
-              <option value="info">Info</option>
-              <option value="warning">Warning</option>
-              <option value="error">Error</option>
-            </select>
+              <SelectTrigger aria-label="Filter by severity">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All severities</SelectItem>
+                <SelectItem value="info">Info</SelectItem>
+                <SelectItem value="warning">Warning</SelectItem>
+                <SelectItem value="error">Error</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          <Table className="">
-            <TableHeader className="">
-              <TableRow className="">
-                <TableHead className="">Name</TableHead>
-                <TableHead className="">Status</TableHead>
-                <TableHead className="">Category</TableHead>
-                <TableHead className="">Message</TableHead>
-                <TableHead className="">Occurred</TableHead>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Message</TableHead>
+                <TableHead>Occurred</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody className="">
+            <TableBody>
               {isLoading ? (
                 <DockerTableLoadingRows columns={5} rows={8} />
               ) : filteredActivities.map((activity) => {
@@ -414,7 +418,7 @@ export default function DashboardDockerActivityPage() {
                         setSelectedActivityId(activity.id)
                       }}
                     >
-                      <TableCell className="">
+                      <TableCell>
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <p className="font-medium">
@@ -436,14 +440,14 @@ export default function DashboardDockerActivityPage() {
                           <p className="text-[11px] text-muted-foreground">{resolveResourceName(activity)}</p>
                         </div>
                       </TableCell>
-                      <TableCell className="">
+                      <TableCell>
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <Badge className="" variant={toStatusBadgeVariant(activity.status)}>{activity.status}</Badge>
-                          <Badge className="" variant={toSeverityBadgeVariant(activity.severity)}>{activity.severity}</Badge>
+                          <StatusBadge status={activity.status} />
+                          <Badge variant={toSeverityBadgeVariant(activity.severity)}>{activity.severity}</Badge>
                         </div>
                       </TableCell>
-                      <TableCell className="">
-                        <Badge className="" variant={toCategoryBadgeVariant(activity.category)}>{activity.category}</Badge>
+                      <TableCell>
+                        <Badge variant={toCategoryBadgeVariant(activity.category)}>{activity.category}</Badge>
                       </TableCell>
                       <TableCell className="max-w-100">
                         <p className="truncate text-xs text-muted-foreground">
@@ -455,7 +459,7 @@ export default function DashboardDockerActivityPage() {
                   )
                 })}
               {!isLoading && filteredActivities.length === 0 ? (
-                <TableRow className="">
+                <TableRow>
                   <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
                     No activity events match the current filters.
                   </TableCell>
@@ -469,8 +473,8 @@ export default function DashboardDockerActivityPage() {
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold">Activity details</h3>
                 <div className="flex items-center gap-1.5">
-                  <Badge className="" variant={toStatusBadgeVariant(selectedActivity.status)}>{selectedActivity.status}</Badge>
-                  <Badge className="" variant={toSeverityBadgeVariant(selectedActivity.severity)}>{selectedActivity.severity}</Badge>
+                  <StatusBadge status={selectedActivity.status} />
+                  <Badge variant={toSeverityBadgeVariant(selectedActivity.severity)}>{selectedActivity.severity}</Badge>
                 </div>
               </div>
               <div className="grid gap-3 text-xs md:grid-cols-2">

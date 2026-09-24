@@ -1,95 +1,74 @@
 /**
- * SwarmBootstrapService — converges the local engine into Swarm mode when the
- * main platform app boots (i.e. AFTER the setup gate has completed).
+ * SwarmBootstrapService — converges the local engine into Swarm mode AFTER the
+ * setup wizard has recorded how this node participates.
  *
- * Design (see docs/swarm-orchestration/01-single-node-unified-mode.md):
- * every node — including a single-node dev/prod host — converges to a real
- * Swarm cluster (`docker swarm init` for the first node, `swarm join` for
- * later ones), so the API runs ONE code path for every fleet size. This
- * service fires on `onApplicationBootstrap` of the main AppModule (which only
- * exists after setup), so the cluster bootstrap never interferes with the
- * first-run wizard.
+ * WHY SETUP, NOT BOOT: the cluster decision belongs to the operator. Founding a
+ * cluster is not something the API may do on its own initiative, because a node
+ * that is about to JOIN a fleet must not first invent a cluster of its own —
+ * `docker swarm init` cannot be undone without destroying the local Raft state.
+ * So the engine stays untouched until setup writes `node_config.swarmConfig`
+ * (the wizard ALWAYS writes it: `local` → create, `remote` → join), and this
+ * service converges FROM that persisted decision: once at boot for an
+ * already-set-up node, and once from the setup flow that just wrote it.
  *
- * LAYERING (per architecture): Swarm orchestrates the WORKLOAD Deployer owns
- * — user deployments / projects / services (the `runners/swarm` execution
- * backend creates per-project overlay networks + services). Swarm NEVER
- * orchestrates Deployer's OWN platform infra (Traefik ingress, DB, Redis,
- * etc.) — that is owned by the platform supervisors or, in the compose dev
- * profile, Compose itself (`MANAGED_*_ENABLED`). There is therefore no
- * "platform swarm stack": the ingress and the shared bridge network stay
- * under platform ownership on every fleet size; only user workloads are
- * scheduled.
+ * `SwarmParticipationService.converge()` is idempotent and re-reads the
+ * persisted config, so this is safe to call again from the cluster UI after an
+ * operator changes the participation.
  *
- * Failure is best-effort by design: a node without an engine in swarm mode
- * (edge/NAT, engine constraints) logs a warning and keeps the platform up —
- * the hard gate lives in executors (`SwarmClusterService.assertClusterReady`),
- * which the swarm runtime runner uses before deploying.
+ * LAYERING: Swarm orchestrates the WORKLOAD Deployer owns (user deployments via
+ * the `runners/swarm` backend) AND Deployer's own platform infra, which the
+ * supervisors express as global/replicated swarm services. With no active
+ * cluster the supervisors DEFER (`pending`, never `degraded`) rather than
+ * falling back to plain containers, and the main sub-app's boot re-converges
+ * them once setup has created the cluster.
  */
 
-import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
-import type { SwarmInitOptions } from "@repo/contracts-entities";
-import { EnvService } from "@/config/env/env.service";
-import { ClusterNodeRepository } from "../repositories/cluster-node.repository";
-import { SwarmClusterService } from "./swarm-cluster.service";
+import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
+import { SwarmParticipationService } from "./swarm-participation.service";
 
 @Injectable()
-export class SwarmBootstrapService implements OnApplicationBootstrap {
+export class SwarmBootstrapService implements OnModuleInit {
     private readonly logger = new Logger(SwarmBootstrapService.name);
 
-    constructor(
-        private readonly clusterService: SwarmClusterService,
-        private readonly clusterNodeRepository: ClusterNodeRepository,
-        private readonly envService: EnvService,
-    ) {}
+    constructor(private readonly participation: SwarmParticipationService) {}
 
-    async onApplicationBootstrap(): Promise<void> {
-        if (!this.envService.get("SWARM_ENABLED")) {
-            this.logger.log("Swarm convergence disabled (SWARM_ENABLED=false) — supervisor mode");
+    async onModuleInit(): Promise<void> {
+        if (!this.participation.setupDone()) {
+            // Pre-setup: never initialize swarm. The WIZARD decides how this
+            // node enters the cluster (create vs join) and its role policy;
+            // initializing here would leave a node that is about to join a
+            // fleet owning a cluster it invented. The setup flow calls
+            // `converge()` once that decision is persisted.
+            this.logger.log(
+                "Swarm convergence deferred until setup — the cluster entry mode (create vs join) and role policy are decided during setup",
+            );
             return;
         }
 
-        const options: SwarmInitOptions = {};
-        const advertiseAddr = this.envService.get("SWARM_ADVERTISE_ADDR");
-        if (advertiseAddr) {
-            options.AdvertiseAddr = advertiseAddr;
-        }
+        await this.converge("boot");
+    }
 
+    /**
+     * Converge the cluster from the PERSISTED participation. Called by the
+     * setup flow as its final step, and again on boot for an already-set-up
+     * node. Never throws — a failed convergence degrades the supervisors, it
+     * does not crash the platform.
+     */
+    async converge(trigger: "boot" | "setup"): Promise<void> {
         try {
-            const snapshot = await this.clusterService.ensureCluster(options);
+            const snapshot = await this.participation.converge();
             const node = snapshot.localNode;
             this.logger.log(
-                `Swarm converged — state=${snapshot.localNodeState}, role=${node.swarmRole}, ` +
-                    `nodes=${String(snapshot.nodeCount)}, managers=${String(snapshot.managerCount)}, ` +
-                    `master=${snapshot.master?.nodeId ?? "none"}`,
+                `Swarm converged (${trigger}) — state=${snapshot.localNodeState}, role=${node.swarmRole}, ` +
+                    `availability=${node.availability}, nodes=${String(snapshot.nodeCount)}, ` +
+                    `managers=${String(snapshot.managerCount)}, master=${snapshot.master?.nodeId ?? "none"}`,
             );
-
-            // SW-012/011: persist the node snapshot + join tokens (local SQLite,
-            // never `.env`) so the cluster state survives restarts and tokens
-            // are available for onboarding peers without env injection.
-            try {
-                const row = this.clusterNodeRepository.upsertFromSnapshot(snapshot);
-                this.logger.log(`Cluster node state persisted (swarmRole=${row.swarmRole ?? "n/a"})`);
-            } catch (persistError: unknown) {
-                this.logger.warn(
-                    `Cluster node state persistence skipped: ${
-                        persistError instanceof Error ? persistError.message : String(persistError)
-                    }`,
-                );
-            }
-
-            // Layering note (per architecture): Swarm schedules the WORKLOAD
-            // Deployer owns — user deployments/projects/services via the
-            // runners/swarm execution backend. Deployer's OWN platform infra
-            // (Traefik ingress, DB, Redis, shared network) is managed by the
-            // platform supervisors or Compose (MANAGED_*_ENABLED) — never by
-            // Swarm — so there is no "platform swarm stack" to deploy here.
             this.logger.log(
-                "🐝 Swarm initialized for Deployer-owned workloads — platform ingress/infra remain separately managed (supervisors/compose), not scheduled on Swarm",
+                `🐝 Swarm active (policy=${this.participation.effectiveConfig().policy}) — every supervised platform service + Deployer workload is scheduled on Swarm`,
             );
         } catch (error: unknown) {
-            // Best-effort: never crash platform boot because swarm is unavailable.
             this.logger.warn(
-                `Swarm bootstrap skipped — engine is not in an active cluster: ${
+                `Swarm convergence (${trigger}) skipped — engine is not in an active cluster: ${
                     error instanceof Error ? error.message : String(error)
                 }`,
             );

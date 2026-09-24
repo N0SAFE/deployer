@@ -19,12 +19,12 @@ import { SystemMeshConfigService } from './services/system-mesh-config.service'
 import { NodeMeshConfigRepository } from './repositories/node-mesh-config.repository'
 import { CoreEventStreamPoolService } from '@repo/nest-events'
 import { MeshInternalRequestService } from './services/mesh-internal-request.service'
-import { MeshRuntimeModule } from './runtime/mesh-runtime.module'
 import { MeshOrchestrationService } from './orchestration/mesh-orchestration.service'
 import { MeshInitializationModule } from './initialization/mesh-initialization.module'
 import { MeshResourceDispatcher, MeshResourceController } from './dispatcher'
 import { MeshController } from './controllers/mesh.controller'
 import { MeshIdentityService } from './services/system-mesh-topology/services/mesh-identity.service'
+import { SwarmCoreModule } from '@/core/modules/swarm/swarm.module'
 import { MeshTrustService } from './services/system-mesh-topology/services/mesh-trust.service'
 import { MeshTrustStrictModeService } from './services/system-mesh-topology/services/mesh-trust-strict-mode.service'
 import { MeshPeerSessionService } from './services/system-mesh-topology/services/mesh-peer-session.service'
@@ -48,7 +48,7 @@ import { MeshConnectionRegistry } from './connection/mesh-connection-registry';
 import { ServerConnectionConsumerRegistry } from './connection/mesh-consumer-registry';
 import { OwnershipResolverService } from './services/ownership/ownership-resolver.service';
 import { StreamManagerService } from './services/stream-manager/stream-manager.service';
-import { SetupModule } from '@/modules/setup/setup.module';
+import { NodeStateModule } from "@/core/modules/node-state/node-state.module";
 import { CoreDockerModule } from '@/core/modules/docker/docker.module';
 import type { MeshNodeCaller } from './services/system-mesh-resource-discovery/query/mesh-query-executor';
 import { MESH_NODE_CALLER_TOKEN } from './tokens';
@@ -96,10 +96,19 @@ const MESH_TOPIC_SERVICES = [
         EventsModule,
         DatabaseModule,
         SystemMetricsModule,
-        MeshRuntimeModule,
         MeshInitializationModule,
-        SetupModule,
+        // NodeStateModule (LOCAL SQLite only) instead of SetupModule: mesh needs
+        // NodeConfigRepository, which reads a file that exists before setup. The
+        // former import of the setup FEATURE module closed a cycle
+        // (mesh → setup → initialization → swarm → mesh).
+        NodeStateModule,
         CoreDockerModule,
+        // SwarmCoreModule is SETUP-SAFE and imports only NodeStateModule, so
+        // this edge is ACYCLIC (swarm never imports mesh at the module level).
+        // The mesh needs it to issue the SWARM JOIN GRANT: `consumeJoinGrant`
+        // is the fleet's chance to decide whether a joining node may become a
+        // manager — a decision only this node (the cluster owner) can make.
+        SwarmCoreModule,
     ],
     controllers: [
         MeshResourceController,

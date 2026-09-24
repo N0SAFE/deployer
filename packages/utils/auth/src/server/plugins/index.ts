@@ -40,7 +40,7 @@ export * from './pushNotifications'
  * 
  * @example
  * ```typescript
- * import { useAdmin } from '@repo/auth/server/plugins'
+ * import { useAdmin } from '@repo/auth/server/plugins/index'
  * 
  * betterAuth({
  *   plugins: [
@@ -49,13 +49,10 @@ export * from './pushNotifications'
  * })
  * ```
  */
-export function useAdmin(
-  options: Omit<Parameters<typeof admin>[0], "ac" | "roles"> = {}
-) {
+export function useAdmin() {
   return admin({
     ac: platformAc,
     roles: platformRoles,
-    ...options,
   });
 }
 
@@ -74,7 +71,7 @@ type ConfiguredRoleNames = typeof platformSchemas.roleNames extends { _output: i
  * 
  * @example
  * ```typescript
- * import { useInvite } from '@repo/auth/server/plugins'
+ * import { useInvite } from '@repo/auth/server/plugins/index'
  * 
  * betterAuth({
  *   plugins: [
@@ -91,7 +88,7 @@ export function useInvite(
 ) {
   return invitePlugin({
     inviteDurationDays: 7,
-    ...options,
+    
     // Type assertion is safe here - platformSchemas.roleNames will always be compatible
     // with the RoleSchemaType that invitePlugin expects
     roleSchema: platformSchemas.roleNames,

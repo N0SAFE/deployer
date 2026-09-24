@@ -73,11 +73,7 @@ function buildFallbackRepositoryForDisplay(imageId: string): string {
   return `untagged/${shortId}`
 }
 
-export function formatDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleString()
-}
+export { formatDateTime as formatDate } from '@/lib/format/date'
 
 export function formatBytes(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—'

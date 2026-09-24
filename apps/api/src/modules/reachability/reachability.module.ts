@@ -13,6 +13,5 @@ import { ReachabilityController } from "./controllers/reachability.controller";
 @Module({
     imports: [CoreReachabilityModule, ProvidersModule, TraefikCoreModule],
     controllers: [ReachabilityController],
-    exports: [],
 })
 export class ReachabilityModule {}

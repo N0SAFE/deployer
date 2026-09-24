@@ -42,14 +42,16 @@ export abstract class AbstractDockerContainerService {
         // alongside ExposedPorts to actually publish the port to the host.
         // Without it, getMappedPort() fails because the port is never bound.
         //
-        // We use explicit PortBindings with HostPort "0" (random port) rather than
-        // PublishAllPorts because some Docker versions/configurations treat
-        // PublishAllPorts inconsistently. Explicit PortBindings are always honored.
+        // An EXPLICIT binding in hostConfig.PortBindings always wins (a caller
+        // that needs a STABLE host port, e.g. a database whose URL must survive
+        // a container→swarm hand-off); otherwise a random ("0") host port is
+        // requested.
         let hostConfig = options.hostConfig ?? {};
         if (options.exposedPorts && Object.keys(options.exposedPorts).length > 0) {
+            const requested = (hostConfig.PortBindings ?? {}) as Record<string, { HostPort: string }[]>;
             const portBindings: Record<string, { HostPort: string }[]> = {};
             for (const port of Object.keys(options.exposedPorts)) {
-                portBindings[port] = [{ HostPort: "0" }];
+                portBindings[port] = requested[port] ?? [{ HostPort: "0" }];
             }
             hostConfig = { ...hostConfig, PortBindings: portBindings };
         }

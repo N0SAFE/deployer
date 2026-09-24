@@ -12,7 +12,7 @@ import { randomBytes, createHash } from "node:crypto";
 import { and, eq, lt } from "drizzle-orm";
 
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
-import { appInstances, type AppInstanceEntity } from "@/config/drizzle/global/schema";
+import { appInstances, type AppInstanceEntity } from "@repo/nest-schema/global";
 
 /** Instances without a heartbeat for this long become stale. */
 export const STALE_AFTER_MS = 30 * 60 * 1000;

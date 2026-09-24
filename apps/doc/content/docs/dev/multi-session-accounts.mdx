@@ -1,0 +1,78 @@
+---
+title: Multi-Session — Several Accounts Per Browser
+description: How one browser holds multiple signed-in accounts, how switching works, and which parts of the platform must re-read identity after a switch.
+order: 10
+---
+
+## Core rule
+
+A browser can be signed into several accounts at once. Identity is **never** swapped client-side: `set-active` rewrites the primary session cookie on the server, so anything scoped to the previous identity must be re-read, not patched.
+
+## What the plugin does
+
+Better Auth's `multiSession` plugin adds one extra signed cookie per signed-in account:
+
+```text
+{prefix}.session_token              ← the active session
+{prefix}.session_token_multi-<tok>  ← every account kept in this browser
+```
+
+Only the primary cookie decides who you are. The `_multi-` cookies are a retained set of alternatives — signing in again is never required to switch between them. Accounts are capped at **5 per browser** (Better Auth's `maximumSessions` default); a 6th sign-in still authenticates, it is just not retained in the list.
+
+Signing into the **same** account again replaces its existing entry rather than adding a second one.
+
+## Where it is configured
+
+| Layer  | File                                            | What it registers                           |
+| ------ | ----------------------------------------------- | ------------------------------------------- |
+| Server | `packages/utils/auth/src/server/auth.ts`        | `multiSession()` in the plugin array        |
+| Client | `packages/utils/auth/src/client/auth-client.ts` | `multiSessionClient()` in `DEFAULT_PLUGINS` |
+
+Both are needed: the server plugin owns the cookies and the endpoints, the client plugin exposes the typed RPC methods.
+
+No database change is required — the plugin is cookie-only, so there is no migration.
+
+## Endpoints
+
+| Client call                                           | Server call                      | Effect                                                                  |
+| ----------------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------- |
+| `authClient.multiSession.listDeviceSessions()`        | `auth.api.listDeviceSessions()`  | Every account open in this browser                                      |
+| `authClient.multiSession.setActive({ sessionToken })` | `auth.api.setActiveSession()`    | Promotes one retained account to active                                 |
+| `authClient.multiSession.revoke({ sessionToken })`    | `auth.api.revokeDeviceSession()` | Drops one account; if it was active, falls back to another or signs out |
+
+`sessionToken` is the token of the retained entry — the same value `useSession()` exposes as `session.session.token`.
+
+## The rule that matters: reload after a switch
+
+`setActive` calls Better Auth's `setSessionCookie`, which rewrites **both** the primary session cookie and the cookie cache (`setCookieCache`) in the same response. So a full page reload is the correct and cheapest response to a switch: the next render — middleware, server components, and `useSession()` — reads the new identity from a cache that is already consistent.
+
+Do **not** optimistically patch state after a switch. Everything below is scoped to the previous identity and would be shown against the wrong user:
+
+- the device-session list (different user ⇒ different sessions),
+- push notifications and VAPID keys (per-user keys),
+- role-gated UI (`useSession().user.role`),
+- any TanStack Query cache holding user-scoped data.
+
+The accounts section in `/auth/me` follows this: switch ⇒ `window.location.reload()`; removing a **non-active** account ⇒ refetch the list only.
+
+## Adding an account
+
+There is no separate "add account" endpoint. Navigation to `/auth/signin` is enough: the sign-in page has no "already authenticated ⇒ redirect away" guard, so an already-signed-in person lands on the form and a successful sign-in appends a retained account. The accounts section links there with `redirectTo=/auth/me`.
+
+This is why `/auth/signin` must stay outside the auth middleware matcher — it is the entry point for both first sign-in and additional sign-ins.
+
+## Sign-out revokes the whole browser
+
+Better Auth's `multiSession` after-hook on `/sign-out` expires **every** `_multi-` cookie in the browser and deletes those sessions. Signing out therefore ends all accounts in that browser, not just the active one. Per-account removal is the `revoke` call above, which is what the accounts section uses for a single entry.
+
+## Testing
+
+`apps/web/src/app/auth/me/_components/accounts-section.test.tsx` mocks `@/lib/auth` and asserts the load → list → switch/reload → revoke/refetch sequence, the failure + retry path, and the single-account empty state.
+
+`packages/utils/auth/src/server/auth.spec.ts` asserts the factory registers `multiSession` exactly once.
+
+## Related docs
+
+- [Auth Access Control with Better Auth](/docs/dev/auth-access-control)
+- [ORPC Auth Patterns](/docs/dev/orpc-auth-patterns)
+- [Client Data Layer (Hooks + Cache)](/docs/dev/client-data-layer)

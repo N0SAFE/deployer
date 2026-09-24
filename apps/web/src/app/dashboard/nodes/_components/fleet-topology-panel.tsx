@@ -5,6 +5,7 @@ import { useMeshSseState } from '@/domains/mesh/hooks'
 import { useFleetServers } from '@/domains/fleet/hooks'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { isRecord } from '@repo/type-guards'
+import { formatTime } from '@/lib/format/date'
 import {
   Card,
   CardContent,
@@ -355,7 +356,7 @@ export function FleetTopologyPanel({
                   </p>
                 ) : (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Live streamed telemetry · measured at {new Date(selectedLink.measuredAt).toLocaleTimeString()}
+                    Live streamed telemetry · measured at {formatTime(selectedLink.measuredAt)}
                   </p>
                 )}
                 <div className="mt-2 grid grid-cols-2 gap-2 text-xs">

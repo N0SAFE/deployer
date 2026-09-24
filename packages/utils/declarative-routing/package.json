@@ -4,27 +4,177 @@
     "private": true,
     "sideEffects": false,
     "type": "module",
-    "main": "./src/index.ts",
+    "main": "./dist/production/cjs/index.js",
     "types": "./src/index.ts",
     "exports": {
-        ".": "./src/index.ts",
-        "./hooks": "./src/hooks.ts",
-        "./utils": "./src/utils.ts",
-        "./page-wrappers": {
-            "react-server": "./src/page-wrappers/server.tsx",
-            "default": "./src/page-wrappers/client.tsx"
+        ".": {
+            "types": [
+                "./src/index.ts",
+                "./src/index.tsx"
+            ],
+            "development": {
+                "import": "./dist/development/esm/index.mjs",
+                "require": "./dist/development/cjs/index.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/index.mjs",
+                "require": "./dist/production/cjs/index.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/index.mjs",
+                "require": "./dist/production/cjs/index.js"
+            }
         },
-        "./page-wrappers/server": "./src/page-wrappers/server.tsx",
-        "./page-wrappers/client": "./src/page-wrappers/client.tsx",
-        "./layout-wrappers": "./src/layout-wrappers/index.ts",
-        "./layout-wrappers/server": "./src/layout-wrappers/server.tsx"
+        "./*": {
+            "types": [
+                "./src/*.ts",
+                "./src/*.tsx"
+            ],
+            "development": {
+                "import": "./dist/development/esm/*.mjs",
+                "require": "./dist/development/cjs/*.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/*.mjs",
+                "require": "./dist/production/cjs/*.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/*.mjs",
+                "require": "./dist/production/cjs/*.js"
+            }
+        },
+        "./hooks": {
+            "types": "./src/hooks.ts",
+            "development": {
+                "import": "./dist/development/esm/hooks.mjs",
+                "require": "./dist/development/cjs/hooks.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/hooks.mjs",
+                "require": "./dist/production/cjs/hooks.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/hooks.mjs",
+                "require": "./dist/production/cjs/hooks.js"
+            }
+        },
+        "./utils": {
+            "types": "./src/utils.ts",
+            "development": {
+                "import": "./dist/development/esm/utils.mjs",
+                "require": "./dist/development/cjs/utils.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/utils.mjs",
+                "require": "./dist/production/cjs/utils.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/utils.mjs",
+                "require": "./dist/production/cjs/utils.js"
+            }
+        },
+        "./page-wrappers": {
+            "react-server": {
+                "types": "./src/page-wrappers/server.tsx",
+                "development": {
+                    "import": "./dist/development/esm/page-wrappers/server.mjs",
+                    "require": "./dist/development/cjs/page-wrappers/server.js"
+                },
+                "production": {
+                    "import": "./dist/production/esm/page-wrappers/server.mjs",
+                    "require": "./dist/production/cjs/page-wrappers/server.js"
+                },
+                "default": {
+                    "import": "./dist/production/esm/page-wrappers/server.mjs",
+                    "require": "./dist/production/cjs/page-wrappers/server.js"
+                }
+            },
+            "default": {
+                "types": "./src/page-wrappers/client.tsx",
+                "development": {
+                    "import": "./dist/development/esm/page-wrappers/client.mjs",
+                    "require": "./dist/development/cjs/page-wrappers/client.js"
+                },
+                "production": {
+                    "import": "./dist/production/esm/page-wrappers/client.mjs",
+                    "require": "./dist/production/cjs/page-wrappers/client.js"
+                },
+                "default": {
+                    "import": "./dist/production/esm/page-wrappers/client.mjs",
+                    "require": "./dist/production/cjs/page-wrappers/client.js"
+                }
+            }
+        },
+        "./page-wrappers/server": {
+            "types": "./src/page-wrappers/server.tsx",
+            "development": {
+                "import": "./dist/development/esm/page-wrappers/server.mjs",
+                "require": "./dist/development/cjs/page-wrappers/server.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/page-wrappers/server.mjs",
+                "require": "./dist/production/cjs/page-wrappers/server.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/page-wrappers/server.mjs",
+                "require": "./dist/production/cjs/page-wrappers/server.js"
+            }
+        },
+        "./page-wrappers/client": {
+            "types": "./src/page-wrappers/client.tsx",
+            "development": {
+                "import": "./dist/development/esm/page-wrappers/client.mjs",
+                "require": "./dist/development/cjs/page-wrappers/client.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/page-wrappers/client.mjs",
+                "require": "./dist/production/cjs/page-wrappers/client.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/page-wrappers/client.mjs",
+                "require": "./dist/production/cjs/page-wrappers/client.js"
+            }
+        },
+        "./layout-wrappers": {
+            "types": "./src/layout-wrappers/index.ts",
+            "development": {
+                "import": "./dist/development/esm/layout-wrappers/index.mjs",
+                "require": "./dist/development/cjs/layout-wrappers/index.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/layout-wrappers/index.mjs",
+                "require": "./dist/production/cjs/layout-wrappers/index.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/layout-wrappers/index.mjs",
+                "require": "./dist/production/cjs/layout-wrappers/index.js"
+            }
+        },
+        "./layout-wrappers/server": {
+            "types": "./src/layout-wrappers/server.tsx",
+            "development": {
+                "import": "./dist/development/esm/layout-wrappers/server.mjs",
+                "require": "./dist/development/cjs/layout-wrappers/server.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/layout-wrappers/server.mjs",
+                "require": "./dist/production/cjs/layout-wrappers/server.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/layout-wrappers/server.mjs",
+                "require": "./dist/production/cjs/layout-wrappers/server.js"
+            }
+        }
     },
     "scripts": {
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
         "lint": "eslint . --fix --cache --concurrency=auto",
-        "type-check": "tsc --noEmit"
+        "type-check": "tsc --noEmit",
+        "build": "bun --bun ../../bin/pkg-build/index.ts",
+        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
+        "clean": "rimraf dist"
     },
     "dependencies": {
         "@repo/type-guards": "*",
@@ -59,5 +209,6 @@
         "eslint": "catalog:linting",
         "server-only": "catalog:utils",
         "typescript": "catalog:build"
-    }
+    },
+    "module": "./dist/production/esm/index.mjs"
 }

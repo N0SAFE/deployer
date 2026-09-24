@@ -25,11 +25,11 @@
  */
 
 // Re-export all Zod standard operations from canonical location
-export * from "../operations/zod/standard-operations";
-export { type ZodEntitySchema, type ZodEntityOperationOptions } from "../operations/zod/standard-operations";
+export * from "@repo/orpc-utils/operations/zod/standard-operations";
+export { type ZodEntitySchema, type ZodEntityOperationOptions } from "@repo/orpc-utils/operations/zod/standard-operations";
 
 // Re-export list builder
-export { ListOperationBuilder, createListConfig, createFilterConfig, type BuilderFilterField } from "../operations/zod/list-builder";
+export { ListOperationBuilder, createListConfig, createFilterConfig, type BuilderFilterField } from "@repo/orpc-utils/operations/zod/list-builder";
 
 // Re-export query config factories (pagination + sorting) used by list/search ops.
 // The ZOD variants (not the base standard-schema ones) — they produce
@@ -39,7 +39,7 @@ export {
     createSortingConfigSchema,
     type PaginationConfig,
     type SortingConfig,
-} from "../operations/zod/utils";
+} from "@repo/orpc-utils/operations/zod/utils/index";
 
 // Re-export base standard operations types
 export {
@@ -47,13 +47,13 @@ export {
     type EntityOperationOptions,
     type ListOperationOptions,
     type ListPlainOptions,
-} from "../operations/base/standard-operations";
+} from "@repo/orpc-utils/operations/base/standard-operations";
 
 // Re-export utilities
-export * from "../operations/zod/utils";
+export * from "@repo/orpc-utils/operations/zod/utils/index";
 
 // Create the standard operations factory for convenience
-import { zodStandard } from "../operations/zod/standard-operations";
+import { zodStandard } from "@repo/orpc-utils/operations/zod/standard-operations";
 
 export const standard = {
     zod: zodStandard,

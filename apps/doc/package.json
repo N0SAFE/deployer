@@ -35,7 +35,6 @@
         "@types/node": "catalog:build",
         "@types/react": "catalog:react",
         "@types/react-dom": "catalog:react",
-        "babel-plugin-react-compiler": "catalog:react-compiler",
         "eslint": "catalog:linting",
         "eslint-config-next": "catalog:next",
         "postcss": "catalog:styling",

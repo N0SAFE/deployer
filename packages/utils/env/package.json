@@ -4,12 +4,47 @@
     "private": true,
     "type": "module",
     "exports": {
-        ".": "./src/index.ts",
-        "./cli": "./src/cli.ts",
-        "./utils": "./src/utils.ts",
-        "./constants": "./src/constants.ts",
-        "./validate": "./src/validate.ts",
-        "./mock": "./src/mock.ts"
+        ".": {
+            "types": [
+                "./src/index.ts",
+                "./src/index.tsx"
+            ],
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
+        "./*": {
+            "types": [
+                "./src/*.ts",
+                "./src/*.tsx"
+            ],
+            "import": "./dist/esm/*.mjs",
+            "require": "./dist/cjs/*.js"
+        },
+        "./cli": {
+            "types": "./src/cli.ts",
+            "import": "./dist/esm/cli.mjs",
+            "require": "./dist/cjs/cli.js"
+        },
+        "./utils": {
+            "types": "./src/utils.ts",
+            "import": "./dist/esm/utils.mjs",
+            "require": "./dist/cjs/utils.js"
+        },
+        "./constants": {
+            "types": "./src/constants.ts",
+            "import": "./dist/esm/constants.mjs",
+            "require": "./dist/cjs/constants.js"
+        },
+        "./validate": {
+            "types": "./src/validate.ts",
+            "import": "./dist/esm/validate.mjs",
+            "require": "./dist/cjs/validate.js"
+        },
+        "./mock": {
+            "types": "./src/mock.ts",
+            "import": "./dist/esm/mock.mjs",
+            "require": "./dist/cjs/mock.js"
+        }
     },
     "bin": {
         "check": "./src/cli.ts",
@@ -24,7 +59,10 @@
         "check": "bun src/cli.ts check",
         "load": "bun src/cli.ts load",
         "mock": "bun src/cli.ts mock",
-        "test": "vitest run"
+        "test": "vitest run",
+        "build": "bun --bun ../../bin/pkg-build/index.ts",
+        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
+        "clean": "rimraf dist"
     },
     "dependencies": {
         "@repo/type-guards": "*",
@@ -38,5 +76,8 @@
         "vitest": "catalog:testing",
         "@vitest/coverage-v8": "catalog:testing",
         "typescript": "catalog:build"
-    }
+    },
+    "main": "./dist/cjs/index.js",
+    "module": "./dist/esm/index.mjs",
+    "types": "./src/index.ts"
 }

@@ -16,7 +16,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service';
-import { githubDeploymentRules } from '@/config/drizzle/global/schema/github-provider';
+import { githubDeploymentRules } from "@repo/nest-schema/global/github-provider";
 import { eq, and, desc } from 'drizzle-orm';
 
 import { AppError } from "@repo/errors";

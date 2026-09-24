@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { StatementConfigCollection } from './statement-config-collection';
-import { StatementConfig } from './single-statement-config';
+import { StatementConfigCollection } from '@repo/auth/permissions/system/builder/statements/statement-config-collection';
+import { StatementConfig } from '@repo/auth/permissions/system/builder/statements/single-statement-config';
 
 describe('StatementConfigCollection', () => {
   const mockStatements = {

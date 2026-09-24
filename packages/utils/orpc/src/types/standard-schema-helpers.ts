@@ -5,7 +5,7 @@
  * from @standard-schema/spec, used by @orpc/contract.
  */
 
-import type { AnySchema, InferSchemaInput, InferSchemaOutput } from "./types";
+import type { AnySchema, InferSchemaInput, InferSchemaOutput } from "@repo/orpc-utils/types/types";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 /**

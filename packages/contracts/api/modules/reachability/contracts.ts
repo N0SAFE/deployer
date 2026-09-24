@@ -20,11 +20,11 @@ export const reachabilityConfigSchema = z.object({
 });
 
 const reachabilityConfigUpdateSchema = z.object({
-    publicUrl: z.string().url("Must be a valid URL"),
+    publicUrl: z.url("Must be a valid URL"),
 });
 
 const reachabilityCheckInputSchema = z.object({
-    url: z.string().url("Must be a valid URL"),
+    url: z.url("Must be a valid URL"),
 });
 
 // ─── Domain check schemas ─────────────────────────────────────────────────

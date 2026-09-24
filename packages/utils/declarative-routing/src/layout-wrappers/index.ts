@@ -8,5 +8,5 @@
  * @packageDocumentation
  */
 
-export { createSessionLayout, configureLayoutAuth } from './server'
-export type { SessionLayoutProps, SessionLayoutOptions, NextLayoutProps } from './server'
+export { createSessionLayout, configureLayoutAuth } from '@repo/declarative-routing/layout-wrappers/server'
+export type { SessionLayoutProps, SessionLayoutOptions, NextLayoutProps } from '@repo/declarative-routing/layout-wrappers/server'

@@ -21,9 +21,10 @@ import {
 import { Switch } from '@repo/ui/components/shadcn/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
 import { Crown, Globe, HardDrive, Info, Network, Server, ShieldCheck } from 'lucide-react'
-import { PageHeader, PageLoadingState, PageErrorState, StatusBadge } from '@/components/dashboard'
+import { PageHeader, PageLoadingState, PageErrorState, StatStrip, StatStripItem, StatusBadge } from '@/components/dashboard'
 import { MeshPulse } from '@/components/dashboard/MeshPulse'
 import { FleetWorkloadsPanel } from './_components/fleet-workloads-panel'
+import { SwarmConfigPanel } from './_components/swarm-config-panel'
 import { useClusterMaster, useClusterNodes, useClusterSnapshot, useUpdateClusterNode } from '@/domains/cluster/hooks'
 
 interface ClusterNodeRow {
@@ -108,63 +109,33 @@ export default function DashboardClusterPage() {
       {/* Signature: the live mesh pulse */}
       <MeshPulse />
 
-      {/* Overview cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Network className="size-4 text-muted-foreground" /> Cluster State
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <StatusBadge status={localState} />
-            {snapshot?.clusterId ? (
-              <p className="mt-2 font-mono text-xs text-muted-foreground">{snapshot.clusterId.slice(0, 12)}…</p>
-            ) : null}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Server className="size-4 text-muted-foreground" /> Nodes
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {String(snapshot?.nodeCount ?? 0)}
-            <span className="ml-2 text-sm font-normal text-muted-foreground">managers {String(snapshot?.managerCount ?? 0)}</span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Crown className="size-4 text-muted-foreground" /> Controlling Master
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {master?.nodeId ? (
-              <>
-                <StatusBadge status={master.state} />
-                <p className="mt-2 font-mono text-xs text-muted-foreground">
-                  {master.nodeId.slice(0, 12)}… · term {String(master.term)}
-                </p>
-              </>
-            ) : (
-              <span className="text-sm text-muted-foreground">No master elected</span>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <ShieldCheck className="size-4 text-muted-foreground" /> Control Plane
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {String(nodes.filter((node) => node.swarmRole === 'manager').length)}
-            <span className="ml-2 text-sm font-normal text-muted-foreground">reachable managers</span>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Overview strip */}
+      <StatStrip>
+        <StatStripItem
+          icon={Network}
+          label="Cluster state"
+          value={<StatusBadge status={localState} />}
+          hint={snapshot?.clusterId ? `${snapshot.clusterId.slice(0, 12)}…` : undefined}
+        />
+        <StatStripItem
+          icon={Server}
+          label="Nodes"
+          value={String(snapshot?.nodeCount ?? 0)}
+          hint={`${String(snapshot?.managerCount ?? 0)} managers`}
+        />
+        <StatStripItem
+          icon={Crown}
+          label="Controlling master"
+          value={master?.nodeId ? <StatusBadge status={master.state} /> : '—'}
+          hint={master?.nodeId ? `${master.nodeId.slice(0, 12)}… · term ${String(master.term)}` : 'No master elected'}
+        />
+        <StatStripItem
+          icon={ShieldCheck}
+          label="Control plane"
+          value={String(nodes.filter((node) => node.swarmRole === 'manager').length)}
+          hint="reachable managers"
+        />
+      </StatStrip>
 
       {/* Node inventory */}
       <Card>
@@ -203,10 +174,19 @@ export default function DashboardClusterPage() {
                   return (
                     <TableRow
                       key={node.nodeId}
-                      className="cursor-pointer"
+                      className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      role="link"
+                      tabIndex={0}
+                      aria-label={`Open node ${node.hostname ?? node.nodeId}`}
                       onClick={() => {
+                        router.push(AuthDashboardNodesNodeId({ nodeId: node.nodeId }))
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
                           router.push(AuthDashboardNodesNodeId({ nodeId: node.nodeId }))
-                        }}
+                        }
+                      }}
                     >
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -282,6 +262,9 @@ export default function DashboardClusterPage() {
 
       {/* Live fleet workloads — swarm services + tasks */}
       <FleetWorkloadsPanel />
+
+      {/* Swarm participation — how this node joins / its master policy */}
+      <SwarmConfigPanel />
 
       <p className="flex items-center gap-1 text-xs text-muted-foreground">
         <Globe className="size-3" /> Ingress-tagged nodes receive public traffic via the Traefik swarm provider.

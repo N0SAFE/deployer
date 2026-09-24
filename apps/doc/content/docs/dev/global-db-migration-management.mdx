@@ -825,7 +825,7 @@ async function advanceClusterState(
 |--------|---------|------------------|
 | `NODE_TOO_OLD` | Node code is missing migrations already applied to global DB: 0011_mesh_coordination_tables. | Deploy app version >=2.0.0 to this node. |
 | `NODE_TOO_OLD` | Node code is missing migrations already applied to DB. | Deploy newer app version. |
-| `JOURNAL_MISSING_OR_INVALID` | Drizzle _journal.json missing or corrupted at {migrationsPath}/meta/_journal.json | Ensure Drizzle Kit has generated the journal file. |
+| `JOURNAL_MISSING_OR_INVALID` | Drizzle _journal.json missing or corrupted at \{migrationsPath}/meta/_journal.json | Ensure Drizzle Kit has generated the journal file. |
 | `NODE_BEHIND_CLUSTER` | Node schema version 0010 is behind cluster consensus 0011. This node cannot safely serve traffic. | Deploy newer app version or rollback cluster to 0010. |
 
 ---

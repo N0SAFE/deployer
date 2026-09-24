@@ -1,5 +1,5 @@
 import zod from 'zod/v4'
-import { apiEnvSchema, webEnvSchema, docEnvSchema, allEnvSchema } from './index'
+import { apiEnvSchema, webEnvSchema, docEnvSchema, allEnvSchema } from '@repo/env/index'
 
 // ============================================================================
 // API Validation Functions

@@ -10,11 +10,28 @@
         "dist",
         "assets"
     ],
-    "exports": "./dist/index.js",
+    "exports": {
+        ".": {
+            "types": [
+                "./src/index.ts",
+                "./src/index.tsx"
+            ],
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
+        "./*": {
+            "types": [
+                "./src/*.ts",
+                "./src/*.tsx"
+            ],
+            "import": "./dist/esm/*.mjs",
+            "require": "./dist/cjs/*.js"
+        }
+    },
     "scripts": {
         "prepublish": "bun run build",
-        "dev": "bun --bun scripts/build.ts --watch",
-        "build": "bun --bun scripts/build.ts",
+        "dev": "bun --bun ../pkg-build/index.ts --watch",
+        "build": "bun --bun ../pkg-build/index.ts",
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
@@ -64,5 +81,24 @@
         "ora": "catalog:ui",
         "prompts": "catalog:utils",
         "zod": "catalog:utils"
-    }
+    },
+    "pkgBuild": {
+        "root": "src",
+        "entries": [
+            "index.ts"
+        ],
+        "formats": [
+            "cjs"
+        ],
+        "flat": true,
+        "target": "node",
+        "splitting": false,
+        "external": [
+            "@parcel/watcher"
+        ],
+        "sourcemap": "external"
+    },
+    "types": "./src/index.ts",
+    "main": "./dist/cjs/index.js",
+    "module": "./dist/esm/index.mjs"
 }

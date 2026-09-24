@@ -10,7 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Siren, ArrowUpRight, Boxes, Layers, Rocket, GitBranch, Activity } from 'lucide-react'
+import { Siren, ArrowUpRight, Boxes, Layers, Rocket, GitBranch } from 'lucide-react'
+import { EmptyState } from '@/components/dashboard'
 import {
   AuthDashboardProjectsProjectIdServices,
   AuthDashboardProjectsProjectIdEnvironments,
@@ -65,9 +66,8 @@ export default function DashboardProjectOverviewPage() {
   if (projectLoading || servicesLoading || envLoading || deploymentsLoading) {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28 w-full rounded-xl" />)}
-        </div>
+        {/* Matches the loaded layout: a thin summary row, not four tall cards. */}
+        <Skeleton className="h-12 w-full rounded-xl" />
         <Skeleton className="h-72 w-full rounded-xl" />
       </div>
     )
@@ -96,60 +96,60 @@ export default function DashboardProjectOverviewPage() {
     )
   }
 
+  // Three real counts. "Dependencies" is deliberately NOT one of them: its
+  // "value" was the literal string "Graph", making it a navigation link wearing
+  // a metric's clothes. It stays reachable — as a link, at the end of the row.
   const kpis = [
     {
       label: 'Services',
-      value: localServices.length,
-      sub: `${activeServices} active`,
+      value: String(localServices.length),
+      sub: `${String(activeServices)} active`,
       icon: Boxes,
       route: AuthDashboardProjectsProjectIdServices,
     },
     {
       label: 'Environments',
-      value: environments.length,
+      value: String(environments.length),
       sub: environments.map((e: any) => e.name).slice(0, 3).join(', ') || 'none',
       icon: GitBranch,
       route: AuthDashboardProjectsProjectIdEnvironments,
     },
     {
       label: 'Deployments',
-      value: deploymentItems.length,
+      value: String(deploymentItems.length),
       sub: 'All time',
       icon: Rocket,
       route: AuthDashboardProjectsProjectIdDeployments,
-    },
-    {
-      label: 'Dependencies',
-      value: localServices.length > 0 ? 'Graph' : '—',
-      sub: 'View topology',
-      icon: Activity,
-      route: AuthDashboardProjectsProjectIdDependencies,
     },
   ]
 
   return (
     <div className="space-y-6">
-      {/* KPI cards — each links to its dedicated page */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
+      {/*
+        Project summary — one dense row instead of a 4-up KPI card grid.
+        The strip under a page title is the most valuable space on the screen.
+        Spending four bordered cards (each with a header, an icon, a hover state
+        and a sparkle arrow) to carry three integers pushed the content people
+        actually came for — services, deployments — below the fold.
+      */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-border/60 bg-card/30 px-4 py-3">
         {kpis.map(({ label, value, sub, icon: Icon, route: Route }) => (
-          <Route.Link key={label} projectId={projectId} className="group">
-            <Card className="h-full border-border/60 bg-card/40 backdrop-blur-xl transition-colors hover:border-primary/40 hover:bg-card/60">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                    <Icon className="size-4" />
-                    {label}
-                  </CardTitle>
-                  <ArrowUpRight className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
-                <p className="mt-1 truncate text-xs text-muted-foreground">{sub}</p>
-              </CardContent>
-            </Card>
+          <Route.Link key={label} projectId={projectId} className="group flex items-center gap-2">
+            <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">{label}</span>
+            <span className="text-sm font-medium tabular-nums text-foreground transition-colors group-hover:text-primary">
+              {value}
+            </span>
+            <span className="hidden truncate text-xs text-muted-foreground sm:inline">· {sub}</span>
           </Route.Link>
         ))}
+        <AuthDashboardProjectsProjectIdDependencies.Link
+          projectId={projectId}
+          className="group ml-auto flex items-center gap-1 text-xs font-medium text-primary"
+        >
+          Dependency graph
+          <ArrowUpRight className="size-3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+        </AuthDashboardProjectsProjectIdDependencies.Link>
       </div>
 
       {/* Recent deployments */}
@@ -165,13 +165,12 @@ export default function DashboardProjectOverviewPage() {
         </CardHeader>
         <CardContent>
           {recentDeployments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-center">
-              <Layers className="mb-3 size-10 text-muted-foreground/40" />
-              <p className="text-sm font-medium">No deployments yet</p>
-              <p className="text-xs text-muted-foreground">
-                Deployments appear here once a service is deployed.
-              </p>
-            </div>
+            <EmptyState
+              icon={Layers}
+              title="No deployments yet"
+              description="Deployments appear here once a service is deployed."
+              compact
+            />
           ) : (
             <div className="divide-y divide-border/60">
               {recentDeployments.map((dep: any) => {

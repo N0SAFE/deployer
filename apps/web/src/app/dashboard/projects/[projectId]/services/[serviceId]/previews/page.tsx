@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Siren, Eye, ExternalLink, Globe, Timer, Webhook, ArrowUp } from 'lucide-react'
+import { EmptyState } from '@/components/dashboard'
 import { toast } from 'sonner'
 import { formatDate, shortId, statusBadgeVariant } from '../../../_utils/helpers'
 import { defaultPreviewPattern, resolvePreviewUrlPattern } from '../../../_utils/previewUrl'
@@ -177,13 +178,11 @@ export default function DashboardServicePreviewsPage() {
           )}
 
           {previewDeployments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Eye className="mb-4 size-12 text-muted-foreground/40" />
-              <p className="text-lg font-medium">No preview deployments</p>
-              <p className="text-sm text-muted-foreground">
-                Preview deployments are created when deploying to a preview environment.
-              </p>
-            </div>
+            <EmptyState
+              icon={Eye}
+              title="No preview deployments"
+              description="Preview deployments are created when deploying to a preview environment."
+            />
           ) : (
             <Table>
               <TableHeader>

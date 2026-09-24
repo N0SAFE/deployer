@@ -38,8 +38,8 @@ import {
 	deployments,
 	previewEnvironments,
 	services,
-} from "@/config/drizzle/global/schema";
-import { nodeNetworkConfig } from "@/config/drizzle/global/schema";
+} from "@repo/nest-schema/global";
+import { nodeNetworkConfig } from "@repo/nest-schema/global";
 
 /** Where a supervised route comes from — operator/web visibility + origin. */
 export const supervisedRouteSourceSchema = z.enum([

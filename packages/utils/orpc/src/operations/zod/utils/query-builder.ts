@@ -14,24 +14,24 @@ import {
     type PaginationMetaOutput,
     type ZodSchemaWithConfig,
     hasConfig,
-} from "./pagination";
+} from "@repo/orpc-utils/operations/zod/utils/pagination";
 import {
     createSortingSchema,
     createSortingConfigSchema,
     type SortingConfig,
     type SortingSchemaOutput,
-} from "./sorting";
+} from "@repo/orpc-utils/operations/zod/utils/sorting";
 import {
     createFilteringSchema,
     createFilteringConfigSchema,
     type FilteringConfig,
     type FilteringSchemaOutput
-} from "./filtering";
+} from "@repo/orpc-utils/operations/zod/utils/filtering";
 import {
     createSearchSchema,
     createSearchConfigSchema,
     type SearchConfig,
-} from "./search";
+} from "@repo/orpc-utils/operations/zod/utils/search";
 
 /**
  * Query configuration type
@@ -287,7 +287,7 @@ export function createSearchableListQuery<TFields extends readonly string[]>(
  */
 export function createAdvancedQuery<
     TSortFields extends readonly string[],
-    TFilterFields extends Record<string, import("./filtering").FieldFilterConfig>,
+    TFilterFields extends Record<string, import("@repo/orpc-utils/operations/zod/utils/filtering").FieldFilterConfig>,
     TSearchFields extends readonly string[]
 >(options: {
     sortableFields: TSortFields;

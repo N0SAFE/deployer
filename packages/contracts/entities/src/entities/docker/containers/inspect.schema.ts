@@ -1,15 +1,15 @@
 import z from 'zod/v4'
-import { dockerImageLayerEntrySchema } from '../images'
+import { dockerImageLayerEntrySchema } from '@repo/contracts-entities/entities/docker/images/index'
 import {
   dockerNetworkDriverSchema,
   dockerNetworkScopeSchema,
-} from '../networks'
+} from '@repo/contracts-entities/entities/docker/networks/index'
 import {
   dockerContainerProcessEntrySchema,
-} from './processes.schema'
+} from '@repo/contracts-entities/entities/docker/containers/processes.schema'
 import {
   dockerFileEntrySchema,
-} from './logs.schema'
+} from '@repo/contracts-entities/entities/docker/containers/logs.schema'
 
 export const dockerContainerPortMappingSchema = z.object({
   containerPort: z.number().int().min(1).max(65535),

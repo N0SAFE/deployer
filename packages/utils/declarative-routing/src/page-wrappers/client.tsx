@@ -20,8 +20,7 @@ import { z } from 'zod'
 import { useSafeQueryParamStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
 
 import type {
-} from "../types";
-import { isRecord, isObjectLike } from "@repo/type-guards";
+} from "@repo/declarative-routing/types";
 import type {
     Session,
     ClientAuthAdapter,
@@ -35,7 +34,7 @@ import type {
     RouteRuntimeConfig,
     PageRouteHelpers,
     RouteSearchPatch,
-} from '../types'
+} from '@repo/declarative-routing/types'
 
 // ============================================================================
 // Configuration - Must be set before using session wrappers
@@ -89,16 +88,20 @@ function asPageComponent<T>(component: React.ComponentType<T>): React.ComponentT
 function extractAdditionalProps<T extends object>(
     props: T
 ): Omit<T, 'params' | 'searchParams' | 'children' | 'route'> {
-    const { params, searchParams, children, route, ...rest } = props as T & {
+    // Bind with `_` so the omit-by-rest pattern needs no bare statements to
+    // "use" the discarded names.
+    const {
+        params: _params,
+        searchParams: _searchParams,
+        children: _children,
+        route: _route,
+        ...rest
+    } = props as T & {
         params?: unknown
         searchParams?: unknown
         children?: unknown
         route?: unknown
     }
-    void params
-    void searchParams
-    void children
-    void route
     return rest
 }
 
@@ -114,7 +117,6 @@ function isZodObjectSchema(
 ): schema is z.ZodObject<z.ZodRawShape> {
     return (
         typeof schema === 'object' &&
-        schema !== null &&
         'shape' in schema &&
         typeof (schema as { shape?: unknown }).shape === 'object' &&
         (schema as { shape?: unknown }).shape !== null
@@ -418,7 +420,6 @@ export function createSessionPage<
     _options?: SessionOptions,
     runtime?: RouteRuntimeConfig<Params, Search>
 ): React.ComponentType<NextPagePropsInternal<Params, Search> & BasePageProps & Omit<AdditionalProps, keyof ClientSessionProps<S>>> {
-    void _options
 
     type WrapperProps = NextPagePropsInternal<Params, Search> & BasePageProps & Omit<AdditionalProps, keyof ClientSessionProps<S>>
 
@@ -546,4 +547,4 @@ export type {
     UnwrappedPageProps,
     BasePageProps,
     RouteRuntimeConfig,
-} from '../types'
+} from '@repo/declarative-routing/types'

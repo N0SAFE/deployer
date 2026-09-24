@@ -736,32 +736,6 @@ export class ProjectService {
     // UTILITIES
     // ========================================
 
-    async resolveVariables(
-        projectId: string,
-        requesterId: string,
-        data: { template: string; environmentId?: string; scope?: string },
-    ) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
-        // TODO: integrate with variable-resolver module
-        const resolved = data.template.replace(/\$\{([^}]+)\}/g, (_match, key: unknown) => {
-            return `<${String(key)}>`;
-        });
-        return { resolved, variables: {} satisfies Record<string, string> };
-    }
-
-    async getAvailableVariables(
-        projectId: string,
-        requesterId: string,
-        _query?: { environmentId?: string; scope?: string },
-    ) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
-        // TODO: integrate with variable-resolver module
-        return {
-            variables: [] as { key: string; path: string; scope: string; description: string | null; example: string | null }[],
-            scopes: [] as { scope: string; description: string; variables: string[] }[],
-        };
-    }
-
     streamQueryEvents(input: ProjectStreamQueryInput): Observable<ProjectStreamEvent & { sequence: number; replayed: boolean; emittedAt: string }> {
         if (!this.coreEventSyncService) {
             throw new BadRequestException("Project event stream is unavailable: CoreEventSyncService is not wired");

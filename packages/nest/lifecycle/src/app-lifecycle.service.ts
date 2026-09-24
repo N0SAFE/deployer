@@ -123,8 +123,8 @@ export class AppLifecycleService {
     }
     if (metadata) {
       const { error, message, ...rest } = metadata;
-      void error;
-      void message;
+      error;
+      message;
       Object.assign(this._metadata, rest);
     }
 
@@ -149,7 +149,7 @@ export class AppLifecycleService {
 
   /** Mark a bootstrap step as completed. */
   completeStep(_step: BootstrapStep): void {
-    void _step;
+    _step;
     // Step completed — phase stays bootstrapping until all steps done
   }
 
@@ -163,15 +163,35 @@ export class AppLifecycleService {
     this.transition(AppLifecyclePhase.ERROR, { error, message: `Bootstrap failed: ${error}` });
   }
 
-  /** Mark a probed database URL and its reachability status. */
+  /**
+   * Mark a probed database URL and its reachability status.
+   *
+   * EMITS: subscribers (readiness aggregation, the dashboard) must observe the
+   * change. Mutating metadata silently — as this once did — forces every
+   * consumer to poll, which is exactly the cost this event stream exists to
+   * remove.
+   */
   markDatabaseProbe(url: string, reachable: boolean): void {
     this._metadata.databaseUrl = url;
     this._metadata.databaseReachable = reachable;
+    this.emit({
+      phase: this._phase,
+      message: reachable ? 'Database reachable' : 'Database unreachable',
+      metadata: { ...this._metadata },
+    });
   }
 
-  /** Mark mesh connection status. */
+  /**
+   * Mark mesh connection status. EMITS for the same reason as
+   * `markDatabaseProbe` — a silent mutation is invisible to subscribers.
+   */
   markMeshConnected(connected: boolean): void {
     this._metadata.meshConnected = connected;
+    this.emit({
+      phase: this._phase,
+      message: connected ? 'Mesh connected' : 'Mesh disconnected',
+      metadata: { ...this._metadata },
+    });
   }
 
   // ─── Private ────────────────────────────────────────────────────────────────

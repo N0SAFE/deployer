@@ -7,10 +7,10 @@ export {
   DashboardLoadingBranded,
 } from './DashboardLoadingSkeleton'
 export { PageHeader } from './PageHeader'
-export { StatCard } from './StatCard'
 export { PageLoadingState, PageErrorState } from './PageStates'
+export { StatStrip, StatStripItem } from './StatStrip'
 export { EmptyState, FilteredEmptyState } from './EmptyState'
-export { StatusDot, StatusBadge, StatusMetric, statusToneFrom, statusMeta, statusLabel, type StatusTone } from './status'
+export { StatusDot, StatusBadge, StatusMetric, statusToneFrom, statusMeta, statusLabel, type StatusTone, type StatusBadgeVariant } from './status'
 export { EnvironmentBadge, environmentTone, environmentLabel } from './env-badge'
 export { ScopeLabel } from './ScopeLabel'
 export { CommandPalette } from './command-palette'

@@ -4,8 +4,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import z from 'zod/v4';
-import { standard } from '../zod/standard-operations';
-import { voidSchema } from '../../types/standard-schema-helpers';
+import { standard } from '@repo/orpc-utils/operations/zod/standard-operations';
+import { voidSchema } from '@repo/orpc-utils/types/standard-schema-helpers';
 
 describe('StandardOperations - Additional Coverage', () => {
   const entitySchema = z.object({
@@ -55,7 +55,6 @@ describe('StandardOperations - Additional Coverage', () => {
         params: { orgId: 'org-1' },
         query: { prefix: 'docs/' },
       };
-      void _inputCheck;
 
       const inputSchema = contract['~orpc'].inputSchema;
       // Verify the schema was built correctly by checking it has the standard-schema marker

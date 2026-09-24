@@ -13,7 +13,8 @@ import {
 } from '@repo/ui/components/shadcn/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
 import { Activity, ArrowRight, Cpu, Globe, HardDrive, Network, Server, ShieldCheck } from 'lucide-react'
-import { PageHeader, PageLoadingState, PageErrorState, StatusBadge, ScopeLabel } from '@/components/dashboard'
+import { PageHeader, PageLoadingState, PageErrorState, StatusBadge, ScopeLabel, StatStrip, StatStripItem } from '@/components/dashboard'
+import { formatDateTime } from '@/lib/format/date'
 import { useFleetServers, useFleetAllocations } from '@/domains/fleet/hooks'
 import { useMeshSseState } from '@/domains/mesh/hooks'
 import { isRecord } from '@repo/type-guards'
@@ -144,44 +145,31 @@ export default function DashboardNodesPage() {
         }
       />
 
-      {/* Fleet health strip */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <Server className="size-4 text-muted-foreground" /> Nodes
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{servers.length}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <Network className="size-4 text-muted-foreground" /> Live peers
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{connectedNodes}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <Cpu className="size-4 text-muted-foreground" /> Allocations
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">{totalAllocations}</CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <HardDrive className="size-4 text-muted-foreground" /> Healthy
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {servers.filter((s) => s.healthy).length}
-            <span className="text-sm font-normal text-muted-foreground"> / {servers.length}</span>
-          </CardContent>
-        </Card>
-      </div>
+      {/*
+        Fleet scale, as one dense row. Four integers do not need four cards —
+        the node table below is what this page is for, and it should start
+        above the fold.
+      */}
+      <StatStrip>
+        <StatStripItem icon={Server} label="Nodes" value={servers.length} />
+        <StatStripItem icon={Network} label="Live peers" value={connectedNodes} />
+        <StatStripItem icon={Cpu} label="Allocations" value={totalAllocations} />
+        <StatStripItem
+          icon={HardDrive}
+          label="Healthy"
+          value={
+            <>
+              {servers.filter((s) => s.healthy).length}
+              <span className="font-normal text-muted-foreground"> / {servers.length}</span>
+            </>
+          }
+          tone={
+            servers.length > 0 && servers.filter((s) => s.healthy).length < servers.length
+              ? 'pending'
+              : undefined
+          }
+        />
+      </StatStrip>
 
       {/* Node table */}
       <Card>
@@ -244,7 +232,7 @@ export default function DashboardNodesPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {row.lastSeenAt ? new Date(row.lastSeenAt).toLocaleString() : '—'}
+                      {row.lastSeenAt ? formatDateTime(row.lastSeenAt) : '—'}
                     </TableCell>
                     <TableCell className="text-right">
                       <AuthDashboardNodesNodeId.Link

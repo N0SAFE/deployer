@@ -33,13 +33,13 @@ export function createSortingHandler(
       
       if (sortByResult instanceof Promise) {
         // If using URL state (Promise-based), chain the updates
-        sortByResult.then(() => {
+        void sortByResult.then(() => {
           // Then set the sort direction
-          setSortOrder(direction);
+          void setSortOrder(direction);
         });
       } else {
         // If using regular state (non-Promise), just update sequentially
-        setSortOrder(direction);
+        void setSortOrder(direction);
       }
     }
     // Don't reset to defaults when sort is explicitly cleared
@@ -55,7 +55,7 @@ export function createColumnFiltersHandler(
 ) {
   return (updaterOrValue: ColumnFiltersState | ((prev: ColumnFiltersState) => ColumnFiltersState)) => {
     // Pass through to setColumnFilters (which handles updater functions)
-    setColumnFilters(updaterOrValue);
+    void setColumnFilters(updaterOrValue);
   };
 }
 
@@ -67,7 +67,7 @@ export function createColumnVisibilityHandler(
 ) {
   return (updaterOrValue: VisibilityState | ((prev: VisibilityState) => VisibilityState)) => {
     // Pass through to setColumnVisibility (which handles updater functions)
-    setColumnVisibility(updaterOrValue);
+    void setColumnVisibility(updaterOrValue);
   };
 }
 
@@ -86,8 +86,8 @@ export function createPaginationHandler(
       ? updaterOrValue({ pageIndex: currentPage - 1, pageSize: currentPageSize })
       : updaterOrValue;
     
-    setPage(newPagination.pageIndex + 1);
-    setPageSize(newPagination.pageSize);
+    void setPage(newPagination.pageIndex + 1);
+    void setPageSize(newPagination.pageSize);
   };
 }
 
@@ -103,7 +103,7 @@ export function createColumnSizingHandler(
     const newSizing = typeof updaterOrValue === 'function'
       ? updaterOrValue(columnSizing)
       : updaterOrValue;
-    setColumnSizing(newSizing);
+    void setColumnSizing(newSizing);
   };
 }
 

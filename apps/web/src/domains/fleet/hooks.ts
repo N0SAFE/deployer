@@ -9,11 +9,7 @@ const enhancedFleet = wrapWithInvalidations(fleetEndpoints, fleetInvalidations);
 
 export function useFleetServers(options?: { enabled?: boolean }) {
   return useQuery(
-    fleetEndpoints.listServers.queryOptions({
-      input: undefined,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
+    { ...fleetEndpoints.listServers.queryOptions({ input: {} }), enabled: options?.enabled ?? true, refetchInterval: false },
   );
 }
 
@@ -38,11 +34,7 @@ export function useFleetAllocations(
 
 export function useMyFleetAllocations(options?: { enabled?: boolean }) {
   return useQuery(
-    fleetEndpoints.listMyAllocations.queryOptions({
-      input: undefined,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
+    { ...fleetEndpoints.listMyAllocations.queryOptions({ input: {} }), enabled: options?.enabled ?? true, refetchInterval: false },
   );
 }
 

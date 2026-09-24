@@ -1,4 +1,5 @@
 import z from "zod/v4";
+import { swarmFoundingSelectionSchema, swarmJoinSelectionSchema } from "@repo/contracts-entities/entities/swarm/swarm-config.schema";
 
 // ─── States ───────────────────────────────────────────────────────────────────
 
@@ -20,6 +21,9 @@ export const setupStepIdSchema = z.enum([
     "configure_account",
     "remote_auth",
     "version_check",
+    // Founds the cluster BEFORE provisioning: the locally-managed global
+    // Postgres is a swarm service, so the engine must already be a cluster.
+    "initialize_swarm",
     "provision_database",
     "ensure_empty",
     "run_migrations",
@@ -74,6 +78,13 @@ export const setupInitializeLocalInputSchema = z.object({
     password: z.string().min(8),
     existingDatabaseUrl: z.string().optional(),
     serverUrl: z.url(),
+    /**
+     * Swarm participation chosen when FOUNDING this cluster. Because this node
+     * creates the swarm, `mode` is only `create` or `disabled` (see
+     * `swarmFoundingSelectionSchema` — `create` + `worker` is rejected as
+     * impossible). Absent → env defaults (SWARM_MODE/SWARM_POLICY).
+     */
+    swarm: swarmFoundingSelectionSchema.optional(),
 });
 export type SetupInitializeLocalInput = z.infer<typeof setupInitializeLocalInputSchema>;
 
@@ -82,6 +93,11 @@ export const setupInitializeRemoteInputSchema = z.object({
     meshUrl: z.url(),
     authToken: z.string().min(1),
     serverUrl: z.url(),
+    /**
+     * Swarm role this JOINING node takes in the existing cluster. `mode` is
+     * implied by joining (always "join"); the node never founds its own swarm.
+     */
+    swarm: swarmJoinSelectionSchema.optional(),
 });
 export type SetupInitializeRemoteInput = z.infer<typeof setupInitializeRemoteInputSchema>;
 

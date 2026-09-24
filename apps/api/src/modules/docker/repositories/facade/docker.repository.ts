@@ -11,9 +11,9 @@ import {
   dockerImageSecurityLifecycle,
   dockerImageSecurityScanHistory,
   dockerImageSecurityScans,
-} from "@/config/drizzle/global/schema/docker-security-scan";
-import { dockerRuntimeActivities } from "@/config/drizzle/global/schema/docker-runtime-activity";
-import { deployments, projects, services } from "@/config/drizzle/global/schema/deployment";
+} from "@repo/nest-schema/global/docker-security-scan";
+import { dockerRuntimeActivities } from "@repo/nest-schema/global/docker-runtime-activity";
+import { deployments, projects, services } from "@repo/nest-schema/global/deployment";
 import type { DockerContainerListInput } from "@repo/api-contracts/modules/docker/containers/shared";
 import type { DockerImageListInput } from "@repo/api-contracts/modules/docker/images/list";
 import { dockerodeContainerListSchema, dockerodeImageSummarySchema, dockerodeImageInspectSchema, dockerodeNetworkSummarySchema, dockerodeVolumeListResponseSchema, type DockerodeContainerList, type DockerodeImageSummary, type DockerodeImageInspect, type DockerodeNetworkSummary, type DockerodeVolumeEntry } from "@repo/contracts-entities";

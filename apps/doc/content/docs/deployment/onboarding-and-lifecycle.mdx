@@ -136,7 +136,10 @@ Every supervisor transitions `idle → converging → converged | degraded`, emi
 ```mermaid
 stateDiagram-v2
     [*] --> idle : constructed
+    idle --> pending : convergenceBlocker() returned a reason
     idle --> converging : ensureDesiredState
+    pending --> converging : precondition now holds (setup created the swarm)
+    pending --> pending : still blocked (idempotent — no retry storm)
     converging --> converged : reconcile ok
     converging --> degraded : reconcile threw
     converged --> converging : re-converge (port change, flag flip, event)
@@ -145,11 +148,38 @@ stateDiagram-v2
     degraded --> idle : (n/a)
 ```
 
+### `pending` — deferred, not failed
+
+`pending` means **the precondition for this resource does not exist yet, so convergence was never attempted**. It is deliberately distinct from `degraded` (an attempt was made and failed).
+
+Every docker-backed supervisor is **swarm-only** (the container fallback was removed), and the swarm is created *during setup*. So before setup a swarm converge cannot succeed — it fails with `This node is not a swarm manager`, burns the retry budget and reports DEGRADED for what is really "the cluster does not exist yet". Instead:
+
+```mermaid
+sequenceDiagram
+    participant Boot as Gateway boot
+    participant Sup as Swarm-only supervisors
+    participant Setup as Setup wizard
+    participant Main as Main sub-app
+    Boot->>Sup: ensureAll()
+    Note over Sup: engine is not an active swarm member
+    Sup-->>Boot: pending (deferred — no attempt, no retries)
+    Setup->>Setup: operator confirms participation → swarm created
+    Main->>Sup: ensureAll() (shared process-wide registry)
+    Note over Sup: engine is now an active swarm member
+    Sup-->>Main: converged
+```
+
+- A blocked supervisor **never calls `reconcile()`**, so it does not touch Docker, does not retry, and does not cascade (a failing Traefik used to re-trigger the failover proxy three extra times).
+- Recovery is **automatic**: the main sub-app boots a `SupervisorOrchestratorService` backed by the process-wide registry, so its `onApplicationBootstrap` re-converges every supervisor once setup has created the cluster. No operator click required.
+- A deferred supervisor reports `healthy: false` with **zero `warnings[]`** — warnings are reserved for `degraded`.
+- `managed` (compose/operator-owned) resources also need an overlay, so they defer too until the swarm exists.
+
 | State | Meaning | Health `healthy` | What the operator should do |
 |---|---|---|---|
 | `idle` | Registered, never converged yet (boot window) | `false` | Nothing — it converges on the next `ensureAll` (or the shared orchestrator's bootstrap). |
 | `converging` | A convergence pass is running | `false` | Nothing. |
 | `converged` | Desired state matches reality | `true` | Nothing — nominal. |
+| `pending` | **Deferred**: the precondition does not exist yet (e.g. swarm-only service before setup created the cluster). No attempt was made. | `false` | Nothing — it converges automatically once setup creates the swarm. Only actionable if it stays `pending` after setup. |
 | `degraded` | Last reconcile threw (detail recorded) | `false` | Read `detail` + `warnings[]`; act (see [Failure matrix](#failure-matrix--recovery-playbook)). The app NEVER stops because of a degraded supervisor. |
 
 **Reachability of “process info”:** any consumer resolves a supervisor with `await orch.getSupervisor(SupervisorClass)` and gets `getProcessInfo()` — the docker process (desired spec + live container state), URLs/entry port/connection DSNs — all Zod-validated.

@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Siren, Users, UserPlus, Trash2, MailWarning, RotateCcw } from 'lucide-react'
+import { EmptyState } from '@/components/dashboard'
 import { toast } from 'sonner'
 import { z } from 'zod/v4'
 
@@ -175,11 +176,12 @@ export default function ProjectTeamPage() {
         </CardHeader>
         <CardContent>
           {collaboratorList.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Users className="mb-4 size-12 text-muted-foreground/40" />
-              <p className="text-lg font-medium">No collaborators yet</p>
-              <p className="text-sm text-muted-foreground">Invite team members to collaborate.</p>
-            </div>
+            <EmptyState
+              icon={Users}
+              title="No collaborators yet"
+              description="Invite team members to collaborate on this project."
+              action={{ label: 'Invite member', onClick: () => { setInviteOpen(true) } }}
+            />
           ) : (
             <Table>
               <TableHeader>

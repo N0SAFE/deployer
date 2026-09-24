@@ -10,14 +10,22 @@ import type { RuntimeExecutionInput, RuntimeExecutionResult } from "./runtime-ru
 
 @Injectable()
 export class RuntimeRunnerRegistryService {
+    /**
+     * All seven runners are REQUIRED. They are always supplied by
+     * `RunnersModule.providers`, so marking any of them optional would only
+     * make the type lie about what is injected and force a pointless
+     * `undefined` filter below. Worse, it would turn "a runner was removed from
+     * the module" from a boot-time DI failure into a runtime
+     * `BadRequestException` on the first deploy that happens to use it.
+     */
     constructor(
         private readonly dockerRuntimeRunnerService: DockerRuntimeRunnerService,
-        private readonly dockerfileRuntimeRunnerService?: DockerfileRuntimeRunnerService,
-        private readonly dockerComposeRuntimeRunnerService?: DockerComposeRuntimeRunnerService,
-        private readonly nixpacksRuntimeRunnerService?: NixpacksRuntimeRunnerService,
-        private readonly buildpackRuntimeRunnerService?: BuildpackRuntimeRunnerService,
-        private readonly railpackRuntimeRunnerService?: RailpackRuntimeRunnerService,
-        private readonly swarmRuntimeRunnerService?: SwarmRuntimeRunnerService,
+        private readonly dockerfileRuntimeRunnerService: DockerfileRuntimeRunnerService,
+        private readonly dockerComposeRuntimeRunnerService: DockerComposeRuntimeRunnerService,
+        private readonly nixpacksRuntimeRunnerService: NixpacksRuntimeRunnerService,
+        private readonly buildpackRuntimeRunnerService: BuildpackRuntimeRunnerService,
+        private readonly railpackRuntimeRunnerService: RailpackRuntimeRunnerService,
+        private readonly swarmRuntimeRunnerService: SwarmRuntimeRunnerService,
     ) {}
 
     async execute(
@@ -33,14 +41,16 @@ export class RuntimeRunnerRegistryService {
             this.buildpackRuntimeRunnerService,
             this.railpackRuntimeRunnerService,
             this.swarmRuntimeRunnerService,
-        ].filter((runner) => runner !== undefined);
+        ];
 
         const selectedRunner = runners.find((runner) => runner.runnerType === normalizedRunner);
 
-        if (selectedRunner) {
-            return selectedRunner.executeRuntime(input);
+        if (!selectedRunner) {
+            // Every injected runner is listed above, so this means the caller
+            // asked for a kind no runner implements — not that one is missing.
+            throw new BadRequestException(`Unsupported runtime runner '${normalizedRunner}'`);
         }
 
-        throw new BadRequestException(`Unsupported runtime runner '${normalizedRunner}'`);
+        return selectedRunner.executeRuntime(input);
     }
 }

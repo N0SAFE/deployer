@@ -1,4 +1,4 @@
-import type { LogData, Logger } from "./index";
+import type { LogData, Logger } from "@repo/logger/index";
 import { isRecord } from "@repo/type-guards"
 
 

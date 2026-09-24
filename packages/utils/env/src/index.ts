@@ -1,6 +1,6 @@
 import zod from "zod/v4";
-import { guardedUrl, parseDebugScopes, trimTrailingSlash } from "./utils";
-import { LOCAL_APP_FALLBACK, LOCAL_API_FALLBACK, DEFAULT_API_PORT } from "./constants";
+import { guardedUrl, parseDebugScopes, trimTrailingSlash } from "@repo/env/utils";
+import { LOCAL_APP_FALLBACK, LOCAL_API_FALLBACK, DEFAULT_API_PORT } from "@repo/env/constants";
 
 // ============================================================================
 // Shared Environment Variables
@@ -206,7 +206,19 @@ export const apiEnvSchema = zod
         // host gateway.
         DEPLOYER_API_TARGET: emptyableString().optional(),
         // Image for the API-supervised platform Traefik ingress container.
-        DEPLOYER_TRAEFIK_IMAGE: zod.string().min(1).default("traefik:v3.3"),
+        //
+        // MUST BE >= v3.6. Traefik <= 3.5 does not negotiate the Docker Engine
+        // API version — its docker provider hardcodes API 1.24, which Docker
+        // Engine >= 25 rejects ("client version 1.24 is too old. Minimum
+        // supported API version is 1.40"). The provider then retries forever
+        // and never reads a single container label, silently disabling
+        // label-based routing.
+        //
+        // Verified against this engine: v3.3/v3.4/v3.5 -> persistent provider
+        // errors, v3.6 -> none. There is NO flag or env workaround
+        // (`--providers.docker.apiVersion` does not exist in Traefik v3 and the
+        // `DOCKER_API_VERSION` env var is ignored), so the image is the fix.
+        DEPLOYER_TRAEFIK_IMAGE: zod.string().min(1).default("traefik:v3.6.10"),
         // Host port the platform Traefik publishes its HTTP entrypoint on
         // (dev). Default 80 — override when host port 80 is occupied by
         // another service (e.g. a host proxy). The persisted platform
@@ -277,7 +289,10 @@ export const apiEnvSchema = zod
         // all consumers use MANAGED_TRAEFIK_* to reach it.
         MANAGED_TRAEFIK_ENABLED: booleanEnv().default(false),
         MANAGED_TRAEFIK_HOST: zod.string().optional().default("traefik"),
-        MANAGED_TRAEFIK_IMAGE: zod.string().min(1).default("traefik:v3.3"),
+        // >= v3.6 required — see DEPLOYER_TRAEFIK_IMAGE. A 3.5-or-older ingress
+        // cannot read container labels on Docker Engine >= 25, so label-based
+        // routing silently stops working.
+        MANAGED_TRAEFIK_IMAGE: zod.string().min(1).default("traefik:v3.6.10"),
         MANAGED_TRAEFIK_HTTP_PORT: zod.coerce.number().int().min(1).max(65535).default(80),
         MANAGED_TRAEFIK_WEB_HOST: emptyableString().optional(),
         MANAGED_TRAEFIK_API_HOST: emptyableString().optional(),
@@ -309,20 +324,41 @@ export const apiEnvSchema = zod
         MANAGED_WIREGUARD_STATE_VOLUME: zod.string().optional().default("deployer-wireguard-state"),
 
         // ─── Swarm (SDK cluster orchestration) ──────────────────────────
-        // The platform converges the local engine into Swarm mode on boot
-        // (SwarmBootstrapService → SwarmClusterService.ensureCluster, all via
-        // the dockerode SDK — no CLI). SWARM_ENABLED=false restores pure
-        // supervisor mode (edge nodes, constrained hosts).
+        // The platform converges the local engine into Swarm mode AFTER setup
+        // decides how this node enters the cluster (SwarmParticipationService →
+        // SwarmClusterService.ensureCluster/join, all via the dockerode SDK —
+        // no CLI).
+        //
+        // Swarm is NOT optional: the deployer always runs its supervised
+        // workloads on Swarm. Before setup completes there is simply nothing to
+        // converge yet, so supervisors run as plain containers (Traefik keeps
+        // serving *.deployer.localhost) until the wizard decides HOW this node
+        // joins — create a cluster or join an existing one.
         //
         // LAYERING: Swarm schedules the WORKLOAD Deployer owns — user
         // deployments / projects / services (runners/swarm creates per-project
-        // overlay networks + services). Deployer's OWN platform infra (ingress
-        // Traefik, DB, Redis, shared network) is managed by the platform
-        // supervisors or Compose (MANAGED_*_ENABLED) — never by Swarm.
-        SWARM_ENABLED: booleanEnv().default(true),
+        // overlay networks + services) — AND Deployer's own platform infra
+        // (ingress Traefik, DB, Redis, direct-port proxy) via the topologies
+        // in docker-supervisor-runtime.
+        //
+        // How this node enters the cluster (resolved at setup; env = first-run
+        // default / operator override, persisted in node_config.swarmConfig):
+        //   SWARM_MODE     create (found a new cluster) | join (existing)
+        //   SWARM_POLICY   auto (mixed manager+worker — small clusters) |
+        //                  manager (dedicated master, drained) |
+        //                  worker (pure worker, join only)
+        SWARM_MODE: zod.enum(["create", "join"]).optional().default("create"),
+        SWARM_POLICY: zod.enum(["auto", "manager", "worker"]).optional().default("auto"),
+        // Join mode: control-plane addresses ("host:port", comma-separated)
+        // + the join token issued by the existing cluster.
+        SWARM_JOIN_ADDRS: zod.string().optional(),
+        SWARM_JOIN_TOKEN: zod.string().optional(),
         // Advertise address forced for `docker swarm init`. When unset the
-        // engine auto-selects (first non-loopback interface); prefer the
-        // WireGuard overlay IP (MANAGED_WIREGUARD_IP) for mesh clusters.
+        // bootstrap falls back to MANAGED_WIREGUARD_IP, then 127.0.0.1:2377 —
+        // engine auto-detection fails on hosts whose primary interface carries
+        // multiple addresses (e.g. IPv6 temporary + stable on Wi-Fi → HTTP 400),
+        // so a deterministic default keeps single-host dev converging without
+        // relying on daemon auto-detect. Set per node on multi-host meshes.
         SWARM_ADVERTISE_ADDR: zod.string().optional(),
         // Max manager count (quorum cap) for the platform master election.
         SWARM_QUORUM_MAX: zod.coerce.number().int().min(1).default(3),
@@ -529,7 +565,8 @@ export type ManagedLocalDbEnv = zod.infer<typeof managedLocalDbSchema>;
 export const managedTraefikSchema = zod.object({
     enabled: booleanEnv().default(false),
     host: zod.string().optional().default("traefik"),
-    image: zod.string().min(1).default("traefik:v3.3"),
+    // >= v3.6 required — see DEPLOYER_TRAEFIK_IMAGE.
+    image: zod.string().min(1).default("traefik:v3.6.10"),
     httpPort: zod.coerce.number().int().min(1).max(65535).default(80),
     webHost: emptyableString().optional(),
     apiHost: emptyableString().optional(),
@@ -843,6 +880,6 @@ export type AllEnv = zod.infer<typeof allEnvSchema>;
 // Re-export Everything
 // ============================================================================
 
-export { trimTrailingSlash, guardedUrl, parseDebugScopes } from "./utils";
-export * from "./constants";
-export * from "./validate";
+export { trimTrailingSlash, guardedUrl, parseDebugScopes } from "@repo/env/utils";
+export * from "@repo/env/constants";
+export * from "@repo/env/validate";

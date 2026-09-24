@@ -18,7 +18,9 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "paths": {
       "@/*": [
         "./src/*"
@@ -43,7 +45,10 @@
     "source.config.ts",
     "eslint.config.ts",
     ".prettierrc.ts",
-    "postcss.config.mjs"
+    "postcss.config.mjs",
+    ".next/types/**/*.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

@@ -7,14 +7,14 @@ import {
   ChevronsRight,
 } from "lucide-react";
 import type { Table } from "@tanstack/react-table";
-import { Button } from "../shadcn/button";
+import { Button } from "@repo/ui/components/shadcn/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../shadcn/select";
+} from "@repo/ui/components/shadcn/select";
 
 const getButtonSizeClass = (size: 'sm' | 'default' | 'lg') => {
   switch (size) {
@@ -53,7 +53,7 @@ export function DataTablePagination<TData>({
             Rows per page
           </p>
           <Select
-            value={`${table.getState().pagination.pageSize}`}
+            value={String(table.getState().pagination.pageSize)}
             onValueChange={(value) => {
               // Validate the input value
               const numericValue = parseInt(value, 10);
@@ -86,7 +86,7 @@ export function DataTablePagination<TData>({
             </SelectTrigger>
             <SelectContent side="top" className="cursor-pointer">
               {pageSizeOptions.map((pageSize) => (
-                <SelectItem key={pageSize} value={`${pageSize}`} className="cursor-pointer">
+                <SelectItem key={pageSize} value={String(pageSize)} className="cursor-pointer">
                   {pageSize}
                 </SelectItem>
               ))}
@@ -102,7 +102,7 @@ export function DataTablePagination<TData>({
             aria-label="Go to first page"
             variant="outline"
             className={`${getButtonSizeClass(size)} hidden lg:flex cursor-pointer`}
-            onClick={() => table.setPagination({ pageIndex: 0, pageSize: table.getState().pagination.pageSize })}
+            onClick={() => { table.setPagination({ pageIndex: 0, pageSize: table.getState().pagination.pageSize }); }}
             disabled={!table.getCanPreviousPage()}
           >
             <ChevronsLeft className="h-4 w-4" aria-hidden="true" />
@@ -111,10 +111,10 @@ export function DataTablePagination<TData>({
             aria-label="Go to previous page"
             variant="outline"
             className={`${getButtonSizeClass(size)} cursor-pointer`}
-            onClick={() => table.setPagination({
+            onClick={() => { table.setPagination({
               pageIndex: table.getState().pagination.pageIndex - 1,
               pageSize: table.getState().pagination.pageSize
-            })}
+            }); }}
             disabled={!table.getCanPreviousPage()}
           >
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -123,10 +123,10 @@ export function DataTablePagination<TData>({
             aria-label="Go to next page"
             variant="outline"
             className={`${getButtonSizeClass(size)} cursor-pointer`}
-            onClick={() => table.setPagination({
+            onClick={() => { table.setPagination({
               pageIndex: table.getState().pagination.pageIndex + 1,
               pageSize: table.getState().pagination.pageSize
-            })}
+            }); }}
             disabled={!table.getCanNextPage()}
           >
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -135,10 +135,10 @@ export function DataTablePagination<TData>({
             aria-label="Go to last page"
             variant="outline"
             className={`${getButtonSizeClass(size)} hidden lg:flex cursor-pointer`}
-            onClick={() => table.setPagination({
+            onClick={() => { table.setPagination({
               pageIndex: table.getPageCount() - 1,
               pageSize: table.getState().pagination.pageSize
-            })}
+            }); }}
             disabled={!table.getCanNextPage()}
           >
             <ChevronsRight className="h-4 w-4" aria-hidden="true" />

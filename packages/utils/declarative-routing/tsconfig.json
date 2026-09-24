@@ -6,8 +6,20 @@
     "skipLibCheck": true,
     "moduleResolution": "bundler",
     "target": "ES2020",
-    "lib": ["ES2022", "dom", "dom.iterable"],
-    "noEmit": true
+    "lib": [
+      "ES2022",
+      "dom",
+      "dom.iterable"
+    ],
+    "noEmit": true,
+    "paths": {
+      "@repo/declarative-routing/*": [
+        "./src/*"
+      ]
+    }
   },
-  "include": ["src/**/*", "eslint.config.ts"]
+  "include": [
+    "src/**/*",
+    "eslint.config.ts"
+  ]
 }

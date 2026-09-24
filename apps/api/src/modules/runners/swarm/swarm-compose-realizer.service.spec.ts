@@ -156,7 +156,9 @@ describe("SwarmComposeRealizerService", () => {
 
             const apiSpec = plan.services.find((entry) => entry.serviceName === "api")?.spec;
             expect(apiSpec?.endpointPorts).toEqual([{ targetPort: 3000, publishedPort: 8080, protocol: "tcp" }]);
-            expect(apiSpec?.networks).toEqual(["deployer-proj-1-private"]);
+            expect(apiSpec?.networks).toEqual([
+                { target: "deployer-proj-1-private", aliases: [] },
+            ]);
             expect(apiSpec?.labels["deployer.compose_service"]).toBe("api");
 
             expect(plan.networks).toEqual([

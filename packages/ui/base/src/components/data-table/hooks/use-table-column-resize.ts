@@ -3,6 +3,16 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { ColumnSizingState } from "@tanstack/react-table";
 
+/** localStorage is untrusted: only accept a map of finite numeric widths. */
+function isColumnSizingState(value: unknown): value is ColumnSizingState {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  return Object.values(value).every(
+    (size) => typeof size === "number" && Number.isFinite(size)
+  );
+}
+
 // Debounce function to limit expensive operations
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -30,7 +40,7 @@ function useDebounce<T>(value: T, delay: number): T {
  */
 export function useTableColumnResize(
   tableId: string,
-  enableResizing: boolean = false
+  enableResizing = false
 ) {
   // Column sizing state
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({});
@@ -69,9 +79,15 @@ export function useTableColumnResize(
       try {
         const savedSizing = localStorage.getItem(`table-column-sizing-${tableId}`);
         if (savedSizing) {
-          const parsed = JSON.parse(savedSizing);
-          setColumnSizing(parsed);
-          prevSizingRef.current = parsed;
+          const parsed: unknown = JSON.parse(savedSizing);
+          // Deferred so the restore does not schedule a cascading render
+          // inside the effect body (set-state-in-effect).
+          queueMicrotask(() => {
+            if (isColumnSizingState(parsed)) {
+              setColumnSizing(parsed);
+              prevSizingRef.current = parsed;
+            }
+          });
         }
       } catch (error) {
         console.warn('Failed to load saved column sizing from localStorage:', error);

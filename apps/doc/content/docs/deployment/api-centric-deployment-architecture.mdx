@@ -519,7 +519,9 @@ The gateway exposes two levels of health:
 
 The basic endpoint responds immediately (`status: ok`) even before the orchestrator completes — Docker needs an immediate signal. The detailed endpoint is richer but requires authentication.
 
-Every `BaseSupervisorService` exposes `getHealth()` returning a `SupervisorHealth` snapshot with `supervisorId`, `healthy`, `state` (idle/converging/converged/degraded), and `detail`. The `SupervisorOrchestratorService.getHealthOfAll()` runs all probes in parallel, never throwing — each probe catches its own errors. When a supervisor fails to converge, the API **stays alive** and `/health`/`/health/detailed` report supervisor status (the failover proxy keeps the service ports reachable for diagnosis).
+Every `BaseSupervisorService` exposes `getHealth()` returning a `SupervisorHealth` snapshot with `supervisorId`, `healthy`, `state` (idle/converging/converged/degraded/pending), and `detail`. The `SupervisorOrchestratorService.getHealthOfAll()` runs all probes in parallel, never throwing — each probe catches its own errors. When a supervisor fails to converge, the API **stays alive** and `/health`/`/health/detailed` report supervisor status (the failover proxy keeps the service ports reachable for diagnosis).
+
+`pending` is the deferred state: a swarm-only supervisor whose cluster does not exist yet reports `pending` (untouched, retried automatically once setup creates the swarm) rather than a false `degraded` — see [Supervisor state machine](./onboarding-and-lifecycle.mdx#supervisor-state-machine).
 
 ## Platform Traefik (API-owned ingress)
 

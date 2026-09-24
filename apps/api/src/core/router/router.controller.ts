@@ -21,6 +21,7 @@ import {
 import type { Request, Response } from 'express';
 import * as http from 'node:http';
 import { RouteRegistryService } from '../gateway/route-registry.service';
+import { isViteAssetRequest, resolveViteDevServerUrl, toViteBasePath } from '../gateway/vite-assets-proxy';
 
 @Controller()
 export class RouterController implements OnApplicationShutdown {
@@ -42,6 +43,16 @@ export class RouterController implements OnApplicationShutdown {
     const method = req.method;
     const path = req.originalUrl ?? req.url ?? '/';
 
+    // ── Vite dev assets are EXEMPT from the 503 guard ──────────────────────
+    // They are build artifacts of the SSR views (served under the single
+    // `base` prefix, `/vite/`), not a sub-app route — the registry can never
+    // match them, so without this exemption the wizard's bundle gets a 503 and
+    // the page renders but never becomes interactive.
+    if (isViteAssetRequest(path)) {
+      await this.proxyViteAsset(req, res, path);
+      return;
+    }
+
     // Try to match against registered sub-app routes
     const match = this.registry.match(method, path);
 
@@ -58,6 +69,51 @@ export class RouterController implements OnApplicationShutdown {
 
     // Proxy to the matched sub-app
     await this.proxyRequest(req, res, match.targetUrl);
+  }
+
+  /**
+   * Stream a Vite dev asset from the standalone dev server.
+   *
+   * The path is REWRITTEN onto the Vite base: the SSR library emits hardcoded
+   * root-absolute paths that Vite only serves under its base, so the rewrite is
+   * what makes a single `/vite` prefix sufficient.
+   */
+  private proxyViteAsset(
+    req: Request,
+    res: Response,
+    path: string,
+  ): Promise<void> {
+    if ((path.split('?')[0] ?? path) === '/favicon.ico') {
+      res.status(204).end();
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      const target = new URL(resolveViteDevServerUrl());
+      const upstream = http.request(
+        {
+          hostname: target.hostname,
+          port: target.port,
+          path: toViteBasePath(path),
+          method: req.method,
+          headers: { ...req.headers, host: target.host },
+          timeout: 30_000,
+        },
+        (upstreamRes) => {
+          if (!res.headersSent) {
+            res.writeHead(upstreamRes.statusCode ?? 502, upstreamRes.headers);
+          }
+          upstreamRes.pipe(res);
+          upstreamRes.on('end', () => resolve());
+        },
+      );
+      upstream.on('error', (error: Error) => {
+        if (!res.headersSent) {
+          res.status(503).json({ statusCode: 503, message: 'Vite dev server unavailable', path, error: error.message });
+        }
+        resolve();
+      });
+      req.pipe(upstream);
+    });
   }
 
   /**

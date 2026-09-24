@@ -1,19 +1,19 @@
 export {
     coreEventScopeSchema,
     coreEventStreamDefinitionSchema,
-} from './base.schema'
+} from '@repo/contracts-entities/entities/event-stream/base.schema'
 
 export type {
     CoreEventScope,
     CoreEventStreamDefinition,
-} from './base.schema'
+} from '@repo/contracts-entities/entities/event-stream/base.schema'
 
 export {
     coreDomainEventEnvelopeSchema,
     coreSyncedEventEnvelopeSchema,
-} from './envelopes.schema'
+} from '@repo/contracts-entities/entities/event-stream/envelopes.schema'
 
 export type {
     CoreDomainEventEnvelope,
     CoreSyncedEventEnvelope,
-} from './envelopes.schema'
+} from '@repo/contracts-entities/entities/event-stream/envelopes.schema'

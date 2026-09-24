@@ -2,6 +2,14 @@ import { Suspense } from 'react'
 import { DockerRuntimeEventsProviderClient } from './_components/docker-runtime-events-provider'
 import { DockerSectionTabs } from './_components/docker-section-tabs'
 import { PageHeader } from '@/components/dashboard'
+import type { Metadata } from 'next'
+
+// Metadata lives in the layout: the pages under it are client components, and
+// `metadata` cannot be exported from a `'use client'` file.
+export const metadata: Metadata = {
+  title: 'Docker',
+  description: 'Containers, images, networks and volumes on this node',
+}
 
 export default function DashboardDockerLayout({ children }: { children: React.ReactNode }) {
   return (

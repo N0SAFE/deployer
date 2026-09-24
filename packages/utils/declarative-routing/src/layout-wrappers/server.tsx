@@ -13,7 +13,7 @@ import 'server-only'
 
 import React from 'react'
 import { unstable_rethrow } from 'next/navigation'
-import type { Session, ServerAuthAdapter } from '../types'
+import type { Session, ServerAuthAdapter } from '@repo/declarative-routing/types'
 
 // Session constants - must match page-wrappers
 const SESSION_QUERY_KEY = ['session']
@@ -36,7 +36,7 @@ let checkAuthCookieFn: (() => Promise<boolean>) | null = null
  * ```tsx
  * // In your app's route setup (e.g., @/routes/configure-auth.ts)
  * import { configureLayoutAuth } from '@repo/declarative-routing/layout-wrappers/server'
- * import { getSession } from '@/lib/auth'
+ * import { getSession } from '../../../../lib/auth'
  * import { QueryClient, HydrationBoundary, dehydrate } from '@tanstack/react-query'
  * import { cookies } from 'next/headers'
  * 
@@ -350,4 +350,4 @@ export async function SessionHydrator({ children }: SessionHydratorProps): Promi
 // Re-export types
 // ============================================================================
 
-export type { Session, ServerAuthAdapter } from '../types'
+export type { Session, ServerAuthAdapter } from '@repo/declarative-routing/types'

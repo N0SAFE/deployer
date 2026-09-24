@@ -11,15 +11,26 @@ const shared = createNextJsConfig({
             '@': path.resolve(__dirname, './src'),
             '#': path.resolve(__dirname, './'),
             '~': path.resolve(__dirname, './'),
-            '@repo/env': path.resolve(__dirname, '../../packages/utils/env/src/index.ts'),
-            '@repo/logger': path.resolve(__dirname, '../../packages/utils/logger/src/index.ts'),
-            '@repo/type-guards': path.resolve(__dirname, '../../packages/utils/type-guards/src/index.ts'),
-            '@repo/api-contracts': path.resolve(__dirname, '../../packages/contracts/api/index.ts'),
+            // Workspace packages resolve to their `src` **directory**, not to a
+            // single `index.ts` file. Code imports deep subpaths such as
+            // `@repo/orpc-utils/builder/core/route-builder`; mapping the package
+            // name to a directory lets both the barrel and every subpath resolve
+            // to source. Mapping to `${pkg}/src/index.ts` would leave subpaths to
+            // fall through to `dist/`, which tests must not load.
+            '@repo/env': path.resolve(__dirname, '../../packages/utils/env/src'),
+            '@repo/logger': path.resolve(__dirname, '../../packages/utils/logger/src'),
+            '@repo/type-guards': path.resolve(__dirname, '../../packages/utils/type-guards/src'),
+            '@repo/api-contracts': path.resolve(__dirname, '../../packages/contracts/api'),
             '@repo/auth': path.resolve(__dirname, '../../packages/utils/auth/src'),
-            '@repo/contracts-entities': path.resolve(__dirname, '../../packages/contracts/entities/src/index.ts'),
-            '@repo/contracts-common': path.resolve(__dirname, '../../packages/contracts/common/src/index.ts'),
-            '@repo/orpc-utils': path.resolve(__dirname, '../../packages/utils/orpc/src/index.ts'),
+            '@repo/contracts-entities': path.resolve(__dirname, '../../packages/contracts/entities/src'),
+            '@repo/contracts-common': path.resolve(__dirname, '../../packages/contracts/common/src'),
+            '@repo/orpc-utils': path.resolve(__dirname, '../../packages/utils/orpc/src'),
+            '@repo/provider-schema': path.resolve(__dirname, '../../packages/utils/provider-schema/src'),
+            '@repo/errors': path.resolve(__dirname, '../../packages/utils/errors/src'),
+            '@repo/nest-events': path.resolve(__dirname, '../../packages/nest/events/src'),
+            '@repo/nest-lifecycle': path.resolve(__dirname, '../../packages/nest/lifecycle/src'),
             '@repo/ui': path.resolve(__dirname, '../../packages/ui/base/src'),
+            '@repo/types': path.resolve(__dirname, '../../packages/types/src'),
             '@repo': path.resolve(__dirname, '../../packages'),
         },
     },
@@ -34,11 +45,14 @@ const shared = createNextJsConfig({
 export default defineConfig({
     ...shared,
     test: {
-        // Default environment for root vitest workspace (which doesn't resolve
-        // nested projects). When running standalone from apps/web, the nested
-        // `projects` array below handles unit (jsdom) vs e2e (node) properly.
+        // ── Top level: used by the ROOT workspace run only. ──
+        // The root `vitest.config.mts` lists this file through
+        // `projects: ["apps/**/vitest.config.mts"]`, which makes Vitest treat
+        // this config as ONE project and IGNORE the `projects` array below.
+        // Without these defaults that run has no jsdom environment and every
+        // component test fails with `document is not defined`.
         environment: 'jsdom',
-        setupFiles: ['./vitest.setup.ts'],
+        setupFiles: ['./vitest.setup.unit.ts'],
         globals: true,
         include: [
             'src/**/*.test.{ts,tsx,js,jsx}',
@@ -51,14 +65,26 @@ export default defineConfig({
             '.next',
             'src/**/*.e2e.spec.{ts,tsx}',
         ],
-        // Projects split (same pattern as apps/api): fast jsdom unit tests by
-        // default (`test`), real-server e2e behind `test:e2e`.
+        // ── Projects: used by the standalone run (`cd apps/web`). ──
+        // Each project spreads `shared` (so it keeps the resolve aliases and
+        // the React plugin) and then declares its ENTIRE `test` block.
+        //
+        // Do NOT use `extends: true` here. It CONCATENATES array options
+        // (`include`, `exclude`, `setupFiles`) with the top-level ones instead
+        // of replacing them, and re-declaring them does not override that:
+        // `vitest list --project e2e` showed the node-environment `e2e` project
+        // still claiming 29 unit specs (e.g.
+        // `src/utils/__tests__/tanstack-query.test.tsx`), which then failed with
+        // `window is not defined` inside the test body. Spreading + replacing
+        // keeps the two environments strictly apart.
         projects: [
             {
-                extends: true,
+                ...shared,
                 test: {
                     name: 'unit',
                     environment: 'jsdom',
+                    globals: true,
+                    setupFiles: ['./vitest.setup.unit.ts'],
                     testTimeout: 10000, // 10 seconds timeout
                     include: [
                         'src/**/*.test.{ts,tsx,js,jsx}',
@@ -71,8 +97,6 @@ export default defineConfig({
                         '.next',
                         'src/**/*.e2e.spec.{ts,tsx}',
                     ],
-                    setupFiles: ['./vitest.setup.ts'],
-                    globals: true,
                     // Mock Next.js modules
                     server: {
                         deps: {
@@ -82,15 +106,15 @@ export default defineConfig({
                 },
             },
             {
-                extends: true,
+                ...shared,
                 test: {
                     name: 'e2e',
                     environment: 'node',
+                    globals: true,
+                    setupFiles: ['./vitest.setup.e2e.ts'],
+                    globalSetup: ['./vitest.global-setup.e2e.ts'],
                     include: ['src/**/*.e2e.spec.{ts,tsx}'],
                     exclude: ['node_modules', 'dist', '.next'],
-                    globalSetup: ['./vitest.global-setup.e2e.ts'],
-                    setupFiles: ['./vitest.setup.e2e.ts'],
-                    globals: true,
                     // The production server start + first HTML render can be slow.
                     testTimeout: 30_000,
                     hookTimeout: 60_000,

@@ -10,7 +10,7 @@
  */
 
 import z from 'zod/v4'
-import { swarmServiceSpecInputSchema } from './service.spec.schema'
+import { swarmServiceSpecInputSchema } from '@repo/contracts-entities/entities/swarm/service.spec.schema'
 
 // ─── Compatibility report ───────────────────────────────────────────────────
 

@@ -19,10 +19,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldLabel, FieldDescription } from '@repo/ui/components/shadcn/field'
 import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Siren, Globe, Plus, Trash2, CheckCircle2, XCircle, Clock, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
+import { Siren, Globe, Plus, Trash2, CheckCircle2, XCircle, Clock, Loader2, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, shortId } from '../_utils/helpers'
-import { AuthDashboardAdminDomains } from '@/routes'
+import { EmptyState } from '@/components/dashboard'
 import { z } from 'zod/v4'
 
 const addDomainSchema = z.object({
@@ -216,16 +216,12 @@ export default function ProjectDomainsPage() {
         </CardHeader>
         <CardContent>
           {domains.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Globe className="mb-4 size-12 text-muted-foreground/40" />
-              <p className="text-lg font-medium">No domains configured</p>
-              <p className="text-sm text-muted-foreground">Add a domain to get started.</p>
-              <div className="mt-4">
-                <AuthDashboardAdminDomains.Link className="text-sm text-primary underline inline-flex items-center gap-1">
-                  Manage project domains <ExternalLink className="size-3" />
-                </AuthDashboardAdminDomains.Link>
-              </div>
-            </div>
+            <EmptyState
+              icon={Globe}
+              title="No domains configured"
+              description="Add a domain to point traffic at this project's services."
+              action={{ label: 'Add domain', onClick: () => { setAddOpen(true) } }}
+            />
           ) : (
             <Table>
               <TableHeader>
@@ -263,10 +259,10 @@ export default function ProjectDomainsPage() {
                     <TableCell className="text-muted-foreground text-xs">{formatDate(getDomainCreatedAt(d))}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="size-7" onClick={() => runReachCheck(domainName, domainId)} title="Check reachability">
+                        <Button variant="ghost" size="icon" className="size-7" onClick={() => { void runReachCheck(domainName, domainId) }} title="Check reachability" aria-label={`Check reachability of ${domainName}`}>
                           <RefreshCw className={`size-3.5 ${reachabilityMap[domainId]?.loading ? 'animate-spin' : ''}`} />
                         </Button>
-                        <Button variant="ghost" size="icon" className="size-7" onClick={() => { setRemoveId(domainId); setRemoveName(domainName); setRemoveOpen(true) }} title="Remove">
+                        <Button variant="ghost" size="icon" className="size-7" onClick={() => { setRemoveId(domainId); setRemoveName(domainName); setRemoveOpen(true) }} title="Remove" aria-label={`Remove ${domainName}`}>
                           <Trash2 className="size-3.5" />
                         </Button>
                       </div>

@@ -1,4 +1,4 @@
-import type { ExtractRouteMethod, HasRouteMethodMeta } from '../../types/route-method-meta';
+import type { ExtractRouteMethod, HasRouteMethodMeta } from '@repo/orpc-utils/types/route-method-meta';
 
 export type _ProcedureRouteMethod<T> = ExtractRouteMethod<T>;
 

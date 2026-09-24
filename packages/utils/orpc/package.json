@@ -2,15 +2,45 @@
     "name": "@repo/orpc-utils",
     "version": "1.0.0",
     "description": "ORPC builder utilities for standardized contract creation",
-    "main": "./src/index.ts",
+    "main": "./dist/cjs/index.js",
     "types": "./src/index.ts",
     "exports": {
-        ".": "./src/index.ts",
-        "./builder": "./src/builder/index.ts",
-        "./standard": "./src/operations/index.ts",
-        "./query": "./src/query/index.ts",
-        "./hooks": "./src/hooks/index.ts",
-        "./src/*": "./src/*"
+        ".": {
+            "types": [
+                "./src/index.ts",
+                "./src/index.tsx"
+            ],
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
+        "./*": {
+            "types": [
+                "./src/*.ts",
+                "./src/*.tsx"
+            ],
+            "import": "./dist/esm/*.mjs",
+            "require": "./dist/cjs/*.js"
+        },
+        "./builder": {
+            "types": "./src/builder/index.ts",
+            "import": "./dist/esm/builder/index.mjs",
+            "require": "./dist/cjs/builder/index.js"
+        },
+        "./standard": {
+            "types": "./src/operations/index.ts",
+            "import": "./dist/esm/operations/index.mjs",
+            "require": "./dist/cjs/operations/index.js"
+        },
+        "./query": {
+            "types": "./src/query/index.ts",
+            "import": "./dist/esm/query/index.mjs",
+            "require": "./dist/cjs/query/index.js"
+        },
+        "./hooks": {
+            "types": "./src/hooks/index.ts",
+            "import": "./dist/esm/hooks/index.mjs",
+            "require": "./dist/cjs/hooks/index.js"
+        }
     },
     "scripts": {
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
@@ -20,7 +50,10 @@
         "type-check": "tsc --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",
-        "test:coverage": "vitest run --coverage"
+        "test:coverage": "vitest run --coverage",
+        "build": "bun --bun ../../bin/pkg-build/index.ts",
+        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
+        "clean": "rimraf dist"
     },
     "dependencies": {
         "@orpc/client": "catalog:orpc",
@@ -43,5 +76,6 @@
         "vitest": "catalog:testing",
         "@vitest/coverage-v8": "catalog:testing",
         "typescript": "catalog:build"
-    }
+    },
+    "module": "./dist/esm/index.mjs"
 }

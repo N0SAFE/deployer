@@ -865,7 +865,11 @@ class TraefikConfigBuilder {
 }
 ```
 
-> **Note**: The builder uses `addRouter`, `addService`, `addMiddleware` to add components. Getter methods like `getRouter()`, `updateRouter()`, `removeRouter()` are **not implemented**. Use `build()` to get the raw config, then modify as needed and use `load()` to create a new builder.
+> **Note**: There are no `getRouter()`, `updateRouter()`, or `removeRouter()` methods, and none are needed. The builder is **upsert-by-name**: `addRouter`, `addService`, and `addMiddleware` store into a `Map` keyed by name, so re-adding an existing name *replaces* that component. Each replacement is re-validated by the component builder's `build()` — a router must declare both `rule` and `service`.
+>
+> - **Read**: `build()` returns the raw `TraefikConfig`; `getStats()` returns component counts.
+> - **Update**: call the matching `add*` method again with the same name.
+> - **Remove**: `build()`, delete the key, then `TraefikConfigBuilder.load()`. `load()` does **not** re-validate entries, so only use it to drop components — never to introduce one that `add*` would have rejected.
 
 ---
 

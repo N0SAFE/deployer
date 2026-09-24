@@ -8,11 +8,27 @@ import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
 import { Roles } from "@repo/auth/permissions";
 import type { SetupInitializeLocalInput } from "@repo/contracts-entities";
-import * as globalSchema from "@/config/drizzle/global/schema";
-import { user } from "@/config/drizzle/global/schema/auth";
+import * as globalSchema from "@repo/nest-schema/global";
+import { user } from "@repo/nest-schema/global/auth";
 import { createBetterAuth } from "@/config/auth/auth";
-import { PostgresContainerService } from "@/core/modules/docker/containers/postgres/postgres-container.service";
+import {
+    PostgresServiceProvisioner,
+    MANAGED_POSTGRES_ALIAS,
+    MANAGED_POSTGRES_PORT,
+    MANAGED_POSTGRES_VOLUME_NAME,
+    managedPostgresServiceName,
+    resolvePostgresIdentity,
+} from "@/core/modules/docker/containers/postgres/postgres-service.provisioner";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
+import {
+    platformNetworkName,
+    platformOverlayNetworkName,
+} from "@/core/modules/docker/services/docker-supervisor-runtime";
+import { EnvService } from "@repo/nest-env";
+import { SwarmBootstrapService } from "@/core/modules/swarm/services/swarm-bootstrap.service";
+import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
+import { SupervisorOrchestratorService } from "@/core/modules/supervisors/supervisor-orchestrator.service";
+import { SWARM_APP_WIRING_SUPERVISOR_ID } from "@/core/modules/supervisors/platform/swarm-app-wiring.supervisor.service";
 import { generateMeshSharedSecret } from "@repo/auth/mesh";
 import { NodeConfigRepository } from "../repositories/node-config.repository";
 import {
@@ -31,8 +47,8 @@ import { AppError, ConflictError } from "@repo/errors";
  * Local bootstrap flow.
  *
  * Owns the business logic of bringing a fresh node online:
- *  1. Provision a Postgres database (existing URL or new Docker
- *     container).
+ *  1. Provision a Postgres database (existing URL, or a new SWARM SERVICE
+ *     scheduled through `PostgresServiceProvisioner`).
  *  2. Verify the database is empty.
  *  3. Apply Drizzle migrations.
  *  4. Seed the initial admin user.
@@ -55,9 +71,24 @@ export class LocalInitializationService {
     private static readonly SHARED_PG_ENV = "E2E_SHARED_POSTGRES_CONNECTION_URI";
 
     constructor(
-        private readonly postgresContainerService: PostgresContainerService,
+        private readonly postgresProvisioner: PostgresServiceProvisioner,
         private readonly dockerService: DockerService,
+        private readonly env: EnvService,
         private readonly nodeConfigRepository: NodeConfigRepository,
+        /**
+         * FOUNDS the cluster. Provisioning Postgres as a SWARM SERVICE needs an
+         * active swarm, so this runs BEFORE the database step — the previous
+         * ordering called the provisioner while the engine was still inactive.
+         */
+        private readonly swarmBootstrap: SwarmBootstrapService,
+        /** Read-back of the engine state for the setup stream's report. */
+        private readonly swarmCluster: SwarmClusterService,
+        /**
+         * On-demand convergence of the app-wiring supervisor, so the overlay
+         * attach below happens BEFORE the DSN is used rather than on the
+         * supervisor's 30s cadence (see the call site).
+         */
+        private readonly supervisors: SupervisorOrchestratorService,
     ) {}
 
     /**
@@ -100,8 +131,86 @@ export class LocalInitializationService {
             return "";
         })();
 
+        // Read ONCE at method scope: the swarm step founds the cluster from it,
+        // `register_node` persists it, and `finalize` reports it — all three must
+        // see the SAME operator choice.
+        const swarmChoice = input.swarm;
+
         const databaseProvisioning =
             explicitUrl || providedUrl ? "external" : "local";
+
+        // ── Swarm FIRST ────────────────────────────────────────────────────────
+        // Locally-managed Postgres is a SWARM SERVICE, so the engine must be a
+        // cluster BEFORE the database step runs. Founding it here (not in
+        // `finalize`) is what removes the former deadlock: provisioning called
+        // `createSwarmService` while the engine was still inactive.
+        //
+        // Skipped for an externally-provided URL: that node consumes someone
+        // else's database and joins a fleet (which converges from the fleet's
+        // grant), so it must not invent a cluster of its own.
+        if (databaseProvisioning === "local") {
+            await runStep(tracker, emit, "initialize_swarm", "Create the Swarm cluster", async (stepLog) => {
+                stepLog("▸ Initializing Docker Swarm…");
+                stepLog(`  mode    = ${swarmChoice?.mode ?? "create"}`);
+                stepLog(`  policy  = ${swarmChoice?.policy ?? "auto"}`);
+                if (swarmChoice?.advertiseAddr) {
+                    stepLog(`  advertise = ${swarmChoice.advertiseAddr}`);
+                }
+                if (swarmChoice?.joinAddrs?.length) {
+                    stepLog(`  join    = ${swarmChoice.joinAddrs.join(", ")}`);
+                }
+
+                // PERSIST THE OPERATOR'S CHOICE BEFORE CONVERGING.
+                // `converge()` resolves the participation from
+                // `node_config.swarmConfig` (SwarmParticipationService
+                // .effectiveConfig), NOT from the request — so without this the
+                // engine would converge from env defaults and a wizard choice of
+                // `join` would be silently ignored, founding a cluster the
+                // operator explicitly did not ask for. `register_node` writes the
+                // same values later; this earlier write is what makes the DECISION
+                // authoritative at the moment it is acted on.
+                const cfg = this.nodeConfigRepository.find();
+                const nowIso = new Date().toISOString();
+                this.nodeConfigRepository.upsert({
+                    ...(cfg ?? {}),
+                    nodeId,
+                    strategy: "local",
+                    // Not `setup_done` yet — setup is still running; this row is
+                    // completed by `register_node` below.
+                    setupState: cfg?.setupState ?? "not_started",
+                    deployerVersion: DEPLOYER_VERSION,
+                    swarmConfig: {
+                        mode: swarmChoice?.mode ?? "create",
+                        policy: swarmChoice?.policy ?? "auto",
+                        advertiseAddr: swarmChoice?.advertiseAddr ?? null,
+                        joinToken: swarmChoice?.joinToken ?? null,
+                        joinAddrs: swarmChoice?.joinAddrs ?? [],
+                    },
+                    updatedAt: nowIso,
+                });
+                stepLog("  → participation persisted (node_config.swarmConfig)");
+
+                await this.swarmBootstrap.converge("setup");
+                const snapshot = await this.swarmCluster.getLocalClusterSnapshot();
+
+                if (snapshot.localNodeState !== "active") {
+                    // A service-based database CANNOT be provisioned without a
+                    // swarm, so this is fatal for the local path — surface it
+                    // now rather than failing later with a confusing engine error.
+                    throw new AppError(
+                        `Swarm cluster did not become active (state=${snapshot.localNodeState}); ` +
+                            "a locally-managed Postgres is scheduled as a swarm service and cannot be provisioned without it",
+                        "SWARM_UNAVAILABLE",
+                        { localNodeState: snapshot.localNodeState },
+                    );
+                }
+
+                stepLog("✅ Swarm cluster active");
+                stepLog(`  role    = ${snapshot.localNode.swarmRole}`);
+                stepLog(`  master  = ${snapshot.master?.nodeId ?? "self"}`);
+                stepLog(`  nodes   = ${String(snapshot.nodeCount)} (managers ${String(snapshot.managerCount)})`);
+            });
+        }
 
         const databaseUrl = await runStep(tracker, emit, "provision_database", "Set up the database", async (stepLog) => {
             if (explicitUrl) {
@@ -181,6 +290,11 @@ export class LocalInitializationService {
             stepLog("  strategy = local");
             stepLog("  mesh     = (none)");
             stepLog("  database = " + (databaseProvisioning === "local" ? "locally managed (supervised)" : "external (provided URL)"));
+            if (swarmChoice) {
+                stepLog(
+                    `  swarm    = ${swarmChoice.mode ?? "create"} cluster (policy=${swarmChoice.policy ?? "auto"})`,
+                );
+            }
             stepLog("▸ Generating mesh shared secret…");
             const meshSharedSecret = generateMeshSharedSecret();
             stepLog("▸ Persisting node config to global database…");
@@ -197,6 +311,15 @@ export class LocalInitializationService {
                 databaseProvisioning,
                 meshSharedSecret,
                 meshSharedSecretUpdatedAt: now,
+                swarmConfig: swarmChoice
+                    ? {
+                          mode: swarmChoice.mode ?? "create",
+                          policy: swarmChoice.policy ?? "auto",
+                          advertiseAddr: swarmChoice.advertiseAddr ?? null,
+                          joinToken: swarmChoice.joinToken ?? null,
+                          joinAddrs: swarmChoice.joinAddrs ?? [],
+                      }
+                    : undefined,
             });
             stepLog("✅ Node config persisted");
         });
@@ -209,7 +332,28 @@ export class LocalInitializationService {
             stepLog("  database  = ready");
             stepLog("  migrations = applied");
             stepLog("  workspace  = seeded");
-            stepLog("  node       = registered");
+
+            // ── Swarm summary — the LAST step always reports the cluster
+            // outcome, so the operator sees the decision they made (create +
+            // policy, or join + the fleet's granted role) in the same stream
+            // that ran the setup. Reported from the LIVE engine snapshot rather
+            // than the earlier step's result, so a cluster that degraded since
+            // is reported honestly instead of echoing a stale success.
+            stepLog("▸ Swarm summary…");
+            const swarmSnapshot = await this.swarmCluster.getLocalClusterSnapshot();
+            if (swarmSnapshot.localNodeState === "active") {
+                stepLog("✅ Swarm cluster active");
+                stepLog(`  mode    = ${swarmChoice?.mode ?? "create"}`);
+                stepLog(`  policy  = ${swarmChoice?.policy ?? "auto"}`);
+                stepLog(`  role    = ${swarmSnapshot.localNode.swarmRole}`);
+                stepLog(`  master  = ${swarmSnapshot.master?.nodeId ?? "self"}`);
+                stepLog(`  nodes   = ${String(swarmSnapshot.nodeCount)} (managers ${String(swarmSnapshot.managerCount)})`);
+                stepLog("  → every platform service is scheduled on Swarm");
+            } else {
+                stepLog(`⚠️  Swarm not active (state=${swarmSnapshot.localNodeState})`);
+                stepLog("  → re-converge from the Cluster page");
+            }
+
             stepLog("✅ Setup complete");
         });
 
@@ -238,89 +382,75 @@ export class LocalInitializationService {
         log: (message: string) => void,
     ): Promise<string> {
         // If a shared Postgres URI is available (e.g., from e2e globalSetup),
-        // create a database namespace inside it instead of a new container.
-        // This keeps database isolation without spawning many containers.
+        // create a database namespace inside it instead of a new service.
+        // This keeps database isolation without spawning many services.
         const sharedUri = process.env[LocalInitializationService.SHARED_PG_ENV];
         if (sharedUri) {
             log("detected E2E_SHARED_POSTGRES_CONNECTION_URI — using namespace mode");
             return await this.provisionDatabaseNamespace(sharedUri, log);
         }
 
-        // Production / no shared Postgres: create a new container as before.
-        log("no shared Postgres URI — creating a dedicated Docker container");
-        log("calling docker.createContainer …");
-        const container = await this.postgresContainerService.startPostgresContainer();
-        log(`container.id = ${container.id}`);
+        // The global database is a SWARM SERVICE — the same object the
+        // GlobalDbSupervisorService converges for the rest of the platform's
+        // life, built from the same spec builder and the same credential
+        // resolver, so setup and the supervisor can never drift into two
+        // different Postgres instances (or two different credential sets).
+        log("▸ Scheduling the global Postgres as a swarm service …");
+        const prefix = this.env.get("DEPLOYER_PREFIX");
+        const serviceName = managedPostgresServiceName(prefix);
+        const identity = resolvePostgresIdentity(this.env);
+        log(`  service = ${serviceName}`);
+        log(`  image   = ${identity.image}`);
+        log(`  volume  = ${MANAGED_POSTGRES_VOLUME_NAME}`);
+        log(`  user    = ${identity.username}`);
+        log(`  db      = ${identity.databaseName}`);
+        log("  port    = 5432 (host mode, node-local)");
 
-        // Replay tail of container logs to give the user some startup context
-        // before we attach the live log stream.
-        log("▸ Replaying last 30 lines of container output …");
-        const initialLogs = await this.dockerService.getContainerLogs(container.id, {
+        const spec = await this.postgresProvisioner.ensure({ prefix, identity });
+        log(`✅ Service ${spec.name} has a running task`);
+
+        // ── Attach THIS container to the overlay BEFORE using the DSN ──────
+        // The DSN below addresses the database by its overlay alias
+        // (`global-db`), which only resolves for containers attached to the
+        // overlay. `SwarmAppWiringSupervisorService` does that wiring, but it
+        // converges on a 30s CADENCE — so on a fresh setup the probe below
+        // could run first and fail with `getaddrinfo ENOTFOUND global-db` even
+        // though the database was healthy (observed: wiring at 3:55:06, probe
+        // failure at 3:54:54). Converging it ON DEMAND here removes the race:
+        // the dependency is established before it is used, not eventually.
+        //
+        // The supervisor is the canonical owner of this concern (it resolves
+        // the aliases, handles the stale-endpoint re-attach case, and skips
+        // cleanly when the engine is not swarm-active), so this triggers its
+        // idempotent reconcile rather than duplicating the network call here.
+        await this.supervisors.convergeNow(SWARM_APP_WIRING_SUPERVISOR_ID);
+        log("▸ Wired this container onto the platform overlay (global-db resolvable)");
+
+        // Replay the task logs so the user sees Postgres booting.
+        log("▸ Replaying recent service output …");
+        const initialLogs = await this.dockerService.getSwarmServiceLogs(spec.name, {
             stdout: true,
             stderr: true,
             tail: 30,
         });
         const initialLines = initialLogs
             .split("\n")
-            .map((l) => l.trim())
+            .map((line) => line.trim())
             .filter(Boolean);
         if (initialLines.length === 0) {
             log("  (no prior output)");
         } else {
-            for (const line of initialLines) {
-                log(line);
-            }
+            for (const line of initialLines) log(line);
         }
 
-        // Attach the live log stream so the user can see Postgres booting.
-        log("▸ Attaching to live container log stream …");
-        const liveStream = this.dockerService.streamContainerLogs$(container.id, {
-            stdout: true,
-            stderr: true,
-            tail: 0,
-        });
-        const liveSubscription = liveStream.subscribe({
-            next: (line) => {
-                const trimmed = line.trim();
-                if (trimmed.length > 0) log(trimmed);
-            },
-            error: (err: unknown) => {
-                const msg = err instanceof Error ? err.message : String(err);
-                log(`log stream error: ${msg}`);
-            },
-        });
-
-        // Use Docker's built-in HEALTHCHECK instead of polling SELECT 1
-        log("▸ Waiting for Docker HEALTHCHECK (up to 30 × 2s) …");
-        const healthy = await this.dockerService.waitForContainerHealth(container.id, 30, 2000);
-        if (!healthy) {
-            liveSubscription.unsubscribe();
-            throw new AppError(`Postgres container ${container.id} failed health check after 30 attempts`, `INTERNAL_ERROR`);
-        }
-        log("HEALTHCHECK = healthy");
-
-        const hostPort = await this.postgresContainerService.getMappedPort(container.id, 5432);
-        // From inside the API Docker container, `127.0.0.1` resolves to the
-        // container's own loopback — NOT the host where the Postgres port is
-        // mapped. Resolve the default gateway (the Docker host) instead.
-        const hostIp = resolveDockerHostIp();
-        const connectionString = `postgres://deployer:deployer@${hostIp}:${String(hostPort)}/deployer`;
-        log(`host port = ${String(hostPort)}`);
-        log(`host IP   = ${hostIp}`);
-        log(`dsn       = ${redactUrl(connectionString)}`);
-
-        // Docker HEALTHCHECK uses pg_isready (Unix socket) which can pass before
-        // Postgres accepts TCP connections. Probe with a real TCP connection to
-        // avoid ECONNREFUSED on the first migration/seed query.
-        log("▸ Probing TCP with SELECT 1 …");
-        await this.waitForPostgres(connectionString, log);
-        log("Postgres is accepting TCP connections");
-
-        // Stop streaming — Postgres is now idle.
-        liveSubscription.unsubscribe();
-        log("log stream detached");
-
-        return connectionString;
+        // DNS name of the database on the platform overlay — every consumer
+        // (this API included, once it is attached to the overlay) resolves it.
+        // The DSN is assembled from the SAME identity the service was created
+        // with, so the credentials can never disagree with the cluster.
+        const { username, password, databaseName } = identity;
+        const url = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`;
+        log(`✅ Database ready at postgresql://${username}:***@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`);
+        return url;
     }
 
     private async provisionDatabaseNamespace(

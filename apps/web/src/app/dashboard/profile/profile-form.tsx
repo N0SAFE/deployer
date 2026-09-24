@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Session } from '@repo/auth'
+import { formatDateTime } from '@/lib/format/date'
 
 function getInitials(name: string | null | undefined): string {
   if (!name) return 'U'
@@ -34,13 +35,10 @@ function getInitials(name: string | null | undefined): string {
 }
 
 function formatDate(dateString: string | Date | null | undefined): string {
-  if (!dateString) return 'N/A'
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
+  // Delegates to the shared UTC-pinned formatter, keeping this file's `N/A`
+  // fallback. The previous version pinned the locale but not the time zone, so
+  // the server and browser could still disagree on the rendered text.
+  return formatDateTime(dateString, 'N/A')
 }
 
 interface ProfileFormProps {
@@ -132,6 +130,7 @@ export function ProfileForm({ initialSession }: ProfileFormProps) {
                 size="icon"
                 variant="outline"
                 className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full"
+                aria-label="Change avatar"
                 disabled
               >
                 <Camera className="h-4 w-4" />

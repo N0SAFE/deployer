@@ -13,7 +13,7 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { Pool } from 'pg'
 import { Wait } from 'testcontainers'
 import { getMockEnv } from '@repo/env/mock'
-import * as schema from '@/config/drizzle/global/schema'
+import * as schema from '@repo/nest-schema/global'
 import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service'
 import {
     GLOBAL_DATABASE_CONNECTION,
@@ -426,7 +426,9 @@ export class SharedApiRuntimeManager {
     }
 
     private applyRuntimeEnv(
-        entries: Record<string, string>
+        // Values are `string | undefined`: an absent var means "unset", and the
+        // callers build these records from optional config.
+        entries: Record<string, string | undefined>
     ): Map<string, string | undefined> {
         const snapshot = new Map<string, string | undefined>()
 
@@ -492,10 +494,13 @@ export class SharedApiRuntimeManager {
     private async withRuntimeStartStopLock<T>(
         action: () => Promise<T>
     ): Promise<T> {
-        let release: (() => void) | null = null
+        // Start from a no-op rather than null: the real resolve is assigned inside
+        // the executor closure, which TS control-flow analysis cannot observe, so
+        // a `null` initialiser narrows the variable to `null` forever.
+        let releaseLock: () => void = () => undefined
         const current = this.runtimeStartStopLock
         this.runtimeStartStopLock = new Promise<void>((resolve) => {
-            release = resolve
+            releaseLock = resolve
         })
 
         await current
@@ -503,9 +508,7 @@ export class SharedApiRuntimeManager {
         try {
             return await action()
         } finally {
-            if (release) {
-                release()
-            }
+            releaseLock()
         }
     }
 
@@ -543,7 +546,13 @@ export class SharedApiRuntimeManager {
                 }
             }
 
-            const container = await this.sharedPostgresContainerPromise
+            const containerPromise = this.sharedPostgresContainerPromise
+            if (containerPromise === null) {
+                throw new Error(
+                    'shared Postgres container promise was not initialised',
+                )
+            }
+            const container = await containerPromise
             this.sharedPostgresContainerRefCount += 1
             logStep(
                 `acquireSharedPostgresContainer: refCount now ${String(this.sharedPostgresContainerRefCount)}`,
@@ -982,7 +991,9 @@ export class SharedApiRuntimeManager {
                     'moduleRef missing for onAppInit'
                 ),
                 moduleBuilder: this.requireValue(
-                    moduleBuilder,
+                    // TS narrows `moduleBuilder` to its `null` initialiser by this
+                    // point; widen back to the builder type it was assigned.
+                    moduleBuilder as ReturnType<typeof Test.createTestingModule> | null,
                     'moduleBuilder missing for onAppInit'
                 ),
             }
@@ -1008,7 +1019,7 @@ export class SharedApiRuntimeManager {
                 app,
                 `Nest app missing after bootstrap (${instanceKey})`
             )
-            const resolvedRuntimePool = this.requireValue(
+            const resolvedRuntimePool = this.requireValue<Pool>(
                 runtimePool,
                 `Runtime pool missing after bootstrap (${instanceKey})`
             )
@@ -1085,7 +1096,10 @@ export class SharedApiRuntimeManager {
 
             if (app) await app.close().catch(() => undefined)
             if (moduleRef) await moduleRef.close().catch(() => undefined)
-            if (runtimePool) await runtimePool.end().catch(() => undefined)
+            // Inside `catch`, TS narrows a `let` to its initialiser (`null`), so
+            // `.end()` resolves on `never`. Widen explicitly to restore the union.
+            const poolToClose = runtimePool as Pool | null
+            if (poolToClose) await poolToClose.end().catch(() => undefined)
 
             if (postgresContainer && databaseName.length > 0) {
                 await this.dropRuntimeDatabase(

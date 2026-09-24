@@ -35,9 +35,9 @@ import {
     type SQL,
     type SQLWrapper,
 } from "drizzle-orm";
-import type { DFilter, DFilterOperator, DynamicVars, FilterableScalar } from "./types";
-import { isVariable } from "./types";
-import { MAX_FILTER_DEPTH } from "./filter-matcher";
+import type { DFilter, DFilterOperator, DynamicVars, FilterableScalar } from "@repo/auth/permissions/engine/types";
+import { isVariable } from "@repo/auth/permissions/engine/types";
+import { MAX_FILTER_DEPTH } from "@repo/auth/permissions/engine/filter-matcher";
 
 // ---------------------------------------------------------------------------
 // ColumnResolver type
@@ -210,7 +210,7 @@ function compileOperator(
         if (!Array.isArray(list)) {
             throw new Error(
                 isVariable(op._in)
-                    ? `PermissionEngine filter-compiler: variable "${op._in.name}" must resolve to an array for _in`
+                    ? `PermissionEngine filter-compiler: variable "${String(op._in.name)}" must resolve to an array for _in`
                     : "DFilter._in operand must be an array",
             );
         }
@@ -222,7 +222,7 @@ function compileOperator(
         if (!Array.isArray(list)) {
             throw new Error(
                 isVariable(op._nin)
-                    ? `PermissionEngine filter-compiler: variable "${op._nin.name}" must resolve to an array for _nin`
+                    ? `PermissionEngine filter-compiler: variable "${String(op._nin.name)}" must resolve to an array for _nin`
                     : "DFilter._nin operand must be an array",
             );
         }

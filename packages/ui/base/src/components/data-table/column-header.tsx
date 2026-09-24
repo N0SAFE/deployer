@@ -6,15 +6,15 @@ import {
 } from "lucide-react";
 import type { Column } from "@tanstack/react-table";
 
-import { cn } from "../../lib/utils";
-import { Button } from "../shadcn/button";
+import { cn } from "@repo/ui/lib/utils";
+import { Button } from "@repo/ui/components/shadcn/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger
-} from "../shadcn/dropdown-menu";
+} from "@repo/ui/components/shadcn/dropdown-menu";
 
 
 interface DataTableColumnHeaderProps<TData, TValue>
@@ -68,16 +68,16 @@ export function DataTableColumnHeader<TData, TValue>({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          <DropdownMenuItem onClick={() => setSorting("asc")}>
+          <DropdownMenuItem onClick={() => { setSorting("asc"); }}>
             <ArrowUp className="mr-2 h-3.5 w-3.5 text-muted-foreground/70" />
             Asc
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setSorting("desc")}>
+          <DropdownMenuItem onClick={() => { setSorting("desc"); }}>
             <ArrowDown className="mr-2 h-3.5 w-3.5 text-muted-foreground/70" />
             Desc
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem  onClick={() => column.toggleVisibility(false)}>
+          <DropdownMenuItem  onClick={() => { column.toggleVisibility(false); }}>
             <EyeOff className="mr-2 h-3.5 w-3.5 text-muted-foreground/70" />
             Hide
           </DropdownMenuItem>

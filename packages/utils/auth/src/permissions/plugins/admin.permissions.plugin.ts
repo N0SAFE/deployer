@@ -13,7 +13,7 @@
 
 import { admin, type InferAdminRolesFromOption } from "better-auth/plugins";
 import type { Auth as BetterAuthInstance } from "better-auth";
-import type { MinimalAuth, WithAuthPlugins } from "./system/auth-with-plugins";
+import type { MinimalAuth, WithAuthPlugins } from "@repo/auth/permissions/plugins/system/auth-with-plugins";
 import {
     BasePluginWrapper,
     type BasePluginWrapperOptions,
@@ -22,12 +22,12 @@ import {
     type ExtractQuery,
     PermissionAssertionError,
     RoleAssertionError,
-} from "./system/base-plugin-wrapper";
+} from "@repo/auth/permissions/plugins/system/base-plugin-wrapper";
 import type {
     AnyPermissionBuilder,
     InferStatementFromBuilder,
     InferRoleNamesFromBuilder,
-} from "./system/type-inference";
+} from "@repo/auth/permissions/plugins/system/type-inference";
 
 // ============================================================================
 // Plugin Instance Types

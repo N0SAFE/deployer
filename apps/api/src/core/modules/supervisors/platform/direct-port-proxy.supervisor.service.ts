@@ -33,10 +33,7 @@ import path from "node:path";
 import type { Subscription } from "rxjs";
 import z from "zod/v4";
 
-import {
-	BaseDockerSupervisorService,
-	type DockerSupervisorContainerSpec,
-} from "@/core/modules/docker/services/base-docker-supervisor.service";
+import { BaseDockerSupervisorService } from "@/core/modules/docker/services/base-docker-supervisor.service";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
 import {
 	baseSupervisorPayloadSchema,
@@ -44,12 +41,20 @@ import {
 } from "@/core/modules/supervisors/base-supervisor.service";
 import {
 	baseSupervisorProcessInfoSchema,
-	dockerProcessInfoSchema,
+	swarmProcessInfoSchema,
 } from "@/core/modules/supervisors/supervisor-process-info";
-import { EnvService } from "@/config/env/env.service";
+import { EnvService } from "@repo/nest-env";
+import { HostnameService } from "../../platform-ingress/services/hostname.service";
+import { PlatformIngressSettingsService } from "../../platform-ingress/services/platform-ingress-settings.service";
 import { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
 import { PLATFORM_WEB_INTERNAL_PORT } from "../../platform-ingress/services/platform-names";
+import {
+	resolveSupervisorRuntime,
+	type DockerSupervisorRuntime,
+} from "@/core/modules/docker/services/docker-supervisor-runtime";
+import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
 import { PlatformNetwork, TraefikSupervisorService } from "./traefik-supervisor.service";
+import { AppError, ConflictError } from "@repo/errors";
 
 export const DIRECT_PORT_PROXY_SUPERVISOR_ID = "platform-direct-port-proxy";
 
@@ -64,6 +69,37 @@ export interface DirectProxyForward {
 	targetPort: number;
 }
 
+/**
+ * The HOST-ROUTED ingress surface the proxy mirrors while Traefik is down.
+ *
+ * The direct port lane (localhost:<api|web port>) alone is not enough: the
+ * platform's canonical URLs are `*.deployer.localhost` on the ENTRY PORT, so
+ * losing Traefik must not lose the hostname surface — the setup wizard and
+ * the console live there. When this binding is taken, the proxy answers the
+ * hostnames on the entry port exactly like the real ingress does.
+ */
+export interface DirectProxyIngress {
+	/** Host port the ingress publishes (Traefik's configured entry port). */
+	entryPort: number;
+	apiHost: string;
+	webHost: string;
+	apiTarget: string;
+	apiPort: number;
+	webTarget: string;
+	webPort: number;
+}
+
+/** Runtime parser for the ingress label (labels are untrusted container data). */
+export const directProxyIngressSchema = z.object({
+	entryPort: z.number().int().min(1).max(65_535),
+	apiHost: z.string().min(1),
+	webHost: z.string().min(1),
+	apiTarget: z.string().min(1),
+	apiPort: z.number().int().min(1).max(65_535),
+	webTarget: z.string().min(1),
+	webPort: z.number().int().min(1).max(65_535),
+});
+
 /** Rich health payload for the fallback proxy. */
 export const directPortProxyPayloadSchema = baseSupervisorPayloadSchema.extend({
 	/** True when the fallback proxy container is RUNNING (Traefik is failed). */
@@ -76,27 +112,40 @@ export const directPortProxyPayloadSchema = baseSupervisorPayloadSchema.extend({
 			targetPort: z.number().int().min(1),
 		}),
 	),
-	container: z
+	/** Host-routed ingress surface mirrored while Traefik is down. Null when
+	 *  the entry port could not be taken (direct ports stay the only lane). */
+	ingress: z
 		.object({
-			id: z.string(),
-			name: z.string(),
-			running: z.boolean(),
-			exitCode: z.number().int().nullable(),
-			startedAt: z.string().datetime().nullable(),
+			entryPort: z.number().int().min(1),
+			apiHost: z.string().min(1),
+			webHost: z.string().min(1),
 		})
-		.nullable(),
+		.nullable()
+		.default(null),
+	/** Live view of the proxy's swarm service (null when absent). */
+	service: swarmProcessInfoSchema.shape.live.nullable(),
 });
 export type DirectPortProxyPayload = z.output<typeof directPortProxyPayloadSchema>;
 
 /** Process info: the nginx process + the direct host URLs it forwards to. */
 export const directPortProxyProcessInfoSchema = baseSupervisorProcessInfoSchema.extend({
-	process: dockerProcessInfoSchema,
+	process: swarmProcessInfoSchema,
 	urls: z.object({
 		/** Direct API URL (null when the proxy is not running). */
 		apiDirectUrl: z.string().nullable(),
 		/** Direct web URL (null when the proxy is not running). */
 		webDirectUrl: z.string().nullable(),
 	}),
+	/** Hostname surface served on the entry port (null when not taken). */
+	ingressUrls: z
+		.object({
+			entryPort: z.number().int().min(1),
+			apiUrl: z.string(),
+			webUrl: z.string(),
+			serving: z.boolean(),
+		})
+		.nullable()
+		.default(null),
 });
 export type DirectPortProxyProcessInfo = z.output<typeof directPortProxyProcessInfoSchema>;
 
@@ -123,6 +172,9 @@ export class DirectPortProxySupervisorService
 	/** Container label recording the current forwards (restart-on-change). */
 	static readonly FORWARDS_LABEL = "deployer.proxy.forwards";
 
+	/** Container label recording the mirrored ingress (restart-on-change). */
+	static readonly INGRESS_LABEL = "deployer.proxy.ingress";
+
 	private static readonly CONTAINER_BASE_NAME = "deployer-port-proxy";
 
 	private eventSubscription: Subscription | undefined;
@@ -131,6 +183,8 @@ export class DirectPortProxySupervisorService
 		dockerService: DockerService,
 		private readonly env: EnvService,
 		private readonly webTarget: PlatformWebTargetService,
+		private readonly hostnameService: HostnameService,
+		private readonly ingressSettings: PlatformIngressSettingsService,
 	) {
 		super(dockerService);
 	}
@@ -178,45 +232,170 @@ export class DirectPortProxySupervisorService
 	}
 
 	/**
-	 * Required by the docker base, but the proxy's spec is ALWAYS derived
-	 * from the current failover forwards (never a fixed container). This
-	 * returns the spec for the DEFAULT forward set (api + web) so the
-	 * process-info view always has a determinable container; the reconcile
-	 * uses `buildProxySpec(forwards, hash)` per iteration.
-	 */
-	protected buildContainerSpec(): DockerSupervisorContainerSpec {
-		return this.buildProxySpec(
-			[{ hostPort: this.env.get("API_PORT"), target: "host.docker.internal", targetPort: this.env.get("API_PORT") }],
-			"[]",
-		);
-	}
-
-	/**
 	 * Desired state: REMOVED while Traefik is the working single entry point,
 	 * RUNNING (nginx forwarding api/web host ports) while Traefik is failed.
 	 * Suppressed entirely by DEPLOYER_DIRECT_PROXY_ENABLED=false.
 	 */
 	protected async reconcile(): Promise<void> {
-		if (!this.env.get("DEPLOYER_DIRECT_PROXY_ENABLED")) {
-			await this.removeProxyContainer();
+		const runtime = await this.effectiveRuntime();
+
+		const takeOver =
+			this.env.get("DEPLOYER_DIRECT_PROXY_ENABLED") && !(await this.isTraefikActingAsIngress());
+
+		if (!takeOver) {
+			// Traefik is the single entry point (or the proxy is disabled) —
+			// remove the swarm incarnation so nothing competes for the ports.
+			await this.removeSwarmServiceIfExists(this.proxyServiceName());
 			return;
 		}
-		if (await this.isTraefikActingAsIngress()) {
-			// Traefik is the single entry point — the proxy must not publish
-			// any service port.
-			await this.removeProxyContainer();
-			return;
+
+		if (runtime === "unavailable") {
+			throw new AppError(
+				"Direct-port proxy requires an active swarm engine (no container fallback) — SwarmBootstrapService should have converged the engine",
+				"SWARM_UNAVAILABLE",
+				{ supervisor: "platform-direct-port-proxy" },
+			);
 		}
-		// Traefik FAILED (degraded on entry-port conflict, removed, or not
-		// registered yet) — take over the service ports so the operator can
-		// still reach the platform and fix the ingress.
+
 		await this.runWithBackoff(
-			"Direct-port proxy convergence",
+			"Direct-port proxy (swarm) convergence",
 			async () => {
-				await this.ensureProxyRunning();
+				await this.ensureProxyServiceRunning();
 			},
 			{ maxAttempts: 3 },
 		);
+	}
+
+	/** Remove the proxy service (container-era incarnations included). */
+	private async removeProxyProcess(): Promise<void> {
+		await this.removeSwarmServiceIfExists(this.proxyServiceName());
+	}
+
+	// ─── Take-over ───────────────────────────────────────────────────────────
+
+	/**
+	 * Runtime: NODE-LOCAL → swarm-global (one proxy per node, each publishing
+	 * that node's ports). There is no container path.
+	 */
+	private async effectiveRuntime(): Promise<DockerSupervisorRuntime> {
+		return (
+			await resolveSupervisorRuntime({
+				managed: false,
+				rawRuntime: process.env.SUPERVISOR_RUNTIME,
+				swarmActive: await this.isSwarmActive(),
+				scope: "node-local",
+			})
+		).runtime;
+	}
+
+	private async verifySwarmService(name: string): Promise<void> {
+		const svc = await this.dockerService.inspectSwarmService(name);
+		if (!svc.ID) throw new ConflictError(`failover proxy swarm service '${name}'`, "was not created");
+	}
+
+	/**
+	 * Take over the host ports as a swarm-GLOBAL nginx service, dropping host
+	 * ports already bound by other processes (self-healing: Docker reports the
+	 * conflict, the port leaves the forwarding set, and the service converges
+	 * with what remains).
+	 */
+	private async ensureProxyServiceRunning(): Promise<void> {
+		let forwards = await this.buildForwardSet();
+		if (forwards.length === 0) {
+			throw new AppError(
+				"Direct-port proxy has no API/web target to forward to",
+				"SWARM_FORWARD_TARGET_UNRESOLVED",
+			);
+		}
+
+		await this.ensureVolume(this.configVolume());
+		const dropped: number[] = [];
+		const svcName = this.proxyServiceName();
+		const ingress = await this.resolveIngressBinding(forwards);
+
+		for (let attempt = 0; attempt <= forwards.length && forwards.length > 0; attempt++) {
+			const forwardsJson = stableJson(forwards);
+			await this.writeNginxConfig(forwards, ingress);
+			const spec = this.buildProxySwarmSpec(forwards, forwardsJson, ingress);
+			try {
+				const overlay = await this.ensureSwarmNetwork(PlatformNetwork.name(this.env.get("DEPLOYER_PREFIX") ?? ""));
+				this.attachOverlay(spec, overlay, [spec.name]);
+				await this.reconcileSwarmService(spec);
+				await this.verifySwarmService(svcName);
+				return;
+			} catch (error) {
+				const boundPort = this.parseBindErrorHostPort(error, [
+					...forwards.map((f) => f.hostPort),
+					...(ingress === null ? [] : [ingress.entryPort]),
+				]);
+				if (boundPort === null) {
+					// Make sure no partial service lingers, then surface.
+					await this.removeSwarmServiceIfExists(svcName);
+					throw error;
+				}
+				this.logger.warn(`Direct-port proxy: host port ${String(boundPort)} already bound — dropping it`);
+				dropped.push(boundPort);
+				forwards = forwards.filter((f) => f.hostPort !== boundPort);
+				await this.removeSwarmServiceIfExists(svcName);
+			}
+		}
+
+		if (forwards.length === 0) {
+			throw new ConflictError(`direct-port proxy host ports (${dropped.join(", ")})`, "all are already bound by other processes");
+		}
+	}
+
+	/** Swarm-GLOBAL nginx spec for the current forwards (published host ports)
+	 *  plus the mirrored Host-routed ingress on the entry port. */
+	private buildProxySwarmSpec(
+		forwards: DirectProxyForward[],
+		forwardsJson: string,
+		ingress: DirectProxyIngress | null,
+	): SwarmServiceSpecInput {
+		// HOST publish mode is REQUIRED, not cosmetic: this is a GLOBAL service,
+		// and the engine rejects a global service publishing through the swarm
+		// routing mesh (the mesh load balancer cannot front one task per node).
+		// Each node must bind its own ports directly — which is also the
+		// semantics we want for a per-node rescue lane.
+		const endpointPorts = forwards.map((f) => ({
+			protocol: "tcp" as const,
+			publishedPort: f.hostPort,
+			targetPort: f.hostPort,
+			publishMode: "host" as const,
+		}));
+		if (ingress !== null) {
+			endpointPorts.push({
+				protocol: "tcp" as const,
+				publishedPort: ingress.entryPort,
+				targetPort: ingress.entryPort,
+				publishMode: "host" as const,
+			});
+		}
+		return {
+			name: this.proxyServiceName(),
+			image: this.env.get("DEPLOYER_DIRECT_PROXY_IMAGE"),
+			mode: "global",
+			replicas: 1,
+			env: [],
+			command: ["nginx", "-c", `${DIRECT_PORT_PROXY_CONFIG_MOUNT}/nginx.conf`, "-g", "daemon off;"],
+			args: [],
+			labels: {
+				[DirectPortProxySupervisorService.FORWARDS_LABEL]: forwardsJson,
+				[DirectPortProxySupervisorService.INGRESS_LABEL]: stableIngressJson(ingress),
+			},
+			containerLabels: {},
+			mounts: [{ type: "volume", source: this.configVolume(), target: DIRECT_PORT_PROXY_CONFIG_MOUNT, readOnly: false }],
+			placementPreferences: [],
+			placementConstraints: [],
+			resourcesLimits: {},
+			resourcesReservations: {},
+			networks: [],
+			capabilitiesAdd: [],
+			healthcheck: null,
+			updateConfig: { parallelism: 1, delayMs: 0, order: "start-first", failureAction: "rollback" },
+			stopGracePeriodSeconds: 10,
+			endpointPorts,
+		};
 	}
 
 	/**
@@ -240,59 +419,10 @@ export class DirectPortProxySupervisorService
 
 	// ─── Take-over ───────────────────────────────────────────────────────────
 
-	/** Create/update the nginx container for the api + web forwards, dropping
-	 *  host ports already bound by other processes (self-healing). */
-	private async ensureProxyRunning(): Promise<void> {
-		let forwards = await this.buildForwardSet();
-		if (forwards.length === 0) {
-			throw new Error("direct-port proxy: no API/web target resolvable");
-		}
-
-		// Shared config volume — compose usually creates it; belt-and-
-		// suspenders for dockerode-only deployments (same as Traefik).
-		await this.ensureVolume(this.configVolume());
-
-		const specBase = this.proxyContainerName();
-		const dropped: number[] = [];
-
-		for (let attempt = 0; attempt <= forwards.length && forwards.length > 0; attempt++) {
-			const forwardsJson = stableJson(forwards);
-			await this.writeNginxConfig(forwards);
-			const spec = this.buildProxySpec(forwards, forwardsJson);
-			const networkId =
-				spec.networkName !== undefined ? await this.ensureNetwork(spec.networkName) : undefined;
-
-			try {
-				const inspect = await this.inspectContainer(specBase);
-				if (inspect !== null) {
-					// Restart-on-change: forwards (ports/targets/config) differ
-					// from the recorded label → recreate. Otherwise just ensure
-					// it is running.
-					const recorded = await this.readForwardsLabel(inspect.Id);
-					if (recorded === forwardsJson) {
-						if (!inspect.State.Running) await this.client.getContainer(specBase).start();
-						return;
-					}
-					this.logger.log(`Direct-port proxy forwards changed — recreating (${String(forwards.length)} forward(s))`);
-					await this.removeProxyContainer();
-				}
-				await this.pullImage(spec.image);
-				const container = await this.createContainer(spec, networkId);
-				await container.start();
-				return;
-			} catch (error) {
-				const boundPort = this.parseBindErrorHostPort(error);
-				if (boundPort === null) throw error;
-				this.logger.warn(`Direct-port proxy: host port ${String(boundPort)} already bound by another process — dropping it`);
-				dropped.push(boundPort);
-				forwards = forwards.filter((f) => f.hostPort !== boundPort);
-				await this.removeProxyContainer();
-			}
-		}
-
-		if (forwards.length === 0) {
-			throw new Error(`direct-port proxy: all host ports are already bound by other processes (${dropped.join(", ")})`);
-		}
+	/** Swarm SERVICE name of the fallback proxy (same name as the container era). */
+	private proxyServiceName(): string {
+		const prefix = this.env.get("DEPLOYER_PREFIX");
+		return prefix === "" ? DirectPortProxySupervisorService.CONTAINER_BASE_NAME : `${DirectPortProxySupervisorService.CONTAINER_BASE_NAME}-${prefix}`;
 	}
 
 	/** The api + web forwards, from compose-passed targets and env ports. */
@@ -322,25 +452,71 @@ export class DirectPortProxySupervisorService
 	}
 
 	/**
-	 * THIS API container's name on the platform network (docker embedded DNS
-	 * target for the proxy). Inside Docker, HOSTNAME equals the container id
-	 * — inspect it to get the canonical name. Outside Docker (bare-metal dev)
-	 * the proxy targets the Docker HOST via host.docker.internal (ExtraHosts
-	 * added to the container spec), where the API listens.
+	 * THIS API's DNS name for the proxy to forward to.
+	 *
+	 * Priority:
+	 *   1. `DEPLOYER_API_TARGET` — the compose alias the deployment already
+	 *      publishes (`api-dev`). Stable across container recreations, and the
+	 *      name the swarm overlay wiring re-declares, so it resolves from BOTH
+	 *      the compose bridge and the overlay.
+	 *   2. the container's canonical NAME, discovered by inspecting our own
+	 *      container (HOSTNAME == container id inside Docker).
+	 *   3. `host.docker.internal` — bare-metal dev only. Deliberately NOT the
+	 *      fallback when the inspect fails: a SWARM task cannot resolve that
+	 *      name (no ExtraHosts equivalent in a service spec), and nginx refuses
+	 *      to start with an unresolvable upstream. Using the alias keeps the
+	 *      proxy bootable whenever the deployment declared one.
 	 */
 	private async resolveApiTarget(): Promise<string> {
+		const explicit = this.env.get("DEPLOYER_API_TARGET")?.trim();
+		if (explicit !== undefined && explicit !== "") return explicit;
+
 		const selfId = process.env.HOSTNAME;
 		if (selfId === undefined || !/^[0-9a-f]{12,64}$/.test(selfId)) return "host.docker.internal";
 		const info = await this.client.getContainer(selfId).inspect().catch(() => null);
 		const name = ((info as unknown as { Name?: string })?.Name ?? "").replace(/^\//, "");
-		return name !== "" ? name : "host.docker.internal";
+		if (name !== "") return name;
+
+		// Fall back to the container ID: Docker's embedded DNS resolves a
+		// container by id on any network it is attached to, which is always
+		// true for the API here (compose attaches it to the platform network).
+		return /^[0-9a-f]{12,64}$/.test(selfId) ? selfId : "host.docker.internal";
 	}
 
 	/**
-	 * Deterministic nginx config: one `server` block per forward, proxying to
-	 * the container name over the platform network (docker embedded DNS).
+	 * The mirrored ingress binding: the hostnames the proxy serves on the
+	 * ENTRY port while Traefik is down (null when the entry port is taken by
+	 * someone else, so only the direct ports can be served).
 	 */
-	private async writeNginxConfig(forwards: DirectProxyForward[]): Promise<void> {
+	private async resolveIngressBinding(forwards: DirectProxyForward[]): Promise<DirectProxyIngress | null> {
+		try {
+			const entry = await this.ingressSettings.getPlatformEntry();
+			const apiForward = forwards.find((f) => f.targetPort === this.env.get("API_PORT"));
+			const webForward = forwards.find((f) => f.targetPort === PLATFORM_WEB_INTERNAL_PORT);
+			if (apiForward === undefined || webForward === undefined) return null;
+			return {
+				entryPort: entry.port,
+				apiHost: this.hostnameService.apiHostname(),
+				webHost: this.hostnameService.webHostname(),
+				apiTarget: apiForward.target,
+				apiPort: apiForward.targetPort,
+				webTarget: webForward.target,
+				webPort: webForward.targetPort,
+			};
+		} catch {
+			return null;
+		}
+	}
+
+	/**
+	 * Deterministic nginx config, written into the shared config volume: one
+	 * `server` block per forward, plus the Host-routed ingress servers on the
+	 * entry port so `*.deployer.localhost` survives a Traefik failure.
+	 */
+	private async writeNginxConfig(
+		forwards: DirectProxyForward[],
+		ingress: DirectProxyIngress | null,
+	): Promise<void> {
 		const servers = forwards
 			.map(
 				(f) => `  server {
@@ -356,51 +532,46 @@ export class DirectPortProxySupervisorService
   }`,
 			)
 			.join("\n");
-		const conf = `events {}\nhttp {\n  include /etc/nginx/mime.types;\n${servers}\n}\n`;
+		const ingressServers =
+			ingress === null
+				? ""
+				: [
+						`  server {
+    listen ${String(ingress.entryPort)};
+    server_name ${ingress.apiHost};
+    location / {
+      proxy_pass http://${ingress.apiTarget}:${String(ingress.apiPort)};
+      proxy_http_version 1.1;
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+    }
+  }`,
+						`  server {
+    listen ${String(ingress.entryPort)};
+    server_name ${ingress.webHost};
+    location / {
+      proxy_pass http://${ingress.webTarget}:${String(ingress.webPort)};
+      proxy_http_version 1.1;
+      proxy_set_header Host $host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+    }
+  }`,
+					].join("\n");
+		const conf = `events {}\nhttp {\n  include /etc/nginx/mime.types;\n${servers}\n${ingressServers}\n}\n`;
 
 		const dir = this.configWriteDir();
 		await mkdir(dir, { recursive: true });
 		await writeFile(path.join(dir, "nginx.conf"), conf, "utf8");
 	}
 
-	/** Container spec for the current forwards. The forwards JSON is stamped
-	 *  into a label — restart-on-change + probe reads it back for reporting. */
-	private buildProxySpec(forwards: DirectProxyForward[], forwardsJson: string): DockerSupervisorContainerSpec {
-		const prefix = this.env.get("DEPLOYER_PREFIX");
-		const needsHostGateway = forwards.some((f) => f.target === "host.docker.internal");
-		return {
-			name: this.proxyContainerName(),
-			image: this.env.get("DEPLOYER_DIRECT_PROXY_IMAGE"),
-			networkName: PlatformNetwork.name(prefix),
-			command: ["nginx", "-c", `${DIRECT_PORT_PROXY_CONFIG_MOUNT}/nginx.conf`, "-g", "daemon off;"],
-			labels: {
-				[DirectPortProxySupervisorService.FORWARDS_LABEL]: forwardsJson,
-			},
-			binds: [`${this.configVolume()}:${DIRECT_PORT_PROXY_CONFIG_MOUNT}:ro`],
-			portBindings: Object.fromEntries(
-				forwards.map((f) => [`${String(f.hostPort)}/tcp`, [{ HostPort: String(f.hostPort) }]]),
-			),
-			extraHosts: needsHostGateway ? ["host.docker.internal:host-gateway"] : undefined,
-			restartPolicy: "unless-stopped",
-		};
-	}
-
-	/** Remove the proxy container (no-op when already gone). */
-	private async removeProxyContainer(): Promise<void> {
-		await this.removeContainerIfExists(this.proxyContainerName());
-	}
-
-	private proxyContainerName(): string {
-		const prefix = this.env.get("DEPLOYER_PREFIX");
-		return prefix === "" ? DirectPortProxySupervisorService.CONTAINER_BASE_NAME : `${DirectPortProxySupervisorService.CONTAINER_BASE_NAME}-${prefix}`;
-	}
-
-	/** API-side boss directory of the shared config volume. */
+	/** API-side base directory of the shared config volume. */
 	private configWriteDir(): string {
 		return this.env.get("DIRECT_PROXY_CONFIG_BASE_PATH") ?? "/app/port-proxy-config";
 	}
 
-	/** Named volume sharing nginx.conf with the proxy container. */
+	/** Named volume sharing nginx.conf with the proxy tasks. */
 	private configVolume(): string {
 		const prefix = this.env.get("DEPLOYER_PREFIX");
 		const envVol = this.env.get("DIRECT_PROXY_CONFIG_VOLUME");
@@ -408,76 +579,143 @@ export class DirectPortProxySupervisorService
 		return prefix === "" ? "deployer-port-proxy-config" : `deployer-port-proxy-config-${prefix}`;
 	}
 
-	/** The forwards JSON recorded on the running container (label). */
-	private async readForwardsLabel(containerId: string): Promise<string | null> {
-		try {
-			const info = await this.client.getContainer(containerId).inspect();
-			const raw = ((info.Config?.Labels ?? {}) as Record<string, string>)[DirectPortProxySupervisorService.FORWARDS_LABEL];
-			return raw ?? null;
-		} catch {
-			return null;
-		}
-	}
-
-	/** Extract the host port from a Docker port-bind failure; null when the
-	 *  error is not a bind conflict (→ rethrow). */
-	private parseBindErrorHostPort(error: unknown): number | null {
+	/**
+	 * Extract the host port from a Docker port-bind failure; null when the
+	 * error is not a bind conflict (→ rethrow).
+	 *
+	 * Docker reports the conflict in several shapes:
+	 *   "Bind for 0.0.0.0:80 failed: port is already allocated"      (compose/engine)
+	 *   "failed to bind host port 0.0.0.0:3005/tcp: address already in use"
+	 *   "bind: address already in use"                                (no port)
+	 * The explicit `host:port` forms are parsed first; otherwise the message is
+	 * matched against the ports we ACTUALLY tried to bind (the only reliable
+	 * signal when the message carries no port), so a conflict never escapes
+	 * the self-healing loop.
+	 */
+	private parseBindErrorHostPort(error: unknown, candidates: number[]): number | null {
 		const message = error instanceof Error ? error.message : String(error);
 		if (!BIND_ERROR_HINTS.some((hint) => message.includes(hint))) return null;
-		const match = /(\d{1,5})\/(tcp|udp)/.exec(message);
-		if (match === null) return null;
-		const port = Number(match[1]);
-		return port >= 1 && port <= 65_535 ? port : null;
+
+		const explicit = /(?:Bind for|bind host port)\s+[0-9a-fA-F.:\[\]]*:(\d{1,5})/.exec(message);
+		if (explicit !== null) {
+			const port = Number(explicit[1]);
+			if (port >= 1 && port <= 65_535) return port;
+		}
+
+		return (
+			candidates.find((port) =>
+				// "…:PORT", "….PORT" or "port PORT", never part of a longer number.
+				new RegExp(`(?::|\\.|port\\s+)${String(port)}(?![0-9])`).test(message),
+			) ?? null
+		);
 	}
 
 	// ─── Health ─────────────────────────────────────────────────────────────
 
-	/** REAL observation: the nginx container state + the recorded forwards
-	 *  (read from the container label — no reconciliation triggered). */
+	/**
+	 * REAL observation: the proxy SERVICE's recorded forwards + mirrored
+	 * ingress, read from the service LABELS (stamped by the convergence) —
+	 * never a reconciliation trigger.
+	 */
 	protected async probe(): Promise<SupervisorProbeResult<typeof directPortProxyPayloadSchema>> {
-		const specBase = this.proxyContainerName();
+		const serviceName = this.proxyServiceName();
 		const startedAt = Date.now();
-		const inspect = await this.inspectContainer(specBase);
-		const forwards = inspect !== null ? await this.readForwards(inspect.Id) : [];
 
-		const active = inspect !== null && inspect.State.Running && forwards.length > 0;
-		const container =
-			inspect === null
-				? null
-				: {
-						id: inspect.Id,
-						name: specBase,
-						running: inspect.State.Running,
-						exitCode: inspect.State.ExitCode ?? null,
-						startedAt: inspect.State.StartedAt ?? null,
-					};
+		const live = await this.serviceLive(serviceName);
+		const forwards = this.forwardsFromLabels(live.labels);
+		const ingress = this.ingressFromLabels(live.labels);
 
-		if (inspect === null) {
+		if (!live.exists) {
 			return {
 				healthy: true, // nothing to run while Traefik is the single entry point
 				detail: "inactive — ingress (Traefik) is the single entry point",
-				payload: { checkedAt: new Date().toISOString(), latencyMs: Date.now() - startedAt, active: false, forwards: [], container: null },
+				payload: {
+					checkedAt: new Date().toISOString(),
+					latencyMs: Date.now() - startedAt,
+					active: false,
+					forwards: [],
+					ingress: null,
+					service: null,
+				},
 			};
 		}
-		if (!active) {
+
+		if (!live.running) {
 			return {
 				healthy: false,
-				detail: `proxy container not forwarding (running=${String(inspect.State.Running)})`,
-				payload: { checkedAt: new Date().toISOString(), latencyMs: Date.now() - startedAt, active: false, forwards, container },
+				detail: `proxy service not forwarding (running=false)`,
+				payload: {
+					checkedAt: new Date().toISOString(),
+					latencyMs: Date.now() - startedAt,
+					active: false,
+					forwards,
+					ingress: null,
+					service: live.snapshot,
+				},
 			};
 		}
+
 		const summary = forwards.map((f) => `:${String(f.hostPort)}→${f.target}:${String(f.targetPort)}`).join(" ");
+		const hostnames =
+			ingress === null
+				? " — hostnames UNAVAILABLE (entry port taken)"
+				: ` + ${ingress.webHost}/${ingress.apiHost} on :${String(ingress.entryPort)}`;
 		return {
 			healthy: true,
-			detail: `forwarding ${summary}`,
-			payload: { checkedAt: new Date().toISOString(), latencyMs: Date.now() - startedAt, active: true, forwards, container },
+			detail: `forwarding ${summary}${hostnames}`,
+			payload: {
+				checkedAt: new Date().toISOString(),
+				latencyMs: Date.now() - startedAt,
+				active: true,
+				forwards,
+				ingress,
+				service: live.snapshot,
+			},
 		};
 	}
 
-	/** Forwards decoded from the running container's label. */
-	private async readForwards(containerId: string): Promise<DirectProxyForward[]> {
-		const raw = await this.readForwardsLabel(containerId);
-		if (raw === null) return [];
+	/** The proxy service's live state + its service-level labels. */
+	private async serviceLive(serviceName: string): Promise<{
+		exists: boolean;
+		running: boolean;
+		labels: Record<string, string>;
+		snapshot: {
+			serviceId: string | null;
+			exists: boolean | null;
+			createdAt: string | null;
+			updatedAt: string | null;
+			serviceName: string | null;
+			runningTasks: number | null;
+			totalTasks: number | null;
+		} | null;
+	}> {
+		try {
+			const service = await this.dockerService.inspectSwarmService(serviceName);
+			const tasks = await this.dockerService.listSwarmServiceTasks(serviceName).catch(() => []);
+			const runningTasks = tasks.filter((task) => task.Status.State === "running").length;
+			return {
+				exists: true,
+				running: runningTasks > 0,
+				labels: service.Spec.Labels,
+				snapshot: {
+					serviceId: service.ID ?? null,
+					exists: true,
+					createdAt: service.CreatedAt ?? null,
+					updatedAt: service.UpdatedAt ?? null,
+					serviceName: service.Spec.Name ?? null,
+					runningTasks,
+					totalTasks: tasks.length,
+				},
+			};
+		} catch {
+			return { exists: false, running: false, labels: {}, snapshot: null };
+		}
+	}
+
+	/** Forwards decoded from the service label (empty when absent/invalid). */
+	private forwardsFromLabels(labels: Record<string, string>): DirectProxyForward[] {
+		const raw = labels[DirectPortProxySupervisorService.FORWARDS_LABEL];
+		if (raw === undefined || raw === "") return [];
 		try {
 			const parsed: unknown = JSON.parse(raw);
 			if (!Array.isArray(parsed)) return [];
@@ -494,6 +732,19 @@ export class DirectPortProxySupervisorService
 		}
 	}
 
+	/** Mirrored ingress decoded from the service label (null when the entry
+	 *  port could not be taken, or nothing is recorded yet). */
+	private ingressFromLabels(labels: Record<string, string>): DirectProxyIngress | null {
+		const raw = labels[DirectPortProxySupervisorService.INGRESS_LABEL];
+		if (raw === undefined || raw === "" || raw === "none") return null;
+		try {
+			const parsed: unknown = JSON.parse(raw);
+			return directProxyIngressSchema.parse(parsed);
+		} catch {
+			return null;
+		}
+	}
+
 	/** Payload shape when the probe mechanism itself fails. */
 	protected buildDegradedPayload(_detail: string): z.output<typeof directPortProxyPayloadSchema> {
 		return {
@@ -501,7 +752,8 @@ export class DirectPortProxySupervisorService
 			latencyMs: 0,
 			active: false,
 			forwards: [],
-			container: null,
+			ingress: null,
+			service: null,
 		};
 	}
 
@@ -511,32 +763,50 @@ export class DirectPortProxySupervisorService
 	 *  proxy closes itself). */
 	protected collectWarnings(probe: SupervisorProbeResult<typeof directPortProxyPayloadSchema>): string[] {
 		const base = super.collectWarnings(probe);
+		if (probe.payload.active && probe.payload.ingress === null) {
+			return [
+				...base,
+				"Traefik ingress is FAILED and the entry port is held by another process — the *.deployer.localhost hostnames are UNAVAILABLE; only the direct ports respond. Free the entry port (or set a new one in the web app) to restore them.",
+			];
+		}
 		if (probe.payload.active) {
-			return [...base, "Traefik ingress is FAILED — the fallback proxy is forwarding the api/web ports directly. Fix the entry port from the web app."];
+			return [...base, "Traefik ingress is FAILED — the fallback proxy is serving the api/web ports AND the *.deployer.localhost hostnames. Fix the entry port from the web app."];
 		}
 		return base;
 	}
 
 	/** The entire config + live state of the fallback proxy process. */
 	protected async buildProcessInfo(): Promise<Record<string, unknown>> {
-		const specBase = this.proxyContainerName();
-		const inspect = await this.inspectContainer(specBase);
-		const forwards = inspect !== null ? await this.readForwards(inspect.Id) : [];
-		const active = inspect !== null && inspect.State.Running && forwards.length > 0;
+		const serviceName = this.proxyServiceName();
+		const live = await this.serviceLive(serviceName);
+		const forwards = this.forwardsFromLabels(live.labels);
+		const active = live.running && forwards.length > 0;
+		const servedIngress = this.ingressFromLabels(live.labels);
 
 		// What the proxy would forward right now (its desired set) — used for
-		// the docker process view even when it is currently removed.
+		// the process view even when the service is currently absent.
 		const desired = forwards.length > 0 ? forwards : await this.buildForwardSet();
+		const desiredIngress = servedIngress ?? (await this.resolveIngressBinding(desired));
 
 		const apiHostPort = desired.find((f) => f.targetPort === this.env.get("API_PORT"))?.hostPort ?? null;
 		const webHostPort = desired.find((f) => f.targetPort === PLATFORM_WEB_INTERNAL_PORT)?.hostPort ?? null;
 
+		const spec = this.buildProxySwarmSpec(desired, stableJson(desired), desiredIngress);
 		return {
-			process: await this.describeDockerProcess(this.buildProxySpec(desired, stableJson(desired))),
+			process: await this.describeSwarmProcess(spec),
 			urls: {
 				apiDirectUrl: active && apiHostPort !== null ? `http://localhost:${String(apiHostPort)}` : null,
 				webDirectUrl: active && webHostPort !== null ? `http://localhost:${String(webHostPort)}` : null,
 			},
+			ingressUrls:
+				desiredIngress === null
+					? null
+					: {
+							entryPort: desiredIngress.entryPort,
+							apiUrl: `http://${desiredIngress.apiHost}`,
+							webUrl: `http://${desiredIngress.webHost}`,
+							serving: active && servedIngress !== null,
+						},
 		};
 	}
 }
@@ -544,4 +814,18 @@ export class DirectPortProxySupervisorService
 /** Stable JSON: fixed field order so label comparisons are deterministic. */
 function stableJson(forwards: DirectProxyForward[]): string {
 	return JSON.stringify(forwards.map((f) => ({ hostPort: f.hostPort, target: f.target, targetPort: f.targetPort })));
+}
+
+/** Stable JSON for the mirrored ingress (null → the literal marker "none"). */
+function stableIngressJson(ingress: DirectProxyIngress | null): string {
+	if (ingress === null) return "none";
+	return JSON.stringify({
+		entryPort: ingress.entryPort,
+		apiHost: ingress.apiHost,
+		webHost: ingress.webHost,
+		apiTarget: ingress.apiTarget,
+		apiPort: ingress.apiPort,
+		webTarget: ingress.webTarget,
+		webPort: ingress.webPort,
+	});
 }

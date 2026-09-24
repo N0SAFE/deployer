@@ -1,16 +1,17 @@
 import { Injectable } from "@nestjs/common";
+import { ConflictError } from "@repo/errors";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import {
     deployments,
     deploymentRollbacks,
     services,
     projects,
-} from "@/config/drizzle/global/schema/deployment";
-import { user } from "@/config/drizzle/global/schema/auth";
+} from "@repo/nest-schema/global/deployment";
+import { user } from "@repo/nest-schema/global/auth";
 import {
     analyticsReports,
     analyticsReportConfigs,
-} from "@/config/drizzle/global/schema/analytics";
+} from "@repo/nest-schema/global/analytics";
 import { and, asc, count, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
 
 /** A deployment row projected to the fields analytics needs (dates coerced). */
@@ -177,7 +178,7 @@ export class AnalyticsRepository {
             })
             .returning({ id: analyticsReports.id });
         if (!row) {
-            throw new Error("Failed to persist analytics report");
+            throw new ConflictError("Failed to persist analytics report");
         }
         return { id: row.id };
     }
@@ -273,7 +274,7 @@ export class AnalyticsRepository {
             })
             .returning({ id: analyticsReportConfigs.id });
         if (!row) {
-            throw new Error("Failed to persist analytics report configuration");
+            throw new ConflictError("Failed to persist analytics report configuration");
         }
         return { id: row.id };
     }

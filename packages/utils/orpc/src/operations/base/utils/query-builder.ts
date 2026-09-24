@@ -3,21 +3,21 @@
  * Combines pagination, sorting, filtering, and search into unified query schemas
  */
 
-import type { AnySchema, ObjectSchema, SchemaWithConfig } from "../types";
-import { CONFIG_SYMBOL, getSchemaShape } from "../types";
-import { s } from "../schema";
+import type { AnySchema, ObjectSchema, SchemaWithConfig } from "@repo/orpc-utils/operations/base/types";
+import { CONFIG_SYMBOL, getSchemaShape } from "@repo/orpc-utils/operations/base/types";
+import { s } from "@repo/orpc-utils/operations/base/schema";
 
-import type { PaginationConfig } from "./pagination";
-import { createPaginationConfigSchema, createPaginationSchema, createPaginationMetaSchema } from "./pagination";
+import type { PaginationConfig } from "@repo/orpc-utils/operations/base/utils/pagination";
+import { createPaginationConfigSchema, createPaginationSchema, createPaginationMetaSchema } from "@repo/orpc-utils/operations/base/utils/pagination";
 
-import type { SortingConfig } from "./sorting";
-import { createSortingConfigSchema, createSortingSchema } from "./sorting";
+import type { SortingConfig } from "@repo/orpc-utils/operations/base/utils/sorting";
+import { createSortingConfigSchema, createSortingSchema } from "@repo/orpc-utils/operations/base/utils/sorting";
 
-import type { FilteringConfig, FieldFilterConfig } from "./filtering";
-import { createFilteringConfigSchema, createFilteringSchema } from "./filtering";
+import type { FilteringConfig, FieldFilterConfig } from "@repo/orpc-utils/operations/base/utils/filtering";
+import { createFilteringConfigSchema, createFilteringSchema } from "@repo/orpc-utils/operations/base/utils/filtering";
 
-import type { SearchConfig } from "./search";
-import { createSearchConfigSchema, createSearchSchema } from "./search";
+import type { SearchConfig } from "@repo/orpc-utils/operations/base/utils/search";
+import { createSearchConfigSchema, createSearchSchema } from "@repo/orpc-utils/operations/base/utils/search";
 
 /**
  * Full query configuration combining all query features

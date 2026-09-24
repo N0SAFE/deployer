@@ -1,4 +1,4 @@
-import { StatementConfig } from './single-statement-config';
+import { StatementConfig } from '@repo/auth/permissions/system/builder/statements/single-statement-config';
 
 /**
  * Extract all possible actions from a statement type

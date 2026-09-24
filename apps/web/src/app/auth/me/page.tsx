@@ -28,6 +28,7 @@ import {
   TabsTrigger,
 } from "@repo/ui/components/shadcn/tabs";
 import {
+  ArrowLeftRight,
   Trash2,
   Shield,
   AlertCircle,
@@ -58,8 +59,8 @@ import { Spinner } from "@repo/ui/components/atomics/atoms/Icon";
 import { Session } from "better-auth";
 import { PushNotificationSettings } from "@/components/push-notifications/PushNotificationSettings";
 import { usePushStats } from "@/domains/push/hooks";
+import { AccountsSection } from "./_components/accounts-section";
 
-import type { Metadata } from 'next'
 const ProfilePage: React.FC = () => {
   const { data: session } = useSession();
 
@@ -218,7 +219,7 @@ const ProfilePage: React.FC = () => {
 
   if (!session?.user) {
     return (
-      <div className="flex justify-center items-center min-h-[400px]">
+      <div className="flex justify-center items-center min-h-100">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <div className="text-center">
@@ -265,7 +266,7 @@ const ProfilePage: React.FC = () => {
 
         {/* Tabbed Interface */}
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <UserCircle className="h-4 w-4" />
               Profile
@@ -273,6 +274,10 @@ const ProfilePage: React.FC = () => {
             <TabsTrigger value="sessions" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Sessions
+            </TabsTrigger>
+            <TabsTrigger value="accounts" className="flex items-center gap-2">
+              <ArrowLeftRight className="h-4 w-4" />
+              Accounts
             </TabsTrigger>
             <TabsTrigger value="notifications" className="flex items-center gap-2">
               <Bell className="h-4 w-4" />
@@ -340,7 +345,7 @@ const ProfilePage: React.FC = () => {
                       <p className="text-sm text-muted-foreground mb-1">Role</p>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="capitalize">
-                          {session.user.role ?? 'user'}
+                          {session.user.role}
                         </Badge>
                       </div>
                     </div>
@@ -440,7 +445,7 @@ const ProfilePage: React.FC = () => {
                         )}
                         {'banExpires' in session.user && session.user.banExpires && (
                           <p className="mt-1">
-                            Expires: {formatDate(new Date(session.user.banExpires as string | number | Date))}
+                            Expires: {formatDate(new Date(session.user.banExpires))}
                           </p>
                         )}
                       </AlertDescription>
@@ -527,7 +532,7 @@ const ProfilePage: React.FC = () => {
                       Active Sessions
                     </CardTitle>
                     <CardDescription>
-                      Manage your active sessions across all devices
+                      Devices signed in to this account, across every browser
                     </CardDescription>
                   </div>
                   <Button
@@ -636,6 +641,11 @@ const ProfilePage: React.FC = () => {
             </Card>
           </TabsContent>
 
+          {/* Accounts Tab */}
+          <TabsContent value="accounts" className="space-y-6">
+            <AccountsSection />
+          </TabsContent>
+
           {/* Notifications Tab */}
           <TabsContent value="notifications" className="space-y-6">
             <PushNotificationSettings key={session.user.id} />
@@ -698,8 +708,3 @@ const ProfilePage: React.FC = () => {
 };
 
 export default ProfilePage;
-
-export const metadata: Metadata = {
-    title: "Account",
-    description: "Your Deployer account",
-}

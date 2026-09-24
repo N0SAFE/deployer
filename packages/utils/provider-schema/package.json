@@ -3,17 +3,47 @@
     "version": "0.0.0",
     "private": true,
     "type": "module",
-    "main": "./src/index.ts",
+    "main": "./dist/cjs/index.js",
     "types": "./src/index.ts",
     "exports": {
-        ".": "./src/index.ts",
-        "./domain": "./src/domain/index.ts",
-        "./catalog": "./src/catalog/index.ts",
-        "./validation": "./src/validation/index.ts"
+        ".": {
+            "types": [
+                "./src/index.ts",
+                "./src/index.tsx"
+            ],
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
+        "./*": {
+            "types": [
+                "./src/*.ts",
+                "./src/*.tsx"
+            ],
+            "import": "./dist/esm/*.mjs",
+            "require": "./dist/cjs/*.js"
+        },
+        "./domain": {
+            "types": "./src/domain/index.ts",
+            "import": "./dist/esm/domain/index.mjs",
+            "require": "./dist/cjs/domain/index.js"
+        },
+        "./catalog": {
+            "types": "./src/catalog/index.ts",
+            "import": "./dist/esm/catalog/index.mjs",
+            "require": "./dist/cjs/catalog/index.js"
+        },
+        "./validation": {
+            "types": "./src/validation/index.ts",
+            "import": "./dist/esm/validation/index.mjs",
+            "require": "./dist/cjs/validation/index.js"
+        }
     },
     "scripts": {
         "type-check": "tsc --noEmit",
-        "test": "vitest run"
+        "test": "vitest run",
+        "build": "bun --bun ../../bin/pkg-build/index.ts",
+        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
+        "clean": "rimraf dist"
     },
     "dependencies": {
         "@repo/type-guards": "*",
@@ -24,5 +54,6 @@
         "vitest": "catalog:testing",
         "@vitest/coverage-v8": "catalog:testing",
         "typescript": "catalog:build"
-    }
+    },
+    "module": "./dist/esm/index.mjs"
 }

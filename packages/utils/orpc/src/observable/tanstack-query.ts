@@ -7,8 +7,8 @@ import {
 import type { QueryFunctionContext, QueryKey, UseQueryOptions } from "@tanstack/react-query";
 import { Observable as RxjsObservable } from "rxjs";
 import type { MonoTypeOperatorFunction, Observable as RxObservable } from "rxjs";
-import { reconstructObservableFromEventIterator } from "./event-iterator";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { reconstructObservableFromEventIterator } from "@repo/orpc-utils/observable/event-iterator";
+import { isObjectLike } from "@repo/type-guards"
 
 export type ObservableQueryMode = "observable" | "streamed-observable";
 
@@ -16,7 +16,7 @@ type InputOption<TInput> = undefined extends TInput
   ? { input?: TInput }
   : { input: TInput };
 
-type ContextOption<TContext> = Record<never, never> extends TContext
+type ContextOption<TContext> = object extends TContext
   ? { context?: TContext }
   : { context: TContext };
 
@@ -44,7 +44,7 @@ type ExtractProcedureContext<TProcedure> = TProcedure extends {
   call: Client<infer TContext, infer _TInput, infer _TOutput, infer _TError>;
 }
   ? TContext
-  : Record<never, never>;
+  : object;
 
 type ExtractStreamValue<TOutput> = TOutput extends AsyncIterable<infer TChunk>
   ? TChunk
@@ -92,10 +92,6 @@ export type ObservablePipeTransform<TValue> = (
  * observable directly. This helper is kept for backward compatibility and
  * mirrors the RxJS `pipe` operator surface.
  */
-export type ObservablePipeInvoker<TValue> = (
-  ...operators: MonoTypeOperatorFunction<TValue>[]
-) => RxObservable<TValue>;
-
 export type ObservableQueryFnOptions<TValue> = {
   pipe?: ObservablePipeTransform<TValue>;
 };
@@ -104,7 +100,7 @@ export type LiveObservableOptionsConfig<
   TInput,
   TStreamValue,
   TError = Error,
-  TContext = Record<never, never>,
+  TContext = object,
 > = InputOption<TInput> &
   ContextOption<TContext> & {
   queryKey?: QueryKey;
@@ -115,7 +111,7 @@ export type StreamedObservableOptionsConfig<
   TInput,
   TStreamValue,
   TError = Error,
-  TContext = Record<never, never>,
+  TContext = object,
 > = InputOption<TInput> &
   ContextOption<TContext> & {
   queryKey?: QueryKey;
@@ -141,7 +137,7 @@ type StreamedObservableQueryOptionsResult<TStreamValue, TError> = Omit<
 export type ObservableProcedureQueryUtils<
   TInput,
   TStreamValue,
-  TContext = Record<never, never>,
+  TContext = object,
 > = {
   experimental_liveObservableOptions<TError = Error>(
     options: LiveObservableOptionsConfig<TInput, TStreamValue, TError, TContext>,

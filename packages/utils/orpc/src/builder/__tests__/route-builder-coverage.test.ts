@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import z from "zod/v4";
-import { RouteBuilder, route } from "../core/route-builder";
+import { RouteBuilder, route } from "@repo/orpc-utils/builder/core/route-builder";
 
 /**
  * Additional tests for core/route-builder.ts coverage

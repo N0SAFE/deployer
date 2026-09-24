@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import z from 'zod';
-import { RouteBuilder } from '../core/route-builder';
+import { RouteBuilder } from '@repo/orpc-utils/builder/core/route-builder';
 
 describe('Schema-first API', () => {
   const userSchema = z.object({

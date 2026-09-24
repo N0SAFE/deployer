@@ -1,11 +1,11 @@
 import type { Observable } from "rxjs";
-import { BaseEventService } from "./base-event.service";
+import { BaseEventService } from "@repo/nest-events/base-event.service";
 import {
   type EventContracts,
   type EventInput,
   type EventOutput,
-} from "./event-contract.builder";
-import type { CoreEventStreamPoolService } from "./core-event-stream-pool.service";
+} from "@repo/nest-events/event-contract.builder";
+import type { CoreEventStreamPoolService } from "@repo/nest-events/core-event-stream-pool.service";
 import { isRecord } from "@repo/type-guards"
 
 export type PooledEventObserveOptions = {

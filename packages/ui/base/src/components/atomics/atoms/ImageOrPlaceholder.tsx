@@ -18,7 +18,7 @@ const ImageOrPlaceholder: React.FC<
     return (
         <img
             // eslint-disable-next-line @typescript-eslint/no-require-imports
-            src={require('../../../assets/images/placeholder.svg') as string}
+            src={require('@repo/ui/assets/images/placeholder.svg') as string}
             alt={'Placeholder Image'}
             {...props}
         />

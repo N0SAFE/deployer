@@ -1,4 +1,4 @@
-import type { ProviderMetadata } from "../domain";
+import type { ProviderMetadata } from "@repo/provider-schema/domain/index";
 
 export const providersCatalog: ProviderMetadata[] = [
     {

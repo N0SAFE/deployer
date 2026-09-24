@@ -17,6 +17,7 @@ import { Siren, Plus, Trash2, Globe, ArrowLeft, Key } from 'lucide-react'
 import { toast } from 'sonner'
 import { AuthDashboardAdminProvidersDns } from '@/routes'
 import { useDNSProviders, useCreateDNSProvider, useDeleteDNSProvider } from '@/domains/dns-providers/hooks'
+import { EmptyState, PageHeader } from '@/components/dashboard'
 import { z } from 'zod/v4'
 
 const route53Schema = z.object({
@@ -62,21 +63,29 @@ export default function AdminDnsProvidersRoute53Page() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <AuthDashboardAdminProvidersDns.Link><Button variant="ghost" size="sm" className="-ml-2"><ArrowLeft className="mr-1 size-4" />DNS Providers</Button></AuthDashboardAdminProvidersDns.Link>
+        <AuthDashboardAdminProvidersDns.Link><Button variant="ghost" size="sm" className="-ml-2"><ArrowLeft className="mr-1 size-4" />DNS providers</Button></AuthDashboardAdminProvidersDns.Link>
       </div>
-      <div className="flex items-center gap-2">
-        <Globe className="size-6 text-amber-500" /><div><h1 className="text-2xl font-semibold tracking-tight">AWS Route53</h1><p className="text-sm text-muted-foreground">Configure AWS access keys for Route53 DNS management.</p></div>
-      </div>
-      <Button size="sm" onClick={() => setAddOpen(true)}><Plus className="mr-2 size-4" />Add Access Key</Button>
+      <PageHeader
+        title="AWS Route53"
+        description="Configure AWS access keys for Route53 DNS management."
+        actions={
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Plus className="mr-2 size-4" />
+            Add access key
+          </Button>
+        }
+      />
 
       <Card>
         <CardHeader><CardTitle>Access Keys</CardTitle><CardDescription>Configured AWS IAM access keys for Route53.</CardDescription></CardHeader>
         <CardContent>
           {providers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Globe className="mb-4 size-12 text-muted-foreground/40" /><p className="text-lg font-medium">No access keys configured</p>
-              <p className="text-sm text-muted-foreground">Add an AWS access key to manage Route53 DNS records.</p>
-            </div>
+            <EmptyState
+              icon={Globe}
+              title="No access keys configured"
+              description="Add an AWS access key to manage Route53 DNS records."
+              action={{ label: 'Add access key', onClick: () => setAddOpen(true) }}
+            />
           ) : (
             <Table>
               <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Key ID</TableHead><TableHead>Region</TableHead><TableHead>Status</TableHead><TableHead className="w-20">Actions</TableHead></TableRow></TableHeader>
@@ -86,7 +95,7 @@ export default function AdminDnsProvidersRoute53Page() {
                     <TableCell>{p.name}</TableCell><TableCell className="font-mono text-xs">••••••••</TableCell>
                     <TableCell className="text-xs">-</TableCell>
                     <TableCell><Badge variant={p.isActive ? 'default' : 'secondary'}>{p.isActive ? 'Active' : 'Inactive'}</Badge></TableCell>
-                    <TableCell><Button variant="ghost" size="icon" className="size-8" onClick={() => { setDeleteId(p.id); setDeleteName(p.name); setDeleteOpen(true) }}><Trash2 className="size-4" /></Button></TableCell>
+                    <TableCell><Button variant="ghost" size="icon" className="size-8" aria-label={`Remove ${p.name}`} onClick={() => { setDeleteId(p.id); setDeleteName(p.name); setDeleteOpen(true) }}><Trash2 className="size-4" /></Button></TableCell>
                   </TableRow>
                 ))}
               </TableBody>

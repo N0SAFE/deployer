@@ -17,6 +17,7 @@ import { Siren, Plus, Trash2, Code2, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { AuthDashboardAdminProvidersCode } from '@/routes'
 import { useGitlabApps, useCreateGitlabApp, useDeleteGitlabApp } from '@/domains/gitlab/hooks'
+import { EmptyState, PageHeader } from '@/components/dashboard'
 import { z } from 'zod/v4'
 
 const gitlabSchema = z.object({
@@ -73,11 +74,17 @@ export default function AdminProvidersCodeGitlabPage() {
 
   return (
     <div className="space-y-6">
-      <AuthDashboardAdminProvidersCode.Link><Button variant="ghost" size="sm" className="-ml-2"><ArrowLeft className="mr-1 size-4" />Code Providers</Button></AuthDashboardAdminProvidersCode.Link>
-      <div className="flex items-center gap-2">
-        <Code2 className="size-6 text-orange-500" /><div><h1 className="text-2xl font-semibold tracking-tight">GitLab</h1><p className="text-sm text-muted-foreground">Connect GitLab repositories for CI/CD integration.</p></div>
-      </div>
-      <Button size="sm" onClick={() => setAddOpen(true)}><Plus className="mr-2 size-4" />Add GitLab Account</Button>
+      <AuthDashboardAdminProvidersCode.Link><Button variant="ghost" size="sm" className="-ml-2"><ArrowLeft className="mr-1 size-4" />Code providers</Button></AuthDashboardAdminProvidersCode.Link>
+      <PageHeader
+        title="GitLab"
+        description="Connect GitLab repositories for CI/CD integration."
+        actions={
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Plus className="mr-2 size-4" />
+            Add GitLab account
+          </Button>
+        }
+      />
 
       {error ? (
         <Alert variant="destructive"><Siren className="size-4" /><AlertTitle>Failed to load GitLab accounts</AlertTitle><AlertDescription>{isDefinedORPCError(error) ? getErrorMessage(error) : 'Unknown error'}</AlertDescription></Alert>
@@ -88,17 +95,19 @@ export default function AdminProvidersCodeGitlabPage() {
           <CardHeader><CardTitle>Connected Accounts</CardTitle><CardDescription>GitLab accounts configured for repository access.</CardDescription></CardHeader>
           <CardContent>
             {apps.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Code2 className="mb-4 size-12 text-muted-foreground/40" /><p className="text-lg font-medium">No accounts configured</p>
-                <p className="text-sm text-muted-foreground">Add a GitLab personal access token to access repositories.</p>
-              </div>
+              <EmptyState
+                icon={Code2}
+                title="No accounts configured"
+                description="Add a GitLab personal access token to access repositories."
+                action={{ label: 'Add GitLab account', onClick: () => setAddOpen(true) }}
+              />
             ) : (
               <Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>URL</TableHead><TableHead>Status</TableHead><TableHead className="w-20">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>{apps.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.name}</TableCell><TableCell className="text-xs">{item.url}</TableCell>
                     <TableCell><Badge variant="default">Active</Badge></TableCell>
-                    <TableCell><Button variant="ghost" size="icon" className="size-8" onClick={() => { setDeleteId(item.id); setDeleteName(item.name); setDeleteOpen(true) }}><Trash2 className="size-4" /></Button></TableCell>
+                    <TableCell><Button variant="ghost" size="icon" className="size-8" aria-label={`Remove ${item.name}`} onClick={() => { setDeleteId(item.id); setDeleteName(item.name); setDeleteOpen(true) }}><Trash2 className="size-4" /></Button></TableCell>
                   </TableRow>
                 ))}</TableBody>
               </Table>

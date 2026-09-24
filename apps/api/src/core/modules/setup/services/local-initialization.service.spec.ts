@@ -2,7 +2,11 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { LocalInitializationService } from "./local-initialization.service";
 import { SetupStepTracker } from "../utils/setup-runner.utils";
 import type { NodeConfigRepository } from "../repositories/node-config.repository";
-import type { PostgresContainerService } from "@/core/modules/docker/containers/postgres/postgres-container.service";
+import type { PostgresServiceProvisioner } from "@/core/modules/docker/containers/postgres/postgres-service.provisioner";
+import type { EnvService } from "@repo/nest-env";
+import type { SwarmBootstrapService } from "@/core/modules/swarm/services/swarm-bootstrap.service";
+import type { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
+import type { SupervisorOrchestratorService } from "@/core/modules/supervisors/supervisor-orchestrator.service";
 import type { DockerService } from "@/core/modules/docker/services/docker.service";
 import type { EmitEvent } from "../utils/setup-runner.utils";
 
@@ -24,18 +28,48 @@ function makeMocks() {
 		find: vi.fn(() => null),
 		upsert,
 	} as unknown as NodeConfigRepository;
-	const postgresContainerService = {
-		startPostgresContainer: vi.fn(async () => ({ id: "pg-1" })),
-	} as unknown as PostgresContainerService;
-	const dockerService = {} as unknown as DockerService;
-	return { nodeConfigRepository, postgresContainerService, dockerService, upsert };
+	const postgresProvisioner = {
+		ensure: vi.fn(async () => ({ name: "deployer-postgres" })),
+	} as unknown as PostgresServiceProvisioner;
+	const dockerService = {
+		getSwarmServiceLogs: vi.fn(async () => ""),
+	} as unknown as DockerService;
+	const env = {
+		get: vi.fn((key: string) =>
+			key === "DEPLOYER_PREFIX" ? "" : key === "DB_DATABASE" ? "deployer" : undefined,
+		),
+	} as unknown as EnvService;
+	return { nodeConfigRepository, postgresProvisioner, dockerService, env, upsert };
 }
 
 function makeService(mocks: ReturnType<typeof makeMocks>): LocalInitializationService {
 	const service = new LocalInitializationService(
-		mocks.postgresContainerService,
+		mocks.postgresProvisioner,
 		mocks.dockerService,
+		mocks.env,
 		mocks.nodeConfigRepository,
+		// The flow founds the swarm before provisioning (a locally-managed
+		// Postgres is a swarm service). These specs exercise the marker
+		// persistence, not convergence, so a silent no-op + inactive snapshot
+		// keeps them deterministic.
+		{ converge: vi.fn(async () => undefined) } as unknown as SwarmBootstrapService,
+		// "active" is REQUIRED for the local path: the swarm step correctly
+		// throws when the cluster never comes up, because a locally-managed
+		// Postgres is a swarm service that cannot be provisioned otherwise.
+		{
+			getLocalClusterSnapshot: vi.fn(async () => ({
+				localNodeState: "active",
+				nodeCount: 1,
+				managerCount: 1,
+				localNode: { swarmRole: "manager" },
+				master: { nodeId: "self" },
+			})),
+		} as unknown as SwarmClusterService,
+		// On-demand convergence of the app-wiring supervisor, called right
+		// before the DSN is used so the overlay attach is not left to the
+		// supervisor's 30s cadence. These specs assert marker persistence, not
+		// network wiring, so a resolved no-op keeps them deterministic.
+		{ convergeNow: vi.fn(async () => null) } as unknown as SupervisorOrchestratorService,
 	);
 
 	// Short-circuit the DB-heavy steps. The provision step sets the URL; the

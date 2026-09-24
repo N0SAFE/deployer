@@ -6,8 +6,8 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { config as dotenvConfig } from 'dotenv'
 import zod from 'zod/v4'
-import { apiEnvSchema, webEnvSchema, docEnvSchema } from './index'
-import { getMockEnv, getAllMockEnv } from './mock'
+import { apiEnvSchema, webEnvSchema, docEnvSchema } from '@repo/env/index'
+import { getMockEnv, getAllMockEnv } from '@repo/env/mock'
 
 type AppName = 'api' | 'web' | 'doc'
 

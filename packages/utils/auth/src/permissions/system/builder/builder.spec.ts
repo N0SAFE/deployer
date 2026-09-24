@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { PermissionBuilder, ResourceBuilder, RoleBuilder, createPermissionBuilder, createPermissionBuilderWithDefaults } from './builder';
-import { StatementsConfig } from './statements/statements-config';
-import { RolesConfig } from './roles/roles-config';
+import { PermissionBuilder, ResourceBuilder, RoleBuilder, createPermissionBuilder, createPermissionBuilderWithDefaults } from '@repo/auth/permissions/system/builder/builder';
+import { StatementsConfig } from '@repo/auth/permissions/system/builder/statements/statements-config';
+import { RolesConfig } from '@repo/auth/permissions/system/builder/roles/roles-config';
 
 // Mock Better Auth's createAccessControl
 vi.mock('better-auth/plugins/access', () => ({

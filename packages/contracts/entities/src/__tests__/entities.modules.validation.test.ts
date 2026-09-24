@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { deploymentSchema } from '../entities/deployment'
-import { dockerPortBindingSchema } from '../entities/docker.schema'
-import { userSchema } from '../entities/user'
-import { templateVersionSchema } from '../entities/template'
-import { setupInitializeInputSchema } from '../entities/setup'
-import { coreDomainEventEnvelopeSchema } from '../entities/event-stream'
-import { meshPeerSessionSchema } from '../entities/mesh'
-import { traefikServiceSchema } from '../entities/traefik'
+import { deploymentSchema } from '@repo/contracts-entities/entities/deployment/index'
+import { dockerPortBindingSchema } from '@repo/contracts-entities/entities/docker.schema'
+import { userSchema } from '@repo/contracts-entities/entities/user/index'
+import { templateVersionSchema } from '@repo/contracts-entities/entities/template/index'
+import { setupInitializeInputSchema } from '@repo/contracts-entities/entities/setup/index'
+import { coreDomainEventEnvelopeSchema } from '@repo/contracts-entities/entities/event-stream/index'
+import { meshPeerSessionSchema } from '@repo/contracts-entities/entities/mesh/index'
+import { traefikServiceSchema } from '@repo/contracts-entities/entities/traefik/index'
 
 describe('deployment schema validation', () => {
   it('accepts minimal valid deployment payload', () => {

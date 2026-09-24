@@ -1,12 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import {
-  AuthDashboardAdminSystem,
-  AuthDashboardAdminUsers,
-  AuthDashboardProjects,
-  AuthDashboardDeployments,
-} from '@/routes'
+import { AuthDashboardDeployments } from '@/routes'
 import { useDeploymentList } from '@/domains/deployment/hooks'
 import { useClusterSnapshot } from '@/domains/cluster/hooks'
 import { useRealTimeMetrics } from '@/domains/analytics/hooks'
@@ -22,33 +17,28 @@ import { Button } from '@repo/ui/components/shadcn/button'
 import {
   StatusBadge,
   StatusDot,
-  StatusMetric,
+  StatStrip,
+  StatStripItem,
   statusToneFrom,
   EnvironmentBadge,
+  type StatusTone,
 } from '@/components/dashboard'
 import {
   ArrowRight,
-  Building2,
   CheckCircle2,
   Cpu,
-  FolderKanban,
   HardDrive,
-  Mail,
   Network,
   Rocket,
-  ServerCog,
-  Settings,
-  UserCircle2,
-  Users,
-  XCircle,
+  Server,
+  ShieldCheck,
 } from 'lucide-react'
-import Link from 'next/link'
-import Image from 'next/image'
 
-interface DashboardOverviewClientProps {
-  isAdmin: boolean
-  userRole: string
-}
+/**
+ * Above this, resource pressure starts delaying scheduling — the threshold at
+ * which a number stops being context and becomes something to act on.
+ */
+const RESOURCE_PRESSURE_PERCENT = 80
 
 function relativeTime(iso: string): string {
   const parsed = new Date(iso)
@@ -76,26 +66,37 @@ function projectLabel(serviceId: string): string {
 }
 
 /**
- * Command center — the bento overview.
- *
- * Composition (section-first, per web AGENTS.md — no 4-up KPI strip):
- *  1. At a glance (live metrics + runtime stream)  │  Recent deployments (timeline)
- *  2. Quick actions
- *  3. Admin tools
+ * Context-strip formatters. Each returns `undefined` when the reading is not
+ * known yet, which `StatStripItem` renders as an em dash: "not measured" and
+ * "measured as zero" are different facts, and conflating them is how a
+ * dashboard starts lying during startup.
  */
-export function DashboardOverviewClient({ isAdmin, userRole }: DashboardOverviewClientProps) {
-  const { data: snapshot, isPending: snapshotPending, isError: snapshotError } = useClusterSnapshot()
-  const { data: realtimeMetrics } = useRealTimeMetrics()
+function formatPercent(value: number | undefined): string | undefined {
+  return value === undefined ? undefined : `${value.toFixed(0)}%`
+}
 
-  // Fleet status: the cluster (control-plane) surface — not the docker engine
-  // runtime stream, which belongs inside the engine workspace provider.
-  const platformStatus = snapshotError
-    ? 'error'
-    : snapshotPending
-      ? 'connecting'
-      : snapshot?.controlAvailable === true
-        ? 'live'
-        : 'disconnected'
+function formatMegabytes(value: number | undefined): string | undefined {
+  return value === undefined ? undefined : `${(value / 1024 / 1024).toFixed(1)} MB`
+}
+
+function pressureTone(value: number | undefined): StatusTone | undefined {
+  return value !== undefined && value > RESOURCE_PRESSURE_PERCENT ? 'pending' : undefined
+}
+
+/**
+ * Command center — the operator's landing surface.
+ *
+ * Composition:
+ *  1. Needs attention (the decision)  │  Recent deployments (the timeline)
+ *  2. Context strip (scale, as one dense row)
+ *
+ * The role and permission level are deliberately absent: they are readable on
+ * the account menu and the profile page, and neither changes what an operator
+ * does next, so they were occupying the most valuable space on the page.
+ */
+export function DashboardOverviewClient() {
+  const { data: snapshot } = useClusterSnapshot()
+  const { data: realtimeMetrics } = useRealTimeMetrics()
 
   const { data: deploymentsData, isLoading: deploymentsLoading } = useDeploymentList({ query: { limit: 8, offset: 0 } })
 
@@ -107,72 +108,117 @@ export function DashboardOverviewClient({ isAdmin, userRole }: DashboardOverview
       .slice(0, 6)
   }, [deploymentsData])
 
-  const quickActions = [
-    { link: AuthDashboardProjects.Link, icon: FolderKanban, title: 'Projects', description: 'Manage services & infrastructure' },
-    { link: AuthDashboardDeployments.Link, icon: Rocket, title: 'Deployments', description: 'Timeline of recent rollouts' },
-    { link: AuthDashboardAdminSystem.Link, icon: ServerCog, title: 'Control plane', description: 'Fleet & runtime health' },
-  ] as const
+  /**
+   * The decision this page exists to support: "what needs me right now?"
+   *
+   * Derived, not decorative — an entry appears only when something is BOTH
+   * wrong AND actionable by the person reading it. The former top strip showed
+   * "Your role / CPU / Memory / Network" because those were the available
+   * numbers, not because they answered this question; the result was a screen
+   * where, in the words of the dashboard-UX literature, "every number is
+   * present, none of them pointed anywhere".
+   *
+   * An empty list is a real, useful answer ("nothing needs you"), which is why
+   * it renders as one calm line instead of being padded out with metrics.
+   */
+  const attentionItems = useMemo(() => {
+    const items: { key: string; label: string; detail: string; tone: StatusTone }[] = []
+
+    // Control plane — the platform cannot schedule anything without it.
+    if (snapshot !== undefined) {
+      if (snapshot.localNodeState !== 'active') {
+        items.push({
+          key: 'cluster-state',
+          label: 'Cluster is not active',
+          detail: `This node is ${snapshot.localNodeState} — workloads cannot be scheduled`,
+          tone: 'danger',
+        })
+      } else if (!snapshot.controlAvailable) {
+        items.push({
+          key: 'cluster-control',
+          label: 'Control plane unreachable',
+          detail: 'No swarm manager is answering on this mesh',
+          tone: 'danger',
+        })
+      }
+    }
+
+    // Rollouts that failed or are still in flight.
+    for (const dep of recentDeployments) {
+      const tone = statusToneFrom(dep.status)
+      if (tone !== 'danger' && tone !== 'pending') continue
+      items.push({
+        key: `dep-${dep.id ?? dep.serviceId ?? 'unknown'}`,
+        label: projectLabel(dep.serviceId ?? dep.id ?? ''),
+        detail: tone === 'danger' ? 'Deployment failed — open it for the failing step' : 'Deployment still in progress',
+        tone,
+      })
+    }
+
+    // Resource pressure that will start affecting scheduling.
+    const cpu = realtimeMetrics?.system.cpu
+    if (cpu !== undefined && cpu > RESOURCE_PRESSURE_PERCENT) {
+      items.push({ key: 'cpu', label: 'CPU pressure', detail: `${cpu.toFixed(0)}% of host CPU in use`, tone: 'pending' })
+    }
+    const memory = realtimeMetrics?.system.memory
+    if (memory !== undefined && memory > RESOURCE_PRESSURE_PERCENT) {
+      items.push({ key: 'memory', label: 'Memory pressure', detail: `${memory.toFixed(0)}% of host memory in use`, tone: 'pending' })
+    }
+
+    return items
+  }, [snapshot, recentDeployments, realtimeMetrics])
 
   return (
     <>
       {/* ── Signature: the live fleet spine ── */}
       <MeshPulse className="mb-3" />
 
-      {/* ── Bento row 1: at a glance + system health + recent deployments ── */}
-      <div className="grid gap-3 lg:grid-cols-4">
-        {/* At a glance */}
-        <Card className="border-border/60 bg-card/40 backdrop-blur-xl">
+      {/* ── The decision + the timeline ── */}
+      <div className="grid gap-3 lg:grid-cols-5">
+        {/* Needs attention — the ONE thing that should change after reading this */}
+        <Card className="border-border/60 bg-card/40 backdrop-blur-xl lg:col-span-2">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-sm">At a glance</CardTitle>
-              <StatusBadge status={platformStatus === 'live' ? 'live' : platformStatus} pulse={platformStatus === 'connecting'} />
+              <CardTitle className="text-sm">Needs attention</CardTitle>
+              <StatusBadge
+                status={attentionItems.length === 0 ? 'healthy' : 'degraded'}
+                pulse={attentionItems.some((item) => item.tone === 'pending')}
+              />
             </div>
-            <CardDescription className="text-xs">Your platform state right now</CardDescription>
+            <CardDescription className="text-xs">
+              {attentionItems.length === 0
+                ? 'Nothing is waiting on you'
+                : `${String(attentionItems.length)} thing${attentionItems.length === 1 ? '' : 's'} to look at`}
+            </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-2">
-            <StatusMetric
-              label="Your role"
-              value={<span className="capitalize">{userRole}</span>}
-              icon={UserCircle2}
-              hint="Platform permission level"
-              tone="neutral"
-            />
-          </CardContent>
-        </Card>
-
-        {/* System health — live from analytics */}
-        <Card className="border-border/60 bg-card/40 backdrop-blur-xl">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">System Health</CardTitle>
-            <CardDescription className="text-xs">Live from Docker</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-2">
-            <StatusMetric
-              label="CPU"
-              value={realtimeMetrics?.system.cpu != null ? `${realtimeMetrics.system.cpu.toFixed(1)}%` : '—'}
-              icon={Cpu}
-              hint={`${realtimeMetrics?.services?.length ?? 0} services`}
-              tone={realtimeMetrics && realtimeMetrics.system.cpu > 80 ? 'danger' : realtimeMetrics?.system.cpu != null ? 'live' : 'neutral'}
-            />
-            <StatusMetric
-              label="Memory"
-              value={realtimeMetrics?.system.memory != null ? `${realtimeMetrics.system.memory.toFixed(1)}%` : '—'}
-              icon={HardDrive}
-              hint="Used"
-              tone={realtimeMetrics && realtimeMetrics.system.memory > 80 ? 'danger' : realtimeMetrics?.system.memory != null ? 'live' : 'neutral'}
-            />
-            <StatusMetric
-              label="Network"
-              value={realtimeMetrics?.system.network.inbound != null ? `${(realtimeMetrics.system.network.inbound / 1024 / 1024).toFixed(1)} MB` : '—'}
-              icon={Network}
-              hint="Inbound"
-              tone="neutral"
-            />
+          <CardContent>
+            {attentionItems.length === 0 ? (
+              <div className="flex items-center gap-2.5 rounded-lg bg-status-live/5 px-3 py-3 ring-1 ring-status-live/20">
+                <CheckCircle2 className="size-4 shrink-0 text-status-live" />
+                <p className="text-sm text-muted-foreground">
+                  Every node, rollout and resource is healthy.
+                </p>
+              </div>
+            ) : (
+              <ul className="space-y-1">
+                {attentionItems.map((item) => (
+                  <li key={item.key}>
+                    <div className="flex items-start gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-background/50">
+                      <StatusDot tone={item.tone} pulse={item.tone === 'pending'} className="mt-1.5" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{item.label}</p>
+                        <p className="text-xs text-muted-foreground">{item.detail}</p>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
 
         {/* Recent deployments — the timeline */}
-        <Card className="border-border/60 bg-card/40 backdrop-blur-xl lg:col-span-2">
+        <Card className="border-border/60 bg-card/40 backdrop-blur-xl lg:col-span-3">
           <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
             <div>
               <CardTitle className="text-sm">Recent deployments</CardTitle>
@@ -225,54 +271,33 @@ export function DashboardOverviewClient({ isAdmin, userRole }: DashboardOverview
         </Card>
       </div>
 
-      {/* ── Quick actions ─────────────────────────────────────────────────── */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {quickActions.map(({ link: Link, icon: Icon, title, description }) => (
-          <Card key={title} className="border-border/60 bg-card/40 backdrop-blur-xl transition-all hover:border-primary/40 hover:bg-card/60">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-sm font-medium">{title}</CardTitle>
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Icon className="size-4" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-xs text-muted-foreground">{description}</p>
-              <Link className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-                Open
-                <ArrowRight className="size-3" />
-              </Link>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Admin-only actions */}
-      {isAdmin && (
-        <Card className="border-border/60 bg-card/40 backdrop-blur-xl">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Administration</CardTitle>
-            <CardDescription className="text-xs">Platform-wide management tools</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              <Button asChild variant="outline" size="sm">
-                <AuthDashboardAdminUsers.Link>
-                  <Users className="mr-1.5 size-3.5" />
-                  Manage Users
-                </AuthDashboardAdminUsers.Link>
-              </Button>
-              <Button asChild variant="outline" size="sm">
-                <AuthDashboardAdminSystem.Link>
-                  <Settings className="mr-1.5 size-3.5" />
-                  System Dashboard
-                </AuthDashboardAdminSystem.Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/*
+        ── Context strip ────────────────────────────────────────────────────
+        The numbers that give the two panels above their scale. `StatStrip`
+        exists for exactly this shape: a label and a value on one line, no card
+        chrome, wrapping rather than stacking on narrow viewports.
+      */}
+      <StatStrip>
+        <StatStripItem icon={Server} label="Nodes" value={snapshot?.nodeCount} />
+        <StatStripItem icon={ShieldCheck} label="Managers" value={snapshot?.managerCount} />
+        <StatStripItem
+          icon={Cpu}
+          label="CPU"
+          value={formatPercent(realtimeMetrics?.system.cpu)}
+          tone={pressureTone(realtimeMetrics?.system.cpu)}
+        />
+        <StatStripItem
+          icon={HardDrive}
+          label="Memory"
+          value={formatPercent(realtimeMetrics?.system.memory)}
+          tone={pressureTone(realtimeMetrics?.system.memory)}
+        />
+        <StatStripItem
+          icon={Network}
+          label="Inbound"
+          value={formatMegabytes(realtimeMetrics?.system.network.inbound)}
+        />
+      </StatStrip>
     </>
   )
 }

@@ -45,7 +45,7 @@ import { resolveSelfContainerName } from "../../platform-ingress/services/platfo
 import { PLATFORM_WEB_INTERNAL_PORT } from "../../platform-ingress/services/platform-names";
 import { TraefikRepository } from "../repositories/traefik.repository";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
-import { EnvService } from "@/config/env/env.service";
+import { EnvService } from "@repo/nest-env";
 
 @Injectable()
 export class TraefikPlatformConfigService {

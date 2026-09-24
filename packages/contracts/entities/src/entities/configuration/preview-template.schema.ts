@@ -1,6 +1,6 @@
 import z from "zod/v4";
 import { envNameSchema } from "@repo/contracts-common";
-import { mockEngineSchema } from "../service/mock-config.schema";
+import { mockEngineSchema } from "@repo/contracts-entities/entities/service/mock-config.schema";
 
 /**
  * PREVIEW SOURCE TEMPLATE — per-service declaration of how a preview of THIS

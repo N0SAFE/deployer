@@ -10,17 +10,25 @@ export const clusterEndpoints = {
   getSnapshot: orpc.cluster.getSnapshot,
   streamSnapshot: orpc.cluster.streamSnapshot,
   listNodes: orpc.cluster.listNodes,
+  streamNodes: orpc.cluster.streamNodes,
   getMaster: orpc.cluster.getMaster,
+  streamMaster: orpc.cluster.streamMaster,
   updateNode: orpc.cluster.updateNode,
   services: {
     list: orpc.cluster.listServices,
+    stream: orpc.cluster.streamServices,
   },
   tasks: {
     list: orpc.cluster.listTasks,
+    stream: orpc.cluster.streamTasks,
   },
   nodeResources: {
     get: orpc.cluster.getNodeResources,
     stream: orpc.cluster.streamNodeResources,
+  },
+  swarmConfig: {
+    get: orpc.cluster.getSwarmConfig,
+    set: orpc.cluster.setSwarmConfig,
   },
 } as const;
 

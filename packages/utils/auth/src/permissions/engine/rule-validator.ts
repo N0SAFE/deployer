@@ -13,10 +13,9 @@
  */
 
 import z from "zod/v4";
-import { MAX_FILTER_DEPTH } from "./filter-matcher";
-import { Variable } from "./types";
-import type { ProjectResource, ResourceRule } from "./types";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { MAX_FILTER_DEPTH } from "@repo/auth/permissions/engine/filter-matcher";
+import { Variable } from "@repo/auth/permissions/engine/types";
+import type { ProjectResource, ResourceRule } from "@repo/auth/permissions/engine/types";
 
 // ---------------------------------------------------------------------------
 // Resource & action schemas

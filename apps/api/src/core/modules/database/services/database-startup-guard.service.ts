@@ -9,6 +9,27 @@ import { DatabaseProbeService } from './database-probe.service'
 export class DatabaseStartupGuard {
   private readonly logger = new Logger(DatabaseStartupGuard.name)
 
+  /**
+   * How long to keep retrying a database that is not reachable yet.
+   *
+   * The platform's database may be a SWARM SERVICE, which means its task is
+   * scheduled asynchronously: right after swarm init (or after the service is
+   * (re)created) the container exists but its overlay DNS name does not resolve
+   * yet, and the name only appears once the task is running and the daemon has
+   * published the endpoint. A single-shot check therefore fails at random —
+   * observed in practice as `Hostname not resolved` on a boot where a manual
+   * `getent hosts deployer-postgres` succeeded seconds later.
+   *
+   * Booting must therefore WAIT for its dependency to converge instead of
+   * declaring the platform broken. The bound is generous enough to cover a
+   * swarm task being placed and started, and still fails fast when the database
+   * genuinely is not coming up.
+   */
+  private static readonly CONNECT_WAIT_MS = 60_000;
+
+  /** Backoff between connectivity attempts. */
+  private static readonly CONNECT_RETRY_MS = 2_000;
+
   constructor(
     private readonly nodeConfigRepository: NodeConfigRepository,
     private readonly lifecycle: AppLifecycleService,
@@ -23,14 +44,17 @@ export class DatabaseStartupGuard {
     }
     this.lifecycle.transition(AppLifecyclePhase.PROBING, { message: 'Testing database connectivity…' })
 
-    const client = await pool.connect().catch(() => null)
-    if (client) {
-      try {
-        await client.query('SELECT 1')
-        this.logger.log('✅ Database reachable')
-        return
-      } catch { /* fall through */ }
-      finally { client.release() }
+    const reachable = await this.tryPoolConnect(pool)
+    if (reachable) {
+      this.logger.log('✅ Database reachable')
+      return
+    }
+
+    // Not reachable on the first try — almost always because the dependency is
+    // still starting (swarm scheduling is asynchronous). Wait for it.
+    if (await this.waitForDatabase(pool, url)) {
+      this.logger.log('✅ Database reachable (after waiting for it to start)')
+      return
     }
 
     const recovered = await this.tryDockerContainerRecovery()
@@ -56,6 +80,57 @@ export class DatabaseStartupGuard {
     this.logger.error(errorMessage)
     this.lifecycle.transition(AppLifecyclePhase.ERROR, { error: errorMessage, databaseReachable: false })
     throw new AppError(errorMessage, "DATABASE_STARTUP_BLOCKED")
+  }
+
+  /**
+   * One `SELECT 1` over the shared pool. `false` means "not usable right now"
+   * (pool error, refused connection, unresolvable host, failing query) — the
+   * caller decides whether that is fatal or just early.
+   */
+  private async tryPoolConnect(pool: Pool): Promise<boolean> {
+    const client = await pool.connect().catch(() => null)
+    if (!client) return false
+    try {
+      await client.query('SELECT 1')
+      return true
+    } catch {
+      return false
+    } finally {
+      client.release()
+    }
+  }
+
+  /**
+   * Poll until the database answers or `CONNECT_WAIT_MS` elapses. Logs once at
+   * the start (so a slow dependency is visible) rather than on every attempt.
+   */
+  private async waitForDatabase(pool: Pool, url: string): Promise<boolean> {
+    const host = this.safeHost(url)
+    this.logger.log(
+      `⏳ Database at ${host} is not reachable yet — waiting up to ${String(DatabaseStartupGuard.CONNECT_WAIT_MS / 1000)}s for it to start…`,
+    )
+
+    const deadline = Date.now() + DatabaseStartupGuard.CONNECT_WAIT_MS
+    let attempts = 0
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, DatabaseStartupGuard.CONNECT_RETRY_MS))
+      attempts += 1
+      if (await this.tryPoolConnect(pool)) {
+        this.logger.log(`Database became reachable after ${String(attempts)} attempt(s)`)
+        return true
+      }
+    }
+    return false
+  }
+
+  /** Host:port of a connection string, for diagnostics (never the credentials). */
+  private safeHost(url: string): string {
+    try {
+      const parsed = new URL(url)
+      return `${parsed.hostname}:${parsed.port === '' ? '(default)' : parsed.port}`
+    } catch {
+      return '(unparseable connection string)'
+    }
   }
 
   private async tryDockerContainerRecovery(): Promise<boolean> {

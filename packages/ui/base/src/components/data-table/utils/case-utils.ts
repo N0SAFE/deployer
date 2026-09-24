@@ -17,7 +17,7 @@ export function toSnakeCase(str: string): string {
 export function toCamelCase(str: string): string {
   return str
     .toLowerCase()
-    .replace(/[-_\s](.)/g, (_, char) => char.toUpperCase());
+    .replace(/[-_\s](.)/g, (_match: string, char: string) => char.toUpperCase());
 }
 
 /**

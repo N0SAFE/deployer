@@ -27,7 +27,7 @@ export {
     type BasePaginationConfig,
     type BasePaginationSchemaOutput,
     type BasePaginationMetaSchemaOutput,
-} from "./pagination";
+} from "@repo/orpc-utils/operations/zod/utils/pagination";
 
 // Sorting - extends from base
 export {
@@ -44,7 +44,7 @@ export {
     // Re-export base types for reference
     type BaseSortingConfig,
     type BaseSortingSchemaOutput,
-} from "./sorting";
+} from "@repo/orpc-utils/operations/zod/utils/sorting";
 
 // Filtering - extends from base
 export {
@@ -72,7 +72,7 @@ export {
     type BaseFilterOperator,
     type BaseFieldFilterConfig,
     type BaseFilteringConfig,
-} from "./filtering";
+} from "@repo/orpc-utils/operations/zod/utils/filtering";
 
 // Search - extends from base
 export {
@@ -85,7 +85,7 @@ export {
     // Re-export base types for reference
     type BaseSearchConfig,
     type BaseSearchSchemaOutput,
-} from "./search";
+} from "@repo/orpc-utils/operations/zod/utils/search";
 
 // Query Builder
 export {
@@ -98,4 +98,4 @@ export {
     type ComputeInputSchema,
     type ComputeOutputSchema,
     type QueryBuilderOptions,
-} from "./query-builder";
+} from "@repo/orpc-utils/operations/zod/utils/query-builder";

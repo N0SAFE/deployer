@@ -1,5 +1,4 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { isRecord, isObjectLike } from "@repo/type-guards"
 
 /**
  * Type guard to check if column has id and size
@@ -11,8 +10,8 @@ import { isRecord, isObjectLike } from "@repo/type-guards"
  * to avoid the runtime lie.
  */
 function hasIdAndSize<TData>(
-  column: ColumnDef<TData, unknown>
-): column is ColumnDef<TData, unknown> & { id: string; size: number } {
+  column: ColumnDef<TData>
+): column is ColumnDef<TData> & { id: string; size: number } {
   return (
     'id' in column &&
     typeof column.id === 'string' &&
@@ -25,8 +24,8 @@ function hasIdAndSize<TData>(
  * Type guard to check if column has accessorKey and size
  */
 function hasAccessorKeyAndSize<TData>(
-  column: ColumnDef<TData, unknown>
-): column is ColumnDef<TData, unknown> & { accessorKey: string; size: number } {
+  column: ColumnDef<TData>
+): column is ColumnDef<TData> & { accessorKey: string; size: number } {
   return (
     'accessorKey' in column &&
     typeof column.accessorKey === 'string' &&
@@ -39,7 +38,7 @@ function hasAccessorKeyAndSize<TData>(
  * Extract default column sizes from column definitions
  */
 export function extractDefaultColumnSizes<TData>(
-  columns: ColumnDef<TData, unknown>[]
+  columns: ColumnDef<TData>[]
 ): Record<string, number> {
   const defaultSizing: Record<string, number> = {};
 
@@ -72,7 +71,7 @@ function isValidColumnSizing(value: unknown): value is Record<string, number> {
  * Initialize column sizes from localStorage or defaults
  */
 export function initializeColumnSizes<TData>(
-  columns: ColumnDef<TData, unknown>[],
+  columns: ColumnDef<TData>[],
   tableId: string,
   setColumnSizing: (sizes: Record<string, number>) => void
 ): void {
@@ -93,7 +92,7 @@ export function initializeColumnSizes<TData>(
       setColumnSizing(defaultSizing);
     } else {
       // Parse saved sizing
-      const parsedSizing = JSON.parse(savedSizing);
+      const parsedSizing: unknown = JSON.parse(savedSizing);
 
       // Validate the parsed sizing
       if (isValidColumnSizing(parsedSizing)) {

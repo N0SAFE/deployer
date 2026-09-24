@@ -57,8 +57,6 @@ export const projectEndpoints = {
   updateNotificationConfig: orpc.project.updateNotificationConfig,
 
   // Variable resolution and environment status
-  resolveVariables: orpc.project.resolveVariables,
-  getAvailableVariables: orpc.project.getAvailableVariables,
   getEnvironmentStatus: orpc.project.getEnvironmentStatus,
   getAllEnvironmentStatuses: orpc.project.getAllEnvironmentStatuses,
   refreshEnvironmentStatus: orpc.project.refreshEnvironmentStatus,

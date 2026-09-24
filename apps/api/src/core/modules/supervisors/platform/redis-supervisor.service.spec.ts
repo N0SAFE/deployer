@@ -8,7 +8,7 @@ import {
 	RedisSupervisorService,
 } from "./redis-supervisor.service";
 import type { DockerService } from "@/core/modules/docker/services/docker.service";
-import type { EnvService } from "@/config/env/env.service";
+import type { EnvService } from "@repo/nest-env";
 import type { DockerodeServiceSummary, DockerodeTaskSummary } from "@repo/contracts-entities";
 
 function makeDockerClient(swarmActive = true) {
@@ -78,7 +78,7 @@ function makeSupervisor(envOverrides: Partial<Record<string, unknown>> = {}, swa
 			services.set(name, svc);
 			return svc;
 		},
-		updateSwarmService: vi.fn(async () => ({ ID: "x", Version: { Index: 1 }, CreatedAt: "", UpdatedAt: "", Spec: { Name: "x", Labels: {}, TaskTemplate: {} } } as DockerodeServiceSummary)),
+		updateSwarmService: vi.fn(async () => undefined),
 		removeSwarmService: async () => undefined,
 	} as unknown as DockerService;
 
@@ -138,7 +138,7 @@ describe("RedisSupervisorService (swarm runtime)", () => {
 	it("computes the typed connection URL (managed override / password)", () => {
 		const { supervisor: managed } = makeSupervisor({ MANAGED_REDIS_ENABLED: "true", DEPLOYER_REDIS_URL: "redis://managed-redis:6379" });
 		expect(managed.getConnectionUrl()).toBe("redis://managed-redis:6379");
-		const { supervisor } = makeSupervisor({ MANAGED_REDIS_ENABLED: "false", DEPLOYER_REDIS_PASSWORD: "s3cret" });
+		const { supervisor } = makeSupervisor({ MANAGED_REDIS_ENABLED: "false", DEPLOYER_REDIS_URL: "", DEPLOYER_REDIS_PASSWORD: "s3cret" });
 		expect(supervisor.getConnectionUrl()).toBe("redis://s3cret@deployer-redis:6379");
 	});
 });

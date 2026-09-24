@@ -50,3 +50,8 @@ _experiment
 .docker
 # graphify output (272MB of JSON extraction artifacts)
 graphify-out/
+
+# ESLint cache (generated, per-package)
+.eslintcache
+**/.eslintcache
+/tmp

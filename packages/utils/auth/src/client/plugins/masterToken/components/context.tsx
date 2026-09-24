@@ -1,5 +1,5 @@
 import { createContext } from 'react'
-import type { MasterTokenManager as MTManager, MasterTokenSubscriber } from '../state'
+import type { MasterTokenManager as MTManager, MasterTokenSubscriber } from '@repo/auth/client/plugins/masterToken/state'
 
 export interface MasterTokenContextValue {
     enabled: boolean

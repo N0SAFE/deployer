@@ -7,15 +7,15 @@
  * opt-in: Zod) — the builder never calls the schema factories directly.
  */
 
-import type { AnySchema, UnionTuple } from "../../types/types";
-import type { ObjectSchema, VoidSchema, SchemaShape } from "../../types/standard-schema-helpers";
+import type { AnySchema, UnionTuple } from "@repo/orpc-utils/types/types";
+import type { ObjectSchema, VoidSchema, SchemaShape } from "@repo/orpc-utils/types/standard-schema-helpers";
 import { AsyncIteratorClass, eventIterator } from "@orpc/contract";
 import type { Schema } from "@orpc/contract";
-import { observable, type Observable } from "../../observable/contract";
-import type { PathParam, PathParamBuilderWithExisting, ParamsToSchemaShape } from "../core/params-builder";
-import { createPathParamBuilder } from "../core/params-builder";
-import { ProxyBuilderBase } from "../core/proxy-builder.base";
-import { s } from "../../operations/base/schema";
+import { observable, type Observable } from "@repo/orpc-utils/observable/contract";
+import type { PathParam, PathParamBuilderWithExisting, ParamsToSchemaShape } from "@repo/orpc-utils/builder/core/params-builder";
+import { createPathParamBuilder } from "@repo/orpc-utils/builder/core/params-builder";
+import { ProxyBuilderBase } from "@repo/orpc-utils/builder/core/proxy-builder.base";
+import { s } from "@repo/orpc-utils/operations/base/schema";
 import { isRecord } from "@repo/type-guards"
 import {
     BasePluginTransformer,
@@ -26,8 +26,8 @@ import {
     type PluginBuiltDetailedInput,
     type PluginIsEmptyObjectSchemaType,
     type PluginParamsShapeOf,
-} from "../plugin";
-import { DetailedInputBrand } from "../core/route-builder";
+} from "@repo/orpc-utils/builder/plugin/index";
+import { DetailedInputBrand } from "@repo/orpc-utils/builder/core/route-builder";
 
 /**
  * Query builder - exposes current query schema and entity schema for direct chaining
@@ -524,6 +524,11 @@ export class DetailedInputBuilder<
 
     /**
      * Omit fields from the current body schema (or entity schema when body is not object-like).
+     *
+     * Unknown field names are ignored rather than rejected. Zod v4's `.omit()`
+     * throws `Unrecognized key` for names absent from the shape, but callers
+     * pass field lists derived from elsewhere (a projection, a client request),
+     * so a stale name must not blow up the route. Only known keys are forwarded.
      */
     omit(fields: readonly string[]): DetailedInputBuilder<TParams, TQuery, AnySchema, THeaders, TEntitySchema, TPlugin> {
         const target = this._resolveObjectSchemaTarget();
@@ -531,13 +536,18 @@ export class DetailedInputBuilder<
             throw new Error("omit() can only be called on object schemas");
         }
 
-        const omitRecord = Object.fromEntries(fields.map((field) => [field, true])) as Record<string, true>;
+        const known = this._knownShapeKeys(target);
+        const omitRecord = Object.fromEntries(
+            fields.filter((field) => known === null || known.has(field)).map((field) => [field, true]),
+        ) as Record<string, true>;
         const schema = (target as { omit: (shape: Record<string, true>) => AnySchema }).omit(omitRecord);
         return new DetailedInputBuilder(this.$params, this.$query, schema, this.$headers, this.$entitySchema, this._pendingPath, this._plugin);
     }
 
     /**
      * Pick fields from the current body schema (or entity schema when body is not object-like).
+     *
+     * Unknown field names are dropped, for the same reason as {@link omit}.
      */
     pick(fields: readonly string[]): DetailedInputBuilder<TParams, TQuery, AnySchema, THeaders, TEntitySchema, TPlugin> {
         const target = this._resolveObjectSchemaTarget();
@@ -545,9 +555,22 @@ export class DetailedInputBuilder<
             throw new Error("pick() can only be called on object schemas");
         }
 
-        const pickRecord = Object.fromEntries(fields.map((field) => [field, true])) as Record<string, true>;
+        const known = this._knownShapeKeys(target);
+        const pickRecord = Object.fromEntries(
+            fields.filter((field) => known === null || known.has(field)).map((field) => [field, true]),
+        ) as Record<string, true>;
         const schema = (target as { pick: (shape: Record<string, true>) => AnySchema }).pick(pickRecord);
         return new DetailedInputBuilder(this.$params, this.$query, schema, this.$headers, this.$entitySchema, this._pendingPath, this._plugin);
+    }
+
+    /**
+     * Keys present in an object schema's shape, or null when the shape is not
+     * statically readable (in which case filtering is skipped).
+     */
+    private _knownShapeKeys(schema: unknown): Set<string> | null {
+        const shape = (schema as { shape?: unknown }).shape;
+        if (shape === null || typeof shape !== 'object') return null;
+        return new Set(Object.keys(shape as Record<string, unknown>));
     }
 
     /**

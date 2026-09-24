@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from 'vitest';
 import z from 'zod';
-import { RouteBuilder } from '../core/route-builder';
+import { RouteBuilder } from '@repo/orpc-utils/builder/core/route-builder';
 
 describe('Unified Input/Output API', () => {
   const userSchema = z.object({
@@ -92,7 +92,9 @@ describe('Unified Input/Output API', () => {
     it('supports builder callback pattern with property modifications', () => {
       const route = new RouteBuilder({ method: 'GET', path: '/users' })
         .output(userSchema)
-        .output(builder => builder.schema.omit(['password', 'createdAt']))
+        // `.schema` is the resolved Zod schema, so `omit` takes a shape object
+        // (`{ key: true }`), not an array of names.
+        .output(builder => builder.schema.omit({ password: true, createdAt: true }))
         .build();
 
       expect(route).toBeDefined();
@@ -134,7 +136,10 @@ describe('Unified Input/Output API', () => {
     it('outputBuilder property access still works', () => {
       const route = new RouteBuilder({ method: 'GET', path: '/users' })
         .output(userSchema)
-        .output(builder => builder.schema.omit(['password', 'createdAt']))
+        // `.schema` is the resolved Zod schema, so `omit` takes a shape object
+        // (`{ key: true }`), not an array of names. Zod v4 throws
+        // `Unrecognized key: "0"` for the array form.
+        .output(builder => builder.schema.omit({ password: true, createdAt: true }))
         .build();
 
       expect(route).toBeDefined();

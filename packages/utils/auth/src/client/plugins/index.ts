@@ -10,25 +10,25 @@ import type { BetterAuthClientPlugin } from "better-auth/client";
 import {
   platformAc,
   platformRoles,
-} from "../../permissions/index";
-import type { invitePlugin } from "../../server/plugins/invite";
+} from "@repo/auth/permissions/index";
+import type { invitePlugin } from "@repo/auth/server/plugins/invite";
 
 // ============================================================================
 // Re-export existing plugins
 // ============================================================================
 
-export { default as masterTokenClient } from "./masterToken";
-export { loginAsClientPlugin } from "./loginAs";
+export { default as masterTokenClient } from "@repo/auth/client/plugins/masterToken/index";
+export { loginAsClientPlugin } from "@repo/auth/client/plugins/loginAs/index";
 
 // Re-export guards
-export * from "./guards";
+export * from "@repo/auth/client/plugins/guards";
 
 // Re-export plugin utilities
-export * from "./masterToken/state";
-export type { MasterTokenActions } from "./masterToken/guard";
+export * from "@repo/auth/client/plugins/masterToken/state";
+export type { MasterTokenActions } from "@repo/auth/client/plugins/masterToken/guard";
 
 // Export components
-export { MasterTokenProvider, useMasterToken } from "./masterToken/components/provider";
+export { MasterTokenProvider, useMasterToken } from "@repo/auth/client/plugins/masterToken/components/provider";
 
 // ============================================================================
 // Admin Client Plugin
@@ -48,7 +48,7 @@ export { MasterTokenProvider, useMasterToken } from "./masterToken/components/pr
  * 
  * @example
  * ```typescript
- * import { useAdminClient } from '@repo/auth/client/plugins'
+ * import { useAdminClient } from '@repo/auth/client/plugins/index'
  * 
  * const authClient = createAuthClient({
  *   plugins: [useAdminClient()]
@@ -66,13 +66,10 @@ export { MasterTokenProvider, useMasterToken } from "./masterToken/components/pr
  * })
  * ```
  */
-export function useAdminClient(
-  options: Omit<Parameters<typeof adminClient>[0], "ac" | "roles"> = {}
-) {
+export function useAdminClient() {
   return adminClient({
     ac: platformAc,
     roles: platformRoles,
-    ...options,
   });
 }
 
@@ -92,7 +89,7 @@ export type AdminClientPlugin = ReturnType<typeof useAdminClient>;
  * 
  * @example
  * ```typescript
- * import { useInviteClient } from '@repo/auth/client/plugins'
+ * import { useInviteClient } from '@repo/auth/client/plugins/index'
  * 
  * const authClient = createAuthClient({
  *   plugins: [useInviteClient()]

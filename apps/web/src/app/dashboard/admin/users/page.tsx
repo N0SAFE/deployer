@@ -55,6 +55,8 @@ export default function AdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'banned'>('all')
   const [banDialogOpen, setBanDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<{ id: string; name: string } | null>(null)
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false)
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null)
   
   const pageSize = 20
   
@@ -103,9 +105,18 @@ export default function AdminUsersPage() {
   }
 
   const handleRemove = (userId: string) => {
-    if (confirm('Are you sure you want to permanently remove this user? This action cannot be undone.')) {
-      removeUser({ userId })
-    }
+    // Replaced a blocking `confirm()`: this file already uses <Dialog> for the
+    // ban flow, so an irreversible delete of the same kind was the only place
+    // still relying on the browser's unstyled prompt.
+    setRemoveTarget(usersData?.users?.find((u) => u.id === userId) ?? { id: userId, name: userId })
+    setRemoveDialogOpen(true)
+  }
+
+  const confirmRemove = () => {
+    if (!removeTarget) return
+    removeUser({ userId: removeTarget.id })
+    setRemoveDialogOpen(false)
+    setRemoveTarget(null)
   }
 
   const users = usersData?.users ?? []
@@ -197,6 +208,7 @@ export default function AdminUsersPage() {
             <div className="grid gap-2 sm:grid-cols-3">
               <Input
                 placeholder="Search name or email..."
+                aria-label="Search users by name or email"
                 value={search}
                 onChange={(event) => {
                   setSearch(event.target.value)
@@ -205,7 +217,7 @@ export default function AdminUsersPage() {
               <Select value={roleFilter} onValueChange={(value) => {
                 setRoleFilter(value as 'all' | PlatformRole)
               }}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Filter by role">
                   <SelectValue placeholder="Role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -219,7 +231,7 @@ export default function AdminUsersPage() {
               <Select value={statusFilter} onValueChange={(value) => {
                 setStatusFilter(value as 'all' | 'active' | 'banned')
               }}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Filter by status">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -410,6 +422,31 @@ export default function AdminUsersPage() {
                 </Button>
               )}
             </banForm.Subscribe>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={removeDialogOpen}
+        onOpenChange={(open) => {
+          setRemoveDialogOpen(open)
+          if (!open) setRemoveTarget(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove user</DialogTitle>
+            <DialogDescription>
+              Permanently remove {removeTarget?.name ?? 'this user'}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRemoveDialogOpen(false); setRemoveTarget(null) }}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmRemove} disabled={actionLoading.remove}>
+              Remove user
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -81,7 +81,8 @@ The hierarchy is live code, not just design:
 ```text
 core/modules/supervisors/
   base-supervisor.service.ts           ← BaseSupervisorService: state machine
-                                         (idle/converging/converged/degraded),
+                                         (idle/converging/converged/degraded/
+                                         pending), convergenceBlocker() deferral,
                                          runWithBackoff, getHealth, auto-
                                          registration via property-injected
                                          orchestrator + onModuleInit

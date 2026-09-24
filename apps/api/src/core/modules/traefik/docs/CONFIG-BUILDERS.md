@@ -77,7 +77,7 @@ const builder = TraefikConfigBuilder.load({
 
 ### Builder Methods
 
-> **Important**: The builder pattern uses `addRouter`, `addService`, `addMiddleware` methods. Getter/update/remove methods like `getRouter()`, `updateRouter()`, `removeRouter()` are **not implemented**. To modify existing configs, use `build()` to get the raw config, modify it, and use `TraefikConfigBuilder.load()` to create a new builder.
+> **Important**: `addRouter`, `addService`, and `addMiddleware` are **upsert-by-name** — they store into a `Map` keyed by name, so re-adding an existing name replaces that component, and the replacement is re-validated by the component builder's `build()`. There is no `getRouter()`, `updateRouter()`, or `removeRouter()`; use `build()` to read the raw config and `getStats()` for counts. To remove a component, `build()`, delete the key, then `TraefikConfigBuilder.load()` — but note `load()` does **not** re-validate entries, so prefer `add*` for anything you are *adding* or *changing*.
 
 #### Adding Routers
 

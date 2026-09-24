@@ -1,6 +1,6 @@
 import { Command, CommandRunner } from 'nest-commander';
 import { Injectable, Logger } from '@nestjs/common';
-import { EnvService } from '@/config/env/env.service';
+import { EnvService } from '@repo/nest-env';
 import { apiEnvSchema } from '@repo/env';
 import zod from 'zod/v4';
 import { CliAuthService } from '../services/cli-auth.service';

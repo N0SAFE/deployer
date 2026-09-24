@@ -19,7 +19,7 @@ import { Command, CommandRunner, Option } from "nest-commander";
 import { Injectable, Logger } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { NodeConfigRepository } from "@/core/modules/setup/repositories/node-config.repository";
-import type { SetupState } from "@/config/drizzle/local/schema/node-config";
+import type { SetupState } from "@repo/nest-schema/local/node-config";
 
 interface SetupDbOptions {
   url?: string;

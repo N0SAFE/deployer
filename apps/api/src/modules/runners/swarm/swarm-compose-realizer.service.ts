@@ -24,7 +24,7 @@
 
 import { Injectable, Logger } from "@nestjs/common";
 import { parse } from "yaml";
-import { BadRequestError } from "@repo/errors";
+import { AppError, BadRequestError } from "@repo/errors";
 import type {
     ComposeCompatibilityIssue,
     ComposeCompatibilityReport,
@@ -40,7 +40,7 @@ import type {
 } from "@repo/contracts-entities";
 import { composeModelSchema, composeServiceModelSchema } from "@repo/contracts-entities";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
-import { toDockerServiceSpec } from "./swarm-spec.mapper";
+import { toDockerServiceSpec } from "@/core/modules/swarm/services/swarm-spec.mapper";
 
 // ─── Compose value normalizers (string forms → typed values) ────────────────
 
@@ -124,7 +124,7 @@ function normalizePorts(raw: unknown): ComposePort[] {
                     targetPort: target,
                     publishedPort:
                         record.published !== undefined ? Number(record.published) : undefined,
-                    protocol: (record.protocol === "udp" ? "udp" : "tcp") as ComposePort["protocol"],
+                    protocol: (record.protocol === "udp" ? "udp" : "tcp"),
                 });
             }
         }
@@ -177,7 +177,7 @@ function normalizeMounts(raw: unknown): ComposeServiceModel["mounts"] {
                   : ("bind" as const);
             const source = typeof record.source === "string" ? record.source : "";
             out.push({
-                type: type as ComposeServiceModel["mounts"][number]["type"],
+                type: type,
                 source,
                 target: typeof record.target === "string" ? record.target : "",
                 readOnly: record.read_only === true || record.readOnly === true,
@@ -262,11 +262,11 @@ function normalizeDeploy(raw: unknown, rawRestart?: unknown): ComposeDeploy {
 function normalizeRefs(raw: unknown): string[] {
     if (Array.isArray(raw)) {
         return raw
-            .map((entry) => (typeof entry === "string" ? entry : (entry as Record<string, unknown>)?.source))
+            .map((entry) => (typeof entry === "string" ? entry : (entry as Record<string, unknown>).source))
             .filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
     }
     if (typeof raw === "object" && raw !== null) {
-        return Object.keys(raw as Record<string, unknown>);
+        return Object.keys(raw);
     }
     return [];
 }
@@ -297,7 +297,7 @@ function buildServiceModel(name: string, raw: Record<string, unknown>): ComposeS
         dependsOn: Array.isArray(raw.depends_on)
             ? raw.depends_on.map(String)
             : typeof raw.depends_on === "object" && raw.depends_on !== null
-              ? Object.keys(raw.depends_on as Record<string, unknown>)
+              ? Object.keys(raw.depends_on)
               : [],
         networks: normalizeStringList(raw.networks),
         ports: normalizePorts(raw.ports),
@@ -317,7 +317,7 @@ function normalizeLabels(raw: unknown): Record<string, string> {
         Object.entries(raw as Record<string, string>)
             .filter(([, value]) => typeof value === "string")
             .map(([key, value]) => [key, value]),
-    ) as Record<string, string>;
+    );
 }
 
 function normalizeStringList(raw: unknown): string[] {
@@ -325,7 +325,7 @@ function normalizeStringList(raw: unknown): string[] {
         return raw.filter((entry): entry is string => typeof entry === "string");
     }
     if (typeof raw === "object" && raw !== null) {
-        return Object.keys(raw as Record<string, unknown>);
+        return Object.keys(raw);
     }
     return [];
 }
@@ -353,7 +353,8 @@ function topoOrder(services: ComposeServiceModel[]): ComposeServiceModel[] {
     }
     const ordered: ComposeServiceModel[] = [];
     while (ready.length > 0) {
-        const current = ready.shift()!;
+        const current = ready.shift();
+        if (current === undefined) break;
         const service = byName.get(current);
         if (service) {
             ordered.push(service);
@@ -554,12 +555,14 @@ export class SwarmComposeRealizerService {
                         : {}),
                 },
                 resourcesReservations: {},
+                // Swarm resolves a sibling service by its SERVICE name on a
+                // shared overlay, so no aliases are needed here.
                 networks: [
                     ...baseNetworks,
                     ...service.networks
                         .filter((name) => name !== "default" && model.networks[name])
                         .map((name) => `deployer-${context.projectId}-${name}`),
-                ],
+                ].map((name) => ({ target: name, aliases: [] })),
                 healthcheck: service.healthcheck,
                 updateConfig: {
                     parallelism: 1,
@@ -572,6 +575,7 @@ export class SwarmComposeRealizerService {
                     ...(port.publishedPort !== undefined ? { publishedPort: port.publishedPort } : {}),
                     protocol: port.protocol,
                 })),
+                stopGracePeriodSeconds: 30,
             };
             return { serviceName: service.name, spec };
         });
@@ -617,7 +621,7 @@ export class SwarmComposeRealizerService {
             networks.push(network.name);
         }
 
-        const existingSecrets = new Set((await dockerService.listSwarmSecrets()).map((secret) => secret.Spec?.Name));
+        const existingSecrets = new Set((await dockerService.listSwarmSecrets()).map((secret) => secret.Spec.Name));
         for (const secret of plan.secrets) {
             if (!existingSecrets.has(secret.name)) {
                 await dockerService.createSwarmSecret({
@@ -629,7 +633,7 @@ export class SwarmComposeRealizerService {
             secrets.push(secret.name);
         }
 
-        const existingConfigs = new Set((await dockerService.listSwarmConfigs()).map((config) => config.Spec?.Name));
+        const existingConfigs = new Set((await dockerService.listSwarmConfigs()).map((config) => config.Spec.Name));
         for (const config of plan.configs) {
             if (!existingConfigs.has(config.name)) {
                 await dockerService.createSwarmConfig({
@@ -651,6 +655,13 @@ export class SwarmComposeRealizerService {
             } catch (error: unknown) {
                 if (error instanceof Error && error.message.toLowerCase().includes("not found")) {
                     const created = await dockerService.createSwarmService(spec);
+                    if (created.ID === undefined) {
+                        throw new AppError(
+                        `Swarm service ${serviceName} was created without an ID`,
+                        "SWARM_SERVICE_MISSING_ID",
+                        { serviceName },
+                    );
+                    }
                     createdServices.push(created.ID);
                 } else {
                     throw error;

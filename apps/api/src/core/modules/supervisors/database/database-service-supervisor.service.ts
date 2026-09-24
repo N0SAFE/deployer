@@ -28,18 +28,21 @@ import {
 	baseSupervisorPayloadSchema,
 	type SupervisorProbeResult,
 } from "../base-supervisor.service";
+import { BaseDockerSupervisorService } from "@/core/modules/docker/services/base-docker-supervisor.service";
 import {
-	BaseDockerSupervisorService,
-	type DockerSupervisorContainerSpec,
-} from "@/core/modules/docker/services/base-docker-supervisor.service";
+	resolveSupervisorRuntime,
+	type DockerSupervisorRuntime,
+} from "@/core/modules/docker/services/docker-supervisor-runtime";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
 import {
 	baseSupervisorProcessInfoSchema,
-	dockerProcessInfoSchema,
+	swarmProcessInfoSchema,
 } from "../supervisor-process-info";
-import { EnvService } from "@/config/env/env.service";
+import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
+import { EnvService } from "@repo/nest-env";
 import { splitManagedEnv } from "@repo/env";
 import { PLATFORM_ROLE_LABEL, PlatformNetwork } from "../platform/traefik-supervisor.service";
+import { AppError, ConflictError } from "@repo/errors";
 
 export const DATABASE_SERVICE_SUPERVISOR_ID = "database-service";
 
@@ -54,17 +57,8 @@ export const DATABASE_INSTANCE_PREFIX = "deployer-database";
 
 const databaseInstancePayloadSchema = baseSupervisorPayloadSchema.extend({
 	instance: z.string(),
-	container: z
-		.object({
-			id: z.string(),
-			name: z.string(),
-			image: z.string(),
-			running: z.boolean(),
-			exitCode: z.number().int().nullable(),
-			restartCount: z.number().int().min(0),
-			startedAt: z.string().datetime().nullable(),
-		})
-		.nullable(),
+	/** Live view of the instance's swarm service (null when absent). */
+	service: swarmProcessInfoSchema.shape.live.nullable(),
 	urlSafe: z.string(),
 });
 type DatabaseInstancePayload = z.output<typeof databaseInstancePayloadSchema>;
@@ -76,7 +70,7 @@ const databaseServicePayloadSchema = baseSupervisorPayloadSchema.extend({
 type DatabaseServicePayload = z.output<typeof databaseServicePayloadSchema>;
 
 const databaseInstanceProcessInfoSchema = baseSupervisorProcessInfoSchema.extend({
-	process: dockerProcessInfoSchema,
+	process: swarmProcessInfoSchema,
 	name: z.string(),
 	urlSafe: z.string(),
 });
@@ -144,58 +138,122 @@ class DatabaseInstanceSupervisor extends BaseDockerSupervisorService<
 		return `${this.dataVolumeBase}-${this.instanceAlias}`;
 	}
 
-	protected buildContainerSpec(): DockerSupervisorContainerSpec {
+	/** Swarm SERVICE name for this instance (same DNS alias consumers use). */
+	private get serviceName(): string {
+		return `${DATABASE_INSTANCE_PREFIX}-${this.instanceAlias}`;
+	}
+
+	/** Runtime: mesh-wide → swarm-replicated (instance reachable by alias). */
+	private async effectiveRuntime(): Promise<DockerSupervisorRuntime> {
+		return (
+			await resolveSupervisorRuntime({
+				managed: false,
+				rawRuntime: process.env.SUPERVISOR_RUNTIME,
+				swarmActive: await this.isSwarmActive(),
+				scope: "mesh-wide",
+			})
+		).runtime;
+	}
+
+	/**
+	 * Desired swarm spec for ONE database-service instance.
+	 *
+	 * REPLICATED (not global): each instance is a single logical database.
+	 * The instance NAME is registered as the network alias — consumers connect
+	 * with `postgresql://…@db-<instance>:5432/…`, so the alias, not the service
+	 * name, is the contract the URL depends on.
+	 */
+	protected buildSwarmSpec(): SwarmServiceSpecInput {
 		return {
-			name: this.containerName,
+			name: this.serviceName,
 			image: this.image,
-			networkName: this.platformNetwork,
+			mode: "replicated",
+			replicas: 1,
 			env: [
 				`POSTGRES_DB=${this.dbName}`,
 				`POSTGRES_USER=${this.user}`,
 				`POSTGRES_PASSWORD=${this.password}`,
 			],
-			binds: [`${this.dataVolume}:/var/lib/postgresql/data`],
+			command: [],
+			args: [],
 			labels: {
 				[PLATFORM_ROLE_LABEL]: DATABASE_ROLE,
 				"deployer.database.instance": this.instanceName,
 			},
-			restartPolicy: "unless-stopped",
+			containerLabels: {},
+			mounts: [{ type: "volume", source: this.dataVolume, target: "/var/lib/postgresql/data", readOnly: false }],
+			placementPreferences: [],
+			placementConstraints: [],
+			resourcesLimits: {},
+			resourcesReservations: {},
+			networks: [],
+			healthcheck: {
+				test: ["CMD-SHELL", `pg_isready -U ${this.user} -d ${this.dbName}`],
+				intervalMs: 5_000,
+				timeoutMs: 5_000,
+				retries: 12,
+				startPeriodMs: 5_000,
+			},
+			updateConfig: { parallelism: 1, delayMs: 0, order: "start-first", failureAction: "rollback" },
+			// A database must checkpoint on shutdown — SIGKILL corrupts it.
+			stopGracePeriodSeconds: 60,
+			endpointPorts: [],
 		};
 	}
 
+	/** One idempotent convergence pass: overlay → volume → converge the service. */
 	protected async reconcile(): Promise<void> {
+		const runtime = await this.effectiveRuntime();
+		if (runtime === "unavailable") {
+			throw new AppError(
+				`Database instance '${this.instanceName}' requires an active swarm engine (no container fallback) — SwarmBootstrapService should have converged the engine`,
+				"SWARM_UNAVAILABLE",
+				{ supervisor: "database-service", instance: this.instanceName },
+			);
+		}
+		if (runtime === "managed") {
+			// The deployment owns this instance — nothing to converge.
+			return;
+		}
+
 		await this.runWithBackoff(
 			`Database instance '${this.instanceName}' convergence`,
 			async () => {
-				const spec = this.buildContainerSpec();
-				const networkId = spec.networkName !== undefined ? await this.ensureNetwork(spec.networkName) : undefined;
 				await this.ensureVolume(this.dataVolume);
-
-				const inspect = await this.inspectContainer(spec.name);
-				try {
-					if (inspect === null) {
-						await this.pullImage(spec.image);
-						const container = await this.createContainer(spec, networkId);
-						await container.start();
-					} else if (!inspect.State.Running) {
-						await this.client.getContainer(spec.name).start();
-					}
-				} catch (startError) {
-					await this.removeContainerIfExists(spec.name);
-					throw startError;
-				}
-
-				await this.verifyConvergence(spec);
+				const overlay = await this.ensureSwarmNetwork(this.platformNetwork);
+				const spec = this.buildSwarmSpec();
+				// The instance NAME is the DNS contract (`db-<instance>`).
+				this.attachOverlay(spec, overlay, [this.instanceAlias, spec.name]);
+				await this.reconcileSwarmService(spec);
+				await this.verifySwarmService(spec.name);
 			},
 			{ maxAttempts: 3 },
 		);
 	}
 
+	/** The instance service's live state (exists + running task count). */
+	private async serviceLive(
+		name: string,
+	): Promise<{ serviceId: string | null; exists: boolean; runningTasks: number; totalTasks: number }> {
+		try {
+			const service = await this.dockerService.inspectSwarmService(name);
+			const tasks = await this.dockerService.listSwarmServiceTasks(name).catch(() => []);
+			return {
+				serviceId: service.ID ?? null,
+				exists: true,
+				runningTasks: tasks.filter((task) => task.Status.State === "running").length,
+				totalTasks: tasks.length,
+			};
+		} catch {
+			return { serviceId: null, exists: false, runningTasks: 0, totalTasks: 0 };
+		}
+	}
+
 	protected async probe(): Promise<SupervisorProbeResult<typeof databaseInstancePayloadSchema>> {
 		const startedAt = Date.now();
-		const spec = this.buildContainerSpec();
-		const inspect = await this.inspectContainer(spec.name);
-		const running = inspect !== null && inspect.State.Running;
+		const name = this.serviceName;
+		const live = await this.serviceLive(name);
+		const running = live.runningTasks > 0;
 		return {
 			healthy: running,
 			...(running ? {} : { detail: `Database instance '${this.instanceName}' is not running` }),
@@ -203,15 +261,15 @@ class DatabaseInstanceSupervisor extends BaseDockerSupervisorService<
 				checkedAt: new Date().toISOString(),
 				latencyMs: Date.now() - startedAt,
 				instance: this.instanceName,
-				container: inspect
+				service: live.exists
 					? {
-							id: inspect.Id,
-							name: spec.name,
-							image: spec.image,
-							running: inspect.State.Running,
-							exitCode: inspect.State.ExitCode ?? null,
-							restartCount: inspect.RestartCount ?? 0,
-							startedAt: inspect.State.StartedAt ?? null,
+							serviceId: live.serviceId,
+							exists: true,
+							createdAt: null,
+							updatedAt: null,
+							serviceName: name,
+							runningTasks: live.runningTasks,
+							totalTasks: live.totalTasks,
 						}
 					: null,
 				urlSafe: this.urlSafe,
@@ -224,24 +282,24 @@ class DatabaseInstanceSupervisor extends BaseDockerSupervisorService<
 			checkedAt: new Date().toISOString(),
 			latencyMs: 0,
 			instance: this.instanceName,
-			container: null,
+			service: null,
 			urlSafe: this.urlSafe,
 		};
 	}
 
 	protected async buildProcessInfo(): Promise<Record<string, unknown>> {
-		const spec = this.buildContainerSpec();
+		const spec = this.buildSwarmSpec();
 		return {
-			process: await this.describeDockerProcess(spec),
-			name: this.containerName,
+			process: await this.describeSwarmProcess(spec),
+			name: this.serviceName,
 			urlSafe: this.urlSafe,
 		};
 	}
 
-	private async verifyConvergence(spec: DockerSupervisorContainerSpec): Promise<void> {
-		const live = await this.inspectContainer(spec.name);
-		if (live === null || !live.State.Running) {
-			throw new Error(`Database instance container '${spec.name}' did not start`);
+	private async verifySwarmService(name: string): Promise<void> {
+		const service = await this.dockerService.inspectSwarmService(name);
+		if (service.ID === undefined || service.ID === "") {
+			throw new ConflictError(`database instance service '${name}'`, "was not created");
 		}
 	}
 }
@@ -320,7 +378,8 @@ export class DatabaseServiceSupervisorService extends BaseMultiSupervisorService
 		const childPayloads = childSnapshots
 			.map((s) => (s as { payload?: DatabaseInstancePayload }).payload)
 			.filter((p): p is DatabaseInstancePayload => p !== undefined);
-		const allHealthy = childPayloads.length > 0 && childPayloads.every((p) => p.container?.running);
+		const allHealthy =
+			childPayloads.length > 0 && childPayloads.every((p) => (p.service?.runningTasks ?? 0) > 0);
 		return {
 			healthy: allHealthy,
 			...(allHealthy ? {} : { detail: "one or more database instances not running" }),

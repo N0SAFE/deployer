@@ -3,7 +3,7 @@ import {
   clusterNodes,
   clusterServerAllocations,
   clusterAdmissionRequests,
-} from "@/config/drizzle/global/schema";
+} from "@repo/nest-schema/global";
 import { FleetRepository } from "../repositories/fleet.repository";
 
 type ServerRow = typeof clusterNodes.$inferSelect;
@@ -79,7 +79,18 @@ export class FleetService {
         if (!row) {
             throw new NotFoundException(`Cluster node ${input.serverNodeId} not found`);
         }
-        return this.toServerSummary(row, null, { services: 0, cpuMillicores: 0, memoryMb: 0 });
+        const allocations = await this.fleetRepository.listEnabledAllocations();
+        const allocationSummary = allocations.reduce(
+            (summary, allocation) => {
+                if (allocation.serverNodeId !== input.serverNodeId) return summary;
+                summary.services += 1;
+                summary.cpuMillicores += allocation.cpuMillicores ?? 0;
+                summary.memoryMb += allocation.memoryMb ?? 0;
+                return summary;
+            },
+            { services: 0, cpuMillicores: 0, memoryMb: 0 },
+        );
+        return this.toServerSummary(row, null, allocationSummary);
     }
 
     // ── Allocations ────────────────────────────────────────────────

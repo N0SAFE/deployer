@@ -10,7 +10,9 @@ export const supervisorHealthSchema = z.object({
   supervisorId: z.string(),
   description: z.string(),
   healthy: z.boolean(),
-  state: z.enum(["idle", "converging", "converged", "degraded"]),
+  // `pending` = deferred: a precondition does not exist yet (e.g. a swarm-only
+  // service before setup created the cluster). Distinct from `degraded`.
+  state: z.enum(["idle", "converging", "converged", "degraded", "pending"]),
   detail: z.string().nullable(),
   checkedAt: z.string(),
 });

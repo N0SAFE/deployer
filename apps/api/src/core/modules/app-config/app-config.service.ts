@@ -8,7 +8,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
-import * as globalSchema from "@/config/drizzle/global/schema";
+import * as globalSchema from "@repo/nest-schema/global";
 
 export interface GitHubOAuthConfig {
   clientId: string;

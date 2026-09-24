@@ -9,7 +9,7 @@
  */
 
 import { Injectable } from "@nestjs/common";
-import { EnvService } from "@/config/env/env.service";
+import { EnvService } from "@repo/nest-env";
 
 export const DEPLOYER_BASE_HOST = "deployer.localhost";
 

@@ -11,7 +11,7 @@
  *   - `parent`   : direct parent resource + FK column + parent table name (null for roots)
  */
 
-import type { ProjectResource } from "./types";
+import type { ProjectResource } from "@repo/auth/permissions/engine/types";
 
 export interface ResourceNode {
     /** DB table name (exact, as declared in Drizzle schema). */

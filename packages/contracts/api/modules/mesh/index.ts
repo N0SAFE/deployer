@@ -3,15 +3,12 @@ export * from "./resource";
 import z from "zod/v4";
 import { oc } from "@orpc/contract";
 import {
-    createFilterConfig,
-    error,
-    meshDomainErrorContracts,
+        meshDomainErrorContracts,
     standard,
     type ComputeInputSchema,
 } from "@repo/orpc-utils";
 import {
-    coreEventScopeSchema,
-    coreEventStreamDefinitionSchema,
+      coreEventStreamDefinitionSchema,
     coreSyncedEventEnvelopeSchema,
     meshResourceIndexUpsertInputSchema,
     meshResourceIndexUpsertResultSchema,
@@ -159,7 +156,7 @@ export const meshGetLocalNodeContract = meshNodeStateOps
     .list()
     .path("/node/local")
     .input(z.object({}))
-    .output((b) => meshNodeStateSchema)
+    .output(() => meshNodeStateSchema)
     .build();
 
 /**
@@ -319,14 +316,14 @@ export const meshIssueJoinGrantContract = meshJoinGrantIssueOps
     .create()
     .path("/enrollment/grants/issue")
     .input((b) => b.body(meshJoinGrantIssueInputSchema))
-    .output((b) => meshJoinGrantIssueResultSchema)
+    .output(() => meshJoinGrantIssueResultSchema)
     .build();
 
 export const meshConsumeJoinGrantContract = meshJoinGrantConsumeOps
     .create()
     .path("/enrollment/grants/consume")
     .input((b) => b.body(meshJoinGrantConsumeInputSchema))
-    .output((b) => meshJoinGrantConsumeResultSchema)
+    .output(() => meshJoinGrantConsumeResultSchema)
     .errors((e) => [
         // The bootstrap handoff throws MeshNotFoundError when the grant
         // has been revoked / already used / never existed. The HTTP
@@ -341,14 +338,14 @@ export const meshRegisterNodeContract = meshRegisterNodeOps
     .create()
     .path("/enrollment/register")
     .input((b) => b.body(meshRegisterNodeInputSchema))
-    .output((b) => meshRegisterNodeResultSchema)
+    .output(() => meshRegisterNodeResultSchema)
     .build();
 
 export const meshRevokeJoinGrantContract = meshJoinGrantRevokeOps
     .create()
     .path("/enrollment/grants/revoke")
     .input((b) => b.body(meshJoinGrantRevokeInputSchema))
-    .output((b) => meshJoinGrantRevokeResultSchema)
+    .output(() => meshJoinGrantRevokeResultSchema)
     .errors((e) => [
         // Throws MeshNotFoundError (when the grant id doesn't exist) and
         // MeshAuthorizationError (when the caller isn't super-admin).
@@ -396,6 +393,15 @@ export const meshTrustStrictModeSetContract = meshTrustStrictModeSetOps
     .path("/trust/strict/mode")
     .input((b) => b.body(meshTrustStrictModeSetInputSchema))
     .output(meshTrustStrictModeSetResultSchema)
+    .errors((e) => [
+        // Throws MeshAuthorizationError when the caller is not super-admin, and
+        // MeshValidationError when readiness has not converged (or when the mode is
+        // pinned by environment and cannot be changed at runtime). Declaring them
+        // is what lets the client tell "you may not" from "the server broke":
+        // undeclared, the domain error has no wire shape to match, so the response
+        // degrades to a bare 500 and the UI can only say "Unknown error".
+        ...meshDomainErrorContracts(e),
+    ])
     .build();
 
 export const meshTrustStrictRolloutPlanContract = meshTrustStrictRolloutPlanOps
@@ -410,6 +416,11 @@ export const meshTrustStrictRollbackContract = meshTrustStrictRollbackOps
     .path("/trust/strict/rollback")
     .input((b) => b.body(meshTrustStrictRollbackInputSchema))
     .output(meshTrustStrictRollbackResultSchema)
+    .errors((e) => [
+        // Same three refusals as the mode-set above: not super-admin, pinned by
+        // environment, or no active rollback recommendation without force=true.
+        ...meshDomainErrorContracts(e),
+    ])
     .build();
 
 export const meshGetNodeConfigContract = meshNodeConfigOps

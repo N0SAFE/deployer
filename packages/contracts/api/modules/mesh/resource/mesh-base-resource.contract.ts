@@ -37,6 +37,9 @@ export const meshBaseResourceContract = ops
       )
       .body(meshResourceBodySchema),
   )
-  .output((b) => b.body(meshResourceOutputSchema))
+  // 200, NOT the 201 that create() stamps by default: this one route dispatches
+  // method-agnostic operations (list/read/create/update/delete) for every
+  // entity, so "Created" would be wrong for the reads and updates.
+  .output((b) => b.body(meshResourceOutputSchema).status(200))
   .errors((e) => meshDomainErrorContracts(e))
   .build();

@@ -16,7 +16,16 @@ const config: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  reactCompiler: true, // disable react compiler because of errors with docker and new bun 1.3.0
+  experimental: {
+    turbopackRustReactCompiler: true,
+  },
+  // React Compiler: automatic memoization.
+  reactCompiler: true,
+  // Cache Components: `use cache` + Partial Prerendering.
+  cacheComponents: true,
+  partialPrefetching: true,
+  // Fumadocs ships untranspiled ESM, so Next must compile it.
+  transpilePackages: ['fumadocs-core', 'fumadocs-ui', 'fumadocs-mdx'],
   // Monorepo: tell Turbopack the workspace root so it can resolve `next` from
   // the hoisted `node_modules` at the repo root. Without this, Next.js 16+ with
   // Turbopack errors with "could not find next/package.json" in Docker

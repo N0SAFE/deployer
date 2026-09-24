@@ -203,8 +203,8 @@ describe("Mesh E2E: Advanced SSE Stream Store", () => {
       const cA = consumerId();
       const cB = consumerId();
 
-      const a$ = registry.buildConsumerObservable(stream$, cA);
-      const b$ = registry.buildConsumerObservable(stream$, cB);
+      const a$ = registry.buildConsumerObservable<{ id: string }>(stream$, cA);
+      const b$ = registry.buildConsumerObservable<{ id: string }>(stream$, cB);
 
       const receivedA: string[] = [];
       const receivedB: string[] = [];
@@ -254,7 +254,7 @@ describe("Mesh E2E: Advanced SSE Stream Store", () => {
       const stream$ = new Subject<any>();
       const cA = consumerId();
 
-      const a$ = registry.buildConsumerObservable(stream$, cA);
+      const a$ = registry.buildConsumerObservable<{ id: string }>(stream$, cA);
       const received: string[] = [];
 
       const sub = a$.subscribe((payload) => received.push(payload.id));

@@ -1,6 +1,6 @@
 import { createAuthClient } from 'better-auth/react'
 import type { BetterAuthClientOptions, BetterAuthClientPlugin } from 'better-auth/client'
-import { inferAdditionalFields } from 'better-auth/client/plugins'
+import { inferAdditionalFields, multiSessionClient } from 'better-auth/client/plugins'
 import type { betterAuthFactory, useAdmin } from '../server'
 import {
     masterTokenClient,
@@ -21,6 +21,7 @@ const DEFAULT_PLUGINS = [
   masterTokenClient(),
   loginAsClientPlugin(),
   useInviteClient(),
+  multiSessionClient(),
   useAdminClient(),
   inferAdditionalFields<AuthInstance>(),
 ]
@@ -45,7 +46,7 @@ interface InferredClientOptions {
 
 /**
  * Factory function to create a Better Auth client with the platform's default
- * plugins (master token, login-as, invite, admin,
+ * plugins (master token, login-as, invite, multi-session, admin,
  * `inferAdditionalFields`) and the server-side admin plugin types wired
  * through `$InferAuth` so the admin RPC methods are typed under both tsc
  * and tsgo.

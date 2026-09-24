@@ -2,13 +2,17 @@
   "compilerOptions": {
     "incremental": true,
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "rootDir": "./",
     "module": "ES2022",
     "moduleResolution": "bundler",
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "strict": true,
     "strictBindCallApply": false,
     "strictNullChecks": true,
@@ -22,9 +26,23 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "paths": {
-      "@/*": ["./*"]
+      "@repo/api-contracts/*": [
+        "./src/*"
+      ]
     }
   },
-  "include": ["src/**/*", "modules/**/*", "common/**/*", "index.ts", "types.ts"],
-  "exclude": ["node_modules", "dist", ".turbo", "scripts", "*.txt"]
+  "include": [
+    "src/**/*",
+    "modules/**/*",
+    "common/**/*",
+    "index.ts",
+    "types.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    ".turbo",
+    "scripts",
+    "*.txt"
+  ]
 }

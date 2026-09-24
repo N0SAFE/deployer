@@ -6,27 +6,40 @@ import zod from 'zod/v4'
 export const trimTrailingSlash = (url: string) => (url.endsWith('/') ? url.slice(0, -1) : url)
 
 /**
- * Helper to create URL validators with production guards and dev fallbacks
+ * Helper to create URL validators with production guards.
+ *
+ * Empty is rejected in every environment. Production additionally reports the
+ * var as *required* rather than as a malformed URL, which is the actionable
+ * message for a missing deployment value.
+ *
+ * The `fallback` parameter is inert: an empty value throws before any fallback
+ * could be applied (this was already the behaviour of the previous
+ * `.url().superRefine(...)` chain, where `.url()` rejected `''` first). It is
+ * retained because it is part of the call signature used across the workspace.
+ *
  * @param name - Environment variable name for error messages
- * @param fallback - Fallback URL for development/test environments
+ * @param _fallback - Unused; see above
  * @returns Zod URL schema with production validation
  */
-export const guardedUrl = (name: string, fallback: string) =>
+export const guardedUrl = (name: string, _fallback: string) =>
     zod
-        .url()
+        .string()
         .superRefine((val, ctx) => {
-            // If we had to use a fallback in production, surface a hard error.
-            if (process.env.NODE_ENV === 'production') {
-                if (!val) {
-                    ctx.addIssue({ 
-                        code: 'custom', 
-                        message: `${name} is required in production but was not provided` 
-                    })
-                }
-                ctx.value = val;
-                return;
+            if (!val) {
+                ctx.addIssue({
+                    code: 'custom',
+                    message:
+                        process.env.NODE_ENV === 'production'
+                            ? `${name} is required in production but was not provided`
+                            : `${name} is required but was not provided`,
+                })
+                return
             }
-            ctx.value = val || fallback;
+            if (!zod.url().safeParse(val).success) {
+                ctx.addIssue({ code: 'custom', message: `${name} must be a valid URL` })
+                return
+            }
+            ctx.value = val
         })
         .transform(trimTrailingSlash)
 

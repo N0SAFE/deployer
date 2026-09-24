@@ -1,8 +1,9 @@
-import { Controller } from "@nestjs/common";
+import { Controller, NotImplementedException } from "@nestjs/common";
 import { Implement, implement } from "@orpc/nest";
 import { projectContract } from "@repo/api-contracts";
 import { ProjectService } from "../services/project.service";
 import { ProjectNetworkService } from "../services/project-network.service";
+import { ProjectRepository } from "../repositories/project.repository";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 
 @Controller()
@@ -10,6 +11,7 @@ export class ProjectController {
     constructor(
         private readonly projectService: ProjectService,
         private readonly projectNetworkService: ProjectNetworkService,
+        private readonly projectRepository: ProjectRepository,
     ) {}
 
     // ========================================
@@ -341,32 +343,17 @@ export class ProjectController {
     // UTILITIES
     // ========================================
 
-    @Implement(projectContract.resolveVariables)
-    resolveVariables() {
-        return implement(projectContract.resolveVariables).use(requireAuth()).handler(async ({ input, context }) => {
-            const userId = context.auth.user.id;
-            return this.projectService.resolveVariables(input.params.id, userId, input.body);
-        });
-    }
-
-    @Implement(projectContract.getAvailableVariables)
-    getAvailableVariables() {
-        return implement(projectContract.getAvailableVariables).use(requireAuth()).handler(async ({ input, context }) => {
-            const userId = context.auth.user.id;
-            return this.projectService.getAvailableVariables(input.params.id, userId, input.query);
-        });
-    }
-
     @Implement(projectContract.getEnvironmentStatus)
     getEnvironmentStatus() {
         return implement(projectContract.getEnvironmentStatus).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
             const env = await this.projectService.getEnvironment(input.params.id, userId, input.params.environmentId);
+            const servicesCount = await this.projectRepository.countEnabledServicesForEnvironment(env.id);
             return {
                 environmentId: env.id,
                 status: env.status,
-                servicesCount: 0, // TODO: join with services
-                healthyServicesCount: 0,
+                servicesCount,
+                healthyServicesCount: env.status === "healthy" ? servicesCount : 0,
                 lastChecked: new Date().toISOString(),
             };
         });
@@ -377,30 +364,29 @@ export class ProjectController {
         return implement(projectContract.getAllEnvironmentStatuses).use(requireAuth()).handler(async ({ input, context }) => {
             const userId = context.auth.user.id;
             const envs = await this.projectService.listEnvironments(input.params.id, userId);
-            return {
-                statuses: envs.map((env) => ({
+            const statuses = await Promise.all(envs.map(async (env) => {
+                const servicesCount = await this.projectRepository.countEnabledServicesForEnvironment(env.id);
+                return {
                     environmentId: env.id,
                     environmentName: env.name,
                     status: env.status,
-                    servicesCount: 0, // TODO: join with services
-                    healthyServicesCount: 0,
+                    servicesCount,
+                    healthyServicesCount: env.status === "healthy" ? servicesCount : 0,
                     lastChecked: new Date().toISOString(),
-                })),
+                };
+            }));
+            return {
+                statuses,
             };
         });
     }
 
     @Implement(projectContract.refreshEnvironmentStatus)
     refreshEnvironmentStatus() {
-        return implement(projectContract.refreshEnvironmentStatus).use(requireAuth()).handler(async ({ input, context }) => {
-            const userId = context.auth.user.id;
-            const env = await this.projectService.getEnvironment(input.params.id, userId, input.params.environmentId);
-            // TODO: trigger actual health check
-            return {
-                success: true,
-                status: env.status,
-                lastChecked: new Date().toISOString(),
-            };
+        return implement(projectContract.refreshEnvironmentStatus).use(requireAuth()).handler(async () => {
+            throw new NotImplementedException(
+                "Environment health checks are not available yet; no refresh was performed",
+            );
         });
     }
 

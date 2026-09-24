@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { useUrlState } from "./url-state";
+import { useUrlState } from "@repo/ui/components/data-table/utils/url-state";
 
 /**
  * Type for the setState function that might return a Promise

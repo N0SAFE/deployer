@@ -1,6 +1,6 @@
 import z from 'zod/v4'
-import { providersCatalog } from '@repo/provider-schema/catalog'
-import { buildersCatalog } from '@repo/provider-schema/catalog'
+import { providersCatalog } from '@repo/provider-schema/catalog/index'
+import { buildersCatalog } from '@repo/provider-schema/catalog/index'
 
 export const templateKindSchema = z.enum([
   'provider',

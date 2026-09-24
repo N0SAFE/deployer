@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { GlobalDatabaseService } from "../../../core/modules/database/services/global-database.service";
-import { user } from "@/config/drizzle/global/schema/auth";
+import { user } from "@repo/nest-schema/global/auth";
 import { eq, and, count, gte, lte, gt, lt } from "drizzle-orm";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";

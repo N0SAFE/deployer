@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { DockerService } from "./docker.service";
-import { EnvService } from "@/config/env/env.service";
+import { EnvService } from "@repo/nest-env";
 
 /**
  * Focused unit tests for DockerService.ensureOverlayNetwork's layering guard:

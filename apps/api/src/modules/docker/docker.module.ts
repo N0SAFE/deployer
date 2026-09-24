@@ -25,7 +25,6 @@ import { DockerEntityModule } from "./domains/entity/docker-entity.module";
     DockerEntityModule,
   ],
   controllers: [DockerController],
-  providers: [],
   exports: [
     DockerCommonModule,
     DockerRepositoriesModule,

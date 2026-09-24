@@ -14,7 +14,7 @@
  * // 1. Configure the route factory (apps/web/src/routes/configure.ts)
  * import { createRouteFactory } from '@repo/declarative-routing'
  * import { createPage, createSessionPage } from '@repo/declarative-routing/page-wrappers'
- * import { withClientSession } from '@/lib/auth/with-client-session'
+ * import { withClientSession } from '../../../lib/auth/with-client-session'
  * 
  * export const { makeRoute, makeGetRoute } = createRouteFactory({
  *   pageWrappers: { createPage, createClientPage: createPage, createSessionPage },
@@ -22,7 +22,7 @@
  * })
  * 
  * // 2. Define routes (apps/web/src/routes/index.ts)
- * import { makeRoute } from './configure'
+ * import { makeRoute } from '@/configure'
  * import { z } from 'zod'
  * 
  * export const ProductDetail = makeRoute('/products/[productId]', {
@@ -32,7 +32,7 @@
  * })
  * 
  * // 3. Use in pages (apps/web/src/app/products/[productId]/page.tsx)
- * import { ProductDetail } from '@/routes'
+ * import { ProductDetail } from '../../../routes'
  * 
  * export default ProductDetail.Page(({ params, search }) => {
  *   return <div>Product: {params.productId}, Tab: {search.tab}</div>
@@ -55,7 +55,7 @@ export {
     createRouteFactory,
     emptySchema,
     z,
-} from './make-route'
+} from '@repo/declarative-routing/make-route'
 
 export type {
     RouteBuilder,
@@ -69,7 +69,7 @@ export type {
     PageWrapperFactory,
     SessionHOCFactory,
     RouteFactoryConfig,
-} from './make-route'
+} from '@repo/declarative-routing/make-route'
 
 // ============================================================================
 // Types (shared between server and client)
@@ -109,7 +109,7 @@ export type {
     RouteSearchPatch,
     RouteRuntimeConfig,
     PageRouteHelpers,
-} from './types'
+} from '@repo/declarative-routing/types'
 
 // ============================================================================
 // Utilities (isomorphic)
@@ -119,4 +119,4 @@ export {
     safeParseSearchParams,
     safeParseSearchParamsSync,
     safeTryParseSearchParams,
-} from './utils'
+} from '@repo/declarative-routing/utils'

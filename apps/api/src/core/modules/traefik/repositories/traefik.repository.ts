@@ -19,8 +19,8 @@ import {
     type CreateTraefikPlugin,
     type CreateTraefikStaticFile,
     type CreateTraefikBackup,
-} from "@/config/drizzle/global/schema/traefik";
-import { services, projects } from "@/config/drizzle/global/schema/deployment";
+} from "@repo/nest-schema/global/traefik";
+import { services, projects } from "@repo/nest-schema/global/deployment";
 
 export interface CreateServiceConfigInput {
     serviceId: string;
@@ -867,6 +867,10 @@ export class TraefikRepository {
 
     async getAllStaticFiles() {
         return await this.databaseService.db.select().from(traefikStaticFiles).orderBy(asc(traefikStaticFiles.relativePath));
+    }
+
+    async deleteStaticFile(id: string): Promise<void> {
+        await this.databaseService.db.delete(traefikStaticFiles).where(eq(traefikStaticFiles.id, id));
     }
 
     async getStaticFileByPath(projectId: string, relativePath: string) {

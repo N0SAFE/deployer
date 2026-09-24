@@ -16,7 +16,7 @@ export {
     type PaginationConfig,
     type PaginationSchemaOutput,
     type PaginationMetaSchemaOutput,
-} from "./pagination";
+} from "@repo/orpc-utils/operations/base/utils/pagination";
 
 // Sorting
 export {
@@ -28,7 +28,7 @@ export {
     nullsHandling,
     type SortingConfig,
     type SortingSchemaOutput,
-} from "./sorting";
+} from "@repo/orpc-utils/operations/base/utils/sorting";
 
 // Filtering
 export {
@@ -48,7 +48,7 @@ export {
     type FilterOperator,
     type FieldFilterConfig,
     type FilteringConfig,
-} from "./filtering";
+} from "@repo/orpc-utils/operations/base/utils/filtering";
 
 // Search
 export {
@@ -60,7 +60,7 @@ export {
     basicSearchSchema,
     type SearchConfig,
     type SearchSchemaOutput,
-} from "./search";
+} from "@repo/orpc-utils/operations/base/utils/search";
 
 // Query Builder
 export {
@@ -73,4 +73,4 @@ export {
     type ComputeInputSchema,
     type ComputeOutputSchema,
     type QueryBuilderOptions,
-} from "./query-builder";
+} from "@repo/orpc-utils/operations/base/utils/query-builder";

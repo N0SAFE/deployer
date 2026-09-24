@@ -9,6 +9,12 @@ import type { ReactNode } from 'react'
  * EmptyState — action-oriented empty panel.
  * A blank panel is never an empty state: icon → title → description
  * (why it's empty + what happens next) → one primary action.
+ *
+ * The action is a click handler, never an `href`. An earlier revision also
+ * accepted `href`+`asChild` and rendered a bare `<a>`, which bypasses the
+ * declarative router (full page reload, and a link that survives a route
+ * rename without the compiler noticing). No caller ever used it; navigation
+ * belongs to the caller, which knows the route and can call `router.push`.
  */
 export function EmptyState({
   icon: Icon,
@@ -21,21 +27,10 @@ export function EmptyState({
   icon: LucideIcon
   title: string
   description?: ReactNode
-  action?: { label: string; onClick?: () => void; href?: string; asChild?: boolean }
+  action?: { label: string; onClick?: () => void }
   className?: string
   compact?: boolean
 }) {
-  const Action =
-    action && action.asChild && action.href ? (
-      <Button asChild size="sm" variant="outline" className="mt-1">
-        <a href={action.href}>{action.label}</a>
-      </Button>
-    ) : action ? (
-      <Button size="sm" variant="outline" className="mt-1" onClick={action.onClick}>
-        {action.label}
-      </Button>
-    ) : null
-
   return (
     <div
       className={cn(
@@ -49,7 +44,11 @@ export function EmptyState({
       </div>
       <p className="text-sm font-medium text-foreground">{title}</p>
       {description ? <p className="max-w-sm text-xs text-muted-foreground">{description}</p> : null}
-      {Action}
+      {action ? (
+        <Button size="sm" variant="outline" className="mt-1" onClick={action.onClick}>
+          {action.label}
+        </Button>
+      ) : null}
     </div>
   )
 }

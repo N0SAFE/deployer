@@ -6,7 +6,7 @@
  */
 
 import type Docker from "dockerode";
-import type { EnvService } from "@/config/env/env.service";
+import type { EnvService } from "@repo/nest-env";
 
 /**
  * Priority:

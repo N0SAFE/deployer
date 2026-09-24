@@ -13,6 +13,8 @@ export { FeatureErrorBoundary } from './FeatureErrorBoundary'
 export { DefaultErrorFallback } from './DefaultErrorFallback'
 export { QueryErrorFallback } from './QueryErrorFallback'
 export { FeatureErrorFallback } from './FeatureErrorFallback'
+// Shared sub-components of the fallbacks
+export { ErrorDetails } from './ErrorDetails'
 
 /**
  * @example Basic error boundary

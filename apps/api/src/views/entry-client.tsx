@@ -3,6 +3,7 @@
 import React, { StrictMode } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
+import type { RenderContext } from '@nestjs-ssr/react';
 import {
   PageContextProvider,
   NavigationProvider,
@@ -13,10 +14,20 @@ import {
 // Shared Tailwind v4 theme (same as the web app): @repo/ui globals.
 import './global.css';
 import { viewQueryClient } from './lib/query-client';
+import ThemeProvider from '@repo/ui/components/theme-provider';
 
 const componentName = window.__COMPONENT_NAME__;
 const initialProps = window.__INITIAL_STATE__ || {};
-const renderContext = window.__CONTEXT__ || {};
+// Server-injected context; fall back to a client-derived shape (direct
+// navigation) instead of {} so PageContextProvider always receives a valid
+// RenderContext during hydration.
+const renderContext: RenderContext = window.__CONTEXT__ ?? {
+  url: window.location.href,
+  path: window.location.pathname,
+  query: Object.fromEntries(new URLSearchParams(window.location.search)),
+  params: {},
+  method: 'GET',
+};
 
 // Auto-discover root layout using Vite's glob import (must match server-side discovery)
 // @ts-ignore - Vite-specific API
@@ -154,15 +165,28 @@ const composedElement = composeWithLayout(
   layouts,
 );
 
-// Wrap with providers to make context and navigation state available via hooks
+// Wrap with providers to make context and navigation state available via hooks.
+//
+// `ThemeProvider` (next-themes) drives the `dark` class + `color-scheme` on
+// <html>, so the API-served pages honour the operator's light/dark choice.
+// `defaultTheme="system"` is the required behaviour: a fresh install follows
+// the OS preference until the user picks explicitly (the picked value is
+// persisted by next-themes, and `enableSystem` keeps "System" selectable).
 const wrappedElement = (
-  <QueryClientProvider client={viewQueryClient}>
-    <NavigationProvider>
-      <PageContextProvider context={renderContext}>
-        {composedElement}
-      </PageContextProvider>
-    </NavigationProvider>
-  </QueryClientProvider>
+  <ThemeProvider
+    attribute="class"
+    defaultTheme="system"
+    enableSystem
+    disableTransitionOnChange
+  >
+    <QueryClientProvider client={viewQueryClient}>
+      <NavigationProvider>
+        <PageContextProvider context={renderContext}>
+          {composedElement}
+        </PageContextProvider>
+      </NavigationProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 hydrateRoot(

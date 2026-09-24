@@ -5,8 +5,9 @@ import * as fs from "fs";
 import * as path from "path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "url";
-import * as localSchema from "@/config/drizzle/local/schema";
-import { LOCAL_DATABASE_CONNECTION } from "../database-connection";
+import * as localSchema from "@repo/nest-schema/local";
+import { LOCAL_DATABASE_CLIENT, LOCAL_DATABASE_CONNECTION } from "../database-connection";
+import { LocalDatabaseLifecycleService } from "./local-database-lifecycle.service";
 import { LocalDatabaseService } from "./local-database.service";
 
 const logger = new Logger("LocalDatabaseModule");
@@ -200,8 +201,11 @@ function runSqliteMigrations(sqlite: BunSqliteDatabase): void {
 @Module({
     providers: [
         {
-            provide: LOCAL_DATABASE_CONNECTION,
-            useFactory: () => {
+            // The RAW handle, created ONCE per Nest context. Exposed so the
+            // lifecycle service can CLOSE it at shutdown (the Drizzle wrapper
+            // exposes no typed accessor for the underlying client).
+            provide: LOCAL_DATABASE_CLIENT,
+            useFactory: (): BunSqliteDatabase => {
                 logger.log("Initializing local SQLite database connection...");
                 const dbPath = process.env.NODE_LOCAL_DB_PATH ?? "/app/data/local.db";
                 logger.log(`Using local SQLite database path: ${dbPath}`);
@@ -216,8 +220,14 @@ function runSqliteMigrations(sqlite: BunSqliteDatabase): void {
                 // context (setup-wizard / mesh-initializer / main-app sub-apps)
                 // skips the scan entirely.
                 ensureLocalSchemaMigrated(sqlite, dbPath);
-                return drizzleSqlite(sqlite, { schema: localSchema });
+                return sqlite;
             },
+        },
+        {
+            provide: LOCAL_DATABASE_CONNECTION,
+            useFactory: (sqlite: BunSqliteDatabase) =>
+                drizzleSqlite(sqlite, { schema: localSchema }),
+            inject: [LOCAL_DATABASE_CLIENT],
         },
         {
             provide: LocalDatabaseService,
@@ -226,7 +236,11 @@ function runSqliteMigrations(sqlite: BunSqliteDatabase): void {
             },
             inject: [LOCAL_DATABASE_CONNECTION],
         },
+        // Closes the handle opened by the factory ABOVE, per NestJS context.
+        // Each context opens its own `bun:sqlite` handle, so each must release
+        // it — including the sub-apps, which are closed mid-boot.
+        LocalDatabaseLifecycleService,
     ],
-    exports: [LocalDatabaseService, LOCAL_DATABASE_CONNECTION],
+    exports: [LocalDatabaseService, LOCAL_DATABASE_CONNECTION, LOCAL_DATABASE_CLIENT],
 })
 export class LocalDatabaseModule {}

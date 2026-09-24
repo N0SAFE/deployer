@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from 'vitest';
 import z from 'zod/v4';
-import { RouteBuilder } from '../core/route-builder';
+import { RouteBuilder } from '@repo/orpc-utils/builder/core/route-builder';
 
 describe('Output Builder API Consistency', () => {
   const userSchema = z.object({

@@ -1,10 +1,10 @@
 import type { Role } from "better-auth/plugins/access";
 import { createAccessControl } from "better-auth/plugins/access";
 import type { ZodType, infer as ZodInfer } from "zod/v4";
-import { BaseConfig } from "./shared/base-config";
-import { StatementsConfig } from "./statements/statements-config";
-import { RolesConfig } from "./roles/roles-config";
-import { createSchemas } from "./schemas";
+import { BaseConfig } from "@repo/auth/permissions/system/builder/shared/base-config";
+import { StatementsConfig } from "@repo/auth/permissions/system/builder/statements/statements-config";
+import { RolesConfig } from "@repo/auth/permissions/system/builder/roles/roles-config";
+import { createSchemas } from "@repo/auth/permissions/system/builder/schemas";
 
 /**
  * Helper type to check if a type is exactly Record<string, never> (empty record)
@@ -83,7 +83,7 @@ export type RolesAsRoleObjects<TRoles extends Record<string, Record<string, read
  * 
  * @example
  * ```typescript
- * import { PermissionBuilder } from './builder';
+ * import { PermissionBuilder } from '@repo/auth/permissions/system/builder/builder';
  * 
  * const builder = new PermissionBuilder()
  *   .resource('project')

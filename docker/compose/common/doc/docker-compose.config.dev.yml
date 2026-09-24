@@ -43,7 +43,7 @@ services:
           path: ../../../../
           target: /app
           include:
-            - docker/compose/doc/docker-compose.config.dev.yml
+            - docker/compose/common/doc/docker-compose.config.dev.yml
             - docker/compose/docker-compose.dev.yml
         # Rebuild when critical dependency or config files change
         - action: rebuild
@@ -81,7 +81,9 @@ services:
             - "**/.parcel-cache/"
             - "**/.vite/"
             - "**/*.log"
-            - "**/logs/"
+            # Not "**/logs/": that also excludes any directory NAMED logs,
+            # including route segments, so real source silently stopped syncing.
+            # Log files are already ignored by the rule above.
             - .git/
             - .gitignore
             - docker/

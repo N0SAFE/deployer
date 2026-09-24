@@ -1,7 +1,7 @@
 export {
   projectSchema,
   projectWithStatsSchema,
-} from './core.schema'
+} from '@repo/contracts-entities/entities/project/core.schema'
 
 export {
   projectNetworkConfigSchema,
@@ -11,14 +11,14 @@ export {
   defaultProjectNetworkConfig,
   defaultServiceNetworkConfig,
   NETWORK_DNS_RECORD_TYPES,
-} from './network.schema'
+} from '@repo/contracts-entities/entities/project/network.schema'
 
 export type {
   ProjectNetworkConfig,
   ServiceNetworkConfig,
   NetworkDnsRecordType,
   NetworkTls,
-} from './network.schema'
+} from '@repo/contracts-entities/entities/project/network.schema'
 
 export {
   projectBaseEnvironmentSettingsSchema,
@@ -38,38 +38,38 @@ export {
   projectSecurityConfigSchema,
   projectResourceConfigSchema,
   projectNotificationConfigSchema,
-} from './settings.schema'
+} from '@repo/contracts-entities/entities/project/settings.schema'
 
 export type {
   ProjectSettings,
-} from './settings.schema'
+} from '@repo/contracts-entities/entities/project/settings.schema'
 
 export {
   projectRoleSchema,
   collaboratorSchema,
   inviteCollaboratorSchema,
-} from './collaborators.schema'
+} from '@repo/contracts-entities/entities/project/collaborators.schema'
 
 export {
   environmentTypeSchema,
   environmentStatusSchema,
   environmentRulesSchema,
   projectEnvironmentSchema,
-} from './environments.schema'
+} from '@repo/contracts-entities/entities/project/environments.schema'
 
 export type {
   EnvironmentRules,
-} from './environments.schema'
+} from '@repo/contracts-entities/entities/project/environments.schema'
 
 export {
   serviceEnvironmentLinkSchema,
   serviceEnvironmentLinkInputSchema,
-} from './service-environment-link.schema'
+} from '@repo/contracts-entities/entities/project/service-environment-link.schema'
 
 export type {
   ServiceEnvironmentLink,
   ServiceEnvironmentLinkInput,
-} from './service-environment-link.schema'
+} from '@repo/contracts-entities/entities/project/service-environment-link.schema'
 
 // Re-export the environment KIND + TRIGGER primitives (defined in contracts-common)
 // so contracts can import them from @repo/contracts-entities like the rest.
@@ -85,4 +85,4 @@ export {
 export {
   templateVariableSchema,
   variableTemplateSchema,
-} from './templates.schema'
+} from '@repo/contracts-entities/entities/project/templates.schema'

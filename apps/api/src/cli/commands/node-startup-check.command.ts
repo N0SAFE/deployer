@@ -23,7 +23,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { NodeConfigRepository } from "@/core/modules/setup/repositories/node-config.repository";
-import type { SetupState } from "@/config/drizzle/local/schema/node-config";
+import type { SetupState } from "@repo/nest-schema/local/node-config";
 
 // ─── Resolve version from package.json ─────────────────────────────────────────
 const __filename = fileURLToPath(import.meta.url);

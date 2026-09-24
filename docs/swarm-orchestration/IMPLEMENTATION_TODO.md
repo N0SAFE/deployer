@@ -44,10 +44,10 @@
 - [x] **SW-012** `ClusterNodeRepository` (local SQLite `cluster_node`, single row): upserts this node's `ClusterSnapshot` after init (role `both`, swarmRole from engine, isMaster from Raft leader view, node/manager counts, master id+term, join tokens, heartbeat). Schema + hand-written migration `0012_cluster_node.sql` (verified against `:memory:` SQLite with a real drizzle insert/select round-trip). `SwarmBootstrapService` persists after converge; heartbeat updates on engine events land with the P4 watchdog. Fleet-wide inventory from `docker node ls` remains P3 (`NodeInventoryService`).
   - 🔒 SW-010 — ✅ DB row matches engine snapshot; migration validated;
   - repo spec: 5 tests (table-missing → null, read-back, mapping, heartbeat fallback, conflict).
-- [x] **SW-013** Setup hook: `SwarmBootstrapService` (`swarm-bootstrap.service.ts`) implements `OnApplicationBootstrap` on the main AppModule (post-setup by construction) — best-effort `ensureCluster()` gated by `SWARM_ENABLED`; failure warns and never crashes boot (hard gate is `assertClusterReady()` in executors). 5 unit tests.
+- [x] **SW-013** Boot hook: `SwarmBootstrapService` (`swarm-bootstrap.service.ts`) implements `OnModuleInit` in the GATEWAY app and converges the cluster on EVERY boot — **including before setup**, because the supervisors schedule every supervised process as a swarm service (see SW-071). Best-effort: a convergence failure warns and never crashes boot (the hard gate is `assertClusterReady()` in executors, plus each supervisor's `unavailable` runtime). Unit tests cover converge + best-effort failure.
   - 🔒 SW-010, SW-012 — ✅ 22 swarm tests green; lint clean.
 - [x] **SW-014** Dev parity — ✅ **revisited (API-driven)**: the CLI `swarm:*` scripts were REMOVED (user requirement: swarm handled by the API). Now: `SwarmBootstrapService` idempotently converges the engine on boot (`SWARM_ENABLED`) — no `docker stack deploy`, no CLI.
-  - 🧭 **Layering (current architecture):** Swarm orchestrates the WORKLOAD Deployer owns (user deployments/projects/services via `runners/swarm`). Deployer's OWN platform infra (ingress Traefik, DB, Redis, shared `deployer-platform` network) is managed by the platform supervisors or Compose (`MANAGED_*_ENABLED`) — **never by Swarm**. The former `PlatformStackService` / `SWARM_PLATFORM_STACK` placeholder (deploying Deployer's own Traefik + overlay as Swarm services) was REMOVED: it collided with the compose-owned `deployer-platform` bridge network (Docker 403) and violated the layering. `ensureOverlayNetwork` now also hard-refuses to reuse a non-overlay same-name network (compose bridge) for a workload.
+  - 🧭 **Layering (current architecture):** Swarm orchestrates **everything**. The WORKLOAD Deployer owns (user deployments/projects/services via `runners/swarm`) AND Deployer's OWN platform infra — Traefik, the global Postgres, Redis, the database-service instances, WireGuard, the failover proxy, the managed web console — all run as swarm services driven by the platform supervisors (see SW-071). The former `PlatformStackService` / `SWARM_PLATFORM_STACK` placeholder remains REMOVED: it was a compose-`stack deploy`-shaped duplicate of what the supervisors now express as plain SDK service specs, and it collided with the compose-owned `deployer-platform` bridge network (Docker 403). `ensureOverlayNetwork` still hard-refuses to reuse a non-overlay same-name network (compose bridge) for a workload.
   - 🔒 SW-010 — ✅ unit-tested (bootstrap spec); live run still needs a real daemon.
 - [ ] **SW-015** Idempotent UI banner: node page shows cluster state (active/inactive/pending) + join command for next node.
   - 🔒 SW-010, SW-014 — ✅ renders from `cluster` contract `get`.
@@ -144,7 +144,11 @@
 > Goal: move the platform itself (api/web/traefik) onto the swarm for multi-node prod (`production-deployment.mdx` baseline), supervisors become swarm-aware.
 
 - [x] **SW-070** Platform stack spec — ✅ **landed**: `docker/compose/docker-stack.deploy.yml` (api/web/traefik as swarm services; overlay network; start-first rollback updates; resource reservations; spread prefs + ingress constraint). `docker compose config` validates. The declarative `StackSpec` compile-via-SDK pipeline for the platform itself stays as a follow-up (same path as user deployments).
-- [ ] **SW-071** Supervisor → swarm-aware: `MANAGED_*_ENABLED` path detects swarm and delegates lifecycle to the stack (no double-supervision); direct-proxy fallback only while traefik down.
+- [x] **SW-071** Supervisor → swarm-aware — ✅ **landed: every supervisor runs its process as a swarm service.** `resolveSupervisorRuntime` maps `node-local → swarm-global` / `mesh-wide → swarm-replicated`, and returns **`unavailable`** (never `container`) when the engine is not an active swarm member; `MANAGED_*_ENABLED=true` still short-circuits to `managed` (link-only wiring, no spawn).
+  - `SwarmServiceSpecInput` gained what node-local services need: per-network **aliases** (consumers address `global-db`/`redis`/`traefik`/`db-<instance>`), **`publishMode`** (`host` — a GLOBAL service cannot publish through the mesh, and per-node bind conflicts must stay visible), and **`capabilitiesAdd`** (WireGuard needs `NET_ADMIN`).
+  - Converted: Traefik (global, swarm provider, host-published entry port), global Postgres (replicated, alias `global-db`, provisioned by the new `PostgresServiceProvisioner` — one spec builder shared by setup and the supervisor), Redis, database-service instances (replicated per instance, alias `db-<instance>`), WireGuard (global, `NET_ADMIN`, UDP host-published), direct-port proxy (global; forwards staged in nginx.conf, state in service labels), managed web.
+  - Deleted in the same change set (replace, don't bridge): `PostgresContainerService`, every supervisor's `buildContainerSpec`/container-reconcile/probe path, the `"container"` runtime member, and `docker/compose/common/database/global/docker-compose.config.yml` (compose no longer owns the global DB in `dev` or `mesh-6.dev` — `MANAGED_GLOBAL_DB_ENABLED=false` there).
+  - 🔒 SW-063, SW-030 — ✅ API suite 1619 tests green; repo type-check clean; `check:swarm:cli-lock` green; every compose profile validates.
   - 🔒 SW-063, SW-030 — ✅ no orphan supervision; traefik downtime path preserved.
 - [ ] **SW-072** Zero-downtime control-plane updates: `update-config --order start-first --failure-action rollback` for api/web; replica policy ≥2 when nodeCount ≥2.
   - 🔒 SW-070 — ✅ rolling api update with no request loss (smoke: auth + routing + core flows per `production-deployment.md` release sequence).
@@ -206,6 +210,22 @@ graph LR
 - `swarmIdentity` deploy-metadata + `listSwarmServicesForDeployment` + reconciliation adoption → **SW-024 core + SW-026 done**.
 - `docker-stack.deploy.yml` → **SW-070 + SW-060 done**. `check:swarm:cli-lock.sh` → **SW-082 CLI-lock done**.
 
-Remaining (honest): live swarm e2e (no daemon in sandbox), mesh-RTT provider, shared-PG CAS, UI pages (nodes/cluster views SW-015/055/062/024-UI), supervisor swarm-aware (SW-071-073), secret/config per-service mount refs + inventory cadence env knob (follow-ups). `index.mdx` card link to the new swarm-orchestration page is a small follow-up.
+Remaining (honest): live swarm e2e (no daemon in sandbox), mesh-RTT provider, shared-PG CAS, UI pages (nodes/cluster views SW-015/055/062/024-UI), zero-downtime control-plane updates + platform secrets as swarm secrets (SW-072/073), secret/config per-service mount refs + inventory cadence env knob (follow-ups). `index.mdx` card link to the new swarm-orchestration page is a small follow-up.
 
 Remaining: join-token persistence + registry DB upsert (SW-011/012), Traefik swarm-provider verify-only (SW-023), service inventory/reconciliation (SW-024/026), election (P4: SW-040..046), takeover (P5: SW-050..056), platform-on-swarm (P7: SW-070..073), docs/cleanup gate (P8).
+
+## Actually landed (2026-09-17, supervizeurs-on-swarm pass)
+
+- **Every platform supervisor schedules its process as a SWARM SERVICE** (SW-071): global for
+  node-local infra (Traefik, WireGuard, direct-port proxy), replicated for mesh-wide state (global
+  Postgres, Redis, database-service instances, managed web).
+- **No container fallback anywhere**: `DockerSupervisorRuntime` lost its `"container"` member;
+  `resolveSupervisorRuntime` returns `unavailable` and each supervisor degrades with an actionable
+  message instead of running a second, container-based copy of its process.
+- **The engine converges at boot, before setup** (SW-013), so the supervisors always have a swarm to
+  schedule onto; a node that later chooses `join` leaves its lone auto-founded cluster first.
+- **The global database is on swarm in every profile** — including `dev` and `mesh-6.dev`, where
+  compose ownership was removed (`MANAGED_GLOBAL_DB_ENABLED=false` + the service block deleted).
+  Setup and supervision share one spec builder (`PostgresServiceProvisioner`), so they cannot drift.
+- **Spec surface extended** for node-local services: network aliases, `publishMode: host`,
+  `capabilitiesAdd`.

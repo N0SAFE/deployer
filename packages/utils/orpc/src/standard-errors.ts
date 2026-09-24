@@ -1,6 +1,6 @@
 import z from "zod/v4";
 import { ORPCError } from "@orpc/client";
-import type { ErrorDefinitionBuilder } from "./builder/core/error-builder";
+import type { ErrorDefinitionBuilder } from "@repo/orpc-utils/builder/core/error-builder";
 
 /**
  * Shared wire payload for product-domain (non-mesh) ORPC errors.

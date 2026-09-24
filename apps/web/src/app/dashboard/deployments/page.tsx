@@ -14,26 +14,16 @@ import {
   SelectValue,
 } from '@repo/ui/components/shadcn/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
-import { ArrowRight, CheckCircle2, Clock3, RefreshCw, Rocket, Search, Workflow, XCircle, XOctagon, TrendingUp, Server, Network } from 'lucide-react'
+import { ArrowRight, CheckCircle2, RefreshCw, Rocket, Search, Workflow, XOctagon, TrendingUp, Server, Network } from 'lucide-react'
 import { toast } from 'sonner'
-import { PageHeader, PageLoadingState, PageErrorState, StatusDot, StatusBadge, EnvironmentBadge, ScopeLabel } from '@/components/dashboard'
-import { useDeploymentList } from '@/domains/deployment/hooks'
+import { PageHeader, PageLoadingState, PageErrorState, StatusDot, StatusBadge, EnvironmentBadge, ScopeLabel, FilteredEmptyState } from '@/components/dashboard'
+import { useDeploymentList, useRetryDeployment } from '@/domains/deployment/hooks'
+import { formatDateTime as formatDate } from '@/lib/format/date'
+import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
 import { useNodeScope } from '@/domains/node/node-context'
 
 type DeploymentSortKey = 'startedAt' | 'projectId' | 'status' | 'environment'
 type SortDirection = 'asc' | 'desc'
-
-function formatDate(value: string): string {
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleString()
-}
-
-function statusBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'success') return 'default'
-  if (status === 'in-progress') return 'secondary'
-  if (status === 'failed') return 'destructive'
-  return 'outline'
-}
 
 function computeDurationLabel(startedAt: string, finishedAt?: string): string {
   const start = new Date(startedAt).getTime()
@@ -46,7 +36,7 @@ function computeDurationLabel(startedAt: string, finishedAt?: string): string {
   return `${String(minutes)}m ${String(seconds)}s`
 }
 
-function projectLabel(serviceId: string): string {
+function serviceLabel(serviceId: string): string {
   return serviceId.replace(/-/g, ' ').slice(0, 20)
 }
 
@@ -71,7 +61,6 @@ export default function DashboardDeploymentsPage() {
   const [environmentFilter, setEnvironmentFilter] = useState<'all' | 'production' | 'staging' | 'preview' | 'development'>('all')
   const [sortBy, setSortBy] = useState<DeploymentSortKey>('startedAt')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
-  const [actionFeedback, setActionFeedback] = useState<string | null>(null)
   const { nodeId, isNodeSelected } = useNodeScope()
 
   const deploymentQuery = useMemo(() => {
@@ -87,7 +76,31 @@ export default function DashboardDeploymentsPage() {
     return { query: { limit: 100, offset: 0 } }
   }, [nodeId])
 
-  const { data: deploymentsData, isLoading, error, refetch } = useDeploymentList(deploymentQuery)
+  const { data: deploymentsData, isLoading, isFetching, error, refetch } = useDeploymentList(deploymentQuery)
+
+  const retryDeployment = useRetryDeployment()
+
+  /**
+   * The row actions used to raise a toast and set a feedback line —
+   * "Retry queued for <id>" — while performing no work at all, so the page
+   * reported success for operations it never started. This calls the real
+   * mutation and only claims success once the API accepted the request.
+   *
+   * Rollback is deliberately absent: `deployment.rollback` requires a
+   * `targetDeploymentId` (which deployment to roll back TO), and a one-click
+   * row button has no way to collect it. Offering it here meant offering an
+   * operation that could not be completed.
+   */
+  const handleRetry = async (id: string) => {
+    try {
+      await retryDeployment.mutateAsync({ params: { id } })
+      toast.success('Deployment retried', { description: id })
+    } catch (caught) {
+      toast.error('Could not retry this deployment', {
+        description: isDefinedORPCError(caught) ? getErrorMessage(caught) : UNKNOWN_ORPC_ERROR_MESSAGE,
+      })
+    }
+  }
   const deployments = useMemo<DeploymentRow[]>(() => {
     const d = deploymentsData as { data?: DeploymentRow[] } | undefined
     return d?.data ?? []
@@ -175,11 +188,11 @@ export default function DashboardDeploymentsPage() {
               type="button"
               variant="outline"
               onClick={() => {
-                setActionFeedback('Deployment timeline refreshed.')
-                toast.success('Deployment timeline refreshed')
+                void refetch()
               }}
+              disabled={isFetching}
             >
-              <RefreshCw className="mr-2 size-4" />
+              <RefreshCw className={`mr-2 size-4 ${isFetching ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
             <Button asChild variant="outline">
@@ -303,14 +316,12 @@ export default function DashboardDeploymentsPage() {
             </Select>
           </div>
 
-          {actionFeedback ? <p className="rounded border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">{actionFeedback}</p> : null}
-
           <div className="overflow-x-auto rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Deployment</TableHead>
-                  <TableHead>Project</TableHead>
+                  <TableHead>Service</TableHead>
                   <TableHead>Environment</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>URL</TableHead>
@@ -324,7 +335,7 @@ export default function DashboardDeploymentsPage() {
                 {filteredDeployments.map((deployment) => (
                   <TableRow key={deployment.id}>
                     <TableCell className="font-mono text-xs">{deployment.id}</TableCell>
-                    <TableCell className="font-medium capitalize">{projectLabel(deployment.serviceId)}</TableCell>
+                    <TableCell className="font-medium capitalize">{serviceLabel(deployment.serviceId)}</TableCell>
                     <TableCell><EnvironmentBadge environment={deployment.environment} /></TableCell>
                     <TableCell><StatusBadge status={deployment.status} /></TableCell>
                     <TableCell className="text-xs">
@@ -346,53 +357,46 @@ export default function DashboardDeploymentsPage() {
                     <TableCell className="text-xs text-muted-foreground">{formatDate(deployment.deployStartedAt ?? deployment.buildStartedAt ?? deployment.createdAt ?? '')}</TableCell>
                     <TableCell className="text-xs">{computeDurationLabel(deployment.deployStartedAt ?? deployment.buildStartedAt ?? deployment.createdAt ?? '', deployment.deployCompletedAt ?? deployment.buildCompletedAt ?? '')}</TableCell>
                     <TableCell>
+                      {/*
+                        Only actions that are both possible and useful for this
+                        row's status. Retry on a successful rollout and rollback on
+                        a running one were offered before and could not mean
+                        anything; the sibling service page already gates the same
+                        way, so the two now agree.
+                      */}
                       <div className="flex flex-wrap gap-1.5">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-2 text-[11px]"
-                          onClick={() => {
-                            setActionFeedback(`Retry queued for ${deployment.id}`)
-                            toast.success('Retry queued', { description: deployment.id })
-                          }}
-                        >
-                          <Workflow className="mr-1 size-3" />
-                          Retry
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-2 text-[11px]"
-                          onClick={() => {
-                            setActionFeedback(`Rollback check opened for ${deployment.id}`)
-                            toast.info('Rollback guardrails opened', { description: deployment.id })
-                          }}
-                        >
-                          <XCircle className="mr-1 size-3" />
-                          Rollback
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-2 text-[11px]"
-                          onClick={() => {
-                            setActionFeedback(`Logs stream requested for ${deployment.id}`)
-                            toast.info('Logs stream requested', { description: deployment.id })
-                          }}
-                        >
-                          <Clock3 className="mr-1 size-3" />
-                          Logs
-                        </Button>
+                        {deployment.status === 'failed' ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-[11px]"
+                            disabled={retryDeployment.isPending}
+                            onClick={() => {
+                              void handleRetry(deployment.id)
+                            }}
+                          >
+                            <Workflow className="mr-1 size-3" />
+                            Retry
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
                 ))}
                 {filteredDeployments.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">No deployments match current filters.</TableCell>
+                    <TableCell colSpan={9}>
+                      <FilteredEmptyState
+                        onClear={() => {
+                          setSearchTerm('')
+                          setStatusFilter('all')
+                          setEnvironmentFilter('all')
+                        }}
+                      />
+                    </TableCell>
                   </TableRow>
                 ) : null}
               </TableBody>

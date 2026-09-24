@@ -2,6 +2,7 @@ import libraryConfig from "@repo/config-eslint/library";
 import { defineConfig } from "@repo/config-eslint";
 
 export default defineConfig([
+  { ignores: ["eslint.config.ts", "scripts/**", "*.config.ts"] },
   {
     extends: [libraryConfig.configs.base()],
     files: ["**/*.{ts,tsx}"],

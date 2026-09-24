@@ -5,10 +5,10 @@ import {
     projectCollaborators,
     projects,
     services,
-} from "@/config/drizzle/global/schema/deployment";
-import { environments, variableTemplates, serviceEnvironments } from "@/config/drizzle/global/schema/environment";
-import { user } from "@/config/drizzle/global/schema/auth";
-import { localEventOutbox } from "@/config/drizzle/global/schema/runtime";
+} from "@repo/nest-schema/global/deployment";
+import { environments, variableTemplates, serviceEnvironments } from "@repo/nest-schema/global/environment";
+import { user } from "@repo/nest-schema/global/auth";
+import { localEventOutbox } from "@repo/nest-schema/global/runtime";
 import { and, asc, count, desc, eq, ilike, inArray } from "drizzle-orm";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";
@@ -552,6 +552,20 @@ export class ProjectRepository {
             .where(eq(environments.id, environmentId))
             .limit(1);
         return row ? transformEnvironment(row) : null;
+    }
+
+    async countEnabledServicesForEnvironment(environmentId: string): Promise<number> {
+        const db = this.databaseService.db;
+        const [row] = await db
+            .select({ count: count() })
+            .from(serviceEnvironments)
+            .where(
+                and(
+                    eq(serviceEnvironments.environmentId, environmentId),
+                    eq(serviceEnvironments.isEnabled, true),
+                ),
+            );
+        return row?.count ?? 0;
     }
 
     async createEnvironment(data: EnvironmentCreateInput) {

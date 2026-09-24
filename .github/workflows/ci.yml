@@ -64,7 +64,7 @@ jobs:
                       apps/web/src/routes/openapi.ts
                       apps/web/openapi-docs.yml
                       apps/web/redoc-static.html
-                  key: declarative-routes-${{ runner.os }}-${{ hashFiles('apps/web/src/**/page.tsx', 'apps/web/src/**/page.info.ts') }}
+                  key: declarative-routes-${{ runner.os }}-${{ hashFiles('apps/web/src/**/page.tsx', 'apps/web/src/**/route.info.ts') }}
                   restore-keys: |
                       declarative-routes-${{ runner.os }}-
 
@@ -95,15 +95,15 @@ jobs:
             - name: 🛤️ Generate declarative routes
               if: steps.cache-declarative-routes.outputs.cache-hit != 'true'
               run: |
-                bun run @repo/cli-declarative-routing build
-                bun run web dr:build
+                bun --bun run @repo/cli-declarative-routing build
+                bun --bun run web dr:build
 
             - name: 📝 Generate OpenAPI documentation
               if: steps.cache-declarative-routes.outputs.cache-hit != 'true'
               run: |
                   cd apps/web
-                  bun run openapi:yaml
-                  bun run openapi:html
+                  bun --bun run openapi:yaml
+                  bun --bun run openapi:html
 
     # Job 2: Lint and Type Check
     lint-and-typecheck:
@@ -183,12 +183,25 @@ jobs:
                       apps/web/src/routes/openapi.ts
                       apps/web/openapi-docs.yml
                       apps/web/redoc-static.html
-                  key: declarative-routes-${{ runner.os }}-${{ hashFiles('apps/web/src/**/page.tsx', 'apps/web/src/**/page.info.ts') }}
+                  key: declarative-routes-${{ runner.os }}-${{ hashFiles('apps/web/src/**/page.tsx', 'apps/web/src/**/route.info.ts') }}
                   restore-keys: |
                       declarative-routes-${{ runner.os }}-
 
             - name: �🔍 Run ESLint
               run: bun x turbo run lint --affected --concurrency=75%
+
+            - name: 🔎 Run TypeScript type-check
+              # `--continue` is required: turbo otherwise stops at the first
+              # failing package, so CI would report one error and hide the rest.
+              run: bun x turbo run type-check --affected --continue --concurrency=75%
+
+            - name: 🧭 DI graph acyclicity check
+              # Static parse of every *.module.ts — no Docker daemon, no DB needed.
+              # DI_GATE=cycles gates on the DI-nesting acyclicity property alone.
+              # Drop DI_GATE (default `all`) once the SC7/SC8 advisories are resolved.
+              env:
+                  DI_GATE: cycles
+              run: bun --bun run check:di-graph
 
     # Job 3: Build
     build:
@@ -285,7 +298,7 @@ jobs:
                       apps/web/src/routes/openapi.ts
                       apps/web/openapi-docs.yml
                       apps/web/redoc-static.html
-                  key: declarative-routes-${{ runner.os }}-${{ hashFiles('apps/web/src/**/page.tsx', 'apps/web/src/**/page.info.ts') }}
+                  key: declarative-routes-${{ runner.os }}-${{ hashFiles('apps/web/src/**/page.tsx', 'apps/web/src/**/route.info.ts') }}
                   restore-keys: |
                       declarative-routes-${{ runner.os }}-
 
@@ -389,12 +402,69 @@ jobs:
                       apps/web/src/routes/openapi.ts
                       apps/web/openapi-docs.yml
                       apps/web/redoc-static.html
-                  key: declarative-routes-${{ runner.os }}-${{ hashFiles('apps/web/src/**/page.tsx', 'apps/web/src/**/page.info.ts') }}
+                  key: declarative-routes-${{ runner.os }}-${{ hashFiles('apps/web/src/**/page.tsx', 'apps/web/src/**/route.info.ts') }}
                   restore-keys: |
                       declarative-routes-${{ runner.os }}-
 
             - name: 🧪 Run tests for all packages
               run: bun x turbo run test --affected --concurrency=75%
+
+    # Job 4b: End-to-end tests
+    #
+    # Its own job because it needs Docker — the web harness starts an
+    # `oven/bun` container serving the production build, and the API harness
+    # starts a Postgres testcontainer. It also must not mask unit-test results.
+    #
+    # STAGED — deliberately not blocking yet. The API e2e suite carries 71
+    # pre-existing failures (18 of 32 files) that were invisible until now
+    # because CI never ran e2e at all. Landing this as blocking would leave
+    # `main` permanently red, which trains people to ignore CI. It reports
+    # first; flip to blocking when the Phase 3 test-debt work lands
+    # (docs/implementation-plan-200.md, phase 3).
+    e2e:
+        name: 🎭 End-to-end Tests
+        runs-on: ubuntu-latest
+        timeout-minutes: 40
+        needs: [generate-declarative-routes]
+        continue-on-error: true
+        env:
+            TURBO_SCM_BASE: origin/${{ github.base_ref || 'main' }}
+            NODE_ENV: test
+            NEXT_TELEMETRY_DISABLED: 1
+            AUTH_SECRET: ci-test-auth-secret-QgafJQw3O-k1gambz7YGKjtj5ZZe0dnLWlSw4PtMDc
+            BETTER_AUTH_SECRET: ci-test-auth-secret-QgafJQw3O-k1gambz7YGKjtj5ZZe0dnLWlSw4PtMDc
+        steps:
+            - name: 📚 Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: 🐰 Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: ${{ env.BUN_VERSION }}
+
+            - name: 💾 Restore shared dependencies
+              id: restore-shared-deps
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.bun/install/cache
+                      node_modules
+                      apps/**/node_modules
+                      packages/**/node_modules
+                      apps/doc/.source
+                  key: bun-deps-${{ github.run_id }}-${{ runner.os }}
+
+            - name: 📦 Install dependencies (fallback)
+              if: steps.restore-shared-deps.outputs.cache-hit != 'true'
+              run: bun install --frozen-lockfile
+
+            - name: 🏗️ Build (the web e2e harness serves the production build)
+              run: bun x turbo run build --affected --concurrency=75%
+
+            - name: 🎭 Run end-to-end tests
+              run: bun x turbo run test:e2e --affected --concurrency=50%
 
     # Job 5: Deployment Ready Check
     deployment-ready:

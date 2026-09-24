@@ -1,5 +1,6 @@
 import { FeatureErrorBoundary } from '@/components/error'
 import type { ReactNode } from 'react'
+import type { Metadata } from 'next'
 
 /**
  * Admin Panel Layout with Error Boundaries
@@ -14,6 +15,13 @@ import type { ReactNode } from 'react'
  * - /dashboard/admin/providers - Provider configuration
  * - /dashboard/admin/system - System settings
  */
+// Metadata lives in the layout: the admin pages are client components, and
+// `metadata` cannot be exported from a `'use client'` file.
+export const metadata: Metadata = {
+  title: 'Administration',
+  description: 'Users, providers, domains and system settings',
+}
+
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <FeatureErrorBoundary

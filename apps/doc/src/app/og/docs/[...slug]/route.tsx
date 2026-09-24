@@ -3,8 +3,6 @@ import { notFound } from 'next/navigation';
 import { ImageResponse } from 'next/og';
 import { generate as DefaultImage } from 'fumadocs-ui/og';
 
-export const revalidate = false;
-
 export async function GET(
   _req: Request,
   { params }: RouteContext<'/og/docs/[...slug]'>,
@@ -29,8 +27,9 @@ export async function GET(
 }
 
 export function generateStaticParams() {
+  // Only `slug` is a segment of `/og/docs/[...slug]`. The previous
+  // `lang: page.locale` added an extra, undefined-valued param.
   return source.getPages().map((page) => ({
-    lang: page.locale,
     slug: getPageImage(page).segments,
   }));
 }

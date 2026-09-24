@@ -50,6 +50,6 @@ export {
   TimeoutError,
   ServiceUnavailableError,
   BadRequestError,
-} from './app-error';
-export type { ValidationIssue } from './app-error';
-export { getErrorMessage } from './get-error-message';
+} from '@repo/errors/app-error';
+export type { ValidationIssue } from '@repo/errors/app-error';
+export { getErrorMessage } from '@repo/errors/get-error-message';

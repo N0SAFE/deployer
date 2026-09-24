@@ -17,6 +17,7 @@ import * as http from 'node:http';
 import * as https from 'node:https';
 import { RouteRegistryService } from './route-registry.service';
 import { getInternalErrorRequestContext } from '@/core/middlewares/internal-error/internal-error-context';
+import { isViteAssetRequest, resolveViteDevServerUrl, toViteBasePath } from './vite-assets-proxy';
 
 @Injectable()
 export class GatewayService implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -100,6 +101,18 @@ export class GatewayService implements OnApplicationBootstrap, OnApplicationShut
     const method = req.method ?? 'GET';
     const path = req.url ?? '/';
 
+    // ── Vite dev assets: EXEMPT from the 503 "no sub-app registered" guard ──
+    // These are build artifacts of the SSR views, not a sub-app route, so the
+    // route registry can never match them. Without this exemption the setup
+    // wizard's bundle is answered with 503 and the page stays inert (visible
+    // HTML, no interactivity) — which is exactly the failure this fixes.
+    // Handled in Main.ts BEFORE the catch-all, but kept here too so the guard
+    // is correct regardless of registration order.
+    if (isViteAssetRequest(path)) {
+      await this.proxyViteAsset(req, res, path);
+      return;
+    }
+
     // Try to match against registered routes
     const match = this.registry.match(method, path);
 
@@ -119,6 +132,57 @@ export class GatewayService implements OnApplicationBootstrap, OnApplicationShut
 
     // Proxy the request to the matching sub-app
     await this.proxyRequest(req, res, match.targetUrl);
+  }
+
+  /**
+   * Stream a Vite dev asset from the standalone dev server.
+   *
+   * The path is REWRITTEN onto the Vite base before proxying: the SSR library
+   * emits hardcoded root-absolute paths (`/src/views/entry-client.tsx`) that
+   * Vite only serves under its base (`/vite/...`), so the rewrite is what makes
+   * the library's output reachable through a single whitelistable prefix.
+   */
+  private async proxyViteAsset(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    path: string,
+  ): Promise<void> {
+    // Browser-automatic probes have no asset behind them.
+    if ((path.split('?')[0] ?? path) === '/favicon.ico') {
+      res.statusCode = 204;
+      res.end();
+      return;
+    }
+
+    const target = new URL(resolveViteDevServerUrl());
+    await new Promise<void>((resolve) => {
+      const upstream = http.request(
+        {
+          hostname: target.hostname,
+          port: target.port,
+          path: toViteBasePath(path),
+          method: req.method,
+          headers: { ...req.headers, host: target.host },
+          timeout: 30_000,
+        },
+        (upstreamRes) => {
+          if (!res.headersSent) {
+            res.writeHead(upstreamRes.statusCode ?? 502, upstreamRes.headers);
+          }
+          upstreamRes.pipe(res);
+          upstreamRes.on('end', () => resolve());
+        },
+      );
+      upstream.on('error', (error: Error) => {
+        this.logger.warn(`Vite asset proxy unavailable for ${path}: ${error.message}`);
+        if (!res.headersSent) {
+          res.statusCode = 503;
+          res.end(JSON.stringify({ statusCode: 503, message: 'Vite dev server unavailable', path }));
+        }
+        resolve();
+      });
+      req.pipe(upstream);
+    });
   }
 
   /**

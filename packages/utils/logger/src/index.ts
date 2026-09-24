@@ -38,7 +38,7 @@ import {
   ContextFilterLogger,
   type ContextFilterLoggerOptions,
   type ContextFilterLoggerSource,
-} from './context-filter-logger'
+} from '@repo/logger/context-filter-logger'
 
 type LoggerBackend = {
   trace: (objOrMsg: unknown, msg?: string) => void

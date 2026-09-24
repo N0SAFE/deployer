@@ -28,11 +28,87 @@ Full design docs and the phased implementation checklist live in `docs/swarm-orc
 
 ## Developer workflow
 
-Swarm is entirely API-driven — no CLI scripts:
+Swarm is entirely API-driven — no CLI scripts, and **not optional**: the deployer always
+runs its supervised workloads on Swarm. Only *how* a node enters the cluster is decided.
 
-- On boot, `SwarmBootstrapService` converges the engine (`swarm init`/join, idempotent, `SWARM_ENABLED`).
-- Layering (per architecture): **Swarm schedules the workload Deployer owns** — user deployments/projects/services via the `runners/swarm` execution backend (per-project overlay networks + services). **Deployer's own platform infra** (ingress Traefik, DB, Redis, shared `deployer-platform` network) is managed by the platform supervisors or Compose (`MANAGED_*_ENABLED`) — never by Swarm. There is **no "platform swarm stack"**; `ensureOverlayNetwork` refuses to reuse a non-overlay (compose bridge) same-name network for a workload.
+- During setup the wizard records how this node joins the cluster (`SWARM_MODE=create|join`,
+  persisted in `node_config.swarmConfig`) and its role policy (`SWARM_POLICY=auto|manager|worker`).
+- The engine is converged **at boot, before setup** by `SwarmBootstrapService` — never deferred — so
+  the supervisors always have a swarm to schedule onto. There is **no plain-container fallback**: if
+  the engine cannot converge, a supervisor reports `unavailable` and degrades loudly instead of
+  running a second, container-based copy of its process.
+- `SwarmParticipationService.converge()` applies the participation config (founding the cluster, or
+  joining an existing one with a token + control-plane addresses) plus the role policy — idempotent,
+  best-effort. The wizard then records the intent (`SWARM_MODE=create|join`, persisted in
+  `node_config.swarmConfig`); a node that already founded a **lone** cluster leaves it to honour a
+  `join` choice, so no node ends up in a cluster it invented.
+- Layering — **Swarm schedules everything**: both the **workloads Deployer owns** (user
+  deployments/projects/services via the `runners/swarm` execution backend, with per-project overlay
+  networks + services) **and Deployer's own platform infra** (Traefik ingress, the global Postgres,
+  Redis, the scaled database-service instances, the WireGuard sidecars, the failover proxy, the
+  managed web console). Each supervisor declares a `scope`: `node-local → swarm-global` (one task per
+  node) or `mesh-wide → swarm-replicated` (one shared service). `ensureOverlayNetwork` still refuses to
+  reuse a non-overlay (compose bridge) same-name network for a workload.
 - `check:swarm:cli-lock` guards the SDK-first rule in CI.
+
+## Node labels — the durable record
+
+A node's platform configuration lives on the **Swarm node**, never only in a local cache.
+The API's local inventory is rebuilt from `docker node ls` on every sweep, so any value that
+exists solely there is destroyed by the next sweep — the labels are the source of truth.
+
+| Label | Values | Meaning |
+|---|---|---|
+| `deployer.ingress` | `"true"` (absent = false) | Node may run the node-local ingress (Traefik global service). |
+| `deployer.node.role` | `both` \| `control` \| `worker` | Platform role. **`both` is the default and is stored as an ABSENT label.** |
+| `deployer.region` | free-form | Spread preference source for `prefer-region` placement. |
+| `deployer.tenant.<id>` | `"true"` | Restricted to a tenant's dedicated deployments. |
+
+Vocabulary note: the participation **policy** (`auto` / `manager` / `worker`) describes how a node
+*joins*; the **role** label describes what a node *is*. The mapping is
+`auto → both`, `manager → control`, `worker → worker`
+(`platformRoleForPolicy` in `apps/api/src/core/modules/swarm/swarm-node-labels.ts`, the SSOT for
+every label key and reader).
+
+Two placement constraints derive from these labels: the ingress uses
+`node.labels.deployer.ingress == true` (declared once in the supervisor topology and applied by
+the Traefik supervisor), and tenant/dedicated deployments use `node.labels.deployer.tenant.<id>`.
+
+## Master: engine leader vs platform master
+
+Two different notions exist and must not be conflated:
+
+- **Raft leader** — engine truth, reported in the cluster **snapshot** (`snapshot.master`,
+  `localNode.isMaster`). It is what the Swarm engine itself uses for quorum.
+- **Platform master** — the mesh election result persisted by `SwarmLeadershipService` and
+  exposed through `cluster.getMaster()` (weighted scoring, quorum gate, hysteresis, cooldown,
+  term-guarded claim, watchdog). The staleness window it reports uses the SAME env knobs as the
+  elector (`SWARM_HEARTBEAT_TTL_MS` + `SWARM_MASTER_GRACE_MS`) so the view can never disagree
+  with the watchdog.
+
+Node role/ingress updates go through `POST /nodes/{id}/update`, which the Docker Engine API
+expects as a **flat `NodeSpec`** with `version` in the query string. Wrapping the spec in a nested
+`Spec` object makes the daemon read an empty top-level `Role` and reject the call with
+`400 invalid Role: ""` (the body is built by `DockerService.buildSwarmNodeSpecPayload`, which is
+unit-tested without a daemon).
+
+### The label map is REPLACED, never merged
+
+`NodeSpec.Labels` is the **authoritative** map. Every caller passes a **complete desired set** —
+it derives the map from the node's current labels and then adds or removes entries (that is
+exactly how `both` is expressed: by *dropping* the key). The update therefore sends the map
+as-is; only a role/availability update, which has no labels of its own, inherits the current
+labels.
+
+Merging the request over the existing labels resurrects every key the caller deliberately
+dropped, which makes a role change **irreversible**: reverting a node to `both` returned
+`HTTP 200` with the correct body while the engine kept `deployer.node.role=control`, and the next
+inventory sweep read the old role straight back.
+
+For the same reason `ClusterService.updateNodeLabels` answers from a **re-inspect of the engine**
+after the write, not from the requested values — the response and the inventory cache describe the
+node as it now *is*, so a write the engine did not apply is visible immediately instead of being
+reported as success.
 
 ## Related documentation
 

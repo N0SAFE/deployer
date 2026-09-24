@@ -11,7 +11,7 @@ import type { AnySchema, HTTPMethod, HTTPPath } from "@orpc/contract";
  */
 export type { AnySchema, HTTPMethod, HTTPPath } from "@orpc/contract";
 export type { StandardSchemaV1 } from "@standard-schema/spec";
-export type { VoidSchema, NeverSchema } from "../../types/standard-schema-helpers";
+export type { VoidSchema, NeverSchema } from "@repo/orpc-utils/types/standard-schema-helpers";
 
 /**
  * Schema shape type - represents an object where each key maps to a schema

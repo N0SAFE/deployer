@@ -9,8 +9,10 @@
 import { Injectable } from "@nestjs/common";
 import { eq } from "drizzle-orm";
 import type { DockerodeNodeSummary } from "@repo/contracts-entities";
-import { clusterNodes, type ClusterNodesRow } from "@/config/drizzle/local/schema";
+import { clusterNodes, type ClusterNodesRow } from "@repo/nest-schema/local";
 import { LocalDatabaseService } from "@/core/modules/database/local/local-database.service";
+import { DockerService } from "@/core/modules/docker/services/docker.service";
+import { ingressFromLabels, platformRoleFromLabels } from "../swarm-node-labels";
 
 export interface EngineNodeRow {
     nodeId: string;
@@ -88,7 +90,7 @@ export class ClusterNodeInventoryRepository {
                 },
             })
             .run();
-        return this.findByNodeId(node.nodeId) as ClusterNodesRow;
+        return this.findByNodeId(node.nodeId)!;
     }
 
     /** Mark nodes not seen in the latest sweep as `down`. */
@@ -119,16 +121,21 @@ export class ClusterNodeInventoryRepository {
     }
 }
 
-/** Pure mapper: dockerode node summary → repository row input (testable). */
+/** Pure mapper: dockerode node summary → repository row input (testable).
+ *
+ * The platform role / ingress flag are read from the NODE's own labels — they
+ * are the durable record. Hardcoding the role here destroyed the operator's
+ * choice on every sweep (the inventory is a cache rebuilt from `docker node ls`).
+ */
 export function toEngineNodeRow(node: DockerodeNodeSummary): EngineNodeRow {
     const labels = node.Spec?.Labels ?? {};
     return {
         nodeId: node.ID,
         hostname: node.Description?.Hostname ?? "",
-        swarmRole: node.Spec?.Role === "manager" ? "manager" : "worker",
-        platformRole: "both",
+        swarmRole: DockerService.resolveSwarmNodeRole(node),
+        platformRole: platformRoleFromLabels(labels),
         isLeader: node.ManagerStatus?.Leader === true,
-        isIngress: labels["deployer.ingress"] === "true",
+        isIngress: ingressFromLabels(labels),
         availability:
             node.Spec?.Availability === "pause" || node.Spec?.Availability === "drain"
                 ? node.Spec.Availability

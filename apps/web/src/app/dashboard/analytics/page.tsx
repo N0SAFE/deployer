@@ -20,7 +20,7 @@ import {
 } from '@repo/ui/components/shadcn/chart'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from 'recharts'
 import { Activity, AlertTriangle, CheckCircle2, Cpu, Database, HardDrive, Network, RefreshCw, Rocket, Server, XCircle } from 'lucide-react'
-import { PageHeader, PageLoadingState, PageErrorState } from '@/components/dashboard'
+import { PageHeader, PageLoadingState, PageErrorState, StatStrip, StatStripItem } from '@/components/dashboard'
 import type { TimeRange, Granularity } from '@/domains/analytics/types'
 import {
   useRealTimeMetrics,
@@ -96,6 +96,28 @@ export default function AnalyticsPage() {
   const isLoading = realTime.isLoading || resourceMetrics.isLoading || deploymentMetrics.isLoading
   const error = realTime.error || resourceMetrics.error || deploymentMetrics.error
 
+  /**
+   * One definition of "refresh everything".
+   *
+   * The toolbar button refreshed four queries while the error retry refreshed
+   * three — the same intent expressed twice, so they drifted. `serviceHealth`
+   * was the one left out, which meant recovering from an error could leave the
+   * health column showing the state that failed.
+   */
+  const refreshAll = () => {
+    void realTime.refetch()
+    void resourceMetrics.refetch()
+    void deploymentMetrics.refetch()
+    void serviceHealth.refetch()
+  }
+
+  /** Any in-flight refresh — the button reports it instead of looking inert. */
+  const isRefreshing =
+    realTime.isFetching ||
+    resourceMetrics.isFetching ||
+    deploymentMetrics.isFetching ||
+    serviceHealth.isFetching
+
   // ── ALL hooks must be called before any early return ──────────────────
   const rt = realTime.data
   const rm = resourceMetrics.data
@@ -126,7 +148,7 @@ export default function AnalyticsPage() {
   const summary = usage?.summary
 
   if (isLoading) return <PageLoadingState />
-  if (error) return <PageErrorState title="Failed to load analytics" message={isDefinedORPCError(error) ? getErrorMessage(error, "Failed to load analytics") : UNKNOWN_ORPC_ERROR_MESSAGE} onRetry={() => { realTime.refetch(); resourceMetrics.refetch(); deploymentMetrics.refetch() }} />
+  if (error) return <PageErrorState title="Failed to load analytics" message={isDefinedORPCError(error) ? getErrorMessage(error, "Failed to load analytics") : UNKNOWN_ORPC_ERROR_MESSAGE} onRetry={refreshAll} />
 
   return (
     <div className="space-y-6">
@@ -153,43 +175,45 @@ export default function AnalyticsPage() {
               <SelectItem value="day">Day</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="ghost" size="icon" onClick={() => { realTime.refetch(); resourceMetrics.refetch(); deploymentMetrics.refetch(); serviceHealth.refetch() }}>
-            <RefreshCw className="size-4" />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={refreshAll}
+            aria-label="Refresh analytics"
+            title="Refresh analytics"
+          >
+            <RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </div>
 
-      {/* ─── Live System Cards ──────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium flex items-center gap-2"><Cpu className="size-4" /> CPU</CardTitle></CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{rt?.system.cpu.toFixed(1) ?? '—'}%</div>
-            <p className="text-xs text-muted-foreground">{rt?.dataSource === 'docker' ? `${rt.services.length} services` : 'No data'}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium flex items-center gap-2"><HardDrive className="size-4" /> Memory</CardTitle></CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{rt?.system.memory.toFixed(1) ?? '—'}%</div>
-            <p className="text-xs text-muted-foreground">{rt?.system.disk.toFixed(1) ?? '—'}% disk</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium flex items-center gap-2"><Network className="size-4" /> Network</CardTitle></CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatBytes(rt?.system.network.inbound ?? 0)}</div>
-            <p className="text-xs text-muted-foreground">↑ {formatBytes(rt?.system.network.outbound ?? 0)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium flex items-center gap-2"><Rocket className="size-4" /> Deployments</CardTitle></CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary?.totalDeployments ?? dm?.data?.reduce((s, b) => s + b.deploymentsCount, 0) ?? 0}</div>
-            <p className="text-xs text-muted-foreground">{summary?.successRate ?? dm?.data?.[0]?.successRate ?? 0}% success</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* ─── Live System Strip ──────────────────────────────────────── */}
+      <StatStrip>
+        <StatStripItem
+          icon={Cpu}
+          label="CPU"
+          value={rt ? `${rt.system.cpu.toFixed(1)}%` : '—'}
+          hint={rt?.dataSource === 'docker' ? `${rt.services.length} services` : 'No data'}
+        />
+        <StatStripItem
+          icon={HardDrive}
+          label="Memory"
+          value={rt ? `${rt.system.memory.toFixed(1)}%` : '—'}
+          hint={rt ? `${rt.system.disk.toFixed(1)}% disk` : undefined}
+        />
+        <StatStripItem
+          icon={Network}
+          label="Inbound"
+          value={rt ? formatBytes(rt.system.network.inbound) : '—'}
+          hint={rt ? `↑ ${formatBytes(rt.system.network.outbound)}` : undefined}
+        />
+        <StatStripItem
+          icon={Rocket}
+          label="Deployments"
+          value={String(summary?.totalDeployments ?? dm?.data?.reduce((s, b) => s + b.deploymentsCount, 0) ?? 0)}
+          hint={`${summary?.successRate ?? dm?.data?.[0]?.successRate ?? 0}% success`}
+        />
+      </StatStrip>
 
       {/* ─── Resource Metrics Chart ─────────────────────────────────── */}
       <Card>
@@ -202,7 +226,7 @@ export default function AnalyticsPage() {
         </CardHeader>
         <CardContent>
           {resourceData.length > 0 ? (
-            <ChartContainer config={resourceChartConfig} className="h-[300px] w-full">
+            <ChartContainer config={resourceChartConfig} className="h-75 w-full">
               <AreaChart data={resourceData}>
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                 <XAxis dataKey="timestamp" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
@@ -214,7 +238,7 @@ export default function AnalyticsPage() {
               </AreaChart>
             </ChartContainer>
           ) : (
-            <div className="flex items-center justify-center h-[300px] text-muted-foreground text-sm">
+            <div className="flex items-center justify-center h-75 text-muted-foreground text-sm">
               No resource data available for this time range
             </div>
           )}
@@ -233,7 +257,7 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             {deploymentData.length > 0 ? (
-              <ChartContainer config={deploymentChartConfig} className="h-[250px] w-full">
+              <ChartContainer config={deploymentChartConfig} className="h-62.5 w-full">
                 <BarChart data={deploymentData}>
                   <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                   <XAxis dataKey="timestamp" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
@@ -244,7 +268,7 @@ export default function AnalyticsPage() {
                 </BarChart>
               </ChartContainer>
             ) : (
-              <div className="flex items-center justify-center h-[250px] text-muted-foreground text-sm">
+              <div className="flex items-center justify-center h-62.5 text-muted-foreground text-sm">
                 No deployment data for this time range
               </div>
             )}
@@ -279,7 +303,7 @@ export default function AnalyticsPage() {
                 ))}
               </div>
             ) : (
-              <div className="flex items-center justify-center h-[250px] text-muted-foreground text-sm">
+              <div className="flex items-center justify-center h-62.5 text-muted-foreground text-sm">
                 No services registered
               </div>
             )}

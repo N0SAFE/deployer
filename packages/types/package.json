@@ -2,13 +2,21 @@
     "name": "@repo/types",
     "version": "1.0.0",
     "exports": {
+        ".": {
+            "types": [
+                "./src/index.ts",
+                "./src/index.tsx"
+            ],
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
         "./*": {
-            "import": {
-                "types": "./*.ts"
-            },
-            "require": {
-                "types": "./*.ts"
-            }
+            "types": [
+                "./src/*.ts",
+                "./src/*.tsx"
+            ],
+            "import": "./dist/esm/*.mjs",
+            "require": "./dist/cjs/*.js"
         }
     },
     "scripts": {
@@ -19,7 +27,10 @@
         "type-check": "tsc --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",
-        "test:coverage": "vitest run --coverage"
+        "test:coverage": "vitest run --coverage",
+        "build": "bun --bun ../bin/pkg-build/index.ts",
+        "dev": "bun --bun ../bin/pkg-build/index.ts --watch",
+        "clean": "rimraf dist"
     },
     "devDependencies": {
         "@types/node": "catalog:build",
@@ -33,7 +44,10 @@
         "vitest": "catalog:testing",
         "zod": "catalog:utils",
         "drizzle-orm": "catalog:database",
-        "typescript": "catalog:build"
+        "typescript": "catalog:build",
+        "chokidar": "catalog:build",
+        "rimraf": "catalog:build",
+        "@repo/pkg-build": "*"
     },
     "keywords": [],
     "author": "",
@@ -47,5 +61,8 @@
     "peerDependencies": {
         "concurrently": "catalog:dev",
         "rimraf": "catalog:build"
-    }
+    },
+    "main": "./dist/cjs/index.js",
+    "types": "./src/index.ts",
+    "module": "./dist/esm/index.mjs"
 }

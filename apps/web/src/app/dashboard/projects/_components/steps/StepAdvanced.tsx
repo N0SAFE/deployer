@@ -45,6 +45,7 @@ function EnvRowEditor({ items, onChange }: {
             variant="ghost"
             size="icon"
             className="size-6 shrink-0"
+            aria-label={`Remove variable ${entry.key || String(i + 1)}`}
             onClick={() => { update(items.filter((_, idx) => idx !== i)) }}
           >
             <X className="size-3" />

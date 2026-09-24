@@ -21,9 +21,9 @@
  */
 
  
-import type { AnySchema } from "../../types/types";
-import type { SchemaShape } from "../../types/standard-schema-helpers";
-import type { ZodPluginTransformer } from "./zod";
+import type { AnySchema } from "@repo/orpc-utils/types/types";
+import type { SchemaShape } from "@repo/orpc-utils/types/standard-schema-helpers";
+import type { ZodPluginTransformer } from "@repo/orpc-utils/builder/plugin/zod";
 
 /**
  * Type-level schema ops contract. Every plugin namespaces its type-level

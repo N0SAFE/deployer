@@ -129,6 +129,7 @@ function EntryRow({
         onClick={onRemove}
         disabled={disabled}
         title="Remove domain"
+        aria-label={`Remove ${domainName}`}
       >
         <Trash2 className="size-4" />
       </Button>

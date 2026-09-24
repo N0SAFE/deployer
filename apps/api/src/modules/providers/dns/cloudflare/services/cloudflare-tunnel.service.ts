@@ -8,9 +8,36 @@
 import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { Cloudflare } from "cloudflare";
 import type { Client } from "cloudflare/resources/zero-trust/tunnels/cloudflared/connections";
+import type { ConfigurationUpdateParams } from "cloudflare/resources/zero-trust/tunnels/cloudflared/configurations";
 import { CloudflareAppService, type DnsProviderAppView } from "./cloudflare-app.service";
 import { CloudflareDnsProviderService } from "./cloudflare-dns-provider.service";
 import { toCloudflareErrorMessage, toTunnelConnectionShape, toTunnelShape, type TunnelConnectionShape, type TunnelShape } from "./cloudflare.helpers";
+
+/**
+ * Cloudflare's ingress rules, as the API defines them — deliberately NOT the
+ * SDK's `Config.Ingress`.
+ *
+ * The SDK declares `hostname` as REQUIRED on every rule. Cloudflare requires the
+ * opposite for the FINAL rule: it must carry no hostname and no path, otherwise
+ * the entire configuration is refused with
+ *
+ *   400 code 1056 — "The last ingress rule must match all URLs
+ *                     (i.e. it should not have a hostname or path filter)"
+ *
+ * so a payload shaped to satisfy the SDK's type can never be accepted. `hostname`
+ * is optional here because that is what the endpoint actually takes.
+ */
+interface CloudflareIngressRule {
+    hostname?: string;
+    path?: string;
+    service: string;
+}
+
+/**
+ * Terminator for every ingress list: a request that matched no rule above gets a
+ * 404 from Cloudflare, rather than falling through to an unintended origin.
+ */
+const INGRESS_CATCH_ALL: CloudflareIngressRule = { service: "http_status:404" };
 
 @Injectable()
 export class CloudflareTunnelService {
@@ -61,6 +88,31 @@ export class CloudflareTunnelService {
         }
     }
 
+    /**
+     * The live tunnel with this name, or `null`.
+     *
+     * Cloudflare enforces tunnel names per account (error 1013 — "You already
+     * have a tunnel with this name"). That check runs BEFORE any local bookkeeping
+     * we do, so a run that created the tunnel and then failed later — a refused
+     * ingress, a crash — leaves an orphan the next attempt collides with, while
+     * our stored `tunnelId` is still empty and the guard upstream looks satisfied.
+     * Reusing by name makes provisioning idempotent instead of wedging the node.
+     */
+    private async findTunnelByName(
+        client: Cloudflare,
+        accountId: string,
+        name: string,
+    ): Promise<{ id: string } | null> {
+        const page = await client.zeroTrust.tunnels.cloudflared.list({
+            account_id: accountId,
+            is_deleted: false,
+            name,
+            per_page: 100,
+        });
+        const match = page.result.find((candidate) => candidate.name === name && candidate.id);
+        return match?.id ? { id: match.id } : null;
+    }
+
     async getTunnel(providerId: string, tunnelId: string): Promise<{ tunnel: TunnelShape | null; error: string | null }> {
         try {
             const { client, accountId } = await this.clientFor(providerId);
@@ -83,11 +135,21 @@ export class CloudflareTunnelService {
     ): Promise<{ tunnel: TunnelShape; token: string; dnsRecord: string | null; hostname: string | null; error: string | null }> {
         try {
             const { client, accountId, app } = await this.clientFor(providerId);
-            const created = await client.zeroTrust.tunnels.cloudflared.create({
+
+            // Reuse a tunnel this account already owns under the same name — see
+            // `findTunnelByName` for why re-creating one wedges the node rather
+            // than being harmless.
+            const existing = await this.findTunnelByName(client, accountId, input.name);
+            const created = existing ?? (await client.zeroTrust.tunnels.cloudflared.create({
                 account_id: accountId,
                 name: input.name,
-            });
+            }));
             if (!created.id) throw new BadGatewayException("Cloudflare did not return a tunnel id");
+            if (existing) {
+                this.logger.log(
+                    `Reusing existing Cloudflare tunnel "${input.name}" (${created.id}) on app "${app.name}"`,
+                );
+            }
 
             const token = await client.zeroTrust.tunnels.cloudflared.token.get(created.id, { account_id: accountId });
 
@@ -142,21 +204,87 @@ export class CloudflareTunnelService {
         service: string,
     ): Promise<void> {
         const { client, accountId } = await this.clientFor(providerId);
+        try {
+            const preserved = await this.applyIngressRules(
+                client,
+                accountId,
+                tunnelId,
+                hostname,
+                service,
+            );
+            this.logger.log(
+                `Tunnel ${tunnelId} ingress configured: ${hostname} → ${service} (${String(preserved)} other hostname rule(s) preserved)`,
+            );
+        } catch (err) {
+            // Like every sibling method here, the SDK's own error type is converted
+            // at the boundary. Letting it escape made an ordinary "Cloudflare refused
+            // this configuration" rejection surface as a bare 500 with no reason
+            // attached, which is how the 1056 ingress failure stayed unexplained.
+            const message = toCloudflareErrorMessage(err);
+            this.logger.error(
+                `configureIngress failed for tunnel ${tunnelId} (${hostname} → ${service}): ${message}`,
+            );
+            throw new BadGatewayException(
+                `Could not configure the tunnel's routing for ${hostname}: ${message}`,
+                { cause: err },
+            );
+        }
+    }
+
+    /**
+     * Read the tunnel's current ingress, replace the rule for `hostname`, and put
+     * the catch-all back at the end.
+     *
+     * @returns how many OTHER hostname rules were preserved, for the caller to log.
+     */
+    private async applyIngressRules(
+        client: Cloudflare,
+        accountId: string,
+        tunnelId: string,
+        hostname: string,
+        service: string,
+    ): Promise<number> {
+        // Read the CURRENT rules so this call replaces the rule for `hostname`
+        // only. Writing a freshly-built array dropped every other hostname routed
+        // through the same tunnel, and the damage was silent: the next request for
+        // a dropped hostname answered 1033 "unable to resolve" while the tunnel
+        // and its CNAME both still looked healthy.
+        const current = await client.zeroTrust.tunnels.cloudflared.configurations.get(
+            tunnelId,
+            { account_id: accountId },
+        );
+        const existingRules: CloudflareIngressRule[] = current.config?.ingress ?? [];
+
+        // Keep the other hostnames' rules; drop this hostname's previous rule(s)
+        // and any earlier terminator, both of which are re-added below. A rule
+        // without a hostname IS a terminator, which is why it is filtered here.
+        const preserved = existingRules.filter(
+            (rule) => rule.hostname !== undefined && rule.hostname !== hostname,
+        );
+
+        // Cloudflare requires the FINAL rule to match every URL — no hostname, no
+        // path. Without `INGRESS_CATCH_ALL` the whole configuration is rejected:
+        // 400 code 1056 "The last ingress rule must match all URLs".
+        const ingress: CloudflareIngressRule[] = [
+            ...preserved,
+            { hostname, service },
+            INGRESS_CATCH_ALL,
+        ];
+
         await client.zeroTrust.tunnels.cloudflared.configurations.update(
             tunnelId,
             {
                 account_id: accountId,
-                config: {
-                    ingress: [
-                        {
-                            hostname,
-                            service,
-                        },
-                    ],
-                },
+                // The one assertion in this file. The SDK's `Ingress` type demands a
+                // `hostname` that Cloudflare forbids on the final rule, so the type is
+                // wrong rather than the payload: `ConfigurationUpdateParams.Config.Ingress`
+                // is assignable to `CloudflareIngressRule` (required → optional widens),
+                // which is what makes this assertion legal. Cloudflare validates the
+                // result itself and answers 400/1056 if any rule is actually malformed.
+                config: { ingress: ingress as ConfigurationUpdateParams.Config.Ingress[] },
             },
         );
-        this.logger.log(`Tunnel ${tunnelId} ingress configured: ${hostname} → ${service}`);
+        return preserved.length;
     }
 
     async deleteTunnel(
@@ -259,7 +387,10 @@ export class CloudflareTunnelService {
     ): Promise<TunnelConnectionShape[]> {
         try {
             const page = await client.zeroTrust.tunnels.cloudflared.connections.get(tunnelId, { account_id: accountId });
-            return page.result.map((c: Client) => toTunnelConnectionShape(c));        } catch {
+            return page.result.map((c: Client) => toTunnelConnectionShape(c));        } catch (error: unknown) {
+            this.logger.warn(
+                `cloudflareFetchTunnelConnections failed for tunnel ${tunnelId}: ${error instanceof Error ? error.message : String(error)}`,
+            );
             return [];
         }
     }

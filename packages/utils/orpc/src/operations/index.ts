@@ -30,7 +30,7 @@ import {
     createZodStandardOperations,
     type ZodEntitySchema,
     type ZodEntityOperationOptions,
-} from "./zod/standard-operations";
+} from "@repo/orpc-utils/operations/zod/standard-operations";
 
 /**
  * Standard operations factory object
@@ -68,7 +68,7 @@ export {
 };
 
 // Re-export list builder
-export { ListOperationBuilder, createListConfig, createFilterConfig, type BuilderFilterField } from "./zod/list-builder";
+export { ListOperationBuilder, createListConfig, createFilterConfig, type BuilderFilterField } from "@repo/orpc-utils/operations/zod/list-builder";
 
 // Re-export base types
 export {
@@ -76,9 +76,9 @@ export {
     type EntityOperationOptions,
     type ListOperationOptions,
     type ListPlainOptions,
-} from "./base/standard-operations";
+} from "@repo/orpc-utils/operations/base/standard-operations";
 
 // Re-export utilities
-export * from "./zod/utils";
+export * from "@repo/orpc-utils/operations/zod/utils/index";
 // Note: ./base/types and ./base/schema are not re-exported here to avoid conflicts
-// They can be imported directly if needed from "./base/types" or "./base/schema"
+// They can be imported directly if needed from "@repo/orpc-utils/operations/base/types" or "./base/schema"

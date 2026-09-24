@@ -25,6 +25,13 @@ import { Pool } from "pg";
 import z from "zod/v4";
 
 import {
+	BaseDockerSupervisorService,
+} from "@/core/modules/docker/services/base-docker-supervisor.service";
+import {
+	resolveSupervisorRuntime,
+	type DockerSupervisorRuntime,
+} from "@/core/modules/docker/services/docker-supervisor-runtime";
+import {
 	BaseSupervisorService,
 	baseSupervisorPayloadSchema,
 	type SupervisorProbeResult,
@@ -32,19 +39,24 @@ import {
 import {
 	baseSupervisorProcessInfoSchema,
 	dockerProcessInfoSchema,
+	swarmProcessInfoSchema,
 	type DockerProcessInfo,
 } from "@/core/modules/supervisors/supervisor-process-info";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
 import {
-	PostgresContainerService,
+	PostgresServiceProvisioner,
 	MANAGED_POSTGRES_CONTAINER_NAME,
 	MANAGED_POSTGRES_IMAGE,
 	MANAGED_POSTGRES_PORT,
 	MANAGED_POSTGRES_VOLUME_NAME,
-} from "@/core/modules/docker/containers/postgres/postgres-container.service";
+	managedPostgresServiceName,
+	type PostgresServiceIdentity,
+} from "@/core/modules/docker/containers/postgres/postgres-service.provisioner";
+import { MANAGED_POSTGRES_ALIAS } from "@/core/modules/docker/containers/postgres/postgres-service.provisioner";
 import { NodeConfigRepository } from "@/core/modules/setup/repositories/node-config.repository";
-import { EnvService } from "@/config/env/env.service";
+import { EnvService } from "@repo/nest-env";
 import { splitManagedEnv } from "@repo/env";
+import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
 
 export const GLOBAL_DB_SUPERVISOR_ID = "global-db-postgres";
 
@@ -52,27 +64,17 @@ export const GLOBAL_DB_SUPERVISOR_ID = "global-db-postgres";
  * Rich health payload — a DISCRIMINATED UNION on how the database is
  * provisioned:
  *
- *   - "managed"  → the API spawned its own Postgres container: container
- *                  state + disk sizes, data-volume usage, host port.
+ *   - "managed"  → the API scheduled the database as a SWARM SERVICE: service
+ *                  + task state, data-volume usage, published port.
  *   - "external" → operator-provided URL: real SELECT 1 probe + table count
- *                  and names (database health, not container health).
+ *                  and names (database health, not process health).
  *
  * Zod is the source of truth — `getHealth().payload` is validated at runtime.
  */
 export const globalDbSupervisorPayloadSchema = z.discriminatedUnion("mode", [
 	baseSupervisorPayloadSchema.extend({
 		mode: z.literal("managed"),
-		container: z
-			.object({
-				id: z.string(),
-				name: z.string(),
-				running: z.boolean(),
-				exitCode: z.number().int().nullable(),
-				sizeRw: z.number().int().min(0).nullable(),
-				sizeRootFs: z.number().int().min(0).nullable(),
-				startedAt: z.string().datetime().nullable(),
-			})
-			.nullable(),
+		service: swarmProcessInfoSchema.shape.live.nullable(),
 		volume: z
 			.object({
 				name: z.string(),
@@ -80,7 +82,7 @@ export const globalDbSupervisorPayloadSchema = z.discriminatedUnion("mode", [
 				sizeBytes: z.number().int().min(0).nullable(),
 			})
 			.nullable(),
-		hostPort: z.number().int().min(1).nullable(),
+		publishedPort: z.number().int().min(1).nullable(),
 	}),
 	baseSupervisorPayloadSchema.extend({
 		mode: z.literal("external"),
@@ -97,13 +99,13 @@ export type GlobalDbSupervisorPayload = z.output<typeof globalDbSupervisorPayloa
 
 /**
  * Process info reported by the global-db supervisor through
- * `getProcessInfo()` — the managed Postgres container plus the connection
+ * `getProcessInfo()` — the managed Postgres SWARM SERVICE plus the connection
  * DSN consumers (or the operator) need to reach the database. The supervisor
  * only registers when the database is LOCALLY MANAGED, so `process` is always
- * the docker container flavor.
+ * the swarm flavor.
  */
 export const globalDbProcessInfoSchema = baseSupervisorProcessInfoSchema.extend({
-	process: dockerProcessInfoSchema,
+	process: swarmProcessInfoSchema,
 	connection: z.object({
 		/** Full DSN (includes credentials) — for programmatic use by other
 		 *  supervised processes that must connect to the database. */
@@ -119,7 +121,7 @@ export const globalDbProcessInfoSchema = baseSupervisorProcessInfoSchema.extend(
 export type GlobalDbProcessInfo = z.output<typeof globalDbProcessInfoSchema>;
 
 @Injectable()
-export class GlobalDbSupervisorService extends BaseSupervisorService<
+export class GlobalDbSupervisorService extends BaseDockerSupervisorService<
 	typeof globalDbSupervisorPayloadSchema,
 	typeof globalDbProcessInfoSchema
 > {
@@ -130,12 +132,12 @@ export class GlobalDbSupervisorService extends BaseSupervisorService<
 	readonly processInfoSchema = globalDbProcessInfoSchema;
 
 	constructor(
-		private readonly postgresContainerService: PostgresContainerService,
-		private readonly dockerService: DockerService,
+		dockerService: DockerService,
+		private readonly provisioner: PostgresServiceProvisioner,
 		private readonly nodeConfigRepository: NodeConfigRepository,
 		private readonly env: EnvService,
 	) {
-		super();
+		super(dockerService);
 	}
 
 	/**
@@ -186,22 +188,94 @@ private async depsReady(): Promise<boolean> {
 	}
 }
 
+	/** Resolve the current runtime (async: real engine probe). Global-DB is
+	 *  mesh-wide → swarm-replicated in prod; container pre-swarm. */
+	protected async resolveRuntime(): Promise<{ runtime: DockerSupervisorRuntime; reason: string }> {
+		return resolveSupervisorRuntime({
+			managed: this.isComposeManaged(),
+			rawRuntime: process.env.SUPERVISOR_RUNTIME,
+			swarmActive: await this.isSwarmActive(),
+			scope: "mesh-wide",
+		});
+	}
+
+	/** Current runtime. */
+	private async effectiveRuntime(): Promise<DockerSupervisorRuntime> {
+		return (await this.resolveRuntime()).runtime;
+	}
+
+	/** Swarm service name for the global Postgres (overlay DNS name). */
+	private serviceName(): string {
+		return managedPostgresServiceName(this.env.get("DEPLOYER_PREFIX"));
+	}
+
+	/** Swarm service spec for the mesh-wide platform Postgres. The desired
+	 *  state is owned by `PostgresServiceProvisioner` (setup provisions the very
+	 *  first instance through the same builder), so the supervisor delegates
+	 *  instead of duplicating the spec. */
+	protected buildSwarmSpec(): SwarmServiceSpecInput {
+		return this.provisioner.buildSpec({
+			prefix: this.env.get("DEPLOYER_PREFIX"),
+			identity: this.identity(),
+		});
+	}
+
+	/** Credentials + image of the managed database, resolved from the env. */
+	private identity(): PostgresServiceIdentity {
+		return {
+			databaseName: this.env.get("DB_DATABASE") ?? "deployer",
+			username: this.env.get("DB_USER") ?? "deployer",
+			password: this.env.get("DB_PASSWORD") ?? "deployer",
+			image: MANAGED_POSTGRES_IMAGE,
+		};
+	}
 	/** One idempotent convergence pass towards the desired state. */
 	protected async reconcile(): Promise<void> {
 		// Defensive: unregistered supervisors never run, but the orchestration
 		// layer can be asked to ensure all — never touch an external DB.
 		if (!(await this.isManagedDatabase())) return;
 
+		const runtime = await this.effectiveRuntime();
+
+		if (runtime === "managed") {
+			// Managed mode: compose/operator owns postgres — link-only wiring.
+			this.logger.log("Global-DB managed (compose/operator) — link-only wiring active");
+			return;
+		}
+
+		if (runtime === "unavailable") {
+			// No active swarm → nowhere to schedule Postgres. Surface the cause
+			// instead of silently running a second, container-based copy.
+			throw new Error(
+				"Global Postgres requires an active swarm engine or managed (compose/operator) ownership — " +
+					"no legacy container fallback. SwarmBootstrapService should have converged the engine.",
+			);
+		}
+
+		// swarm-replicated
 		await this.runWithBackoff(
-			"Postgres container convergence",
+			"Postgres (swarm) convergence",
 			async () => {
-				// startPostgresContainer is idempotent: reuses a running
-				// container, restarts a stopped one, creates a missing one
-				// (same fixed name + named volume, so data survives).
-				await this.postgresContainerService.startPostgresContainer();
+				// Clean the container-era incarnation an older install left
+				// behind — swarm owns the database now.
+				await this.removeContainerIfExists(MANAGED_POSTGRES_CONTAINER_NAME);
+				const spec = this.provisioner.attachOverlay(
+					this.buildSwarmSpec(),
+					this.env.get("DEPLOYER_PREFIX"),
+				);
+				await this.provisioner.ensureOverlay(this.env.get("DEPLOYER_PREFIX"));
+				await this.reconcileSwarmService(spec);
+				await this.verifySwarmConvergence(spec.name);
 			},
 			{ maxAttempts: 3 },
 		);
+	}
+
+	/** Verify the swarm service exists after converge. */
+	private async verifySwarmConvergence(name: string): Promise<void> {
+		const svc = await this.dockerService.inspectSwarmService(name);
+		if (svc.ID) return;
+		throw new Error(`Global-DB swarm service '${name}' was not created`);
 	}
 
 	/**
@@ -226,14 +300,16 @@ private async depsReady(): Promise<boolean> {
 		}
 
 		const managedPayload = await this.probeManaged();
-		const containerRunning = managedPayload.container !== null && managedPayload.container.running;
+		const runningTasks = managedPayload.service?.runningTasks ?? 0;
+		const serviceExists = managedPayload.service?.exists === true;
+		const healthy = serviceExists && runningTasks > 0;
 		return {
-			healthy: containerRunning,
-			detail: containerRunning
-				? `managed Postgres running (host :${String(managedPayload.hostPort ?? "?")}, volume ${String(managedPayload.volume?.sizeBytes ?? "?")} B)`
-				: managedPayload.container === null
-					? "managed Postgres container missing"
-					: `managed Postgres not running (exit ${String(managedPayload.container.exitCode ?? "?")})`,
+			healthy,
+			detail: healthy
+				? `managed Postgres service running (tasks=${String(runningTasks)}, host :${String(managedPayload.publishedPort ?? "?")}, volume ${String(managedPayload.volume?.sizeBytes ?? "?")} B)`
+				: serviceExists
+					? `managed Postgres service exists but has no running task (tasks=${String(runningTasks)})`
+					: "managed Postgres swarm service missing",
 			payload: { checkedAt: new Date().toISOString(), latencyMs: Date.now() - startedAt, ...managedPayload },
 		};
 	}
@@ -257,7 +333,7 @@ private async depsReady(): Promise<boolean> {
 	 */
 	protected async buildProcessInfo(): Promise<Record<string, unknown>> {
 		return {
-			process: await this.describeManagedProcess(),
+			process: await this.describeSwarmProcess(this.buildSwarmSpec()),
 			connection: GlobalDbSupervisorService.parsePostgresUrl(this.databaseUrl()),
 		};
 	}
@@ -270,48 +346,6 @@ private async depsReady(): Promise<boolean> {
 		} catch {
 			return "";
 		}
-	}
-
-	/** Desired config (from the managed-postgres constants) + a FRESH inspect
-	 *  of the managed container — the docker process-info view. */
-	private async describeManagedProcess(): Promise<DockerProcessInfo> {
-		const docker = this.dockerService.getDockerClient();
-		const inspect = await docker.getContainer(MANAGED_POSTGRES_CONTAINER_NAME).inspect().catch(() => null);
-		const details = inspect as unknown as {
-			Id?: string;
-			State?: { Running?: boolean; ExitCode?: number; StartedAt?: string };
-			RestartCount?: number;
-			HostConfig?: { RestartPolicy?: { Name?: string } };
-			NetworkSettings?: { Ports?: Record<string, { HostPort?: string }[] | null> };
-		} | null;
-
-		const bindings = details?.NetworkSettings?.Ports?.[`${String(MANAGED_POSTGRES_PORT)}/tcp`] ?? null;
-		const hostPort = bindings?.[0]?.HostPort !== undefined ? Number(bindings[0].HostPort) : null;
-		const hostPorts =
-			hostPort !== null && Number.isInteger(hostPort) && hostPort >= 1
-				? [{ containerPort: MANAGED_POSTGRES_PORT, hostPort }]
-				: null;
-
-		return {
-			kind: "docker",
-			desired: {
-				name: MANAGED_POSTGRES_CONTAINER_NAME,
-				image: MANAGED_POSTGRES_IMAGE,
-				command: null,
-				labels: { "deployer.managed": "true", "deployer.managed_reason": "bootstrap_database" },
-				networkName: null,
-				binds: [`${MANAGED_POSTGRES_VOLUME_NAME}:/var/lib/postgresql/data`],
-				hostPorts,
-				restartPolicy: details?.HostConfig?.RestartPolicy?.Name ?? "no",
-			},
-			live: {
-				containerId: details?.Id ?? null,
-				running: details?.State?.Running ?? null,
-				startedAt: details?.State?.StartedAt ?? null,
-				exitCode: details?.State?.ExitCode ?? null,
-				restartCount: details?.RestartCount ?? null,
-			},
-		};
 	}
 
 	/** Parse a postgres DSN into the connection fields reported to consumers
@@ -346,49 +380,57 @@ private async depsReady(): Promise<boolean> {
 
 	// ─── Managed branch ──────────────────────────────────────────────────────
 
-	/** Measure the locally-managed Postgres container + volume + host port. */
+	/**
+	 * Measure the locally-managed Postgres SWARM SERVICE + data volume +
+	 * published port. A service whose inspect fails is reported as absent
+	 * (exists=false) rather than throwing — the payload records the failure.
+	 */
 	private async probeManaged(): Promise<{
 		mode: "managed";
-		container: {
-			id: string;
-			name: string;
-			running: boolean;
-			exitCode: number | null;
-			sizeRw: number | null;
-			sizeRootFs: number | null;
-			startedAt: string | null;
+		service: {
+			serviceId: string | null;
+			exists: boolean | null;
+			createdAt: string | null;
+			updatedAt: string | null;
+			serviceName: string | null;
+			runningTasks: number | null;
+			totalTasks: number | null;
 		} | null;
 		volume: { name: string; mountpoint: string | null; sizeBytes: number | null } | null;
-		hostPort: number | null;
+		publishedPort: number | null;
 	}> {
-		const docker = this.dockerService.getDockerClient();
-		const inspect = await docker.getContainer(MANAGED_POSTGRES_CONTAINER_NAME).inspect().catch(() => null);
-		const details = inspect as unknown as {
-			Id?: string;
-			State?: { Running?: boolean; ExitCode?: number; StartedAt?: string };
-			SizeRw?: number;
-			SizeRootFs?: number;
-			NetworkSettings?: { Ports?: Record<string, { HostPort?: string }[] | null> };
-		} | null;
+		const name = this.serviceName();
+		let service: {
+			serviceId: string | null;
+			exists: boolean | null;
+			createdAt: string | null;
+			updatedAt: string | null;
+			serviceName: string | null;
+			runningTasks: number | null;
+			totalTasks: number | null;
+		} | null = null;
 
-		const container =
-			inspect === null || details === null
-				? null
-				: {
-						id: details.Id ?? MANAGED_POSTGRES_CONTAINER_NAME,
-						name: MANAGED_POSTGRES_CONTAINER_NAME,
-						running: details.State?.Running ?? false,
-						exitCode: details.State?.ExitCode ?? null,
-						sizeRw: details.SizeRw ?? null,
-						sizeRootFs: details.SizeRootFs ?? null,
-						startedAt: details.State?.StartedAt ?? null,
-					};
+		try {
+			const info = await this.dockerService.inspectSwarmService(name);
+			const tasks = await this.dockerService.listSwarmServiceTasks(name).catch(() => []);
+			service = {
+				serviceId: info.ID ?? null,
+				exists: true,
+				createdAt: info.CreatedAt ?? null,
+				updatedAt: info.UpdatedAt ?? null,
+				serviceName: info.Spec.Name ?? null,
+				runningTasks: tasks.filter((task) => task.Status.State === "running").length,
+				totalTasks: tasks.length,
+			};
+		} catch {
+			// Service absent (404) or engine not a manager — reported as absent.
+			service = null;
+		}
 
-		// Host-published port for 5432, straight from NetworkSettings.
-		const bindings = details?.NetworkSettings?.Ports?.[`${String(MANAGED_POSTGRES_PORT)}/tcp`] ?? null;
-		const hostPort = bindings?.[0]?.HostPort !== undefined ? Number(bindings[0].HostPort) : null;
+		const published = this.buildSwarmSpec().endpointPorts[0]?.publishedPort ?? null;
 
 		// Data-volume usage (Size may be null until docker has COW stats).
+		const docker = this.dockerService.getDockerClient();
 		const volumeInspect = await docker.getVolume(MANAGED_POSTGRES_VOLUME_NAME).inspect().catch(() => null);
 		const volume = volumeInspect
 			? {
@@ -399,7 +441,7 @@ private async depsReady(): Promise<boolean> {
 				}
 			: null;
 
-		return { mode: "managed" as const, container, volume, hostPort };
+		return { mode: "managed" as const, service, volume, publishedPort: published };
 	}
 
 	// ─── External branch ─────────────────────────────────────────────────────

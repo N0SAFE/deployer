@@ -32,31 +32,19 @@ const DEFAULT_MESH_RUNTIME_STREAM_INPUT: MeshRuntimeStreamInput = {
 
 export function useMeshLocalNode(options?: { enabled?: boolean }) {
   return useQuery(
-    meshEndpoints.getLocalNode.queryOptions({
-      input: undefined,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
+    { ...meshEndpoints.getLocalNode.queryOptions({ input: {} }), enabled: options?.enabled ?? true, refetchInterval: false },
   );
 }
 
 export function useMeshPeers(options?: { enabled?: boolean }) {
   return useQuery(
-    meshEndpoints.listPeers.queryOptions({
-      input: undefined,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
+    { ...meshEndpoints.listPeers.queryOptions({ input: {} }), enabled: options?.enabled ?? true, refetchInterval: false },
   );
 }
 
 export function useMeshPeerSessions(options?: { enabled?: boolean }) {
   return useQuery(
-    meshEndpoints.listPeerSessions.queryOptions({
-      input: undefined,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
+    { ...meshEndpoints.listPeerSessions.queryOptions({ input: {} }), enabled: options?.enabled ?? true, refetchInterval: false },
   );
 }
 
@@ -98,11 +86,7 @@ export function useMeshEventStreamById(streamId: string | undefined, options?: {
 
 export function useMeshMembershipSnapshot(options?: { enabled?: boolean }) {
   return useQuery(
-    meshEndpoints.membershipSnapshot.queryOptions({
-      input: undefined,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
+    { ...meshEndpoints.membershipSnapshot.queryOptions({ input: {} }), enabled: options?.enabled ?? true, refetchInterval: false },
   );
 }
 
@@ -150,21 +134,13 @@ export function usePlanMeshStreamRoute() {
 
 export function useMeshTrustKeyringStatus(options?: { enabled?: boolean }) {
   return useQuery(
-    meshEndpoints.trustKeyringStatus.queryOptions({
-      input: undefined,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
+    { ...meshEndpoints.trustKeyringStatus.queryOptions({ input: {} }), enabled: options?.enabled ?? true, refetchInterval: false },
   );
 }
 
 export function useMeshTrustKeyringSecrets(options?: { enabled?: boolean }) {
   return useQuery(
-    meshEndpoints.trustKeyringSecrets.queryOptions({
-      input: undefined,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
+    { ...meshEndpoints.trustKeyringSecrets.queryOptions({ input: {} }), enabled: options?.enabled ?? true, refetchInterval: false },
   );
 }
 
@@ -178,21 +154,13 @@ export function useMeshTrustKeyringRotate() {
 
 export function useMeshTrustKeyringConvergenceStatus(options?: { enabled?: boolean }) {
   return useQuery(
-    meshEndpoints.trustKeyringConvergenceStatus.queryOptions({
-      input: undefined,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
+    { ...meshEndpoints.trustKeyringConvergenceStatus.queryOptions({ input: {} }), enabled: options?.enabled ?? true, refetchInterval: false },
   );
 }
 
 export function useMeshTrustStrictReadiness(options?: { enabled?: boolean }) {
   return useQuery(
-    meshEndpoints.trustStrictReadiness.queryOptions({
-      input: undefined,
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
+    { ...meshEndpoints.trustStrictReadiness.queryOptions({ input: {} }), enabled: options?.enabled ?? true, refetchInterval: false },
   );
 }
 

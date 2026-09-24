@@ -27,9 +27,9 @@
 
 import { Module } from "@nestjs/common";
 import { LocalDatabaseModule } from "../modules/database/local/local-database.module";
-import { NodeConfigRepository } from "../modules/setup/repositories/node-config.repository";
+import { NodeStateModule } from "../modules/node-state/node-state.module";
 import { SetupDevService } from "./setup-dev.service";
-import { EnvModule } from "@/config/env/env.module";
+import { EnvModule } from "@repo/nest-env";
 
 @Module({
   // EnvModule is @Global() in the main app, but this module is bootstrapped as
@@ -37,9 +37,8 @@ import { EnvModule } from "@/config/env/env.module";
   // explicitly imported here so the compose-managed DB config
   // (MANAGED_GLOBAL_DB_ENABLED / MANAGED_GLOBAL_DB_*) is
   // readable during DB URL resolution.
-  imports: [LocalDatabaseModule, EnvModule],
+  imports: [LocalDatabaseModule, EnvModule, NodeStateModule],
   providers: [
-    NodeConfigRepository,
     SetupDevService,
   ],
 })

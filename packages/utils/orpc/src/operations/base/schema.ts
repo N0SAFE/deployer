@@ -25,10 +25,9 @@ import type {
     UUIDSchema,
     UnionSchema,
     InferSchemaOutput,
-} from "./types";
-import { SHAPE_SYMBOL } from "./types";
-import { voidSchema as _voidSchema, neverSchema } from "../../types/standard-schema-helpers";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+} from "@repo/orpc-utils/operations/base/types";
+import { SHAPE_SYMBOL } from "@repo/orpc-utils/operations/base/types";
+import { voidSchema as _voidSchema, neverSchema } from "@repo/orpc-utils/types/standard-schema-helpers";
 
 /**
  * Re-exported from shared — single canonical implementation

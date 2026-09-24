@@ -21,7 +21,7 @@ const node = (overrides: Partial<DockerodeNodeSummary> = {}): DockerodeNodeSumma
         Status: { State: "ready" },
         ManagerStatus: null,
         ...overrides,
-    }) as DockerodeNodeSummary;
+    });
 
 describe("toEngineNodeRow", () => {
     it("maps a worker node with defaults", () => {

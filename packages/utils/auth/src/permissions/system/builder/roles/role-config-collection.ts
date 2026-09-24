@@ -172,7 +172,7 @@ export type WriteRoles<TRoles extends Record<string, Record<string, readonly str
   }[keyof TRoles[K]] extends true ? K : never]: TRoles[K];
 };
 
-import { RoleConfig } from './single-role-config';
+import { RoleConfig } from '@repo/auth/permissions/system/builder/roles/single-role-config';
 
 /**
  * RoleConfigCollection - Provides batch operations on multiple roles with type safety

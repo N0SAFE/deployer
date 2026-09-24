@@ -25,11 +25,11 @@ import { useMemo } from 'react'
 import type {
   PlatformRole,
   PlatformResource,
-} from '../permissions'
+} from '@repo/auth/permissions/index'
 import {
   platformRolesConfig,
   PLATFORM_ROLES,
-} from '../permissions'
+} from '@repo/auth/permissions/index'
 
 // ============================================================================
 // TYPES

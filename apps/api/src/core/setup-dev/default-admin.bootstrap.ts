@@ -24,8 +24,8 @@ import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import { Roles } from "@repo/auth/permissions";
-import { user } from "@/config/drizzle/global/schema/auth";
-import * as globalSchema from "@/config/drizzle/global/schema";
+import { user } from "@repo/nest-schema/global/auth";
+import * as globalSchema from "@repo/nest-schema/global";
 import { createBetterAuth } from "@/config/auth/auth";
 
 export type EnsureDefaultAdminResult =

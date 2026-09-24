@@ -5,11 +5,11 @@ import type {
   ExtractMutationContext,
   ExtractMutationInput,
   ExtractMutationOutput,
-} from '../core/hook-factories';
+} from '@repo/orpc-utils/hooks/core/hook-factories';
 import type {
   MutationProcedureNames,
   QueryProcedureNames,
-} from './route-method.types';
+} from '@repo/orpc-utils/hooks/types/route-method.types';
 
 type ResolverResult<TContract extends object, TRouter extends object = TContract> = Partial<{
   [Q in QueryProcedureNames<TContract, TRouter>]: Q extends keyof TRouter

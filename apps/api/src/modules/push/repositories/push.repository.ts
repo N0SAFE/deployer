@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { ConflictError } from "@repo/errors";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
-import { pushSubscription, userVapidKeys } from "@/config/drizzle/global/schema/auth";
+import { pushSubscription, userVapidKeys } from "@repo/nest-schema/global/auth";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import type { InferSelectModel } from "drizzle-orm";

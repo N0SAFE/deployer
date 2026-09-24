@@ -2,7 +2,7 @@ import z from 'zod/v4'
 import {
   dockerImageSecurityScanSummarySchema,
   dockerVulnerabilityEntrySchema,
-} from '../security/scanning/images/scan.schema'
+} from '@repo/contracts-entities/entities/docker/security/scanning/images/scan.schema'
 
 export const dockerImageLayerEntrySchema = z.object({
   id: z.string().min(1),

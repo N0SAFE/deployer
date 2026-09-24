@@ -9,10 +9,10 @@ import {
     projects,
     serviceDependencies,
     services,
-} from "@/config/drizzle/global/schema/deployment";
-import { localEventOutbox } from "@/config/drizzle/global/schema/runtime";
-import { environments } from "@/config/drizzle/global/schema/environment";
-import { resourceOwnershipIndex } from "@/config/drizzle/global/schema/cluster";
+} from "@repo/nest-schema/global/deployment";
+import { localEventOutbox } from "@repo/nest-schema/global/runtime";
+import { environments } from "@repo/nest-schema/global/environment";
+import { resourceOwnershipIndex } from "@repo/nest-schema/global/cluster";
 import { and, asc, count, desc, eq, sql, type SQL } from "drizzle-orm";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";

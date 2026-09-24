@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { and, eq } from "drizzle-orm";
-import { projectCollaborators, projects } from "@/config/drizzle/global/schema/deployment";
+import { projectCollaborators, projects } from "@repo/nest-schema/global/deployment";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import type { ProjectRole } from "@repo/auth";
 

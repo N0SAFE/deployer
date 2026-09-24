@@ -1,7 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { GlobalDatabaseModule } from '@/core/modules/database/global/global-database.module';
 import { EventsModule } from '@/core/modules/events/events.module';
-import { NodeConfigRepository } from '@/core/modules/setup/repositories/node-config.repository';
+import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
 import { ReachabilityService } from './services/reachability.service';
 import { PublicAccessPointService } from './services/public-access-point.service';
 import { PublicAccessPointEventService } from './events/public-access-point-event.service';
@@ -18,11 +18,11 @@ import { NodeNetworkConfigRepository } from './repositories/node-network-config.
  */
 @Global()
 @Module({
-  imports: [GlobalDatabaseModule, EventsModule],
+  imports: [GlobalDatabaseModule, EventsModule, NodeStateModule],
   providers: [
-    // Local node identity (SQLite node_config) — a second stateless instance
-    // is fine; the setup module provides its own.
-    NodeConfigRepository,
+    // NodeConfigRepository comes from NodeStateModule (the single owner of the
+    // local node-state repositories) — redeclaring it here created a SECOND
+    // instance and triggered the SC8 duplication guard.
     NodeNetworkConfigRepository,
     ReachabilityService,
     PublicAccessPointEventService,

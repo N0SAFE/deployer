@@ -7,7 +7,7 @@ import {
 	LOCAL_DB_SUPERVISOR_ID,
 } from "./local-db-supervisor.service";
 import type { LocalDatabase } from "@/core/modules/database/local/local-database.service";
-import type { EnvService } from "@/config/env/env.service";
+import type { EnvService } from "@repo/nest-env";
 
 /** In-memory sqlite database wrapped by drizzle — no file I/O in tests. */
 function makeInMemoryDb(): LocalDatabase {
@@ -67,7 +67,7 @@ describe("LocalDbSupervisorService", () => {
 		// Force the liveness query to throw.
 		db.run = vi.fn(() => {
 			throw new Error("database is locked");
-		}) as unknown as typeof db.run;
+		});
 
 		const health = await supervisor.getHealth();
 

@@ -15,7 +15,7 @@
  * know when setup completes — no polling.
  */
 
-import { Injectable, Inject, Logger, type INestApplication, type OnApplicationBootstrap } from "@nestjs/common";
+import { Injectable, Inject, Logger, type INestApplication, type OnApplicationBootstrap, type OnApplicationShutdown } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -25,7 +25,7 @@ import { NodeConfigRepository } from "../modules/setup/repositories/node-config.
 import { SetupDevModule } from "../setup-dev/setup-dev.module";
 import { ensureDefaultAdmin } from "../setup-dev/default-admin.bootstrap";
 import { describePolicy, provisioningPolicyFromProcessEnv } from "../setup-dev/provisioning-policy";
-import { SetupSubAppModule } from "../setup-sub-app/setup-sub-app.module";
+import { SetupSubAppModule } from "@/sub-apps/setup-wizard/setup-wizard.sub-app.module";
 import { runSubApp } from "../sub-app/sub-app-runner";
 import { AppModule } from "../../app.module";
 import { InternalErrorExceptionFilter } from "../middlewares/internal-error/internal-error-exception.filter";
@@ -35,19 +35,48 @@ import { MeshInitializerBridge } from "../../sub-apps/mesh-initializer/mesh-init
 import { MeshInitializerAppModule } from "../../sub-apps/mesh-initializer/mesh-initializer.app.module";
 import { AppLifecycleService, AppLifecyclePhase } from "@repo/nest-lifecycle";
 import { splitManagedEnv } from "@repo/env";
+import { HostnameService } from "../modules/platform-ingress/services/hostname.service";
 import { DatabaseStartupGuard } from "../modules/database/services/database-startup-guard.service";
 import { DatabaseProbeService } from "../modules/database/services/database-probe.service";
-import { PostgresContainerService, MANAGED_POSTGRES_CONTAINER_NAME, MANAGED_POSTGRES_PORT } from "../modules/docker/containers/postgres/postgres-container.service";
+import {
+    MANAGED_POSTGRES_ALIAS,
+    MANAGED_POSTGRES_PORT,
+    PostgresServiceProvisioner,
+    managedPostgresServiceName,
+} from "../modules/docker/containers/postgres/postgres-service.provisioner";
 import { TraefikPlatformConfigService } from "../modules/traefik/services/traefik-platform-config.service";
+import { DockerService } from "../modules/docker/services/docker.service";
+import { EnvService } from "@repo/nest-env";
+import { SwarmAppWiringSupervisorService } from "../modules/supervisors/platform/swarm-app-wiring.supervisor.service";
+import { ReadinessService, type ReadinessResult } from "../../modules/health/services/readiness.service";
 import { Pool } from "pg";
 import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "../modules/database/database-connection";
 import type { GlobalDatabase } from "../modules/database/global/global-database.service";
 
 import { AppError } from "@repo/errors";
 @Injectable()
-export class OrchestratorService implements OnApplicationBootstrap {
+export class OrchestratorService implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(OrchestratorService.name);
   private setupApp: INestApplication | null = null;
+
+  /**
+   * Every sub-app this orchestrator started (setup-wizard, mesh-initializer,
+   * main-app). They are SEPARATE Nest applications — each with its own HTTP
+   * server and its own database handles — so closing the gateway does NOT
+   * close them. They are released explicitly in `onApplicationShutdown`.
+   */
+  private readonly subApps: INestApplication[] = [];
+
+  /**
+   * The main-app container (AppModule on port 3012), once it has been started.
+   *
+   * Kept as a field because the readiness probe must reach INTO it: the
+   * readiness indicators depend on the global Postgres pool and the mesh
+   * repositories, which the gateway container deliberately does not own. Until
+   * setup completes and this app exists, `/health/ready` legitimately reports
+   * "not ready".
+   */
+  private mainApp: INestApplication | null = null;
 
   constructor(
     private readonly registry: RouteRegistryService,
@@ -55,10 +84,17 @@ export class OrchestratorService implements OnApplicationBootstrap {
     private readonly lifecycle: AppLifecycleService,
     private readonly startupGuard: DatabaseStartupGuard,
     private readonly probeService: DatabaseProbeService,
-    private readonly postgresContainerService: PostgresContainerService,
+    private readonly postgresProvisioner: PostgresServiceProvisioner,
     /** Traefik core CONFIG handler — writes the instance dynamic config
      *  AFTER setup (DB exists). The supervisor stays process-only. */
     private readonly ingressConfig: TraefikPlatformConfigService,
+    private readonly dockerService: DockerService,
+    private readonly envService: EnvService,
+    /** Keeps the app containers on the swarm overlay — called BEFORE the DB
+     *  connectivity guard, since the supervised database is reached there. */
+    private readonly appWiring: SwarmAppWiringSupervisorService,
+    /** Hostname grammar (single source of truth) — used to print the setup URL. */
+    private readonly hostnameService: HostnameService,
     @Inject(GLOBAL_DATABASE_POOL) private readonly pool: Pool,
     @Inject(GLOBAL_DATABASE_CONNECTION) private readonly db: GlobalDatabase,
   ) {}
@@ -266,27 +302,70 @@ export class OrchestratorService implements OnApplicationBootstrap {
    * Returns the effective URL (fresh when healed, the stored one otherwise,
    * null when no URL is configured). External DBs are never touched.
    */
+  /**
+   * The supervised global database endpoint, resolved for the CURRENT runtime.
+   *
+   * A supervised database has two incarnations and ONE reachable address each:
+   *   - swarm service (post-setup): the OVERLAY SERVICE NAME. The swarm ingress
+   *     port is published on the host but is NOT reachable from containers
+   *     (IPVS does not accept traffic arriving on the bridge gateway), so the
+   *     overlay name is the only address that works for the app containers.
+   *   - plain container (pre-setup): the mapped host port, which can drift when
+   *     docker recreates the container.
+   *
+   * Returns the address to use, or null to keep the stored URL untouched.
+   */
+// ─── Step 1b: Managed Postgres URL resolver ─────────────────────────
+    /**
+     * The managed Postgres is a SWARM SERVICE whose stable DNS ALIAS
+     * (`global-db`) is what every consumer resolves on the platform overlay.
+     * The persisted DSN therefore always points at that alias and the
+     * container port — there is no host-published random port to chase any
+     * more, so no self-heal is required.
+     *
+     * The only adjustment performed here is a MIGRATION of URLs written by
+     * older installs (which pointed at a host gateway + mapped port): when the
+     * swarm service exists, the stored DSN is rewritten onto the alias once
+     * and persisted, so the rest of the boot chain connects over the overlay.
+     */
+    private async resolveManagedDatabaseUrl(
+        config: ReturnType<NodeConfigRepository["find"]>,
+        stored: string,
+    ): Promise<string | null> {
+        try {
+            const serviceName = managedPostgresServiceName(this.envService.get("DEPLOYER_PREFIX"));
+            const service = await this.dockerService.inspectSwarmService(serviceName);
+            if (service.ID === undefined || service.ID === "") return stored;
+
+            const parsed = new URL(stored);
+            if (parsed.hostname === MANAGED_POSTGRES_ALIAS) return stored;
+            parsed.hostname = MANAGED_POSTGRES_ALIAS;
+            parsed.port = String(MANAGED_POSTGRES_PORT);
+            this.logger.log(
+                `♻️  Migrating managed Postgres DSN onto the swarm alias "${MANAGED_POSTGRES_ALIAS}"`,
+            );
+            return parsed.toString();
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            this.logger.warn(`⚠️  Managed Postgres service not resolvable: ${msg}`);
+            return stored;
+    }
+  }
+
   private async refreshManagedDatabaseUrl(config: ReturnType<NodeConfigRepository["find"]>): Promise<string | null> {
     const stored = config?.databaseUrl?.trim() ?? null;
     if (stored === null || config?.databaseProvisioning !== "local") return stored;
-    try {
-      const currentPort = await this.postgresContainerService.getMappedPort(MANAGED_POSTGRES_CONTAINER_NAME, MANAGED_POSTGRES_PORT);
-      const parsed = new URL(stored);
-      if (Number(parsed.port) === currentPort) return stored;
-      parsed.port = String(currentPort);
-      const fresh = parsed.toString();
-      this.logger.log(`♻️  Managed Postgres host port drifted (${String(parsed.port)} → ${String(currentPort)}) — refreshing node_config URL`);
-      await this.nodeConfigRepository.upsert({
-        ...config,
-        databaseUrl: fresh,
-        updatedAt: new Date().toISOString(),
-      });
-      return fresh;
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      this.logger.warn(`⚠️  Managed Postgres URL refresh skipped: ${msg}`);
-      return stored;
-    }
+
+    const resolved = await this.resolveManagedDatabaseUrl(config, stored);
+    if (resolved === null || resolved === stored) return stored;
+
+    this.logger.log("♻️  Managed Postgres endpoint changed — refreshing node_config URL");
+    await this.nodeConfigRepository.upsert({
+      ...config,
+      databaseUrl: resolved,
+      updatedAt: new Date().toISOString(),
+    });
+    return resolved;
   }
 
   // ─── Bridge: emit to SetupWizardBridge for mesh-init ───────────────
@@ -373,6 +452,19 @@ export class OrchestratorService implements OnApplicationBootstrap {
    * and the env-URL heal branch converge here so the sequence cannot drift.
    */
   private async runReadyPipeline(databaseUrl: string, config: any): Promise<void> {
+    // ── Join the swarm overlay FIRST when the engine is swarm-active ──
+    // The supervised database/Redis are swarm SERVICES on the overlay, and the
+    // swarm ingress port is NOT reachable from containers (IPVS rejects traffic
+    // arriving on the bridge gateway). The app container must therefore be on
+    // the overlay BEFORE the connectivity probe below. No-op pre-swarm.
+    try {
+      await this.appWiring.ensureDesiredState();
+    } catch (error: unknown) {
+      this.logger.warn(
+        `Swarm overlay wiring skipped: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
     // ── Verify database is reachable ─────────────────────────────────
     await this.startupGuard.ensureDatabaseAvailable(this.pool);
 
@@ -454,6 +546,17 @@ export class OrchestratorService implements OnApplicationBootstrap {
       this.registry,
     );
     this.setupApp = app;
+    this.subApps.push(app);
+    // Print the URL the OPERATOR must open. Without it the only way to find
+    // onboarding was to guess the hostname, and the setup phase is exactly when
+    // the platform is least discoverable (no dashboard yet).
+    //
+    // Built from HostnameService (the single source of truth for the hostname
+    // grammar) rather than a literal, so a DEPLOYER_PREFIX change moves this
+    // log with every other surface.
+    this.logger.log(
+      `🔧 Setup required — open ${this.hostnameService.apiOrigin()}/setup to complete onboarding`,
+    );
     this.logger.log("✅ Setup wizard running — awaiting event-driven continuation");
   }
 
@@ -465,10 +568,11 @@ export class OrchestratorService implements OnApplicationBootstrap {
       message: "Connecting to mesh peers…",
     });
 
-    await runSubApp(
+    const { app: meshApp } = await runSubApp(
       { id: "mesh-initializer", module: MeshInitializerAppModule, port: 3011, initBeforeExtract: true },
       this.registry,
     );
+    this.subApps.push(meshApp);
     // Wait for the bridge (fired when mesh init completes)
     const meshBridge = new MeshInitializerBridge();
     const result = await meshBridge.waitFor();
@@ -553,7 +657,7 @@ export class OrchestratorService implements OnApplicationBootstrap {
       await this.ingressConfig.writePlatformConfigs();
     } catch (error: unknown) {
       this.logger.warn(`Ingress config write skipped: ${error instanceof Error ? error.message : String(error)}`);
-    }    const { registration } = await runSubApp(
+    }    const { app: mainApp, registration } = await runSubApp(
       {
         id: "main-app", module: AppModule, port: 3012,
         initBeforeExtract: true,
@@ -582,6 +686,7 @@ export class OrchestratorService implements OnApplicationBootstrap {
       },
       this.registry,
     );
+    this.mainApp = mainApp;
     this.logger.log(`✅ main-app launched — ${registration.routes.length} routes`);
     this.registry.setFallback({ targetUrl: "http://127.0.0.1:3012/", subAppId: "main-app" });
     this.logger.log("🔄 Fallback → main-app");
@@ -591,5 +696,77 @@ export class OrchestratorService implements OnApplicationBootstrap {
     // onApplicationBootstrap re-converges every registered supervisor once the
     // global DB exists (managed web spawns, global-db takes over Postgres,
     // ingress settles). Keep convergence in the framework, not here.
+  }
+
+  /**
+   * Answer the platform readiness probe (`GET /health/ready`).
+   *
+   * The gateway owns the route (so it can answer during boot) but NOT the
+   * indicators: those live in the main-app container, which is the only context
+   * with the global Postgres pool and the mesh repositories. So this looks the
+   * service up there and falls back to a 503 until that app exists.
+   *
+   * NEVER throws: "the platform is not ready" is the expected answer for most
+   * of this process's early life, so it is a result, not an error.
+   */
+  async probeReadiness(): Promise<ReadinessResult> {
+    if (this.mainApp === null) {
+      return {
+        statusCode: 503,
+        body: {
+          status: "error",
+          error: { probe: { reason: "setup is not complete — the main application has not started yet" } },
+          checkedAt: new Date().toISOString(),
+        },
+      };
+    }
+
+    try {
+      // Resolved per call rather than cached: the app is created after boot, so
+      // there is no safe injection point for it in this context.
+      const readiness = this.mainApp.get(ReadinessService, { strict: false });
+      return await readiness.probe();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Readiness probe unavailable: ${message}`);
+      return {
+        statusCode: 503,
+        body: { status: "error", error: { probe: { reason: message } }, checkedAt: new Date().toISOString() },
+      };
+    }
+  }
+
+  /**
+   * Close every sub-app this orchestrator started.
+   *
+   * They are separate Nest applications: each owns an HTTP server (127.0.0.1
+   * ports 3010/3011/3012) and its own database handles (a global Postgres pool
+   * and a local SQLite connection per context). Closing the gateway application
+   * does NOT reach them, so without this their servers and handles leaked and
+   * the process could only be stopped by a force-exit.
+   *
+   * Closed in REVERSE start order (main-app first, setup-wizard last) and each
+   * failure is isolated: one wedged context must not prevent the others — or
+   * the gateway — from shutting down.
+   */
+  async onApplicationShutdown(): Promise<void> {
+    if (this.subApps.length === 0) {
+      return;
+    }
+    // Drop the readiness reference FIRST: the container is about to be closed,
+    // so a probe arriving mid-shutdown must report "not ready" rather than
+    // reach into a disposed application.
+    this.mainApp = null;
+    for (const subApp of [...this.subApps].reverse()) {
+      try {
+        await subApp.close();
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(`Sub-app shutdown failed: ${message}`);
+      }
+    }
+    this.subApps.length = 0;
+    this.setupApp = null;
+    this.logger.log("🔌 Sub-applications closed");
   }
 }

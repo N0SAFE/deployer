@@ -24,11 +24,11 @@ import { RouterModule } from "../router/router.module";
 import { LocalDatabaseModule } from "../modules/database/local/local-database.module";
 import { DatabaseModule } from "../modules/database/database.module";
 import { AppLifecycleModule } from '@repo/nest-lifecycle'
-import { NodeConfigRepository } from "../modules/setup/repositories/node-config.repository";
+import { NodeStateModule } from "../modules/node-state/node-state.module";
 import { OrchestratorService } from "./orchestrator.service";
 
 // Platform supervisors + framework (single owner = the gateway app).
-import { EnvModule } from "../../config/env/env.module";
+import { EnvModule } from "@repo/nest-env";
 import { CoreDockerModule } from "../modules/docker/docker.module";
 import { CorePlatformIngressModule } from "../modules/platform-ingress/platform-ingress.module";
 import { SupervisorsModule } from "../modules/supervisors/supervisors.module";
@@ -37,6 +37,8 @@ import { SupervisorsPlatformModule } from "../modules/supervisors/platform/platf
 // Traefik CORE module — owns the instance CONFIG updates (the supervisor only
 // ensures the process).
 import { TraefikCoreModule } from "../modules/traefik/traefik.module";
+// Swarm init — must run BEFORE supervisors try overlay networks.
+import { SwarmCoreModule } from "../modules/swarm/swarm.module";
 
 @Module({
   imports: [
@@ -52,7 +54,17 @@ import { TraefikCoreModule } from "../modules/traefik/traefik.module";
     SupervisorsDatabaseModule,
     SupervisorsPlatformModule,
     TraefikCoreModule,
+    // Swarm init must complete BEFORE supervisors converge overlay networks.
+    SwarmCoreModule,
+    // NOTE: SwarmInventoryModule is deliberately NOT imported here. It needs
+    // the global Postgres (cluster_nodes) and the mesh, neither of which exists
+    // before setup — importing it into the gateway would instantiate those
+    // providers in the PRE-setup context. It is owned by AppModule instead,
+    // which is a separate context that boots only after migrations.
+    // NodeConfigRepository is consumed by OrchestratorService below; it comes
+    // from its single owner rather than being redeclared here.
+    NodeStateModule,
   ],
-  providers: [OrchestratorService, NodeConfigRepository],
+  providers: [OrchestratorService],
 })
 export class OrchestrationModule {}

@@ -18,12 +18,6 @@ import type { Metadata } from 'next'
  * DashboardOverviewClient so all data fetches share one client boundary.
  */
 export default AuthDashboard.SessionRoute(({ session }) => {
-  // Real role from the session (was hardcoded "member" skeleton) — the
-  // platform grants `superAdmin` (bypass) and `admin`; anything else is a
-  // regular member. Powers the admin-tools card + "Your role" metric.
-  const userRole = session?.user.role ?? 'member'
-  const isAdmin = userRole === 'superAdmin' || userRole === 'admin'
-
   return (
     <div className="space-y-5">
       <PageHeader
@@ -33,8 +27,8 @@ export default AuthDashboard.SessionRoute(({ session }) => {
         badge={<Badge variant="outline">v3</Badge>}
       />
 
-      {/* Bento command center — live metrics, deployments, actions (client) */}
-      <DashboardOverviewClient isAdmin={isAdmin} userRole={userRole} />
+      {/* The decision + the timeline + a dense context strip (client) */}
+      <DashboardOverviewClient />
     </div>
   )
 })

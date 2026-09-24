@@ -27,13 +27,15 @@
 import { Global, Logger, Module } from '@nestjs/common'
 import { Pool } from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
-import * as globalSchema from '@/config/drizzle/global/schema'
+import * as globalSchema from '@repo/nest-schema/global'
 import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from '../database-connection'
 import { GlobalDatabaseService } from './global-database.service'
+import { GlobalDatabaseLifecycleService } from './global-database-lifecycle.service'
 import { NodeConfigRepository } from '../../setup/repositories/node-config.repository'
 import { LocalDatabaseModule } from '../local/local-database.module'
-import { EnvModule } from "@/config/env/env.module"
-import { EnvService } from "@/config/env/env.service"
+import { NodeStateModule } from '../../node-state/node-state.module'
+import { EnvModule } from "@repo/nest-env"
+import { EnvService } from "@repo/nest-env"
 import { resolveManagedGlobalDbUrl, splitManagedEnv } from "@repo/env"
 
 const logger = new Logger('GlobalDatabaseModule')
@@ -107,9 +109,17 @@ function buildSharedPool(nodeConfig: NodeConfigRepository, env: EnvService): Poo
 
 @Global()
 @Module({
-    imports: [LocalDatabaseModule, EnvModule],
+    imports: [LocalDatabaseModule, EnvModule, NodeStateModule],
     providers: [
-        NodeConfigRepository,
+        // NodeConfigRepository is imported from NodeStateModule (its single
+        // owner) rather than redeclared: two declarations = two instances,
+        // which the SC8 guard rejects.
+        // Owns the teardown of the shared pool above. Registered HERE (not in a
+        // supervisor) because the pool is created UNCONDITIONALLY by the
+        // factory, while database supervisors are registered only for a
+        // locally-managed database — and never inside the setup-wizard /
+        // mesh-initializer contexts, which each build their own pool.
+        GlobalDatabaseLifecycleService,
         {
             provide: GLOBAL_DATABASE_POOL,
             useFactory: buildSharedPool,
@@ -126,7 +136,12 @@ function buildSharedPool(nodeConfig: NodeConfigRepository, env: EnvService): Poo
             inject: [GLOBAL_DATABASE_POOL],
         },
     ],
-    exports: [GlobalDatabaseService, GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL, NodeConfigRepository],
+    // NodeConfigRepository is NOT re-exported: it is owned by NodeStateModule,
+    // which this module imports. NestJS validates exports against the module's
+    // OWN providers + imported module metatypes, so a class token that only
+    // arrives through an imported @Global() module is not exportable from here
+    // (UnknownExportException). Consumers inject it directly from NodeStateModule.
+    exports: [GlobalDatabaseService, GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL],
 })
 export class GlobalDatabaseModule {}
 

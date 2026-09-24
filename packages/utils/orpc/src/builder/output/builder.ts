@@ -18,10 +18,10 @@
  */
 
 import { eventIterator, type Schema } from "@orpc/contract";
-import { DetailedOutputBrand, type DetailedOutput } from "../core/route-builder";
-import type { AnySchema, HTTPMethod, ErrorMap, UnionTuple } from "../../types/types";
-import type { ObjectSchema, VoidSchema, SchemaShape } from "../../types/standard-schema-helpers";
-import { ProxyBuilderBase } from "../core/proxy-builder.base";
+import { DetailedOutputBrand, type DetailedOutput } from "@repo/orpc-utils/builder/core/route-builder";
+import type { AnySchema, HTTPMethod, ErrorMap, UnionTuple } from "@repo/orpc-utils/types/types";
+import type { ObjectSchema, VoidSchema, SchemaShape } from "@repo/orpc-utils/types/standard-schema-helpers";
+import { ProxyBuilderBase } from "@repo/orpc-utils/builder/core/proxy-builder.base";
 import {
     BasePluginTransformer,
     StandardPluginTransformer,
@@ -29,9 +29,9 @@ import {
     type PluginExtractOutputStatus,
     type PluginExtractOutputHeaders,
     type PluginOutputProxySchema,
-} from "../plugin";
-import type { OutputSchemaProxy } from "./proxy";
-import { observable, type Observable } from "../../observable/contract";
+} from "@repo/orpc-utils/builder/plugin/index";
+import type { OutputSchemaProxy } from "@repo/orpc-utils/builder/output/proxy";
+import { observable, type Observable } from "@repo/orpc-utils/observable/contract";
 
 /**
  * Extract body schema from output type.
@@ -352,7 +352,6 @@ export abstract class DetailedOutputBuilder<
      * OpenAPI-friendly no-op, kept for fluent symmetry.
      */
     description(_description: string): this {
-        void _description;
         return this;
     }
 

@@ -34,9 +34,9 @@
 
 import * as z from "zod";
 import type { AnySchema } from "@orpc/contract";
-import type { ZodEntitySchema } from "./standard-operations";
-import type { ZodStandardOperations } from "./standard-operations";
-import type { RouteBuilder } from "../../builder/core/route-builder";
+import type { ZodEntitySchema } from "@repo/orpc-utils/operations/zod/standard-operations";
+import type { ZodStandardOperations } from "@repo/orpc-utils/operations/zod/standard-operations";
+import type { RouteBuilder } from "@repo/orpc-utils/builder/core/route-builder";
 import {
     createQueryBuilder,
     createPaginationConfigSchema,
@@ -48,8 +48,8 @@ import {
     type QueryConfig,
     type FieldFilterConfig,
     type FilterOperator,
-} from "./utils";
-import type { ComputeInputSchema, ComputeOutputSchema } from "./utils";
+} from "@repo/orpc-utils/operations/zod/utils/index";
+import type { ComputeInputSchema, ComputeOutputSchema } from "@repo/orpc-utils/operations/zod/utils/index";
 
 /**
  * Filter field definition for the builder's fluent API.

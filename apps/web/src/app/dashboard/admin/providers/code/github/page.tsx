@@ -18,6 +18,7 @@ import { Field, FieldLabel, FieldDescription, FieldError } from '@repo/ui/compon
 import { Siren, Plus, Trash2, GitFork, ArrowLeft, Key, ExternalLink, Shield } from 'lucide-react'
 import { toast } from 'sonner'
 import { AuthDashboardAdminProvidersCode } from '@/routes'
+import { PageHeader, EmptyState } from '@/components/dashboard'
 import { z } from 'zod/v4'
 
 const githubCreateSchema = z.object({
@@ -47,6 +48,7 @@ export default function AdminProvidersGithubPage() {
 
   // Manual create form
   const [createOpen, setCreateOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const createForm = useForm({
     defaultValues: { name: '', appId: '', clientId: '', clientSecret: '', privateKey: '', webhookSecret: '' },
     onSubmit: async ({ value }) => {
@@ -85,15 +87,23 @@ export default function AdminProvidersGithubPage() {
     },
   })
 
-  const handleDelete = useCallback(async (id: string, appName: string) => {
-    if (!confirm(`Remove "${appName}"? This cannot be undone.`)) return
+  const handleDelete = useCallback((id: string, appName: string) => {
+    // Replaced a blocking `confirm()` — this file already imports and uses
+    // <Dialog> for the PAT flow, so a destructive delete was the only action
+    // still relying on the browser's unstyled prompt.
+    setDeleteTarget({ id, name: appName })
+  }, [])
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return
     try {
-      await deleteApp.mutateAsync({ params: { id } })
+      await deleteApp.mutateAsync({ params: { id: deleteTarget.id } })
       toast.success('GitHub App removed')
+      setDeleteTarget(null)
     } catch (err) {
       toast.error('Failed to remove', { description: isDefinedORPCError(err) ? getErrorMessage(err, 'Unknown error') : UNKNOWN_ORPC_ERROR_MESSAGE })
     }
-  }, [deleteApp])
+  }, [deleteApp, deleteTarget])
 
   const handleManifestFlow = useCallback(async () => {
     if (selfCheck && !selfCheck.reachable) {
@@ -147,20 +157,14 @@ export default function AdminProvidersGithubPage() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <AuthDashboardAdminProvidersCode.Link>
-          <Button variant="ghost" size="sm" className="-ml-2"><ArrowLeft className="mr-1 size-4" />Code Providers</Button>
+          <Button variant="ghost" size="sm" className="-ml-2"><ArrowLeft className="mr-1 size-4" />Code providers</Button>
         </AuthDashboardAdminProvidersCode.Link>
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className="rounded-lg bg-gray-100 dark:bg-gray-800 p-2"><GitFork className="size-5 text-gray-700 dark:text-gray-300" /></div>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">GitHub</h1>
-          <p className="text-sm text-muted-foreground">
-            Connect GitHub to enable source code integration. Use <strong>OAuth</strong> to auto-create a GitHub App,
-            or <strong>API Key (PAT)</strong> for a simpler setup.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="GitHub"
+        description="Connect GitHub for source integration. Use OAuth to auto-create a GitHub App, or a personal access token for a simpler setup."
+      />
 
       {/* Self-check status */}
       {selfCheck && (
@@ -217,13 +221,11 @@ export default function AdminProvidersGithubPage() {
 
         <TabsContent value="apps" className="mt-4">
           {apps.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <GitFork className="mb-4 size-12 text-muted-foreground/40" />
-                <p className="text-lg font-medium">No GitHub Apps configured</p>
-                <p className="text-sm text-muted-foreground">Use the OAuth flow above to auto-create one, or enter credentials manually below.</p>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={GitFork}
+              title="No GitHub Apps configured"
+              description="Use the OAuth flow above to auto-create one, or enter credentials manually in the other tab."
+            />
           ) : (
             <Card>
               <CardHeader><CardTitle>Configured Apps</CardTitle><CardDescription>{apps.length} app{apps.length !== 1 ? 's' : ''}</CardDescription></CardHeader>
@@ -238,7 +240,7 @@ export default function AdminProvidersGithubPage() {
                         <TableCell className="font-mono text-xs">{app.clientId.slice(0, 12)}...</TableCell>
                         <TableCell><Badge variant={app.isActive ? 'default' : 'secondary'}>{app.isActive ? 'Active' : 'Inactive'}</Badge></TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="icon" className="size-8" onClick={() => handleDelete(app.id, app.name)} title="Remove"><Trash2 className="size-4" /></Button>
+                          <Button variant="ghost" size="icon" className="size-8" onClick={() => { void handleDelete(app.id, app.name) }} title="Remove" aria-label={`Remove ${app.name}`}><Trash2 className="size-4" /></Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -360,6 +362,27 @@ export default function AdminProvidersGithubPage() {
                 </Button>
               )}
             </patForm.Subscribe>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove confirmation — replaces the blocking `confirm()` */}
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove GitHub App</DialogTitle>
+            <DialogDescription>
+              Remove &quot;{deleteTarget?.name}&quot;? This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => { void confirmDelete() }} disabled={deleteApp.isPending}>
+              {deleteApp.isPending ? 'Removing...' : 'Remove'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

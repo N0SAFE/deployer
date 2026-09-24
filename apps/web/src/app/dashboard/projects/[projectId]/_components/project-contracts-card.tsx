@@ -157,7 +157,7 @@ export function ProjectContractsCard({ projectId }: { projectId: string }) {
                 placeholder="v1"
                 className="h-8 w-16 font-mono"
               />
-              <Button size="icon" variant="ghost" className="ml-auto size-7 p-0 text-destructive hover:text-destructive" onClick={() => { removeEntry(i) }}>
+              <Button size="icon" variant="ghost" className="ml-auto size-7 p-0 text-destructive hover:text-destructive" aria-label="Remove contract" onClick={() => { removeEntry(i) }}>
                 <X className="size-3.5" />
               </Button>
             </div>

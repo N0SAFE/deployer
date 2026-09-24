@@ -47,7 +47,7 @@ export const createDnsProviderInputSchema = z.object({
     name: z.string().min(1, "Name is required"),
     providerType: z.enum(["cloudflare", "route53", "google-dns", "digitalocean", "other"]),
     apiToken: z.string().min(1, "API token is required"),
-    accountEmail: z.string().email().optional(),
+    accountEmail: z.email().optional(),
     features: dnsProviderFeaturesSchema.partial().optional(),
 });
 

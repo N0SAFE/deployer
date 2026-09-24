@@ -4,7 +4,7 @@ import { GlobalDatabaseService } from '@/core/modules/database/services/global-d
 import { AppError } from "@repo/errors";
 import {
   projectDomains,
-} from '@/config/drizzle/global/schema/domain';
+} from "@repo/nest-schema/global/domain";
 
 type ProjectDomain = typeof projectDomains.$inferSelect;
 type InsertProjectDomain = typeof projectDomains.$inferInsert;

@@ -21,6 +21,7 @@ import {
 } from "@repo/contracts-entities";
 import { ServiceUnavailableError, TimeoutError } from "@repo/errors";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
+import { ingressFromLabels, platformRoleFromLabels } from "../swarm-node-labels";
 
 @Injectable()
 export class SwarmClusterService {
@@ -216,29 +217,64 @@ export class SwarmClusterService {
         return this.dockerService.updateSwarmNodeLabels(nodeId, version, labels);
     }
 
+    /**
+     * THIS node's view within the engine node list. Role resolution reuses the
+     * shared `DockerService.resolveSwarmNodeRole` (never guess a manager as a
+     * worker), and the platform role / ingress flag come from the node's own
+     * labels — the durable record of that configuration.
+     */
     private buildLocalNode(
         nodeId: string,
         nodes: DockerodeNodeSummary[],
     ): ClusterSnapshot["localNode"] {
         const self = nodes.find((node) => node.ID === nodeId) ?? null;
-        const swarmRole = self && self.Spec.Role !== "worker" ? "manager" : nodeId.length > 0 ? "worker" : "none";
+        const labels = self?.Spec?.Labels ?? {};
         return {
             nodeId: nodeId.length > 0 ? nodeId : "unknown",
             hostname: self?.Description.Hostname ?? "",
-            swarmRole,
-            platformRole: "both",
+            // `self === null` → this engine's node is not in the list yet
+            // (transient right after init): "worker" is the honest report.
+            swarmRole: self === null ? "worker" : DockerService.resolveSwarmNodeRole(self),
+            platformRole: platformRoleFromLabels(labels),
             isMaster: self?.ManagerStatus?.Leader === true,
-            isIngress: self?.Spec.Labels["deployer.ingress"] === "true",
-            availability: self?.Spec.Availability === "pause" || self?.Spec.Availability === "drain"
-                ? self.Spec.Availability
-                : "active",
+            isIngress: ingressFromLabels(labels),
+            availability:
+                self?.Spec.Availability === "pause" || self?.Spec.Availability === "drain"
+                    ? self.Spec.Availability
+                    : "active",
             capacity: {
                 nanoCpus: self?.Description.Resources?.NanoCPUs ?? null,
                 memoryBytes: self?.Description.Resources?.MemoryBytes ?? null,
             },
-            labels: self?.Spec.Labels ?? {},
+            labels,
             lastHeartbeatAt: new Date().toISOString(),
         };
+    }
+
+    /**
+     * Wait until this engine reports an ACTIVE swarm membership.
+     *
+     * A join is asynchronous: the engine acknowledges it immediately but the
+     * membership only becomes usable once the Raft join settles. Every caller
+     * that joins must wait, so the wait lives here once (constants included)
+     * instead of being re-implemented with its own timeouts.
+     */
+    async waitForActiveCluster(): Promise<ClusterSnapshot> {
+        for (let attempt = 1; attempt <= SwarmClusterService.JOIN_WAIT_ATTEMPTS; attempt++) {
+            const info = await this.dockerService.getSwarmInfo();
+            if (info.LocalNodeState === "active") {
+                return this.getLocalClusterSnapshot();
+            }
+            if (attempt < SwarmClusterService.JOIN_WAIT_ATTEMPTS) {
+                await new Promise((resolve) =>
+                    setTimeout(resolve, SwarmClusterService.JOIN_WAIT_INTERVAL_MS),
+                );
+            }
+        }
+        throw new TimeoutError(
+            "waiting for the swarm cluster to become active",
+            SwarmClusterService.JOIN_WAIT_ATTEMPTS * SwarmClusterService.JOIN_WAIT_INTERVAL_MS,
+        );
     }
 
     private async waitForPendingJoin(options: SwarmInitOptions): Promise<ClusterSnapshot> {

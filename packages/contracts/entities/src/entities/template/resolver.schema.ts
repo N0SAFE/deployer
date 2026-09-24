@@ -3,12 +3,12 @@ import {
   providerIdSchema,
   templateConfigSchema,
   templateEnvironmentSchema,
-} from './config.schema'
-import { templateValidationIssueSchema } from './validation.schema'
+} from '@repo/contracts-entities/entities/template/config.schema'
+import { templateValidationIssueSchema } from '@repo/contracts-entities/entities/template/validation.schema'
 import {
   templateKindSchema,
   templateVersionSchema,
-} from './vocabulary.schema'
+} from '@repo/contracts-entities/entities/template/vocabulary.schema'
 
 export const templateResolverLayerSchema = z.enum(['global', 'provider', 'project', 'environment', 'run'])
 export type TemplateResolverLayer = z.infer<typeof templateResolverLayerSchema>

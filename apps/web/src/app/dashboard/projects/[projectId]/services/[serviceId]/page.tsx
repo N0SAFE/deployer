@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
-import { useProject } from '@/domains/project/hooks'
+import { useProject, useProjectServiceEnvironmentLinks } from '@/domains/project/hooks'
 import { useService, useServiceDependencies } from '@/domains/service/hooks'
 import { useDeploymentList } from '@/domains/deployment/hooks'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
@@ -18,6 +18,7 @@ import {
   AuthDashboardProjectsProjectIdServicesServiceIdDeployments,
 } from '@/routes'
 import { StatusBadge, StatusDot } from '@/components/dashboard'
+import { formatDateTime } from '@/lib/format/date'
 import { EmptyState } from '@/components/dashboard'
 import { ENV_NAMES } from '@repo/contracts-common'
 
@@ -33,7 +34,6 @@ interface ServiceFields {
   description?: string
   isActive?: boolean
   port?: number | null
-  enabledEnvironments?: string[]
   effectiveConfig?: {
     port?: number | null
     resourceLimits?: { memory?: string; cpu?: string; storage?: string } | null
@@ -75,6 +75,7 @@ export default function DashboardServiceOverviewPage() {
 
   const { data: projectData, isLoading: projectLoading } = useProject(projectId)
   const { data: serviceData, isLoading: serviceLoading } = useService(serviceId)
+  const { data: envLinksData } = useProjectServiceEnvironmentLinks(projectId)
   const { data: depsData } = useServiceDependencies(serviceId)
   const { data: deploymentsData, isLoading: deploymentsLoading } = useDeploymentList({
     query: {
@@ -140,7 +141,20 @@ export default function DashboardServiceOverviewPage() {
   }
 
   const s = serviceData as ServiceFields
-  const enabledEnvs = (s.enabledEnvironments ?? ENV_NAMES) as string[]
+  /**
+   * Environment membership lives on the `service_environments` link rows — the
+   * service entity has no `enabledEnvironments` field, so the previous
+   * `?? ENV_NAMES` fallback read a phantom property and claimed every service
+   * ran in all four environments.
+   */
+  const enabledEnvs = useMemo(
+    () =>
+      (envLinksData?.links ?? [])
+        .filter((link) => link.serviceId === serviceId && link.isEnabled)
+        .map((link) => link.environmentName)
+        .filter((name) => (ENV_NAMES as readonly string[]).includes(name)),
+    [envLinksData, serviceId],
+  )
   const ec = s.effectiveConfig ?? null
   const parentName = (parentData as unknown as { name?: string } | undefined)?.name
   const serviceStatus = s.status ?? s.state ?? 'unknown'
@@ -248,7 +262,7 @@ export default function DashboardServiceOverviewPage() {
                   <StatusBadge status={dep.status ?? 'unknown'} className="text-[10px]" />
                   <Badge variant="outline" className="capitalize text-[10px]">{dep.environment ?? 'production'}</Badge>
                   <span className="ml-auto text-muted-foreground tabular-nums">
-                    {dep.createdAt ? new Date(dep.createdAt).toLocaleString() : '—'}
+                    {dep.createdAt ? formatDateTime(dep.createdAt) : '—'}
                   </span>
                 </div>
               ))}

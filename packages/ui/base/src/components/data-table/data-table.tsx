@@ -1,10 +1,10 @@
 "use client";
 
 // ** import types
-import type { ColumnDef, ColumnResizeMode, Row, ExpandedState } from "@tanstack/react-table";
-import type { TableConfig } from "./utils/table-config";
-import type { CaseFormatConfig } from "./utils/case-utils";
-import type { DataTransformFunction, ExportableData } from "./utils/export-utils";
+import type { ColumnDef, ColumnResizeMode, Row, ExpandedState, TableOptions } from "@tanstack/react-table";
+import type { TableConfig } from "@repo/ui/components/data-table/utils/table-config";
+import type { CaseFormatConfig } from "@repo/ui/components/data-table/utils/case-utils";
+import type { DataTransformFunction, ExportableData } from "@repo/ui/components/data-table/utils/export-utils";
 
 /** Column definition extended with meta and accessorKey for header rendering. */
 // NOTE: type alias, not interface — `ColumnDef<TData>` is a complex
@@ -38,18 +38,18 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "../shadcn/table";
-import { Skeleton } from "../shadcn/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "../shadcn/alert";
-import { DataTablePagination } from "./pagination";
-import { DataTableToolbar } from "./toolbar";
-import { DataTableResizer } from "./data-table-resizer";
+} from "@repo/ui/components/shadcn/table";
+import { Skeleton } from "@repo/ui/components/shadcn/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@repo/ui/components/shadcn/alert";
+import { DataTablePagination } from "@repo/ui/components/data-table/pagination";
+import { DataTableToolbar } from "@repo/ui/components/data-table/toolbar";
+import { DataTableResizer } from "@repo/ui/components/data-table/data-table-resizer";
 
 // ** import utils
-import { cn } from "../../lib/utils";
-import { useTableConfig } from "./utils/table-config";
-import { useTableColumnResize } from "./hooks/use-table-column-resize";
-import { preprocessSearch } from "./utils/search";
+import { cn } from "@repo/ui/lib/utils";
+import { useTableConfig } from "@repo/ui/components/data-table/utils/table-config";
+import { useTableColumnResize } from "@repo/ui/components/data-table/hooks/use-table-column-resize";
+import { preprocessSearch } from "@repo/ui/components/data-table/utils/search";
 import {
   createSortingHandler,
   createColumnFiltersHandler,
@@ -57,14 +57,14 @@ import {
   createPaginationHandler,
   createColumnSizingHandler,
   createSortingState
-} from "./utils/table-state-handlers";
-import { createKeyboardNavigationHandler } from "./utils/keyboard-navigation";
-import { createConditionalStateHook } from "./utils/conditional-state";
+} from "@repo/ui/components/data-table/utils/table-state-handlers";
+import { createKeyboardNavigationHandler } from "@repo/ui/components/data-table/utils/keyboard-navigation";
+import { createConditionalStateHook } from "@repo/ui/components/data-table/utils/conditional-state";
 import {
   initializeColumnSizes,
   trackColumnResizing,
   cleanupColumnResizing
-} from "./utils/column-sizing";
+} from "@repo/ui/components/data-table/utils/column-sizing";
 
 // Define types for the data fetching function params and result
 interface DataFetchParams {
@@ -94,6 +94,16 @@ type SortingUpdater = (prev: { id: string; desc: boolean }[]) => { id: string; d
 type ColumnOrderUpdater = (prev: string[]) => string[];
 type RowSelectionUpdater = (prev: Record<string, boolean>) => Record<string, boolean>;
 
+/**
+ * `ColumnDef<TData>` is a union, and `accessorKey` is not on every member.
+ * Narrow with a predicate instead of casting at each use site.
+ */
+function hasAccessorKey<TData>(
+  column: ColumnDef<TData>
+): column is ColumnDef<TData> & { accessorKey: string } {
+  return 'accessorKey' in column && typeof Reflect.get(column, 'accessorKey') === 'string'
+}
+
 // Subrows configuration interface
 export interface SubRowsConfig<TData> {
   // Enable subrows feature
@@ -106,7 +116,7 @@ export interface SubRowsConfig<TData> {
   subRowsField?: string;
 
   // For custom-columns mode: different columns for subrows
-  subRowColumns?: ColumnDef<any, unknown>[];
+  subRowColumns?: ColumnDef<any>[];
   showSubRowHeaders?: boolean;
 
   // For custom-component mode: custom component for subrows
@@ -138,7 +148,7 @@ interface DataTableProps<TData extends ExportableData, TValue> {
   getColumns: (handleRowDeselection: ((rowId: string) => void) | null | undefined) => ColumnDef<TData, TValue>[];
 
   // Subrow column definitions generator (for custom-columns mode)
-  getSubRowColumns?: (handleRowDeselection: ((rowId: string) => void) | null | undefined) => ColumnDef<any, unknown>[];
+  getSubRowColumns?: (handleRowDeselection: ((rowId: string) => void) | null | undefined) => ColumnDef<any>[];
 
   // Data fetching function
   fetchDataFn: ((params: DataFetchParams) => Promise<DataFetchResult<TData>>) |
@@ -151,7 +161,7 @@ interface DataTableProps<TData extends ExportableData, TValue> {
   exportConfig: {
     entityName: string;
     columnMapping: Record<string, string>;
-    columnWidths: Array<{ wch: number }>;
+    columnWidths: { wch: number }[];
     headers: string[];
     caseConfig?: CaseFormatConfig;
     transformFunction?: DataTransformFunction<TData>;
@@ -162,7 +172,7 @@ interface DataTableProps<TData extends ExportableData, TValue> {
     subRowExportConfig?: {
       entityName: string;
       columnMapping: Record<string, string>;
-      columnWidths: Array<{ wch: number }>;
+      columnWidths: { wch: number }[];
       headers: string[];
       transformFunction?: DataTransformFunction<TData>;
     };
@@ -196,7 +206,7 @@ export function DataTable<TData extends ExportableData, TValue>({
   fetchDataFn,
   fetchByIdsFn,
   exportConfig,
-  idField = 'id' as keyof TData,
+  idField,
   pageSizeOptions,
   renderToolbarContent,
   onRowClick,
@@ -225,7 +235,7 @@ export function DataTable<TData extends ExportableData, TValue>({
   const [sortBy, setSortBy] = useConditionalUrlState("sortBy", tableConfig.defaultSortBy || "id");
   const [sortOrder, setSortOrder] = useConditionalUrlState<"asc" | "desc">("sortOrder", tableConfig.defaultSortOrder || "desc");
   const [columnVisibility, setColumnVisibility] = useConditionalUrlState<Record<string, boolean>>("columnVisibility", {});
-  const [columnFilters, setColumnFilters] = useConditionalUrlState<Array<{ id: string; value: unknown }>>("columnFilters", []);
+  const [columnFilters, setColumnFilters] = useConditionalUrlState<{ id: string; value: unknown }[]>("columnFilters", []);
 
   // Internal states
   const [isLoading, setIsLoading] = useState(true);
@@ -271,7 +281,7 @@ export function DataTable<TData extends ExportableData, TValue>({
   const sorting = useMemo(() => createSortingState(sortBy, sortOrder), [sortBy, sortOrder]);
 
   // Function to sort subrows for a specific parent
-  const getSortedSubrows = useCallback((parentId: string, subrows: any[]) => {
+  const getSortedSubrows = useCallback((parentId: string, subrows: TData[]) => {
     const sortConfig = subrowSorting[parentId];
     
     if (!sortConfig || !subrows || subrows.length === 0) {
@@ -406,7 +416,7 @@ export function DataTable<TData extends ExportableData, TValue>({
 
           const subRowsData = (item as Record<string, unknown>)[subRowsConfig.subRowsField || 'subRows'];
           if (Array.isArray(subRowsData)) {
-            subRowsData.forEach((subRow: any) => {
+            subRowsData.forEach((subRow: TData) => {
               const subRowId = String(subRow[idField]);
               subrowIdsMap.set(subRowId, true);
               subrowParentMap.set(subRowId, itemId);
@@ -503,7 +513,7 @@ export function DataTable<TData extends ExportableData, TValue>({
 
     try {
       // Fetch missing items in a single batch - TypeScript will infer the correct type
-      const fetchedItems = await fetchByIdsFn(idsToFetch as number[] | string[]);
+      const fetchedItems = await fetchByIdsFn(idsToFetch);
 
       // Combine current page items with fetched items
       return [...itemsInCurrentPage, ...fetchedItems];
@@ -526,9 +536,9 @@ export function DataTable<TData extends ExportableData, TValue>({
     }
 
     const parents: TData[] = [];
-    const subrows: Array<{ parentId: string | number; subrow: TData }> = [];
-    const parentIds: Array<string | number> = [];
-    const subrowIds: Array<string | number> = [];
+    const subrows: { parentId: string | number; subrow: TData }[] = [];
+    const parentIds: (string | number)[] = [];
+    const subrowIds: (string | number)[] = [];
 
     dataItems.forEach((item) => {
       const itemId = String(item[idField]);
@@ -545,7 +555,7 @@ export function DataTable<TData extends ExportableData, TValue>({
       // Check subrows
       const subRowsData = (item as Record<string, unknown>)[subRowsConfig.subRowsField || 'subRows'];
       if (Array.isArray(subRowsData)) {
-        subRowsData.forEach((subRow: any) => {
+        subRowsData.forEach((subRow: TData) => {
           const subRowId = String(subRow[idField]);
           if (selectedItemIds[subRowId]) {
             const parentId = item[idField];
@@ -605,10 +615,10 @@ export function DataTable<TData extends ExportableData, TValue>({
         : idsToFetchRaw;
 
       // Fetch missing parent items in a single batch
-      const fetchedItems = await fetchByIdsFn(idsToFetch as number[] | string[]);
+      const fetchedItems = await fetchByIdsFn(idsToFetch);
 
       // Filter fetched items to only include parents (not subrows)
-      const fetchedParents = fetchedItems.filter((item: any) => {
+      const fetchedParents = fetchedItems.filter((item: TData) => {
         // A parent row either has no item_id, or has parent-level fields
         // We can identify parents by checking if they have subRows or parent-level fields
         return !item.item_id || item.total_amount !== undefined || item.status !== undefined;
@@ -644,7 +654,7 @@ export function DataTable<TData extends ExportableData, TValue>({
     dataItems.forEach((item) => {
       const subRowsData = (item as Record<string, unknown>)[subRowsConfig.subRowsField || 'subRows'];
       if (Array.isArray(subRowsData)) {
-        subRowsData.forEach((subRow: any) => {
+        subRowsData.forEach((subRow: TData) => {
           if (selectedSubrowIds.has(String(subRow[idField]))) {
             subrowsInCurrentPage.push(subRow as TData);
           }
@@ -685,14 +695,14 @@ export function DataTable<TData extends ExportableData, TValue>({
         : parentIdsArray;
 
       // Fetch parent orders that contain the selected subrows
-      const fetchedParentOrders = await fetchByIdsFn(idsToFetch as number[] | string[]);
+      const fetchedParentOrders = await fetchByIdsFn(idsToFetch);
 
       // Extract only the selected subrows from fetched parent orders
       const fetchedSubrows: TData[] = [];
-      fetchedParentOrders.forEach((item: any) => {
+      fetchedParentOrders.forEach((item: TData) => {
         const subRowsData = (item as Record<string, unknown>)[subRowsConfig.subRowsField || 'subRows'];
         if (Array.isArray(subRowsData)) {
-          subRowsData.forEach((subRow: any) => {
+          subRowsData.forEach((subRow: TData) => {
             if (selectedSubrowIds.has(String(subRow[idField]))) {
               fetchedSubrows.push(subRow as TData);
             }
@@ -935,7 +945,7 @@ export function DataTable<TData extends ExportableData, TValue>({
   }, []);
 
   // Memoize table configuration to prevent unnecessary re-renders
-  const tableOptions = useMemo(() => ({
+  const tableOptions = useMemo<TableOptions<TData>>(() => ({
     data: dataItems,
     columns,
     state: {
@@ -948,7 +958,7 @@ export function DataTable<TData extends ExportableData, TValue>({
       columnOrder,
       ...(subRowsConfig?.enabled && { expanded }),
     },
-    columnResizeMode: 'onChange' as ColumnResizeMode,
+    columnResizeMode: 'onChange',
     onColumnSizingChange: handleColumnSizingChange,
     onColumnOrderChange: handleColumnOrderChange,
     pageCount: data?.pagination.total_pages || 0,
@@ -1065,7 +1075,7 @@ export function DataTable<TData extends ExportableData, TValue>({
 
   // Initialize default column sizes when columns are available and no saved sizes exist
   useEffect(() => {
-    initializeColumnSizes(columns as ColumnDef<TData, unknown>[], tableId, setColumnSizing);
+    initializeColumnSizes(columns as ColumnDef<TData>[], tableId, setColumnSizing);
   }, [columns, tableId, setColumnSizing]);
 
   // Handle column resizing
@@ -1275,7 +1285,7 @@ export function DataTable<TData extends ExportableData, TValue>({
                     return (
                       <TableRow
                         key={row.id}
-                        id={`row-${rowIndex}`}
+                        id={`row-${String(rowIndex)}`}
                         data-row-index={rowIndex}
                         data-depth={row.depth}
                         className=""
@@ -1337,7 +1347,7 @@ export function DataTable<TData extends ExportableData, TValue>({
                             
                             return (
                               <TableCell
-                                key={`subheader-${parentRow.id}-${colIndex}`}
+                                key={`subheader-${parentRow.id}-${String(colIndex)}`}
                                 className={cn(
                                   "px-2 py-2 text-left relative bg-muted/30 font-medium text-xs uppercase tracking-wide text-muted-foreground h-10 align-middle",
                                   isSortable && "cursor-pointer hover:bg-muted transition-colors select-none"
@@ -1345,7 +1355,7 @@ export function DataTable<TData extends ExportableData, TValue>({
                                 style={{
                                   width: column.size || 'auto',
                                 }}
-                                onClick={isSortable ? () => handleSubrowHeaderClick(parentId, columnId) : undefined}
+                                onClick={isSortable ? () => { handleSubrowHeaderClick(parentId, columnId); } : undefined}
                               >
                                 <div className="flex items-center gap-1.5">
                                   <span>{headerText}</span>
@@ -1378,14 +1388,14 @@ export function DataTable<TData extends ExportableData, TValue>({
                         >
                           {subRowColumns.map((column, colIndex) => {
                             // Get the value from the subrow data
-                            const accessorKey = (column as any).accessorKey;
-                            const value = accessorKey 
-                              ? (row.original as any)[accessorKey]
-                              : null;
+                            // `TData extends ExportableData` (Record<string, unknown>),
+                            // so the row is indexable without a cast.
+                            const accessorKey = hasAccessorKey(column) ? column.accessorKey : undefined;
+                            const value = accessorKey ? row.original[accessorKey] : null;
                             
                             return (
                               <TableCell
-                                key={`subrow-cell-${row.id}-${colIndex}`}
+                                key={`subrow-cell-${row.id}-${String(colIndex)}`}
                                 className="px-4 py-2 truncate max-w-0 text-left"
                                 style={{
                                   width: column.size || 'auto',
@@ -1419,15 +1429,13 @@ export function DataTable<TData extends ExportableData, TValue>({
                       className="bg-muted/10 hover:bg-muted/20"
                     >
                       {subRowColumns.map((column, colIndex) => {
-                        // Get the value from the subrow data
-                        const accessorKey = (column as any).accessorKey;
-                        const value = accessorKey 
-                          ? (row.original as any)[accessorKey]
-                          : null;
+                        // `TData extends ExportableData`, so the row is indexable.
+                        const accessorKey = hasAccessorKey(column) ? column.accessorKey : undefined;
+                        const value = accessorKey ? row.original[accessorKey] : null;
                         
                         return (
                           <TableCell
-                            key={`subrow-cell-${row.id}-${colIndex}`}
+                            key={`subrow-cell-${row.id}-${String(colIndex)}`}
                             className="px-4 py-2 truncate max-w-0 text-left"
                             style={{
                               width: column.size || 'auto',
@@ -1454,7 +1462,7 @@ export function DataTable<TData extends ExportableData, TValue>({
                 return (
                   <TableRow
                     key={row.id}
-                    id={`row-${rowIndex}`}
+                    id={`row-${String(rowIndex)}`}
                     data-row-index={rowIndex}
                     data-depth={row.depth}
                     data-state={row.getIsSelected() ? "selected" : undefined}
@@ -1494,7 +1502,7 @@ export function DataTable<TData extends ExportableData, TValue>({
                       <TableCell
                         className="px-4 py-2 truncate max-w-0 text-left"
                         key={cell.id}
-                        id={`cell-${rowIndex}-${cellIndex}`}
+                        id={`cell-${String(rowIndex)}-${String(cellIndex)}`}
                         data-cell-index={cellIndex}
                         style={{
                           paddingLeft: isSubRow && cellIndex === 0 ? `${indentSize + 16}px` : undefined

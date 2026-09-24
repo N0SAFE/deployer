@@ -10,6 +10,7 @@
 
 import React, { Component, ReactNode } from 'react'
 import { logger } from '@repo/logger'
+import { DefaultErrorFallback } from './DefaultErrorFallback'
 
 interface ErrorBoundaryProps {
   /** Child components to render */
@@ -88,21 +89,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         return fallback(error, this.resetError)
       }
 
-      // Default fallback
-      return (
-        <div className="flex min-h-[400px] flex-col items-center justify-center p-8">
-          <div className="max-w-md text-center">
-            <h2 className="mb-4 text-2xl font-bold text-red-600">Something went wrong</h2>
-            <p className="mb-4 text-gray-600">{error.message}</p>
-            <button
-              onClick={this.resetError}
-              className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-            >
-              Try again
-            </button>
-          </div>
-        </div>
-      )
+      // No fallback given — reuse the shared one rather than keeping a second,
+      // hand-rolled copy of the same markup here.
+      return <DefaultErrorFallback error={error} onReset={this.resetError} />
     }
 
     return children

@@ -2,46 +2,46 @@ export {
   dockerNetworkDriverSchema,
   dockerNetworkScopeSchema,
   dockerNetworkSchema,
-} from './base.schema'
+} from '@repo/contracts-entities/entities/docker/networks/base.schema'
 
 export type {
   DockerNetworkDriver,
   DockerNetworkScope,
   DockerNetwork,
-} from './base.schema'
+} from '@repo/contracts-entities/entities/docker/networks/base.schema'
 
 export {
   dockerNetworkListSchema,
   dockerNetworkRelationsSchema,
   dockerNetworkEntitySchema,
   dockerNetworkEntityListSchema,
-} from './relations.schema'
+} from '@repo/contracts-entities/entities/docker/networks/relations.schema'
 
 export type {
   DockerNetworkList,
   DockerNetworkRelations,
   DockerNetworkEntity,
   DockerNetworkEntityList,
-} from './relations.schema'
+} from '@repo/contracts-entities/entities/docker/networks/relations.schema'
 
 export {
   dockerNetworkSummarySchema,
   dockerNetworkDiagnosticsSchema,
-} from './details.schema'
+} from '@repo/contracts-entities/entities/docker/networks/details.schema'
 
 export type {
   DockerNetworkSummary,
   DockerNetworkDiagnostics,
-} from './details.schema'
+} from '@repo/contracts-entities/entities/docker/networks/details.schema'
 
 export {
   dockerNetworkRuntimeActionSchema,
   dockerNetworkRuntimeEventPayloadSchema,
   dockerNetworkRuntimeEventSchema,
-} from './runtime-events.schema'
+} from '@repo/contracts-entities/entities/docker/networks/runtime-events.schema'
 
 export type {
   DockerNetworkRuntimeAction,
   DockerNetworkRuntimeEventPayload,
   DockerNetworkRuntimeEvent,
-} from './runtime-events.schema'
+} from '@repo/contracts-entities/entities/docker/networks/runtime-events.schema'

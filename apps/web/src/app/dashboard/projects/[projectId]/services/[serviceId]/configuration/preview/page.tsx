@@ -347,6 +347,7 @@ export default function DashboardServiceConfigurationPreviewPage() {
                   size="icon"
                   variant="ghost"
                   className="ml-auto size-7 p-0 text-destructive hover:text-destructive"
+                  aria-label="Remove linked service"
                   onClick={() => setLinkedServices((prev) => prev.filter((_, i) => i !== idx))}
                 >
                   <X className="size-3.5" />

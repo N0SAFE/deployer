@@ -7,7 +7,7 @@
  * processor and the deployment execution workflow.
  */
 import z from "zod/v4";
-import { runtimeRunnerOptionsSchema } from "./runtime-runner-options.schema";
+import { runtimeRunnerOptionsSchema } from "@repo/contracts-entities/entities/deployment/runtime-runner-options.schema";
 
 export const githubSourceCheckoutContextSchema = z.object({
     provider: z.literal("github"),

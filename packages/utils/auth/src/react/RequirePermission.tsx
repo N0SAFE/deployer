@@ -5,7 +5,7 @@ import {
   createPermissionHooks,
   type PlatformPermission,
   type CreatePermissionHooksOptions,
-} from './usePermissions'
+} from '@repo/auth/react/usePermissions'
 
 // ============================================================================
 // TYPES
@@ -42,8 +42,8 @@ export interface RequirePermissionProps {
  * @example
  * ```tsx
  * // In your app, create the components with your auth hooks:
- * import { createRequirePermissionComponents } from '@repo/auth/react'
- * import { useSession } from '@/lib/auth'
+ * import { createRequirePermissionComponents } from '@repo/auth/react/index'
+ * import { useSession } from '../../../../lib/auth'
  *
  * export const {
  *   RequirePlatformPermission,
@@ -108,7 +108,7 @@ export function createRequirePermissionComponents(options: CreatePermissionHooks
       : canAnyPlatform(permissions)
 
     return {
-      allowed: !!isAuthenticated && hasPermission,
+      allowed: isAuthenticated && hasPermission,
       isLoading,
     }
   }

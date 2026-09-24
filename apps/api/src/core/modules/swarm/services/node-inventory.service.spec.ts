@@ -1,8 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { SwarmClusterService } from "../services/swarm-cluster.service";
+import type { SwarmClusterService } from "../services/swarm-cluster.service";
 import { NodeInventoryService } from "./node-inventory.service";
-import { ClusterNodeInventoryRepository } from "../repositories/cluster-node-inventory.repository";
-import { GlobalClusterNodesRepository } from "../repositories/global-cluster-nodes.repository";
+import type { ClusterNodeInventoryRepository } from "../repositories/cluster-node-inventory.repository";
+import type { GlobalClusterNodesRepository } from "../repositories/global-cluster-nodes.repository";
 
 const activeSnapshot = {
     localNodeState: "active",
@@ -70,7 +70,7 @@ describe("NodeInventoryService", () => {
     it("returns 0 when the engine is not in an active cluster", async () => {
         clusterService.getLocalClusterSnapshot.mockResolvedValue({
             localNodeState: "inactive",
-        } as never);
+        });
 
         const count = await service.syncOnce();
 

@@ -38,7 +38,6 @@ const SHORTCUT_ROWS: Array<{ keys: string; action: string }> = [
   { keys: 'g, then d', action: 'Go to deployments' },
   { keys: 'g, then s', action: 'Go to services' },
   { keys: 'g, then c', action: 'Go to docker' },
-  { keys: 'g, then d', action: 'Go to deployments' },
   { keys: 'g, then a', action: 'Go to admin system' },
   { keys: 'g, then u', action: 'Go to profile' },
   { keys: '?', action: 'Show this help' },

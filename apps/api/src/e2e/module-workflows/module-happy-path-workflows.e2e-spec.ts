@@ -5,7 +5,7 @@ import {
   type SharedApiRuntimeContext,
 } from "@/e2e/utils/shared-api-runtime";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
-import { user } from "@/config/drizzle/global/schema/auth";
+import { user } from "@repo/nest-schema/global/auth";
 import { UserService } from "@/modules/user/services/user.service";
 import { ProviderSchemaService } from "@/modules/provider-schema/services/provider-schema.service";
 import { AnalyticsService } from "@/modules/analytics/services/analytics.service";

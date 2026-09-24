@@ -8,7 +8,6 @@
  */
 import { oc } from "@orpc/contract";
 import {
-    dnsProviderAppContract,
     dnsProviderListContract,
     dnsProviderCreateContract,
     dnsProviderUpdateContract,

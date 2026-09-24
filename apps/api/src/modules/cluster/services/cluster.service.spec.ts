@@ -2,8 +2,10 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ClusterSnapshot } from "@repo/contracts-entities";
 import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
 import { SwarmFleetService } from "@/core/modules/swarm/services/swarm-fleet.service";
+import { SwarmParticipationService } from "@/core/modules/swarm/services/swarm-participation.service";
 import { ClusterNodeRepository } from "@/core/modules/swarm/repositories/cluster-node.repository";
 import { ClusterNodeInventoryRepository } from "@/core/modules/swarm/repositories/cluster-node-inventory.repository";
+import { EnvService } from "@repo/nest-env";
 import { ClusterService } from "./cluster.service";
 
 const snapshot: ClusterSnapshot = {
@@ -84,19 +86,43 @@ describe("ClusterService", () => {
         upsertAllFromEngine: ReturnType<typeof vi.fn>;
         upsertFromEngine: ReturnType<typeof vi.fn>;
     };
+    let participation: { view: ReturnType<typeof vi.fn>; applyConfig: ReturnType<typeof vi.fn> };
+    let env: { get: ReturnType<typeof vi.fn> };
+    /**
+     * The ENGINE's label map, mutated by `updateSwarmNodeLabels` exactly like
+     * the daemon replaces `NodeSpec.Labels`. Tests assert against the ENGINE
+     * state, so a response that merely echoes the request cannot pass.
+     */
+    let engineLabels: Record<string, string>;
+    let engineUpdateApplies: boolean;
 
     beforeEach(() => {
+        engineLabels = {};
+        engineUpdateApplies = true;
+        env = {
+            get: vi.fn((key: string) => {
+                if (key === "SWARM_HEARTBEAT_TTL_MS") return 30_000;
+                if (key === "SWARM_MASTER_GRACE_MS") return 15_000;
+                return undefined;
+            }),
+        };
         swarm = {
             getLocalClusterSnapshot: vi.fn().mockResolvedValue(snapshot),
             listSwarmNodes: vi.fn().mockResolvedValue([]),
-            inspectSwarmNode: vi.fn().mockResolvedValue({
-                ID: "n1",
-                Version: { Index: 4 },
-                Spec: { Name: "n1", Labels: {}, Role: "manager", Availability: "active" },
-                Description: { Hostname: "h1", Resources: { NanoCPUs: 4_000_000_000, MemoryBytes: 8_589_934_592 } },
-                ManagerStatus: { Leader: true, Reachability: "reachable" },
+            inspectSwarmNode: vi.fn().mockImplementation(() =>
+                Promise.resolve({
+                    ID: "n1",
+                    Version: { Index: 4 },
+                    // NodeSpec.Labels is the authoritative map: the engine REPLACES it.
+                    Spec: { Name: "n1", Labels: { ...engineLabels }, Role: "manager", Availability: "active" },
+                    Description: { Hostname: "h1", Resources: { NanoCPUs: 4_000_000_000, MemoryBytes: 8_589_934_592 } },
+                    ManagerStatus: { Leader: true, Reachability: "reachable" },
+                }),
+            ),
+            updateSwarmNodeLabels: vi.fn().mockImplementation((_id: string, _version: number, labels: Record<string, string>) => {
+                if (engineUpdateApplies) engineLabels = { ...labels };
+                return Promise.resolve(undefined);
             }),
-            updateSwarmNodeLabels: vi.fn().mockResolvedValue(undefined),
         };
         fleet = {
             listServices: vi.fn().mockResolvedValue([]),
@@ -113,11 +139,17 @@ describe("ClusterService", () => {
             upsertAllFromEngine: vi.fn().mockReturnValue(1),
             upsertFromEngine: vi.fn().mockImplementation((row) => ({ nodeId: row.nodeId })),
         };
+        participation = {
+            view: vi.fn().mockResolvedValue({}),
+            applyConfig: vi.fn().mockResolvedValue({}),
+        };
         service = new ClusterService(
             swarm as unknown as SwarmClusterService,
             fleet as unknown as SwarmFleetService,
+            participation as unknown as SwarmParticipationService,
             nodeRepo as unknown as ClusterNodeRepository,
             inventoryRepo as unknown as ClusterNodeInventoryRepository,
+            env as unknown as EnvService,
         );
     });
 
@@ -181,6 +213,37 @@ describe("ClusterService", () => {
             "n1",
             4,
             expect.not.objectContaining({ "deployer.ingress": "true" }),
+        );
+    });
+
+    it("updateNodeLabels reverts a node to the 'both' role by DROPPING the role label", async () => {
+        await service.updateNodeLabels("n1", { platformRole: "control" });
+        expect(engineLabels).toEqual({ "deployer.node.role": "control" });
+
+        const reverted = await service.updateNodeLabels("n1", { platformRole: "both" });
+
+        // The regression: the requested map must be the COMPLETE desired map —
+        // re-merging the engine's existing labels resurrected the role key, so
+        // "both" was unreachable and the next sweep read the old role back.
+        expect(engineLabels).toEqual({});
+        expect(reverted.platformRole).toBe("both");
+        expect(inventoryRepo.upsertFromEngine).toHaveBeenLastCalledWith(
+            expect.objectContaining({ platformRole: "both", labels: {} }),
+        );
+    });
+
+    it("updateNodeLabels reports the ENGINE's state, not the requested one", async () => {
+        // The engine rejects/does not apply the write (e.g. a read-only node).
+        engineUpdateApplies = false;
+
+        const result = await service.updateNodeLabels("n1", { platformRole: "control", ingress: true });
+
+        // Honest failure: the response must NOT claim the role was applied, and
+        // the inventory cache must not be poisoned with the requested values.
+        expect(result.platformRole).toBe("both");
+        expect(result.isIngress).toBe(false);
+        expect(inventoryRepo.upsertFromEngine).toHaveBeenCalledWith(
+            expect.objectContaining({ platformRole: "both", isIngress: false }),
         );
     });
 });

@@ -3,18 +3,18 @@
 import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
 
-import { cn } from "../../lib/utils"
+import { cn } from "@repo/ui/lib/utils"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "./dialog"
+} from "@repo/ui/components/shadcn/dialog"
 import {
   InputGroup,
   InputGroupAddon,
-} from "./input-group"
+} from "@repo/ui/components/shadcn/input-group"
 import { SearchIcon, CheckIcon } from "lucide-react"
 
 function Command({
@@ -59,7 +59,16 @@ function CommandDialog({
         )}
         showCloseButton={showCloseButton}
       >
-        {children}
+        {/*
+          The cmdk root, and it must be here. Every `Command*` child — Input,
+          List, Group, Item — reads its store from this component's context, so
+          rendering the children without it calls
+          `useSyncExternalStore(undefined.subscribe)` on first paint and takes
+          the whole route down. Upstream Shadcn's CommandDialog wraps children
+          in `<Command>`; this copy had dropped it, which is why every palette
+          built from it threw instead of opening.
+        */}
+        <Command>{children}</Command>
       </DialogContent>
     </Dialog>
   )

@@ -89,7 +89,11 @@ export function ServiceDetailLayoutInner({ children }: { children: ReactNode }) 
   const serviceName = service.name ?? 'Unnamed Service'
   const serviceStatus = service.status ?? service.state ?? 'unknown'
   const runnerType = service.runnerType ?? service.type ?? 'application'
-  const isActive = service.isActive ?? true
+  // Not `?? true`: the toggle below sends `!isActive`, so an unknown value
+  // rendered as active made the FIRST click deactivate the service and report
+  // "Service deactivated" to someone who meant to activate it. Off is the
+  // non-destructive reading of "we do not know".
+  const isActive = service.isActive ?? false
   const isSubService = Boolean(service.parentId)
 
   const handleToggleActive = async () => {

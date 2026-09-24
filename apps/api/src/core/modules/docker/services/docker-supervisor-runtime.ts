@@ -2,7 +2,7 @@
  * Docker-supervisor runtime + topology — how a platform supervisor converges
  * its process, and WHERE that process lives in the fleet.
  *
- * LAYERING (per architecture — NO legacy containers):
+ * LAYERING (per architecture):
  *
  *   - "swarm-global"    — a Docker Swarm GLOBAL service: exactly one task on
  *                         every node. Used for NODE-LOCAL platform infra that
@@ -13,18 +13,22 @@
  *                         across the cluster (global Postgres, Redis
  *                         coordination store, managed web console, each
  *                         scaled database-service instance).
- *   - "managed"         — the DEPLOYMENT owns the process (Docker Compose in
- *                         dev, or an operator). The supervisor NEVER spawns
- *                         anything; it only ensures the EXTERNAL NETWORK
- *                         WIRING so the compose/operator-managed container can
- *                         reach (and be reached from) swarm networks.
+ *   - "unavailable"     — the engine is not an active swarm member, so there
+ *                         is nowhere to schedule this process. The supervisor
+ *                         converges to DEGRADED with an actionable message;
+ *                         it NEVER falls back to a plain container.
+ *   - "managed"         — the DEPLOYMENT owns the process (Docker Compose, or
+ *                         an operator). The supervisor NEVER spawns anything;
+ *                         it only ensures the EXTERNAL NETWORK WIRING so the
+ *                         compose/operator-managed process can reach (and be
+ *                         reached from) swarm networks.
  *
- * There is intentionally NO "container" runtime: nothing falls back to a
- * dockerode `createContainer`-managed legacy container. When an engine is not
- * swarm-active and the service is not deployment-managed, the supervisor
- * reports `unavailable` (the engine should have been converged by
- * SwarmBootstrapService) instead of silently degrading into a legacy
- * container.
+ * THERE IS NO CONTAINER RUNTIME. Every supervised platform process runs as a
+ * swarm service; `SwarmBootstrapService` converges the engine at boot (before
+ * the supervisors converge, and before the setup wizard) so the swarm runtime
+ * is available even on a first-ever boot. Keeping a second, container-based
+ * convergence path alive would mean two implementations of every supervisor's
+ * desired state — the bridge this repository forbids.
  *
  * WHICH RUNTIME / WHERE (supervisor topology — single source of truth):
  * every platform supervisor declares a `scope`; the scope decides swarm mode:
@@ -35,14 +39,16 @@
  * Managed (`MANAGED_*_ENABLED=true`) always wins and means link-only.
  */
 
-/** The three ways a platform supervisor realizes its process. */
+/** The ways a platform supervisor realizes its process. */
 export type DockerSupervisorRuntime =
   /** One swarm task on EVERY node — node-local infra. */
   | "swarm-global"
   /** One swarm service with N replicas — shared/mesh-wide infra. */
   | "swarm-replicated"
   /** Deployment-owned (compose/operator): skip spawn, wire networks only. */
-  | "managed";
+  | "managed"
+  /** Engine is not an active swarm member — nothing can be scheduled. */
+  | "unavailable";
 
 /** Where a supervisor's process must live in the fleet. */
 export type SupervisorScope = "node-local" | "mesh-wide";
@@ -133,7 +139,7 @@ export const PLATFORM_SUPERVISOR_TOPOLOGY: readonly SupervisorTopology[] = [
     replicas: 1,
   },
   {
-    supervisorId: "wireguard",
+    supervisorId: "platform-wireguard",
     role: "WireGuard mesh overlay sidecar (one per node, own overlay IP).",
     scope: "node-local",
     rationale:
@@ -168,16 +174,17 @@ export type SupervisorRuntimeRaw = (typeof SUPERVISOR_RUNTIME_RAW)[number];
  *      supervisor never spawns; it only wires external networks.
  *   2. `SUPERVISOR_RUNTIME=managed` forces the managed/link-only behavior even
  *      when the flag is off (operator runs compose but forgot the flag).
- *   3. Otherwise the declared SCOPE decides the swarm mode:
- *        node-local → swarm-global ; mesh-wide → swarm-replicated.
- *   4. If the engine is NOT swarm-active, the result is `unavailable` — there
- *      is NO legacy-container fallback. SwarmBootstrapService converges the
- *      engine on boot, so this only happens on a genuinely constrained host;
- *      the supervisor reports unavailable instead of silently creating a
- *      legacy container.
+ *   3. When the engine IS swarm-active, the declared SCOPE decides the swarm
+ *      mode: node-local → swarm-global ; mesh-wide → swarm-replicated.
+ *   4. When the engine is NOT swarm-active there is NO container fallback:
+ *      the result is `unavailable` and the supervisor goes DEGRADED. This
+ *      state is reachable only when swarm convergence failed (no engine, an
+ *      edge node that was explicitly excluded, or participation disabled) —
+ *      never on a normal boot, because `SwarmBootstrapService` converges the
+ *      engine before the supervisors.
  */
 export interface ResolvedSupervisorRuntime {
-  readonly runtime: DockerSupervisorRuntime | "unavailable";
+  readonly runtime: DockerSupervisorRuntime;
   /** Why this decision was made (drives logs + operator messages). */
   readonly reason: string;
 }
@@ -205,27 +212,19 @@ export function resolveSupervisorRuntime(input: {
   }
 
   const desired = swarmRuntimeForScope(scope);
-  if (runtimeRaw === "swarm" || runtimeRaw === "auto") {
-    if (!input.swarmActive) {
-      return {
-        runtime: "unavailable",
-        reason:
-          `Runtime for ${desired} requires an active swarm engine, but the local engine is not ` +
-          `swarm-active. No legacy-container fallback exists — SwarmBootstrapService should have ` +
-          `converged the engine on boot.`,
-      };
-    }
-    return {
-      runtime: desired,
-      reason: `scope=${scope} → ${desired} on the active swarm engine.`,
-    };
-  }
-
-  // Unknown raw value — treat as auto.
   if (!input.swarmActive) {
     return {
       runtime: "unavailable",
-      reason: `Unknown SUPERVISOR_RUNTIME "${runtimeRaw}" and the engine is not swarm-active — no legacy fallback.`,
+      reason:
+        `Engine is not an active swarm member — cannot schedule this supervised process as ${desired}. ` +
+        `SwarmBootstrapService converges the cluster at boot; check its log for the convergence failure ` +
+        `(no docker engine, or the node was excluded from swarm participation).`,
+    };
+  }
+  if (runtimeRaw === "swarm" || runtimeRaw === "auto") {
+    return {
+      runtime: desired,
+      reason: `scope=${scope} → ${desired} on the active swarm engine.`,
     };
   }
   return { runtime: desired, reason: `Unknown SUPERVISOR_RUNTIME "${runtimeRaw}" treated as auto → ${desired}.` };
@@ -233,6 +232,20 @@ export function resolveSupervisorRuntime(input: {
 
 /** Suffix appended to a compose bridge network name to derive the swarm overlay. */
 export const PLATFORM_OVERLAY_SUFFIX = "-overlay";
+
+/** Base name of the platform network (per-`DEPLOYER_PREFIX` instances append it). */
+export const PLATFORM_NETWORK_BASE_NAME = "deployer-platform";
+
+/**
+ * Canonical name of the platform network every platform process shares.
+ * SINGLE SOURCE OF TRUTH (the docker layer owns it because supervisors, the
+ * managed-database containers and the swarm wiring all need it).
+ */
+export function platformNetworkName(prefix?: string | null): string {
+  return prefix === undefined || prefix === null || prefix === ""
+    ? PLATFORM_NETWORK_BASE_NAME
+    : `${PLATFORM_NETWORK_BASE_NAME}-${prefix}`;
+}
 
 /**
  * Derive the attachable OVERLAY name for a platform network.
@@ -247,5 +260,10 @@ export function platformOverlayNetworkName(baseNetworkName: string): string {
   return baseNetworkName.endsWith(PLATFORM_OVERLAY_SUFFIX)
     ? baseNetworkName
     : `${baseNetworkName}${PLATFORM_OVERLAY_SUFFIX}`;
+}
+
+/** The attachable overlay for the platform network at `DEPLOYER_PREFIX`. */
+export function platformOverlayForPrefix(prefix?: string | null): string {
+  return platformOverlayNetworkName(platformNetworkName(prefix));
 }
 

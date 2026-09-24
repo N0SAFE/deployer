@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { signMeshToken, verifyMeshToken } from "./index";
+import { signMeshToken, verifyMeshToken } from "@repo/auth/mesh/index";
 
 // We need to access the module-level seenNonces set between tests.
 // The simplest approach is to use a fresh module import per describe block —

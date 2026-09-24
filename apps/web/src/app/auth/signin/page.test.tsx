@@ -121,7 +121,7 @@ describe("SignIn page", () => {
     mocks.redirectAction.mockResolvedValue(undefined);
   });
 
-  it("redirects to setup with redirectTo when setup is required", async () => {
+  it("redirects to the same-origin setup route with redirectTo when setup is required", async () => {
     mocks.useSetupState.mockReturnValue({
       data: { needsSetup: true },
       isLoading: false,
@@ -133,7 +133,16 @@ describe("SignIn page", () => {
     render(<SignInPageLoose params={{}} searchParams={{ redirectTo: "/dashboard/services" }} />);
 
     await waitFor(() => {
-      expect(mocks.replace).toHaveBeenCalledWith("/setup?redirectTo=%2Fdashboard%2Fservices");
+      // Setup is a SAME-DEPLOYMENT route (the web app serves its own /setup via
+      // the shared wizard), so this is a relative, same-origin navigation. It
+      // must NOT be an absolute URL: building one previously leaked the private
+      // Docker hostname into the browser (ERR_NAME_NOT_RESOLVED).
+      expect(mocks.replace).toHaveBeenCalledWith(
+        "/setup?redirectTo=%2Fdashboard%2Fservices"
+      );
+      const target = String(mocks.replace.mock.calls.at(-1)?.[0]);
+      expect(target.startsWith("/")).toBe(true);
+      expect(target).not.toContain("nextjs-nestjs");
     });
 
     expect(screen.getByText("Redirecting to setup...")).toBeInTheDocument();

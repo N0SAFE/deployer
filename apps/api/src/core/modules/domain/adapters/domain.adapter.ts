@@ -1,4 +1,4 @@
-import type { projectDomains, serviceDomainMappings } from '@/config/drizzle/global/schema/domain';
+import type { projectDomains, serviceDomainMappings } from "@repo/nest-schema/global/domain";
 import type { z } from 'zod';
 import type {
   projectDomainSchema,

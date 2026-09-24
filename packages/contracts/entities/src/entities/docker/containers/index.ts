@@ -2,25 +2,25 @@ export {
   dockerPortBindingSchema,
   dockerContainerManagedBySchema,
   dockerContainerSchema,
-} from './base.schema'
+} from '@repo/contracts-entities/entities/docker/containers/base.schema'
 
 export type {
   DockerPortBinding,
   DockerContainerManagedBy,
   DockerContainer,
-} from './base.schema'
+} from '@repo/contracts-entities/entities/docker/containers/base.schema'
 
 export {
   dockerServiceSnapshotSchema,
   dockerDeploymentSnapshotSchema,
   dockerContainerProjectRefSchema,
-} from './snapshots.schema'
+} from '@repo/contracts-entities/entities/docker/containers/snapshots.schema'
 
 export type {
   DockerServiceSnapshot,
   DockerDeploymentSnapshot,
   DockerContainerProjectRef,
-} from './snapshots.schema'
+} from '@repo/contracts-entities/entities/docker/containers/snapshots.schema'
 
 export {
   dockerContainerLogStreamSchema,
@@ -28,7 +28,7 @@ export {
   dockerContainerLogEntrySchema,
   dockerFileEntrySchema,
   dockerContainerMetricPointSchema,
-} from './logs.schema'
+} from '@repo/contracts-entities/entities/docker/containers/logs.schema'
 
 export type {
   DockerContainerLogStream,
@@ -36,27 +36,27 @@ export type {
   DockerContainerLogEntry,
   DockerFileEntry,
   DockerContainerMetricPoint,
-} from './logs.schema'
+} from '@repo/contracts-entities/entities/docker/containers/logs.schema'
 
 export {
   dockerTerminalShellSchema,
   dockerTerminalProfileSchema,
-} from './terminal.schema'
+} from '@repo/contracts-entities/entities/docker/containers/terminal.schema'
 
 export type {
   DockerTerminalShell,
   DockerTerminalProfile,
-} from './terminal.schema'
+} from '@repo/contracts-entities/entities/docker/containers/terminal.schema'
 
 export {
   dockerContainerProcessStateSchema,
   dockerContainerProcessEntrySchema,
-} from './processes.schema'
+} from '@repo/contracts-entities/entities/docker/containers/processes.schema'
 
 export type {
   DockerContainerProcessState,
   DockerContainerProcessEntry,
-} from './processes.schema'
+} from '@repo/contracts-entities/entities/docker/containers/processes.schema'
 
 export {
   dockerContainerPortMappingSchema,
@@ -71,7 +71,7 @@ export {
   dockerComposeDependencyEntrySchema,
   dockerContainerComposeConfigSchema,
   dockerContainerInspectDetailSchema,
-} from './inspect.schema'
+} from '@repo/contracts-entities/entities/docker/containers/inspect.schema'
 
 export type {
   DockerContainerPortMapping,
@@ -86,33 +86,33 @@ export type {
   DockerComposeDependencyEntry,
   DockerContainerComposeConfig,
   DockerContainerInspectDetail,
-} from './inspect.schema'
+} from '@repo/contracts-entities/entities/docker/containers/inspect.schema'
 
 export {
   dockerContainerRuntimeActionSchema,
   dockerContainerRuntimeEventPayloadSchema,
   dockerContainerRuntimeEventSchema,
-} from './runtime-events.schema'
+} from '@repo/contracts-entities/entities/docker/containers/runtime-events.schema'
 
 export type {
   DockerContainerRuntimeAction,
   DockerContainerRuntimeEventPayload,
   DockerContainerRuntimeEvent,
-} from './runtime-events.schema'
+} from '@repo/contracts-entities/entities/docker/containers/runtime-events.schema'
 
 export {
   dockerContainerListSchema,
   dockerContainerRelationsSchema,
   dockerContainerEntitySchema,
   dockerContainerEntityListSchema,
-} from './relations.schema'
+} from '@repo/contracts-entities/entities/docker/containers/relations.schema'
 
 export type {
   DockerContainerList,
   DockerContainerRelations,
   DockerContainerEntity,
   DockerContainerEntityList,
-} from './relations.schema'
+} from '@repo/contracts-entities/entities/docker/containers/relations.schema'
 
 export {
   dockerContainerLinkPathSchema,
@@ -122,7 +122,7 @@ export {
   dockerContainerLinksSchema,
   dockerContainerWithLinksSchema,
   dockerContainerLinkedListSchema,
-} from './links.schema'
+} from '@repo/contracts-entities/entities/docker/containers/links.schema'
 
 export type {
   DockerContainerLinkPath,
@@ -132,4 +132,4 @@ export type {
   DockerContainerLinks,
   DockerContainerWithLinks,
   DockerContainerLinkedList,
-} from './links.schema'
+} from '@repo/contracts-entities/entities/docker/containers/links.schema'

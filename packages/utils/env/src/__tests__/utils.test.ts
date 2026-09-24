@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { trimTrailingSlash, guardedUrl, parseDebugScopes } from '../utils'
+import { trimTrailingSlash, guardedUrl, parseDebugScopes } from '@repo/env/utils'
 
 describe('trimTrailingSlash', () => {
   it('should remove trailing slash from URL', () => {

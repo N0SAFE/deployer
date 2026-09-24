@@ -23,10 +23,11 @@
 import { Inject, Injectable } from "@nestjs/common";
 import z from "zod/v4";
 
+import { BaseDockerSupervisorService } from "@/core/modules/docker/services/base-docker-supervisor.service";
 import {
-	BaseDockerSupervisorService,
-	type DockerSupervisorContainerSpec,
-} from "@/core/modules/docker/services/base-docker-supervisor.service";
+	resolveSupervisorRuntime,
+	type DockerSupervisorRuntime,
+} from "@/core/modules/docker/services/docker-supervisor-runtime";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
 import {
 	baseSupervisorPayloadSchema,
@@ -34,11 +35,13 @@ import {
 } from "@/core/modules/supervisors/base-supervisor.service";
 import {
 	baseSupervisorProcessInfoSchema,
-	dockerProcessInfoSchema,
+	swarmProcessInfoSchema,
 } from "@/core/modules/supervisors/supervisor-process-info";
-import { EnvService } from "@/config/env/env.service";
+import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
+import { EnvService } from "@repo/nest-env";
 import { splitManagedEnv } from "@repo/env";
 import { PLATFORM_ROLE_LABEL, PlatformNetwork } from "./traefik-supervisor.service";
+import { ConflictError } from "@repo/errors";
 
 /** Ownership marker — cleanup/inspection tooling keys off this label. */
 const WIREGUARD_ROLE = "platform-wireguard";
@@ -56,17 +59,8 @@ export const WIREGUARD_INTERNAL_PORT = 51820;
  * reach this node over the private network.
  */
 export const wireguardSupervisorPayloadSchema = baseSupervisorPayloadSchema.extend({
-	container: z
-		.object({
-			id: z.string(),
-			name: z.string(),
-			image: z.string(),
-			running: z.boolean(),
-			exitCode: z.number().int().nullable(),
-			restartCount: z.number().int().min(0),
-			startedAt: z.string().datetime().nullable(),
-		})
-		.nullable(),
+	/** Live view of the sidecar swarm service (null when absent). */
+	service: swarmProcessInfoSchema.shape.live.nullable(),
 	overlayIp: z.string().nullable(),
 	network: z.string(),
 	peerCount: z.number().int().min(0),
@@ -76,7 +70,7 @@ export type WireguardSupervisorPayload = z.output<typeof wireguardSupervisorPayl
 
 /** Process info — the desired/live sidecar + the overlay identity. */
 export const wireguardProcessInfoSchema = baseSupervisorProcessInfoSchema.extend({
-	process: dockerProcessInfoSchema,
+	process: swarmProcessInfoSchema,
 	overlay: z.object({
 		ip: z.string().nullable(),
 		network: z.string(),
@@ -151,40 +145,34 @@ export class WireGuardSupervisorService extends BaseDockerSupervisorService<
 		return `deployer-wireguard-state-${this.resolveOverlayIp().replace(/\./g, "-")}`;
 	}
 
-	/** Sidecar container name — derived from the overlay IP (stable + unique). */
-	private resolveContainerName(): string {
+	/** Sidecar swarm SERVICE name — derived from the overlay IP (stable + unique). */
+	private resolveServiceName(): string {
 		const prefix = this.env.get("DEPLOYER_PREFIX");
 		const base = `deployer-wireguard-${this.resolveOverlayIp().replace(/\./g, "-")}`;
 		return prefix === "" ? base : `${base}-${prefix}`;
 	}
 
-	protected buildContainerSpec(): DockerSupervisorContainerSpec {
+	/** Shared wireguard config text (peers + interface) rendered into the
+	 *  sidecar's state volume. Single builder so the swarm spec and the
+	 *  diagnostics can never disagree. */
+	private buildWireguardConfig(): string {
 		const managed = splitManagedEnv(this.env).wireguard;
 		const overlayIp = this.resolveOverlayIp();
 		const cidr = this.resolveNetwork();
-		const prefix = this.env.get("DEPLOYER_PREFIX");
 
-		// Build a minimal wg config: [Interface] Address + private key (from
-		// env or a placeholder persisted to the volume), plus [Peer] entries
-		// from MANAGED_WIREGUARD_PEERS ("ip|pubkey|endpoint:port").
-		const peers = managed.peers ?? "";
-		const peerLines = peers
+		const peerLines = this.resolvePeers()
 			.split(",")
 			.map((entry) => entry.trim())
 			.filter(Boolean)
 			.map((entry) => {
 				const [ip, pubkey, endpoint] = entry.split("|");
-				const lines = [
-					"[Peer]",
-					`PublicKey = ${pubkey ?? ""}`,
-					`AllowedIPs = ${ip ?? ""}/32`,
-				];
+				const lines = ["[Peer]", `PublicKey = ${pubkey ?? ""}`, `AllowedIPs = ${ip ?? ""}/32`];
 				if (endpoint) lines.push(`Endpoint = ${endpoint}`);
 				return lines.join("\n");
 			})
 			.join("\n\n");
 
-		const config = [
+		return [
 			"[Interface]",
 			`Address = ${overlayIp}/${cidr.split("/")[1] ?? "24"}`,
 			`PrivateKey = ${managed.privateKey ?? ""}`,
@@ -192,97 +180,174 @@ export class WireGuardSupervisorService extends BaseDockerSupervisorService<
 			"",
 			peerLines,
 		].join("\n");
+	}
+
+	/**
+	 * Desired SWARM spec for the WireGuard sidecar.
+	 *
+	 * GLOBAL mode: every node must run its own sidecar (its own overlay IP and
+	 * its own key) — that is the definition of the mesh layer. One task per
+	 * node is exactly what global mode gives, including the single-node case.
+	 *
+	 * `capabilitiesAdd: ["NET_ADMIN"]` is REQUIRED and not optional: creating a
+	 * wireguard interface needs NET_ADMIN, which the engine denies by default.
+	 * `/dev/net/tun` is bind-mounted for the same reason.
+	 */
+	protected buildSwarmSpec(): SwarmServiceSpecInput {
+		const managed = splitManagedEnv(this.env).wireguard;
+		const prefix = this.env.get("DEPLOYER_PREFIX");
+		const udpPort = managed.port ?? WIREGUARD_INTERNAL_PORT;
 
 		return {
-			name: this.resolveContainerName(),
+			name: this.resolveServiceName(),
 			image: managed.image ?? "linuxserver/wireguard:latest",
-			networkName: PlatformNetwork.name(prefix),
+			mode: "global",
+			replicas: 1,
 			env: [
-				`PUID=0`,
-				`PGID=0`,
-				`TZ=UTC`,
-				`SERVERURL=auto`,
+				"PUID=0",
+				"PGID=0",
+				"TZ=UTC",
+				"SERVERURL=auto",
 				`SERVERPORT=${String(WIREGUARD_INTERNAL_PORT)}`,
-				`PEERS=1`, // linuxserver image generates + shows the first peer qr
+				// linuxserver image generates + shows the first peer qr.
+				"PEERS=1",
 			],
-			binds: [
-				`${this.resolveStateVolume()}:${WIREGUARD_CONFIG_MOUNT}`,
-				`/lib/modules:/lib/modules:ro`,
+			command: [],
+			args: [],
+			labels: { [PLATFORM_ROLE_LABEL]: WIREGUARD_ROLE },
+			containerLabels: {},
+			mounts: [
+				{ type: "volume", source: this.resolveStateVolume(), target: WIREGUARD_CONFIG_MOUNT, readOnly: false },
+				{ type: "bind", source: "/lib/modules", target: "/lib/modules", readOnly: true },
+				{ type: "bind", source: "/dev/net/tun", target: "/dev/net/tun", readOnly: false },
 			],
-			portBindings: {
-				[`${WIREGUARD_INTERNAL_PORT}/udp`]: [{ HostPort: String(managed.port ?? WIREGUARD_INTERNAL_PORT) }],
-			},
-			restartPolicy: "unless-stopped",
-			labels: {
-				[PLATFORM_ROLE_LABEL]: WIREGUARD_ROLE,
-			},
+			placementPreferences: [],
+			placementConstraints: [],
+			resourcesLimits: {},
+			resourcesReservations: {},
+			networks: [],
+			healthcheck: null,
+			updateConfig: { parallelism: 1, delayMs: 0, order: "start-first", failureAction: "rollback" },
+			stopGracePeriodSeconds: 10,
+			capabilitiesAdd: ["NET_ADMIN"],
+			// Host mode: the UDP listener must be reachable on each node's real
+			// address — routing it through the mesh would defeat the tunnel.
+			endpointPorts: [
+				{
+					protocol: "udp",
+					publishedPort: udpPort,
+					targetPort: WIREGUARD_INTERNAL_PORT,
+					publishMode: "host",
+				},
+			],
 		};
 	}
 
-	/** One idempotent convergence pass: network → volume → create/start. */
+	/** Runtime: swarm-global (node-local) or managed; there is no container path. */
+	private async effectiveRuntime(): Promise<DockerSupervisorRuntime> {
+		return (
+			await resolveSupervisorRuntime({
+				managed: splitManagedEnv(this.env).wireguard.enabled,
+				rawRuntime: process.env.SUPERVISOR_RUNTIME,
+				swarmActive: await this.isSwarmActive(),
+				scope: "node-local",
+			})
+		).runtime;
+	}
+
+	/** One idempotent convergence pass: overlay → volume → converge the service. */
 	protected async reconcile(): Promise<void> {
+		const runtime = await this.effectiveRuntime();
+
+		if (runtime === "managed") {
+			// Compose/operator owns the sidecar — nothing to converge.
+			return;
+		}
+		if (runtime === "unavailable") {
+			throw new Error(
+				"WireGuard sidecar requires an active swarm engine or managed (compose/operator) ownership — " +
+					"no legacy container fallback. SwarmBootstrapService should have converged the engine.",
+			);
+		}
+
 		await this.runWithBackoff(
-			"WireGuard sidecar convergence",
+			"WireGuard sidecar (swarm) convergence",
 			async () => {
-				const spec = this.buildContainerSpec();
-				const networkId = spec.networkName !== undefined ? await this.ensureNetwork(spec.networkName) : undefined;
 				await this.ensureVolume(this.resolveStateVolume());
-
-				const inspect = await this.inspectContainer(spec.name);
-				try {
-					if (inspect === null) {
-						await this.pullImage(spec.image);
-						const container = await this.createContainer(spec, networkId);
-						await container.start();
-					} else if (!inspect.State.Running) {
-						await this.client.getContainer(spec.name).start();
-					}
-				} catch (startError) {
-					await this.removeContainerIfExists(spec.name);
-					throw startError;
-				}
-
-				await this.verifyConvergence(spec);
+				const overlay = await this.ensureSwarmNetwork(PlatformNetwork.name(this.env.get("DEPLOYER_PREFIX")));
+				const spec = this.buildSwarmSpec();
+				this.attachOverlay(spec, overlay, [spec.name]);
+				await this.reconcileSwarmService(spec);
+				await this.verifySwarmConvergence(spec.name);
 			},
 			{ maxAttempts: 3 },
 		);
 	}
 
-	/** REAL health observation: container state + wg interface readiness. */
+	/** The local task of the global sidecar service (this node's own sidecar). */
+	private async localTask(serviceName: string): Promise<{ exists: boolean; running: boolean }> {
+		try {
+			await this.dockerService.inspectSwarmService(serviceName);
+			const tasks = await this.dockerService.listSwarmServiceTasks(serviceName).catch(() => []);
+			const info = await this.dockerService.getSwarmInfo().catch(() => null);
+			const selfNodeId = info?.NodeID === undefined || info.NodeID === "" ? null : info.NodeID;
+			const local = selfNodeId === null ? tasks[0] : tasks.find((task) => task.NodeID === selfNodeId);
+			return { exists: true, running: local?.Status.State === "running" };
+		} catch {
+			return { exists: false, running: false };
+		}
+	}
+
+	/**
+	 * Container id of this node's sidecar task — the only way to reach a
+	 * swarm task from the engine API (tasks have no stable container name).
+	 */
+	private async localTaskContainerId(serviceName: string): Promise<string | null> {
+		try {
+			const tasks = await this.dockerService.listSwarmServiceTasks(serviceName);
+			const info = await this.dockerService.getSwarmInfo().catch(() => null);
+			const selfNodeId = info?.NodeID === undefined || info.NodeID === "" ? null : info.NodeID;
+			const local = selfNodeId === null ? tasks[0] : tasks.find((task) => task.NodeID === selfNodeId);
+			return local?.Status.ContainerStatus?.ContainerID ?? null;
+		} catch {
+			return null;
+		}
+	}
+
+	private async verifySwarmConvergence(name: string): Promise<void> {
+		const service = await this.dockerService.inspectSwarmService(name);
+		if (service.ID === undefined || service.ID === "") {
+			throw new ConflictError(`wireguard swarm service '${name}'`, "was not created");
+		}
+	}
+
+	/** REAL health observation: sidecar service state + wg interface readiness. */
 	protected async probe(): Promise<SupervisorProbeResult<typeof wireguardSupervisorPayloadSchema>> {
 		const startedAt = Date.now();
-		const spec = this.buildContainerSpec();
+		const spec = this.buildSwarmSpec();
 		const overlayIp = this.resolveOverlayIp();
+		const peerCount = this.resolvePeers().split(",").filter((p) => p.trim() !== "").length;
+		const task = await this.localTask(spec.name);
 
-		const inspect = await this.inspectContainer(spec.name);
-		if (inspect === null || !inspect.State.Running) {
+		if (!task.exists || !task.running) {
 			return {
 				healthy: false,
-				detail: `WireGuard sidecar '${spec.name}' is not running`,
+				detail: task.exists
+					? `WireGuard sidecar service '${spec.name}' has no running task on this node`
+					: `WireGuard sidecar service '${spec.name}' is missing`,
 				payload: {
 					checkedAt: new Date().toISOString(),
 					latencyMs: Date.now() - startedAt,
-					container: inspect
-						? {
-								id: inspect.Id,
-								name: spec.name,
-								image: spec.image,
-								running: inspect.State.Running,
-								exitCode: inspect.State.ExitCode ?? null,
-								restartCount: inspect.RestartCount ?? 0,
-								startedAt: inspect.State.StartedAt ?? null,
-							}
-						: null,
+					service: task.exists ? { serviceId: null, exists: true, createdAt: null, updatedAt: null, serviceName: spec.name, runningTasks: 0, totalTasks: 1 } : null,
 					overlayIp,
 					network: this.resolveNetwork(),
-					peerCount: this.resolvePeers().split(",").filter((p) => p.trim() !== "").length,
+					peerCount,
 					status: null,
 				},
 			};
 		}
 
 		const status = await this.execWgShowStatus(spec.name).catch(() => null);
-		const peerCount = this.resolvePeers().split(",").filter((p) => p.trim() !== "").length;
 		const up = (status ?? "").includes(overlayIp) || status !== null;
 
 		return {
@@ -291,15 +356,7 @@ export class WireGuardSupervisorService extends BaseDockerSupervisorService<
 			payload: {
 				checkedAt: new Date().toISOString(),
 				latencyMs: Date.now() - startedAt,
-				container: {
-					id: inspect.Id,
-					name: spec.name,
-					image: spec.image,
-					running: inspect.State.Running,
-					exitCode: inspect.State.ExitCode ?? null,
-					restartCount: inspect.RestartCount ?? 0,
-					startedAt: inspect.State.StartedAt ?? null,
-				},
+				service: { serviceId: null, exists: true, createdAt: null, updatedAt: null, serviceName: spec.name, runningTasks: 1, totalTasks: 1 },
 				overlayIp,
 				network: this.resolveNetwork(),
 				peerCount,
@@ -313,7 +370,7 @@ export class WireGuardSupervisorService extends BaseDockerSupervisorService<
 		return {
 			checkedAt: new Date().toISOString(),
 			latencyMs: 0,
-			container: null,
+			service: null,
 			overlayIp: this.resolveOverlayIp(),
 			network: this.resolveNetwork(),
 			peerCount: 0,
@@ -323,29 +380,37 @@ export class WireGuardSupervisorService extends BaseDockerSupervisorService<
 
 	/** Process info — the desired/live sidecar + overlay identity. */
 	protected async buildProcessInfo(): Promise<Record<string, unknown>> {
-		const spec = this.buildContainerSpec();
+		const spec = this.buildSwarmSpec();
 		return {
-			process: await this.describeDockerProcess(spec),
+			process: await this.describeSwarmProcess(spec),
 			overlay: {
 				ip: this.resolveOverlayIp() || null,
 				network: this.resolveNetwork(),
 				peerCount: this.resolvePeers().split(",").filter((p) => p.trim() !== "").length,
 				stateVolume: this.resolveStateVolume(),
+				config: this.buildWireguardConfig(),
 			},
 		};
 	}
 
-	/** `wg show` inside the sidecar (best-effort interface read). */
-	private async execWgShowStatus(containerName: string): Promise<string> {
-		const container = this.client.getContainer(containerName);
+	/**
+	 * `wg show` for the sidecar's LOCAL task. A swarm task has no stable
+	 * container name, so the container is resolved from the task's
+	 * `ContainerStatus.ContainerID` on this node — best-effort by design
+	 * (an absent read is reported as an unknown status, not an error).
+	 */
+	private async execWgShowStatus(serviceName: string): Promise<string> {
+		const containerId = await this.localTaskContainerId(serviceName);
+		if (containerId === null) return "";
+		const container = this.client.getContainer(containerId);
 		const exec = await container.exec({
 			Cmd: ["wg", "show"],
 			AttachStdout: true,
 			AttachStderr: true,
 		});
 		return await new Promise<string>((resolve) => {
-			const timer = setTimeout(() => resolve(""), 4_000);
-			exec.start({} as never, (err: unknown, stream: NodeJS.ReadableStream | undefined) => {
+			const timer = setTimeout(() => { resolve(""); }, 4_000);
+			exec.start({}, (err: unknown, stream: NodeJS.ReadableStream | undefined) => {
 				if (err) {
 					clearTimeout(timer);
 					resolve("");
@@ -370,13 +435,5 @@ export class WireGuardSupervisorService extends BaseDockerSupervisorService<
 				});
 			});
 		});
-	}
-
-	/** Throw when the container is not actually running after converge. */
-	private async verifyConvergence(spec: DockerSupervisorContainerSpec): Promise<void> {
-		const live = await this.inspectContainer(spec.name);
-		if (live === null || !live.State.Running) {
-			throw new Error(`WireGuard container '${spec.name}' did not start`);
-		}
 	}
 }

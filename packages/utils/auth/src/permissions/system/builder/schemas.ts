@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import type { PermissionBuilder, RolesAsRoleObjects } from './builder';
+import type { PermissionBuilder, RolesAsRoleObjects } from '@repo/auth/permissions/system/builder/builder';
 
 /**
  * Generate Zod schemas from permission builder with strong literal type inference

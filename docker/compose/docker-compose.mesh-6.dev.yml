@@ -1,6 +1,13 @@
 # =====================================================================
 # MESH-6 DEV — 6-node mesh cluster on the compose-managed dev stack.
 #
+# api-1 FOUNDS the swarm cluster (it is the first node, so
+# SwarmBootstrapService inits a manager there); api-2..6 JOIN it via the
+# join token + control-plane address. The global Postgres is scheduled BY
+# THE API as a swarm service on that cluster (alias `global-db`) rather
+# than being a compose container, so the multi-node profile exercises the
+# same database path as every other fleet size.
+#
 # Each api-N EXTENDS the same common api DEV base (build, env,
 # develop.watch) and overrides only the mesh-node-specific bits:
 #   ports, healthcheck (per-node port), container_name, NODE_LOCAL_DB_PATH,
@@ -23,8 +30,10 @@ services:
       API_PORT: "3301"
       API_URL: http://api-mesh-dev-1:3301
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3301}
+      # The global Postgres is a SWARM SERVICE the API schedules (alias
+      # global-db on the platform overlay) — compose must not own it.
       SETUP_DATABASE_URL: ${MANAGED_GLOBAL_DB_URL:-postgresql://deployer:deployer@global-db:5432/deployer}
-      MANAGED_GLOBAL_DB_ENABLED: "true"
+      MANAGED_GLOBAL_DB_ENABLED: "false"
       SETUP_AUTO: "true"
       MANAGED_REDIS_ENABLED: "true"
       MANAGED_LOCAL_DB_ENABLED: "true"
@@ -64,8 +73,10 @@ services:
       API_PORT: "3302"
       API_URL: http://api-mesh-dev-2:3302
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_NODE_2:-http://localhost:3302}
+      # The global Postgres is a SWARM SERVICE the API schedules (alias
+      # global-db on the platform overlay) — compose must not own it.
       SETUP_DATABASE_URL: ${MANAGED_GLOBAL_DB_URL:-postgresql://deployer:deployer@global-db:5432/deployer}
-      MANAGED_GLOBAL_DB_ENABLED: "true"
+      MANAGED_GLOBAL_DB_ENABLED: "false"
       SETUP_AUTO: "true"
       MANAGED_REDIS_ENABLED: "true"
       MANAGED_LOCAL_DB_ENABLED: "true"
@@ -104,8 +115,10 @@ services:
       API_PORT: "3303"
       API_URL: http://api-mesh-dev-3:3303
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_NODE_3:-http://localhost:3303}
+      # The global Postgres is a SWARM SERVICE the API schedules (alias
+      # global-db on the platform overlay) — compose must not own it.
       SETUP_DATABASE_URL: ${MANAGED_GLOBAL_DB_URL:-postgresql://deployer:deployer@global-db:5432/deployer}
-      MANAGED_GLOBAL_DB_ENABLED: "true"
+      MANAGED_GLOBAL_DB_ENABLED: "false"
       SETUP_AUTO: "true"
       MANAGED_REDIS_ENABLED: "true"
       MANAGED_LOCAL_DB_ENABLED: "true"
@@ -144,8 +157,10 @@ services:
       API_PORT: "3304"
       API_URL: http://api-mesh-dev-4:3304
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_NODE_4:-http://localhost:3304}
+      # The global Postgres is a SWARM SERVICE the API schedules (alias
+      # global-db on the platform overlay) — compose must not own it.
       SETUP_DATABASE_URL: ${MANAGED_GLOBAL_DB_URL:-postgresql://deployer:deployer@global-db:5432/deployer}
-      MANAGED_GLOBAL_DB_ENABLED: "true"
+      MANAGED_GLOBAL_DB_ENABLED: "false"
       SETUP_AUTO: "true"
       MANAGED_REDIS_ENABLED: "true"
       MANAGED_LOCAL_DB_ENABLED: "true"
@@ -184,8 +199,10 @@ services:
       API_PORT: "3305"
       API_URL: http://api-mesh-dev-5:3305
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_NODE_5:-http://localhost:3305}
+      # The global Postgres is a SWARM SERVICE the API schedules (alias
+      # global-db on the platform overlay) — compose must not own it.
       SETUP_DATABASE_URL: ${MANAGED_GLOBAL_DB_URL:-postgresql://deployer:deployer@global-db:5432/deployer}
-      MANAGED_GLOBAL_DB_ENABLED: "true"
+      MANAGED_GLOBAL_DB_ENABLED: "false"
       SETUP_AUTO: "true"
       MANAGED_REDIS_ENABLED: "true"
       MANAGED_LOCAL_DB_ENABLED: "true"
@@ -224,8 +241,10 @@ services:
       API_PORT: "3306"
       API_URL: http://api-mesh-dev-6:3306
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_NODE_6:-http://localhost:3306}
+      # The global Postgres is a SWARM SERVICE the API schedules (alias
+      # global-db on the platform overlay) — compose must not own it.
       SETUP_DATABASE_URL: ${MANAGED_GLOBAL_DB_URL:-postgresql://deployer:deployer@global-db:5432/deployer}
-      MANAGED_GLOBAL_DB_ENABLED: "true"
+      MANAGED_GLOBAL_DB_ENABLED: "false"
       SETUP_AUTO: "true"
       MANAGED_REDIS_ENABLED: "true"
       MANAGED_LOCAL_DB_ENABLED: "true"
@@ -264,20 +283,6 @@ services:
     networks:
       app_network_dev: {}
       deployer_platform: {}
-
-  global-db:
-    extends:
-      file: ./common/database/global/docker-compose.config.yml
-      service: global-db
-    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-global-db
-    networks:
-      app_network_dev:
-        aliases:
-          - global-db
-      deployer_platform: {}
-      shared:
-        aliases:
-          - global-db
 
   redis:
     extends:

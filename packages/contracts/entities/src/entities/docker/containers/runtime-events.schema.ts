@@ -1,5 +1,5 @@
 import z from 'zod/v4'
-import { dockerContainerMetricPointSchema } from './logs.schema'
+import { dockerContainerMetricPointSchema } from '@repo/contracts-entities/entities/docker/containers/logs.schema'
 
 export const dockerContainerRuntimeActionSchema = z.enum([
   'attach',

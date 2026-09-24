@@ -35,7 +35,7 @@ export function createSharedRuntimeOrpcClient<TContract extends AnyContractRoute
 ): SharedRuntimeOrpcClient<TContract> {
     const link = new OpenAPILink(contract, {
         url: runtime.baseUrl,
-        headers: options?.headers ? () => options.headers : undefined,
+        headers: options?.headers,
         fetch: (input, init) => fetch(input, { ...init, credentials: 'include' }),
         plugins: [
             new ObservableLinkPlugin(contract),

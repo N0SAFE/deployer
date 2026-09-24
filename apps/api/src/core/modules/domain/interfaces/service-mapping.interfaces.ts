@@ -7,7 +7,7 @@
  * @module domain/interfaces/service-mapping
  */
 
-import type { serviceDomainMappings } from '@/config/drizzle/global/schema';
+import type { serviceDomainMappings } from '@repo/nest-schema/global';
 
 // ============================================================================
 // DATABASE TYPES (re-exports for convenience)

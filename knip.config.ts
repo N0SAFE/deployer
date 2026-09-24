@@ -170,7 +170,11 @@ const config: KnipConfig = {
   },
   
   vitest: {
-    entry: ['vitest.config.{ts,mts}', 'vitest.setup.ts'],
+    // Glob, not the exact name: the web app names its setups per project
+    // (`vitest.setup.unit.ts` / `vitest.setup.e2e.ts`) so each one is obviously
+    // bound to a single environment. An exact `vitest.setup.ts` entry would
+    // leave those files unreferenced and knip would report them as unused.
+    entry: ['vitest.config.{ts,mts}', 'vitest.setup*.ts'],
   },
 }
 

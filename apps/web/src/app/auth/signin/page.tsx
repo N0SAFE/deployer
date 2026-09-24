@@ -20,11 +20,12 @@ import React, { Suspense } from 'react'
 import redirect from '@/actions/redirect'
 import { AlertCircle, Spinner } from '@repo/ui/components/atomics/atoms/Icon'
 import { loginSchema } from './schema'
-import { AuthSignin, AuthSignup, Setup } from '@/routes'
+import { AuthSignin, AuthSignup } from '@/routes'
 import { Shield } from 'lucide-react'
 import { authClient } from '@/lib/auth'
 import { PageTimingLogger } from '@/lib/timing'
 import { useSetupState } from '@/domains/setup/hooks'
+import { setupDestinationUrl } from '@/lib/setup-url'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 /**
@@ -57,16 +58,15 @@ function SetupGate() {
 
     React.useEffect(() => {
         if (setupStatus?.needsSetup) {
-            void router.replace(
-                Setup(
-                    {},
-                    {
-                        redirectTo:
-                            searchParams.get('redirectTo') ??
-                            searchParams.get('callbackUrl') ??
-                            undefined,
-                    }
-                )
+            // Setup is a SAME-DEPLOYMENT route now (the web app serves its own
+            // /setup via the shared wizard), so this is a normal same-origin
+            // navigation — not a cross-origin jump to the API.
+            router.replace(
+                setupDestinationUrl({
+                    redirectTo:
+                        searchParams.get('redirectTo') ??
+                        searchParams.get('callbackUrl'),
+                })
             )
         }
     }, [setupStatus, router, searchParams])

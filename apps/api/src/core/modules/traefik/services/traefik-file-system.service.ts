@@ -3,7 +3,7 @@ import { join, basename, relative, extname } from 'path';
 import * as crypto from 'crypto';
 import * as mime from 'mime-types';
 import { TraefikRepository } from '../repositories/traefik.repository';
-import { EnvService } from '@/config/env/env.service';
+import { EnvService } from '@repo/nest-env';
 import { FileReadError, FileNotFoundError, FileWriteError, DirectoryError } from '../errors';
 
 // Import types from centralized interfaces
@@ -22,7 +22,7 @@ import type {
 import type { InferSelectModel } from 'drizzle-orm';
 import type {
   traefikServiceConfigs,
-} from '@/config/drizzle/global/schema/traefik';
+} from "@repo/nest-schema/global/traefik";
 
 // Inferred types from database schema
 type TraefikServiceConfig = InferSelectModel<typeof traefikServiceConfigs>;
@@ -887,8 +887,7 @@ export class TraefikFileSystemService {
       const staticFiles = await this.traefikRepository.getAllStaticFiles();
       const staticFile = staticFiles.find(sf => sf.relativePath === filePath);
       if (staticFile) {
-        // Note: deleteStaticFile method doesn't exist yet, we'll need to add it
-        this.logger.warn(`Cannot delete static file ${filePath} - delete method not implemented`);
+        await this.traefikRepository.deleteStaticFile(staticFile.id);
         return;
       }
     }

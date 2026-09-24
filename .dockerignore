@@ -80,7 +80,11 @@ bun-preload-script
 test-url.js
 
 # Logs
-logs
+# Log FILES only. A bare `logs` entry used to sit here and it matches ANY path
+# component named `logs` — including real route directories such as
+# apps/web/src/app/dashboard/**/logs/ and .../docker/logs/. Those pages were
+# therefore excluded from the build context AND from `docker compose watch`
+# sync, so edits to them silently never reached the dev container.
 *.log
 
 # Cache directories

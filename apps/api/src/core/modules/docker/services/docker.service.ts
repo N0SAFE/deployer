@@ -12,7 +12,7 @@ import * as path from "path";
 import { PassThrough } from "stream";
 import { execFile } from "node:child_process";
 import { Observable } from "rxjs";
-import { EnvService } from "@/config/env/env.service";
+import { EnvService } from "@repo/nest-env";
 import { isRecord } from "@repo/type-guards";
 import z from "zod/v4";
 import {
@@ -42,6 +42,55 @@ import type {
     SwarmJoinOptions,
     SwarmOverlayNetworkRequest,
 } from "@repo/contracts-entities";
+
+/**
+ * The engine's OWN swarm vocabulary, kept inside this boundary: business code
+ * reads the platform vocabulary (`ClusterSwarmRole`) instead.
+ *
+ * `Role` has no `none` because the engine only reports nodes that exist.
+ */
+export type SwarmNodeRole = "manager" | "worker";
+export type SwarmNodeAvailability = "active" | "pause" | "drain";
+
+/**
+ * The node shape the payload builder needs.
+ *
+ * `Spec` and its fields are OPTIONAL because this also accepts a raw engine
+ * payload that has not been through `dockerodeNodeSummarySchema` yet. The engine
+ * omits fields it considers default, and echoing an omitted field as `""` is
+ * exactly what produced `400 invalid Role: ""` on every node update.
+ */
+export interface SwarmNodeSpecSource {
+    Spec?: {
+        Name?: string;
+        Role?: string;
+        Availability?: string;
+        Labels?: Record<string, string>;
+    };
+}
+
+/**
+ * The FLAT `NodeSpec` body of `POST /nodes/{id}/update`. A nested `Spec`
+ * wrapper makes the daemon read an empty top-level `Role` and reject the call.
+ */
+export interface SwarmNodeSpecPayload {
+    /** Left out entirely when the engine reported no name — never sent as `""`. */
+    Name?: string;
+    Role: SwarmNodeRole;
+    Availability: SwarmNodeAvailability;
+    Labels: Record<string, string>;
+}
+
+/** A partial change applied over the node's CURRENT spec. */
+export interface SwarmNodeSpecChange {
+    role?: SwarmNodeRole;
+    availability?: SwarmNodeAvailability;
+    /** COMPLETE desired label map — see `buildSwarmNodeSpecPayload`. */
+    labels?: Record<string, string>;
+}
+
+/** Names the write in logs — the operation, not the values (never log payloads). */
+type SwarmNodeSpecOperation = "labels" | "role/availability";
 
 
 
@@ -2623,21 +2672,24 @@ CMD ["npm", "start"]
     /**
      * Update a swarm service (POST /services/{id}/update?version=N[&rollback=true]).
      * `version` must match the service's current Version.Index (from inspect).
+     *
+     * Note: The Docker API update endpoint returns `{ Warnings: [...] }` or `{}`,
+     * NOT a full service summary. Callers needing the updated state should call
+     * `inspectSwarmService` after this completes.
      */
     async updateSwarmService(
         serviceIdOrName: string,
         version: number,
         spec: Docker.ServiceSpec,
         rollback = false,
-    ): Promise<DockerodeServiceSummary> {
+    ): Promise<void> {
         try {
             const service = this.docker.getService(serviceIdOrName);
-            const raw: unknown = await service.update({
+            await service.update({
                 version,
                 ...(rollback ? { rollback: true } : {}),
                 ...spec,
             });
-            return dockerodeServiceSummarySchema.parse(raw);
         } catch (error: unknown) {
             if (this.isDockerNotFoundError(error)) {
                 throw new NotFoundException(`Swarm service not found: ${serviceIdOrName}`);
@@ -2709,6 +2761,33 @@ CMD ["npm", "start"]
             const message = DockerService.getErrMsg(error);
             this.logger.error(`Failed to roll back Swarm service ${serviceIdOrName}: ${message}`);
             throw new BadGatewayException(`Failed to roll back Swarm service ${serviceIdOrName}: ${message}`);
+        }
+    }
+
+    /**
+     * Tail the logs of a swarm service's tasks (GET /services/{id}/logs).
+     *
+     * The service-level endpoint aggregates every task's output, which is what
+     * supervision and setup diagnostics need: a service has no single
+     * container, so there is no container id to read. Returns "" when the
+     * engine reports no logs yet instead of throwing — log replay is a
+     * convenience, never a gate.
+     */
+    async getSwarmServiceLogs(
+        serviceIdOrName: string,
+        options: Docker.ContainerLogsOptions = { stdout: true, stderr: true, tail: 200 },
+    ): Promise<string> {
+        try {
+            const raw = await this.docker.getService(serviceIdOrName).logs({
+                ...options,
+                follow: false,
+            });
+            return typeof raw === "string" ? raw : String(raw);
+        } catch (error: unknown) {
+            this.logger.debug(
+                `Swarm service logs unavailable for ${serviceIdOrName}: ${DockerService.getErrMsg(error)}`,
+            );
+            return "";
         }
     }
 
@@ -2793,6 +2872,78 @@ CMD ["npm", "start"]
     }
 
     /**
+     * Build the body for `POST /nodes/{id}/update` — the FLAT `NodeSpec`.
+     *
+     * The Engine API wants the spec at the TOP LEVEL and `version` in the QUERY
+     * STRING (dockerode routes those through `_query` / `_body`). Wrapping the
+     * spec in a nested `Spec` makes the daemon read an empty top-level `Role` and
+     * reject EVERY node update with `400 invalid Role: ""` — a failure no amount
+     * of correct label logic downstream can recover from, which is why this is
+     * unit-tested without a daemon.
+     *
+     * `change.labels` is the caller's COMPLETE desired map and REPLACES the node's
+     * own. Merging would resurrect every key the caller deliberately dropped — and
+     * dropping the key is how `both` (the default role) is expressed, so merging
+     * made a role change impossible to revert: the write returned 200, the engine
+     * kept `deployer.node.role=control`, and the next inventory sweep read the old
+     * role straight back. Only a role/availability change (no `labels` key)
+     * inherits the current map.
+     */
+    static buildSwarmNodeSpecPayload(
+        node: SwarmNodeSpecSource,
+        change: SwarmNodeSpecChange,
+    ): SwarmNodeSpecPayload {
+        const spec = node.Spec ?? {};
+        const name = spec.Name ?? "";
+        return {
+            // Omitted rather than sent as "": the engine already knows the name, and
+            // the label-only update this replaced never sent one.
+            ...(name.length > 0 ? { Name: name } : {}),
+            // Never echo `""` — a node reports it transiently right after init — and
+            // never fall back to `worker`: demoting a manager can leave the cluster
+            // with no manager at all, so an unreadable role stays `manager`.
+            Role: change.role ?? DockerService.normalizeSwarmNodeRole(spec.Role) ?? "manager",
+            Availability:
+                change.availability ??
+                DockerService.swarmNodeAvailabilityOrDefault(spec.Availability),
+            Labels: change.labels ?? spec.Labels ?? {},
+        };
+    }
+
+    /**
+     * The role of a node, from the ENGINE's own signals.
+     *
+     * `ManagerStatus` is the authoritative one: the engine records it for every
+     * manager and reports `null` for every worker, so it survives the transient
+     * `Role: ""` a freshly-initialised node reports.
+     *
+     * NEVER returns `worker` for an unreadable role. Reading `Spec.Role` alone and
+     * defaulting to `worker` is how the platform demotes its own manager: one
+     * empty read during bootstrap flips the election's view of the control plane,
+     * the inventory sweep then writes that wrong role into the cache (which can
+     * only hold `manager`/`worker`), and the policy pass acts on it. A wrong
+     * promotion is reversible; a wrong demotion can leave no manager at all.
+     */
+    static resolveSwarmNodeRole(node: DockerodeNodeSummary): SwarmNodeRole {
+        if (node.ManagerStatus !== null) return "manager";
+        return DockerService.normalizeSwarmNodeRole(node.Spec.Role) ?? "manager";
+    }
+
+    /** `Spec.Role` narrowed to the engine's enum; `null` when it is unreadable. */
+    private static normalizeSwarmNodeRole(value: string | undefined): SwarmNodeRole | null {
+        const role = (value ?? "").trim().toLowerCase();
+        if (role === "manager" || role === "worker") return role;
+        return null;
+    }
+
+    /** `Spec.Availability` narrowed to the engine's enum; anything else → `active`. */
+    private static swarmNodeAvailabilityOrDefault(
+        value: string | undefined,
+    ): SwarmNodeAvailability {
+        return value === "pause" || value === "drain" ? value : "active";
+    }
+
+    /**
      * List all swarm nodes (GET /nodes).
      */
     async listSwarmNodes(): Promise<DockerodeNodeSummary[]> {
@@ -2827,29 +2978,60 @@ CMD ["npm", "start"]
      * Update a swarm node's labels (POST /nodes/{id}/update?version=N).
      * Used for placement metadata: `deployer.ingress`, `deployer.tenant.*`,
      * `deployer.node.role`, regions, etc.
+     *
+     * `labels` is the COMPLETE desired map and replaces the node's own — see
+     * `buildSwarmNodeSpecPayload` for why merging is wrong here.
      */
-    async updateSwarmNodeLabels(nodeId: string, version: number, labels: Record<string, string>): Promise<void> {
+    async updateSwarmNodeLabels(
+        nodeId: string,
+        version: number,
+        labels: Record<string, string>,
+    ): Promise<void> {
+        await this.applySwarmNodeSpec(nodeId, version, { labels }, "labels");
+    }
+
+    /**
+     * Update a swarm node's role and/or availability (POST /nodes/{id}/update).
+     *
+     * Labels are NOT touched: with no `labels` key the payload inherits the
+     * node's current map, so a role change cannot silently drop a label that a
+     * different writer set.
+     */
+    async updateSwarmNodeRoleAvailability(
+        nodeId: string,
+        version: number,
+        change: Pick<SwarmNodeSpecChange, "role" | "availability">,
+    ): Promise<void> {
+        await this.applySwarmNodeSpec(nodeId, version, change, "role/availability");
+    }
+
+    /**
+     * Write a node spec change to the engine.
+     *
+     * `version` travels in the QUERY STRING and the spec in the BODY: the update
+     * endpoint is version-guarded optimistic concurrency, and `version` is not
+     * part of `NodeSpec` — dockerode only separates the two via `_query`/`_body`.
+     */
+    private async applySwarmNodeSpec(
+        nodeId: string,
+        version: number,
+        change: SwarmNodeSpecChange,
+        operation: SwarmNodeSpecOperation,
+    ): Promise<void> {
         try {
-            const existing = await this.inspectSwarmNode(nodeId);
+            const node = await this.inspectSwarmNode(nodeId);
             await this.docker.getNode(nodeId).update({
-                version,
-                Spec: {
-                    Role: existing.Spec?.Role ?? 'worker',
-                    Availability: existing.Spec?.Availability ?? 'active',
-                    Labels: {
-                        ...existing.Spec.Labels,
-                        ...labels,
-                    },
-                },
+                _query: { version },
+                _body: DockerService.buildSwarmNodeSpecPayload(node, change),
             });
-            this.logger.log(`Updated labels on Swarm node ${nodeId}`);
+            this.logger.log(`Updated ${operation} on Swarm node ${nodeId}`);
         } catch (error: unknown) {
             if (this.isDockerNotFoundError(error)) {
                 throw new NotFoundException(`Swarm node not found: ${nodeId}`);
             }
             const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to update labels on Swarm node ${nodeId}: ${message}`);
-            throw new BadGatewayException(`Failed to update labels on Swarm node ${nodeId}: ${message}`);
+            this.logger.error(`Failed to update ${operation} on Swarm node ${nodeId}: ${message}`);
+            throw new BadGatewayException(`Failed to update ${operation} on Swarm node ${nodeId}: ${message}`);
         }
     }
 

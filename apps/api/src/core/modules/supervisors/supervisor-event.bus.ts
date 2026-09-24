@@ -18,6 +18,8 @@ import { Injectable, Logger } from "@nestjs/common";
 import { Observable, Subject, firstValueFrom } from "rxjs";
 import { filter } from "rxjs/operators";
 
+import type { SupervisorState } from "./base-supervisor.service";
+
 /** What happened to a supervisor. */
 export type SupervisorEventType =
 	| "registered"
@@ -35,7 +37,7 @@ export interface SupervisorEvent {
 	/** ISO 8601 timestamp. */
 	at: string;
 	/** Lifecycle state at emit time (state-changed/reconciled). */
-	state?: "idle" | "converging" | "converged" | "degraded";
+	state?: SupervisorState;
 	/** Latest health snapshot (health-snapshot). */
 	healthy?: boolean;
 	/** Human detail (degradation reason, etc.). */

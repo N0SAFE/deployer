@@ -1,10 +1,8 @@
 import { Test, type TestingModule } from "@nestjs/testing";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ClusterSnapshot } from "@repo/contracts-entities";
-import { EnvService } from "@/config/env/env.service";
-import { ClusterNodeRepository } from "../repositories/cluster-node.repository";
 import { SwarmBootstrapService } from "./swarm-bootstrap.service";
-import { SwarmClusterService } from "./swarm-cluster.service";
+import { SwarmParticipationService } from "./swarm-participation.service";
 
 const snapshotFixture: ClusterSnapshot = {
     clusterId: "abc123",
@@ -42,110 +40,79 @@ const snapshotFixture: ClusterSnapshot = {
 
 describe("SwarmBootstrapService", () => {
     let service: SwarmBootstrapService;
-    let clusterService: { ensureCluster: ReturnType<typeof vi.fn>; assertClusterReady: ReturnType<typeof vi.fn> };
-    let clusterNodeRepository: { upsertFromSnapshot: ReturnType<typeof vi.fn>; find: ReturnType<typeof vi.fn> };
-    let envService: { get: ReturnType<typeof vi.fn> };
+    let participation: {
+        converge: ReturnType<typeof vi.fn>;
+        setupDone: ReturnType<typeof vi.fn>;
+        effectiveConfig: ReturnType<typeof vi.fn>;
+    };
 
     beforeEach(async () => {
-        clusterService = {
-            ensureCluster: vi.fn(),
-            assertClusterReady: vi.fn(),
-        };
-        clusterNodeRepository = {
-            upsertFromSnapshot: vi.fn(),
-            find: vi.fn(),
-        };
-        envService = {
-            get: vi.fn((key: string) => {
-                if (key === "SWARM_ENABLED") return true;
-                if (key === "SWARM_ADVERTISE_ADDR") return undefined;
-                return undefined;
-            }),
+        participation = {
+            converge: vi.fn(),
+            setupDone: vi.fn(),
+            effectiveConfig: vi.fn(),
         };
 
         const moduleRef: TestingModule = await Test.createTestingModule({
             providers: [
                 SwarmBootstrapService,
-                { provide: SwarmClusterService, useValue: clusterService },
-                { provide: ClusterNodeRepository, useValue: clusterNodeRepository },
-                { provide: EnvService, useValue: envService },
+                { provide: SwarmParticipationService, useValue: participation },
             ],
         }).compile();
 
         service = moduleRef.get(SwarmBootstrapService);
     });
 
-    it("skips convergence when SWARM_ENABLED=false", async () => {
-        envService.get.mockImplementation((key: string) => (key === "SWARM_ENABLED" ? false : undefined));
-        await service.onApplicationBootstrap();
-        expect(clusterService.ensureCluster).not.toHaveBeenCalled();
-        expect(clusterNodeRepository.upsertFromSnapshot).not.toHaveBeenCalled();
+    it("DEFERS convergence before setup — the wizard decides create vs join", async () => {
+        participation.setupDone.mockReturnValue(false);
+        await service.onModuleInit();
+        // Founding a cluster is the OPERATOR's decision. Initializing here
+        // would leave a node that is about to JOIN a fleet owning a cluster it
+        // invented, and `swarm init` cannot be undone without destroying the
+        // local Raft state. The setup flow calls converge() once the
+        // participation is persisted.
+        expect(participation.converge).not.toHaveBeenCalled();
     });
 
-    it("converges to an active cluster and uses SWARM_ADVERTISE_ADDR when set", async () => {
-        envService.get.mockImplementation((key: string) => {
-            if (key === "SWARM_ENABLED") return true;
-            if (key === "SWARM_ADVERTISE_ADDR") return "10.0.0.1";
-            return undefined;
+    it("converges from the SETUP trigger even before setupDone flips", async () => {
+        // The setup flow calls converge("setup") as its final step, AFTER
+        // persisting swarmConfig but while the tracker is still running.
+        participation.converge.mockResolvedValue(snapshotFixture);
+        participation.effectiveConfig.mockReturnValue({
+            mode: "create",
+            policy: "auto",
+            advertiseAddr: null,
+            joinToken: null,
+            joinAddrs: [],
         });
-        clusterService.ensureCluster.mockResolvedValue(snapshotFixture);
-        clusterNodeRepository.upsertFromSnapshot.mockReturnValue({ swarmRole: "manager" });
-
-        await service.onApplicationBootstrap();
-
-        expect(clusterService.ensureCluster).toHaveBeenCalledTimes(1);
-        expect(clusterService.ensureCluster).toHaveBeenCalledWith({ AdvertiseAddr: "10.0.0.1" });
+        await service.converge("setup");
+        expect(participation.converge).toHaveBeenCalledTimes(1);
     });
 
-    it("passes an empty options object when no advertise address is configured", async () => {
-        clusterService.ensureCluster.mockResolvedValue(snapshotFixture);
-        clusterNodeRepository.upsertFromSnapshot.mockReturnValue({ swarmRole: "manager" });
-        await service.onApplicationBootstrap();
-        expect(clusterService.ensureCluster).toHaveBeenCalledWith({});
+    it("never crashes boot when convergence fails", async () => {
+        participation.converge.mockRejectedValue(new Error("no docker engine"));
+        await expect(service.onModuleInit()).resolves.toBeUndefined();
     });
 
-    it("persists the cluster snapshot (SW-012) and join tokens (SW-011) after converging", async () => {
-        clusterService.ensureCluster.mockResolvedValue(snapshotFixture);
-        clusterNodeRepository.upsertFromSnapshot.mockReturnValue({ swarmRole: "manager" });
-
-        await service.onApplicationBootstrap();
-
-        expect(clusterNodeRepository.upsertFromSnapshot).toHaveBeenCalledTimes(1);
-        expect(clusterNodeRepository.upsertFromSnapshot).toHaveBeenCalledWith(snapshotFixture);
-    });
-
-    it("does NOT schedule Deployer's platform infra on Swarm (workloads only)", async () => {
-        // Architectural rule (per request): Swarm orchestrates Deployer-OWNED
-        // workloads — user deployments/projects/services — never Deployer's own
-        // ingress/infra (managed by supervisors / compose). There is no
-        // "platform swarm stack" to deploy.
-        clusterService.ensureCluster.mockResolvedValue(snapshotFixture);
-        clusterNodeRepository.upsertFromSnapshot.mockReturnValue({ swarmRole: "manager" });
-
-        await service.onApplicationBootstrap();
-
-        // The bootstrap still converges + persists cluster state (workload scheduling
-        // is available) but takes NO swarm action for platform infra.
-        expect(clusterService.ensureCluster).toHaveBeenCalledTimes(1);
-        expect(clusterNodeRepository.upsertFromSnapshot).toHaveBeenCalledTimes(1);
-    });
-
-    it("never throws when the engine is not swarm-capable (best-effort)", async () => {
-        clusterService.ensureCluster.mockRejectedValue(new Error("docker swarm unavailable"));
-        await expect(service.onApplicationBootstrap()).resolves.toBeUndefined();
-        expect(clusterNodeRepository.upsertFromSnapshot).not.toHaveBeenCalled();
-    });
-
-    it("never throws when persistence fails (best-effort persistence)", async () => {
-        clusterService.ensureCluster.mockResolvedValue(snapshotFixture);
-        clusterNodeRepository.upsertFromSnapshot.mockImplementation(() => {
-            throw new Error("db unavailable");
+    it("converges after setup completes", async () => {
+        participation.setupDone.mockReturnValue(true);
+        participation.converge.mockResolvedValue(snapshotFixture);
+        participation.effectiveConfig.mockReturnValue({
+            mode: "create",
+            policy: "auto",
+            advertiseAddr: null,
+            joinToken: null,
+            joinAddrs: [],
         });
-        await expect(service.onApplicationBootstrap()).resolves.toBeUndefined();
+
+        await service.onModuleInit();
+
+        expect(participation.converge).toHaveBeenCalledTimes(1);
     });
 
-    it("never throws when the readiness probe itself fails", async () => {
-        clusterService.ensureCluster.mockRejectedValue(new Error("engine unreachable"));
-        await expect(service.onApplicationBootstrap()).resolves.toBeUndefined();
+    it("never throws when convergence fails (best-effort)", async () => {
+        participation.setupDone.mockReturnValue(true);
+        participation.converge.mockRejectedValue(new Error("docker swarm unavailable"));
+        await expect(service.onModuleInit()).resolves.toBeUndefined();
     });
 });

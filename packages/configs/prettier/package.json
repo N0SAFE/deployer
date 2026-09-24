@@ -1,19 +1,16 @@
 {
     "name": "@repo/config-prettier",
     "version": "1.0.0",
-    "main": "dist/cjs/base.js",
     "type": "module",
     "exports": {
-        ".": {
-            "import": "./dist/esm/base.js",
-            "require": "./dist/cjs/base.js"
-        },
         "./base": {
-            "import": "./dist/esm/base.js",
+            "types": "./src/base.ts",
+            "import": "./dist/esm/base.mjs",
             "require": "./dist/cjs/base.js"
         },
         "./tailwind": {
-            "import": "./dist/esm/tailwind.js",
+            "types": "./src/tailwind.ts",
+            "import": "./dist/esm/tailwind.mjs",
             "require": "./dist/cjs/tailwind.js"
         }
     },
@@ -21,13 +18,14 @@
         "dist"
     ],
     "scripts": {
-        "build": "bun scripts/build.ts",
-        "compile": "bun x cross-env COMPILE_MODE=true bun run build",
+        "build": "bun --bun ../../bin/pkg-build/index.ts",
+        "compile": "bun --bun ../../bin/pkg-build/index.ts",
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
         "clean": "rimraf dist",
-        "type-check": "tsc --noEmit"
+        "type-check": "tsc --noEmit",
+        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch"
     },
     "keywords": [],
     "author": "",
@@ -39,6 +37,17 @@
         "prettier": "catalog:linting",
         "prettier-plugin-tailwindcss": "catalog:linting",
         "vitest": "catalog:testing",
-        "typescript": "catalog:build"
+        "typescript": "catalog:build",
+        "chokidar": "catalog:build",
+        "rimraf": "catalog:build",
+        "@repo/pkg-build": "*"
+    },
+    "dependencies": {},
+    "pkgBuild": {
+        "root": "src",
+        "formats": [
+            "esm",
+            "cjs"
+        ]
     }
 }
