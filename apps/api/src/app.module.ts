@@ -9,7 +9,7 @@ import { RenderModule } from "@nestjs-ssr/react";
 import { DatabaseModule } from "./core/modules/database/database.module";
 import { LoggerMiddleware } from "./core/middlewares/logger.middleware";
 import { SsrAuthGuardMiddleware } from "./core/middlewares/ssr-auth-guard.middleware";
-import { EnvModule } from "@repo/nest-env";
+import { EnvModule } from "@/config/env/env.module";
 import { EventsModule } from "./core/modules/events/events.module";
 import { InternalErrorContextMiddleware } from "./core/middlewares/internal-error/internal-error-context.middleware";
 import { InternalErrorInsightService } from "./core/middlewares/internal-error/internal-error-insight.service";
@@ -23,7 +23,7 @@ import { SetupModule } from "./modules/setup/setup.module";
 import { AuthModule } from "./core/modules/auth/auth.module";
 import { createBetterAuth } from "./config/auth/auth";
 import { GLOBAL_DATABASE_CONNECTION } from "@repo/nest-database-core/database-connection";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { eq } from "drizzle-orm";
 import * as globalSchema from "@repo/nest-schema/global";
 

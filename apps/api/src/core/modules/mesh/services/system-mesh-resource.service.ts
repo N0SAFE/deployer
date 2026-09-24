@@ -4,7 +4,7 @@ import { nodeInfoEntity } from "../entities/node-info.entity";
 import { SystemMeshTopicService } from "./system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "./system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { SystemMeshConfigService } from "./system-mesh-config.service";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { contractBuilder } from "@repo/nest-events";
 import z from "zod/v4";
 

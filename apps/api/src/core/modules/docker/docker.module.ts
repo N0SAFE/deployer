@@ -7,11 +7,11 @@
  */
 
 import { Global, Module } from '@nestjs/common';
-import { EnvService } from '@repo/nest-env';
+import { EnvService } from "@/config/env/env.module";
 import { DockerService } from './services/docker.service';
 import { ScannerContainerManagerService } from './services/scanner-container-manager.service';
 import { PostgresServiceProvisioner } from './containers/postgres/postgres-service.provisioner';
-import { EnvModule } from '@repo/nest-env';
+import { EnvModule } from "@/config/env/env.module";
 
 @Global()
 @Module({

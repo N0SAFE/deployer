@@ -54,7 +54,7 @@
 
 import { Injectable, Logger } from "@nestjs/common";
 import type { MeshSwarmJoinGrant, SwarmNodePolicy } from "@repo/contracts-entities";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { SwarmClusterService } from "./swarm-cluster.service";
 
 /** Default target quorum size when the operator has not pinned one. */

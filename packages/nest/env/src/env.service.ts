@@ -1,22 +1,46 @@
 import { Injectable, Logger, Optional } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { apiEnvSchema, type ApiEnv } from "@repo/env";
 import type { z } from "zod";
 
+/**
+ * EnvService — typed, validated access to the environment.
+ *
+ * SCHEMA-AGNOSTIC BY DESIGN
+ * This service holds NO schema of its own. It is constructed with whatever
+ * schema the consuming app supplies, so a Nest app in this monorepo can use it
+ * with ITS OWN environment contract:
+ *
+ *   // apps/api — the API's contract
+ *   new EnvService(apiEnvSchema, configService)
+ *   // apps/setup — a different contract, same service
+ *   new EnvService(setupEnvSchema, configService)
+ *
+ * BAKING A SCHEMA IN WOULD BE THE BUG
+ * An earlier version defaulted to the API's schema. That is not a shared
+ * primitive — it is the API's contract published under a shared name, so any
+ * other app importing it silently inherited the API's variables and defaults.
+ * The schema belongs to the app; only the MECHANISM belongs here.
+ *
+ * Type parameter defaults to `Record<string, unknown>` so an un-parameterised
+ * `EnvService` still compiles, while `EnvService<MyEnv>` narrows `get()` to
+ * the app's own keys.
+ */
 @Injectable()
-export class EnvService<TSchema extends Record<string, unknown> = ApiEnv> {
+export class EnvService<TSchema extends Record<string, unknown> = Record<string, unknown>> {
   private readonly logger = new Logger(EnvService.name);
   private schema: z.ZodType;
-  private parsedEnv: TSchema; // Parsed environment - immutable after construction
+  private parsedEnv: TSchema;
 
   constructor(
-    @Optional() private readonly configService?: ConfigService
+    schema: z.ZodType,
+    @Optional() private readonly configService?: ConfigService,
   ) {
-    this.schema = apiEnvSchema;
-    const isTest = process.env.NODE_ENV === 'test';
-
+    this.schema = schema;
+    const isTest = process.env.NODE_ENV === "test";
     if (!isTest) {
-      this.logger.log(`EnvService constructor called. ConfigService available: ${String(!!this.configService)}`);
+      this.logger.log(
+        `EnvService constructor called. ConfigService available: ${String(!!this.configService)}`,
+      );
     }
     this.parsedEnv = this.parseEnv();
   }
@@ -24,12 +48,13 @@ export class EnvService<TSchema extends Record<string, unknown> = ApiEnv> {
   /**
    * Parse the environment through the active schema once and cache the result.
    *
-   * When a ConfigService is injected (EnvModule), ConfigModule.forRoot already
-   * validated + defaulted the env via `validate: (env) => envSchema.parse(env)`.
-   * We re-read the validated values through the schema so defaults/coercions are
-   * applied and the result is fully typed — no `as unknown as` at read time.
+   * When a ConfigService is injected (`EnvModule.forRoot`), ConfigModule has
+   * already validated + defaulted the env via its `validate` hook. The values
+   * are re-read THROUGH the schema so defaults and coercions apply and the
+   * result is fully typed.
    *
-   * When no ConfigService is available (CLI, tests), parse `process.env` directly.
+   * When no ConfigService is available (CLI, unit tests), `process.env` is
+   * parsed directly.
    */
   private parseEnv(): TSchema {
     if (this.configService) {
@@ -44,64 +69,42 @@ export class EnvService<TSchema extends Record<string, unknown> = ApiEnv> {
     try {
       return this.schema.parse(process.env) as TSchema;
     } catch {
-      // If validation fails, take a direct snapshot of process.env
-      if (process.env.NODE_ENV !== 'test') {
-        this.logger.warn('Environment validation failed, using raw process.env snapshot');
+      // A failed validation must not crash a CLI or a unit test that only needs
+      // a couple of values; the raw snapshot keeps it running and the warning
+      // makes the degraded read visible.
+      if (process.env.NODE_ENV !== "test") {
+        this.logger.warn("Environment validation failed, using raw process.env snapshot");
       }
       return { ...process.env } as TSchema;
     }
   }
 
-  /**
-   * Set a custom schema for this EnvService instance
-   * @param schema - Zod schema to validate environment variables against
-   */
-  private setSchema(schema: z.ZodType): void {
-    this.schema = schema;
-    this.parsedEnv = this.parseEnv();
-  }
-
+  /** Read a value, typed by the schema the app supplied. */
   get<T extends keyof TSchema>(key: T): TSchema[T] {
     return this.parsedEnv[key];
   }
 
   /**
-   * Create a new EnvService instance with a different environment schema
-   * @param schema - Zod schema to validate environment variables against
-   * @returns New EnvService instance with the provided schema
-   * 
-   * @example
-   * ```typescript
-   * import { webEnvSchema, type WebEnv } from '@repo/env';
-   * 
-   * const webEnv = this.envService.use<WebEnv>(webEnvSchema);
-   * const apiUrl = webEnv.get('API_URL');
-   * ```
+   * Derive a service for a DIFFERENT schema — same environment, another
+   * contract. Used for narrow per-command schemas so a CLI command validates
+   * only the variables it actually needs.
+   *
+   * Shares this instance's ConfigService (so file loading is not repeated) but
+   * parses independently.
    */
   use<TNewSchema extends Record<string, unknown>>(schema: z.ZodType<TNewSchema>): EnvService<TNewSchema> {
-    const instance = new EnvService<TNewSchema>(this.configService);
-    instance.setSchema(schema);
-    return instance;
+    return new EnvService<TNewSchema>(schema, this.configService);
   }
 
-  /**
-   * Check if we're in development mode
-   */
   isDevelopment(): boolean {
-    return this.get("NODE_ENV") === "development";
+    return process.env.NODE_ENV === "development";
   }
 
-  /**
-   * Check if we're in production mode
-   */
   isProduction(): boolean {
-    return this.get("NODE_ENV") === "production";
+    return process.env.NODE_ENV === "production";
   }
 
-  /**
-   * Check if we're in test mode
-   */
   isTest(): boolean {
-    return this.get("NODE_ENV") === "test";
+    return process.env.NODE_ENV === "test";
   }
 }

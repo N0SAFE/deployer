@@ -15,12 +15,19 @@ import { AUTH_MIDDLEWARE_BRAND_VALUE } from './types'
 import { os } from '@orpc/server'
 import { standardErrorOptions, STANDARD_DOMAIN_ERROR_DEFS } from '@repo/orpc-utils'
 import { verifyMeshToken, verifyPeerServiceToken } from '@repo/auth/mesh'
-import { EnvService } from '@repo/nest-env'
-import type { ApiEnv as Env } from '@repo/env'
+import { EnvService as BaseEnvService } from "@repo/nest-env"
+import { apiEnvSchema, type ApiEnv as Env } from '@repo/env'
 import type { ORPCGlobalContext } from '@orpc/nest'
 
+/**
+ * Read a value from the API's environment outside the DI container.
+ *
+ * The schema is passed explicitly because this helper runs in contexts with no
+ * Nest container (a middleware factory, tests). Passing it is what keeps the
+ * SCHEMA in this app rather than baked into `@repo/nest-env`.
+ */
 const readEnv = <K extends keyof Env>(key: K): Env[K] => {
-    return new EnvService<Env>().get(key)
+    return new BaseEnvService<Env>(apiEnvSchema).get(key)
 }
 
 /**

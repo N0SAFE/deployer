@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { AppError } from "@repo/errors";
 import { splitManagedEnv } from "@repo/env";
 import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
-import type { EnvService } from "@repo/nest-env";
+import type { EnvService } from "@/config/env/env.module";
 import { DockerService } from "../../services/docker.service";
 import { platformNetworkName, platformOverlayNetworkName } from "../../services/docker-supervisor-runtime";
 import { toDockerServiceSpec } from "@/core/modules/swarm/services/swarm-spec.mapper";

@@ -6,7 +6,7 @@ import { PlatformNetwork, TraefikSupervisorService, type EntrypointProbe } from 
 import { EnvHostnameService } from "../../platform-ingress/services/hostname.service";
 import type { PlatformIngressSettingsService } from "../../platform-ingress/services/platform-ingress-settings.service";
 import type { DockerService } from "@/core/modules/docker/services/docker.service";
-import type { EnvService } from "@repo/nest-env";
+import type { EnvService } from "@/config/env/env.module";
 
 /**
  * The ingress is a swarm-GLOBAL service now, so this suite asserts the SWARM

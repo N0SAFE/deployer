@@ -33,7 +33,7 @@ import {
 } from "@repo/nest-supervisor-core/supervisor-process-info";
 import { LOCAL_DATABASE_CONNECTION } from "@repo/nest-database-core/database-connection";
 import type { LocalDatabase } from "@repo/nest-database-local/local-database.service";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { splitManagedEnv } from "@repo/env";
 
 export const LOCAL_DB_SUPERVISOR_ID = "local-db-sqlite";

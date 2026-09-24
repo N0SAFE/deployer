@@ -16,6 +16,12 @@ export default defineConfig(
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
+        // Workspace packages resolve to their `src` DIRECTORY (not index.ts) so
+        // deep subpaths keep working — the same convention as apps/api.
+        "@repo/nest-env": path.resolve(__dirname, "../../packages/nest/env/src"),
+        "@repo/env": path.resolve(__dirname, "../../packages/utils/env/src"),
+        "@repo/errors": path.resolve(__dirname, "../../packages/utils/errors/src"),
+        "@repo/logger": path.resolve(__dirname, "../../packages/utils/logger/src"),
       },
     },
     test: {

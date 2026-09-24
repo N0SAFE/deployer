@@ -21,7 +21,7 @@ import {
 } from "@repo/nest-nodes/swarm-node-labels";
 import { ClusterNodeRepository } from "@repo/nest-nodes/cluster-node.repository";
 import { ClusterNodeInventoryRepository } from "@repo/nest-nodes/cluster-node-inventory.repository";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 
 @Injectable()
 export class ClusterService {

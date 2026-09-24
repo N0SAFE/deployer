@@ -12,7 +12,7 @@ import * as path from "path";
 import { PassThrough } from "stream";
 import { execFile } from "node:child_process";
 import { Observable } from "rxjs";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { isRecord } from "@repo/type-guards";
 import z from "zod/v4";
 import {

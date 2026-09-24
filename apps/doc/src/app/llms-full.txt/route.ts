@@ -1,24 +1,16 @@
 import { getLLMText, source } from '@/lib/source';
 
 /**
- * Cache the expensive part, not the response.
- *
- * `export const revalidate = false` is not allowed under `cacheComponents`; its
- * replacement is the `'use cache'` directive. The directive applies to whatever
- * the annotated function **returns**, and a cached return value must be
- * serializable — `new Response(...)` is a class instance, so it cannot be the
- * cached value. Caching the concatenated text (a plain string) achieves the same
- * thing: the page scan runs once, and the response is built from the cached text.
+ * Static export: `next build` runs this once and writes the result to
+ * `out/llms-full.txt`. `dynamic = 'force-static'` is what makes the export
+ * emit a file instead of demanding a server at request time.
  */
-async function getLLMFullText(): Promise<string> {
-  'use cache';
-
-  const scan = source.getPages().map(getLLMText);
-  const scanned = await Promise.all(scan);
-
-  return scanned.join('\n\n');
-}
+export const dynamic = 'force-static';
 
 export async function GET() {
-  return new Response(await getLLMFullText());
+  const scanned = await Promise.all(source.getPages().map(getLLMText));
+
+  return new Response(scanned.join('\n\n'), {
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+  });
 }

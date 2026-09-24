@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 
+import { EnvModule } from "./config/env/env.module";
 import { SetupHealthModule } from "./modules/health/setup-health.module";
 
 /**
@@ -16,6 +17,8 @@ import { SetupHealthModule } from "./modules/health/setup-health.module";
  *   - handover/  API swarm service creation + ingress retarget, then exit
  */
 @Module({
-  imports: [SetupHealthModule],
+  // EnvModule first: it validates THIS app's schema (not the API's) at boot,
+  // so a malformed environment fails immediately with a readable message.
+  imports: [EnvModule, SetupHealthModule],
 })
 export class SetupAppModule {}

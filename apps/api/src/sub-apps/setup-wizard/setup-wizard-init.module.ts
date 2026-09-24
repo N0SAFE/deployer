@@ -7,8 +7,8 @@
  */
 
 import { Module } from '@nestjs/common';
-import { EnvModule } from '@repo/nest-env';
-import { EnvService } from '@repo/nest-env';
+import { EnvModule } from "@/config/env/env.module";
+import { EnvService } from "@/config/env/env.module";
 import { DockerService } from '@/core/modules/docker/services/docker.service';
 import { PostgresServiceProvisioner } from '@/core/modules/docker/containers/postgres/postgres-service.provisioner';
 import { LocalDatabaseModule } from "@repo/nest-database-local/local-database.module";

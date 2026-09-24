@@ -12,7 +12,7 @@ import type { PlatformWebTargetService } from "../../platform-ingress/services/p
 import type { HostnameService } from "../../platform-ingress/services/hostname.service";
 import type { PlatformIngressSettingsService } from "../../platform-ingress/services/platform-ingress-settings.service";
 import type { DockerService } from "@/core/modules/docker/services/docker.service";
-import type { EnvService } from "@repo/nest-env";
+import type { EnvService } from "@/config/env/env.module";
 
 /**
  * The fallback proxy is a swarm-GLOBAL service now: this suite asserts the

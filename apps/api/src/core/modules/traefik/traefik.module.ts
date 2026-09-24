@@ -16,7 +16,7 @@ import { EventsModule } from '@/core/modules/events/events.module';
 import { SupervisorsModule } from "@repo/nest-supervisor-core/supervisors.module";
 import { CorePlatformIngressModule } from '../platform-ingress/platform-ingress.module';
 import { CoreDockerModule } from '../docker/docker.module';
-import { EnvService } from '@repo/nest-env';
+import { EnvService } from "@/config/env/env.module";
 
 /**
  * CORE MODULE: Traefik

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SwarmJoinGrantService } from "./swarm-join-grant.service";
 import type { SwarmClusterService } from "./swarm-cluster.service";
-import type { EnvService } from "@repo/nest-env";
+import type { EnvService } from "@/config/env/env.module";
 
 /**
  * The FLEET decides whether a joining node may become a manager. These tests

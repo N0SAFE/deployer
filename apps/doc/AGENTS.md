@@ -26,6 +26,12 @@ Content sources:
 
 - Do not invent documentation—derive from actual repo state and update the canonical files under `docs/`.
 
+## Turbopack Filesystem Cache
+
+`experimental.turbopackFileSystemCacheForDev` / `...ForBuild` are set explicitly in `next.config.ts` (the resolved Next range is `^16.1.2`, where build caching is not yet default). The cache lives in `.next/dev/cache/turbopack` (dev) and `.next/cache/turbopack` (build).
+
+Compose mounts a named volume (`doc_next_cache_dev` / `doc_next_cache_prod`) over the `cache/` directory only, so the dist-dir lock at `.next/dev/lock` stays on the container layer. See `.docs/guides/DOCKER-BUILD-STRATEGIES.md`.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

@@ -613,7 +613,7 @@ cross-app contract. The rule:
 > **Shared packages export CORE FUNCTIONALITY. Business rules belong in the app that owns them.**
 
 A package may export: framework primitives (base classes, builders, pooling, transports),
-generic utilities, env schemas, contracts (Zod/ORPC), and UI components. A package may **not**
+generic utilities, contracts (Zod/ORPC), and UI components. A package may **not**
 export a rule that describes *this platform's* behaviour — boot sequencing, orchestration
 phases, service topology, product policy.
 
@@ -622,6 +622,29 @@ phases, service topology, product policy.
 that only one app honours — and `apps/setup` inherits an obligation it never agreed to.
 
 **The test:** if exactly one app consumes it, it is business logic → move it into that app.
+
+#### The trap: a schema (or a type bound to one) IS the app's contract
+
+The subtlest violation is not a rule — it is a **schema or a type parameter bound to one app's
+data**. It looks like infrastructure ("just the env service", "just a base class") but it
+publishes one app's variables and tables under a shared name.
+
+Two real cases, both fixed:
+
+| Package | What leaked | Correct shape |
+|---|---|---|
+| `@repo/nest-env` | `EnvService` defaulted to the API's `apiEnvSchema`, and `EnvModule` validated with it. Any other app importing the package silently inherited the API's variables and defaults | The service is **schema-agnostic** (`EnvService<TSchema>`); `EnvModule.forRoot({ schema })` takes the app's schema. Each app subclasses it with its own contract: `apps/api` with `apiEnvSchema`, `apps/setup` with `setupEnvSchema` |
+| `@repo/nest-database-core` | `BaseDatabaseService` was constrained to `NodePgDatabase<typeof globalSchema> \| BunSQLiteDatabase<typeof localSchema>` — the API's two schemas. Only an app with exactly those tables could use it | Generic over `AnyDrizzleDatabase`; a subclass narrows `db` to its own tables. The base only stores a handle and runs `SELECT 1`, so it needs no schema knowledge |
+
+**The pattern to follow:** a shared primitive that needs app-specific data takes it as a
+**parameter** (`forRoot`, a constructor argument, a type parameter) or exposes an
+**overridable seam** (a subclass, a codec registry). It never imports the app's schema, and it
+never ships a default one.
+
+**Corollary — check the direction of the dependency.** `docker` and `supervisors` import **no**
+schema at all, which is what makes them clean primitives. The targets that do (`swarm`,
+`platform-ingress`, `mesh`, `reachability`) use it to query tables the API owns — so those
+queries are app concerns and must stay in the app, or move behind a repository the app provides.
 
 #### Worked example — `db-not-ready`
 
@@ -644,7 +667,7 @@ Not everything platform-flavoured is a violation. These were checked and kept, w
 |---|---|---|
 | `@repo/contracts-*` | deployment/mesh/project/swarm schemas | **Correct.** Contracts ARE the single source of truth — the plan's own goal is one location for them |
 | `@repo/auth` (permissions) | `traefik` resources, project roles | **Correct.** Consumed by BOTH `apps/api` (guards) and `apps/web` (`RequirePlatformRole`, `PLATFORM_ROLES`) — a genuine cross-app contract |
-| `@repo/env` | `MANAGED_TRAEFIK_*`, `MANAGED_GLOBAL_DB_*` defaults | **Correct.** The env contract must be identical for whoever starts the process or the schema drifts |
+| `@repo/env` | `MANAGED_TRAEFIK_*`, `MANAGED_GLOBAL_DB_*` defaults | **Correct.** The env contract must be identical for whoever starts the process or the schema drifts. Note the distinction from `@repo/nest-env`: the SCHEMA lives here (data), the SERVICE is schema-agnostic (mechanism) |
 | `@repo/nest-lifecycle` | `AppLifecyclePhase` naming our phases | **Correct.** Both apps report the same phases to the same gate |
 
 **Versioning rule:** new ORPC/Zod surface pulled from `packages/` needs a `*_CONTRACT_VERSION` bump

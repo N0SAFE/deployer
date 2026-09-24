@@ -43,7 +43,7 @@ import {
 	baseSupervisorProcessInfoSchema,
 	swarmProcessInfoSchema,
 } from "@repo/nest-supervisor-core/supervisor-process-info";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
 import { PlatformIngressSettingsService } from "../../platform-ingress/services/platform-ingress-settings.service";
 import { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";

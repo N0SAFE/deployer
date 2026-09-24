@@ -1,6 +1,6 @@
 import { betterAuthFactory } from "@repo/auth/server";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import type { EnvService } from "@repo/nest-env";
+import type { EnvService } from "@/config/env/env.module";
 
 export const createBetterAuth = <TSchema extends Record<string, unknown>>(
     database: NodePgDatabase<TSchema>,

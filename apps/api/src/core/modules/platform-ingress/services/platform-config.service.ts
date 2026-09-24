@@ -9,7 +9,7 @@ import { eq, or } from "drizzle-orm";
 import z from "zod/v4";
 
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { appConfig } from "@repo/nest-schema/global";
 
 export const MANAGED_WEB_APP_ENABLED_KEY = "managed_web_app.enabled";

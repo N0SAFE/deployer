@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { OnModuleInit } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { EnvService } from '@repo/nest-env';
+import { EnvService } from "@/config/env/env.module";
 import { SetupWizardBridge } from './setup-wizard.bridge';
 import { InitializationService } from '@/core/modules/setup/services/initialization.service';
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";

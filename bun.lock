@@ -190,6 +190,7 @@
       "version": "1.0.0",
       "dependencies": {
         "@nestjs/common": "catalog:api:nest",
+        "@nestjs/config": "catalog:api:nest",
         "@nestjs/core": "catalog:api:nest",
         "@nestjs/platform-express": "catalog:api:nest",
         "@nestjs/terminus": "catalog:api:nest",
@@ -200,6 +201,7 @@
         "@repo/env": "*",
         "@repo/errors": "*",
         "@repo/logger": "*",
+        "@repo/nest-env": "*",
         "@repo/orpc-utils": "*",
         "express": "catalog:api:nest",
         "reflect-metadata": "catalog:api:nest",

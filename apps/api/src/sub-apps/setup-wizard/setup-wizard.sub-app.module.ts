@@ -10,7 +10,7 @@
 import { Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
 import { RenderModule } from "@nestjs-ssr/react";
 import { SetupModule } from "@/modules/setup/setup.module";
-import { EnvModule } from "@repo/nest-env";
+import { EnvModule } from "@/config/env/env.module";
 import { InternalErrorContextMiddleware } from "@/core/middlewares/internal-error/internal-error-context.middleware";
 import { LoggerMiddleware } from "@/core/middlewares/logger.middleware";
 import { SetupPageController } from "./setup-page.controller";

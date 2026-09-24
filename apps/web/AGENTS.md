@@ -37,6 +37,12 @@ Testing and checks:
 - Use shared UI from `@repo/ui` where possible.
 - Client API access should use generated ORPC hooks.
 
+## Turbopack Filesystem Cache
+
+`experimental.turbopackFileSystemCacheForDev` / `...ForBuild` are set explicitly in `next.config.ts` (the resolved Next range is `^16.1.2`, where build caching is not yet default). The cache lives in `.next/dev/cache/turbopack` (dev) and `.next/cache/turbopack` (build).
+
+Compose mounts a named volume (`web_next_cache_dev` / `web_next_cache_prod`) over the `cache/` directory only, so the dist-dir lock at `.next/dev/lock` stays on the container layer. See `.docs/guides/DOCKER-BUILD-STRATEGIES.md`.
+
 ## UI Information Presentation Rule (Top info cards are disallowed)
 
 > **Added**: 2026-03-30  

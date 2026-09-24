@@ -23,7 +23,7 @@
 import { Controller, Get, HttpException, HttpStatus } from "@nestjs/common";
 import { Render as SsrRender } from "@nestjs-ssr/react";
 
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import ManagedWebAppView from "@/views/pages/manage-web-app";
 import LoginView from "@/views/pages/login";
 import { PlatformManagedWebService } from "../services/platform-managed-web.service";

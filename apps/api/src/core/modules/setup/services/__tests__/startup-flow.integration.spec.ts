@@ -33,7 +33,7 @@ import { RemoteInitializationService } from '../remote-initialization.service';
 import { SetupEventService } from '../setup-event.service';
 import { MeshInitializationService } from '../../../mesh/initialization/services/mesh-initialization.service';
 import { ReachabilityService } from '../../../reachability/services/reachability.service';
-import { EnvService } from '@repo/nest-env';
+import { EnvService } from "@/config/env/env.module";
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 
 // ─── Mock implementations ─────────────────────────────────────────────────────

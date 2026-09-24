@@ -3,7 +3,7 @@ import { LocalInitializationService } from "./local-initialization.service";
 import { SetupStepTracker } from "../utils/setup-runner.utils";
 import type { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 import type { PostgresServiceProvisioner } from "@/core/modules/docker/containers/postgres/postgres-service.provisioner";
-import type { EnvService } from "@repo/nest-env";
+import type { EnvService } from "@/config/env/env.module";
 import type { SwarmBootstrapService } from "@/core/modules/swarm/services/swarm-bootstrap.service";
 import type { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
 import type { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";

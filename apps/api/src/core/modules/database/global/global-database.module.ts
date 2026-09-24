@@ -34,8 +34,8 @@ import { GlobalDatabaseLifecycleService } from './global-database-lifecycle.serv
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository"
 import { LocalDatabaseModule } from "@repo/nest-database-local/local-database.module"
 import { NodeStateModule } from '../../node-state/node-state.module'
-import { EnvModule } from "@repo/nest-env"
-import { EnvService } from "@repo/nest-env"
+import { EnvModule } from "@/config/env/env.module"
+import { EnvService } from "@/config/env/env.module"
 import { resolveManagedGlobalDbUrl, splitManagedEnv } from "@repo/env"
 
 const logger = new Logger('GlobalDatabaseModule')

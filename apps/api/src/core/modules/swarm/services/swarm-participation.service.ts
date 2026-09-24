@@ -36,7 +36,7 @@ import {
     type SwarmParticipationInput,
     type SwarmConfigView,
 } from "@repo/contracts-entities";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
 import { ClusterNodeRepository } from "@repo/nest-nodes/cluster-node.repository";

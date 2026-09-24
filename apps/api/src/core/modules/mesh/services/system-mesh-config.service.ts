@@ -1,5 +1,5 @@
 import { Injectable, type OnModuleInit, Logger } from '@nestjs/common'
-import { EnvService } from '@repo/nest-env'
+import { EnvService } from "@/config/env/env.module"
 import { NodeMeshConfigRepository, type NodeMeshConfigRow } from '../repositories/node-mesh-config.repository'
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository"
 import { randomUUID } from 'node:crypto'

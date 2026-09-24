@@ -4,6 +4,7 @@ import { NestFactory } from "@nestjs/core";
 import { logger } from "@repo/logger";
 
 import { SetupAppModule } from "./app.module";
+import { setupEnvSchema } from "./config/env/env.schema";
 
 /**
  * The setup app's bootstrap.
@@ -18,13 +19,21 @@ import { SetupAppModule } from "./app.module";
  * `ports:` mapping is declared — publishing the pre-auth wizard on every host
  * interface would be an unnecessary attack surface.
  */
-const SETUP_PORT = Number(process.env.SETUP_APP_PORT ?? 3016);
+/**
+ * Read config through the app's own schema rather than raw `process.env`.
+ *
+ * `setupEnvSchema` supplies the default and the coercion, so this stays in sync
+ * with whatever the schema declares — a hand-written `?? 3016` would silently
+ * drift from it.
+ */
+const env = setupEnvSchema.parse(process.env);
+const SETUP_PORT = env.SETUP_APP_PORT;
 
 const log = logger.scope("SetupApp");
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(SetupAppModule, {
-    snapshot: process.env.NODE_ENV !== "production",
+    snapshot: env.NODE_ENV !== "production",
   });
 
   app.enableShutdownHooks();
@@ -33,7 +42,7 @@ async function bootstrap(): Promise<void> {
 
   // The URL is logged with the PUBLIC hostname, not the container port: the
   // operator needs to know where to point a browser, and the port is internal.
-  const prefix = process.env.DEPLOYER_PREFIX ?? "";
+  const prefix = env.DEPLOYER_PREFIX;
   const host = prefix === "" ? "setup.deployer.localhost" : `setup.${prefix}deployer.localhost`;
   log.info(`🔧 Setup app listening on :${String(SETUP_PORT)} — open http://${host}`);
   log.info("⏳ Awaiting setup — GET /setup/health reports 503 until the handover completes");

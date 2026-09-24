@@ -38,7 +38,7 @@ import {
 	swarmProcessInfoSchema,
 } from "@repo/nest-supervisor-core/supervisor-process-info";
 import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { splitManagedEnv } from "@repo/env";
 import { PLATFORM_ROLE_LABEL, PlatformNetwork } from "./traefik-supervisor.service";
 import { ConflictError } from "@repo/errors";

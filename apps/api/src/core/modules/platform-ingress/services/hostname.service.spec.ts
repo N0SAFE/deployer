@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { EnvHostnameService } from "./hostname.service";
-import type { EnvService } from "@repo/nest-env";
+import type { EnvService } from "@/config/env/env.module";
 
 function makeEnv(prefix: string): EnvService {
 	return { get: () => prefix } as unknown as EnvService;

@@ -23,7 +23,7 @@ import { Module } from '@nestjs/common';
 import { RouterController } from './router.controller';
 import { SubAppCascadeService } from './sub-app-cascade.service';
 import { RouteRegistryService } from '../gateway/route-registry.service';
-import { EnvModule } from "@repo/nest-env";
+import { EnvModule } from "@/config/env/env.module";
 
 @Module({
   imports: [EnvModule],

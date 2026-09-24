@@ -29,7 +29,7 @@ import { Module } from "@nestjs/common";
 import { LocalDatabaseModule } from "@repo/nest-database-local/local-database.module";
 import { NodeStateModule } from "../modules/node-state/node-state.module";
 import { SetupDevService } from "./setup-dev.service";
-import { EnvModule } from "@repo/nest-env";
+import { EnvModule } from "@/config/env/env.module";
 
 @Module({
   // EnvModule is @Global() in the main app, but this module is bootstrapped as

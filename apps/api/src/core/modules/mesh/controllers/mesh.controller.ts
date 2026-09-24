@@ -9,7 +9,7 @@ import { AllowAnonymous } from "@/core/modules/auth/decorators/decorators";
 import { CoreEventSyncService } from "@/core/modules/events/services/core-event-sync.service";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { SystemMetricsService } from "@/core/modules/system-metrics/services/system-metrics.service";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 import { SwarmJoinGrantService } from "@/core/modules/swarm/services/swarm-join-grant.service";
 import { signPeerServiceToken } from "@repo/auth/mesh";

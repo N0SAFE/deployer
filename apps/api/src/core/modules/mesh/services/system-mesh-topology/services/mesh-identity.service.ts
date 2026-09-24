@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { meshNodeStateSchema, type MeshNodeState } from "@repo/contracts-entities";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { CLOCK_TOKEN, type Clock } from "../../../shared/primitives/clock";
 import { ID_GENERATOR_TOKEN, type IdGenerator } from "../../../shared/primitives/id-generator";
 import { HybridLogicalClock, type Hlc } from "../../../shared/primitives/hybrid-logical-clock";

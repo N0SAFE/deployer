@@ -8,7 +8,7 @@ import {
 	RedisSupervisorService,
 } from "./redis-supervisor.service";
 import type { DockerService } from "@/core/modules/docker/services/docker.service";
-import type { EnvService } from "@repo/nest-env";
+import type { EnvService } from "@/config/env/env.module";
 import type { DockerodeServiceSummary, DockerodeTaskSummary } from "@repo/contracts-entities";
 
 function makeDockerClient(swarmActive = true) {

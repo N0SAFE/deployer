@@ -46,7 +46,7 @@ import {
 } from "../modules/docker/containers/postgres/postgres-service.provisioner";
 import { TraefikPlatformConfigService } from "../modules/traefik/services/traefik-platform-config.service";
 import { DockerService } from "../modules/docker/services/docker.service";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { SwarmAppWiringSupervisorService } from "../modules/supervisors/platform/swarm-app-wiring.supervisor.service";
 import { ReadinessService, type ReadinessResult } from "../../modules/health/services/readiness.service";
 import { Pool } from "pg";

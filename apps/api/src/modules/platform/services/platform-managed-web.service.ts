@@ -17,7 +17,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { BadRequestError, ServiceUnavailableError } from "@repo/errors";
 
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
 import { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
 import { platformTraefikContainerName } from "@/core/modules/platform-ingress/services/platform-names";

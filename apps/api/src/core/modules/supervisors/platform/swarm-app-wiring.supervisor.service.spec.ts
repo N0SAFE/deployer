@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { Readable } from "node:stream";
 import type { DockerService } from "@/core/modules/docker/services/docker.service";
-import type { EnvService } from "@repo/nest-env";
+import type { EnvService } from "@/config/env/env.module";
 import { SwarmAppWiringSupervisorService } from "./swarm-app-wiring.supervisor.service";
 
 const PLATFORM_NETWORK = "deployer-platform";

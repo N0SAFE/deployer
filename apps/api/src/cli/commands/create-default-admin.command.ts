@@ -1,9 +1,10 @@
 import { Command, CommandRunner } from 'nest-commander';
 import { Injectable, Logger } from '@nestjs/common';
-import { EnvService } from '@repo/nest-env';
+import { EnvService } from "@/config/env/env.module";
 import { apiEnvSchema } from '@repo/env';
 import zod from 'zod/v4';
 import { CliAuthService } from '../services/cli-auth.service';
+import { EnvService as BaseEnvService } from "@repo/nest-env";
 
 // Extend the API schema with command-specific environment variables. Both
 // mirror the base schema's optionality — the boot path never requires them,
@@ -24,7 +25,7 @@ type CreateDefaultAdminEnv = zod.infer<typeof createDefaultAdminEnvSchema>;
 @Injectable()
 export class CreateDefaultAdminCommand extends CommandRunner {
   private readonly logger = new Logger(CreateDefaultAdminCommand.name);
-  private readonly commandEnvService: EnvService<CreateDefaultAdminEnv>;
+  private readonly commandEnvService: BaseEnvService<CreateDefaultAdminEnv>;
   
   constructor(
     private readonly cliAuthService: CliAuthService,

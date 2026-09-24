@@ -28,7 +28,7 @@ import { NodeStateModule } from "../modules/node-state/node-state.module";
 import { OrchestratorService } from "./orchestrator.service";
 
 // Platform supervisors + framework (single owner = the gateway app).
-import { EnvModule } from "@repo/nest-env";
+import { EnvModule } from "@/config/env/env.module";
 import { CoreDockerModule } from "../modules/docker/docker.module";
 import { CorePlatformIngressModule } from "../modules/platform-ingress/platform-ingress.module";
 import { SupervisorsModule } from "@repo/nest-supervisor-core/supervisors.module";

@@ -24,7 +24,7 @@ import {
     platformNetworkName,
     platformOverlayNetworkName,
 } from "@/core/modules/docker/services/docker-supervisor-runtime";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { SwarmBootstrapService } from "@/core/modules/swarm/services/swarm-bootstrap.service";
 import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
 import { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";

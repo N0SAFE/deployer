@@ -3,7 +3,7 @@ import { join, basename, relative, extname } from 'path';
 import * as crypto from 'crypto';
 import * as mime from 'mime-types';
 import { TraefikRepository } from '../repositories/traefik.repository';
-import { EnvService } from '@repo/nest-env';
+import { EnvService } from "@/config/env/env.module";
 import { FileReadError, FileNotFoundError, FileWriteError, DirectoryError } from '../errors';
 
 // Import types from centralized interfaces

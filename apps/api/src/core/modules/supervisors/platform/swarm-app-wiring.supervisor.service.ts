@@ -51,7 +51,7 @@ import { Injectable, type OnModuleDestroy } from "@nestjs/common";
 import type { Readable } from "node:stream";
 import z from "zod/v4";
 
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { DockerService } from "@/core/modules/docker/services/docker.service";
 import {
 	platformNetworkName,

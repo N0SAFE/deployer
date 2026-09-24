@@ -580,6 +580,41 @@ Use a distinct `id` per service (`turbo-api-dev`, `turbo-web-dev`, `turbo-doc-de
 
 ---
 
+## Turbopack Build Cache (Persistent Across Builds)
+
+`turbopackFileSystemCacheForBuild` writes Turbopack's compilation cache to
+`apps/<app>/.next/cache`, which `next build` deliberately preserves when it
+cleans the dist dir (`cleanDistDir` keeps `cache|dev|lock|trace`).
+
+In a container build that directory is worthless unless it is mounted — a plain
+`RUN` discards it with the layer. The build-time prod images therefore wrap the
+build step in a BuildKit cache mount:
+
+```dockerfile
+RUN --mount=type=cache,target=/app/apps/web/.next/cache,sharing=locked,id=turbopack-web-prod-build \
+    bunx turbo run build --filter=web... --remote-only
+```
+
+`sharing=locked` prevents concurrent builds from corrupting the same cache; the
+`id` is distinct per app (`turbopack-web-prod-build`, `turbopack-doc-prod-build`).
+
+Two consequences to keep in mind:
+
+1. **A BuildKit cache mount is not committed to the image layer.** The runner
+   stage must recreate an empty `.next/cache` (`mkdir -p` + `chown
+   nextjs:nodejs`) — the runtime still needs it writable for the incremental
+   (ISR/fetch) cache.
+2. **The runtime prod images build at container start**, where no BuildKit cache
+   exists. They take the volume route instead (see
+   `.docs/guides/DOCKER-BUILD-STRATEGIES.md`).
+
+The swarm stack (`docker-stack.deploy.yml`) deliberately has **no** cache volume:
+`update_config.order: start-first` with `max_replicas_per_node: 1` lets two
+replicas overlap on one node during a rolling update, and two Turbopack processes
+writing one cache directory would corrupt it.
+
+---
+
 
 
 ---

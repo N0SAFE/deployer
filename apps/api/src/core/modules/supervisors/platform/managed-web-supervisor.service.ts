@@ -31,7 +31,7 @@ import {
 	baseSupervisorProcessInfoSchema,
 	swarmProcessInfoSchema,
 } from "@repo/nest-supervisor-core/supervisor-process-info";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import z from "zod/v4";
 import {
 	resolveSupervisorRuntime,

@@ -1,15 +1,31 @@
 import { AppError } from "@repo/errors";
 import { Logger } from '@nestjs/common'
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
-import type * as globalSchema from '@repo/nest-schema/global'
-import type * as localSchema from '@repo/nest-schema/local'
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
 
-export abstract class BaseDatabaseService<
-    DB extends
-        | NodePgDatabase<typeof globalSchema>
-        | BunSQLiteDatabase<typeof localSchema>,
-> {
+/**
+ * Any Drizzle database handle this base class can hold.
+ *
+ * GENERIC OVER THE APP'S SCHEMA, NOT BOUND TO OURS
+ * An earlier version constrained this to the API's two schemas
+ * (`NodePgDatabase<typeof globalSchema> | BunSQLiteDatabase<typeof localSchema>`),
+ * which meant the base class could only ever be used by an app that happened to
+ * have exactly those tables. The constraint is not a framework need — the class
+ * only stores a handle and runs `SELECT 1` — so it was the app's schema leaking
+ * into a shared primitive.
+ *
+ * Widening to any Drizzle database keeps the base usable by any app, while a
+ * subclass still narrows `db` to its own tables:
+ *
+ *   class ProjectDatabase extends BaseDatabaseService<NodePgDatabase<typeof mySchema>> {}
+ */
+export type AnyDrizzleDatabase =
+    | NodePgDatabase<Record<string, never>>
+    | BunSQLiteDatabase<Record<string, never>>
+    | NodePgDatabase<Record<string, unknown>>
+    | BunSQLiteDatabase<Record<string, unknown>>;
+
+export abstract class BaseDatabaseService<DB extends AnyDrizzleDatabase = AnyDrizzleDatabase> {
     protected readonly logger = new Logger(this.constructor.name)
     private _db: DB | undefined
 

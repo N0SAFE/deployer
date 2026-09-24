@@ -3,6 +3,13 @@ import { notFound } from 'next/navigation';
 import { ImageResponse } from 'next/og';
 import { generate as DefaultImage } from 'fumadocs-ui/og';
 
+// Static export: every image path must be enumerated at build time.
+// `dynamic = 'force-static'` makes the export write a file per path, and
+// `dynamicParams = false` rejects paths outside `generateStaticParams`
+// instead of demanding a server render for them.
+export const dynamic = 'force-static';
+export const dynamicParams = false;
+
 export async function GET(
   _req: Request,
   { params }: RouteContext<'/og/docs/[...slug]'>,

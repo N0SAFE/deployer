@@ -19,6 +19,57 @@ order: 11
 3. Minimize final image runtime surface.
 4. Keep environment handling explicit and reproducible.
 
+## Turbopack filesystem cache
+
+Next.js can persist Turbopack's compilation work to disk and reuse it across runs (`experimental.turbopackFileSystemCacheForDev` / `turbopackFileSystemCacheForBuild`). Both are enabled explicitly in `apps/web/next.config.ts` and `apps/doc/next.config.ts` — explicitly because the resolved Next range is `^16.1.2`, where dev caching is default-on but **build** caching is not (it became default in 16.3.0).
+
+The cache only pays off if the directory survives the process — a container that starts from a clean layer gains nothing.
+
+### Cache locations
+
+| Mode | Cache directory | Populated by |
+|------|-----------------|--------------|
+| dev | `apps/<app>/.next/dev/cache/turbopack` | `next dev` |
+| build | `apps/<app>/.next/cache/turbopack` | `next build` |
+
+Dev mode uses a **dev-scoped distDir** (`.next/dev`), which is why the dev cache is not under `.next/cache`.
+
+### Persistence strategy
+
+| Surface | Mechanism | Mount |
+|---------|-----------|-------|
+| Compose dev (`web-dev`, `doc-dev`) | named volume per app | `<app>_next_cache_dev:/app/apps/<app>/.next/dev/cache` |
+| Compose prod (`web-prod`, `doc-prod`) | named volume per app | `<app>_next_cache_prod:/app/apps/<app>/.next/cache` |
+| Build-time prod images | BuildKit cache mount | `target=/app/apps/<app>/.next/cache` |
+| Swarm prod (`docker-stack.deploy.yml`) | none — by design | — |
+
+One volume **per app**: `web` and `doc` have different graph roots, so sharing a cache directory would be wasted work at best.
+
+Only the `cache/` directory is mounted — never the whole `.next` or `.next/dev`. The dist-dir lock (`.next/dev/lock`, `experimental.lockDistDir`) stays on the container layer, so a recreated container always starts lock-free.
+
+<DocCallout title="Why the swarm stack opts out" tone="warning">
+`docker-stack.deploy.yml` uses `update_config.order: start-first` with `max_replicas_per_node: 1`, so two replicas overlap on one node during a rolling update. Two Turbopack processes writing the same cache directory would corrupt it, and an unpinned volume would be shared across hosts. The swarm stack therefore has no cache volume.
+</DocCallout>
+
+### Ownership
+
+The prod runners run as `nextjs` (uid 1001) and build at container start. Docker seeds a **fresh** named volume with the ownership of the image directory it shadows, so the image pre-creates the mountpoint:
+
+```dockerfile
+RUN mkdir -p /app/apps/web/.next/cache && \
+    chown -R nextjs:nodejs /app/apps/web/.next
+```
+
+Without this, the first build on a new volume fails with `EACCES`. The build-time images recreate an empty `.next/cache` in the runner for the same reason — a BuildKit cache mount is not committed to the image layer, but the runtime still needs the directory writable for the incremental (ISR/fetch) cache.
+
+### Resetting a cache
+
+The cache is disposable — deleting the volume only costs one recompile:
+
+```bash
+docker volume rm <project>_web_next_cache_dev <project>_doc_next_cache_dev
+```
+
 ## Common commands
 
 ```bash

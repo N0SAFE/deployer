@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import type { SetupInitializeRemoteInput } from '@repo/contracts-entities'
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository"
 import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service'
-import { EnvService } from '@repo/nest-env'
+import { EnvService } from "@/config/env/env.module"
 import { runStep, type EmitEvent, SetupStepTracker } from '../utils/setup-runner.utils'
 import { DEPLOYER_VERSION, semverCompare } from '@/core/utils/deployer-version'
 import { MeshVersionService } from '../../mesh/version/mesh-version.service'

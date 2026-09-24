@@ -34,9 +34,13 @@ const config: NextConfig = {
   },
   // React Compiler: automatic memoization.
   reactCompiler: true,
-  // Cache Components: `use cache` + Partial Prerendering.
-  cacheComponents: true,
-  partialPrefetching: true,
+  // NOTE: `cacheComponents` and `partialPrefetching` are deliberately absent.
+  // This app is a static export (`output: 'export'`): there is no server to
+  // render a dynamic hole or stream a partial shell into, so Cache Components
+  // buys nothing here. It also actively conflicts with the export:
+  //   - `partialPrefetching` requires `cacheComponents` (next/server/config.js)
+  //   - `output: 'export'` requires `dynamic = 'force-static'` on every route
+  //     handler, and `cacheComponents` rejects that segment config
   // Fumadocs ships untranspiled ESM, so Next must compile it.
   transpilePackages: ['fumadocs-core', 'fumadocs-ui', 'fumadocs-mdx'],
   // Monorepo: tell Turbopack the workspace root so it can resolve `next` from

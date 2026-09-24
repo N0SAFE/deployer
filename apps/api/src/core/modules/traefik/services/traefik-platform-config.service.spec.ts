@@ -9,7 +9,7 @@ import type { PlatformRoutesSource } from "../../platform-ingress/services/platf
 import type { TraefikRepository } from "../repositories/traefik.repository";
 import type { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
 import type { DockerService } from "@/core/modules/docker/services/docker.service";
-import type { EnvService } from "@repo/nest-env";
+import type { EnvService } from "@/config/env/env.module";
 
 async function makeConfigDir(): Promise<string> {
 	const base = process.env.TMPDIR ?? "/tmp";

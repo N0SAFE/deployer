@@ -5,7 +5,7 @@ import { SwarmFleetService } from "@/core/modules/swarm/services/swarm-fleet.ser
 import { SwarmParticipationService } from "@/core/modules/swarm/services/swarm-participation.service";
 import { ClusterNodeRepository } from "@repo/nest-nodes/cluster-node.repository";
 import { ClusterNodeInventoryRepository } from "@repo/nest-nodes/cluster-node-inventory.repository";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { ClusterService } from "./cluster.service";
 
 const snapshot: ClusterSnapshot = {

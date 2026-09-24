@@ -37,7 +37,7 @@ import {
 	baseSupervisorProcessInfoSchema,
 	swarmProcessInfoSchema,
 } from "@repo/nest-supervisor-core/supervisor-process-info";
-import { EnvService } from "@repo/nest-env";
+import { EnvService } from "@/config/env/env.module";
 import { splitManagedEnv } from "@repo/env";
 import { resolveDockerHostIp } from "@/core/modules/setup/utils/docker-host.utils";
 
