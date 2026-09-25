@@ -210,7 +210,10 @@ export function publicAccess() {
  * ```
  */
 export function requireAuth() {
-    return authMiddleware().concat(
+    // oRPC v2 renamed middleware composition: `.concat` is now `.use`
+    // (and `.mapInput` is `.adaptInput`). The v1 two-argument form
+    // `.use(mw, mapInput)` was removed.
+    return authMiddleware().use(
         os
             .$context<ORPCContextWithAuthOnly>()
             .errors(STANDARD_DOMAIN_ERROR_DEFS)
