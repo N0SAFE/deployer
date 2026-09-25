@@ -345,6 +345,37 @@ The same discipline applies to every primitive, and the wrong/right split is alw
 (`forRoot`/`forRootAsync`, a constructor argument, a type parameter) or exposes an **overridable
 seam** (a subclass, a codec registry). It never imports the app's schema and never ships a default.
 
+### 5.4.1 The env split, verified in the tree
+
+§5.4 states the rule; this is the evidence that the tree satisfies it. The test is whether
+`apps/setup` could be broken by a change to the API's environment — if it can, the schema leaked.
+
+| Check | Result |
+|---|---|
+| What `@repo/nest-env` imports | `@nestjs/common`, `@nestjs/config`, `zod`, `fs`, `path` — **no app code** |
+| Does the package contain a schema? | No. One JSDoc example mentions `apiEnvSchema`; there is no import |
+| How the schema gets in | `EnvModule.forRoot({ schema })`; `EnvService<TSchema>` is generic with `use()` for a second schema |
+| Where `EnvService` lives | Two subclasses: `apps/api/src/config/env/env.service.ts` (27 LOC) and `apps/setup/src/config/env/env.service.ts` (24 LOC) — same base, different schema |
+| `apiEnvSchema` referenced by `apps/setup`? | **0 imports** (one comment contrasts them) |
+| `setupEnvSchema` | declares its own **24** variables; imported by 4 setup files only |
+
+Neither app can be broken by the other's environment, which is the property §5.4 asks for.
+
+### 5.4.2 The setup app is event-driven, and nothing polls
+
+`apps/setup` has **zero** `setInterval` occurrences. Every state change is published, and every
+consumer subscribes:
+
+| File | RxJS primitives | What it drives |
+|---|---|---|
+| `modules/health/setup-phase.service.ts` | `BehaviorSubject`, `Observable`, `Subject`, `distinctUntilChanged`, `filter`, `map` | the phase state machine. `BehaviorSubject` for STATE (a late reader gets the current value instead of blocking), a plain `Subject` for EDGES (replaying an edge would re-fire edge-triggered work) |
+| `modules/cluster/services/cluster-orchestrator.service.ts` | `Subject`, `concatMap`, `catchError`, `shareReplay`, `tap`, `timer`, `from`, `of` | the cluster pipeline. `concatMap` serialises attempts so a retry cannot race the engine; `shareReplay` gives one execution shared by `/setup/state` and the wizard |
+| `modules/wizard/wizard-stream.service.ts` | `Observable`, `Subject`, `share`, `takeUntil`, `from` | the SSE pipe. `takeUntil(clientGone)` is the single teardown path for both the response and the upstream reader |
+| `modules/wizard/wizard.controller.ts` | `Subject` | signals client disconnect into that `takeUntil` |
+
+The compose gate (`GET /setup/health`) reads the phase synchronously through Terminus, so the
+probe is a cache read rather than a query — the same property §8.6 asks of the API.
+
 ### 5.5 Setup's own services — what replaces the rejected packages
 
 Per §8.7, code that only setup needs is setup's **business logic**, so it lives in `apps/setup` as
