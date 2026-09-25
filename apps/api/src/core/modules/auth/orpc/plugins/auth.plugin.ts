@@ -64,18 +64,24 @@ export class AuthPlugin<TContext extends AuthPluginContext>
 {
   readonly order = -100; // Run early to ensure auth context is available to other plugins/middlewares
 
+  /** v2 `OrderablePlugin` requires a unique name for ordering/identification. */
+  readonly name = "auth";
+
   private readonly auth: Auth;
 
   constructor(options: AuthPluginOptions) {
     this.auth = options.auth;
   }
 
-  init(options: StandardHandlerOptions<TContext>): void {
+  init(options: StandardHandlerOptions<TContext>): StandardHandlerOptions<TContext> {
     const auth = this.auth;
 
-    options.routingInterceptors ??= [];
+    // v2 contract: `init` RETURNS the transformed options (`OrderablePlugin`),
+    // it does not mutate them in place. Appending keeps any interceptors that
+    // previous plugins already registered.
+    const routingInterceptors = options.routingInterceptors ?? [];
 
-    options.routingInterceptors.push(async (interceptorOptions) => {
+    routingInterceptors.push(async (interceptorOptions) => {
       // eslint-disable-next-line @typescript-eslint/unbound-method
       const { context, request, next } = interceptorOptions;
 
@@ -132,5 +138,7 @@ export class AuthPlugin<TContext extends AuthPluginContext>
         },
       });
     });
+
+    return { ...options, routingInterceptors };
   }
 }

@@ -112,8 +112,10 @@ export function transformHttpExceptionToORPCError(error: unknown): void {
  */
 export function transformMeshDomainErrorToORPCError(error: unknown): void {
     if (error instanceof MeshBaseDomainError) {
+        // v2 removed `status` from ORPCError options: the HTTP status is mapped
+        // from the code by the handler's `errorStatusMap`. The status is still
+        // sent to clients through `data.statusCode`.
         throw new ORPCError(error.orpcCode, {
-            status: error.httpStatus,
             message: error.message,
             data: {
                 statusCode: error.httpStatus,

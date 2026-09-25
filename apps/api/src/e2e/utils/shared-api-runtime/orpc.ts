@@ -1,6 +1,6 @@
 import { createORPCClient } from '@orpc/client'
-import type { AnyContractRouter } from '@orpc/contract'
-import { OpenAPILink } from '@orpc/openapi-client/fetch'
+import type { RouterContract } from '@orpc/contract'
+import { OpenAPILink } from '@orpc/openapi/fetch'
 import { ObservableLinkPlugin } from '@repo/orpc-utils'
 import type {
     SharedOrpcResponseMeta,
@@ -28,19 +28,24 @@ export function createSharedOrpcResponseTracker(): SharedOrpcResponseTracker {
     }
 }
 
-export function createSharedRuntimeOrpcClient<TContract extends AnyContractRouter>(
+export function createSharedRuntimeOrpcClient<TContract extends RouterContract>(
     contract: TContract,
     runtime: Pick<import('./types').SharedApiRuntime, 'baseUrl'>,
     options?: SharedRuntimeOrpcClientOptions,
 ): SharedRuntimeOrpcClient<TContract> {
     const link = new OpenAPILink(contract, {
-        url: runtime.baseUrl,
+        // v2: `url` is the base PATH, `origin` is scheme+host. `baseUrl` is an
+        // origin (`http://127.0.0.1:<port>`).
+        origin: runtime.baseUrl,
         headers: options?.headers,
         fetch: (input, init) => fetch(input, { ...init, credentials: 'include' }),
         plugins: [
             new ObservableLinkPlugin(contract),
         ],
-        clientInterceptors: [
+        // v2 renamed `clientInterceptors` to `transportInterceptors` — this
+        // interceptor reads the StandardRequest / StandardLazyResponse pair,
+        // which is exactly the transport level (post-encode, pre-decode).
+        transportInterceptors: [
             async ({ request, next }) => {
                 const response = await next()
 

@@ -1,5 +1,6 @@
 import { get } from "@orpc/shared";
-import { isContractProcedure, getEventIteratorSchemaDetails } from "@orpc/contract";
+import { getAsyncIteratorObjectSchemaDetails } from "@orpc/contract";
+import { isContractProcedure } from "@repo/orpc-utils/types/type-helpers";
 import type { StandardLinkPlugin, StandardLinkOptions, StandardLinkInterceptorOptions } from "@orpc/client/standard";
 import type { ClientContext } from "@orpc/client";
 import { OBSERVABLE_DETAILS_SYMBOL, toAsyncIteratorFromObservable, type Observable } from "@repo/orpc-utils/observable/contract";
@@ -54,23 +55,25 @@ export class ObservableLinkPlugin<T extends ClientContext> implements StandardLi
           return next(interceptorOptions as unknown as StandardLinkInterceptorOptions<T>);
         }
 
-        const procDef = (procedure as { "~orpc": { outputSchema?: unknown; inputSchema?: unknown } })["~orpc"];
+        // oRPC v2 stores schemas as arrays (`inputSchemas` / `outputSchemas`);
+        // the builder applies exactly one of each, so index 0 is the schema.
+        const procDef = (procedure as { "~orpc": { outputSchemas?: unknown[]; inputSchemas?: unknown[] } })["~orpc"];
 
         // 2. Check if input schema is observable-marked
-        const inputSchema = procDef.inputSchema as
+        const inputSchema = procDef.inputSchemas?.[0] as
           | { "~standard"?: Record<PropertyKey, unknown> }
           | undefined;
         const inputIsObservable =
           inputSchema?.["~standard"]?.[OBSERVABLE_DETAILS_SYMBOL] !== undefined;
 
         // 3. Check if output schema is observable-marked
-        const outputSchema = procDef.outputSchema as
+        const outputSchema = procDef.outputSchemas?.[0] as
           | { "~standard"?: Record<PropertyKey, unknown> }
           | undefined;
         const outputHasObservableSymbol =
           outputSchema?.["~standard"]?.[OBSERVABLE_DETAILS_SYMBOL] !== undefined;
         const outputHasEventIterator =
-          getEventIteratorSchemaDetails(outputSchema as Parameters<typeof getEventIteratorSchemaDetails>[0]) !== undefined;
+          getAsyncIteratorObjectSchemaDetails(outputSchema as Parameters<typeof getAsyncIteratorObjectSchemaDetails>[0]) !== undefined;
         const outputIsObservable =
           outputHasObservableSymbol || outputHasEventIterator;
 

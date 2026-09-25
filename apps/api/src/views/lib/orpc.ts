@@ -10,7 +10,7 @@
  */
 
 import { createORPCClient } from "@orpc/client";
-import { OpenAPILink } from "@orpc/openapi-client/fetch";
+import { OpenAPILink } from "@orpc/openapi/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { appContract, type AppContract } from "@repo/api-contracts";
 import { createObservableQueryUtils, type ObservableQueryUtils, ObservableLinkPlugin } from "@repo/orpc-utils";
@@ -18,11 +18,13 @@ import type { ContractRouterClient } from "@orpc/contract";
 
 export type ViewsORPCClient = ContractRouterClient<AppContract>;
 
-/** Base URL: same origin as the page (the API serves the views AND the ORPC
- *  endpoints on one origin / gateway). */
+/** The API serves the views AND the ORPC endpoints on one origin, so the
+ *  origin is the page's own origin and the base path stays `/`. */
 export const orpcClient = createORPCClient<ViewsORPCClient>(
   new OpenAPILink(appContract, {
-    url: typeof window === "undefined" ? "" : window.location.origin,
+    // v2: `url` is the base PATH (matches the handler mount path), `origin`
+    // is scheme+host. Server-side there is no origin to prepend.
+    origin: typeof window === "undefined" ? undefined : window.location.origin,
     fetch(request, init) {
       return fetch(request, { ...init, credentials: "include" });
     },

@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { createORPCClient } from "@orpc/client";
 import type { ContractRouterClient } from "@orpc/contract";
-import { OpenAPILink } from "@orpc/openapi-client/fetch";
+import { OpenAPILink } from "@orpc/openapi/fetch";
 import {
     meshContract,
     meshInternalContract,
@@ -339,7 +339,10 @@ export class MeshInitializationService {
         internalHeaders?: Record<string, string>,
     ): ContractRouterClient<MeshClientContract> {
         const link = new OpenAPILink(meshClientRouter, {
-            url:   baseUrl,
+            // v2 split the old single `url` in two: `url` is the base PATH (it
+            // must match the OpenAPI handler's mount path) and `origin` is the
+            // scheme+host. `baseUrl` here is an origin (`http://host:port`).
+            origin: baseUrl,
             fetch: (input, init) => {
                 if (!internalHeaders) return fetch(input, init);
                 const headers = new Headers();

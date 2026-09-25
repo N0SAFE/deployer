@@ -1,5 +1,6 @@
 import { get } from "@orpc/shared";
-import { isContractProcedure, getEventIteratorSchemaDetails } from "@orpc/contract";
+import { getAsyncIteratorObjectSchemaDetails } from "@orpc/contract";
+import { isContractProcedure } from "@repo/orpc-utils/types/type-helpers";
 import type { StandardLinkPlugin, StandardLinkOptions } from "@orpc/client/standard";
 import type { ClientContext } from "@orpc/client";
 import { OBSERVABLE_DETAILS_SYMBOL, toAsyncIteratorFromObservable, type Observable } from "@repo/orpc-utils/observable/contract";
@@ -39,12 +40,17 @@ export class ObservableLinkPlugin<T extends ClientContext> implements StandardLi
    */
   public readonly order = -100;
 
+  /** v2 `OrderablePlugin` requires a unique name for ordering/identification. */
+  public readonly name = "observable";
+
   constructor(private readonly appContract: unknown) {}
 
-  init(options: StandardLinkOptions<T>): void {
-    options.interceptors ??= [];
+  init(options: StandardLinkOptions<T>): StandardLinkOptions<T> {
+    // v2 contract: `init` RETURNS the transformed options, it does not mutate
+    // them in place. Appending keeps interceptors registered by prior plugins.
+    const interceptors = options.interceptors ?? [];
 
-    options.interceptors.push(
+    interceptors.push(
       async (interceptorOptions) => {
         const { path, input } = interceptorOptions;
         const next = interceptorOptions.next.bind(interceptorOptions)
@@ -55,30 +61,32 @@ export class ObservableLinkPlugin<T extends ClientContext> implements StandardLi
           return next(interceptorOptions);
         }
 
+        // oRPC v2 stores schemas as arrays (`inputSchemas` / `outputSchemas`);
+        // the builder applies exactly one of each, so index 0 is the schema.
         const procDef = procedure["~orpc"];
 
         // 2. Check if input schema is observable-marked
         //    (Only OBSERVABLE_DETAILS_SYMBOL matters here because the user
-        //     passes an Observable — we do NOT also check getEventIteratorSchemaDetails
+        //     passes an Observable — we do NOT also check getAsyncIteratorObjectSchemaDetails
         //     since an event-iterator contract on the input side means the user
         //     already provides an AsyncIterable, not an Observable.)
-        const inputSchema = procDef.inputSchema as
+        const inputSchema = procDef.inputSchemas?.[0] as
           | { "~standard"?: Record<PropertyKey, unknown> }
           | undefined;
         const inputIsObservable =
           inputSchema?.["~standard"]?.[OBSERVABLE_DETAILS_SYMBOL] !== undefined;
 
         // 3. Check if output schema is observable-marked
-        //    We check both OBSERVABLE_DETAILS_SYMBOL and getEventIteratorSchemaDetails
+        //    We check both OBSERVABLE_DETAILS_SYMBOL and getAsyncIteratorObjectSchemaDetails
         //    because either marking means the transport returns an AsyncIterable that
         //    must be surfaced as an Observable to the caller.
-        const outputSchema = procDef.outputSchema as
+        const outputSchema = procDef.outputSchemas?.[0] as
           | { "~standard"?: Record<PropertyKey, unknown> }
           | undefined;
         const outputHasObservableSymbol =
           outputSchema?.["~standard"]?.[OBSERVABLE_DETAILS_SYMBOL] !== undefined;
         const outputHasEventIterator =
-          getEventIteratorSchemaDetails(outputSchema as Parameters<typeof getEventIteratorSchemaDetails>[0]) !== undefined;
+          getAsyncIteratorObjectSchemaDetails(outputSchema as Parameters<typeof getAsyncIteratorObjectSchemaDetails>[0]) !== undefined;
         const outputIsObservable =
           outputHasObservableSymbol || outputHasEventIterator;
 
@@ -117,5 +125,7 @@ export class ObservableLinkPlugin<T extends ClientContext> implements StandardLi
         return result;
       },
     );
+
+    return { ...options, interceptors };
   }
 }

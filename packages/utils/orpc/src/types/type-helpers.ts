@@ -10,40 +10,51 @@
  */
 
 import {
-  type ContractProcedure,  type ContractBuilder,  type ContractProcedureBuilder,
-  type ContractProcedureBuilderWithInput,
-  type ContractProcedureBuilderWithOutput,
-  type ContractProcedureBuilderWithInputOutput,
-  type ContractRouterBuilder,
-  type AnyContractProcedure,
+  type ProcedureContract,
+  type ContractBuilder,
+  type ProcedureContractBuilderWithInput,
+  type ProcedureContractBuilderWithOutput,
+  type ProcedureContractBuilderWithInputOutput,
+  type AnyProcedureContract,
 } from "@orpc/contract";
+import type { OpenAPIMeta } from "@orpc/openapi";
 
 /**
  * Union type of all possible ORPC contract builder types.
  * Includes base builder and all specialized builders (with input, output, or both).
+ *
+ * oRPC v2 renamed `ContractProcedure` to `ProcedureContract` and shrank
+ * `ContractBuilder` to a single generic (`<TErrorMap>`).
  */
 export type AnyContractBuilder =
-  | ContractBuilder<any, any, any, any>
-  | ContractProcedureBuilder<any, any, any, any>
-  | ContractProcedureBuilderWithInput<any, any, any, any>
-  | ContractProcedureBuilderWithOutput<any, any, any, any>
-  | ContractProcedureBuilderWithInputOutput<any, any, any, any>;
+  | ContractBuilder<any>
+  | ProcedureContractBuilderWithInput<any, any>
+  | ProcedureContractBuilderWithOutput<any, any>
+  | ProcedureContractBuilderWithInputOutput<any, any, any>;
 
 /**
  * Union type representing any ORPC procedure or builder.
  * Can be used to accept both finalized procedures and builders in progress.
  */
 export type AnyContractProcedureOrBuilder =
-  | AnyContractProcedure
+  | AnyProcedureContract
   | AnyContractBuilder;
 
 /**
- * Type guard to check if a value is an ORPC ContractProcedure.
- * A ContractProcedure has the `~orpc` property with defined options.
+ * Type guard to check if a value is an ORPC procedure contract.
+ * A procedure contract has the `~orpc` property with defined options.
+ *
+ * In v2 the `~orpc` payload holds `inputSchemas`/`outputSchemas` (arrays) rather
+ * than v1's singular `inputSchema`/`outputSchema`.
+ *
+ * NOTE: v1's `isContractProcedure` export is gone, and v2's
+ * `getProcedureContractOrThrow(router, path)` is a router-path LOOKUP (it needs
+ * both arguments and throws on a miss), not a shape check — so this predicate
+ * inspects the `~orpc` descriptor directly.
  */
 export function isContractProcedure(
   value: unknown
-): value is ContractProcedure<any, any, any, any> {
+): value is ProcedureContract<any, any, any> {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -54,7 +65,7 @@ export function isContractProcedure(
 }
 
 /**
- * Type guard to check if a value is an ORPC ContractProcedureBuilder.
+ * Type guard to check if a value is an ORPC procedure contract builder.
  * Builders have the `~orpc` property and builder methods like `input`, `output`, etc.
  */
 export function isContractBuilder(value: unknown): value is AnyContractBuilder {
@@ -66,12 +77,15 @@ export function isContractBuilder(value: unknown): value is AnyContractBuilder {
 }
 
 /**
- * Type guard to check if a value is a ContractRouterBuilder.
+ * Type guard to check if a value is a router contract builder.
  * Router builders have the `~orpc` property with `errorMap` and the `router` method.
+ *
+ * oRPC v2 dropped the exported `ContractRouterBuilder` type, so the shape is
+ * described structurally here.
  */
 export function isContractRouterBuilder(
   value: unknown
-): value is ContractRouterBuilder<any, any> {
+): value is { "~orpc": { errorMap: unknown }; router: (...args: never[]) => unknown } {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -85,15 +99,20 @@ export function isContractRouterBuilder(
 
 /**
  * Extract the meta type from an ORPC procedure or builder.
+ *
+ * v2 dropped the meta generic from `ProcedureContract` (routing moved into
+ * `meta`), so the meta is read structurally rather than via inference.
  */
 export type InferMeta<T extends AnyContractProcedureOrBuilder> =
-  T extends ContractProcedure<any, any, any, infer TMeta> ? TMeta : never;
+  T extends { "~orpc": { meta: infer TMeta } } ? TMeta : never;
 
 /**
  * Extract the input schema type from an ORPC procedure or builder.
+ *
+ * v2 carries the schema types on the `__TInputSchema` phantom field.
  */
 export type InferInputSchema<T extends AnyContractProcedureOrBuilder> =
-  T extends ContractProcedure<infer TInputSchema, any, any, any>
+  T extends { "~orpc": { __TInputSchema?: { type: infer TInputSchema } } }
     ? TInputSchema
     : never;
 
@@ -101,7 +120,7 @@ export type InferInputSchema<T extends AnyContractProcedureOrBuilder> =
  * Extract the output schema type from an ORPC procedure or builder.
  */
 export type InferOutputSchema<T extends AnyContractProcedureOrBuilder> =
-  T extends ContractProcedure<any, infer TOutputSchema, any, any>
+  T extends { "~orpc": { __TOutputSchema?: { type: infer TOutputSchema } } }
     ? TOutputSchema
     : never;
 
@@ -109,9 +128,7 @@ export type InferOutputSchema<T extends AnyContractProcedureOrBuilder> =
  * Extract the error map type from an ORPC procedure or builder.
  */
 export type InferErrorMap<T extends AnyContractProcedureOrBuilder> =
-  T extends ContractProcedure<any, any, infer TErrorMap, any>
-    ? TErrorMap
-    : never;
+  T extends ProcedureContract<any, any, infer TErrorMap> ? TErrorMap : never;
 
 /**
  * Helper to get the meta property from an ORPC procedure at runtime.
@@ -120,25 +137,28 @@ export type InferErrorMap<T extends AnyContractProcedureOrBuilder> =
  */
 export function getProcedureMeta<T extends AnyContractProcedureOrBuilder>(
   procedure: T
-): T extends ContractProcedure<any, any, any, infer TMeta> ? TMeta : undefined {
+): InferMeta<T> | undefined {
   if (!isContractProcedure(procedure)) {
-    return undefined as T extends ContractProcedure<any, any, any, infer TMeta> ? TMeta : undefined;
+    return undefined;
   }
-  return procedure["~orpc"].meta as T extends ContractProcedure<any, any, any, infer TMeta> ? TMeta : undefined;
+  return procedure["~orpc"].meta as InferMeta<T>;
 }
 
 /**
- * Helper to get the route property from an ORPC procedure at runtime.
- * Returns the route object if the value is a valid procedure, undefined otherwise.
- * @template T - The procedure or builder type to get route from
+ * Helper to get the OpenAPI routing metadata from an ORPC procedure.
+ *
+ * v2 removed the `~orpc.route` field entirely: routing now lives in the
+ * `~openapi` meta produced by `.meta(openapi({...}))`. This reads that meta so
+ * call sites that used `getProcedureRoute()` keep working unchanged.
  */
 export function getProcedureRoute<T extends AnyContractProcedureOrBuilder>(
   procedure: T
-): T extends { "~orpc": { route: infer TRoute } } ? TRoute : undefined {
+): OpenAPIMeta | undefined {
   if (!isContractProcedure(procedure)) {
-    return undefined as T extends { "~orpc": { route: infer TRoute } } ? TRoute : undefined;
+    return undefined;
   }
-  return procedure["~orpc"].route as T extends { "~orpc": { route: infer TRoute } } ? TRoute : undefined;
+  const meta = procedure["~orpc"].meta as Record<string, unknown> | undefined;
+  return meta?.["~openapi"] as OpenAPIMeta | undefined;
 }
 
 /**
@@ -148,25 +168,28 @@ export function getProcedureRoute<T extends AnyContractProcedureOrBuilder>(
  */
 export function getProcedureErrorMap<T extends AnyContractProcedureOrBuilder>(
   procedure: T
-): T extends ContractProcedure<any, any, infer TErrorMap, any> ? TErrorMap : undefined {
+): InferErrorMap<T> | undefined {
   if (!isContractProcedure(procedure)) {
-    return undefined as T extends ContractProcedure<any, any, infer TErrorMap, any> ? TErrorMap : undefined;
+    return undefined;
   }
-  return procedure["~orpc"].errorMap as T extends ContractProcedure<any, any, infer TErrorMap, any> ? TErrorMap : undefined;
+  return procedure["~orpc"].errorMap as InferErrorMap<T>;
 }
 
 /**
  * Helper to get the input schema from an ORPC procedure at runtime.
- * Returns the input schema if the value is a valid procedure, undefined otherwise.
- * @template T - The procedure or builder type to infer input schema from
+ *
+ * v2 stores schemas as arrays (`inputSchemas`). The builder applies exactly one
+ * input schema, so the first entry is the procedure's input schema; stacking
+ * `.input()` calls would compose them, which this repo does not do.
  */
 export function getProcedureInputSchema<T extends AnyContractProcedureOrBuilder>(
   procedure: T
-): T extends ContractProcedure<infer TInputSchema, any, any, any> ? TInputSchema | undefined : undefined {
+): InferInputSchema<T> | undefined {
   if (!isContractProcedure(procedure)) {
-    return undefined as T extends ContractProcedure<infer TInputSchema, any, any, any> ? TInputSchema | undefined : undefined;
+    return undefined;
   }
-  return procedure["~orpc"].inputSchema as T extends ContractProcedure<infer TInputSchema, any, any, any> ? TInputSchema | undefined : undefined;
+  const schemas = procedure["~orpc"].inputSchemas;
+  return schemas?.[0] as InferInputSchema<T> | undefined;
 }
 
 /**
@@ -176,24 +199,31 @@ export function getProcedureInputSchema<T extends AnyContractProcedureOrBuilder>
  */
 export function getProcedureOutputSchema<T extends AnyContractProcedureOrBuilder>(
   procedure: T
-): T extends ContractProcedure<any, infer TOutputSchema, any, any> ? TOutputSchema | undefined : undefined {
+): InferOutputSchema<T> | undefined {
   if (!isContractProcedure(procedure)) {
-    return undefined as T extends ContractProcedure<any, infer TOutputSchema, any, any> ? TOutputSchema | undefined : undefined;
+    return undefined;
   }
-  return procedure["~orpc"].outputSchema as T extends ContractProcedure<any, infer TOutputSchema, any, any> ? TOutputSchema | undefined : undefined;
+  const schemas = procedure["~orpc"].outputSchemas;
+  return schemas?.[0] as InferOutputSchema<T> | undefined;
 }
 
 /**
  * Apply meta to a builder with proper typing.
- * ORPC's `.meta()` method doesn't properly retype the builder by default,
- * so this helper ensures the meta type is correctly inferred.
- * 
+ *
+ * oRPC v2 removed the meta generic from the builder types: `.meta()` now takes
+ * `MetaPlugin` objects (not raw meta), and the plugin's `init` hook is what
+ * writes into the contract's `~orpc.meta`. The builder type is therefore
+ * unchanged by `.meta()`, so this helper is a typed pass-through.
+ *
+ * `resolveMetaPlugins` runs `init` for every *incoming* plugin against the
+ * already-merged meta, so spreading accumulates across successive calls.
+ *
  * @template TBuilder - The builder type
  * @template TMeta - The meta object type
  * @param builder - The ORPC builder to add meta to
  * @param meta - The meta object to apply
- * @returns A new builder with the meta applied and properly typed
- * 
+ * @returns A new builder with the meta applied
+ *
  * @example
  * const procedure = withMeta(
  *   oc.input(z.object({ id: z.string() })),
@@ -203,20 +233,9 @@ export function getProcedureOutputSchema<T extends AnyContractProcedureOrBuilder
 export function withMeta<
   TBuilder extends AnyContractBuilder,
   TMeta extends Record<string, any>
->(
-  builder: TBuilder,
-  meta: TMeta
-): TBuilder extends ContractBuilder<infer TInputSchema, infer TOutputSchema, infer TErrorMap, any>
-  ? ContractBuilder<TInputSchema, TOutputSchema, TErrorMap, TMeta>
-  : TBuilder extends ContractProcedureBuilder<infer TInputSchema, infer TOutputSchema, infer TErrorMap, any>
-  ? ContractProcedureBuilder<TInputSchema, TOutputSchema, TErrorMap, TMeta>
-  : TBuilder extends ContractProcedureBuilderWithInput<infer TInputSchema, infer TOutputSchema, infer TErrorMap, any>
-  ? ContractProcedureBuilderWithInput<TInputSchema, TOutputSchema, TErrorMap, TMeta>
-  : TBuilder extends ContractProcedureBuilderWithOutput<infer TInputSchema, infer TOutputSchema, infer TErrorMap, any>
-  ? ContractProcedureBuilderWithOutput<TInputSchema, TOutputSchema, TErrorMap, TMeta>
-  : TBuilder extends ContractProcedureBuilderWithInputOutput<infer TInputSchema, infer TOutputSchema, infer TErrorMap, any>
-  ? ContractProcedureBuilderWithInputOutput<TInputSchema, TOutputSchema, TErrorMap, TMeta>
-  : never {
-  // @ts-expect-error - TypeScript cannot narrow the builder type at runtime, but we know it has meta method
-  return builder.meta(meta);
+>(builder: TBuilder, meta: TMeta): TBuilder {
+  return builder.meta({
+    name: "with-meta",
+    init: (current) => ({ ...current, ...meta }),
+  }) as TBuilder;
 }
