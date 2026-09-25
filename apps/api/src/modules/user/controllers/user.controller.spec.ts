@@ -4,6 +4,24 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { UserController } from '@/modules/user/controllers/user.controller';
 import { UserService } from '@/modules/user/services/user.service';
 
+/**
+ * Resolve a built procedure's handler.
+ *
+ * oRPC v2 keeps it on the `~orpc` descriptor; v1 exposed it as a top-level
+ * property. Reading both keeps this assertion about the CONTRACT ("the
+ * controller exposes a callable handler") rather than about the internal layout
+ * of whichever oRPC version is installed.
+ */
+function procedureHandler(procedure: unknown): (...args: never[]) => unknown {
+    const p = procedure as { handler?: unknown; "~orpc"?: { handler?: unknown } };
+    const handler = p?.handler ?? p?.["~orpc"]?.handler;
+    if (typeof handler !== "function") {
+        throw new TypeError("procedure does not expose a handler");
+    }
+    return handler as (...args: never[]) => unknown;
+}
+
+
 // Mock user for context
 const mockAuthUser = {
   id: 'auth-user-1',
@@ -101,43 +119,43 @@ describe('UserController', () => {
     it('should have list method that returns implementation', () => {
       const implementation = controller.list() as any;
       expect(implementation).toBeDefined();
-      expect(typeof implementation.handler).toBe('function');
+      expect(typeof procedureHandler(implementation)).toBe('function');
     });
 
     it('should have findById method that returns implementation', () => {
       const implementation = controller.findById() as any;
       expect(implementation).toBeDefined();
-      expect(typeof implementation.handler).toBe('function');
+      expect(typeof procedureHandler(implementation)).toBe('function');
     });
 
     it('should have create method that returns implementation', () => {
       const implementation = controller.create() as any;
       expect(implementation).toBeDefined();
-      expect(typeof implementation.handler).toBe('function');
+      expect(typeof procedureHandler(implementation)).toBe('function');
     });
 
     it('should have update method that returns implementation', () => {
       const implementation = controller.update() as any;
       expect(implementation).toBeDefined();
-      expect(typeof implementation.handler).toBe('function');
+      expect(typeof procedureHandler(implementation)).toBe('function');
     });
 
     it('should have delete method that returns implementation', () => {
       const implementation = controller.delete() as any;
       expect(implementation).toBeDefined();
-      expect(typeof implementation.handler).toBe('function');
+      expect(typeof procedureHandler(implementation)).toBe('function');
     });
 
     it('should have checkEmail method that returns implementation', () => {
       const implementation = controller.checkEmail() as any;
       expect(implementation).toBeDefined();
-      expect(typeof implementation.handler).toBe('function');
+      expect(typeof procedureHandler(implementation)).toBe('function');
     });
 
     it('should have count method that returns implementation', () => {
       const implementation = controller.count() as any;
       expect(implementation).toBeDefined();
-      expect(typeof implementation.handler).toBe('function');
+      expect(typeof procedureHandler(implementation)).toBe('function');
     });
   });
 

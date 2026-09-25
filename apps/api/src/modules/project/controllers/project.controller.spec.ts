@@ -6,6 +6,24 @@ import { ProjectService } from '@/modules/project/services/project.service';
 import { ProjectNetworkService } from '@/modules/project/services/project-network.service';
 import { ProjectRepository } from '@/modules/project/repositories/project.repository';
 
+/**
+ * Resolve a built procedure's handler.
+ *
+ * oRPC v2 keeps it on the `~orpc` descriptor; v1 exposed it as a top-level
+ * property. Reading both keeps this assertion about the CONTRACT ("the
+ * controller exposes a callable handler") rather than about the internal layout
+ * of whichever oRPC version is installed.
+ */
+function procedureHandler(procedure: unknown): (...args: never[]) => unknown {
+    const p = procedure as { handler?: unknown; "~orpc"?: { handler?: unknown } };
+    const handler = p?.handler ?? p?.["~orpc"]?.handler;
+    if (typeof handler !== "function") {
+        throw new TypeError("procedure does not expose a handler");
+    }
+    return handler as (...args: never[]) => unknown;
+}
+
+
 // Create a chainable mock for implement().use().handler()
 function createImplementMock() {
     type HandlerFn = (opts: { input: unknown; context: unknown }) => unknown;
@@ -158,7 +176,7 @@ describe('ProjectController', () => {
                  
                 const implementation = (controller[method] as () => any)();
                 expect(implementation).toBeDefined();
-                expect(typeof implementation.handler).toBe('function');
+                expect(typeof procedureHandler(implementation)).toBe('function');
             });
         }
     });
