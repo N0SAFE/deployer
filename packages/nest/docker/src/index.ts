@@ -37,6 +37,7 @@ export type {
   ContainerEnrichment,
 } from "./services/container-link-resolver.interface";
 export { toDockerServiceSpec } from "./services/swarm-spec.mapper";
+export { resolveDockerHostIp } from "./services/docker-host-address";
 export {
   resolveSupervisorRuntime,
   swarmRuntimeForScope,

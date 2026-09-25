@@ -1,21 +1,26 @@
 import { readFileSync } from "node:fs";
 
 /**
- * Resolve the IP address used to reach the Docker host from inside
- * this container.
+ * Resolve the IP address used to reach the Docker host from inside this
+ * container.
  *
- * When the API runs inside a Docker container, `127.0.0.1` refers to
- * the container itself, not the host. Host-published ports (e.g. a
- * freshly provisioned Postgres container) are reachable via the
- * default gateway IP. We read that gateway from `/proc/net/route`,
- * where the default route's gateway is stored as a little-endian hex
- * string.
+ * When this process runs inside a Docker container, `127.0.0.1` refers to the
+ * container itself, not the host. Host-published ports (e.g. a freshly
+ * provisioned Postgres container) are reachable via the default gateway IP. We
+ * read that gateway from `/proc/net/route`, where the default route's gateway is
+ * stored as a little-endian hex string.
+ *
+ * WHY THIS LIVES HERE (and not in an app): it names no platform service and
+ * encodes no policy. It is Docker-host addressing — the same question any
+ * containerized app that talks to host-published ports has to answer. A second
+ * Nest app driving Docker needs exactly this, so it belongs with the other
+ * engine primitives.
  *
  * Falls back to `127.0.0.1` when:
- *  - The process is not running inside a container (no
- *    `/proc/net/route` for the docker interface, or default route on
- *    the host network).
+ *  - The process is not running inside a container (no `/proc/net/route` for the
+ *    docker interface, or the default route is on the host network).
  *  - The route file cannot be read for any reason.
+ *  - The parsed gateway is not a valid non-zero IPv4 address.
  */
 export function resolveDockerHostIp(): string {
     try {

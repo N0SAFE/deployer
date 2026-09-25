@@ -47,6 +47,13 @@
             "import": "./dist/esm/services/container-link-resolver.interface.mjs",
             "require": "./dist/cjs/services/container-link-resolver.interface.js"
         },
+        "./services/docker-host-address": {
+            "types": [
+                "./src/services/docker-host-address.ts"
+            ],
+            "import": "./dist/esm/services/docker-host-address.mjs",
+            "require": "./dist/cjs/services/docker-host-address.js"
+        },
         "./services/docker-supervisor-runtime": {
             "types": [
                 "./src/services/docker-supervisor-runtime.ts"

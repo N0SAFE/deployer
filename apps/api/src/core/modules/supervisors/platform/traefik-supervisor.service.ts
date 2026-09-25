@@ -39,7 +39,7 @@ import {
 } from "@repo/nest-supervisor-core/supervisor-process-info";
 import { EnvService } from "@/config/env/env.module";
 import { splitManagedEnv } from "@repo/env";
-import { resolveDockerHostIp } from "@/core/modules/setup/utils/docker-host.utils";
+import { resolveDockerHostIp } from "@repo/nest-docker/services/docker-host-address";
 
 /** Ownership marker — cleanup/inspection tooling keys off this label. */
 export const PLATFORM_ROLE_LABEL = "deployer.platform.role";

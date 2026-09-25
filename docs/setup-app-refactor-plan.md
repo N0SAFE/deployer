@@ -1293,7 +1293,7 @@ Each phase ends green: `bun --bun run api -- type-check`, `bun --bun run web -- 
 | # | Phase | Deliverable | Verification | Status |
 |---|---|---|---|---|
 | 0 | **Plan review** | this file agreed | — | ✅ |
-| 0.5 | **Fix the ingress-swap bug** (§17) | restore-on-failure + only swap when the API is green, in `TraefikSupervisorService` | a forced `reconcileSwarm` failure leaves the entry port owned by the container, not unowned | ⬜ |
+| 0.5 | **Fix the ingress-swap bug** (§17) | restore-on-failure + only swap when the API is green, in `TraefikSupervisorService` | a forced `reconcileSwarm` failure leaves the entry port owned by the container, not unowned | ✅ superseded — `SwarmBootstrapService` removed the container incarnation entirely, so there is no swap to guard |
 | 1 | **Health contract** | `GET /health/ready` with Terminus indicators (database/swarm/services/mesh) | curl shows green on a healthy platform; no auth required; no secrets | ✅ |
 | 2 | **Shared packages** | the six approved packages (§5.2): `nest-{nodes,docker,swarm,database-local,supervisor-core,reachability}` + `nest-{env,schema,database-core}` | DI gate + type-check + full suite after **each** package | ✅ |
 | 2.5 | **Correct the extraction list** | audit every candidate against §8.7; drop `mesh`/`supervisors`/`platform-ingress` (0 setup consumers, §5.2) | measured consumer counts recorded in §5.2 | ✅ |
@@ -1364,53 +1364,80 @@ These were open in an earlier draft and are now decided:
 
 ---
 
-## 17. Phase 0 — one prerequisite bug to fix first
+## 17. Phase 0 — the ingress-swap bug
 
-While validating this plan I found a **live defect** in the handover path that this refactor will
-otherwise inherit. It should be fixed **before** phase 7, as a standalone change:
+> **RESOLVED — the defect no longer exists.** Verified in the working tree: there is no
+> container→service swap left to guard.
 
-**File:** `apps/api/src/core/modules/supervisors/platform/traefik-supervisor.service.ts`
+### The defect as originally written
+
+`traefik-supervisor.service.ts` performed the swap as two unguarded awaits:
 
 ```ts
-// current — the entry port is dead between these two awaits
+// ORIGINAL — the entry port is dead between these two awaits
 await this.removeContainerIfExists(this.swarmServiceName());
 await this.reconcileSwarm(desiredPort);
 ```
 
 The container must release the exclusively-bound entry port before the service can take it, so the
-remove→create order is correct — but nothing guards the window, and nothing restores the container
-if `reconcileSwarm` fails. Consequences:
+remove→create order was correct — but nothing guarded the window, and nothing restored the
+container if `reconcileSwarm` failed. Consequences:
 
-- any in-flight request through the entry port is dropped mid-swap;
-- if the swarm service never gets a running task, the entry port stays **unowned** and the platform
-  becomes unreachable with no automatic recovery.
+- any in-flight request through the entry port was dropped mid-swap;
+- if the swarm service never got a running task, the entry port stayed **unowned** and the platform
+  became unreachable with no automatic recovery.
 
-**Fix (small, self-contained):**
+### How it was resolved (by an architecture change, not a patch)
 
-1. Wrap the swap so a failure re-creates the bootstrap container (restore the known-good state)
-   rather than leaving the port unowned.
-2. Ensure the swap is only attempted when the API is already serving (invariant 1 in §9.3), so no
-   user-facing stream is in flight.
-3. Keep the existing backoff, and let `verifySwarmConvergence` failure surface as DEGRADED with the
-   container restored.
+`SwarmBootstrapService` (`core/modules/swarm/services/swarm-bootstrap.service.ts`) was introduced
+to converge the engine **before** the supervisors run. The consequence for Traefik is that the
+container incarnation was **removed entirely** — there is no swap:
 
-This is worth doing first because it is a **live** bug (the current stack can already enter it), it
-is ~20 lines, and phase 7 depends on the corrected behaviour.
+| Concern | Resolution in the tree |
+|---|---|
+| Who converges the engine | `SwarmBootstrapService.onModuleInit()` → `converge("boot")`, deferred until setup persists the participation decision |
+| Traefik's runtime model | `reconcile()` reads `effectiveRuntime()` and returns early for `managed`; throws for `unavailable`. No third "container" branch |
+| The port-conflict case | `EntryPortConflictError` → `isFatalConvergenceError()` → DEGRADED, never retried by backoff |
+| The bootstrap-container code | **Deleted.** All four supervisors (traefik, redis, wireguard, global-db) now fail closed with the same message: *"no legacy container fallback. SwarmBootstrapService should have converged the engine."* |
+
+`removeContainerIfExists` survives in exactly **one** place — `global-db-supervisor.service.ts:261`
+— where it removes a stale *managed Postgres* container, not an ingress. Traefik has no
+remove-then-create pair at all.
+
+### What this means for phase 7
+
+The §9.3 handover ordering invariants still hold, and are now **easier** to satisfy: because the
+ingress is a swarm service from the start, the handover is only the `dynamic-api.yml` retarget plus
+the client-side sequencing (poll `/health/ready` → retarget → rewrite `dynamic-setup.yml` → exit).
+There is no port-ownership window to guard, so phase 0.5 needs no work.
+
+The residual risk is therefore not "the port is unowned" but "the ingress service has no running
+task" — which `verifySwarmConvergence()` already detects and reports as DEGRADED.
 
 ---
 
 ## Appendix A — Deletion inventory (exact)
 
+**Superseded by the §5.2 audit.** The three `→ @repo/nest-{platform-ingress,mesh,supervisors}`
+lines were removed: those modules stay in `apps/api` because setup consumes none of them. See §5.2
+for the measured consumer counts.
+
 ```
-DELETE (moved to @repo/nest-*)
+DELETE (moved to @repo/nest-*)        [DONE]
   apps/api/src/core/modules/node-state/          → @repo/nest-nodes
   apps/api/src/core/modules/docker/              → @repo/nest-docker
   apps/api/src/core/modules/swarm/               → @repo/nest-swarm
-  apps/api/src/core/modules/platform-ingress/    → @repo/nest-platform-ingress
-  apps/api/src/core/modules/mesh/                → @repo/nest-mesh
-  apps/api/src/core/modules/supervisors/         → @repo/nest-supervisors
   apps/api/src/core/modules/reachability/        → @repo/nest-reachability
   apps/api/src/core/modules/database/local/      → @repo/nest-database-local
+  apps/api/src/core/modules/supervisors/         → framework split out as
+                                                   @repo/nest-supervisor-core; the
+                                                   concrete supervisors REMAIN in apps/api
+
+STAYS in apps/api (audit §5.2 — not extractable)
+  apps/api/src/core/modules/mesh/                data plane; setup uses 2 of 120 files,
+                                                 which it reimplements as its own service
+  apps/api/src/core/modules/supervisors/         concrete platform supervisors
+  apps/api/src/core/modules/platform-ingress/    reads the API's global Postgres
 
 DELETE (moved to apps/setup)
   apps/api/src/sub-apps/setup-wizard/            → apps/setup/src/modules/wizard/
@@ -1432,3 +1459,12 @@ KEEP in apps/api
   src/core/modules/auth/, database/global/, ...  (whatever the API still needs)
   src/views/ (minus setup)  the API's own SSR surfaces (login, manage-web-app)
 ```
+
+### Appendix A.1 — One relocation the audit found
+
+`apps/api/src/core/modules/setup/utils/docker-host.utils.ts` exports `resolveDockerHostIp()`,
+a container-networking primitive (reads `/proc/net/route` for the default gateway). It is the
+**only** thing `supervisors` imports from `setup`, and it describes no platform policy — it is
+generic Docker-host addressing. It stays in `apps/api` for now but must move to `@repo/nest-docker`
+(the package both apps already use) before the supervisors are touched, so a primitive is not
+reachable only through the setup module's namespace.

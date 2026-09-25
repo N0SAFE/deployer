@@ -39,7 +39,7 @@ import {
     slugify,
     type EmitEvent,
 } from "../utils/setup-runner.utils";
-import { resolveDockerHostIp } from "../utils/docker-host.utils";
+import { resolveDockerHostIp } from "@repo/nest-docker/services/docker-host-address";
 import { DEPLOYER_VERSION } from "@/core/utils/deployer-version";
 
 import { AppError, ConflictError } from "@repo/errors";
