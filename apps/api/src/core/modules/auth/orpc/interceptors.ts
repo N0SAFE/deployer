@@ -1,6 +1,9 @@
 import type { Logger } from '@nestjs/common';
 import { HttpException } from '@nestjs/common'
-import { onError, ORPCError } from '@orpc/nest'
+// oRPC v2 moved these from `@orpc/nest` to `@orpc/server`. `@orpc/nest` no
+// longer re-exports them, so the import must name the package that declares
+// them.
+import { onError, ORPCError } from '@orpc/server'
 import type { ORPCErrorCode } from '@orpc/client'
 import type { Interceptor } from '@orpc/shared'
 import { ValidationError } from '@orpc/contract'

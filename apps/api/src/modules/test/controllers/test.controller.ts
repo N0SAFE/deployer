@@ -56,6 +56,7 @@
 import { Controller, Get, Logger, Param, UseGuards } from "@nestjs/common";
 import { ApiOperation, ApiResponse, ApiTags, ApiParam, ApiBearerAuth } from "@nestjs/swagger";
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 import * as z from "zod/v4";
@@ -86,16 +87,13 @@ import type { UserSession } from "@/core/modules/auth/utils/auth-utils";
 // ORPC CONTRACTS
 // =============================================================================
 
-const testContracts = oc.prefix("/test/orpc").router({
+const testContracts = oc.meta(openapi({ prefix: "/test/orpc" })).router({
     // =========================================================================
     // Public Access
     // =========================================================================
     
     /** Public endpoint - no auth required */
-    publicEndpoint: oc.route({
-        method: "GET",
-        path: "/public",
-    }).input(z.object({})).output(
+    publicEndpoint: oc.meta(openapi({ method: "GET", path: "/public", })).input(z.object({})).output(
         z.object({
             message: z.string(),
             authenticated: z.boolean(),
@@ -107,10 +105,7 @@ const testContracts = oc.prefix("/test/orpc").router({
     // =========================================================================
     
     /** Requires authentication - any logged-in user */
-    authenticatedEndpoint: oc.route({
-        method: "GET",
-        path: "/authenticated",
-    }).input(z.object({})).output(
+    authenticatedEndpoint: oc.meta(openapi({ method: "GET", path: "/authenticated", })).input(z.object({})).output(
         z.object({
             message: z.string(),
             userId: z.string(),
@@ -119,10 +114,7 @@ const testContracts = oc.prefix("/test/orpc").router({
     ),
     
     /** Optional auth - works with or without authentication */
-    optionalAuthEndpoint: oc.route({
-        method: "GET",
-        path: "/optional-auth",
-    }).input(z.object({})).output(
+    optionalAuthEndpoint: oc.meta(openapi({ method: "GET", path: "/optional-auth", })).input(z.object({})).output(
         z.object({
             message: z.string(),
             isAuthenticated: z.boolean(),
@@ -135,10 +127,7 @@ const testContracts = oc.prefix("/test/orpc").router({
     // =========================================================================
     
     /** Requires ANY of specified admin roles */
-    adminRoleEndpoint: oc.route({
-        method: "GET",
-        path: "/admin/role",
-    }).input(z.object({})).output(
+    adminRoleEndpoint: oc.meta(openapi({ method: "GET", path: "/admin/role", })).input(z.object({})).output(
         z.object({
             message: z.string(),
             userRole: z.string(),
@@ -146,10 +135,7 @@ const testContracts = oc.prefix("/test/orpc").router({
     ),
     
     /** Requires specific admin permission */
-    adminPermissionEndpoint: oc.route({
-        method: "GET",
-        path: "/admin/permission",
-    }).input(z.object({})).output(
+    adminPermissionEndpoint: oc.meta(openapi({ method: "GET", path: "/admin/permission", })).input(z.object({})).output(
         z.object({
             message: z.string(),
             userId: z.string(),
@@ -158,10 +144,7 @@ const testContracts = oc.prefix("/test/orpc").router({
     ),
     
     /** Dynamic admin permission from input */
-    adminDynamicPermissionEndpoint: oc.route({
-        method: "POST",
-        path: "/admin/dynamic-permission",
-    }).input(z.object({
+    adminDynamicPermissionEndpoint: oc.meta(openapi({ method: "POST", path: "/admin/dynamic-permission", })).input(z.object({
         resource: z.enum(["user", "invitation", "session"]),
         action: z.enum(["create", "read", "update", "delete"]),
     })).output(
@@ -178,10 +161,7 @@ const testContracts = oc.prefix("/test/orpc").router({
     // =========================================================================
     
     /** Combined: Admin role + permission (using composite) */
-    compositeAdminEndpoint: oc.route({
-        method: "GET",
-        path: "/composite/admin",
-    }).input(z.object({})).output(
+    compositeAdminEndpoint: oc.meta(openapi({ method: "GET", path: "/composite/admin", })).input(z.object({})).output(
         z.object({
             message: z.string(),
             userId: z.string(),
