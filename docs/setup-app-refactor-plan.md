@@ -248,23 +248,145 @@ The user-visible consequence: the stream is *produced* by the API and *piped* by
 - `scripts/check-di-graph.ts` already enforces "no cycles / no reverse imports" and must stay green
   after every extraction step.
 
-### 5.2 Target packages
+### 5.2 Target packages (AUDITED — supersedes the original list)
 
-| New package | Extracted from | Rough size | Why shared |
-|---|---|---|---|
-| `@repo/nest-docker` | `core/modules/docker` | ~5.0k | swarm + container + service management; both apps drive Docker |
-| `@repo/nest-swarm` | `core/modules/swarm` | ~2.6k | init/join, participation, cluster snapshot, spec mapper |
-| `@repo/nest-nodes` | `core/modules/node-state` | ~0.6k | local SQLite `node_config` / `cluster_node` — the pre-setup source of truth |
-| `@repo/nest-mesh` | `core/modules/mesh` | ~15k | join a remote swarm + WireGuard; needed by setup |
-| `@repo/nest-supervisors` | `core/modules/supervisors` | ~5.7k | bootstrap ingress/redis as swarm services |
-| `@repo/nest-platform-ingress` | `core/modules/platform-ingress` + the `traefik` config builders | ~3k–13k | hostname grammar + route config; setup bootstraps ingress |
-| `@repo/nest-database-local` | `core/modules/database/local` | ~0.5k | local SQLite connection; both apps read it |
-| `@repo/nest-reachability` | `core/modules/reachability` | ~0.5k | mesh URL probing used by the wizard |
+The list below was re-audited against the §8.7 rule ("if exactly one app consumes it, it is
+business logic → move it into that app"). Three entries from the original draft were **removed**
+and one was **split**, because the audit proved they failed the rule.
+
+| New package | Extracted from | Rough size | Consumers | Verdict |
+|---|---|---|---|---|
+| `@repo/nest-docker` | `core/modules/docker` | ~5.0k | 7 areas, both apps | **extract** (done) |
+| `@repo/nest-swarm` | `core/modules/swarm` | ~2.6k | 6 areas, both apps | **extract** (done) |
+| `@repo/nest-nodes` | `core/modules/node-state` | ~0.6k | 7 areas + `cli`, both apps | **extract** (done) |
+| `@repo/nest-database-local` | `core/modules/database/local` | ~0.5k | both apps | **extract** (done) |
+| `@repo/nest-reachability` | `core/modules/reachability` | ~0.5k | wizard + 3 API modules | **extract** (done) |
+| `@repo/nest-supervisor-core` | `core/modules/supervisors` (framework only) | ~2k | both apps | **extract** (done) |
+| `@repo/nest-mesh` | `core/modules/mesh` | 18k / 120 files | API: 30 files across 6 areas. Setup: **0** | **REJECTED — see below** |
+| `@repo/nest-supervisors` | `core/modules/supervisors` (impls only) | ~4.3k | API: 1 file. Setup: **0** | **REJECTED — see below** |
+| `@repo/nest-platform-ingress` | `core/modules/platform-ingress` + traefik builders | ~1.4k | API: 6 files across 4 areas. Setup: **0** | **REJECTED — see below** |
 
 Already shared and unchanged: `@repo/env`, `@repo/errors`, `@repo/logger`, `@repo/types`,
 `@repo/orpc-utils`, `@repo/auth`, `@repo/contracts-*`, `@repo/ui`.
 
-### 5.3 Extraction order (MEASURED — supersedes the earlier guess)
+#### Why the three rejected entries fail the rule
+
+The original rationale for each was a **factual error**, and the measured consumer counts
+contradict it:
+
+1. **`@repo/nest-mesh` — "join a remote swarm + WireGuard; needed by setup".**
+   WireGuard is **not** in `mesh`. It lives in
+   `core/modules/supervisors/platform/wireguard-supervisor.service.ts` as a supervisor that runs
+   the sidecar container. The `mesh` module is the peer-to-peer *data plane* (topology, topics,
+   resource discovery, CRDT primitives, query engine) — 120 files of platform business logic.
+   Setup's actual needs are the **enrolment handshake only**:
+   `MeshInitializationService` (issue grant, consume grant, bootstrap, connect) — 2 files.
+   Extracting 18k LOC so two apps can share 2 files is exactly the over-extraction the rule
+   forbids. **Instead:** the enrolment slice becomes setup's own explicit service (§5.5).
+
+2. **`@repo/nest-supervisors` — "bootstrap ingress/redis as swarm services".**
+   Setup consumes **zero** of it. Its 19 files are the platform's concrete supervisors
+   (traefik, redis, global-db, local-db, managed-web, wireguard, direct-port-proxy) — the
+   onboarding topology. The *framework* (event bus, base class, orchestrator, registry) was
+   already extracted as `@repo/nest-supervisor-core` and is the only genuinely shared part.
+   **Instead:** the concrete supervisors stay in `apps/api`.
+
+3. **`@repo/nest-platform-ingress` — "hostname grammar + route config; setup bootstraps ingress".**
+   Setup consumes zero of it, and it cannot: every service in it reads the API's global Postgres
+   (`PlatformConfigService`, `AppInstanceService`, `PlatformRoutesSourceService`) or imports the
+   `traefik` config builders. It is the API's ingress *policy*, not a primitive.
+   **Instead:** it stays in `apps/api`; setup's one handover write (`dynamic-api.yml`) is a
+   three-line file write, not a package dependency (§9.2).
+
+#### What setup actually needs, and where it comes from
+
+The wizard surfaces (`sub-apps/setup-wizard`, `sub-apps/mesh-initializer`,
+`views/setup-adapters`) reference core modules as follows — measured:
+
+| Core module | Refs | Resolution |
+|---|---|---|
+| `setup` | 5 | The **execution engine stays in the API**. Setup calls it over HTTP; only the *wizard session* moves. |
+| `mesh` | 3 | Only `MeshInitializationService` + `MeshVersionService`. → setup's own `MeshEnrolmentService` (§5.5). |
+| `node-state` | 2 | → `@repo/nest-nodes` (extracted) |
+| `reachability` | 2 | → `@repo/nest-reachability` (extracted) |
+| `sub-app-runner`, `triggers` | 4 | **Deleted** — the sub-app pipeline is what this refactor removes (§7.1). |
+| `auth` | 1 | Setup is pre-auth. The one ref is the ORPC context factory, which setup reimplements without auth. |
+
+So the complete shared-package inventory setup needs is:
+`@repo/nest-docker`, `@repo/nest-swarm`, `@repo/nest-nodes`, `@repo/nest-database-local`,
+`@repo/nest-supervisor-core`, `@repo/nest-reachability` — **all already extracted**.
+
+### 5.4 The env pattern — the shape every shared primitive must follow
+
+`@repo/nest-env` is the reference implementation of the §8.7 rule, and every package listed above
+follows it. The distinction is between **mechanism** (shared) and **contract** (per-app):
+
+| Concern | Where | Why |
+|---|---|---|
+| `EnvService<TSchema>` — reads, parses, caches, redacts | **package** (`@repo/nest-env`) | mechanism; identical in every app |
+| `EnvModule.forRoot({ schema })` | **package** | mechanism; the app supplies the schema |
+| `apiEnvSchema` + `ApiEnvService` | `apps/api` | contract; names THIS app's variables |
+| `setupEnvSchema` + `SetupEnvService` | `apps/setup` | contract; names THIS app's variables |
+
+The package never ships a default schema. If it did, `apps/setup` would silently inherit the API's
+variables and defaults — the exact leak this pattern prevents.
+
+The same discipline applies to every primitive, and the wrong/right split is always the same:
+
+| Wrong | Right | Package |
+|---|---|---|
+| Package defaults to the API's `apiEnvSchema` | `forRoot({ schema })`; each app subclasses | `@repo/nest-env` |
+| `BaseDatabaseService` constrained to the API's two Drizzle schemas | Generic over `AnyDrizzleDatabase`; subclass narrows `db` | `@repo/nest-database-core` |
+| Package reads a hardcoded path / env var for its config | `forRoot({ databasePath, migrationsDir })` | `@repo/nest-database-local` |
+| `@Optional() provider?: SomeInterface` | `@Inject(TOKEN)` — an interface erases at runtime | `@repo/nest-swarm` |
+| Package exports "this platform's boot sequence" | Rename to the storage-level fact; app keeps the policy | `@repo/nest-events` |
+
+**The test, restated:** a shared primitive that needs app-specific data takes it as a **parameter**
+(`forRoot`/`forRootAsync`, a constructor argument, a type parameter) or exposes an **overridable
+seam** (a subclass, a codec registry). It never imports the app's schema and never ships a default.
+
+### 5.5 Setup's own services — what replaces the rejected packages
+
+Per §8.7, code that only setup needs is setup's **business logic**, so it lives in `apps/setup` as
+an explicit, named service — not in a package.
+
+| Setup service | Replaces | Source of truth it follows |
+|---|---|---|
+| `apps/setup/src/modules/wizard/` | `sub-apps/setup-wizard/*` | the wizard session state machine |
+| `apps/setup/src/modules/cluster/mesh-enrolment.service.ts` | `MeshInitializationService` (mesh, 2 of 120 files) | the enrolment handshake: issue grant → consume grant → bootstrap → connect. Uses `@repo/contracts-*` for the wire format and `@repo/auth/mesh` for token signing; owns no mesh data plane |
+| `apps/setup/src/modules/cluster/swarm-bootstrap.service.ts` | plan §6 cluster | `@repo/nest-swarm` (`forRoot`) |
+| `apps/setup/src/modules/handover/ingress-handover.service.ts` | plan §9.2 | writes `dynamic-api.yml` + `dynamic-setup.yml`; a three-line file write over a shared volume, not a package |
+| `apps/setup/src/modules/health/` | plan §8.3 | Terminus gate (already implemented) |
+
+Each is an explicit file with one job, so the boundary is readable: a reviewer can see that
+`mesh-enrolment.service.ts` implements *enrolment* and does not carry the mesh data plane.
+
+### 5.6 Extraction status
+
+All extraction is **complete**. Every package in §5.2 that the audit approved exists:
+
+| Package | Tests | Type-check |
+|---|---|---|
+| `@repo/nest-env` | 10 | ✅ |
+| `@repo/nest-schema` | 23 | ✅ |
+| `@repo/nest-database-core` | 2 | ✅ |
+| `@repo/nest-database-local` | 1 | ✅ |
+| `@repo/nest-supervisor-core` | 19 | ✅ |
+| `@repo/nest-nodes` | 25 | ✅ |
+| `@repo/nest-docker` | 29 | ✅ |
+| `@repo/nest-swarm` | 61 | ✅ |
+| `@repo/nest-reachability` | 23 | ✅ |
+
+Compound verification gate, all green:
+- `apps/api` type-check **0 errors**; `apps/setup` type-check **0 errors**
+- `apps/api` unit tests **1596 passed / 0 failed** (145/145 files)
+- package tests **193 passed**
+- `DI_GATE=cycles` → `PASS`, 0 cycles, 0 `core → modules` reverse imports
+
+No package in the tree exports business logic: each one is either a framework primitive
+(`forRoot`-configured), a storage mechanism, or pure network probing.
+
+### 5.7 Extraction order (MEASURED — historical record)
 
 The original order in this plan (`nodes` first as a "leaf", then `docker`, then `swarm`) is
 **unachievable**, because module-level adjacency hides cycles. A file-level analysis of
@@ -1168,24 +1290,30 @@ sequenceDiagram
 Each phase ends green: `bun --bun run api -- type-check`, `bun --bun run web -- type-check`,
 `bun --bun run <pkg> -- type-check`, `bun --bun run test`, `bun --bun scripts/check-di-graph.ts`.
 
-| # | Phase | Deliverable | Verification |
-|---|---|---|---|
-| 0 | **Plan review** | this file agreed | — |
-| 0.5 | **Fix the ingress-swap bug** (§17) | restore-on-failure + only swap when the API is green, in `TraefikSupervisorService` | a forced `reconcileSwarm` failure leaves the entry port owned by the container, not unowned |
-| 1 | **Health contract** | `GET /health/ready` (components: database/swarm/services/mesh) + tests | curl shows green on a healthy platform; no auth required; no secrets |
-| 2 | **Shared packages** | extract `@repo/nest-{nodes,docker,swarm,platform-ingress,mesh,supervisors,reachability,database-local}` in the §5.3 order | DI gate + type-check + full suite after **each** package |
-| 3 | **`apps/setup` skeleton** | new app boots, serves `GET /setup/health`, no wizard yet | `curl :3016/setup/health` → `awaiting` |
-| 4 | **Wizard moves** | wizard UI + controllers + SSR/Vite move from API to setup | setup page renders at `setup.deployer.localhost`; API no longer serves `/setup` |
-| 5 | **Stream piping** | setup pipes `full-api/setup/stream` → client, with `Last-Event-ID` | wizard progress streams end-to-end; reconnect replays |
-| 6 | **Cluster + WireGuard in setup** | swarm init/join, wireguard, `SETUP_MODE` dev/prod | dev: joins an existing engine; prod: founds one |
-| 7 | **Handover** | API swarm service creation (prod), `dynamic-api.yml` + `dynamic-setup.yml` retarget, `GET /setup/done`, exit gated on green | entry port flips with zero 502s; `setup.deployer.localhost` shows the done page |
-| 8 | **API simplification** | delete `orchestrator/`, `router/`, `gateway/`, `sub-apps/*`; fail-fast boot | API boots only with a DB URL; full suite green |
-| 9 | **Compose** | dev/dev-supervised gate on setup; prod starts only setup; delete `docker-stack.deploy.yml` | `docker compose config` valid; sequences §13 reproduce |
-| 10 | **Docs** | update `apps/doc/content/docs/deployment/*` (onboarding, api-centric architecture) + `apps/api/AGENTS.md` | docs match the new flow |
+| # | Phase | Deliverable | Verification | Status |
+|---|---|---|---|---|
+| 0 | **Plan review** | this file agreed | — | ✅ |
+| 0.5 | **Fix the ingress-swap bug** (§17) | restore-on-failure + only swap when the API is green, in `TraefikSupervisorService` | a forced `reconcileSwarm` failure leaves the entry port owned by the container, not unowned | ⬜ |
+| 1 | **Health contract** | `GET /health/ready` with Terminus indicators (database/swarm/services/mesh) | curl shows green on a healthy platform; no auth required; no secrets | ✅ |
+| 2 | **Shared packages** | the six approved packages (§5.2): `nest-{nodes,docker,swarm,database-local,supervisor-core,reachability}` + `nest-{env,schema,database-core}` | DI gate + type-check + full suite after **each** package | ✅ |
+| 2.5 | **Correct the extraction list** | audit every candidate against §8.7; drop `mesh`/`supervisors`/`platform-ingress` (0 setup consumers, §5.2) | measured consumer counts recorded in §5.2 | ✅ |
+| 3 | **`apps/setup` skeleton** | app boots, serves `GET /setup/health`, event-driven phase state (RxJS) | `curl :3016/setup/health` → `awaiting`; phase transitions observable | ✅ |
+| 4 | **Wizard moves** | wizard UI + controllers + SSR/Vite move from API to setup | setup page renders at `setup.deployer.localhost`; API no longer serves `/setup` | ⬜ |
+| 5 | **Stream piping** | setup pipes `full-api/setup/stream` → client, with `Last-Event-ID` | wizard progress streams end-to-end; reconnect replays | ⬜ |
+| 6 | **Cluster + enrolment in setup** | swarm init/join, `mesh-enrolment.service.ts`, `SETUP_MODE` dev/prod | dev: joins an existing engine; prod: founds one | ⬜ |
+| 7 | **Handover** | API swarm service creation (prod), `dynamic-api.yml` + `dynamic-setup.yml` retarget, `GET /setup/done`, exit gated on green | entry port flips with zero 502s; `setup.deployer.localhost` shows the done page | ⬜ |
+| 8 | **API simplification** | delete `orchestrator/`, `router/`, `gateway/`, `sub-apps/*`; fail-fast boot | API boots only with a DB URL; full suite green | ⬜ |
+| 9 | **Compose** | dev/dev-supervised gate on setup; prod starts only setup; delete `docker-stack.deploy.yml` | `docker compose config` valid; sequences §13 reproduce | ⬜ |
+| 10 | **Docs** | update `apps/doc/content/docs/deployment/*` (onboarding, api-centric architecture) + `apps/api/AGENTS.md` | docs match the new flow | ⬜ |
 
 **Ordering rationale:** the health contract comes first because the setup app has nothing to gate on
 without it. Packages come second because both apps need them. The API simplification comes *late*,
 after setup can stand alone — so the platform is never in a state where neither app can boot.
+
+**Note on phase 2.5:** it is not extra work — it is the refusal to do the wrong work. The audit
+removed 18k LOC of `mesh`, 4.3k LOC of supervisor implementations, and 1.4k LOC of ingress policy
+from the extraction list, because setup consumes none of them. Extracting them would have created
+three packages whose only real consumer is the app they came from, i.e. §8.7 violations.
 
 ---
 
@@ -1193,7 +1321,7 @@ after setup can stand alone — so the platform is never in a state where neithe
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| **Package extraction breaks the DI graph** | high — `core` is tightly coupled (`supervisors → docker → swarm → mesh`) | extract in dependency order (§5.3), run `check-di-graph.ts` after **every** step, never leave a half-moved module |
+| **Package extraction breaks the DI graph** | high — `core` is tightly coupled (`supervisors → docker → swarm → mesh`) | extract in dependency order (§5.7), run `check-di-graph.ts` after **every** step, never leave a half-moved module. **Realized:** 9 packages extracted, gate green |
 | **Scope**: `core` is ~67k LOC; "minimal setup app" still needs most of it | the new app is not small | extract **only** what setup needs; keep product features in the API. Accept that setup is ~40–50% of core, not 10% |
 | **Swarm task cannot hot-reload** | dev DX regression | solved by the requirement itself: in dev the API stays a **compose** service. Prod has no hot-reload expectation |
 | **Two writers on `node_config`** | corrupt participation state | single writer rule: setup writes the decision, the API only reads. Share the volume, never write concurrently |
