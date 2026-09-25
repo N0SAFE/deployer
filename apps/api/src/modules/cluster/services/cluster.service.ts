@@ -9,9 +9,9 @@ import { Observable } from "rxjs";
 import type { ClusterPlatformRole, ClusterSnapshot, ClusterNode, SwarmNodeResources, SwarmServiceRuntime, SwarmTaskRuntime, SwarmConfigView, SwarmParticipationInput } from "@repo/contracts-entities";
 import { clusterNodeInventoryRowSchema } from "@repo/api-contracts";
 import type { ClusterMasterView } from "@repo/api-contracts";
-import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
-import { SwarmFleetService } from "@/core/modules/swarm/services/swarm-fleet.service";
-import { SwarmParticipationService } from "@/core/modules/swarm/services/swarm-participation.service";
+import { SwarmClusterService } from "@repo/nest-swarm";
+import { SwarmFleetService } from "@repo/nest-swarm";
+import { SwarmParticipationService } from "@repo/nest-swarm";
 import { DockerService } from "@repo/nest-docker/services/docker.service";
 import {
     ingressFromLabels,

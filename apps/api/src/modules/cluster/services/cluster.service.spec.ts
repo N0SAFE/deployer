@@ -1,8 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ClusterSnapshot } from "@repo/contracts-entities";
-import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
-import { SwarmFleetService } from "@/core/modules/swarm/services/swarm-fleet.service";
-import { SwarmParticipationService } from "@/core/modules/swarm/services/swarm-participation.service";
+import { SwarmClusterService } from "@repo/nest-swarm";
+import { SwarmFleetService } from "@repo/nest-swarm";
+import { SwarmParticipationService } from "@repo/nest-swarm";
 import { ClusterNodeRepository } from "@repo/nest-nodes/cluster-node.repository";
 import { ClusterNodeInventoryRepository } from "@repo/nest-nodes/cluster-node-inventory.repository";
 import { EnvService } from "@/config/env/env.module";

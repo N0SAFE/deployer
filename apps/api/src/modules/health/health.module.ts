@@ -10,7 +10,7 @@ import { ReadinessIndicators } from './indicators/readiness.indicators';
 import { DatabaseModule } from '../../core/modules/database/database.module';
 import { ConfigurationCoreModule } from '@/core/modules/configuration/configuration-core.module';
 import { MeshCoreModule } from '@/core/modules/mesh/mesh-core.module';
-import { SwarmCoreModule } from '@/core/modules/swarm/swarm.module';
+import { SwarmCoreModule } from "@/core/modules/swarm/swarm.module";
 
 @Module({
   // SwarmCoreModule and MeshCoreModule are NOT @Global, so the readiness

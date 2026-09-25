@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { EnvModule } from "./config/env/env.module";
 import { SetupHealthModule } from "./modules/health/setup-health.module";
+import { SetupClusterModule } from "./modules/cluster/cluster.module";
 
 /**
  * Root module of the setup app.
@@ -12,13 +13,16 @@ import { SetupHealthModule } from "./modules/health/setup-health.module";
  * app has finished.
  *
  * Modules are added here as the phases land:
- *   - wizard/    session state, step orchestration, stream piping
- *   - cluster/   swarm init/join + WireGuard
+ *   - cluster/   swarm init/join + node policy  (landed)
+ *   - wizard/    session state, stream piping
  *   - handover/  API swarm service creation + ingress retarget, then exit
+ *
+ * ORDER MATTERS. `EnvModule` is first so a malformed environment fails
+ * immediately with a readable message, before any module attempts to read a
+ * value. `SetupClusterModule` follows because it derives its configuration from
+ * the validated env and starts work on `onApplicationBootstrap`.
  */
 @Module({
-  // EnvModule first: it validates THIS app's schema (not the API's) at boot,
-  // so a malformed environment fails immediately with a readable message.
-  imports: [EnvModule, SetupHealthModule],
+  imports: [EnvModule, SetupHealthModule, SetupClusterModule],
 })
 export class SetupAppModule {}

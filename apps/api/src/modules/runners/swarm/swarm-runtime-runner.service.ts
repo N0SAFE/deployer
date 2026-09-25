@@ -22,9 +22,9 @@ import type {
     SwarmServiceSpecInput,
     SwarmTaskStateCheck,
 } from "@repo/contracts-entities";
-import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
+import { SwarmClusterService } from "@repo/nest-swarm";
 import { verifySwarmRouteAgainstTraefik } from "@/core/modules/traefik/services/swarm-route-verifier";
-import { parsePlacementPolicyLabel, toSwarmPlacement } from "@/core/modules/swarm/services/node-placement.service";
+import { parsePlacementPolicyLabel, toSwarmPlacement } from "@repo/nest-swarm";
 import { DockerService } from "@repo/nest-docker/services/docker.service";
 import {
     type DeploymentRuntimeRunner,

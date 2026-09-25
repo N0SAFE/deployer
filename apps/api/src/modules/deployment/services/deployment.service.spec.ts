@@ -29,7 +29,7 @@ import { NixpacksRuntimeRunnerService } from "@/modules/runners/nixpacks/nixpack
 import { BuildpackRuntimeRunnerService } from "@/modules/runners/buildpack/buildpack-runtime-runner.service";
 import { RailpackRuntimeRunnerService } from "@/modules/runners/railpack/railpack-runtime-runner.service";
 import { SwarmRuntimeRunnerService } from "@/modules/runners/swarm/swarm-runtime-runner.service";
-import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
+import { SwarmClusterService } from "@repo/nest-swarm";
 import { DeploymentExecutionWorkflowService } from './deployment-execution-workflow.service';
 import { DeploymentQueueLifecycleService } from '../queue/deployment-queue-lifecycle.service';
 import { DeploymentQueueEventService } from '../queue/deployment-queue-event.service';

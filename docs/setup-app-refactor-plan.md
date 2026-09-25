@@ -363,7 +363,8 @@ Each is an explicit file with one job, so the boundary is readable: a reviewer c
 
 ### 5.6 Extraction status
 
-All extraction is **complete**. Every package in §5.2 that the audit approved exists:
+All extraction is **complete AND WIRED**. Every package in §5.2 that the audit approved exists,
+`apps/api` imports it, and the local copies are deleted:
 
 | Package | Tests | Type-check |
 |---|---|---|
@@ -385,6 +386,31 @@ Compound verification gate, all green:
 
 No package in the tree exports business logic: each one is either a framework primitive
 (`forRoot`-configured), a storage mechanism, or pure network probing.
+
+#### The swarm extraction was HALF-DONE, and the audit caught it
+
+When this phase began, `@repo/nest-swarm` existed with 61 passing tests — but
+`apps/api` imported it **zero** times. All 15 consumer files still pointed at
+`apps/api/src/core/modules/swarm/*`, so two variants of the same code coexisted:
+the package (forRoot-configured, env-free) and the app's local copies (env-reading,
+frozen at the pre-extraction revision).
+
+Five files were byte-identical duplicates. Four had DIVERGED — the package held
+the corrected `@Inject(SWARM_*_CONFIG)` versions while the app still read
+`EnvService` directly, meaning the app was running the OLD code the extraction
+was meant to replace. This is precisely the "two variants of code" the repo
+forbids, and it would have silently kept running until someone noticed the
+package was dead weight.
+
+Resolved in one change set: 15 consumers repointed, 9 duplicate services and
+8 duplicate specs deleted, and the API's six `SwarmModuleOptions` fields now
+resolved by a `forRootAsync` wiring module that reads THIS app's env and hands
+the package DATA (`apps/api/src/core/modules/swarm/swarm.module.ts`).
+
+**Test accounting:** `apps/api` went 1596 → 1535 (−61). That is exactly the 61
+tests the package reports, i.e. the spec files moved rather than being lost. No
+test was deleted without a counterpart: the 8 moved specs all exist in
+`packages/nest/swarm/src/**` and pass there.
 
 ### 5.7 Extraction order (MEASURED — historical record)
 

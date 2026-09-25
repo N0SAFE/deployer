@@ -24,7 +24,7 @@ import { MeshInitializationModule } from './initialization/mesh-initialization.m
 import { MeshResourceDispatcher, MeshResourceController } from './dispatcher'
 import { MeshController } from './controllers/mesh.controller'
 import { MeshIdentityService } from './services/system-mesh-topology/services/mesh-identity.service'
-import { SwarmCoreModule } from '@/core/modules/swarm/swarm.module'
+import { SwarmCoreModule } from "@/core/modules/swarm/swarm.module"
 import { MeshTrustService } from './services/system-mesh-topology/services/mesh-trust.service'
 import { MeshTrustStrictModeService } from './services/system-mesh-topology/services/mesh-trust-strict-mode.service'
 import { MeshPeerSessionService } from './services/system-mesh-topology/services/mesh-peer-session.service'

@@ -8,8 +8,8 @@ import { runStep, type EmitEvent, SetupStepTracker } from '../utils/setup-runner
 import { DEPLOYER_VERSION, semverCompare } from '@/core/utils/deployer-version'
 import { MeshVersionService } from '../../mesh/version/mesh-version.service'
 import type { MeshSwarmJoinGrant } from '@repo/contracts-entities'
-import { SwarmBootstrapService } from '@/core/modules/swarm/services/swarm-bootstrap.service'
-import { SwarmClusterService } from '@/core/modules/swarm/services/swarm-cluster.service'
+import { SwarmBootstrapService } from '@repo/nest-swarm'
+import { SwarmClusterService } from '@repo/nest-swarm'
 
 @Injectable()
 export class RemoteInitializationService {

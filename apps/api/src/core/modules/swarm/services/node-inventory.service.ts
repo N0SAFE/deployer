@@ -10,7 +10,7 @@
 
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { DatabaseNotReadyReporter } from "@/core/modules/database/services/db-not-ready";
-import { SwarmClusterService } from "../services/swarm-cluster.service";
+import { SwarmClusterService } from "@repo/nest-swarm";
 import { GlobalClusterNodesRepository } from "../repositories/global-cluster-nodes.repository";
 import {
     ClusterNodeInventoryRepository,

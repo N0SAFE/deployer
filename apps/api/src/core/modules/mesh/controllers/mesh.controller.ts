@@ -12,7 +12,7 @@ import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-m
 import { SystemMetricsService } from "@/core/modules/system-metrics/services/system-metrics.service";
 import { EnvService } from "@/config/env/env.module";
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
-import { SwarmJoinGrantService } from "@/core/modules/swarm/services/swarm-join-grant.service";
+import { SwarmJoinGrantService } from "@repo/nest-swarm";
 import { signPeerServiceToken } from "@repo/auth/mesh";
 import * as crypto from "node:crypto";
 import { Client } from "pg";

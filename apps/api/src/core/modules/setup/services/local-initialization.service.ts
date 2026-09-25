@@ -25,8 +25,8 @@ import {
     managedPostgresServiceName,
 } from "@repo/nest-docker/containers/postgres/postgres-service.provisioner";
 import { EnvService } from "@/config/env/env.module";
-import { SwarmBootstrapService } from "@/core/modules/swarm/services/swarm-bootstrap.service";
-import { SwarmClusterService } from "@/core/modules/swarm/services/swarm-cluster.service";
+import { SwarmBootstrapService } from "@repo/nest-swarm";
+import { SwarmClusterService } from "@repo/nest-swarm";
 import { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";
 import { SWARM_APP_WIRING_SUPERVISOR_ID } from "@/core/modules/supervisors/platform/swarm-app-wiring.supervisor.service";
 import { generateMeshSharedSecret } from "@repo/auth/mesh";

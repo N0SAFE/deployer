@@ -1,0 +1,96 @@
+import { Module } from "@nestjs/common";
+import { DockerModule } from "@repo/nest-docker/docker.module";
+import { NodesModule } from "@repo/nest-nodes";
+import { SwarmModule } from "@repo/nest-swarm";
+
+import { EnvModule, EnvService } from "@/config/env/env.module";
+import { SetupHealthModule } from "@/modules/health/setup-health.module";
+import { ClusterOrchestratorService } from "./services/cluster-orchestrator.service";
+import { SwarmBootstrapService } from "./services/swarm-bootstrap.service";
+
+/**
+ * The cluster half of setup: found or join the swarm, then apply the node
+ * policy.
+ *
+ * WHY `forRoot`-CONFIGURED IMPORTS RATHER THAN RE-DECLARED PROVIDERS
+ * `@repo/nest-docker`, `@repo/nest-nodes` and `@repo/nest-swarm` each own their
+ * wiring through `forRoot`/`forRootAsync`. This module supplies this app's
+ * VALUES through those entry points and declares only its own two services.
+ * Re-declaring the package providers here would be a second wiring of the same
+ * classes — and a missing provider is a runtime DI failure, not a compile
+ * error, which is exactly why the packages own it.
+ *
+ * DEPENDENCY ORDER MATTERS
+ * `DockerModule` and `NodesModule` register the engine client and the local
+ * SQLite repositories. `SwarmModule` resolves both at construction, so they are
+ * imported first. The swarm config is resolved from `EnvService` through
+ * `forRootAsync`, so this app's variables never leak into the package.
+ */
+@Module({
+  imports: [
+    EnvModule,
+    DockerModule.forRootAsync({
+      imports: [EnvModule],
+      inject: [EnvService],
+      useFactory: (env: EnvService) => ({
+        connection: {
+          host: env.get("DOCKER_HOST"),
+          port: env.get("DOCKER_PORT"),
+        },
+        // Setup drives the engine (swarm init/join, service creation) but
+        // never scans images. The scanner is still part of the package's
+        // contract, so every field is satisfied explicitly with the scanning
+        // path disabled, rather than inventing an image this app would never
+        // run or leaving a field to be resolved at runtime.
+        scanner: {
+          image: env.get("SCANNER_RUNNER_IMAGE") ?? "unused-by-setup",
+          buildContext: undefined,
+          idleTimeoutMs: 0,
+          autoScanDisabled: true,
+        },
+      }),
+    }),
+    NodesModule.forRoot(),
+    SetupHealthModule,
+    SwarmModule.forRootAsync({
+      imports: [EnvModule],
+      inject: [EnvService],
+      useFactory: (env: EnvService) => ({
+        election: {
+          // Setup does not run the election loop — it only founds or joins.
+          // The values are still required by the contract, so they are passed
+          // through unchanged; the API app is what actually elects.
+          evalStableMs: env.get("SWARM_ELECTION_EVAL_STABLE_MS") ?? 15_000,
+          evalVolatileMs: env.get("SWARM_ELECTION_EVAL_VOLATILE_MS") ?? 5_000,
+          cooldownMs: env.get("SWARM_ELECTION_COOLDOWN_MS") ?? 60_000,
+          deltaMaster: env.get("SWARM_ELECTION_DELTA_MASTER") ?? 0.25,
+          heartbeatTtlMs: env.get("SWARM_HEARTBEAT_TTL_MS") ?? 30_000,
+          masterGraceMs: env.get("SWARM_MASTER_GRACE_MS") ?? 15_000,
+        },
+        join: {
+          // Setup founds or joins as a MANAGER on the first node, so quorum is
+          // capped by the operator's own setting.
+          controlPlaneCandidates: [
+            env.get("SWARM_ADVERTISE_ADDR"),
+            env.get("MANAGED_WIREGUARD_IP"),
+            env.get("APP_URL"),
+          ],
+          quorumMax: env.get("SWARM_QUORUM_MAX") ?? 3,
+        },
+        // First-run defaults, consulted only until the wizard persists a
+        // choice in `node_config.swarmConfig` — which then wins.
+        participation: {
+          mode: env.get("SWARM_MODE"),
+          policy: env.get("SWARM_POLICY"),
+          advertiseAddr: env.get("SWARM_ADVERTISE_ADDR") ?? null,
+          joinToken: env.get("SWARM_JOIN_TOKEN") ?? null,
+          joinAddrs: env.get("SWARM_JOIN_ADDRS")?.split(",") ?? [],
+          overlayIp: env.get("MANAGED_WIREGUARD_IP") ?? null,
+        },
+      }),
+    }),
+  ],
+  providers: [SwarmBootstrapService, ClusterOrchestratorService],
+  exports: [SwarmBootstrapService],
+})
+export class SetupClusterModule {}
