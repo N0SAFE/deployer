@@ -353,13 +353,44 @@ an explicit, named service — not in a package.
 | Setup service | Replaces | Source of truth it follows |
 |---|---|---|
 | `apps/setup/src/modules/wizard/` | `sub-apps/setup-wizard/*` | the wizard session state machine |
-| `apps/setup/src/modules/cluster/mesh-enrolment.service.ts` | `MeshInitializationService` (mesh, 2 of 120 files) | the enrolment handshake: issue grant → consume grant → bootstrap → connect. Uses `@repo/contracts-*` for the wire format and `@repo/auth/mesh` for token signing; owns no mesh data plane |
+| ~~`apps/setup/src/modules/cluster/mesh-enrolment.service.ts`~~ | **REJECTED — see §5.5.1** | the API already performs the handshake, and setup reaches it by proxy |
 | `apps/setup/src/modules/cluster/swarm-bootstrap.service.ts` | plan §6 cluster | `@repo/nest-swarm` (`forRoot`) |
 | `apps/setup/src/modules/handover/ingress-handover.service.ts` | plan §9.2 | writes `dynamic-api.yml` + `dynamic-setup.yml`; a three-line file write over a shared volume, not a package |
 | `apps/setup/src/modules/health/` | plan §8.3 | Terminus gate (already implemented) |
 
 Each is an explicit file with one job, so the boundary is readable: a reviewer can see that
 `mesh-enrolment.service.ts` implements *enrolment* and does not carry the mesh data plane.
+
+#### 5.5.1 The enrolment service was rejected too — measured, not assumed
+
+An earlier draft of this plan listed `apps/setup/src/modules/cluster/mesh-enrolment.service.ts`
+as setup's own implementation of the mesh handshake. Measuring the API's execution engine shows
+that would have been a **second implementation of code that already runs**:
+
+`apps/api/src/core/modules/setup/services/remote-initialization.service.ts` (the proxy target for
+`POST /setup/remote/auth` and `POST /setup/trigger`) already performs the complete flow:
+
+| Step | Call it makes |
+|---|---|
+| issue the grant on the target cluster | `meshInitializationService.issueRemoteJoinGrant(...)` |
+| consume it locally | `meshInitializationService.bootstrap(...)` → `{ nodeId, databaseUrl, peerServiceToken, meshSharedSecret, swarmGrant }` |
+| discover peers | `meshInitializationService.getMeshNodeUrls(...)` |
+| apply the node policy | `swarmBootstrap.converge('setup')` |
+
+Setup reaches all of it through the pipe it already has (§10). Writing it again in the setup app
+would duplicate the handshake, the token signing, and the grant consumption — exactly what §8.7
+forbids, and the duplicate would be free to drift from the API's.
+
+**The same check rejects "cluster + WireGuard in setup".** WireGuard is not something either app
+implements: it is a **compose-provided sidecar container**
+(`docker/compose/common/wireguard/docker-compose.config.yml`, `linuxserver/wireguard`), and the API
+side only *supervises* it (`WireGuardSupervisorService`, skipped when
+`MANAGED_WIREGUARD_ENABLED=true`). Setup therefore has nothing to run: the overlay exists because
+compose created it, and enrolment is a call the API executes.
+
+**What phase 6 actually needs from setup is what it already has**: found or join the swarm before
+the API is scheduled (the event-driven `ClusterOrchestratorService`), so the engine is in a cluster
+when the API's supervisors try to schedule their services.
 
 ### 5.6 Extraction status
 
@@ -1326,7 +1357,7 @@ Each phase ends green: `bun --bun run api -- type-check`, `bun --bun run web -- 
 | 3 | **`apps/setup` skeleton** | app boots, serves `GET /setup/health`, event-driven phase state (RxJS) | `curl :3016/setup/health` → `awaiting`; phase transitions observable | ✅ |
 | 4 | **Wizard moves** | wizard UI + controllers + SSR/Vite move from API to setup | setup page renders at `setup.deployer.localhost`; API no longer serves the `/setup` **page** | ✅ page + adapters + Vite/SSR shell moved; API keeps the `/setup/*` ORPC surface (the proxy target) |
 | 5 | **Stream piping** | setup pipes `full-api/setup/stream` → client, with `Last-Event-ID` | wizard progress streams end-to-end; reconnect replays | ✅ `WizardStreamService` forwards frames verbatim, honours `Last-Event-ID`, cancels upstream on client disconnect |
-| 6 | **Cluster + enrolment in setup** | swarm init/join, `mesh-enrolment.service.ts`, `SETUP_MODE` dev/prod | dev: joins an existing engine; prod: founds one | ✅ cluster half done (event-driven, `ClusterOrchestratorService`); enrolment service still to come |
+| 6 | **Cluster in setup** | swarm init/join (event-driven, `ClusterOrchestratorService`) + `SETUP_MODE` dev/prod | dev: joins an existing engine; prod: founds one | ✅ **complete** — enrolment and WireGuard deliberately NOT implemented in setup (§5.5.1): the API's engine performs the handshake and compose provides the WireGuard sidecar |
 | 7 | **Handover** | API swarm service creation (prod), `dynamic-api.yml` + `dynamic-setup.yml` retarget, `GET /setup/done`, exit gated on green | entry port flips with zero 502s; `setup.deployer.localhost` shows the done page | ⬜ |
 | 8 | **API simplification** | delete `orchestrator/`, `router/`, `gateway/`, `sub-apps/*`; fail-fast boot | API boots only with a DB URL; full suite green | ⬜ |
 | 9 | **Compose** | dev/dev-supervised gate on setup; prod starts only setup; delete `docker-stack.deploy.yml` | `docker compose config` valid; sequences §13 reproduce | ⬜ |
