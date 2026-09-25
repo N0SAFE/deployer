@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!--head-meta-->
+  <!--styles-->
+</head>
+
+<body>
+  <div id="root"><!--app-html--></div>
+  <!--initial-state-->
+  <!--
+    NOTE: no comment in this template may contain a literal "-->" sequence —
+    doing so terminates the HTML comment early and corrupts the document, which
+    silently stops Vite's HTML transform from processing the tags below.
+
+    The client entry script is deliberately NOT declared here. The SSR library
+    injects it (TemplateParserService.getClientScriptTag) with a HARDCODED,
+    root-absolute "/src/views/entry-client.tsx" path, and that injection runs
+    AFTER Vite's HTML transform — so it can never be rewritten to Vite's base.
+
+    Rather than fight that, the /vite asset proxy (core/gateway) maps the
+    library's root-absolute asset paths onto the configured base. That keeps the
+    single-prefix whitelist while letting the library emit whatever it likes.
+  -->
+</body>
+
+</html>

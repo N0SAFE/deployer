@@ -1,38 +1,35 @@
 /**
- * SetupWizardSubAppModule — the wizard's HTTP surface, started as a SUB-APP.
+ * SetupWizardSubAppModule — the API's PRE-SETUP HTTP surface.
  *
- * LAYER NOTE: this module is a sub-app ROOT (it imports the setup FEATURE
- * module `SetupModule` and applies middleware), so it lives under `sub-apps/`
- * next to `setup-wizard/` and `mesh-initializer/`. It previously sat in
- * `core/setup-sub-app/`, which made `core/` import the feature layer — the SC7
- * reverse-import violation.
+ * WHY IT STILL EXISTS
+ * The API's full AppModule (with its 225+ routes) cannot boot before the global
+ * database exists, but `/setup/*` must be reachable from the first second —
+ * otherwise nothing could drive provisioning. This sub-app is that pre-setup
+ * surface: it mounts the setup ORPC controller on its own port (3010) so
+ * onboarding works while the main app is not yet started.
+ *
+ * WHAT IT NO LONGER DOES
+ * It does NOT serve the wizard PAGE. The page moved to `apps/setup`, which is
+ * the process answering on `setup.<host>` during onboarding — the browser's
+ * connection therefore terminates there, which is what lets the ingress
+ * handover happen without interrupting a wizard the operator is watching
+ * (see the setup-app refactor plan §9.3). The `RenderModule` and its
+ * `SetupPageController` were removed with it.
+ *
+ * LAYER NOTE: this module is a sub-app ROOT, so it lives under `sub-apps/`. It
+ * imports the setup FEATURE module (`SetupModule`) — it previously sat in
+ * `core/setup-sub-app/`, which made `core/` import the feature layer (the SC7
+ * reverse-import violation).
  */
 import { Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
-import { RenderModule } from "@nestjs-ssr/react";
 import { SetupModule } from "@/modules/setup/setup.module";
 import { EnvModule } from "@/config/env/env.module";
 import { InternalErrorContextMiddleware } from "@/core/middlewares/internal-error/internal-error-context.middleware";
 import { LoggerMiddleware } from "@/core/middlewares/logger.middleware";
-import { SetupPageController } from "./setup-page.controller";
 
 @Module({
-  imports: [
-    EnvModule,
-    SetupModule,
-    // The onboarding UI is served BY THE API (React SSR), so this sub-app needs
-    // its own RenderModule — it is a separate Nest application from AppModule
-    // and doesn't inherit that one's.
-    RenderModule.forRoot({
-      project: "api",
-      viewsDir: "src/views",
-      environment:
-        process.env.NODE_ENV === "production" || process.env.NODE_ENV === "test"
-          ? "production"
-          : "development",
-      vite: { port: 5173 },
-    }),
-  ],
-  controllers: [SetupPageController],
+  imports: [EnvModule, SetupModule],
+  controllers: [],
 })
 export class SetupSubAppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

@@ -5,11 +5,30 @@
     "experimentalDecorators": true,
     "rootDir": "./",
     "outDir": "./dist",
-    "types": ["node", "bun", "vitest/globals"],
+    "types": [
+      "node",
+      "bun",
+      "vitest/globals",
+      "vite/client"
+    ],
     "paths": {
-      "@/*": ["./src/*"]
-    }
+      "@/*": [
+        "./src/*"
+      ]
+    },
+    "jsx": "react-jsx",
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ]
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
