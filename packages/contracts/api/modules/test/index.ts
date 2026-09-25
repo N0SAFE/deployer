@@ -1,4 +1,5 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 
 // Import all test contract definitions
 import { testNonAuthenticatedContract } from './non-authenticated';
@@ -8,7 +9,7 @@ import { testFileDownloadContract } from './file-download';
 import { testStreamOutputContract } from './stream-output';
 
 // Combine into main test contract
-export const testContract = oc.tag("Test").prefix("/test").router({
+export const testContract = oc.meta(openapi({ tags: ["Test"], prefix: "/test" })).router({
   nonAuthenticated: testNonAuthenticatedContract,
   authenticated: testAuthenticatedContract,
   fileUpload: testFileUploadContract,

@@ -45,7 +45,7 @@ import { Logger } from "@nestjs/common";
 import { standardErrorOptions, STANDARD_DOMAIN_ERROR_DEFS } from "@repo/orpc-utils";
 import type { GithubAppsRepository } from "@/modules/providers/code/github/repositories/github-apps.repository";
 import type { WebhookIdempotencyService } from "@/modules/providers/code/github/services/webhook-idempotency.service";
-import type { ORPCGlobalContext } from "@orpc/nest";
+import type { ORPCGlobalContext } from "@/core/modules/auth/orpc/orpc-context";
 import { type GithubWebhookInput } from "@repo/api-contracts";
 
 export interface GithubWebhookContext {

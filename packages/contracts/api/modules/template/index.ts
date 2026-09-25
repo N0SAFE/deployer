@@ -1,4 +1,5 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import { templateListContract } from "./list";
 import { templateFindByIdContract } from "./findById";
 import { templateCreateContract } from "./create";
@@ -18,7 +19,7 @@ import {
     templatePreviewVersionMigrationContract,
 } from "./migration";
 
-export const templateContract = oc.tag("Template").prefix("/templates").router({
+export const templateContract = oc.meta(openapi({ tags: ["Template"], prefix: "/templates" })).router({
     list: templateListContract,
     findById: templateFindByIdContract,
     create: templateCreateContract,

@@ -1,4 +1,5 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 
 import { dockerListContainersContract } from "./list";
 import { dockerListContainersGroupedContract } from "./list-grouped";
@@ -38,7 +39,7 @@ import {
   dockerContainerProcessesStreamContract,
 } from "./streams";
 
-export const dockerContainersContract = oc.tag("Docker Containers").prefix("/containers").router({
+export const dockerContainersContract = oc.meta(openapi({ tags: ["Docker Containers"], prefix: "/containers" })).router({
   list: dockerListContainersContract,
   grouped: dockerListContainersGroupedContract,
   linked: dockerContainerLinkedListContract,

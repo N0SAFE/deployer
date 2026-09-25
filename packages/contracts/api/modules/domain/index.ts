@@ -1,4 +1,5 @@
 import { oc } from '@orpc/contract';
+import { openapi } from "@orpc/openapi";
 
 /**
  * Domain management contract.
@@ -50,7 +51,7 @@ import {
 } from "./service";
 
 // Combine into main domain contract
-export const domainContract = oc.tag("Domain").prefix("/domains").router({
+export const domainContract = oc.meta(openapi({ tags: ["Domain"], prefix: "/domains" })).router({
   // Project domain management
   listProjectDomains: listProjectDomainsContract,
   getAvailableDomains: getAvailableDomainsContract,

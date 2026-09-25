@@ -29,7 +29,7 @@ import * as globalSchema from "@repo/nest-schema/global";
 
 // ─── ORPC Auth Plugin ───────────────────────────────────────────────────────
 import { ORPCModule } from '@orpc/nest';
-import type { ORPCGlobalContext } from '@orpc/nest';
+import type { ORPCGlobalContext } from "@/core/modules/auth/orpc/orpc-context";
 import { AuthPlugin } from '@/core/modules/auth/orpc/plugins/auth.plugin';
 
 // ─── Feature Modules ─────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ import { REQUEST } from "@nestjs/core";
 // `onModuleInit`. Doing it here means it cannot be ordered wrong.
 registerSchemaCodecs();
 
-declare module "@orpc/nest" {
+declare module "@orpc/server" {
     /**
      * Extend oRPC global context to make it type-safe inside your handlers/middlewares
      * Index signatures (both string and symbol) allow compatibility with ORPC's internal
@@ -81,7 +81,7 @@ declare module "@orpc/nest" {
      * per-route middlewares (`requireAuth`, `requireAppInstance`) so handlers
      * can rely on presence without null checks.
      */
-    interface ORPCGlobalContext {
+    interface DefaultInitialContext {
         request: Request;
         auth: ORPCAuthContext;
         [key: string]: unknown;

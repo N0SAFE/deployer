@@ -1,4 +1,5 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import z from "zod/v4";
 import {
@@ -200,7 +201,7 @@ export const clusterSetSwarmConfigContract = standard
     .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
-export const clusterContract = oc.tag("Cluster").prefix("/cluster").router({
+export const clusterContract = oc.meta(openapi({ tags: ["Cluster"], prefix: "/cluster" })).router({
     getSnapshot: clusterGetSnapshotContract,
     streamSnapshot: clusterStreamSnapshotContract,
     listNodes: clusterListNodesContract,

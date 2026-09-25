@@ -1,4 +1,5 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import { deploymentListContract } from "./list";
 import {
     deploymentFindByIdContract,
@@ -69,7 +70,7 @@ import {
 } from "./lifecycle-events";
 import { listServicePreviewsContract, promoteServicePreviewContract } from "./previews";
 
-export const deploymentContract = oc.tag("Deployment").prefix("/deployments").router({
+export const deploymentContract = oc.meta(openapi({ tags: ["Deployment"], prefix: "/deployments" })).router({
     list: deploymentListContract,
     findById: deploymentFindByIdContract,
     listServicePreviews: listServicePreviewsContract,

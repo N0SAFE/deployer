@@ -128,9 +128,10 @@ export type ServiceUpdateNetworkInput = z.infer<typeof serviceUpdateNetworkInput
 export type ServiceProvisionDnsRecordInput = z.infer<typeof serviceProvisionDnsRecordInputSchema>;
 
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 
 /** Aggregate service network router: get/update/provision records. */
-export const serviceNetworkContract = oc.tag("Service Network").router({
+export const serviceNetworkContract = oc.meta(openapi({ tags: ["Service Network"] })).router({
     get: serviceGetNetworkContract,
     update: serviceUpdateNetworkContract,
     provisionRecord: serviceProvisionDnsRecordContract,

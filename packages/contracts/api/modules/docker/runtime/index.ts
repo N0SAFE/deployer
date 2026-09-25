@@ -1,10 +1,11 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import { dockerRuntimeSnapshotContract } from "./snapshot";
 import { dockerRuntimeEventsStreamContract } from "./stream";
 import { dockerRuntimeActivityContract } from "./activity";
 import { dockerRuntimeActivityStreamContract } from "./activity-stream";
 
-export const dockerRuntimeContract = oc.tag("Docker Runtime").prefix("/runtime").router({
+export const dockerRuntimeContract = oc.meta(openapi({ tags: ["Docker Runtime"], prefix: "/runtime" })).router({
   snapshot: dockerRuntimeSnapshotContract,
   stream: dockerRuntimeEventsStreamContract,
   activity: dockerRuntimeActivityContract,

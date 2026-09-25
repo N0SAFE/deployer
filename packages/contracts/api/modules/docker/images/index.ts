@@ -1,10 +1,11 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import { dockerListImagesContract } from "./list";
 import { dockerImageInspectContract } from "./inspect";
 import { dockerImageStreamsContract } from "./streams";
 import { dockerImageSecurityContract } from "./security";
 
-export const dockerImagesContract = oc.tag("Docker Images").prefix("/images").router({
+export const dockerImagesContract = oc.meta(openapi({ tags: ["Docker Images"], prefix: "/images" })).router({
 	list: dockerListImagesContract,
 	inspect: dockerImageInspectContract,
 	streams: dockerImageStreamsContract,

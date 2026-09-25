@@ -1,5 +1,6 @@
 import z from "zod/v4";
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import { createFilterConfig, standard, standardDomainErrorContracts, type ComputeInputSchema } from "@repo/orpc-utils";
 import {
     coreEventStreamDefinitionSchema,
@@ -86,7 +87,7 @@ export const coreEventSyncStreamContract = coreEventSyncStreamOps
     ])
     .build();
 
-export const eventSyncContract = oc.tag("Core Event Sync").prefix("/events").router({
+export const eventSyncContract = oc.meta(openapi({ tags: ["Core Event Sync"], prefix: "/events" })).router({
     listStreams: coreEventStreamListContract,
     findStreamById: coreEventStreamFindByIdContract,
     streamSync: coreEventSyncStreamContract,

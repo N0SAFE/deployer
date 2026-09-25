@@ -1,4 +1,5 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import { dockerEntityListContract } from "./list";
 import { dockerEntityInspectContract } from "./inspect";
 import { dockerEntityStreamContract } from "./stream";
@@ -9,7 +10,7 @@ import { dockerEntityStreamContract } from "./stream";
  * event from `stream` carries the full entity payload (with relations) so
  * the client can patch in one shot.
  */
-export const dockerEntityContract = oc.tag("Docker Entity").router({
+export const dockerEntityContract = oc.meta(openapi({ tags: ["Docker Entity"] })).router({
   list: dockerEntityListContract,
   inspect: dockerEntityInspectContract,
   stream: dockerEntityStreamContract,

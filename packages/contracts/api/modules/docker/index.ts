@@ -1,4 +1,5 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 
 import {
   dockerContainersContract,
@@ -39,7 +40,7 @@ import {
 } from "./runtime";
 import { dockerEntityContract, dockerEntityStreamContract, dockerEntityInspectContract, dockerEntityListContract, dockerEntityListInputSchema, dockerEntityInspectInputSchema, dockerEntityStreamInputSchema } from "./entity";
 
-export const dockerContract = oc.tag("Core Docker").prefix("/docker").router({
+export const dockerContract = oc.meta(openapi({ tags: ["Core Docker"], prefix: "/docker" })).router({
   containers: dockerContainersContract,
   images: dockerImagesContract,
   networks: dockerNetworksContract,

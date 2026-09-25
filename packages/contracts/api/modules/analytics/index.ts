@@ -1,4 +1,5 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import {
     analyticsGetResourceMetricsContract,
     analyticsGetApplicationMetricsContract,
@@ -27,7 +28,7 @@ import {
     analyticsDeleteReportConfigContract,
 } from "./reporting";
 
-export const analyticsContract = oc.tag("Analytics").prefix("/analytics").router({
+export const analyticsContract = oc.meta(openapi({ tags: ["Analytics"], prefix: "/analytics" })).router({
     getResourceMetrics: analyticsGetResourceMetricsContract,
     getApplicationMetrics: analyticsGetApplicationMetricsContract,
     getDatabaseMetrics: analyticsGetDatabaseMetricsContract,

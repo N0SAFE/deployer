@@ -1,4 +1,5 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import {
     serviceCrudContract,
     serviceListContract,
@@ -49,7 +50,7 @@ import {
     type ServiceProvisionDnsRecordInput,
 } from "./network";
 
-export const serviceContract = oc.tag("Service").prefix("/services").router({
+export const serviceContract = oc.meta(openapi({ tags: ["Service"], prefix: "/services" })).router({
     crud: serviceCrudContract,
     lifecycle: serviceLifecycleContract,
     dependencies: serviceDependenciesContract,

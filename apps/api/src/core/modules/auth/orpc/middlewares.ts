@@ -17,7 +17,7 @@ import { standardErrorOptions, STANDARD_DOMAIN_ERROR_DEFS } from '@repo/orpc-uti
 import { verifyMeshToken, verifyPeerServiceToken } from '@repo/auth/mesh'
 import { EnvService as BaseEnvService } from "@repo/nest-env"
 import { apiEnvSchema, type ApiEnv as Env } from '@repo/env'
-import type { ORPCGlobalContext } from '@orpc/nest'
+import type { ORPCGlobalContext } from '@/core/modules/auth/orpc/orpc-context'
 
 /**
  * Read a value from the API's environment outside the DI container.

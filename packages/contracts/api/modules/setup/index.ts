@@ -1,4 +1,5 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import z from "zod/v4";
 import {
     setupStateSnapshotSchema,
@@ -60,7 +61,7 @@ function setupDomainErrorContracts(e: (code?: string) => ErrorDefinitionBuilder)
     ] as const;
 }
 
-export const setupContract = oc.tag("Setup").prefix("/setup").router({
+export const setupContract = oc.meta(openapi({ tags: ["Setup"], prefix: "/setup" })).router({
     // ─── State ──────────────────────────────────────────────────────────────
 
     /** Current wizard state — called on mount */

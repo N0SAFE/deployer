@@ -2,6 +2,7 @@ export * from "./resource";
 
 import z from "zod/v4";
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import {
         meshDomainErrorContracts,
     standard,
@@ -451,7 +452,7 @@ export const meshTestNodeConfigDbContract = meshNodeConfigTestDbOps
     .output(meshNodeConfigTestDbResultSchema)
     .build();
 
-export const meshContract = oc.tag("Core Mesh").prefix("/mesh").router({
+export const meshContract = oc.meta(openapi({ tags: ["Core Mesh"], prefix: "/mesh" })).router({
     ping: meshPingContract,
     getLocalNode: meshGetLocalNodeContract,
     getNodeMetrics: meshGetNodeMetricsContract,
@@ -498,7 +499,7 @@ export type MeshContract = typeof meshContract;
  * `mesh-initialization.service.ts` merges this router with `meshContract` to
  * get one typed client for the whole mesh API.
  */
-export const meshInternalContract = oc.tag("Core Mesh Internal").prefix("/mesh").router({
+export const meshInternalContract = oc.meta(openapi({ tags: ["Core Mesh Internal"], prefix: "/mesh" })).router({
     publishControlEnvelope: meshControlEnvelopePublishContract,
     streamSession: meshSessionStreamContract,
     planQueuePartition: meshPlanQueuePartitionContract,

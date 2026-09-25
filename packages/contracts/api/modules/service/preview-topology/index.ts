@@ -1,4 +1,5 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import { previewTopologyResolveContract } from "./resolve";
 
 /**
@@ -6,10 +7,7 @@ import { previewTopologyResolveContract } from "./resolve";
  * router's recursive contracts (subtree, deps) within tsgo's inference depth.
  * URL stays `/services/:serviceId/preview-topology`.
  */
-export const servicePreviewTopologyContract = oc
-    .tag("Service Preview Topology")
-    .prefix("/services")
-    .router({
+export const servicePreviewTopologyContract = oc.meta(openapi({ tags: ["Service Preview Topology"], prefix: "/services" })).router({
         resolve: previewTopologyResolveContract,
     });
 

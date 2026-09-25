@@ -1,4 +1,5 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import {
     getAllProvidersContract,
     getProviderSchemaContract,
@@ -10,7 +11,7 @@ import {
     validateBuilderConfigContract,
 } from "./contracts";
 
-export const providerSchemaContract = oc.tag("Provider Schema").router({
+export const providerSchemaContract = oc.meta(openapi({ tags: ["Provider Schema"] })).router({
     getAllProviders: getAllProvidersContract,
     getProviderSchema: getProviderSchemaContract,
     getCompatibleBuilders: getCompatibleBuildersContract,

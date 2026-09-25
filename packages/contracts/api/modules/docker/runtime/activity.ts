@@ -1,8 +1,9 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import { dockerRuntimeActivityListContract } from "./activity-list";
 import { dockerRuntimeActivityDetailContract } from "./activity-detail";
 
-export const dockerRuntimeActivityContract = oc.tag("Docker Runtime Activity").prefix("/activity").router({
+export const dockerRuntimeActivityContract = oc.meta(openapi({ tags: ["Docker Runtime Activity"], prefix: "/activity" })).router({
   list: dockerRuntimeActivityListContract,
   detail: dockerRuntimeActivityDetailContract,
 });

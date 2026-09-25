@@ -1,4 +1,5 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import z from "zod/v4";
 
@@ -236,7 +237,7 @@ export const fleetSetServerCapacityContract = fleetServerSummaryOps
     .output((b) => b.body(fleetServerSummarySchema))
     .build();
 
-export const nodesContract = oc.tag("Nodes").prefix("/nodes").router({
+export const nodesContract = oc.meta(openapi({ tags: ["Nodes"], prefix: "/nodes" })).router({
     listServers: fleetListServersContract,
     setServerCapacity: fleetSetServerCapacityContract,
     listAllocations: fleetListAllocationsContract,

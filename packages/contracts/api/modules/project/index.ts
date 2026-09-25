@@ -1,4 +1,5 @@
 import { oc } from "@orpc/contract";
+import { openapi } from "@orpc/openapi";
 import { projectListContract } from "./list";
 import { projectFindByIdContract } from "./findById";
 import { projectCreateContract } from "./create";
@@ -54,7 +55,7 @@ import {
     projectUpdateNetworkContract,
 } from "./network";
 
-export const projectContract = oc.tag("Project").prefix("/projects").router({
+export const projectContract = oc.meta(openapi({ tags: ["Project"], prefix: "/projects" })).router({
     // Core CRUD
     list: projectListContract,
     findById: projectFindByIdContract,
