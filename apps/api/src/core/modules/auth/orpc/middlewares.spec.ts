@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { requireAuth, publicAccess } from './middlewares';
 import { AuthUtils, AuthUtilsEmpty } from './auth-utils';
-import type { MiddlewareOptions } from '@orpc/server';
+import type { MiddlewareDone, MiddlewareOptions } from '@orpc/server';
 
 // Mock only validatePermission to avoid dependency on actual permission config
 vi.mock('@repo/auth/permissions', async (importOriginal) => {
@@ -35,12 +35,20 @@ function createMiddlewareOptions(
 /**
  * Helper to create the short-circuit callback.
  *
- * v2 REMOVED the `MiddlewareOutputFn` type: the third middleware argument is
- * now `done`, called as `done({ output })`. The shape this mock produces is
- * unchanged, so only the type name needed updating.
+ * oRPC v2 REMOVED the `MiddlewareOutputFn` type and replaced the third
+ * middleware argument with `MiddlewareDone`: a CALLABLE INTERFACE
+ * (`done({ output })`) that returns a `MiddlewareResult`, rather than a plain
+ * function taking the output value.
+ *
+ * The mock returns the same `{ output }` result the middleware chain expects,
+ * typed through `MiddlewareDone` so it is accepted where the middleware
+ * signature requires it.
  */
-function createOutputFn(): (result: { output: unknown; context: unknown }) => unknown {
-  return vi.fn((output) => ({ output, context: {} }));
+function createOutputFn(): MiddlewareDone<unknown> {
+  return vi.fn((options: { output: unknown }) => ({
+    output: options.output,
+    context: {},
+  })) as unknown as MiddlewareDone<unknown>;
 }
 
 describe('ORPC Auth Middlewares', () => {
