@@ -5,6 +5,24 @@ import { ServiceController } from './service.controller';
 import { ServiceService } from '../services/service.service';
 import { ServiceNetworkService } from '../services/service-network.service';
 
+/**
+ * Resolve a built procedure's handler.
+ *
+ * oRPC v2 keeps it on the `~orpc` descriptor; v1 exposed it as a top-level
+ * property. Reading both keeps this assertion about the CONTRACT ("the
+ * controller exposes a callable handler") rather than about the internal shape
+ * of whichever oRPC version is installed.
+ */
+function procedureHandler(procedure: unknown): (...args: never[]) => unknown {
+    const p = procedure as { handler?: unknown; "~orpc"?: { handler?: unknown } };
+    const handler = p?.handler ?? p?.["~orpc"]?.handler;
+    if (typeof handler !== "function") {
+        throw new TypeError("procedure does not expose a handler");
+    }
+    return handler as (...args: never[]) => unknown;
+}
+
+
 function createImplementMock() {
     type HandlerFn = (opts: { input: unknown; context: unknown }) => unknown;
 
@@ -84,7 +102,7 @@ describe('ServiceController', () => {
             it(`${method} should return an implementation with a handler`, () => {
                 const impl = (controller[method] as () => any)();
                 expect(impl).toBeDefined();
-                expect(typeof impl.handler).toBe('function');
+                expect(typeof procedureHandler(impl)).toBe('function');
             });
         }
     });

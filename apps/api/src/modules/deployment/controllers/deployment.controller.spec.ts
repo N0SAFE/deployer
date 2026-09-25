@@ -5,6 +5,24 @@ import { DeploymentController } from "./deployment.controller";
 import { DeploymentService } from "../services/deployment.service";
 import { DeploymentStreamOrchestratorService } from "../mesh/services/deployment-stream-orchestrator.service";
 
+/**
+ * Resolve a built procedure's handler.
+ *
+ * oRPC v2 keeps it on the `~orpc` descriptor; v1 exposed it as a top-level
+ * property. Reading both keeps this assertion about the CONTRACT ("the
+ * controller exposes a callable handler") rather than about the internal shape
+ * of whichever oRPC version is installed.
+ */
+function procedureHandler(procedure: unknown): (...args: never[]) => unknown {
+    const p = procedure as { handler?: unknown; "~orpc"?: { handler?: unknown } };
+    const handler = p?.handler ?? p?.["~orpc"]?.handler;
+    if (typeof handler !== "function") {
+        throw new TypeError("procedure does not expose a handler");
+    }
+    return handler as (...args: never[]) => unknown;
+}
+
+
 function createImplementMock() {
     type HandlerFn = (opts: { input: unknown; context: unknown }) => unknown;
 
@@ -105,7 +123,7 @@ describe("DeploymentController", () => {
         for (const method of methods) {
             const impl = (controller[method] as () => unknown).call(controller) as { handler: unknown };
             expect(impl).toBeDefined();
-            expect(typeof impl.handler).toBe("function");
+            expect(typeof procedureHandler(impl)).toBe("function");
         }
     });
 
@@ -114,7 +132,7 @@ describe("DeploymentController", () => {
         mockDeploymentService.getDeploymentLogs.mockResolvedValue(expected);
 
         const impl = controller.getLogs() as any;
-        const result = await impl.handler({
+        const result = await procedureHandler(impl)({
             input: {
                 params: { id: "00000000-0000-0000-0000-000000000010" },
                 query: {
@@ -158,7 +176,7 @@ describe("DeploymentController", () => {
         mockDeploymentStreamOrchestratorService.openDeploymentStream.mockReturnValue(proxiedStream);
 
         const impl = controller.stream() as any;
-        const returnedStream = impl.handler({
+        const returnedStream = procedureHandler(impl)({
             input: {
                 params: { id: "00000000-0000-0000-0000-000000000010" },
                 query: { replay: true, replayLimit: 25 },
@@ -192,7 +210,7 @@ describe("DeploymentController", () => {
         mockDeploymentService.streamQueryEvents.mockReturnValue(serviceStream);
 
         const impl = controller.streamQuery() as any;
-        const returned = impl.handler({
+        const returned = procedureHandler(impl)({
             input: {
                 query: {
                     deploymentId: "00000000-0000-0000-0000-000000000001",
@@ -227,7 +245,7 @@ describe("DeploymentController", () => {
         mockDeploymentService.streamDeploymentEvents.mockReturnValue(serviceStream);
 
         const impl = controller.streamInternal() as any;
-        const returned = impl.handler({
+        const returned = procedureHandler(impl)({
             input: {
                 params: { id: "00000000-0000-0000-0000-000000000001" },
                 query: { replay: false, replayLimit: 10 },
