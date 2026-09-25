@@ -89,7 +89,6 @@ export function transformHttpExceptionToORPCError(error: unknown): void {
         const message = resolveExceptionMessage(error.getResponse(), error.message)
 
         throw new ORPCError(orpcCode, {
-            status,
             message,
             data: {
                 statusCode: status,

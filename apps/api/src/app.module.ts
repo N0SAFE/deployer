@@ -61,7 +61,7 @@ import { CorePlatformIngressModule } from "./core/modules/platform-ingress/platf
 import { AuthCoreService } from "./core/modules/auth/services/auth-core.service";
 import type { ORPCAuthContext } from "./core/modules/auth/orpc/types";
 import { logOrpcErrors, transformNestJSErrorToOrpcError } from "./core/modules/auth/orpc/index";
-import { SmartCoercionPlugin } from "@orpc/json-schema";
+import { SmartCoercionHandlerPlugin } from "@orpc/json-schema";
 import { ZodToJsonSchemaConverter } from "@orpc/zod";
 import { REQUEST } from "@nestjs/core";
 
@@ -143,8 +143,10 @@ declare module "@orpc/server" {
                         logOrpcErrors(new Logger("ORPC Errors"), internalErrorInsightService),
                     ],
                     plugins: [
-                        new SmartCoercionPlugin<ORPCGlobalContext>({
-                            schemaConverters: [new ZodToJsonSchemaConverter()],
+                        // v2 renamed the plugin and its option: the schema-
+                        // agnostic Smart Coercion plugin now takes `converters`.
+                        new SmartCoercionHandlerPlugin<ORPCGlobalContext>({
+                            converters: [new ZodToJsonSchemaConverter()],
                         }),
                         // Auth plugin that populates context.auth with session data
                         new AuthPlugin<ORPCGlobalContext>({ auth: authCoreService.instance }),

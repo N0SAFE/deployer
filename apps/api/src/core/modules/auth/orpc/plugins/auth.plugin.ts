@@ -73,9 +73,9 @@ export class AuthPlugin<TContext extends AuthPluginContext>
   init(options: StandardHandlerOptions<TContext>): void {
     const auth = this.auth;
 
-    options.rootInterceptors ??= [];
+    options.routingInterceptors ??= [];
 
-    options.rootInterceptors.push(async (interceptorOptions) => {
+    options.routingInterceptors.push(async (interceptorOptions) => {
       // eslint-disable-next-line @typescript-eslint/unbound-method
       const { context, request, next } = interceptorOptions;
 
