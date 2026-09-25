@@ -1,5 +1,6 @@
 import { Controller, Logger } from "@nestjs/common";
-import { Implement, implement } from "@orpc/nest";
+import { Implement } from "@orpc/nest";
+import { implement } from "@orpc/server";
 import { ORPCError } from "@orpc/server";
 import { setupContract } from "@repo/api-contracts";
 import { domainErrorOptions, standardErrorOptions } from "@repo/orpc-utils";

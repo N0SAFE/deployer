@@ -56,7 +56,8 @@
 import { Controller, Get, Logger, Param, UseGuards } from "@nestjs/common";
 import { ApiOperation, ApiResponse, ApiTags, ApiParam, ApiBearerAuth } from "@nestjs/swagger";
 import { oc } from "@orpc/contract";
-import { implement, Implement } from "@orpc/nest";
+import { Implement } from "@orpc/nest";
+import { implement } from "@orpc/server";
 import * as z from "zod/v4";
 
 // Auth Service (single source of truth)

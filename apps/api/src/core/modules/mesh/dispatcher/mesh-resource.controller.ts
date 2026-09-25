@@ -12,7 +12,8 @@
  */
 
 import { Controller } from "@nestjs/common";
-import { Implement, implement } from "@orpc/nest";
+import { Implement } from "@orpc/nest";
+import { implement } from "@orpc/server";
 import { meshBaseResourceContract } from "@repo/api-contracts/modules/mesh/resource/mesh-base-resource.contract";
 import { MeshResourceDispatcher } from "./mesh-resource-dispatcher.service";
 

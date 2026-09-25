@@ -1,5 +1,6 @@
 import { Controller, NotImplementedException } from "@nestjs/common";
-import { Implement, implement } from "@orpc/nest";
+import { Implement } from "@orpc/nest";
+import { implement } from "@orpc/server";
 import { projectContract } from "@repo/api-contracts";
 import { ProjectService } from "../services/project.service";
 import { ProjectNetworkService } from "../services/project-network.service";

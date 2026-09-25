@@ -6,7 +6,8 @@
  * `dns/shared/controllers/dns-providers.controller.ts`.
  */
 import { Controller, Logger } from "@nestjs/common";
-import { Implement, implement } from "@orpc/nest";
+import { Implement } from "@orpc/nest";
+import { implement } from "@orpc/server";
 import { appContract } from "@repo/api-contracts";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { CloudflareAppService } from "../services/cloudflare-app.service";

@@ -25,6 +25,7 @@
     "dependencies": {
         "@octokit/webhooks-types": "catalog:utils",
         "@orpc/contract": "catalog:orpc",
+        "@orpc/openapi": "catalog:orpc",
         "@orpc/shared": "catalog:orpc",
         "@repo/auth": "*",
         "@repo/contracts-common": "*",

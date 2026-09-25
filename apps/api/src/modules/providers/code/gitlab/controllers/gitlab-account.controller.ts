@@ -6,7 +6,8 @@
  * (no OAuth app manifest — unlike GitHub). Managed through the web UI.
  */
 import { Controller, Logger } from "@nestjs/common";
-import { Implement, implement } from "@orpc/nest";
+import { Implement } from "@orpc/nest";
+import { implement } from "@orpc/server";
 import { appContract } from "@repo/api-contracts";
 import { standardErrorOptions } from "@repo/orpc-utils";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";

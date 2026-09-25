@@ -1,5 +1,6 @@
 import { Controller } from "@nestjs/common";
-import { Implement, implement } from "@orpc/nest";
+import { Implement } from "@orpc/nest";
+import { implement } from "@orpc/server";
 import { clusterContract } from "@repo/api-contracts";
 import { ClusterService } from "../services/cluster.service";
 import { ClusterSwarmEventsService } from "../events/cluster-swarm-events.service";

@@ -1,6 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { BadRequestError, NotFoundError, ConflictError } from "@repo/errors";
-import { Implement, implement } from "@orpc/nest";
+import { Implement } from "@orpc/nest";
+import { implement } from "@orpc/server";
 import { userContract } from "@repo/api-contracts";
 import { standardErrorOptions } from "@repo/orpc-utils";
 import { UserService } from "../services/user.service";

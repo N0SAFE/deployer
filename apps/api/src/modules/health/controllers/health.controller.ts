@@ -1,5 +1,6 @@
 import { Controller } from '@nestjs/common';
-import { Implement, implement } from '@orpc/nest';
+import { Implement } from "@orpc/nest";
+import { implement } from "@orpc/server";
 import { HealthService } from '../services/health.service';
 import { healthContract } from '@repo/api-contracts';
 import { requireAuth } from '@/core/modules/auth/orpc/middlewares';

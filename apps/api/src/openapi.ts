@@ -1,5 +1,5 @@
 import { OpenAPIGenerator } from "@orpc/openapi";
-import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+import { ZodToJsonSchemaConverter } from "@orpc/zod";
 import { appContract } from "@repo/api-contracts";
 import { userSchema } from "@repo/contracts-entities";
 
