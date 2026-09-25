@@ -9,7 +9,7 @@
 
 import type { AnySchema, UnionTuple } from "@repo/orpc-utils/types/types";
 import type { ObjectSchema, VoidSchema, SchemaShape } from "@repo/orpc-utils/types/standard-schema-helpers";
-import { AsyncIteratorClass, eventIterator } from "@orpc/contract";
+import { eventIterator } from "@orpc/contract";
 import type { Schema } from "@orpc/contract";
 import { observable, type Observable } from "@repo/orpc-utils/observable/contract";
 import type { PathParam, PathParamBuilderWithExisting, ParamsToSchemaShape } from "@repo/orpc-utils/builder/core/params-builder";
@@ -266,7 +266,7 @@ export class DetailedInputBuilder<
             streamed: <TYieldIn, TYieldOut, TReturnIn = unknown, TReturnOut = unknown>(
                 yields: Schema<TYieldIn, TYieldOut>,
                 returns?: Schema<TReturnIn, TReturnOut>,
-            ) => DetailedInputBuilder<TParams, TQuery, Schema<AsyncIteratorObject<TYieldIn, TReturnIn, void>, AsyncIteratorClass<TYieldOut, TReturnOut, void>>, THeaders, TEntitySchema, TPlugin>;
+            ) => DetailedInputBuilder<TParams, TQuery, Schema<AsyncIteratorObject<TYieldIn, TReturnIn, void>, AsyncIteratorObject<TYieldOut, TReturnOut, void>>, THeaders, TEntitySchema, TPlugin>;
             observable: <TYieldIn, TYieldOut>(
                 yields: Schema<TYieldIn, TYieldOut>,
             ) => DetailedInputBuilder<TParams, TQuery, Schema<Observable<TYieldIn>, Observable<TYieldOut>>, THeaders, TEntitySchema, TPlugin>;

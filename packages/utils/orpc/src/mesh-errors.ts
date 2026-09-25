@@ -93,7 +93,6 @@ function meshErrorThrow(
     message: string,
 ): ORPCError<string, MeshDomainErrorPayload> {
     return new ORPCError(orpcCode, {
-        status: MESH_ERROR_HTTP_STATUS[meshCode],
         message,
         data: meshDomainErrorPayload(meshCode, message),
     });

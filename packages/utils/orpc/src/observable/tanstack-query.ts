@@ -1,7 +1,7 @@
 import type { Client, ClientContext, NestedClient } from "@orpc/client";
 import {
   createTanstackQueryUtils,
-  type CreateRouterUtilsOptions,
+  type RouterUtilsOptions,
   type RouterUtils,
 } from "@orpc/tanstack-query";
 import type { QueryFunctionContext, QueryKey, UseQueryOptions } from "@tanstack/react-query";
@@ -575,14 +575,14 @@ function enhanceObservableQueryUtils<TOrpc extends object>(orpc: TOrpc): Observa
 
 export function createObservableQueryUtils<TClient extends NestedClient<ClientContext>>(
   client: TClient,
-  options?: CreateRouterUtilsOptions<TClient>,
+  options?: RouterUtilsOptions<TClient>,
 ): ObservableRouterQueryUtils<RouterUtils<TClient>>;
 export function createObservableQueryUtils<TOrpc extends object>(
   orpc: TOrpc,
 ): ObservableRouterQueryUtils<TOrpc>;
 export function createObservableQueryUtils(
   orpcOrClient: object,
-  options?: CreateRouterUtilsOptions<NestedClient<ClientContext>>,
+  options?: RouterUtilsOptions<NestedClient<ClientContext>>,
 ): ObservableRouterQueryUtils<object> {
   const baseUtils = options !== undefined || !isTanstackUtilsLike(orpcOrClient)
     ? createTanstackQueryUtils(orpcOrClient as NestedClient<ClientContext>, options)

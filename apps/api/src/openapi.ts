@@ -1,21 +1,22 @@
 import { OpenAPIGenerator } from "@orpc/openapi";
 import { ZodToJsonSchemaConverter } from "@orpc/zod";
 import { appContract } from "@repo/api-contracts";
-import { userSchema } from "@repo/contracts-entities";
 
 export function generateSpec() {
     const generator = new OpenAPIGenerator({
-        schemaConverters: [new ZodToJsonSchemaConverter()],
+        converters: [new ZodToJsonSchemaConverter()],
     });
 
     return generator.generate(appContract, {
-        info: {
-            title: "API",
-            version: "1.0.0",
+        // v2 moved the document fields under `base`; `commonSchemas` was
+        // removed (reusable schemas are hoisted from the schema library's own
+        // metadata instead), so it is no longer passed here.
+        base: {
+            info: {
+                title: "API",
+                version: "1.0.0",
+            },
+            servers: [{ url: "/" }],
         },
-        servers: [{ url: "/" }],
-        commonSchemas: {
-            User: { schema: userSchema }
-        }
     });
 }
