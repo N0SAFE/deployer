@@ -2,15 +2,27 @@
  * @repo/nest-reachability — generic network probing.
  *
  * WHAT THIS PACKAGE IS
- * Two primitives, both consumed by BOTH apps:
+ * Two primitives, consumed by both apps:
  *   - `probeAddress`  — normalize an address and probe paths until one answers
- *                      2xx. Used to verify a node's public address actually
- *                      points at it before it is saved.
+ *                       2xx. Used to verify a node's public address actually
+ *                       points at it before it is saved.
  *   - `probePeer`     — probe another node's identity endpoint (with a liveness
- *                      fallback). Used by the setup wizard before joining a
- *                      remote cluster.
+ *                       fallback). Used before joining a remote cluster.
  *
  * Plus the address helpers those two need: `hostOf`, `isIpAddress`, `toOrigin`.
+ *
+ * CONSUMERS (measured)
+ *   apps/api    — `ReachabilityService.checkAddress` / `checkPeer`, which own
+ *                 this platform's policy around a probe.
+ *   apps/setup  — the wizard's mesh probe, which asks "is this cluster URL
+ *                 reachable?" before an operator enrols the node. That second
+ *                 consumer is what justifies the package: the probing LOGIC is
+ *                 identical in both, only the policy around it differs.
+ *
+ * The wizard currently lives in `apps/api` (`sub-apps/setup-wizard`) and moves
+ * to `apps/setup` in phase 4 of the setup-app refactor. Until that move, the
+ * API is the only importer — the package is deliberately prepared for its
+ * second consumer rather than extracted after the fact.
  *
  * WHAT IT IS NOT
  * No node model, no `node_network_config` access, no reachability RULES. The
