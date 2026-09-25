@@ -50,8 +50,10 @@ describe("rateLimit (W-P3)", () => {
 
         const third = await runMiddleware(limiter, "10.0.0.1");
         expect(third.threw).not.toBeNull();
+        // oRPC v2 REMOVED `status` from ORPCError: the HTTP status is mapped
+        // from the code by the handler's `errorStatusMap`, so the code is the
+        // only thing a middleware can assert. TOO_MANY_REQUESTS maps to 429.
         expect(third.threw?.code).toBe("TOO_MANY_REQUESTS");
-        expect(third.threw?.["status"] === undefined ? undefined : third.threw["status"]).toBe(429);
     });
 
     it("does not rate-limit different clients", async () => {

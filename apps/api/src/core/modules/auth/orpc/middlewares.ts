@@ -210,9 +210,13 @@ export function publicAccess() {
  * ```
  */
 export function requireAuth() {
-    // oRPC v2 renamed middleware composition: `.concat` is now `.use`
-    // (and `.mapInput` is `.adaptInput`). The v1 two-argument form
-    // `.use(mw, mapInput)` was removed.
+    // oRPC v2 renamed middleware composition from `.concat` to `.use`.
+    //
+    // NOTE: the receiver matters. `authMiddleware()` returns the middleware
+    // itself, and `.use()` on a middleware returns another MIDDLEWARE (it does
+    // not produce a builder), which is what `implement(...).use(requireAuth())`
+    // expects. Composing on `os.$context()` instead yields a BUILDER and breaks
+    // every call site's types.
     return authMiddleware().use(
         os
             .$context<ORPCContextWithAuthOnly>()
@@ -237,7 +241,7 @@ export function requireAuth() {
                         auth: makeAuthenticatedAuth(context.auth),
                     },
                 })
-            })
+            }),
     )
 }
 

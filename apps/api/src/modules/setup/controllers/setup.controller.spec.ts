@@ -22,9 +22,16 @@ function createImplementMock() {
  */
 const implementChainable = createImplementMock();
 
+// oRPC v2 split these across packages: the `Implement` DECORATOR stays
+// in `@orpc/nest`, lowercase `implement` lives in `@orpc/server`.
 vi.mock("@orpc/nest", () => ({
-    implement: vi.fn(() => implementChainable),
     Implement: vi.fn(() => () => {}),
+}));
+vi.mock("@orpc/server", async (importOriginal) => ({
+    // Spread the REAL module: these specs also import `ORPCError` from
+    // here, and replacing the module wholesale would make it undefined.
+    ...(await importOriginal<typeof import("@orpc/server")>()),
+    implement: vi.fn(() => implementChainable),
 }));
 
 vi.mock("@/core/modules/auth/orpc/middlewares", () => ({

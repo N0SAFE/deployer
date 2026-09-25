@@ -51,9 +51,16 @@ const implementChainable = {
     handler: vi.fn((fn: unknown) => ({ handler: fn })),
 };
 
+// oRPC v2 split these across packages: the `Implement` DECORATOR stays
+// in `@orpc/nest`, lowercase `implement` lives in `@orpc/server`.
 vi.mock("@orpc/nest", () => ({
-    implement: vi.fn(() => implementChainable),
     Implement: vi.fn(() => () => {}),
+}));
+vi.mock("@orpc/server", async (importOriginal) => ({
+    // Spread the REAL module: these specs also import `ORPCError` from
+    // here, and replacing the module wholesale would make it undefined.
+    ...(await importOriginal<typeof import("@orpc/server")>()),
+    implement: vi.fn(() => implementChainable),
 }));
 
 /** Test double for the ORPC typed-errors parameter (mirrors runtime factory map). */
