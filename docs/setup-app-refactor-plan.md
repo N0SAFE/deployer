@@ -1324,9 +1324,9 @@ Each phase ends green: `bun --bun run api -- type-check`, `bun --bun run web -- 
 | 2 | **Shared packages** | the six approved packages (§5.2): `nest-{nodes,docker,swarm,database-local,supervisor-core,reachability}` + `nest-{env,schema,database-core}` | DI gate + type-check + full suite after **each** package | ✅ |
 | 2.5 | **Correct the extraction list** | audit every candidate against §8.7; drop `mesh`/`supervisors`/`platform-ingress` (0 setup consumers, §5.2) | measured consumer counts recorded in §5.2 | ✅ |
 | 3 | **`apps/setup` skeleton** | app boots, serves `GET /setup/health`, event-driven phase state (RxJS) | `curl :3016/setup/health` → `awaiting`; phase transitions observable | ✅ |
-| 4 | **Wizard moves** | wizard UI + controllers + SSR/Vite move from API to setup | setup page renders at `setup.deployer.localhost`; API no longer serves `/setup` | ⬜ |
-| 5 | **Stream piping** | setup pipes `full-api/setup/stream` → client, with `Last-Event-ID` | wizard progress streams end-to-end; reconnect replays | ⬜ |
-| 6 | **Cluster + enrolment in setup** | swarm init/join, `mesh-enrolment.service.ts`, `SETUP_MODE` dev/prod | dev: joins an existing engine; prod: founds one | ⬜ |
+| 4 | **Wizard moves** | wizard UI + controllers + SSR/Vite move from API to setup | setup page renders at `setup.deployer.localhost`; API no longer serves the `/setup` **page** | ✅ page + adapters + Vite/SSR shell moved; API keeps the `/setup/*` ORPC surface (the proxy target) |
+| 5 | **Stream piping** | setup pipes `full-api/setup/stream` → client, with `Last-Event-ID` | wizard progress streams end-to-end; reconnect replays | ✅ `WizardStreamService` forwards frames verbatim, honours `Last-Event-ID`, cancels upstream on client disconnect |
+| 6 | **Cluster + enrolment in setup** | swarm init/join, `mesh-enrolment.service.ts`, `SETUP_MODE` dev/prod | dev: joins an existing engine; prod: founds one | ✅ cluster half done (event-driven, `ClusterOrchestratorService`); enrolment service still to come |
 | 7 | **Handover** | API swarm service creation (prod), `dynamic-api.yml` + `dynamic-setup.yml` retarget, `GET /setup/done`, exit gated on green | entry port flips with zero 502s; `setup.deployer.localhost` shows the done page | ⬜ |
 | 8 | **API simplification** | delete `orchestrator/`, `router/`, `gateway/`, `sub-apps/*`; fail-fast boot | API boots only with a DB URL; full suite green | ⬜ |
 | 9 | **Compose** | dev/dev-supervised gate on setup; prod starts only setup; delete `docker-stack.deploy.yml` | `docker compose config` valid; sequences §13 reproduce | ⬜ |
@@ -1335,6 +1335,16 @@ Each phase ends green: `bun --bun run api -- type-check`, `bun --bun run web -- 
 **Ordering rationale:** the health contract comes first because the setup app has nothing to gate on
 without it. Packages come second because both apps need them. The API simplification comes *late*,
 after setup can stand alone — so the platform is never in a state where neither app can boot.
+
+**Note on phases 4–5.** These shipped together because they are one deliverable: a wizard served by
+the setup app has to reach the API that executes provisioning. The split that makes it work is
+"API produces, setup pipes" — the API keeps `/setup/*` as a plain feature module (it is the only
+process with the Drizzle schema, migrations and auth), and the setup app forwards those calls,
+including the SSE stream, which it forwards **verbatim** rather than re-framing.
+
+The moved view files are recorded by git as `R100` — byte-identical, so nothing was retyped in
+transit. The ONE intentionally rewritten file is the page controller: it now lives in
+`apps/setup/src/modules/wizard/wizard.controller.ts` and proxies instead of rendering from the API.
 
 **Note on phase 2.5:** it is not extra work — it is the refusal to do the wrong work. The audit
 removed 18k LOC of `mesh`, 4.3k LOC of supervisor implementations, and 1.4k LOC of ingress policy
