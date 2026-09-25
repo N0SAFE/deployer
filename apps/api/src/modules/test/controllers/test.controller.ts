@@ -174,10 +174,7 @@ const testContracts = oc.meta(openapi({ prefix: "/test/orpc" })).router({
     // =========================================================================
     
     /** Demonstrates type-safe context access from previous middlewares */
-    contextAccessEndpoint: oc.route({
-        method: "GET",
-        path: "/context-access/{resourceId}",
-    }).input(z.object({
+    contextAccessEndpoint: oc.meta(openapi({ method: "GET", path: "/context-access/{resourceId}", })).input(z.object({
     })).output(
         z.object({
             message: z.string(),
@@ -416,9 +413,13 @@ export class TestController {
         return implement(testContracts.adminDynamicPermissionEndpoint)
             .use(requireAuth())
             // Dynamic permission from input - uses .forInput() + mapInput for auto-typed input
+            //
+            // oRPC v2 REMOVED the two-argument `.use(middleware, mapInput)`
+            // form; the input transform is now `adaptInput` (v1's `.mapInput`).
             .use(
-                this.authService.middleware.admin.hasPermission.forInput(),
-                input => ({ [input.resource]: [input.action] })
+                this.authService.middleware.admin.hasPermission
+                    .forInput()
+                    .adaptInput((input) => ({ [input.resource]: [input.action] })),
             )
             .handler(({ context, input }) => {
                 const auth = assertAuthenticated(context.auth);

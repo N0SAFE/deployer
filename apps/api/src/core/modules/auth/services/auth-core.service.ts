@@ -134,22 +134,23 @@ type UnwrapValueOrResolver<T> = T extends ((ctx: never) => unknown) | infer TVal
 
 /**
  * Replace only the middleware input generic while preserving all other generic parameters.
+ *
+ * oRPC v2 dropped the trailing `TMeta` parameter from `DecoratedMiddleware`, so
+ * the pattern-match and the rebuilt type both take 5 type arguments.
  */
 type ReplaceMiddlewareInput<TMiddleware, TInput> = TMiddleware extends DecoratedMiddleware<
 	infer TInContext,
 	infer TOutContext,
 	infer TOldInput,
 	infer TOutput,
-	infer TErrorMap,
-	infer TMeta
+	infer TErrorMap
 >
 	? DecoratedMiddleware<
 			TInContext,
 			TOutContext,
 			(TInput & TOldInput) extends never ? TInput : TInput,
 			TOutput,
-			TErrorMap,
-			TMeta
+			TErrorMap
 	  >
 	: TMiddleware;
 
