@@ -13,13 +13,13 @@ import { DeploymentStreamOrchestratorService } from "../mesh/services/deployment
  * controller exposes a callable handler") rather than about the internal shape
  * of whichever oRPC version is installed.
  */
-function procedureHandler(procedure: unknown): (...args: never[]) => unknown {
+function procedureHandler(procedure: unknown): (...args: unknown[]) => unknown {
     const p = procedure as { handler?: unknown; "~orpc"?: { handler?: unknown } };
     const handler = p?.handler ?? p?.["~orpc"]?.handler;
     if (typeof handler !== "function") {
         throw new TypeError("procedure does not expose a handler");
     }
-    return handler as (...args: never[]) => unknown;
+    return handler as (...args: unknown[]) => unknown;
 }
 
 

@@ -116,12 +116,15 @@ type OrpcWrappedMethod<TMethod> = TMethod extends (...args: infer TArgs) => Midd
       // Static call: pass all args, returns middleware compatible with any procedure
       // Context types preserve ORPCContextWithAuthOnly<true> for proper typing
       // Using `any` for input/output to match any procedure's schema
-      (...args: TArgs): DecoratedMiddleware<ORPCContextWithAuthOnly<true>, ORPCContextWithAuthOnly<true>, any, any, any, any>;
+      //
+      // oRPC v2 dropped the trailing `TMeta` parameter from
+      // `DecoratedMiddleware`, so it takes 5 type arguments now.
+      (...args: TArgs): DecoratedMiddleware<ORPCContextWithAuthOnly<true>, ORPCContextWithAuthOnly<true>, any, any, any>;
       
       // Dynamic method: returns middleware expecting the first arg's type for mapInput
       // TInput is typed for use with mapInput callback
       // Context types preserve ORPCContextWithAuthOnly<true>
-      forInput(): DecoratedMiddleware<ORPCContextWithAuthOnly<true>, ORPCContextWithAuthOnly<true>, ExtractFirstParamType<TMethod>, any, any, any>;
+      forInput(): DecoratedMiddleware<ORPCContextWithAuthOnly<true>, ORPCContextWithAuthOnly<true>, ExtractFirstParamType<TMethod>, any, any>;
     }
   : never;
 
