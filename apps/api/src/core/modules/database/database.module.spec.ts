@@ -29,7 +29,13 @@ vi.mock("@repo/nest-database-local/local-database.module", () => ({
   },
 }));
 vi.mock('@repo/nest-lifecycle', () => ({
-  AppLifecycleModule: { module: class {} },
+  // `forRoot` MUST be present: `@Global() @Module({})` classes provide NOTHING
+  // when imported bare, so `DatabaseModule` imports this module through
+  // `forRoot()` — a stub that omits it fails at import time with
+  // "AppLifecycleModule.forRoot is not a function" before any assertion runs.
+  AppLifecycleModule: {
+    forRoot: vi.fn().mockReturnValue({ module: class {}, global: true }),
+  },
 }));
 vi.mock('./services/database-startup-guard.service', () => ({
   DatabaseStartupGuard: class {},

@@ -21,7 +21,14 @@ import { DatabaseFailureTracker } from './services/database-failure-tracker.serv
 
 @Global()
 @Module({
-    imports: [LocalDatabaseModule, GlobalDatabaseModule, AppLifecycleModule],
+    imports: [
+        LocalDatabaseModule,
+        GlobalDatabaseModule,
+        // `forRoot()` IS REQUIRED — the class is `@Module({})`, so importing it
+        // bare registers no providers and `DatabaseStartupGuard` (which injects
+        // `AppLifecycleService`) cannot resolve.
+        AppLifecycleModule.forRoot(),
+    ],
     providers: [
         DatabaseProbeService,
         DatabaseStartupGuard,

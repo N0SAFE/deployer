@@ -10,6 +10,7 @@ import { CoreDockerModule } from "../docker/docker.module";
 import { CoreReachabilityModule } from "../reachability/core-reachability.module";
 import { MeshVersionService } from "../mesh/version/mesh-version.service";
 import { SwarmCoreModule } from "@/core/modules/swarm/swarm.module";
+import { EnvModule, EnvService } from "@/config/env/env.module";
 
 /**
  * Global Setup Module
@@ -27,7 +28,9 @@ import { SwarmCoreModule } from "@/core/modules/swarm/swarm.module";
     // SwarmCoreModule is SETUP-SAFE (no post-setup resources, no mesh import),
     // so the wizard can create/join the cluster as part of its own flow.
     // Previously this import closed a cycle via MeshCoreModule → SetupModule.
-    imports: [MeshInitializationModule, LocalDatabaseModule, CoreDockerModule, CoreReachabilityModule, SwarmCoreModule, NodeStateModule],
+    imports: [MeshInitializationModule, LocalDatabaseModule, CoreDockerModule, CoreReachabilityModule, SwarmCoreModule, NodeStateModule,
+		EnvModule,
+	],
     providers: [
         LocalInitializationService,
         RemoteInitializationService,

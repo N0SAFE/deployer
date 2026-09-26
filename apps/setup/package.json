@@ -5,6 +5,8 @@
   "private": true,
   "main": "dist/main.js",
   "scripts": {
+    "build": "bun --bun scripts/build.ts",
+    "compile": "bun run build",
     "build:client": "vite build --ssrManifest && cp src/views/index.html dist/setup/client/index.html",
     "build:server": "vite build --ssr src/views/entry-server.tsx",
     "clean": "rimraf dist",
@@ -42,10 +44,12 @@
     "@repo/env": "*",
     "@repo/errors": "*",
     "@repo/logger": "*",
+    "@repo/nest-database-local": "*",
     "@repo/nest-docker": "*",
     "@repo/nest-env": "*",
     "@repo/nest-nodes": "*",
     "@repo/nest-reachability": "*",
+    "@repo/nest-schema": "*",
     "@repo/nest-swarm": "*",
     "@repo/orpc-utils": "*",
     "@repo/ui": "*",
@@ -77,6 +81,7 @@
     "tailwindcss": "catalog:styling",
     "tw-animate-css": "catalog:ui",
     "typescript": "catalog:build",
+    "unplugin-swc": "^1.5.9",
     "vite": "^8.2.2",
     "vitest": "catalog:testing"
   }

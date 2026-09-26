@@ -3,6 +3,7 @@ import { DockerModule } from "@repo/nest-docker/docker.module";
 import { NodesModule } from "@repo/nest-nodes";
 import { SwarmModule } from "@repo/nest-swarm";
 
+import { localDatabaseRegistration } from "@/config/database/local-database.module";
 import { EnvModule, EnvService } from "@/config/env/env.module";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
 import { ClusterOrchestratorService } from "./services/cluster-orchestrator.service";
@@ -50,7 +51,12 @@ import { SwarmBootstrapService } from "./services/swarm-bootstrap.service";
         },
       }),
     }),
-    NodesModule.forRoot(),
+    // The registration is passed IN (not imported ambiently): the node
+    // repositories inject `LocalDatabaseService`, so the connection must be
+    // in this module's scope. The app owns the file path and migrations dir —
+    // setup shares the API's SQLite file, because setup WRITES the swarm
+    // participation decision that the API READS.
+    NodesModule.forRoot({ localDatabase: localDatabaseRegistration() }),
     SetupHealthModule,
     SwarmModule.forRootAsync({
       imports: [EnvModule],

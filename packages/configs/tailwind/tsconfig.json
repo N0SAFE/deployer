@@ -1,5 +1,5 @@
 {
-  "extends": "@repo/config-typescript/base",
+  "extends": "../typescript/config/base.json",
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",

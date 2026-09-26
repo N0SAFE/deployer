@@ -24,10 +24,13 @@ import { DirectPortProxySupervisorService } from "./direct-port-proxy.supervisor
 import { RedisSupervisorService } from "./redis-supervisor.service";
 import { WireGuardSupervisorService } from "./wireguard-supervisor.service";
 import { SwarmAppWiringSupervisorService } from "./swarm-app-wiring.supervisor.service";
+import { EnvModule, EnvService } from "@/config/env/env.module";
 
 @Global()
 @Module({
-	imports: [CoreDockerModule, CorePlatformIngressModule],
+	imports: [CoreDockerModule, CorePlatformIngressModule,
+		EnvModule,
+	],
 	providers: [
 		TraefikSupervisorService,
 		ManagedWebSupervisorService,

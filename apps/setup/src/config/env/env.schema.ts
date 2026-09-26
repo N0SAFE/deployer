@@ -34,6 +34,16 @@ export const setupEnvSchema = z.object({
   /** Tenant prefix for hostname and network naming. */
   DEPLOYER_PREFIX: z.string().default(""),
 
+  /**
+   * The local SQLite file holding node state (`node_config`, `cluster_node`).
+   *
+   * SAME FILE AS THE API'S, and that is the point: setup writes the swarm
+   * participation decision and the API READS it, so the two processes must
+   * mount the same path. The default matches the API's schema so a single
+   * compose volume satisfies both.
+   */
+  NODE_LOCAL_DB_PATH: z.string().default("/app/data/local.db"),
+
   // ─── Docker engine ────────────────────────────────────────────────────────
   // Setup drives the engine directly (swarm init/join, service creation), so
   // it needs the same connection contract the API uses. Declared HERE rather

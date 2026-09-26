@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { apiEnvSchema } from "@repo/env";
-import { EnvModule as NestEnvModule, EnvService as BaseEnvService } from "@repo/nest-env";
+import { EnvModule as NestEnvModule } from "@repo/nest-env";
 
 import { EnvService } from "./env.service";
 
@@ -16,13 +16,18 @@ export { EnvService };
  * Declaring the schema here is what keeps `apps/setup` free to use the same
  * package with its own variables.
  *
- * Both the base service and the API's subclass are provided, so a module can
- * inject either: `EnvService` for `ApiEnv`-typed access, or the base
- * `BaseEnvService` when it needs `use()` with a different schema.
+ * WHY `NestEnvModule` IS RE-EXPORTED RATHER THAN THE BASE CLASS
+ * The package's `forRoot` PROVIDES the base `EnvService` and exports it from its
+ * own module. Nest validates exports against the currently processed module's
+ * providers and imports, so naming the bare class here throws
+ * `UnknownExportException` at boot — the class is not a provider of THIS module.
+ * Re-exporting `NestEnvModule` forwards the token (and the base service with
+ * it), so a module can inject either `EnvService` for `ApiEnv`-typed access, or
+ * the base service when it needs `use()` with a different schema.
  */
 @Module({
   imports: [NestEnvModule.forRoot({ schema: apiEnvSchema })],
   providers: [EnvService],
-  exports: [EnvService, BaseEnvService, NestEnvModule],
+  exports: [EnvService, NestEnvModule],
 })
 export class EnvModule {}

@@ -29,6 +29,18 @@ import * as globalSchema from "@repo/nest-schema/global";
 
 // ─── ORPC Auth Plugin ───────────────────────────────────────────────────────
 import { ORPCModule } from '@orpc/nest';
+// oRPC v2 request/response compression.
+//
+// NOTE: `BatchHandlerPlugin` is deliberately NOT enabled. `@orpc/nest` builds a
+// StandardHandler per controller method whose `resolveProcedure` is hardcoded to
+// that one procedure. A batch sub-request calls `next({ request })` and is
+// therefore re-resolved through that same single-procedure resolver, so a batch
+// spanning two procedures silently executes one of them twice instead of routing
+// each sub-request. The batch client plugin is disabled for the same reason.
+import {
+    RequestCompressionHandlerPlugin,
+    ResponseCompressionHandlerPlugin,
+} from '@orpc/server/plugins';
 import type { ORPCGlobalContext } from "@/core/modules/auth/orpc/orpc-context";
 import { AuthPlugin } from '@/core/modules/auth/orpc/plugins/auth.plugin';
 
@@ -109,7 +121,12 @@ declare module "@orpc/server" {
         }),
         // AppLifecycleModule is @Global and provides AppLifecycleService that
         // DatabaseModule's guard injects — init it BEFORE DatabaseModule.
-        AppLifecycleModule,
+        //
+        // `forRoot()` IS REQUIRED: the class is `@Module({})`, so importing it
+        // bare registers no providers. Without the call, `AppLifecycleService`
+        // is missing from the container and every consumer of it fails to
+        // resolve at boot.
+        AppLifecycleModule.forRoot(),
         DatabaseModule,
         BootstrapModule,
         EventsModule,
@@ -119,7 +136,7 @@ declare module "@orpc/server" {
         // setup wizard runs. The framework module provides the PROCESS-WIDE
         // registry + event bus, so health aggregation here observes the
         // gateway-owned supervisors without a second copy.
-        SupervisorsModule,
+        SupervisorsModule.forRoot(),
         // POST-SETUP swarm half: fleet inventory + shared cluster_nodes
         // enrolment. Needs the global Postgres, so it lives in the main app
         // (which boots after migrations), never in the pre-setup gateway.
@@ -138,11 +155,32 @@ declare module "@orpc/server" {
                 const internalErrorInsightService = new InternalErrorInsightService();
 
                 return {
-                    sendResponseInterceptors: [
+                    // oRPC v2 removed `sendResponseInterceptors` from the
+                    // handler config — it is silently ignored (the key is not
+                    // on ORPCModuleConfig, and excess-property checking does not
+                    // fire on this literal, so nothing flagged it). The v2
+                    // equivalent is `interceptors`: the post-routing,
+                    // pre-error-handler hook. Without this rename the Nest
+                    // HttpException and mesh domain-error transforms never run,
+                    // and every domain error degrades to a generic 500.
+                    interceptors: [
                         transformNestJSErrorToOrpcError(),
                         logOrpcErrors(new Logger("ORPC Errors"), internalErrorInsightService),
                     ],
                     plugins: [
+                        // ── Transport: compression ─────
+                        //
+                        // Request compression is symmetric with the web app's
+                        // RequestCompressionLinkPlugin; both default to a 1 KB
+                        // threshold so small payloads are never inflated.
+                        //
+                        // Response compression negotiates from the client's
+                        // Accept-Encoding. The web app does not need a
+                        // client-side decompression plugin because the fetch
+                        // adapter already decompresses transparently.
+                        new RequestCompressionHandlerPlugin(),
+                        new ResponseCompressionHandlerPlugin({ encodings: ['gzip'] }),
+
                         // v2 renamed the plugin and its option: the schema-
                         // agnostic Smart Coercion plugin now takes `converters`.
                         new SmartCoercionHandlerPlugin<ORPCGlobalContext>({

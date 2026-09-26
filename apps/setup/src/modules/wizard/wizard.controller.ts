@@ -117,7 +117,7 @@ export class WizardController {
    * a 503 here means "the API is not up yet", which the UI renders as progress
    * rather than as a failure. Collapsing everything to 200 would erase that.
    */
-  @All("setup/:path(*)")
+  @All("setup/*path")
   async proxy(
     @Param("path") path: string,
     @Req() req: Request,

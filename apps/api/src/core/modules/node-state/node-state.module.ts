@@ -1,5 +1,5 @@
 /**
- * NodeStateModule — the LOCAL node-state surface (SQLite only).
+ * NodeStateModule — the API's registration of the shared node-state repositories.
  *
  * WHY THIS MODULE EXISTS
  * ----------------------
@@ -21,6 +21,15 @@
  * depend on setup" seam: swarm, mesh and setup all consume node state; none of
  * them has to know about each other.
  *
+ * WHY IT DELEGATES TO THE PACKAGE'S `NodesModule.forRoot`
+ * The providers themselves now live in `@repo/nest-nodes`, shared with
+ * `apps/setup`. Their dependency on `LocalDatabaseService` is passed IN rather
+ * than assumed: the package's module declares no imports of its own, so an app
+ * that forgot to register a local database would get a boot error naming the
+ * missing provider instead of a container that looks complete. Declaring the
+ * repositories here as well would be a SECOND registration of the same classes
+ * in one container — the duplication this delegation removes.
+ *
  * REPOSITORIES KEPT AT THEIR EXISTING PATHS on purpose: 36 files import
  * `NodeConfigRepository`, so moving the file would churn them for no benefit.
  * The module boundary is what matters, not the directory.
@@ -28,15 +37,19 @@
 
 import { Global, Module } from "@nestjs/common";
 
-import { LocalDatabaseModule } from "@repo/nest-database-local/local-database.module";
-import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
-import { ClusterNodeRepository } from "@repo/nest-nodes/cluster-node.repository";
-import { ClusterNodeInventoryRepository } from "@repo/nest-nodes/cluster-node-inventory.repository";
+import { NodesModule } from "@repo/nest-nodes/nodes.module";
+import { localDatabaseRegistration } from "@/core/modules/database/local/local-database.module";
 
 @Global()
 @Module({
-	imports: [LocalDatabaseModule],
-	providers: [NodeConfigRepository, ClusterNodeRepository, ClusterNodeInventoryRepository],
-	exports: [NodeConfigRepository, ClusterNodeRepository, ClusterNodeInventoryRepository],
+	imports: [
+		// The API's own local-database registration (path + migrations), forwarded
+		// to the package so its repositories can resolve `LocalDatabaseService`.
+		//
+		// The DynamicModule is passed, not the `LocalDatabaseModule` wrapper
+		// class: only the REGISTRATION brings `LocalDatabaseService` into scope.
+		NodesModule.forRoot({ localDatabase: localDatabaseRegistration() }),
+	],
+	exports: [NodesModule],
 })
 export class NodeStateModule {}

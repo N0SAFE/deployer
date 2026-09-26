@@ -4,21 +4,17 @@
 // the setup wizard manually via the web UI.
 // This env var is NOT forced here — the user controls it via .env or docker env.
 
-import { NestFactory } from "@nestjs/core";
 import type { INestApplication } from "@nestjs/common";
-import { ExpressAdapter } from "@nestjs/platform-express";
 import http from "node:http";
-import express from "express";
+import type express from "express";
 
-import {
-  buildAllowedOrigins,
-  resolveCorsDecision,
-  CORS_ALLOWED_HEADERS,
-} from "./core/utils/cors.utils";
 import { logger } from "@repo/logger";
-import { RouteRegistryService } from "./core/gateway/route-registry.service";
-import { OrchestrationModule } from "./core/orchestrator/orchestrator.module";
 import { OrchestratorService } from "./core/orchestrator/orchestrator.service";
+import {
+  API_PORT,
+  createApiApp,
+  createGateway,
+} from "./app.config";
 
 const log = logger.scope("GatewayOrchestrator");
 
@@ -29,62 +25,14 @@ const log = logger.scope("GatewayOrchestrator");
  */
 const SHUTDOWN_GRACEFUL_TIMEOUT_MS = 30_000;
 
-// ─── Port Configuration ─────────────────────────────────────────────────────
-// The gateway is the ONLY externally-visible HTTP server. All feature sub-apps
-// run on independent internal ports, proxied through the gateway's route graph.
-const GATEWAY_PORT = Number(process.env.API_PORT ?? 3005);
-
-// ─── CORS ───────────────────────────────────────────────────────────────────
-function createCorsMiddleware(): express.RequestHandler {
-  const corsAllowedOrigins = buildAllowedOrigins(
-    process.env as Record<string, string | undefined>,
-  );
-  const isDevelopment = process.env.NODE_ENV !== "production";
-
-  return (req, res, next) => {
-    // Cookie presence separates the credentialed (allowlisted) path from the
-    // credential-free app-instance-token path — see resolveCorsDecision.
-    const cookieHeader = req.headers.cookie;
-    const hasCookieHeader =
-      typeof cookieHeader === "string" && cookieHeader.length > 0;
-
-    const decision = resolveCorsDecision({
-      origin: req.headers.origin,
-      hasCookieHeader,
-      allowedOrigins: corsAllowedOrigins,
-      isDevelopment,
-    });
-
-    if (decision.allowOrigin) {
-      res.setHeader("Access-Control-Allow-Origin", req.headers.origin ?? "*");
-      if (decision.allowCredentials) {
-        res.setHeader("Access-Control-Allow-Credentials", "true");
-        res.setHeader("Access-Control-Expose-Headers", "Set-Cookie");
-      }
-      res.setHeader(
-        "Access-Control-Allow-Methods",
-        "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-      );
-      res.setHeader(
-        "Access-Control-Allow-Headers",
-        CORS_ALLOWED_HEADERS.join(", "),
-      );
-    }
-
-    if (req.method === "OPTIONS") {
-      res.status(204).end();
-      return;
-    }
-
-    next();
-  };
-}
-
 // ─── Bootstrap ──────────────────────────────────────────────────────────────
 async function bootstrap(): Promise<void> {
   // ═══════════════════════════════════════════════════════════════════════════
   // PHASE 1: Gateway Express Server
   // ═══════════════════════════════════════════════════════════════════════════
+  // The Express instance and its CORS middleware are built by the shared
+  // factory (see `app.config.ts`), so `compile.ts` validates the same shape.
+  //
   // A single Express server handles:
   //   1. CORS (all cross-origin traffic)
   //   2. /health endpoint (immediate, for Docker probes)
@@ -93,11 +41,7 @@ async function bootstrap(): Promise<void> {
   //
   // The server starts listening before NestJS init so health checks work immediately.
 
-  const gateway = express();
-  const routeRegistry = new RouteRegistryService();
-
-  // CORS — runs before everything
-  gateway.use(createCorsMiddleware());
+  const gateway = createGateway();
 
   // Health endpoint — immediate response, for Docker health checks
   gateway.get("/health", (_req, res) => {
@@ -105,11 +49,12 @@ async function bootstrap(): Promise<void> {
   });
 
   // ── Readiness probe — the platform gate ───────────────────────────────────
-  // Registered HERE for the same reason as `/health`: it must answer while Nest
-  // is still booting, and the gateway catch-all would otherwise answer 503
-  // "no sub-app registered" for a path that is deliberately not an API route.
+  // Registered HERE rather than in the factory for the same reason as `/health`:
+  // it must answer while Nest is still booting, and the gateway catch-all would
+  // otherwise answer 503 "no sub-app registered" for a path that is deliberately
+  // not an API route.
   //
-  // The probe is DELEGATED to the orchestrator because the readiness indicators
+  // The probe DELEGATES to the orchestrator because the readiness indicators
   // live in the main-app container (AppModule → HealthModule), which is a
   // separate Nest application on port 3012. The gateway container deliberately
   // does NOT own the global Postgres pool or the mesh repositories, so it
@@ -120,7 +65,10 @@ async function bootstrap(): Promise<void> {
   let orchestrator: OrchestratorService | null = null;
   gateway.get("/health/ready", (_req, res) => {
     if (orchestrator === null) {
-      res.status(503).json({ status: "error", error: { probe: { reason: "application is still starting" } } });
+      res.status(503).json({
+        status: "error",
+        error: { probe: { reason: "application is still starting" } },
+      });
       return;
     }
     void orchestrator.probeReadiness().then((result) => {
@@ -132,38 +80,25 @@ async function bootstrap(): Promise<void> {
   // so shutdown can STOP ACCEPTING new connections and drain in-flight ones
   // (Nest never owns this server: we listen ourselves and hand the Express
   // instance to the adapter, so `app.close()` cannot close it).
-  const gatewayServer = gateway.listen(GATEWAY_PORT, "0.0.0.0");
-  log.info(`🚀 Gateway listening on port ${String(GATEWAY_PORT)}`);
+  const gatewayServer = gateway.listen(API_PORT, "0.0.0.0");
+  log.info(`🚀 Gateway listening on port ${String(API_PORT)}`);
 
   // Self-test: verify health endpoint responds
-  await selfTestHealthEndpoint(GATEWAY_PORT);
+  await selfTestHealthEndpoint(API_PORT);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PHASE 2: NestJS OrchestrationModule
   // ═══════════════════════════════════════════════════════════════════════════
-  // Attach NestJS OrchestrationModule to the same Express server.
+  // `createApiApp` owns the NestFactory options and the `init()` call, so
+  // `compile.ts` exercises the identical construction path.
+  //
   // The OrchestratorService manages the entire sub-app pipeline:
   //   db-resolver (headless) → [setup-wizard if needed] → main-app (last)
   //
   // Express middleware order:
   //   CORS → /health (Express) → NestJS RouterController → NestJS 404/error
-  //
-  // Sub-apps import core modules directly. No shared providers are forwarded.
 
-  const app = await NestFactory.create(
-    OrchestrationModule,
-    new ExpressAdapter(gateway),
-    {
-      snapshot: process.env.NODE_ENV !== "production",
-      bodyParser: false,
-    },
-  );
-
-  app.enableShutdownHooks();
-
-  // Initialize — triggers OrchestratorService.onApplicationBootstrap()
-  // which starts the sub-app pipeline.
-  await app.init();
+  const app = await createApiApp(gateway);
 
   // The readiness probe is answered by the ORCHESTRATOR, because the indicators
   // live in the main-app container (port 3012) — a separate Nest application
@@ -177,8 +112,9 @@ async function bootstrap(): Promise<void> {
   // PHASE 3: Signal Handlers
   // ═══════════════════════════════════════════════════════════════════════════
 
-  registerProcessSignalHandlers(app, routeRegistry, gatewayServer);
+  registerProcessSignalHandlers(app, gatewayServer);
 }
+
 
 /**
  * Stop accepting NEW connections and wait (bounded) for in-flight requests.
@@ -222,7 +158,6 @@ async function selfTestHealthEndpoint(port: number): Promise<void> {
 // ─── Shutdown ───────────────────────────────────────────────────────────────
 function registerProcessSignalHandlers(
   app: INestApplication,
-  _routeRegistry: RouteRegistryService,
   gatewayServer: http.Server,
 ): void {
   let shuttingDown = false;

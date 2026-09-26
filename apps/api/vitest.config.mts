@@ -114,7 +114,6 @@ export default defineConfig(
               "uploads",
               "database",
               "drizzle",
-              "src/app.module.spec.ts",
               "src/**/*.e2e-spec.ts",
             ],
             globals: true,

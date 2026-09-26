@@ -7,9 +7,12 @@ import { DockerImageAutoScanListenerService } from "./queue/docker-image-auto-sc
 import { DockerImagesOrchestratorService } from "./orchestration/docker-images-orchestrator.service";
 import { DockerImageSecurityScanService } from "./security/docker-image-security-scan.service";
 import { DockerImagesApplicationService } from "./application/docker-images-application.service";
+import { EnvModule, EnvService } from "@/config/env/env.module";
 
 @Module({
-  imports: [MeshCoreModule, DockerCommonModule, DockerRepositoriesModule, DockerContainersModule],
+  imports: [MeshCoreModule, DockerCommonModule, DockerRepositoriesModule, DockerContainersModule,
+		EnvModule,
+	],
   providers: [
     DockerImageSecurityScanService,
     DockerImagesApplicationService,

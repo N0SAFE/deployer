@@ -256,7 +256,23 @@
             ],
             "import": "./dist/esm/global/traefik/index.mjs",
             "require": "./dist/cjs/global/traefik/index.js"
+        },
+        "./migrations": {
+            "types": [
+                "./src/migrations.ts"
+            ],
+            "import": "./dist/esm/migrations.mjs",
+            "require": "./dist/cjs/migrations.js"
         }
+    },
+    "pkgBuild": {
+        "root": "src",
+        "copy": [
+            {
+                "from": "migrations",
+                "to": "dist/migrations"
+            }
+        ]
     },
     "scripts": {
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",

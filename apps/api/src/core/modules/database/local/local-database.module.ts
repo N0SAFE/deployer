@@ -14,26 +14,25 @@
  * schema. `forRootAsync` is what makes that class of failure impossible — the
  * app must supply both, so neither can be wrong by accident.
  *
- * WHY THE MIGRATIONS PATH IS COMPUTED HERE
- * Migrations are the app's DATA — they describe this app's local tables, and
- * `drizzle-kit` generates and reads them from this app's drizzle config. The
- * path is relative to THIS file, so it stays correct regardless of the process
- * working directory.
+ * WHY THE MIGRATIONS ARE NOT IN THIS APP
+ * They create the tables `@repo/nest-schema/local` defines, so they ship with
+ * that package and this app imports the path. A copy per app would be a second
+ * source of truth for the same tables — and `apps/setup` reads `node_config`
+ * too, so it would have needed its own.
  */
 
 import { Global, Module } from "@nestjs/common";
-import { fileURLToPath } from "node:url";
 
 import {
 	LocalDatabaseModule as NestLocalDatabaseModule,
 	type LocalDatabaseModuleOptions,
 } from "@repo/nest-database-local/local-database.module";
+// The local migrations live in the SCHEMA package: they create the tables that
+// `@repo/nest-schema/local` defines, so the package owning the schema owns them,
+// and both apps read the same set instead of each carrying a copy.
+import { LOCAL_MIGRATIONS_DIR } from "@repo/nest-schema/migrations";
 import { EnvModule, EnvService } from "@/config/env/env.module";
 
-/** Where THIS app's SQLite migrations live. */
-const LOCAL_MIGRATIONS_DIR = fileURLToPath(
-	new URL("../../../../config/drizzle/local/migrations", import.meta.url),
-);
 
 /**
  * The API's local-database module.
@@ -45,18 +44,31 @@ const LOCAL_MIGRATIONS_DIR = fileURLToPath(
  * an import: consumers inject `LocalDatabaseService` without importing this
  * file, and that only works if the module holding it is global in THIS container.
  */
+/**
+ * The registration other modules forward into their own `imports`.
+ *
+ * Exported as a FUNCTION rather than a constant because `forRootAsync` returns
+ * a DynamicModule whose factory captures `EnvModule`; calling it per consumer
+ * keeps the same shape Nest expects while avoiding a module-level side effect.
+ *
+ * `NodesModule.forRoot` requires the DynamicModule (not the wrapper class), so
+ * this is what makes the node-state repositories able to resolve
+ * `LocalDatabaseService` from their own module scope.
+ */
+export function localDatabaseRegistration() {
+	return NestLocalDatabaseModule.forRootAsync({
+		imports: [EnvModule],
+		inject: [EnvService],
+		useFactory: (env: EnvService): LocalDatabaseModuleOptions => ({
+			databasePath: env.get("NODE_LOCAL_DB_PATH"),
+			migrationsDir: LOCAL_MIGRATIONS_DIR,
+		}),
+	});
+}
+
 @Global()
 @Module({
-	imports: [
-		NestLocalDatabaseModule.forRootAsync({
-			imports: [EnvModule],
-			inject: [EnvService],
-			useFactory: (env: EnvService): LocalDatabaseModuleOptions => ({
-				databasePath: env.get("NODE_LOCAL_DB_PATH"),
-				migrationsDir: LOCAL_MIGRATIONS_DIR,
-			}),
-		}),
-	],
+	imports: [localDatabaseRegistration()],
 	exports: [NestLocalDatabaseModule],
 })
 export class LocalDatabaseModule {}

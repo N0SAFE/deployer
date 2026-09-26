@@ -7,7 +7,7 @@ import {
   type ScannerConfig,
 } from "@repo/nest-docker";
 
-import { EnvService } from "@/config/env/env.module";
+import { EnvModule, EnvService } from "@/config/env/env.module";
 
 /**
  * CORE MODULE: Docker — the API's WIRING of the shared docker primitives.
@@ -16,6 +16,12 @@ import { EnvService } from "@/config/env/env.module";
  * CONFIGURATION, reading this app's environment and handing each primitive the
  * narrow contract it declares. That split is why the package can be used by a
  * second app with different variables — it never reads an env var itself.
+ *
+ * `EnvModule` IS IMPORTED EXPLICITLY. The factories below inject `EnvService`,
+ * so it must be resolvable from THIS module's scope. Importing only the
+ * `EnvService` class (for its type) would compile fine and then fail at boot in
+ * any container where `EnvModule` was not registered globally elsewhere — the
+ * hidden coupling the `AppModule` graph check exists to surface.
  */
 
 /** Defaults live HERE, not in the package: what scanner image to run is a deployment decision. */
@@ -24,6 +30,7 @@ const DEFAULT_SCANNER_APP_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 @Global()
 @Module({
+  imports: [EnvModule],
   providers: [
     {
       provide: DockerService,

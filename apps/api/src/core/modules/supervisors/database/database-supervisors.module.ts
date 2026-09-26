@@ -17,10 +17,13 @@ import { CoreDockerModule } from "@/core/modules/docker/docker.module";
 import { GlobalDbSupervisorService } from "./global-db-supervisor.service";
 import { LocalDbSupervisorService } from "./local-db-supervisor.service";
 import { DatabaseServiceSupervisorService } from "./database-service-supervisor.service";
+import { EnvModule, EnvService } from "@/config/env/env.module";
 
 @Global()
 @Module({
-	imports: [CoreDockerModule],
+	imports: [CoreDockerModule,
+		EnvModule,
+	],
 	providers: [
 		GlobalDbSupervisorService,
 		LocalDbSupervisorService,

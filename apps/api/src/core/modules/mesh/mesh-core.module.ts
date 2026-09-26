@@ -52,6 +52,7 @@ import { NodeStateModule } from "@/core/modules/node-state/node-state.module";
 import { CoreDockerModule } from "@/core/modules/docker/docker.module";
 import type { MeshNodeCaller } from './services/system-mesh-resource-discovery/query/mesh-query-executor';
 import { MESH_NODE_CALLER_TOKEN } from './tokens';
+import { EnvModule, EnvService } from "@/config/env/env.module";
 
 /** Stub MeshNodeCaller — replace with real impl at runtime */
 class StubMeshNodeCaller implements MeshNodeCaller {
@@ -109,7 +110,8 @@ const MESH_TOPIC_SERVICES = [
         // is the fleet's chance to decide whether a joining node may become a
         // manager — a decision only this node (the cluster owner) can make.
         SwarmCoreModule,
-    ],
+		EnvModule,
+	],
     controllers: [
         MeshResourceController,
         MeshController,

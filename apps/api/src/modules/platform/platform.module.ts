@@ -13,9 +13,12 @@ import { PlatformController } from "./controllers/platform.controller";
 import { PlatformConsoleController } from "./controllers/platform-console.controller";
 import { PlatformManagedWebController } from "./controllers/platform-managed-web.controller";
 import { PlatformManagedWebService } from "./services/platform-managed-web.service";
+import { EnvModule, EnvService } from "@/config/env/env.module";
 
 @Module({
-	imports: [CorePlatformIngressModule, TraefikCoreModule, ProvidersModule],
+	imports: [CorePlatformIngressModule, TraefikCoreModule, ProvidersModule,
+		EnvModule,
+	],
 	controllers: [
 		PlatformController,
 		PlatformConsoleController,

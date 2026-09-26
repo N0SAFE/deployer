@@ -1,10 +1,14 @@
 {
     "$schema": "https://json.schemastore.org/tsconfig",
-    "extends": "@repo/config-typescript/nestjs",
-    "include": ["src/**/*"],
+    "extends": "../../configs/typescript/config/nestjs.json",
+    "include": [
+        "src/**/*"
+    ],
     "compilerOptions": {
         "paths": {
-            "@repo/nest-swarm/*": ["./src/*"]
+            "@repo/nest-swarm/*": [
+                "./src/*"
+            ]
         }
     }
 }

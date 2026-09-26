@@ -10,9 +10,12 @@
 import { Module } from '@nestjs/common';
 import { SetupWizardService } from './setup-wizard.service';
 import { SetupWizardInitModule } from './setup-wizard-init.module';
+import { EnvModule, EnvService } from "@/config/env/env.module";
 
 @Module({
-  imports: [SetupWizardInitModule],
+  imports: [SetupWizardInitModule,
+		EnvModule,
+	],
   providers: [
     SetupWizardService,
   ],

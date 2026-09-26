@@ -20,3 +20,4 @@
 // subpath (`@repo/nest-schema/local/...` or `.../global/...`), which is also what
 // makes the target database obvious at every call site.
 export * from "./codecs/codec-registry";
+export { LOCAL_MIGRATIONS_DIR } from "./migrations";

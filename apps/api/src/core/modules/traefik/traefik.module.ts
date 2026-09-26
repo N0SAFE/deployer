@@ -16,7 +16,7 @@ import { EventsModule } from '@/core/modules/events/events.module';
 import { SupervisorsModule } from "@repo/nest-supervisor-core/supervisors.module";
 import { CorePlatformIngressModule } from '../platform-ingress/platform-ingress.module';
 import { CoreDockerModule } from '../docker/docker.module';
-import { EnvService } from "@/config/env/env.module";
+import { EnvModule, EnvService } from "@/config/env/env.module";
 
 /**
  * CORE MODULE: Traefik
@@ -40,7 +40,11 @@ import { EnvService } from "@/config/env/env.module";
     // and the supervisor framework (orchestrator for process re-converge).
     CorePlatformIngressModule,
     CoreDockerModule,
-    SupervisorsModule,
+    SupervisorsModule.forRoot(),
+    // `EnvModule` IS IMPORTED EXPLICITLY: services below inject `EnvService`,
+    // so it must be resolvable from THIS module's scope rather than assumed to
+    // be registered globally elsewhere.
+    EnvModule,
   ],
   providers: [
     // Services

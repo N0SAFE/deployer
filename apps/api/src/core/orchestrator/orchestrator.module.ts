@@ -45,12 +45,16 @@ import { SwarmCoreModule } from "../modules/swarm/swarm.module";
     RouterModule,
     LocalDatabaseModule,
     DatabaseModule,
-    AppLifecycleModule,
+    // `forRoot()` IS REQUIRED — the class is `@Module({})`, so importing it
+    // bare registers no providers. The gateway's own providers inject
+    // `AppLifecycleService` (to publish boot phases), so without the call the
+    // container cannot resolve them.
+    AppLifecycleModule.forRoot(),
     // ── Platform supervisors (boot BEFORE the setup wizard) ──────────────
     EnvModule,
     CoreDockerModule,
     CorePlatformIngressModule,
-    SupervisorsModule,
+    SupervisorsModule.forRoot(),
     SupervisorsDatabaseModule,
     SupervisorsPlatformModule,
     TraefikCoreModule,
