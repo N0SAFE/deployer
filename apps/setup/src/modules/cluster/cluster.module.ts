@@ -97,6 +97,10 @@ import { SwarmBootstrapService } from "./services/swarm-bootstrap.service";
     }),
   ],
   providers: [SwarmBootstrapService, ClusterOrchestratorService],
-  exports: [SwarmBootstrapService],
+  // `ClusterOrchestratorService` is exported because the handover REACTS to the
+  // cluster result: it subscribes to `stream$` rather than polling a phase,
+  // which is what keeps this app event-driven and makes the dependency
+  // direction explicit (handover imports cluster, never the reverse).
+  exports: [SwarmBootstrapService, ClusterOrchestratorService],
 })
 export class SetupClusterModule {}

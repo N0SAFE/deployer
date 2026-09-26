@@ -1,0 +1,98 @@
+# =====================================================================
+# Setup DEV variant — INCLUDE-ONLY. Extends the setup base; carries the
+# dev build, the watch block, and the dev healthcheck (the compose gate).
+#
+# THE HEALTHCHECK IS THE GATE, and it means "handed over": `/setup/health`
+# returns 503 until the phase reaches `ready`, which happens only after the
+# API answered /health/ready AND both ingress files were rewritten. So
+# `depends_on: { condition: service_healthy }` on this service is exactly
+# "the platform is green" — no body parsing anywhere.
+# =====================================================================
+services:
+  setup:
+    extends:
+      file: ./docker-compose.config.yml
+      service: setup
+    build:
+      context: ../../../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.dev
+      tags:
+        - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-setup-dev:latest"
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+      # Dev: compose owns the API, so setup only has to DRIVE it. Its address is
+      # stable and known, which is why prod is the mode that creates one.
+      SETUP_MODE: ${SETUP_MODE:-dev}
+      SETUP_API_URL: ${SETUP_API_URL:-http://api-dev:${API_PORT:-3005}}
+      CHOKIDAR_USEPOLLING: "true"
+    # Reuses the API's dev image — same monorepo, same toolchain, so a second
+    # Dockerfile would duplicate the whole install/build chain. The COMMAND is
+    # what makes it the setup app, mirroring how the API's dev image runs
+    # `turbo run dev --filter=api...`.
+    #
+    # The `--filter=setup...` dependency build matters for the same reason as the
+    # API's: this app imports workspace packages whose `dist/` must exist before
+    # Nest resolves them.
+    command: ["sh", "-c", "bun x dotenv -e .env -- bun x turbo run dev --filter=setup..."]
+    # NO `ports:` — reached through Traefik only (see the base config).
+    healthcheck:
+      # `wget --spider` is a correct probe BECAUSE Terminus emits a real status
+      # code: 503 while onboarding runs, 200 once handed over.
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3016/setup/health || exit 1
+      # Longer than the API's: setup waits for the API to provision, which is
+      # the slow part of onboarding. start_period only covers the boot of THIS
+      # container, so the waits show up as retries rather than as a failure.
+      start_period: 30s
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    develop:
+      watch:
+        # Rebuild when dependency or config files change.
+        - action: rebuild
+          path: ../../../..
+          target: /app
+          include:
+            - package.json
+            - bun.lock*
+            - turbo.json
+            - apps/setup/package.json
+            - apps/setup/tsconfig.json
+            - apps/setup/nest-cli.json
+            - apps/setup/vite.config.ts
+            - docker/builder/api/Dockerfile.api.dev
+            - docker/compose/common/setup/**
+            - packages/**/package.json
+        # Sync source code, excluding build artifacts and the usual noise.
+        - action: sync
+          initial_sync: true
+          path: ../../../..
+          target: /app
+          ignore:
+            - node_modules/
+            - "**/node_modules/"
+            - bun.lock*
+            - package-lock.json
+            - yarn.lock
+            - pnpm-lock.yaml
+            - "**/dist/"
+            - "**/build/"
+            - "**/.next/"
+            - "**/.turbo/"
+            - "**/.cache/"
+            - "**/.vite/"
+            - "**/*.log"
+            - .git/
+            - .gitignore
+            - docker/
+            - Dockerfile*
+            - docker-compose*.yml
+            - .dockerignore
+            - "**/.vscode/"
+            - "**/.idea/"
+            - "**/*.swp"
+            - "**/coverage/"
+            - "**/.DS_Store"

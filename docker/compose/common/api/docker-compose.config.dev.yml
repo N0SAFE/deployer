@@ -47,11 +47,27 @@ services:
       # Persistent uploads directory for media files.
       - api_uploads_dev:/app/apps/api/uploads
     healthcheck:
-      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:${API_PORT:-3005}/health || exit 1
-      start_period: 15s
+      # READINESS, not liveness — this is the GATE the platform relies on.
+      #
+      # `/health/ready` returns 503 until the whole platform is green (global
+      # Postgres reachable, swarm active, every supervisor converged, mesh up),
+      # so `service_healthy` here means "setup has completed and the API is
+      # serving". That is what makes `web-dev`'s
+      # `depends_on: api-dev: service_healthy` correct with no body parsing and
+      # no extra gate service (plan §8.5).
+      #
+      # `/health` (liveness) is deliberately NOT used here: it answers 200 from
+      # the moment the process binds a port — before setup has provisioned
+      # anything — which would report a half-built platform as ready.
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:${API_PORT:-3005}/health/ready || exit 1
+      # Generous: the API boots immediately and reports NOT-ready until setup has
+      # driven provisioning, which legitimately takes minutes on a cold database.
+      # `start_period` only covers the process's own boot, so the provisioning
+      # wait shows up as retries rather than as a failure.
+      start_period: 60s
       interval: 15s
       timeout: 15s
-      retries: 5
+      retries: 40
     develop:
       watch:
         # Restart when Docker Compose configuration changes

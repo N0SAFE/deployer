@@ -1,0 +1,186 @@
+import type { Mock } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import { ApiServiceProvisioner } from "./api-service-provisioner.service";
+import { makeEnvService } from "@/test-support/env";
+import type { DockerService } from "@repo/nest-docker/services/docker.service";
+
+/**
+ * The provisioner is where `SETUP_MODE` actually forks, so the assertions are
+ * about the two paths staying distinct:
+ *
+ *   dev   — nothing is created; the backend is the compose service's address.
+ *   prod  — a swarm service is created and reused on retry.
+ *
+ * Two failure modes are silent in production and therefore worth asserting
+ * explicitly:
+ *   1. `dev` with no `SETUP_API_URL` inventing a hostname — the ingress would be
+ *      pointed at a name that does not resolve, and the operator would see a 502
+ *      with no configuration error anywhere.
+ *   2. `prod` recreating an existing service — a harmless-looking retry that
+ *      RESTARTS a healthy API, turning it into an outage.
+ */
+function makeProvisioner(
+  envOverrides: Record<string, string>,
+  docker: Partial<DockerService> = {},
+): { provisioner: ApiServiceProvisioner; docker: Partial<DockerService> } {
+  const service = {
+    createSwarmService: vi.fn().mockResolvedValue({}),
+    inspectSwarmService: vi.fn(),
+    ...docker,
+  };
+  const provisioner = new ApiServiceProvisioner(
+    makeEnvService(envOverrides),
+    service as unknown as DockerService,
+  );
+  return { provisioner, docker: service };
+}
+
+/** `inspectSwarmService` rejecting is how "the service does not exist" surfaces. */
+function notFound(): Mock {
+  return vi.fn().mockRejectedValue(new Error("Swarm service not found"));
+}
+
+describe("ApiServiceProvisioner", () => {
+  describe("dev — compose owns the API", () => {
+    it("returns the configured address and creates nothing", async () => {
+      const { provisioner, docker } = makeProvisioner({
+        SETUP_MODE: "dev",
+        SETUP_API_URL: "http://api-dev:3005",
+      });
+
+      const backend = await provisioner.ensureApi();
+
+      expect(backend).toMatchObject({ kind: "container", url: "http://api-dev:3005" });
+      // Creating a service in dev would schedule a SECOND API beside the compose
+      // one, and both would try to own the same volumes.
+      expect(docker.createSwarmService).not.toHaveBeenCalled();
+    });
+
+    it("strips a trailing slash so backend URLs do not become `//health/ready`", async () => {
+      const { provisioner } = makeProvisioner({
+        SETUP_MODE: "dev",
+        SETUP_API_URL: "http://api-dev:3005/",
+      });
+
+      const backend = await provisioner.ensureApi();
+
+      expect(backend.url).toBe("http://api-dev:3005");
+    });
+
+    it("REFUSES to guess an address when SETUP_API_URL is missing", async () => {
+      const { provisioner } = makeProvisioner({ SETUP_MODE: "dev" });
+
+      // A guessed hostname would resolve to nothing and surface as an opaque 502
+      // on `api.<host>`, with the real cause (missing config) invisible.
+      await expect(provisioner.ensureApi()).rejects.toThrow(/SETUP_API_URL/);
+    });
+  });
+
+  describe("prod — setup schedules the API", () => {
+    it("creates a swarm service from DEPLOYER_API_IMAGE", async () => {
+      const { provisioner, docker } = makeProvisioner(
+        {
+          SETUP_MODE: "prod",
+          DEPLOYER_API_IMAGE: "deployer-api:local",
+          DEPLOYER_API_REPLICAS: "2",
+        },
+        { inspectSwarmService: notFound() },
+      );
+
+      const backend = await provisioner.ensureApi();
+
+      expect(docker.createSwarmService).toHaveBeenCalledOnce();
+      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
+        TaskTemplate: { ContainerSpec: { Image: string } };
+        Mode: { Replicated: { Replicas: number } };
+      };
+      // The image is the ONLY input for "which build to run" — that is the plan's
+      // single difference between local prod and a real deployment.
+      expect(spec.TaskTemplate.ContainerSpec.Image).toBe("deployer-api:local");
+      expect(spec.Mode.Replicated.Replicas).toBe(2);
+      expect(backend).toMatchObject({ kind: "swarm", serviceName: "deployer-api" });
+    });
+
+    it("REUSES an existing service instead of recreating it", async () => {
+      const { provisioner, docker } = makeProvisioner(
+        { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
+        { inspectSwarmService: vi.fn().mockResolvedValue({}) },
+      );
+
+      const backend = await provisioner.ensureApi();
+
+      // Recreating would restart a healthy API — a retry of a later step would
+      // become an outage.
+      expect(docker.createSwarmService).not.toHaveBeenCalled();
+      expect(backend).toMatchObject({ kind: "swarm" });
+    });
+
+    it("REFUSES to schedule without an image tag", async () => {
+      const { provisioner } = makeProvisioner({ SETUP_MODE: "prod" });
+
+      await expect(provisioner.ensureApi()).rejects.toThrow(/DEPLOYER_API_IMAGE/);
+    });
+
+    it("mounts the shared local-db volume, so the API reads the decision setup wrote", async () => {
+      const { provisioner, docker } = makeProvisioner(
+        { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
+        { inspectSwarmService: notFound() },
+      );
+
+      await provisioner.ensureApi();
+
+      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
+        TaskTemplate: { ContainerSpec: { Mounts: Array<{ Source: string; Target: string }> } };
+      };
+      // `node_config` lives here; without the mount the API boots with no idea a
+      // cluster exists and would re-run onboarding.
+      expect(spec.TaskTemplate.ContainerSpec.Mounts).toContainEqual(
+        expect.objectContaining({ Target: "/app/data" }),
+      );
+    });
+
+    it("prefixes the service and volume names so tenants stay distinguishable", async () => {
+      const { provisioner, docker } = makeProvisioner(
+        {
+          SETUP_MODE: "prod",
+          DEPLOYER_API_IMAGE: "deployer-api:local",
+          DEPLOYER_PREFIX: "acme",
+        },
+        { inspectSwarmService: notFound() },
+      );
+
+      const backend = await provisioner.ensureApi();
+
+      // The union is narrowed rather than asserted: only the swarm branch has a
+      // service name, and asserting its presence is the point of the test.
+      expect(backend.kind).toBe("swarm");
+      if (backend.kind !== "swarm") throw new Error("expected a swarm backend");
+      expect(backend.serviceName).toBe("deployer-api-acme");
+
+      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
+        TaskTemplate: { ContainerSpec: { Mounts: Array<{ Source: string }> } };
+      };
+      expect(spec.TaskTemplate.ContainerSpec.Mounts[0]?.Source).toBe("api_local_db_data_acme");
+    });
+  });
+
+  describe("backend URL", () => {
+    it("uses SETUP_API_PORT so dev and prod do not disagree", async () => {
+      const { provisioner } = makeProvisioner(
+        {
+          SETUP_MODE: "prod",
+          DEPLOYER_API_IMAGE: "deployer-api:local",
+          SETUP_API_PORT: "3001",
+        },
+        { inspectSwarmService: notFound() },
+      );
+
+      const backend = await provisioner.ensureApi();
+
+      // Prod publishes 3001 and dev 3005; a hardcoded port would be right in one
+      // mode and produce an unreachable ingress backend in the other.
+      expect(backend.url).toBe("http://deployer-api:3001");
+    });
+  });
+});

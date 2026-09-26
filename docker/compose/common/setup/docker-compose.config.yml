@@ -1,0 +1,61 @@
+# =====================================================================
+# Setup BASE config — INCLUDE-ONLY. Everything the setup app needs
+# regardless of variant. The dev variant extends THIS; the orchestrator
+# extends the variant and adds only per-project wiring (container_name,
+# networks).
+#
+# WHY A SEPARATE SERVICE AT ALL
+# Setup is a DIFFERENT APP with a different job (plan §1): it founds or
+# joins the swarm, serves the wizard, drives the API, hands the entry
+# port over, and exits. It is not the API in another mode — which is the
+# arrangement this refactor removes.
+#
+# NO `ports:` — DELIBERATE. Setup is reachable ONLY through Traefik on
+# the private docker network, exactly like the API. Publishing its port
+# would expose the PRE-AUTH wizard on every host interface, for a service
+# whose entire purpose is to be replaced.
+# =====================================================================
+services:
+  setup:
+    restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    environment:
+      SETUP_APP_PORT: "3016"
+      # `dev` waits for the compose-managed API; `prod` creates it as a swarm
+      # service. The ONLY behavioural branch in the setup app.
+      SETUP_MODE: ${SETUP_MODE:-dev}
+      SETUP_API_URL: ${SETUP_API_URL:-http://api-dev:3005}
+      # The port the API listens on internally. Read (not hardcoded) because it
+      # differs by environment: dev publishes 3005, prod 3001.
+      SETUP_API_PORT: ${API_PORT:-3005}
+      DEPLOYER_PREFIX: ${DEPLOYER_PREFIX:-}
+      # Same volume name the API uses, so `node_config` is the SAME file: setup
+      # WRITES the swarm participation decision and the API READS it.
+      NODE_LOCAL_DB_PATH: /app/data/local.db
+      # Engine access — setup founds/joins the swarm and (in prod) schedules the
+      # API service, so it drives the daemon directly.
+      DOCKER_HOST: unix:///var/run/docker.sock
+      # Traefik's watched directory. MUST match the API's value: setup writes the
+      # handover files here and the API later rewrites its own files in the same
+      # place, so a mismatch would make the handover look like "Traefik ignores
+      # us" rather than a configuration error.
+      TRAEFIK_CONFIG_BASE_PATH: /app/traefik-configs
+      # First-run swarm defaults, consulted only until the wizard persists a
+      # choice in `node_config.swarmConfig`.
+      SWARM_MODE: ${SWARM_MODE:-create}
+      SWARM_POLICY: ${SWARM_POLICY:-auto}
+      SWARM_JOIN_TOKEN: ${SWARM_JOIN_TOKEN:-}
+      SWARM_JOIN_ADDRS: ${SWARM_JOIN_ADDRS:-}
+      SWARM_ADVERTISE_ADDR: ${SWARM_ADVERTISE_ADDR:-}
+      SWARM_QUORUM_MAX: ${SWARM_QUORUM_MAX:-3}
+      MANAGED_WIREGUARD_IP: ${MANAGED_WIREGUARD_IP:-}
+      # This node's own public URL — the last-resort control-plane candidate.
+      APP_URL: ${APP_URL:-http://web-dev:3000}
+    volumes:
+      # Docker daemon socket: swarm init/join + (prod) service creation.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Platform config SHARING volume — same mount path as the API's, because
+      # both write into it and the handover lives here.
+      - ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}:/app/traefik-configs

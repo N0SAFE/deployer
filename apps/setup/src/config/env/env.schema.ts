@@ -25,6 +25,27 @@ export const setupEnvSchema = z.object({
   /** Where the full API answers, in dev. Unused in prod (setup creates it). */
   SETUP_API_URL: z.string().optional(),
 
+  /**
+   * The port the API listens on inside the platform network.
+   *
+   * Read rather than hardcoded because the correct value genuinely differs by
+   * environment (dev publishes 3005, prod 3001), so a constant would be right in
+   * one mode and silently wrong in the other — producing an ingress backend URL
+   * Traefik cannot reach. The default matches the API's own `app.config.ts`
+   * fallback.
+   */
+  SETUP_API_PORT: z.coerce.number().int().min(1).max(65535).default(3005),
+
+  /**
+   * Directory the live Traefik file provider watches.
+   *
+   * SAME variable and default as the API's own config services, because both
+   * processes must resolve the SAME mount: setup writes the handover into it and
+   * the API later rewrites its own files there. A mismatch would make the
+   * handover look like "Traefik ignores us" rather than a configuration error.
+   */
+  TRAEFIK_CONFIG_BASE_PATH: z.string().default("/app/traefik-configs"),
+
   /** The image tag setup schedules on the swarm in prod mode. */
   DEPLOYER_API_IMAGE: z.string().optional(),
 
