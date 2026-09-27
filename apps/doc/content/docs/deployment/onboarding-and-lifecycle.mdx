@@ -7,7 +7,7 @@ order: 23
 <DocMeta source="apps/doc/content/docs/deployment/onboarding-and-lifecycle.mdx" scope="canonical" />
 
 <DocCallout title="Status: current behavior" tone="success">
-This document describes the CURRENT runtime behavior of the API-centric deployment (gateway + sub-app pipeline, gateway-owned supervisors, Traefik-first ingress with failover proxy). It answers the three operational questions: **how does a fresh user get in, what happens on restart, and what are ALL the states in between**.
+This document describes the CURRENT runtime behavior of the API-centric deployment (**two apps with one handover** — `apps/setup` onboards and exits, `apps/api` boots one normal graph — plus supervisors owned by the API, Traefik-first ingress with failover proxy). It answers the three operational questions: **how does a fresh user get in, what happens on restart, and what are ALL the states in between**.
 </DocCallout>
 
 ## Table of contents
@@ -25,29 +25,40 @@ This document describes the CURRENT runtime behavior of the API-centric deployme
 
 ## Mental model
 
-One process, three app layers, one shared supervisor registry:
+**Two apps, one handover.** Onboarding is its own process, because the full API cannot serve traffic before a database exists — and making ONE process cover both phases is what produced the gateway, the sub-app pipeline and the runtime fallback swap.
 
 ```mermaid
 flowchart TB
-    subgraph PROC["API process (one container)"]
-        GW["Gateway app (main.ts)<br/>listens 0.0.0.0:API_PORT from second 0<br/>proxies /health + everything else"]
-        SUB1["Setup-wizard sub-app (127.0.0.1:3010)"]
-        SUB2["Mesh-initializer sub-app (127.0.0.1:3011)"]
-        SUB3["Main app (127.0.0.1:3012)"]
+    subgraph SETUP["apps/setup — one-way, exits after handover"]
+        S1["wizard (setup.\u007bprefix\u007ddeployer.localhost)<br/>pipes /setup/* to the API"]
+        S2["cluster: swarm init/join + node policy"]
+        S3["handover: poll /health/ready\n→ retarget dynamic-api.yml\n→ rewrite dynamic-setup.yml → ready → exit"]
     end
-    SUP["Supervisors (owner: gateway app)<br/>Traefik · Direct-port proxy · Global DB · Local DB<br/>shared PROCESS-WIDE registry + event bus"]
-    GW -->|proxies| SUB1
-    GW -->|proxies| SUB2
-    GW -->|proxies| SUB3
-    GW --> SUP
-    SUB3 -->|"same shared registry"| SUP
+    subgraph API["apps/api — one normal graph"]
+        A1["AppModule<br/>ORPC + product features + SSR views"]
+        A2["/health (liveness) · /health/ready (readiness)"]
+    end
+    SUP["Supervisors (owner: the API)<br/>Traefik · Direct-port proxy · Global DB · Local DB<br/>Redis · WireGuard · Managed web"]
+    S1 -->|proxies /setup/*| A1
+    S3 -->|creates in prod, waits in dev| API
+    API --> SUP
 ```
 
-- **The gateway is the only external HTTP surface.** It listens on `0.0.0.0:API_PORT` from the first second (Docker healthchecks pass immediately). Every sub-app binds **loopback** and is proxied by the gateway via longest-prefix-match on the route registry.
-- **The supervisors are owned by the gateway app** and boot at process start — **before, during and after setup**. This is deliberate: no service port is published (all port bindings were removed from compose), so the ingress (Traefik) and the failover proxy ARE the way into the platform.
-- **One shared registry/event bus per process** (`supervisor-shared.ts`): the gateway RUNS the supervisors, the main sub-app imports only the framework module, and its `/health/detailed` aggregation sees the same registry without a second copy (a duplicated Traefik would race on the same container name).
+- **Setup owns `setup.{prefix}deployer.localhost`; the API owns `api.{prefix}deployer.localhost`.** Traefik routes both by Host from two files, `dynamic-setup.yml` and `dynamic-api.yml`.
+- **The API boots ONE graph.** There is no gateway, no sub-app pipeline, and no runtime fallback swap. `main.ts` and `compile.ts` build the same `AppModule`.
+- **Setup never serves after the handover, and the API never starts before it.** One owner of the entry port at any moment.
+- **The API's `/setup/*` surface remains** — it is the EXECUTOR (the only process with the Drizzle schema, migrations and auth), and setup proxies to it. Setup owns the wizard PAGE.
+- **Supervisors are owned by the API**, which is why readiness only turns green after they have converged.
 
-At the end of the pipeline the gateway fallback points at the **main app**, at which point `/` and every API route are served.
+### dev vs prod — the only difference
+
+| | dev | prod |
+|---|---|---|
+| Who runs the API | **compose** (a normal service) | **setup** schedules it as a swarm service from `DEPLOYER_API_IMAGE` |
+| What setup does with it | waits for `SETUP_API_URL` to answer | creates the service, then waits |
+| Everything else | identical — gate, retarget, exit | identical |
+
+`SETUP_MODE` is the single behavioural branch, so the local path is a faithful rehearsal of a real deployment.
 
 ---
 
@@ -57,14 +68,17 @@ At the end of the pipeline the gateway fallback points at the **main app**, at w
 
 | Setup phase | Traefik converged (entry port 80) | Traefik failed (proxy active) |
 |---|---|---|
-| **Fresh boot — wizard open** (no DB yet) | `http://api.{prefix}deployer.localhost` — gateway health + setup ORPC endpoints | `http://localhost:{API_PORT}` — same, via the failover proxy |
+| **Fresh boot — wizard open** (no DB yet) | `http://setup.{prefix}deployer.localhost` — **the setup app**: the wizard page + proxied `/setup/*` | (setup is only reachable through Traefik; a failed ingress leaves the operator with `localhost:{DIRECT_PROXY_WEB_HOST_PORT}` for the web app once it exists) |
 | | `http://web.{prefix}deployer.localhost` — the web app shows the **onboarding UI** (its setup gate calls `setup.getState` → `needsSetup`) | `http://localhost:{DIRECT_PROXY_WEB_HOST_PORT}` (default 3000) — the onboarding UI via the proxy's web forward |
-| **Setup in progress** (background provisioning) | Same two URLs; the web app renders the live **progress stream** (SSE `setup.getInitializeStream`) | Same two URLs; the proxy keeps forwarding while the flow runs |
-| **Setup complete** | `http://api.{prefix}deployer.localhost` → API (auth + ORPC) | (transient) `http://localhost:{API_PORT}` → API |
+| **Setup in progress** (background provisioning) | Same URLs; the browser's SSE stream is served by the SETUP app, which pipes the API's frames — so the ingress handover cannot interrupt what the operator is watching | Same URLs; the proxy keeps forwarding while the flow runs |
+| **Setup complete** | `http://setup.{prefix}deployer.localhost` → the API's `/setup/done` page (the SETUP app has exited) | (transient) `http://localhost:{API_PORT}` → API |
+| | `http://api.{prefix}deployer.localhost` → API (auth + ORPC) | — |
 | | `http://web.{prefix}deployer.localhost` → the real web dashboard | `http://localhost:3000` → the real web dashboard |
 | **Setup complete + re-provisioned** (DB wiped) | The web's setup gate re-opens the onboarding UI automatically — the operator completes it again; the wizard stops at the running state until `setup_done` |
 
-**The rule of thumb:** the **web app is always where the human lands**. `web.{prefix}deployer.localhost` (or `localhost:3000` in proxy mode) serves the web app in every phase; the web app itself decides whether to show onboarding or the dashboard (its setup gate). `api.{prefix}deployer.localhost` is the machine surface (health + ORPC + `openapi.json` / `reference` from the main app).
+**The rule of thumb:** the **web app is always where the human lands**. `web.{prefix}deployer.localhost` (or `localhost:3000` in proxy mode) serves the web app in every phase; the web app itself decides whether to show onboarding or the dashboard (its setup gate). `setup.{prefix}deployer.localhost` is where onboarding RUNS (the wizard page, then the done page), and `api.{prefix}deployer.localhost` is the machine surface (health + ORPC + `openapi.json` / `reference`).
+
+**The setup hostname never disappears.** At handover, setup REWRITES `dynamic-setup.yml` to point the same host at the API's `/setup/done` page rather than deleting the router — deleting it would leave an operator who bookmarked the wizard with a Traefik 404.
 
 ---
 
@@ -72,18 +86,26 @@ At the end of the pipeline the gateway fallback points at the **main app**, at w
 
 ### Step 0 — boot pipeline (what happens before the UI)
 
-1. **Gateway up** (`0.0.0.0:API_PORT`) — health checks answer `200` immediately.
-2. **`OrchestratorService.onApplicationBootstrap`** runs the pipeline:
+**Setup app** (`apps/setup`, the entry point in every profile):
+
+1. **Binds its port** (3016, internal — never published; Traefik fronts it).
+2. **Founds or joins the swarm** (`ClusterOrchestratorService`, event-driven via RxJS) and applies the node policy. This must happen FIRST: the API's supervisors schedule their services onto that cluster, so it cannot be scheduled before the cluster exists.
+3. **`GET /setup/health` reports 503** until the handover completes — that is the compose gate.
+
+**API app** (`apps/api`):
+
+1. **Binds `0.0.0.0:API_PORT`** — `/health` (liveness) answers `200` immediately so Docker healthchecks pass and setup has something to drive.
+2. **`BootstrapOrchestratorService` runs the ready pipeline** on `onApplicationBootstrap`:
    - **DB resolver** (`SetupDevService`):
      - `SETUP_AUTO=true` **with** `SETUP_AUTO_DATABASE_URL` (or legacy `SETUP_DATABASE_URL`) → the URL is **probed**; unreachable → **boot FAILS hard** (no retry, no local-only fallback — the global DB is mandatory even in dev). Reachable → persisted to local SQLite `node_config`.
      - `SETUP_AUTO=true` **without** a URL → persists nothing; the wizard **auto-provisions** (its local strategy spins up the Postgres container).
      - `SETUP_AUTO` off → persists nothing; the wizard handles configuration manually.
    - **Stale-config guard**: `setup_done` + empty URL is an invalid state → reset to `not_started` so the wizard can re-run.
-   - **If a DB URL exists in `node_config`** → heal-or-verify → migrations (idempotent, no-op when already migrated) → mesh-init → main app.
-   - **If no URL** → **setup-wizard sub-app starts** (`127.0.0.1:3010`) and the orchestrator waits **event-driven** (`InitializationService.waitForSetup()` — no polling) for completion.
-3. **While the wizard is open**, the supervisors are already converged (Traefik routing the hostnames, proxy on standby), so steps 4-5 below are always reachable.
+   - **Swarm app wiring** → **DB probe** → **pending global migrations** (idempotent) → **default admin** (policy-gated).
+   - **No database URL yet** is NOT fatal: `/health` stays `200` and `/health/ready` stays `503`. That distinction is deliberate — in dev compose starts the API before setup provisions anything, so refusing to boot would crash-loop and setup would have nothing to drive.
+3. **Which is why setup can drive it even on a fresh node**: the API answers liveness immediately, so `SETUP_API_URL` resolves before a database exists.
 
-### Step 1 — the onboarding UI (web app, setup gate active)
+### Step 1 — the onboarding UI (served by the SETUP app)
 
 The web app (compose `web-dev`, managed web, or BYO — it doesn't matter) calls `setup.getState` on boot:
 
@@ -113,14 +135,19 @@ provision_database  → ensure_empty  → run_migrations  → seed_initial_data 
 5. **register_node** — `node_config` finalized: `setupState: "setup_done"`, `databaseUrl`, `nodeId`, `strategy`, `databaseProvisioning: "local" | "external"`, `configuredAt`.
 6. **finalize** — terminal event; `waitForSetup()` resolves.
 
-### Step 3 — automatic continuation
+### Step 3 — the handover
 
-Completion triggers, in order:
+When the API reports ready, the SETUP app performs the swap, in this order:
 
-1. Gateway **unregisters the setup-wizard sub-app** (its routes leave the registry).
-2. **Mesh-init** sub-app boots (`127.0.0.1:3011`, registers the node in the mesh if `MESH_NODE_ID` is set).
-3. **Main app** boots (`127.0.0.1:3012`) — the gateway fallback flips to it; `/` and /`health/detailed` and the ORPC surface now come from the full app.
-4. **Supervisors re-converge** (the main sub-app's shared orchestrator runs `ensureAll` on bootstrap): the **managed web spawns** if `managed_web_app.enabled` is on, the **global-db supervisor takes over** the managed Postgres, and the **ingress settles** (Traefik routes now point at the real API + web; if Traefik had failed, its recovery closes the proxy).
+1. **`dynamic-api.yml` is retargeted** at the API's backend. Done BEFORE waiting too, so the hostname changes BACKEND and never existence (a missing router is a 404).
+2. **`/health/ready` is polled to `200`.** That is the gate: nothing touches the setup hostname until the API is actually serving.
+3. **`dynamic-setup.yml` is rewritten** to point `setup.{prefix}deployer.localhost` at the API's `/setup/done` page.
+4. **`ready` is published** — the phase that compose gates on.
+5. **The SETUP app exits** (after a short grace period for the Traefik reload and the final stream frames).
+
+**The user's stream survives the swap** because it terminates at the SETUP app, not at the API ingress: the browser was never talking to the port that changed hands. And a FAILED handover does not exit — the phase goes `failed` with the reason, `/setup/health` stays 503, and the wizard stays reachable so the operator can retry.
+
+**The API then converges its supervisors** (swarm app wiring → global DB → Redis → managed web → ingress), which is what turns `/health/ready` green and keeps it green across restarts.
 
 ### After onboarding
 
@@ -156,21 +183,18 @@ Every docker-backed supervisor is **swarm-only** (the container fallback was rem
 
 ```mermaid
 sequenceDiagram
-    participant Boot as Gateway boot
+    participant S as apps/setup
+    participant A as apps/api
     participant Sup as Swarm-only supervisors
-    participant Setup as Setup wizard
-    participant Main as Main sub-app
-    Boot->>Sup: ensureAll()
-    Note over Sup: engine is not an active swarm member
-    Sup-->>Boot: pending (deferred — no attempt, no retries)
-    Setup->>Setup: operator confirms participation → swarm created
-    Main->>Sup: ensureAll() (shared process-wide registry)
-    Note over Sup: engine is now an active swarm member
-    Sup-->>Main: converged
+    S->>S: swarm init/join + node policy
+    Note over S: the cluster exists from here on
+    A->>Sup: ensureAll()
+    Note over Sup: engine IS an active swarm member
+    Sup-->>A: converged
 ```
 
 - A blocked supervisor **never calls `reconcile()`**, so it does not touch Docker, does not retry, and does not cascade (a failing Traefik used to re-trigger the failover proxy three extra times).
-- Recovery is **automatic**: the main sub-app boots a `SupervisorOrchestratorService` backed by the process-wide registry, so its `onApplicationBootstrap` re-converges every supervisor once setup has created the cluster. No operator click required.
+- Recovery is **automatic**: the API's `onApplicationBootstrap` runs the ready pipeline and then converges every supervisor. No operator click required.
 - A deferred supervisor reports `healthy: false` with **zero `warnings[]`** — warnings are reserved for `degraded`.
 - `managed` (compose/operator-owned) resources also need an overlay, so they defer too until the swarm exists.
 
@@ -262,7 +286,7 @@ sequenceDiagram
 
 | Endpoint | Auth | Includes supervisors | Purpose |
 |---|---|---|---|
-| `GET /health` | None | No | Docker healthcheck + startup gate — answers `200` from the first second (gateway). |
+| `GET /health` | None | No | Docker healthcheck + startup gate — answers `200` from the first second (liveness only; it never touches the database). |
 | `GET /health/detailed` | Yes (session/bearer) | Yes — `supervisors[]` with `supervisorId`, `state`, `healthy`, `detail`, `warnings[]`, `checkedAt` | Operator dashboard; the source of truth for degraded supervisors. |
 
 Supervisors aggregate via `SupervisorOrchestratorService.getHealthOfAll()` — every probe runs a **real measurement** (HTTP probe, `SELECT 1`, container inspect) validated against the supervisor's Zod `payloadSchema`; failures never throw — they degrade into an unhealthy snapshot. The full per-process details (docker spec + live state, entry port, URLs, connection DSNs) are one `getProcessInfo()` call away from any supervisor consumer.

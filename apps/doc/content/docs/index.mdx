@@ -122,40 +122,40 @@ This docs app is curated to prioritize practical workflows, architecture clarity
 		badge="Execution"
 	/>
 	<DocCard
-		title="Startup Architecture (Current)"
-		href="/docs/dev/startup-architecture"
-		description="Current phase-based bootstrap: Express-level CORS, OnApplicationBootstrap orchestrator, sub-apps as isolated contexts, lazy Auth loading."
+		title="Onboarding &amp; Lifecycle (Current)"
+		href="/docs/deployment/onboarding-and-lifecycle"
+		description="The two-app model: apps/setup founds the swarm, serves the wizard and hands the entry port over; apps/api boots ONE normal graph. Includes the access matrix, restart matrix and failure playbook."
 		badge="Core"
 	/>
 	<DocCard
-		title="Startup Architecture v2 (Legacy)"
+		title="Startup Architecture v2 (Superseded)"
 		href="/docs/architecture/startup-architecture-v2"
-		description="Complete rethinking of the startup model: two-phase lifecycle, DAG-driven initialization, bridge pattern, and ephemeral app teardown."
+		description="HISTORICAL: the sub-app trigger chain. Built, then replaced — onboarding moved to apps/setup and the API now boots one graph. Kept as a design record."
 		badge="Legacy"
 	/>
 	<DocCard
-		title="Startup v2 Blueprint"
+		title="Startup v2 Blueprint (Superseded)"
 		href="/docs/architecture/startup-v2-implementation-blueprint"
-		description="Concrete, file-by-file implementation plan for the v2 startup architecture with test criteria for each phase."
-		badge="Execution"
+		description="HISTORICAL: file-by-file plan for the v2 startup architecture that was later replaced. Kept as a design record."
+		badge="Legacy"
 	/>
 	<DocCard
-		title="Startup v2 Orchestration Graph"
+		title="Startup v2 Orchestration Graph (Superseded)"
 		href="/docs/architecture/startup-v2-orchestration-graph"
-		description="The NestJS DI graph IS the orchestrator. 10+ Mermaid diagrams showing the full module dependency tree, resolver barriers, sub-app triggers, lifecycle hooks, and execution timeline."
-		badge="Reference"
+		description="HISTORICAL: Mermaid diagrams of the sub-app trigger graph. Describes a design the platform no longer uses."
+		badge="Legacy"
 	/>
 	<DocCard
-		title="Startup v2 Flow Per Case"
+		title="Startup v2 Flow Per Case (Superseded)"
 		href="/docs/architecture/startup-v2-flow-per-case"
-		description="Complete startup flow for every scenario — first-time setup, normal restart, CLI mode, degraded mode, fatal error, and the detailed setup wizard interaction."
-		badge="Reference"
+		description="HISTORICAL: startup flows for the replaced sub-app design — first-time setup, restart, CLI mode, degraded mode."
+		badge="Legacy"
 	/>
 	<DocCard
-		title="Startup v2 Complete Bootstrap Flow"
+		title="Startup v2 Complete Bootstrap Flow (Superseded)"
 		href="/docs/architecture/startup-v2-complete-flow"
-		description="Perfectly detailed Mermaid diagram of the entire startup flow — from main.ts through NestJS bootstrap, all 7 sub-apps, trigger emissions, module resolution, to app.listen()."
-		badge="Reference"
+		description="HISTORICAL: the full sub-app bootstrap diagram, including the 7 sub-apps and their trigger emissions. Describes a removed design."
+		badge="Legacy"
 	/>
 	<DocCard
 		title="ORPC Auth Patterns"
@@ -223,6 +223,7 @@ This docs app is curated to prioritize practical workflows, architecture clarity
 - **Development**
 	- [Development Workflow](/docs/dev/development-workflow)
 	- [ORPC Type-Safe API Workflow](/docs/dev/orpc)
+	- [ORPC v2 Migration & Plugins](/docs/dev/orpc-v2-migration)
 	- [Declarative Routing Workflow](/docs/dev/routing)
 	- [Database Lifecycle](/docs/dev/database-lifecycle)
 	- [Global DB Migration Management](/docs/dev/global-db-migration-management)

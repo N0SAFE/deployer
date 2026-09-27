@@ -4,6 +4,22 @@ description: Complete specification of the phase-based startup where modules loa
 order: 15
 ---
 
+<DocCallout title="Superseded — kept as a design record" tone="danger">
+**This document describes a design that has since been REPLACED.** The sub-app
+trigger chain it specifies was built and then removed: onboarding moved to its own
+app (`apps/setup`), and `apps/api` now boots ONE normal Nest graph — no gateway,
+no sub-app pipeline, no runtime fallback swap.
+
+It is kept because a design doc explains WHY a choice was made, and that reasoning
+only makes sense for the design it belongs to. For how the platform works TODAY
+see:
+
+- [Onboarding & lifecycle](../deployment/onboarding-and-lifecycle.mdx) — the two-app handover
+- [API-centric deployment architecture](../deployment/api-centric-deployment-architecture.mdx)
+- `docs/setup-app-refactor-plan.md` — the refactor that replaced it
+</DocCallout>
+
+
 ## Core Principle
 
 <DocCallout title="Key Rule" tone="warning">

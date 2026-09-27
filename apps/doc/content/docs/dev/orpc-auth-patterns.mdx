@@ -129,26 +129,37 @@ updateMember() {
 
 ---
 
-## Pattern 5: Sub-App Setup Wizard (No Auth)
+## Pattern 5: The Setup Surface (No Auth)
 
-The setup wizard sub-app uses NO auth middleware — endpoints are public.
+The `/setup/*` endpoints use NO auth middleware — they are public by necessity:
+the wizard runs before any account exists.
 
 ```typescript
-// In sub-apps/setup-wizard/orpc-sub-app-controller.ts
+// apps/api/src/modules/setup/controllers/setup.controller.ts
 import { Controller } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
 import { setupContract } from '@repo/api-contracts';
+import { AllowAnonymous } from '@/core/modules/auth/decorators/decorators';
 
+// `@AllowAnonymous()` is REQUIRED at the Nest layer: the global AuthGuard runs
+// BEFORE ORPC middleware, so `.use(publicAccess())` alone would still 401.
+@AllowAnonymous()
 @Controller()
-export class OrpcSubAppController {
+export class SetupController {
   @Implement(setupContract.getState)
   getState() {
     return implement(setupContract.getState)
-      // No auth at all — setup endpoints are publicly accessible
+      .use(publicAccess())
       .handler(() => this.initializationService.getSetupState());
   }
 }
 ```
+
+**The PAGE is served by `apps/setup`, not by the API.** Onboarding is a separate
+process (it founds the swarm and hands the entry port over), so `apps/setup`
+serves the wizard UI on `setup.<host>` and proxies these endpoints to the API,
+which owns the contract because it is the only process with the Drizzle schema,
+migrations and auth stack. The API never serves the wizard page itself.
 
 ---
 

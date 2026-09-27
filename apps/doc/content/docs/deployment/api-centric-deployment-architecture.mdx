@@ -525,29 +525,38 @@ Every `BaseSupervisorService` exposes `getHealth()` returning a `SupervisorHealt
 
 ## Platform Traefik (API-owned ingress)
 
-### Lifecycle & boot order (supervisors run BEFORE setup)
+### Lifecycle & boot order
 
-The platform supervisors are owned by the **gateway app** (`main.ts` → `OrchestrationModule`), not the main sub-app. They boot at process start — **before and while the setup wizard runs** — because docker-compose publishes no service ports: the ingress IS the only way into the platform.
+The platform supervisors are owned by the **API** (`AppModule`, i.e. the one graph `main.ts` builds). There is no gateway app and no sub-app pipeline — onboarding is a separate process, `apps/setup`, which founds the swarm and then hands the entry port over.
 
-1. At gateway boot, the platform-Traefik supervisor ensures a Traefik container exists:
-   - Image: configurable via `DEPLOYER_TRAEFIK_IMAGE` (default pinned `traefik:v3`).
+1. **At API boot**, the platform-Traefik supervisor ensures a Traefik service exists:
+   - Image: configurable via `DEPLOYER_TRAEFIK_IMAGE` (default pinned `traefik:v3.6.10`).
    - Attached to the platform Docker network the API creates/reuses.
-   - Mounts the Docker socket **read-only** so Traefik's `docker` provider can discover containers by label.
+   - Mounts the Docker socket **read-only** so Traefik's `swarm` provider can discover services by label.
    - Single entrypoint `web` on :80 (bound to the configured **entry port**, default 80).
-2. Routing is built through the **file provider** (`--providers.file.directory=/config`, watch=true): the supervisor writes `dynamic-api.yml` to the shared config volume. The Docker provider stays enabled for label-based discovery of future containers.
-3. While the setup wizard sub-app runs on its internal port, the gateway proxies `api.{prefix}deployer.localhost` to it — the operator completes setup at **`http://api.deployer.localhost/setup-wizard`**.
-4. Setup completes → the main sub-app boots → its (shared) supervisor registry re-converges every supervisor now that the global DB exists.
-5. If the container already exists and is healthy → no-op (idempotent boot).
-6. If the container is unhealthy → recreate with exponential backoff, surfaced in logs and via `/health/detailed`.
+2. Routing is built through the **file provider** (`--providers.file.directory=/config`, watch=true). Two files are platform-owned by DIFFERENT writers, which is what prevents a merge race:
+   - `dynamic-setup.yml` — written by **`apps/setup`** (the wizard, then the done page).
+   - `dynamic-api.yml`, `dynamic-web.yml`, `dynamic-domain.yml`, `dynamic-services.yml` — written by the **API's** `TraefikPlatformConfigService`.
+3. **Onboarding runs in `apps/setup`**, which is the only process answering on `setup.{prefix}deployer.localhost` during that phase. It proxies the `/setup/*` contract to the API (the executor) and pipes the SSE stream.
+4. **At handover**, setup retargets `dynamic-api.yml`, polls `/health/ready` to `200`, rewrites `dynamic-setup.yml` to the API's `/setup/done` page, publishes `ready`, and exits.
+5. **The API then converges its supervisors** once the global DB exists (swarm app wiring → Postgres → Redis → managed web → ingress), which is what turns `/health/ready` green.
+6. If the service already exists and is healthy → no-op (idempotent boot).
+7. If it is unhealthy → recreate with exponential backoff, surfaced in logs and via `/health/detailed`.
 
-The supervisor framework providers (`SupervisorOrchestratorService`, `SupervisorEventBus`) are backed by **process-wide singletons** (`supervisor-shared.ts`): the gateway app RUNS the supervisors; the main sub-app imports the framework module only, and its health aggregation observes the SAME registry without booting a second copy.
+The supervisor framework providers (`SupervisorOrchestratorService`, `SupervisorEventBus`) are backed by **process-wide singletons** (`supervisor-shared.ts`) — one registry per process, so health aggregation and convergence observe the same state.
+
+<DocCallout title="Traefik v3 split the docker provider — do not pass the v2 flag" tone="danger">
+Traefik v3 has TWO providers where v2 had one: the **docker** provider (containers only) and the **swarm** provider (swarm services only). The v2 option `--providers.docker.swarmMode=true` was REMOVED, and per Traefik's own v3 migration guide ("Install Configuration Changes → SwarmMode") leaving it in place **prevents Traefik from starting**.
+
+That is why `TraefikSupervisorService` passes `--providers.swarm=true` (plus `exposedbydefault=false`) alongside `--providers.docker=true`. A supervisor that cannot start its ingress cannot converge at all, and the platform would have no way in.
+</DocCallout>
 
 ### Reaching the app before/during setup
 
-With no service ports published, access during setup (and before Traefik converges) is provided by the failover proxy:
+Setup is reachable **only through Traefik** (its port is never published — a pre-auth wizard on every host interface is unnecessary attack surface). With Traefik down, the failover proxy is the path in for the surfaces that already exist:
 
-- **Traefik healthy** → `http://api.deployer.localhost/setup-wizard` (entry port 80).
-- **Traefik failed** → the **direct-port proxy** publishes `API_PORT` (+ web port) on the host and forwards to the gateway: `http://localhost:API_PORT/setup-wizard`. The proxy closes itself the moment Traefik converges.
+- **Traefik healthy** → `http://setup.deployer.localhost` (wizard, then done page) on the entry port.
+- **Traefik failed** → the **direct-port proxy** publishes `API_PORT` (+ web port) on the host and forwards to the API: `http://localhost:API_PORT`. The proxy closes itself the moment Traefik converges.
 
 ### Hostname scheme
 

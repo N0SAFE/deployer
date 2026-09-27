@@ -62,10 +62,65 @@ into the nested `managed[service].key` / `.enabled` shape.
 | — | `managed` | `MANAGED_*_ENABLED=true` → link-only wiring, never spawn |
 | — | `unavailable` | engine is not a swarm member → **degrade**, never fall back to a container |
 
-`SwarmBootstrapService` converges the engine at boot **before** the setup
-wizard, so the swarm runtime is always available; a supervisor that still finds
-no active swarm reports `unavailable` with an actionable message instead of
-spawning a second, container-based copy of its process.
+`SwarmBootstrapService` converges the engine at boot, so the swarm runtime is
+always available; a supervisor that still finds no active swarm reports
+`unavailable` with an actionable message instead of spawning a second,
+container-based copy of its process.
+
+## Boot model: ONE graph, and onboarding belongs to `apps/setup`
+
+`main.ts` and `compile.ts` both build `AppModule`. There is no gateway, no
+sub-app pipeline, and no runtime fallback swapping — `main.ts` used to build a
+separate `OrchestrationModule` because the API could be launched BEFORE setup had
+run. That whole arrangement is gone (phase 8 of `docs/setup-app-refactor-plan.md`),
+because onboarding is now a different app:
+
+| Phase | Owner |
+|---|---|
+| found/join the swarm, WireGuard, the wizard, the handover | **`apps/setup`** |
+| DB provisioning, migrations, seed, admin, all product features | **`apps/api`** |
+
+Rules that follow from this:
+
+- **Never make the API serve onboarding.** No wizard page, no `/setup` UI, no
+  "pre-setup mode". The API's `/setup/*` surface remains because it is the
+  EXECUTOR (it has the Drizzle schema, migrations and auth), and the setup app
+  proxies to it — but the API never serves the wizard itself.
+- **Fail-fast is about READINESS, not process start.** In dev, compose starts the
+  API before setup provisions anything, so refusing to boot would crash-loop and
+  setup would have nothing to drive. `/health` (liveness) answers immediately;
+  `/health/ready` stays 503 until the platform is green. That is why
+  `GlobalDatabaseModule` creates a placeholder pool rather than throwing.
+- **`BootstrapOrchestratorService` owns the ready pipeline** (swarm app wiring →
+  DB probe → pending global migrations → default admin). It runs on every boot,
+  which is what covers the restart/heal path — setup does the same work during
+  onboarding, and a restart needs it again.
+- **Do not reintroduce a sub-app runner.** Independent Nest contexts were the
+  source of the "some DI works, some silently injects undefined" class of bug,
+  and `check-di-graph.ts` now anchors its root at `app.config.ts → AppModule`.
+
+## Build: transpile 1:1, never bundle
+
+`scripts/build.ts` transpiles `src/**` file-by-file. **Bundling breaks Nest DI**:
+bun emits some classes through the TC39 decorator path, which writes no
+`design:paramtypes`, so every plain typed constructor parameter arrives
+`undefined`:
+
+```
+TypeError: undefined is not an object ('this.meshTopology.registerControlEnvelopeHandler')
+```
+
+WHICH classes lose it varies with the module graph (it moved from
+`SystemMeshConfigService` to `SystemMeshTopicService` when the graph changed), so
+annotating constructors cannot keep up. Measured: 1:1 emits 629
+`design:paramtypes`, the bundler 561.
+
+One requirement of per-file output: `@/core/x` and `./x` are different module
+specifiers, so importing one file both ways loads it TWICE — two class objects,
+and Nest reports the provider as unresolvable. The build rewrites every `@/`
+specifier to a relative path for that reason. It also FAILS when zero decorator
+metadata is emitted, so the loss cannot ship silently.
+
 
 Swarm service specs need three things beyond the obvious fields, and getting
 them wrong breaks node-local services:
