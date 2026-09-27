@@ -17,7 +17,19 @@
 # =====================================================================
 services:
   setup:
-    restart: unless-stopped
+    # ── WHY NOT `unless-stopped` (the default for every other service) ──────
+    # Setup is a ONE-WAY app: it hands the platform over and then exits 0 by
+    # design (`SetupExitService` + `main.ts`). `unless-stopped` restarts a
+    # container on ANY exit, including a successful one, so the app would come
+    # back up, re-run onboarding, exit, and loop forever — while briefly holding
+    # `setup.<host>` again on a platform that already finished.
+    #
+    # `on-failure` is the correct policy and covers both cases:
+    #   exit 0   → handover complete, stay stopped.
+    #   exit ≠ 0 → the process died (OOM, uncaught fault). Restarting is right:
+    #              a failed setup must stay reachable so the operator can retry,
+    #              which is exactly what `SetupExitService` refuses to give up on.
+    restart: on-failure
     dns:
       - 8.8.8.8
       - 8.8.4.4

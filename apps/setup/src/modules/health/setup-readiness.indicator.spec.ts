@@ -6,8 +6,10 @@ import { SetupPhaseService } from "./setup-phase.service";
 
 /**
  * The indicator is the last step before compose decides. Its whole job is to
- * turn the phase into `up`/`down`, so the assertions are about the STATUS
- * COMPOSE SEES — a false `up` starts the dashboard on a half-built platform.
+ * turn the phase into `up`/`down` — and `up` means "the API may start" — so the
+ * assertions are about the STATUS COMPOSE SEES. A false `up` starts the API
+ * before the operator has supplied a database; a false `down` after the gate
+ * opened would tear a provisioning API back down.
  *
  * The real `HealthIndicatorService` is used, not a stub: the `up`/`down` payload
  * shape is the contract the operator reads, so faking it would test nothing.
@@ -27,25 +29,31 @@ describe("SetupReadinessIndicator", () => {
     expect(result.setup).toMatchObject({ status: "down", phase: "awaiting" });
   });
 
-  it("stays down through every in-progress phase", () => {
+  it("stays down through the phases BEFORE the details are collected", () => {
     const { indicator, phases } = makeIndicator();
 
-    for (const phase of ["clustering", "driving", "handover"] as const) {
+    for (const phase of ["clustering", "collecting"] as const) {
       phases.reset();
       phases.record(phase, `${phase}…`);
 
-      // Compose gates on this: any of these reporting up would let the
-      // dashboard start before the platform can serve it.
+      // Compose gates the API on this: reporting up here would start an API
+      // whose boot has no `databaseUrl` to read.
       expect(indicator.check().setup, `${phase} must report down`).toMatchObject({ status: "down" });
     }
   });
 
-  it("is up exactly once the handover completes", () => {
+  it("is up from `launching` onward — the gate the API starts behind", () => {
     const { indicator, phases } = makeIndicator();
 
-    phases.record("ready", "handed over");
+    phases.record("launching", "details collected");
+    expect(indicator.check().setup).toMatchObject({ status: "up", phase: "launching" });
 
-    expect(indicator.check().setup).toMatchObject({ status: "up", phase: "ready" });
+    // And it STAYS up: compose re-probes continuously, so a dip back to 503
+    // while the API is provisioning would tear it down mid-boot.
+    for (const phase of ["provisioning", "handover", "ready"] as const) {
+      phases.record(phase, `${phase}…`);
+      expect(indicator.check().setup, `${phase} must still report up`).toMatchObject({ status: "up" });
+    }
   });
 
   it("surfaces the failure reason in the probe body", () => {
@@ -65,7 +73,10 @@ describe("SetupReadinessIndicator", () => {
   it("reports the API flags, so a 503 says WHICH dependency is missing", () => {
     const { indicator, phases } = makeIndicator();
 
-    phases.record("driving", "waiting for the API to become ready", { apiUp: true, apiReady: false });
+    // These flags describe a platform that is ALREADY starting — the gate is
+    // open by definition once we are waiting on the API — so they are reported
+    // alongside an `up` verdict for the operator's benefit, not as the reason.
+    phases.record("provisioning", "waiting for the API to become ready", { apiUp: true, apiReady: false });
 
     expect(indicator.check().setup).toMatchObject({ apiUp: true, apiReady: false });
   });

@@ -54,7 +54,7 @@ export class ApiReadinessWatcherService {
     return timer(0, pollIntervalMs).pipe(
       // `timer` with a period never completes on its own, so the deadline is
       // enforced here: without it a never-ready API would poll forever and the
-      // operator would see an endless "driving" phase with no failure.
+      // operator would see an endless "provisioning" phase with no failure.
       takeWhile(() => Date.now() - startedAt < timeoutMs),
       switchMap(() => from(this.probe()).pipe(catchError(() => of<ApiProbeResult>({ ready: false, reason: "probe failed" })))),
       map((result) => {

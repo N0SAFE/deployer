@@ -93,6 +93,56 @@ describe("IngressHandoverService", () => {
     });
   });
 
+  describe("pointSetupAtSelf", () => {
+    it("routes the setup host to this app, so the wizard is reachable while it runs", async () => {
+      await ingress.pointSetupAtSelf();
+
+      const yaml = await read("dynamic-setup.yml");
+
+      expect(yaml).toContain("platform-setup:");
+      expect(yaml).toContain("Host(`setup.deployer.localhost`)");
+      // The network ALIAS with the app's real port: Traefik resolves this over
+      // the docker network, where the public hostname would mean nothing.
+      expect(yaml).toContain("http://setup:3016");
+    });
+
+    it("uses the CONFIGURED port rather than a hardcoded one", async () => {
+      const custom = new IngressHandoverService(
+        makeEnvService({ TRAEFIK_CONFIG_BASE_PATH: dir, SETUP_APP_PORT: "4444" }),
+      );
+
+      await custom.pointSetupAtSelf();
+
+      // A hardcoded 3016 would silently disagree with a container that bound
+      // something else, and the symptom would be a Traefik 502.
+      expect(await read("dynamic-setup.yml")).toContain("http://setup:4444");
+    });
+
+    it("is superseded by the done-page write rather than leaving two routers", async () => {
+      await ingress.pointSetupAtSelf();
+      await ingress.pointSetupAtDonePage("http://deployer-api:3005");
+
+      const yaml = await read("dynamic-setup.yml");
+
+      // Boot writes the wizard, handover rewrites to the done page. ONE router
+      // per name, or the reload order decides which backend wins.
+      expect(yaml?.match(/platform-setup:/g)).toHaveLength(1);
+      expect(yaml).toContain("/setup/done");
+      expect(yaml).not.toContain("http://setup:3016");
+    });
+
+    it("does NOT throw when the config directory is unwritable", async () => {
+      // A failure here must not restart-loop the container: the process still
+      // serves on its internal port, where the healthcheck and the handover
+      // reach it, and the handover retries the same write later.
+      const broken = new IngressHandoverService(
+        makeEnvService({ TRAEFIK_CONFIG_BASE_PATH: "/proc/nonexistent/read-only" }),
+      );
+
+      await expect(broken.onApplicationBootstrap()).resolves.toBeUndefined();
+    });
+  });
+
   describe("pointSetupAtDonePage", () => {
     it("points the setup host at the API's done page", async () => {
       await ingress.pointSetupAtDonePage("http://deployer-api:3005");

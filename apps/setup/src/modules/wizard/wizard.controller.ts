@@ -12,6 +12,7 @@ import { Render as SsrRender } from "@nestjs-ssr/react";
 import { Subject } from "rxjs";
 
 import SetupView from "@/views/pages/setup";
+import { SetupGateService } from "./setup-gate.service";
 import { WizardStreamService } from "./wizard-stream.service";
 import { WizardUpstreamService } from "./wizard-upstream.service";
 
@@ -52,6 +53,7 @@ export class WizardController {
   constructor(
     private readonly upstream: WizardUpstreamService,
     private readonly stream: WizardStreamService,
+    private readonly gate: SetupGateService,
   ) {}
 
   // ─── The wizard page ──────────────────────────────────────────────────────
@@ -128,6 +130,17 @@ export class WizardController {
       // would turn this app into an open relay to the API.
       res.status(404).json({ message: `Unknown setup path: ${path}` });
       return;
+    }
+
+    // ── THE GATE ────────────────────────────────────────────────────────────
+    // `POST /setup/trigger` is the operator saying "these are my choices, go".
+    // That is the moment the API may start, so the gate opens HERE — before the
+    // call is forwarded, because the forward is what needs the API to exist.
+    //
+    // Opening it AFTER forwarding would deadlock: the API would have to be up
+    // to receive the trigger that starts it.
+    if (path === "trigger" && req.method === "POST") {
+      await this.gate.open(req.body);
     }
 
     const init: RequestInit = {

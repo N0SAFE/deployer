@@ -2,7 +2,10 @@ import { Module } from "@nestjs/common";
 import { RenderModule } from "@nestjs-ssr/react";
 
 import { EnvModule } from "@/config/env/env.module";
+import { localDatabaseRegistration } from "@/config/database/local-database.module";
+import { NodesModule } from "@repo/nest-nodes";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
+import { SetupGateService } from "./setup-gate.service";
 import { WizardController } from "./wizard.controller";
 import { WizardOrpcModule } from "./wizard-orpc.module";
 import { WizardStreamService } from "./wizard-stream.service";
@@ -25,6 +28,11 @@ import { WizardUpstreamService } from "./wizard-upstream.service";
   imports: [
     EnvModule,
     SetupHealthModule,
+    // The gate persists the wizard's choices into the SHARED `node_config` row
+    // (the same SQLite file the API reads), so it needs the repositories. The
+    // registration is passed in rather than imported ambiently, exactly as
+    // `SetupClusterModule` does — the app owns the file path.
+    NodesModule.forRoot({ localDatabase: localDatabaseRegistration() }),
     WizardOrpcModule.forRoot(),
     RenderModule.forRoot({
       project: "setup",
@@ -37,7 +45,7 @@ import { WizardUpstreamService } from "./wizard-upstream.service";
     }),
   ],
   controllers: [WizardController],
-  providers: [WizardUpstreamService, WizardStreamService],
-  exports: [WizardUpstreamService, WizardStreamService],
+  providers: [SetupGateService, WizardUpstreamService, WizardStreamService],
+  exports: [SetupGateService, WizardUpstreamService, WizardStreamService],
 })
 export class WizardModule {}

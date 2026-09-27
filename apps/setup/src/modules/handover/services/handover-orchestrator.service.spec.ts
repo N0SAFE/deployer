@@ -3,21 +3,22 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { HandoverOrchestratorService } from "./handover-orchestrator.service";
 import { SetupPhaseService } from "@/modules/health/setup-phase.service";
-import type { ClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
+import type { SetupGateService } from "@/modules/wizard/setup-gate.service";
 import type { ApiReadinessWatcherService } from "./api-readiness-watcher.service";
 import type { ApiServiceProvisioner } from "./api-service-provisioner.service";
 import type { IngressHandoverService } from "./ingress-handover.service";
 
 /**
- * The orchestrator sequences three steps, and the ORDER is a safety property,
- * not an implementation detail (plan §9.3). So the assertions are about the
- * SEQUENCE OF EFFECTS — recorded into one array — rather than about each call in
+ * The orchestrator sequences four steps, and the ORDER is a safety property, not
+ * an implementation detail (plan §9.3). So the assertions are about the SEQUENCE
+ * OF EFFECTS — recorded into one array — rather than about each call in
  * isolation: every individual call is correct in any order, and only the order
  * decides whether the platform has a window with no route.
  *
- * The collaborators are stubs; each has (or needs) its own spec. What is tested
- * here is the composition — above all that `ready` is published LAST, because
- * that is the signal compose gates on.
+ * The collaborators are stubs; each has its own spec. What is tested here is the
+ * composition — above all that the operator's choices reach the API BEFORE the
+ * readiness poll (polling first waits for work nobody asked for) and that `ready`
+ * is published LAST.
  */
 describe("HandoverOrchestratorService", () => {
   let effects: string[];
@@ -28,6 +29,8 @@ describe("HandoverOrchestratorService", () => {
       ready?: boolean;
       provisionThrows?: Error;
       ingressThrows?: Error;
+      /** `null` models a RESTART, where there is nothing to deliver. */
+      trigger?: unknown;
     } = {},
   ): HandoverOrchestratorService {
     const isReady = options.ready ?? true;
@@ -67,12 +70,33 @@ describe("HandoverOrchestratorService", () => {
       },
     } as unknown as IngressHandoverService;
 
-    // `stream$` is only subscribed in `onApplicationBootstrap`, which is not
-    // called here — these tests drive the pipeline through `attempt()`, so the
-    // cluster subscription is irrelevant and an empty stream is honest.
-    const cluster = { stream$: of() } as unknown as ClusterOrchestratorService;
+    // The gate is stubbed: its own spec covers persistence and the gate decision.
+    // Here it only has to REPORT whether it holds a payload to deliver, which is
+    // what decides whether the trigger step runs at all.
+    const gate = {
+      triggerPayload: () => (options.trigger === undefined ? { strategy: "local" } : options.trigger),
+    } as unknown as SetupGateService;
 
-    return new HandoverOrchestratorService(provisioner, readiness, ingress, phases, cluster);
+    // The gate edge is subscribed in `onApplicationBootstrap`, which is not
+    // called here — these tests drive the pipeline through `attempt()`, the same
+    // entry point the subscription uses.
+    const orchestrator = new HandoverOrchestratorService(
+      provisioner,
+      readiness,
+      ingress,
+      phases,
+      gate,
+    );
+
+    // Never touch the network: the trigger transport is the one outbound call
+    // this service makes directly. Recording the POST is what lets the ordering
+    // assertion below prove the choices are delivered BEFORE the poll.
+    orchestrator.triggerTransport = (async (url: string | URL | Request) => {
+      effects.push(`trigger:${String(url)}`);
+      return new Response("{}", { status: 201 });
+    }) as typeof fetch;
+
+    return orchestrator;
   }
 
   /** Trigger once and await the single emitted result. */
@@ -88,16 +112,28 @@ describe("HandoverOrchestratorService", () => {
   });
 
   describe("successful handover", () => {
-    it("resolves the API, points the api route, waits, then rewrites the setup route", async () => {
+    it("resolves the API, delivers the choices, points the route, waits, then rewrites the setup route", async () => {
       const result = await run(makeOrchestrator());
 
       expect(result.ok).toBe(true);
       expect(effects).toEqual([
         "ensureApi",
         "pointApiAt:http://api-dev:3005",
+        "trigger:http://api-dev:3005/setup/trigger",
         "waitUntilReady",
         "pointSetupAtDonePage:http://api-dev:3005",
       ]);
+    });
+
+    it("delivers the operator's choices BEFORE polling for readiness", async () => {
+      await run(makeOrchestrator());
+
+      // The trigger is what STARTS provisioning, so polling first would wait for
+      // work nobody has asked for — and the API would sit idle until the
+      // timeout, failing a perfectly healthy install.
+      expect(effects.indexOf("trigger:http://api-dev:3005/setup/trigger")).toBeLessThan(
+        effects.indexOf("waitUntilReady"),
+      );
     });
 
     it("points `api.<host>` BEFORE waiting, so the hostname is never unrouted", async () => {
@@ -123,6 +159,61 @@ describe("HandoverOrchestratorService", () => {
 
       expect(result).toEqual({ ok: true, apiBackend: "http://api-dev:3005" });
     });
+
+    it("skips the trigger on a RESTART, where the row is already complete", async () => {
+      const result = await run(makeOrchestrator({ trigger: null }));
+
+      // Nothing to deliver: `node_config` holds the completed row and the API's
+      // migrate/seed are idempotent, so it provisions the delta unaided. The
+      // credentials were deliberately never persisted, so there is nothing to
+      // invent here either.
+      expect(result.ok).toBe(true);
+      expect(effects.some((e) => e.startsWith("trigger:"))).toBe(false);
+      expect(effects).toContain("waitUntilReady");
+    });
+  });
+
+  describe("trigger delivery", () => {
+    it("retries while the API is unreachable, then succeeds", async () => {
+      const orchestrator = makeOrchestrator();
+      // Compressed so the retry is observable without waiting real seconds; the
+      // production cadence is asserted nowhere because it is a comfort setting,
+      // not a safety property.
+      orchestrator.pollIntervalMs = () => 1;
+      orchestrator.timeoutMs = () => 5_000;
+      let attempts = 0;
+      orchestrator.triggerTransport = (async () => {
+        attempts += 1;
+        if (attempts < 3) throw new Error("ECONNREFUSED");
+        return new Response("{}", { status: 201 });
+      }) as unknown as typeof fetch;
+
+      const result = await run(orchestrator);
+
+      // The gate opens while the API is still being STARTED, so the first
+      // attempts legitimately land on a process that does not exist yet. One
+      // POST here would fail every prod handover for that ordinary reason.
+      expect(result.ok).toBe(true);
+      expect(attempts).toBe(3);
+    });
+
+    it("gives up on a 4xx instead of hiding a contract error behind a timeout", async () => {
+      const orchestrator = makeOrchestrator();
+      let attempts = 0;
+      orchestrator.triggerTransport = (async () => {
+        attempts += 1;
+        return new Response('{"message":"bad payload"}', { status: 422 });
+      }) as unknown as typeof fetch;
+
+      const result = await run(orchestrator);
+
+      // A reachable API refusing the request cannot be fixed by sending the
+      // same body again, so retrying would burn the full timeout and report a
+      // misleading "the API never answered".
+      expect(result.ok).toBe(false);
+      expect(result.ok === false && result.reason).toContain("422");
+      expect(attempts).toBe(1);
+    });
   });
 
   describe("failure leaves the platform retryable", () => {
@@ -147,7 +238,7 @@ describe("HandoverOrchestratorService", () => {
       );
 
       // Data, not an exception: the wizard renders the reason, whereas a thrown
-      // error would kill the pipeline and leave the phase stuck on "driving".
+      // error would kill the pipeline and leave the phase stuck on "provisioning".
       expect(result).toEqual({
         ok: false,
         reason: "SETUP_MODE=prod requires DEPLOYER_API_IMAGE",
@@ -166,7 +257,7 @@ describe("HandoverOrchestratorService", () => {
   });
 
   describe("the phase vocabulary matches the work", () => {
-    it("reports `driving` while waiting, and only `handover` for the swap", async () => {
+    it("reports `provisioning` while waiting, and only `handover` for the swap", async () => {
       const orchestrator = makeOrchestrator();
       const seen: string[] = [];
 
@@ -179,9 +270,9 @@ describe("HandoverOrchestratorService", () => {
       // `handover` must not appear before the API was ready — the type's own
       // doc says it means "the API is green; the ingress is being retargeted",
       // so claiming it while still waiting would misreport the wizard's step.
-      expect(seen).toContain("driving");
+      expect(seen).toContain("provisioning");
       expect(seen).toContain("handover");
-      expect(seen.indexOf("driving")).toBeLessThan(seen.lastIndexOf("handover"));
+      expect(seen.indexOf("provisioning")).toBeLessThan(seen.lastIndexOf("handover"));
       expect(seen.at(-1)).toBe("ready");
     });
   });

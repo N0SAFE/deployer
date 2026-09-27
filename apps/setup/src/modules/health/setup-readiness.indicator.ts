@@ -13,8 +13,8 @@ import { SetupPhaseService } from "./setup-phase.service";
  *
  * A pure read of the phase service's current value: no I/O, no polling. The
  * phase itself is advanced by events from the work that actually happens
- * (cluster, driving, handover), so this stays a cache read like the API's
- * readiness indicators.
+ * (cluster, collect, provision, handover), so this stays a cache read like the
+ * API's readiness indicators.
  *
  * The indicator is deliberately binary (`ready` or not). The rich, human-facing
  * picture — phase, apiUp, apiReady, detail — lives in `GET /setup/state`, which
@@ -31,8 +31,21 @@ export class SetupReadinessIndicator {
     const indicator = this.healthIndicator.check("setup");
     const snapshot = this.phases.current();
 
-    if (snapshot.phase === "ready") {
-      return indicator.up({ phase: snapshot.phase, detail: snapshot.detail });
+    // ── THE VERDICT COMES FROM THE GATE, NOT FROM A PHASE NAME ───────────────
+    // Delegating to `phases.isReady()` is load-bearing. An earlier version
+    // hardcoded `snapshot.phase === "ready"`, which silently disagreed with the
+    // gate once the gate moved to `launching`: the service would have reported
+    // ready while this endpoint kept answering 503, and compose would have
+    // waited forever for an API it was refusing to start.
+    //
+    // One predicate, one meaning: "the API may start".
+    if (this.phases.isReady()) {
+      return indicator.up({
+        phase: snapshot.phase,
+        detail: snapshot.detail,
+        apiUp: snapshot.apiUp,
+        apiReady: snapshot.apiReady,
+      });
     }
 
     // A failure reports the REASON as the detail so the operator sees the

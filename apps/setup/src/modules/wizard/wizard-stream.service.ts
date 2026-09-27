@@ -19,7 +19,7 @@ import { SetupPhaseService } from "@/modules/health/setup-phase.service";
  *   - tear the upstream connection down when the client disconnects (no leaked
  *     sockets against the API),
  *   - survive reconnection by replaying via `Last-Event-ID`,
- *   - feed the phase state machine so `/setup/state` reflects "driving".
+ *   - feed the phase state machine so `/setup/state` reflects "provisioning".
  * Those are all stream-composition problems, and expressing them as an
  * Observable keeps the teardown in one place (`takeUntil`) rather than spread
  * across try/finally blocks in a request handler.
@@ -123,7 +123,7 @@ export class WizardStreamService {
     clientGone: Subject<void>,
     lastEventId?: string,
   ): Promise<void> {
-    this.phase.record("driving", "Receiving provisioning progress from the platform API");
+    this.phase.record("provisioning", "Receiving provisioning progress from the platform API");
 
     return await new Promise<void>((resolve, reject) => {
       this.stream(lastEventId)

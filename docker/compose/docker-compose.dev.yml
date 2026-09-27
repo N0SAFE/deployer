@@ -19,6 +19,17 @@ services:
     ports:
       - "${DRIZZLE_STUDIO_PORT:-4983}:4983"
     depends_on:
+      # ── THE GATE ──────────────────────────────────────────────────────────
+      # The API is a CONVERGED-PLATFORM process: migrations, seed, admin and
+      # supervisor convergence all assume a database URL exists. So it starts
+      # only once setup has collected the onboarding details — the API then
+      # reads them from the shared `node_config` row and provisions itself.
+      #
+      # ONE DIRECTION. `setup` never depends on the API, so this is not the
+      # circular wiring the earlier design had to work around (it started the
+      # API early in a degraded mode to break the cycle).
+      setup-dev:
+        condition: service_healthy
       redis:
         condition: service_healthy
     environment:
@@ -46,7 +57,6 @@ services:
       MANAGED_DATABASE_PASSWORD: deployer
       MANAGED_DATABASE_NAME: deployer
       MANAGED_WIREGUARD_ENABLED: "true"
-      SETUP_AUTO: ${SETUP_AUTO:-false}
     networks:
       app_network_dev:
         aliases:
@@ -60,16 +70,11 @@ services:
 
   # ── Setup (one-way onboarding app) ────────────────────────────────
   #
-  # NO `depends_on` ON THIS SERVICE, and `api-dev` deliberately does NOT depend
-  # on setup. The naive wiring is a DEADLOCK (plan §8.5):
-  #
-  #   setup reports healthy only once the API is green, and the API would never
-  #   start if it waited for setup to be healthy first.
-  #
-  # So the API starts immediately and reports NOT-READY (`/health/ready` → 503)
-  # until setup has driven it. Its healthcheck points at `/health/ready`, which
-  # means `web-dev`'s existing `depends_on: api-dev: service_healthy` already
-  # encodes "setup has completed" — no extra gating needed, and no cycle.
+  # THE GATE. `api-dev` gates on this service's health, and `web-dev` gates on
+  # the API's health — so the chain is setup → api → web, one direction, no
+  # cycle. `/setup/health` returns 200 once the wizard has collected the details
+  # (or a previous run already did); it deliberately does NOT wait for the API,
+  # because the API's existence is what this gate enables.
   setup-dev:
     extends:
       file: ./common/setup/docker-compose.config.dev.yml

@@ -46,6 +46,16 @@ export const setupEnvSchema = z.object({
    */
   TRAEFIK_CONFIG_BASE_PATH: z.string().default("/app/traefik-configs"),
 
+  /**
+   * A Postgres the compose profile manages and hands to the platform.
+   *
+   * Read by `SetupGateService` when the operator supplies no URL of their own:
+   * it is the address the API must read from `node_config` on boot. Declared
+   * HERE rather than in the API's schema because setup is what persists it —
+   * and the API never reads this variable at all, only the row setup writes.
+   */
+  MANAGED_GLOBAL_DB_URL: z.string().optional(),
+
   /** The image tag setup schedules on the swarm in prod mode. */
   DEPLOYER_API_IMAGE: z.string().optional(),
 

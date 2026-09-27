@@ -99,7 +99,7 @@ export class SetupPhaseService {
   /**
    * Record a progress signal.
    *
-   * `failed` is sticky on purpose: a phase that later looks "driving" again
+   * `failed` is sticky on purpose: a phase that later looks "provisioning" again
    * must not silently erase an error the operator has not seen yet. Clearing it
    * is an explicit act (a retry), never a side effect of progress.
    */
@@ -134,9 +134,37 @@ export class SetupPhaseService {
     this.logger.log("Setup phase reset — ready to re-run");
   }
 
-  /** Readiness as compose consumes it: only `ready` counts. */
+  /**
+   * The GATE, as compose consumes it.
+   *
+   * Open from `launching` onward — NOT only at `ready`.
+   *
+   * ── WHY THE GATE OPENS AT `launching` AND NOT AT `ready` ────────────────────
+   * This is the single most consequential line in the app. An earlier design
+   * treated `ready` (i.e. "the API is green and the ingress is retargeted") as
+   * the gate, which made setup's health a statement about the API. Since compose
+   * starts the API *behind* this healthcheck, that is a cycle: each side waits
+   * for the other, and the only escape is starting the API early in a degraded
+   * mode — the arrangement this refactor exists to delete.
+   *
+   * `launching` is a fact about THIS process: the wizard finished collecting and
+   * persisted its choices. Nothing about the API is consulted, so the dependency
+   * graph stays a straight line (`setup → api → web`).
+   *
+   * The phases AFTER `launching` therefore still report ready. Setup keeps
+   * watching the API and rewriting the ingress, and compose re-probes this
+   * throughout — a `503` there would tear the API back down mid-provision.
+   */
   isReady(): boolean {
-    return this.state$.value.phase === "ready";
+    switch (this.state$.value.phase) {
+      case "launching":
+      case "provisioning":
+      case "handover":
+      case "ready":
+        return true;
+      default:
+        return false;
+    }
   }
 
   /**

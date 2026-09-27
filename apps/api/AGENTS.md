@@ -84,17 +84,25 @@ Rules that follow from this:
 
 - **Never make the API serve onboarding.** No wizard page, no `/setup` UI, no
   "pre-setup mode". The API's `/setup/*` surface remains because it is the
-  EXECUTOR (it has the Drizzle schema, migrations and auth), and the setup app
-  proxies to it — but the API never serves the wizard itself.
-- **Fail-fast is about READINESS, not process start.** In dev, compose starts the
-  API before setup provisions anything, so refusing to boot would crash-loop and
-  setup would have nothing to drive. `/health` (liveness) answers immediately;
-  `/health/ready` stays 503 until the platform is green. That is why
-  `GlobalDatabaseModule` creates a placeholder pool rather than throwing.
-- **`BootstrapOrchestratorService` owns the ready pipeline** (swarm app wiring →
-  DB probe → pending global migrations → default admin). It runs on every boot,
-  which is what covers the restart/heal path — setup does the same work during
-  onboarding, and a restart needs it again.
+  EXECUTOR (it has the Drizzle schema, migrations and auth); setup forwards the
+  contract calls and the API produces the SSE stream. Setup owns the wizard
+  PAGE and the gate.
+- **The API starts BEHIND setup, not before it.** `GET /setup/health` means "the
+  API may start" — it is an input to the API's existence, never a report about
+  it. In dev compose enforces the order (`api-dev: depends_on: setup-dev:
+  service_healthy`); in prod setup schedules the task when the gate opens. There
+  is no cycle to work around, because neither process waits on the other.
+- **Fail-fast is about READINESS, not process start.** A node whose onboarding
+  has not finished still has to answer liveness, so `/health` replies
+  immediately and `/health/ready` stays 503 until the platform is green. That is
+  why `GlobalDatabaseModule` creates a placeholder pool rather than throwing.
+- **`BootstrapOrchestratorService` is the RESTART path, not the install path.**
+  It runs only when `node_config.setupState === "setup_done"`; on a fresh install
+  it logs why and stops, because the WIZARD owns the first provisioning — the
+  operator's credentials are in its trigger, not in the environment. Running it
+  earlier would create an admin from `DEFAULT_ADMIN_*` defaults that nobody chose
+  and would race the wizard's own `migrate`. The restart path it does own: swarm
+  app wiring → DB probe → pending global migrations → default admin.
 - **Do not reintroduce a sub-app runner.** Independent Nest contexts were the
   source of the "some DI works, some silently injects undefined" class of bug,
   and `check-di-graph.ts` now anchors its root at `app.config.ts → AppModule`.
@@ -152,10 +160,13 @@ Rules when touching supervisors (`src/core/modules/supervisors/`):
 - Consumers resolve the managed URL through the supervisor's typed accessor
   (e.g. `RedisSupervisorService.getConnectionUrl()`), never by scattering
   `redis://` strings.
-- `SetupDevService` (Phase 0) resolves the global Postgres URL from
-  `managed.globalDb.*` when `MANAGED_GLOBAL_DB_ENABLED=true` and persists it
-  marked `databaseProvisioning: "external"` → the GlobalDbSupervisor never
-  supervises it.
+- The global Postgres URL comes from `node_config.databaseUrl`, WRITTEN BY SETUP
+  (`SetupGateService` — the wizard's choice) and read here. `databaseProvisioning:
+  "external"` means the URL was provided (compose-managed or pasted) → the
+  GlobalDbSupervisor never supervises it; `"local"` means this API owns and
+  supervises the database.
+- **The API is the only reader of `node_config` during onboarding.** Setup is the
+  only writer, which is what makes sharing the SQLite volume safe with no lock.
 - The compose-managed service declarations + the MANAGED_*_ENABLED env wiring
   live in the ORCHESTRATOR per profile (`docker-compose.dev.yml` = compose-
   managed; `dev-supervised` / `prod` = API-owned). Shared networks + volumes

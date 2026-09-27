@@ -18,12 +18,51 @@
 name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-mesh-6-dev
 
 services:
+
+  # ── Setup — the GATE and the swarm founder ────────────────────────
+  #
+  # Setup founds the swarm for the whole mesh and gates node 1, because this
+  # app is a CONVERGED-PLATFORM process: it reads the onboarding decision from
+  # `node_config` and provisions itself. Without setup the mesh has no cluster
+  # founder and every node would start with no database URL.
+  #
+  # ONLY node 1 is gated, because nodes 2..6 already `depends_on: api-1` — so
+  # the chain is setup → api-1 → api-2..6, one direction, no cycle.
+  setup-dev:
+    extends:
+      file: ./common/setup/docker-compose.config.dev.yml
+      service: setup
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-setup-dev
+    environment:
+      SETUP_MODE: "dev"
+      # Node 1 is the primary (web talks to it), so it is the address setup
+      # reports and retargets the ingress at.
+      SETUP_API_URL: http://api-mesh-dev-1:3301
+      SETUP_API_PORT: "3301"
+      DEPLOYER_PREFIX: ${DEPLOYER_PREFIX:-}
+      MANAGED_WIREGUARD_IP: ${MANAGED_WIREGUARD_IP:-}
+      APP_URL: ${APP_URL:-http://web-dev:3000}
+    # NO `ports:` — internal only, reached through Traefik.
+    volumes:
+      - api_local_db_data_dev:/app/data
+    networks:
+      app_network_dev:
+        aliases:
+          - setup-dev
+          - setup
+      deployer_platform:
+        aliases:
+          - setup-dev
+          - setup
   # ── Node 1 — the primary (web-dev talks to this one) ─────────────
   api-1:
     extends:
       file: ./common/api/docker-compose.config.dev.yml
       service: api
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-1
+    depends_on:
+      setup-dev:
+        condition: service_healthy
     ports:
       - "${MESH_API_PORT_1:-3301}:3301"
     environment:

@@ -29,12 +29,15 @@ import { SetupExitService } from "./services/setup-exit.service";
  *                                 only — never on `failed`, so onboarding stays
  *                                 retryable). `main.ts` owns the mechanism.
  *
- * ── WHY IT IMPORTS `SetupClusterModule` ─────────────────────────────────────
- * The handover is TRIGGERED BY the cluster result, so the orchestrator subscribes
- * to `ClusterOrchestratorService.stream$` instead of polling a phase or being
- * called from an app-level bootstrap. That keeps the dependency direction
- * readable (handover depends on cluster, never the reverse), so there is no
- * cycle for the DI gate to catch.
+ * ── WHY IT IMPORTS `SetupHealthModule`, NOT `SetupClusterModule` ─────────────
+ * The handover is TRIGGERED BY the gate opening — a phase EDGE on
+ * `SetupPhaseService`, published by `SetupGateService` in `WizardModule`. The
+ * cluster module is not a dependency: it only advances the phase to
+ * `collecting`, which is what makes the wizard available to open the gate in the
+ * first place.
+ *
+ * (An earlier version subscribed to `ClusterOrchestratorService.stream$` instead,
+ * which scheduled the API before the operator had supplied a database.)
  *
  * ── WHY IT IMPORTS `WizardModule` RATHER THAN REDECLARING AN HTTP CLIENT ─────
  * `WizardUpstreamService` already owns "where the API answers and how to reach
@@ -48,7 +51,7 @@ import { SetupExitService } from "./services/setup-exit.service";
  * client.
  */
 @Module({
-  imports: [EnvModule, SetupHealthModule, SetupClusterModule, WizardModule],
+  imports: [EnvModule, SetupHealthModule, WizardModule],
   providers: [
     IngressHandoverService,
     ApiServiceProvisioner,

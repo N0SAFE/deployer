@@ -3,14 +3,15 @@
 #
 # Same apps as dev (api/web/doc extend their common dev bases) but NO
 # compose services for global-db / redis / drizzle-gateway / traefik —
-# the API SUPERVISES them itself. MANAGED_*_ENABLED are false/absent →
-# supervisors own the lifecycle. SETUP_AUTO=true lets Phase 0 auto-provision.
+# the API SUPERVISES them itself, which is possible on this profile only
+# because the API starts BEHIND the setup gate (where a real cluster exists).
 #
-# SETUP IS STILL PRESENT, and it has to be: it is the process that founds or
-# joins the swarm and brings up WireGuard BEFORE the API can be scheduled onto
-# the cluster. That is a different job from managing the platform's services, so
-# this profile needing setup is not a contradiction of "no compose-managed
-# services" — compose manages no SERVICES here, but setup is the entry point.
+# WHY SETUP IS PRESENT AND IS THE ENTRY POINT
+# Setup founds or joins the swarm before the API exists, and `api-dev` gates on
+# `setup-dev: service_healthy`. That is a different job from managing the
+# platform's services, so needing setup here is not a contradiction of "no
+# compose-managed services": compose manages no SERVICES, but setup is what
+# opens the gate.
 # =====================================================================
 
 name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-supervised
@@ -22,9 +23,9 @@ services:
       service: setup
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-setup-dev
     environment:
-      # Dev: the API is a compose service, so setup DRIVES it rather than
-      # creating a swarm service for it. Same code path as the plain dev
-      # profile; what differs in this profile is who converges the platform's
+      # Dev: the API is a compose service, so setup resolves the address compose
+      # will fill in rather than creating a swarm service for it. Same code path
+      # as the plain dev profile; what differs is who converges the platform's
       # services (the API, not compose).
       SETUP_MODE: "dev"
       SETUP_API_URL: http://api-dev:${API_PORT:-3005}
@@ -50,8 +51,13 @@ services:
       file: ./common/api/docker-compose.config.dev.yml
       service: api
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-dev
+    depends_on:
+      # THE GATE (see docker-compose.dev.yml). Same direction as every profile:
+      # setup collects the onboarding details, then the API starts and owns
+      # convergence of the platform services itself.
+      setup-dev:
+        condition: service_healthy
     environment:
-      SETUP_AUTO: "true"
       MANAGED_GLOBAL_DB_ENABLED: "false"
       MANAGED_REDIS_ENABLED: "false"
       MANAGED_LOCAL_DB_ENABLED: "false"

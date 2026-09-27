@@ -39,16 +39,24 @@ services:
     command: ["sh", "-c", "bun x dotenv -e .env -- bun x turbo run dev --filter=setup..."]
     # NO `ports:` — reached through Traefik only (see the base config).
     healthcheck:
-      # `wget --spider` is a correct probe BECAUSE Terminus emits a real status
-      # code: 503 while onboarding runs, 200 once handed over.
+      # THE GATE. Terminus emits a real status code, so `wget --spider` is a
+      # correct probe: 503 while the wizard is still collecting, 200 once the
+      # details are persisted and the API may start.
+      #
+      # It does NOT wait for the API — the API is what this gate enables, so
+      # waiting for it would be a cycle. See `SetupGateService`.
       test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3016/setup/health || exit 1
-      # Longer than the API's: setup waits for the API to provision, which is
-      # the slow part of onboarding. start_period only covers the boot of THIS
-      # container, so the waits show up as retries rather than as a failure.
-      start_period: 30s
+      # Short: the gate opens when the OPERATOR finishes the wizard, so this
+      # start_period only covers this container's own boot.
+      start_period: 15s
+      # Generous on purpose: the gate stays closed for as long as the operator
+      # takes to fill in the form, which is unbounded. Too few retries would
+      # mark the container unhealthy on a slow human, filling the logs with
+      # false alarms. `depends_on: service_healthy` waits for the transition
+      # regardless, so this only affects how noisy the wait is.
       interval: 10s
       timeout: 5s
-      retries: 30
+      retries: 300
     develop:
       watch:
         # Rebuild when dependency or config files change.

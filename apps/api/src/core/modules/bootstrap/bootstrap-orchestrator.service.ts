@@ -50,7 +50,6 @@ import { migrate as migratePg } from "drizzle-orm/node-postgres/migrator";
 import type { Pool } from "pg";
 import { AppLifecycleService, AppLifecyclePhase } from "@repo/nest-lifecycle";
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
-import { splitManagedEnv } from "@repo/env";
 import { AppError } from "@repo/errors";
 import {
     GLOBAL_DATABASE_CONNECTION,
@@ -60,8 +59,8 @@ import {
 import { DatabaseStartupGuard } from "@/core/modules/database/services/database-startup-guard.service";
 import type { GlobalDatabase } from "@/core/modules/database/global/global-database.service";
 import { SwarmAppWiringSupervisorService } from "@/core/modules/supervisors/platform/swarm-app-wiring.supervisor.service";
-import { ensureDefaultAdmin } from "@/core/setup-dev/default-admin.bootstrap";
-import { provisioningPolicyFromProcessEnv } from "@/core/setup-dev/provisioning-policy";
+import { ensureDefaultAdmin } from "@/core/admin-bootstrap/default-admin.bootstrap";
+import { adminBootstrapDecisionFromProcessEnv } from "@/core/admin-bootstrap/admin-bootstrap-policy";
 
 @Injectable()
 export class BootstrapOrchestratorService implements OnApplicationBootstrap {
@@ -90,14 +89,40 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
         this.logger.log("🚀 Bootstrap starting…");
 
         try {
-            const databaseUrl = this.nodeConfigRepository.find()?.databaseUrl?.trim() ?? null;
+            const config = this.nodeConfigRepository.find();
+            const databaseUrl = config?.databaseUrl?.trim() ?? null;
 
             if (databaseUrl === null || databaseUrl.length === 0) {
-                // NOT an error: dev starts this app before setup provisions.
-                // Reported as not-ready so compose keeps waiting (plan §7.3).
+                // NOT an error: this happens on a node whose onboarding has not
+                // reached the database step. Reported as not-ready so compose
+                // keeps waiting for the gate (plan §7.3).
                 this.logger.warn(
                     "⏳ No global database configured yet — the API will report NOT READY " +
                         "until onboarding (apps/setup) completes.",
+                );
+                return;
+            }
+
+            // ── A FRESH INSTALL IS PROVISIONED BY THE WIZARD, NOT HERE ──────
+            // `setup_done` is written by the setup flow once provisioning
+            // succeeded. Before that, the node has a database URL but an EMPTY
+            // schema, and running this sequence would be actively wrong:
+            //
+            //   - the operator's credentials are in the wizard's trigger, not in
+            //     the environment, so `ensureDefaultAdmin` would create an admin
+            //     from `DEFAULT_ADMIN_*` defaults — the WRONG account on a real
+            //     install, and one the operator never chose;
+            //   - migrations would run concurrently with the wizard's own
+            //     `migrate` step, which is what `LocalInitializationService`
+            //     already performs as part of the flow the operator is watching.
+            //
+            // So this pipeline is the RESTART path: it applies the delta on a
+            // node that a previous run brought up (see `checkConfigAndEmit`,
+            // which unblocks the graph on exactly this condition).
+            if (config?.setupState !== "setup_done") {
+                this.logger.log(
+                    `⏳ Setup state is "${config?.setupState ?? "unknown"}" — the wizard is ` +
+                        "provisioning this node; the boot pipeline will run on the next start.",
                 );
                 return;
             }
@@ -243,11 +268,11 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
     /**
      * Policy-gated default-admin bootstrap.
      *
-     * The decision comes from `ProvisioningPolicy` (ADMIN_BOOTSTRAP, with
-     * ENABLE_DEV_BOOTSTRAP / ENABLE_SEEDING honoured as deprecated aliases):
+     * The decision comes from `resolveAdminBootstrapDecision` (ADMIN_BOOTSTRAP,
+     * with ENABLE_DEV_BOOTSTRAP / ENABLE_SEEDING honoured as deprecated aliases):
      *   - always     → ensure the admin on every ready boot
-     *   - when_empty → the wizard seeds an empty DB; this covers the
-     *                  healed/restart path idempotently
+     *   - when_empty → ensure it too; `ensureDefaultAdmin` is idempotent, so an
+     *                  existing admin is a no-op rather than an error
      *   - never      → skip entirely (operator opted out)
      *
      * NON-SILENT: when the policy requires an admin and creation fails, the boot
@@ -255,11 +280,7 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
      * and failing loudly here is the only way that becomes visible.
      */
     private async bootstrapSeededAdmin(databaseUrl: string): Promise<void> {
-        const managed = splitManagedEnv(
-            process.env as unknown as Record<string, unknown>,
-        ).globalDb;
-        const policy = provisioningPolicyFromProcessEnv(managed);
-        const { admin, adminReason } = policy;
+        const { decision: admin, reason: adminReason } = adminBootstrapDecisionFromProcessEnv();
 
         if (admin === "never") {
             this.logger.log(`⏭  Default-admin bootstrap skipped (${adminReason})`);

@@ -193,15 +193,28 @@ flowchart TB
 
 ### The key sequencing rule
 
-> **The setup app never serves traffic after the handover, and the API never starts before the
-> handover.** One owner of the entry port at any moment.
+> **The setup app is the only process that exists until the gate opens. The API is a
+> converged-platform process: it is started BY the platform being ready, never before.**
 
-- **Dev:** compose starts `setup`, `api`, `web`. `api` and `web` gate on a healthcheck that
-  requires the setup app to report "handed over". The API is already running (compose), so setup
-  only has to drive it.
-- **Prod:** compose (or the operator) starts **only** `setup`. Setup initialises/joins the swarm,
-  creates the API as a **swarm service** from the prebuilt image, waits for it to be green, drives
-  it, then retargets Traefik and exits.
+This is stronger than an ordering preference — it is what makes the two apps clean:
+
+- **Dev:** compose starts `setup` only. `api-dev` has
+  `depends_on: setup-dev: condition: service_healthy`, so compose itself enforces the gate. Then
+  `web-dev` gates on `api-dev: service_healthy`. One direction, no cycle.
+- **Prod:** compose starts `setup` only, and the API is **not a compose service at all** — setup
+  schedules it as a swarm task when the gate opens. The gate and the scheduling are the same
+  decision.
+- **The restart case is the same flow.** If `node_config` already says `setup_done`, setup skips the
+  wizard, re-verifies the cluster, and opens the gate immediately. One code path.
+
+Consequences worth stating plainly:
+
+| Because the API never starts early… | …this disappears |
+|---|---|
+| it has no "pre-setup" mode to tolerate | the deleted sub-app pipeline and the gateway fallback swap stay deleted |
+| its bootstrap can require a `databaseUrl` | the guards, deferred pools and `pending` supervisor states that existed only for a DB-less boot |
+| setup never has to poll the API before it may exist | the "is the API up yet?" branching in setup's cluster phase |
+| the wizard is served by setup for its whole life | the ingress-swap-vs-SSE-stream timing analysis (§9.3) — it is now structural |
 
 ---
 
@@ -710,16 +723,40 @@ through `redactUrl`.
 The setup app uses the **same Terminus wiring**, and its readiness endpoint is the compose gate.
 Binary states, because that is what compose consumes:
 
-- **`503` not ready** — `awaiting` (still driving) or `failed`.
-- **`200` ready** — the full API is up, its `/health/ready` is green, **and** the ingress has been
-  handed over.
+- **`503` gate closed** — `awaiting` / `clustering` / `collecting` / `provisioning` / `failed`.
+- **`200` gate open** — the wizard has collected everything it needs (or a previous run already
+  did), the choices are persisted to `node_config`, and the API may now start.
 
 ```ts
 this.health.check([
-  () => this.apiReachability.isHealthy('api'),   // GET <api>/health/ready
-  () => this.handover.isHealthy('handover'),     // ingress swapped and serving
+  // ONE indicator, and it is a LOCAL state read: has the wizard finished
+  // collecting? It deliberately does NOT probe the API — see §8.5.
+  () => this.gate.isHealthy('setup', this.phases.current()),
 ]);
 ```
+
+<DocCallout title="CORRECTED — the earlier design had this backwards" tone="warning">
+An earlier draft of this plan made the setup app report `200` only after the API was green, i.e.
+*setup's readiness depended on the API*. That inverts the dependency and produces the deadlock §8.5
+used to warn about.
+
+The correct semantics are the opposite, and they are also the simpler ones:
+
+> **Setup's health means "the platform may start the API". It is an INPUT to the API's existence,
+> never a report about it.**
+
+Why this is the right direction:
+
+- **The API is a converged-platform process.** It has no meaningful "pre-setup mode": migrations,
+  seed, admin creation and supervisor convergence all assume a database URL exists. Starting it
+  before that URL is known is what forced the deleted sub-app pipeline and the gateway's runtime
+  fallback swap in the first place.
+- **Setup never needs to reach the API in dev.** It serves the wizard itself and persists the
+  choices locally. `SETUP_API_URL` remains only for the *progress stream* (§10), which is a
+  **convenience, not a gate** — if the API is slow to come up, the wizard shows "starting…" rather
+  than failing.
+- **The chain becomes a straight line.** `setup → api → web`, each gating on the previous one's
+  health, with no edge back. One direction, no cycle, nothing to special-case.
 
 `GET /setup/state` (separate from health) carries the rich, human-facing picture — `phase`,
 `apiUp`, `apiReady`, `detail`. Health stays binary; the wizard reads `/setup/state` for nuance, and
@@ -734,9 +771,9 @@ Because Terminus emits real HTTP status codes, both probes are one-liners:
 # full api (dev) — READINESS, so "healthy" means "the platform works"
 healthcheck:
   test: wget --no-verbose --tries=1 --spider http://127.0.0.1:${API_PORT:-3005}/health/ready || exit 1
-  start_period: 180s        # setup + provisioning happens before this turns green
+  start_period: 180s        # provisioning AFTER the gate opens is the slow part
 
-# setup app — READINESS == handed over
+# setup app — READINESS == "the API may start"
 healthcheck:
   test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3016/setup/health || exit 1
   start_period: 30s
@@ -745,31 +782,42 @@ healthcheck:
   retries: 10
 ```
 
-### 8.5 How compose gates — and the deadlock to avoid
+### 8.5 How compose gates — one direction, no cycle
 
-A naive wiring is circular and MUST NOT be used:
+The chain is linear, and every edge points the same way:
 
-```yaml
-# DEADLOCK in dev: setup only reports "ready" once the API is green,
-# and the API would never start because it waits for setup to be healthy.
-api-dev:
-  depends_on:
-    setup:
-      condition: service_healthy
+```text
+setup ──service_healthy──▶ api ──service_healthy──▶ web
 ```
 
-In dev the API is a compose service, so the correct wiring is:
+```yaml
+setup-dev:
+  # no depends_on the API at all — setup is what OPENS the gate
+  healthcheck:
+    test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3016/setup/health || exit 1
 
-- **`api-dev` does NOT depend on `setup`.** It starts immediately. Its *liveness* answers at once;
-  its **readiness** is what only goes green after setup has driven provisioning.
-- **`setup` waits for the API to answer** (`SETUP_API_URL` reachable), drives it, then flips
-  `/setup/health` to `ready`.
-- **`web-dev` keeps `depends_on: api-dev: condition: service_healthy`** — with the API's healthcheck
-  pointing at `/health/ready`, web therefore starts only once the platform is green.
+api-dev:
+  depends_on:
+    setup-dev:
+      condition: service_healthy   # "the platform may start the API"
 
-That satisfies *"api and web app will wait for setup to be completed"* without a cycle: the API
-becomes **healthy** only after setup completed, while still **starting** early enough for setup to
-drive it.
+web-dev:
+  depends_on:
+    api-dev:
+      condition: service_healthy   # "the platform works"
+```
+
+**Why this needs no deadlock analysis any more.** The previous wiring had `setup` gating on
+`api` *and* `api` gating on `setup`, which is a cycle that can only be broken by making one of the
+two edges advisory (`api` starts early and lies about being ready). Both edges now point forward,
+so the ordering is enforced by compose itself and neither process has to tolerate a half-built
+state.
+
+**What the API loses.** `POST /setup/trigger` is no longer a *drive* step that setup initiates
+against a running pre-setup API. Setup writes the choices to `node_config` and opens the gate; the
+API reads them **on its own boot** and provisions. That removes the entire class of "is the API up
+yet?" branching from setup — there is nothing to poll before the gate, because the API does not
+exist before it.
 
 ---
 
@@ -1096,34 +1144,38 @@ setup-dev:
       aliases: [setup-dev, setup]
 ```
 
-### 11.1 Dev / dev-supervised — the API stays compose-managed
+### 11.1 Dev / dev-supervised — the API stays compose-managed, behind the gate
 
-Per the requirement: *"for dev everything remain the same so api is managed by compose"*.
-Only the dependency order and the readiness probe change.
+Per the requirement: *"for dev everything remain the same so api is managed by compose"*. Compose
+still starts the API — but **only after setup opens the gate**.
 
 ```yaml
 services:
   setup-dev:
     environment:
       SETUP_APP_PORT: "3016"
-      SETUP_MODE: "dev"                              # dev = wait for the API; prod = start it
+      SETUP_MODE: "dev"
+      # The API's address for the PROGRESS STREAM only (§10). It is not a gate:
+      # the wizard is fully usable with the API down, and setup's health does not
+      # depend on this resolving.
       SETUP_API_URL: "http://api-dev:${API_PORT:-3005}"
     # NO ports: — see section 11.0
 
   api-dev:
-    # NO depends_on setup — see the deadlock note in section 8.5.
-    # The API starts at once and reports not-ready until setup drives it.
+    depends_on:
+      setup-dev:
+        condition: service_healthy   # THE GATE — the API does not exist before this
     healthcheck:
       test: wget --no-verbose --tries=1 --spider http://127.0.0.1:${API_PORT:-3005}/health/ready || exit 1
 
   web-dev:
     depends_on:
       api-dev:
-        condition: service_healthy     # now means "platform is green"
+        condition: service_healthy     # unchanged: "the platform works"
 ```
 
-Because Terminus returns a real status code (section 8.1), the API's `service_healthy` already
-encodes "setup has completed" — no body parsing anywhere.
+Because Terminus returns a real status code (section 8.1), each `service_healthy` encodes its
+meaning exactly — no body parsing anywhere, and no process has to tolerate a half-built state.
 
 ### 11.2 Prod — the API is built locally, then started by setup on the swarm
 
@@ -1170,9 +1222,13 @@ services:
         condition: service_healthy     # Terminus readiness on the setup app
 ```
 
-`docker compose up --build` therefore: builds the API image → builds setup → starts setup →
-setup founds/joins the swarm, creates the API swarm service **using `DEPLOYER_API_IMAGE`**, waits
-for it to be green, hands over, and exits.
+`docker compose up --build` therefore: builds the API image → builds setup → starts setup → setup
+founds/joins the swarm, **serves the wizard**, persists the choices, opens its gate, creates the
+API swarm service **using `DEPLOYER_API_IMAGE`**, watches it converge, hands over, and exits.
+
+**In prod the gate and the scheduling are the same decision.** There is no compose `depends_on` to
+express it (the API is not a compose service), so `ApiServiceProvisioner.ensureApi()` is called when
+the gate opens — the sequence is enforced by setup's own pipeline rather than by compose.
 
 **The one variable that changes between "local prod" and "real prod":**
 
@@ -1270,7 +1326,8 @@ change and no code change — see open question 4.
 
 ### 13.1 Dev — standard (`docker-compose.dev.yml`)
 
-Compose owns the managed services AND the API. Setup runs only to *drive* onboarding.
+Compose owns the managed services AND the API, and enforces the ordering: the API is not started
+until setup is healthy.
 
 ```mermaid
 sequenceDiagram
@@ -1278,42 +1335,46 @@ sequenceDiagram
   participant S as setup-dev
   participant A as api-dev
   participant W as web-dev
-  DC->>S: start (no published port)
+  DC->>S: start
+  Note over DC,A: api-dev BLOCKED (depends_on setup-dev: service_healthy)
+  S->>S: phase "awaiting" → read node_config
+  S->>S: swarm init/join + node policy → phase "clustering"
+  S->>S: serve the wizard → phase "collecting"
+  S->>S: choices persisted to node_config
+  S->>S: phase "launching" → /setup/health 200
+  Note over S,DC: THE GATE IS OPEN
   DC->>A: start
-  DC->>W: start
-  S->>S: Terminus /setup/health = 503 (awaiting)
-  A->>A: boot: /health 200, /health/ready 503 (no DB / no swarm)
-  W->>W: waits for api-dev healthy
-  S->>A: wait for http://api-dev:3005/health
-  S->>A: POST /setup/trigger
-  A-->>S: SSE /setup/stream
-  S-->>S: pipe frames to the wizard (client keeps streaming)
-  A->>A: provision DB, migrate, seed, admin
-  A->>A: converge supervisors (compose-owned here: link-only)
-  A-->>S: /health/ready 200
-  S->>S: swap ingress runtime (container -> swarm service) if swarm active
-  S->>S: rewrite dynamic-api.yml + dynamic-setup.yml
-  S-->>DC: /setup/health 200 (ready)
-  DC->>A: api-dev now healthy
-  DC->>W: start web-dev
-  S->>S: exit
+  A->>A: read node_config → databaseUrl present
+  A->>A: provision DB, migrate, seed, admin, converge supervisors
+  A-->>S: SSE /setup/stream (piped to the wizard)
+  A->>A: lifecycle READY → /health/ready 200
+  Note over DC,A: api-dev now healthy
+  S->>A: poll /health/ready → 200
+  S->>S: phase "handover" → rewrite dynamic-api.yml + dynamic-setup.yml
+  S-->>DC: /setup/health stays 200 (gate was already open)
+  DC->>W: start web-dev (api-dev healthy)
+  S->>S: phase "ready" → grace → exit 0
 ```
+
+**The restart case** is the same sequence with one shortcut — `node_config` already says
+`setup_done`, so there is nothing to ask and the wizard is not shown. Setup verifies the cluster is
+still active (an idempotent converge) and opens the gate immediately; the API then provisions the
+delta, which is also idempotent. No second code path.
 
 ### 13.2 Dev-supervised (`docker-compose.dev-supervised.yml`) — API supervises, compose does not
 
 This is the profile where **the API owns the platform services** (redis, traefik, global-db,
-managed-web) instead of compose. Setup's role is the same; what changes is *who converges the
-services* and *who owns the ingress*.
+managed-web) instead of compose. The ordering chain is identical to dev — setup gates the API — and
+what changes is only *who converges the services* once the API is up.
 
 | Concern | Owner in this profile |
 |---|---|
-| redis | **API supervisor** → swarm service (or container pre-swarm) |
-| traefik | **API supervisor** → bootstrap container, then swarm GLOBAL service |
+| redis | **API supervisor** → swarm service |
+| traefik | **API supervisor** → swarm GLOBAL service |
 | global Postgres | **API** (`PostgresServiceProvisioner`) → swarm service |
 | drizzle-gateway | **API supervisor** |
-| wireguard | **setup** (mesh overlay must exist before the API is scheduled) |
-| swarm init/join | **setup** |
-| the full API itself | **compose** (still a compose service in dev) |
+| swarm init/join | **setup** (before the gate) |
+| the full API itself | **compose**, gated on `setup-dev: service_healthy` |
 
 ```mermaid
 sequenceDiagram
@@ -1322,30 +1383,27 @@ sequenceDiagram
   participant A as api-dev
   participant SW as swarm engine
   DC->>S: start (no published port)
-  DC->>A: start (no published port)
+  Note over DC,A: api-dev BLOCKED behind the gate
   S->>SW: swarm init or join (from the wizard's choice)
-  S->>SW: wireguard overlay
-  S->>S: ingress supervisor brought up as a CONTAINER (file provider only)
-  Note over S: setup.deployer.localhost and api.deployer.localhost now route
-  S->>A: wait for http://api-dev:3005/health
-  S->>A: POST /setup/trigger
-  A-->>S: SSE (piped to the wizard)
+  S->>S: serve the wizard → choices → node_config
+  S->>S: /setup/health 200 — GATE OPEN
+  DC->>A: start
   A->>SW: create global-db / redis / managed-web swarm services
-  A->>A: migrate, seed, admin
   A->>SW: converge traefik as a SWARM GLOBAL service
-  Note over A,SW: this is where the container -> swarm ingress swap happens (section 9.3)
-  A-->>S: /health/ready 200
+  A->>A: migrate, seed, admin
+  A-->>S: SSE (piped to the wizard)
+  A->>A: /health/ready 200
   S->>S: rewrite dynamic-api.yml + dynamic-setup.yml
-  S-->>DC: /setup/health 200
-  S->>S: exit
+  S-->>DC: phase "ready"
+  S->>S: exit 0
 ```
 
-**The stream is safe across the swap** for the reason in §9.3: the browser's SSE terminates at the
-setup app (`setup.deployer.localhost` → `setup-svc`), not at the API ingress. The ingress swap
-happens after the API is green, and the setup app keeps piping until the terminal event has been
-delivered.
+**No ingress swap can interrupt the wizard.** The browser's SSE terminates at the setup app
+(`setup.deployer.localhost` → `setup-svc`), and setup never retargets the ingress while the wizard
+is being used — the retarget happens only after the API is green, which is long after the form was
+submitted. The earlier design had to argue this as a timing property; here it is structural.
 
-### 13.3 Prod — setup creates the API on the swarm
+### 13.3 Prod — setup opens the gate and schedules the API
 
 ```mermaid
 sequenceDiagram
@@ -1357,18 +1415,18 @@ sequenceDiagram
   DC->>B: build image -> ${DEPLOYER_API_IMAGE}
   B-->>DC: exited 0 (image tag now exists locally)
   DC->>S: start (depends_on: build-api completed)
-  S->>SW: init or join + wireguard
+  S->>SW: init or join + node policy
+  S->>S: serve the wizard → phase "collecting"
+  Note over S,A: NO API TASK EXISTS YET
+  S->>S: choices persisted → phase "launching" → /setup/health 200
   S->>SW: create service api (image=DEPLOYER_API_IMAGE, mounts local-db volume)
   SW->>A: schedule task
-  S->>A: wait for /health
-  S->>A: POST /setup/trigger
+  A->>A: read node_config → migrate, seed, admin, converge services
   A-->>S: SSE (piped to the wizard)
-  A->>SW: global-db, redis, managed-web, traefik as swarm services
-  A->>A: migrate, seed, admin
-  A-->>S: /health/ready 200
+  A->>A: /health/ready 200
   S->>S: rewrite dynamic-api.yml + dynamic-setup.yml
   S-->>DC: /setup/health 200
-  S->>S: exit
+  S->>S: exit 0
 ```
 
 ---

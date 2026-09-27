@@ -79,8 +79,8 @@ export class ClusterOrchestratorService implements OnApplicationBootstrap {
       tap((result) => {
         if (result.ok) {
           this.phase.record(
-            "driving",
-            `Cluster active (${result.swarmRole}, ${String(result.nodeCount)} node(s)) — starting the API`,
+            "collecting",
+            `Cluster active (${result.swarmRole}, ${String(result.nodeCount)} node(s)) — collecting setup details`,
           );
         } else {
           // Sticky failure: the operator must see it until they retry.

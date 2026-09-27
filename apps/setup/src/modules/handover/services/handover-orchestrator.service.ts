@@ -5,7 +5,6 @@ import {
   Subscription,
   catchError,
   concatMap,
-  filter,
   firstValueFrom,
   from,
   of,
@@ -15,7 +14,7 @@ import {
 } from "rxjs";
 
 import { SetupPhaseService } from "@/modules/health/setup-phase.service";
-import { ClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
+import { SetupGateService } from "@/modules/wizard/setup-gate.service";
 import type { HandoverResult } from "../handover.types";
 import { ApiServiceProvisioner } from "./api-service-provisioner.service";
 import { ApiReadinessWatcherService } from "./api-readiness-watcher.service";
@@ -36,16 +35,20 @@ import { IngressHandoverService } from "./ingress-handover.service";
  * ── THE ORDERING INVARIANTS (plan §9.3) ─────────────────────────────────────
  * These are not cosmetic; each one prevents a specific outage:
  *
- *   1. The API is polled to ready BEFORE the ingress is touched. Swapping
+ *   1. The gate is open (the operator's choices are persisted), so the API may
+ *      start — `ensureApi()` is what starts it in prod.
+ *   2. The operator's choices are DELIVERED to the API (`POST /setup/trigger`),
+ *      which is what makes it provision. Polling before this would wait for work
+ *      nobody had asked for.
+ *   3. The API is polled to ready BEFORE the ingress is touched. Swapping
  *      earlier points `api.<host>` at a process that is not serving.
- *   2. `dynamic-api.yml` is retargeted BEFORE anything else, so the hostname is
+ *   4. `dynamic-api.yml` is retargeted BEFORE anything else, so the hostname is
  *      continuously answerable — it changes BACKEND, never existence.
- *   3. `dynamic-setup.yml` is rewritten BEFORE this app exits, so
+ *   5. `dynamic-setup.yml` is rewritten BEFORE this app exits, so
  *      `setup.<host>` degrades to the done page rather than a Traefik 404 for an
  *      operator who bookmarked the wizard.
- *   4. `ready` is published last, because it is the signal compose gates on —
- *      reporting it early would start the dashboard on a half-handed-over
- *      platform.
+ *   6. `ready` is published last, because it is the signal this app is about to
+ *      stop — reporting it early would claim a platform that is not converged.
  *
  * ── WHAT HAPPENS WHEN IT FAILS ──────────────────────────────────────────────
  * Nothing is torn down. The phase goes `failed` with the reason, the wizard
@@ -64,9 +67,19 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
    */
   private readonly attempts$ = new Subject<void>();
 
-  /** Closes the cluster subscription and the pipeline on shutdown. */
+  /** Closes the gate subscription and the pipeline on shutdown. */
   private readonly destroyed$ = new Subject<void>();
-  private clusterSubscription: Subscription | null = null;
+  private gateSubscription: Subscription | null = null;
+
+  /**
+   * Transport used to deliver the setup trigger.
+   *
+   * A FIELD rather than a direct `fetch` call so a spec can drive the retry and
+   * rejection paths without a live API. The default is the global `fetch`, which
+   * is what runs in production — this is a seam, not a strategy: no second
+   * implementation exists, and nothing chooses between them.
+   */
+  triggerTransport: typeof fetch = fetch;
 
   private readonly results$: Observable<HandoverResult>;
 
@@ -75,7 +88,7 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
     private readonly readiness: ApiReadinessWatcherService,
     private readonly ingress: IngressHandoverService,
     private readonly phase: SetupPhaseService,
-    private readonly cluster: ClusterOrchestratorService,
+    private readonly gate: SetupGateService,
   ) {
     this.results$ = this.attempts$.pipe(
       // Serialised: see the class note. A retry clicked mid-handover QUEUES.
@@ -115,46 +128,44 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
   }
 
   /**
-   * Start the handover when the cluster becomes active.
+   * Start the handover when the GATE OPENS.
    *
-   * SUBSCRIBING TO THE RESULT STREAM, not polling the phase: the cluster
-   * orchestrator publishes its outcome, so reacting to it is an event handler
-   * rather than a timer. That is what makes this app event-driven end to end —
-   * no component in the chain asks "are we there yet?".
+   * ── WHY THE GATE AND NOT THE CLUSTER ──────────────────────────────────────
+   * This used to subscribe to `cluster.stream$` — "the cluster is active, so
+   * start the API". That was correct under the previous design, where the API
+   * already existed and only had to be polled.
    *
-   * `filter` on the terminal outcome, because `stream$` is a `shareReplay`
-   * read-model: it replays its last value to a new subscriber, and without the
-   * filter a LATE subscription would immediately re-trigger a handover for a
-   * cluster attempt that already completed. `distinctUntilChanged` is not enough
-   * here — the same object would be distinct from `undefined` but the value is
-   * identical, so the filter keys on the fact that matters: is there an outcome.
+   * The gate changes what must happen first. In prod, `ensureApi()` CREATES the
+   * API's swarm service, so triggering it on cluster success would schedule the
+   * API *before* the operator supplied a database — the API would boot with no
+   * `databaseUrl`, report not-ready, and sit there consuming a task slot while
+   * the wizard was still open.
    *
-   * A failed cluster does NOT trigger the handover: there is no engine to
-   * schedule onto, and the cluster's own failure is already the published reason.
+   * Subscribing to the gate instead makes the handover mean what it says: the
+   * details are in `node_config`, so the API may be started and watched. In dev
+   * the ordering is enforced by compose (`api-dev` gates on this app's health),
+   * so `ensureApi()` just resolves the address compose will fill in.
+   *
+   * `filter`/`distinctUntilChanged` are not needed here: `onEnter` already
+   * filters on the target phase and de-duplicates by timestamp, and the gate is
+   * published at most once per `launching` transition.
    */
   onApplicationBootstrap(): void {
-    this.clusterSubscription = this.cluster.stream$
-      .pipe(
-        // Skip the replay placeholder: `shareReplay` emits `undefined`-free but
-        // a late subscriber re-receives the LAST result, which is exactly the
-        // case this guard exists for.
-        filter((result) => result.ok),
-        takeUntil(this.destroyed$),
-      )
-      .subscribe((result) => {
-        this.logger.log(
-          `Cluster is active (${result.swarmRole}, ${String(result.nodeCount)} node(s)) — starting handover`,
-        );
+    this.gateSubscription = this.phase
+      .onEnter("launching")
+      .pipe(takeUntil(this.destroyed$))
+      .subscribe(() => {
+        this.logger.log("Gate is open — starting the handover pipeline");
         this.attempt();
       });
   }
 
-  /** Release the cluster subscription. */
+  /** Release the gate subscription. */
   onModuleDestroy(): void {
     this.destroyed$.next();
     this.destroyed$.complete();
-    this.clusterSubscription?.unsubscribe();
-    this.clusterSubscription = null;
+    this.gateSubscription?.unsubscribe();
+    this.gateSubscription = null;
   }
 
   /** Start (or retry) the handover. Safe while one is running (it queues). */
@@ -172,10 +183,10 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
    *
    * THE PHASE VOCABULARY IS LOAD-BEARING, so each step reports the phase that
    * matches what it is actually doing: waiting for the API to provision is
-   * `driving` (the API is being asked to build the platform), and only the
-   * ingress swap is `handover` ("the API is green; the ingress is being
-   * retargeted" — `setup-phase.types.ts`). Reporting the swap as `handover` while
-   * still waiting would make the wizard claim a step it has not reached.
+   * `provisioning` (the API is building the platform), and only the ingress
+   * swap is `handover` ("the API is green; the ingress is being retargeted" —
+   * `setup-phase.types.ts`). Reporting the swap as `handover` while still
+   * waiting would make the wizard claim a step it has not reached.
    *
    * Never throws: a handover that cannot complete must leave the operator with a
    * reason and a retry, not a dead process. The failure is returned as data so
@@ -183,10 +194,12 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
    */
   private async run(): Promise<HandoverResult> {
     try {
-      this.phase.record("driving", "Resolving where the API is served…");
+      this.phase.record("provisioning", "Resolving where the API is served…");
 
       // 1. Resolve the backend — in prod this CREATES the swarm service, so it
       //    must happen before any probe: there is nothing to poll until then.
+      //    Reached only once the gate is open, i.e. after the operator's choices
+      //    are in `node_config`, which is what the API reads on boot.
       const backend = await this.provisioner.ensureApi();
 
       // 2. Point `api.<host>` at it IMMEDIATELY (invariant 2). Doing this before
@@ -196,9 +209,20 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
       //    misconfiguration rather than "not provisioned yet".
       await this.ingress.pointApiAt(backend.url);
 
-      // 3. Wait for the API to report ready (invariant 1). Still `driving`: the
-      //    API is provisioning, and nothing has been handed over yet.
-      this.phase.record("driving", `Waiting for the API at ${backend.url} to report ready…`);
+      // 3. Deliver the operator's choices, then WAIT for the API to report ready.
+      //
+      //    ORDER MATTERS AND IS EASY TO GET WRONG: the trigger is what tells the
+      //    API to provision, so polling for readiness BEFORE delivering it waits
+      //    for work nobody has asked for. The API boots, finds a `databaseUrl`
+      //    in `node_config`, connects, and only provisions the schema when
+      //    `POST /setup/trigger` arrives.
+      //
+      //    Still `provisioning`: the API is building the platform, and nothing
+      //    has been handed over yet.
+      this.phase.record("provisioning", "Handing setup over to the platform API…");
+      await this.deliverTrigger(backend.url);
+
+      this.phase.record("provisioning", `Waiting for the API at ${backend.url} to report ready…`);
       const probe = await firstValueFrom(
         this.readiness.waitUntilReady(this.pollIntervalMs(), this.timeoutMs()),
       );
@@ -228,13 +252,89 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
   }
 
   /**
+   * Deliver the operator's choices to the API, retrying until it answers.
+   *
+   * ── WHY THIS RETRIES RATHER THAN POSTING ONCE ───────────────────────────────
+   * The trigger is sent the moment the gate opens, and the API is only then being
+   * started (in prod: scheduled as a swarm task). So the first attempts land on a
+   * process that does not exist yet, and a single POST would fail the whole
+   * handover for the ordinary reason that a container takes seconds to boot.
+   *
+   * The retry is bounded by the same timeout the readiness poll uses, so a
+   * genuinely broken API still fails the onboarding instead of retrying forever.
+   *
+   * ── WHY A 4xx IS NOT RETRIED ─────────────────────────────────────────────
+   * A non-2xx from a *reachable* API means the request itself was rejected —
+   * retrying an identical payload cannot change that, and it would hide a real
+   * contract error behind a timeout. Connection failures and 5xx are transient
+   * startup conditions and are retried.
+   */
+  private async deliverTrigger(backendUrl: string): Promise<void> {
+    const payload = this.gate.triggerPayload();
+
+    if (payload === null) {
+      // A restart: `node_config` already holds the completed row, and migrate/seed
+      // are idempotent, so the API provisions the delta on its own boot. There is
+      // nothing to deliver — and nothing to invent, since the credentials were
+      // never persisted (they are the operator's, not ours).
+      this.logger.log("No trigger to deliver (setup already complete on this node)");
+      return;
+    }
+
+    const deadline = Date.now() + this.timeoutMs();
+    let lastReason = "the API never answered";
+
+    for (;;) {
+      try {
+        const response = await this.triggerTransport(`${backendUrl}/setup/trigger`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (response.ok) {
+          this.logger.log("Setup trigger delivered — the API is provisioning");
+          return;
+        }
+
+        // Reachable but refusing: see the note above.
+        if (response.status >= 400 && response.status < 500) {
+          const body = await response.text().catch(() => "");
+          throw new Error(
+            `the API rejected the setup trigger (HTTP ${String(response.status)}): ${body.slice(0, 200)}`,
+          );
+        }
+
+        lastReason = `the API answered ${String(response.status)}`;
+      } catch (error: unknown) {
+        // A non-2xx that we threw ourselves propagates: it is a contract error,
+        // not a startup condition.
+        if (error instanceof Error && error.message.startsWith("the API rejected")) {
+          throw error;
+        }
+        lastReason = error instanceof Error ? error.message : String(error);
+      }
+
+      if (Date.now() >= deadline) {
+        throw new Error(`could not deliver the setup trigger — ${lastReason}`);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, this.pollIntervalMs()));
+    }
+  }
+
+  /**
    * Poll cadence.
    *
    * 2s: a provisioning run takes tens of seconds, so a slower interval would add
    * noticeable dead time at the end of onboarding, while a faster one would spam
    * a busy API for no gain.
+   *
+   * A `protected` METHOD rather than a constant so a spec can compress the wait
+   * when it is exercising the retry logic — the interval is policy, and policy
+   * that cannot be observed without waiting real seconds tends not to be tested.
    */
-  private pollIntervalMs(): number {
+  pollIntervalMs(): number {
     return 2_000;
   }
 
@@ -245,8 +345,11 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
    * takes minutes, and a shorter limit would fail a working install. Longer would
    * leave an operator staring at a stuck wizard when something is genuinely
    * wrong — and the wizard offers a retry, so failing fast is recoverable.
+   *
+   * Also bounds the TRIGGER retry loop, so a misconfigured API cannot spin
+   * forever inside `deliverTrigger`.
    */
-  private timeoutMs(): number {
+  timeoutMs(): number {
     return 300_000;
   }
 }

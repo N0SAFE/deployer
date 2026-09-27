@@ -20,25 +20,53 @@ describe("SetupPhaseService", () => {
     expect(service.isReady()).toBe(false);
   });
 
-  it("only reports ready for the ready phase", () => {
+  it("keeps the gate CLOSED until the details are collected", () => {
     const service = makeService();
 
-    // Every non-terminal phase must keep the gate CLOSED. This is the assertion
-    // that stops compose from starting the dashboard too early.
-    for (const phase of ["awaiting", "clustering", "driving", "handover"] as const) {
+    // These are the phases in which the API must NOT exist yet: nothing has been
+    // collected, so its boot would have no `databaseUrl` to read. This is the
+    // assertion that stops compose from starting the API too early.
+    for (const phase of ["awaiting", "clustering", "collecting"] as const) {
       service.reset();
       service.record(phase, `${phase} in progress`);
-      expect(service.isReady(), `${phase} must not be ready`).toBe(false);
+      expect(service.isReady(), `${phase} must keep the gate closed`).toBe(false);
     }
+  });
 
-    service.record("ready", "handed over");
+  it("opens the gate at `launching` and KEEPS it open through the handover", () => {
+    const service = makeService();
+
+    service.record("launching", "details collected");
+    expect(service.isReady(), "launching must open the gate").toBe(true);
+
+    // CRITICAL: the later phases must not close it again. Compose re-probes the
+    // healthcheck for the whole life of the container, so a `503` here would
+    // tear the API back down while it was provisioning — a self-inflicted
+    // outage in the middle of onboarding.
+    for (const phase of ["provisioning", "handover", "ready"] as const) {
+      service.record(phase, `${phase} in progress`);
+      expect(service.isReady(), `${phase} must keep the gate open`).toBe(true);
+    }
+  });
+
+  it("closes the gate again when the phase fails", () => {
+    const service = makeService();
+
+    service.record("launching", "details collected");
     expect(service.isReady()).toBe(true);
+
+    service.fail("the engine refused to schedule the ingress task");
+
+    // A failed setup must NOT report healthy: compose would treat the platform
+    // as ready while the wizard is showing the operator an error, and the API
+    // would keep a task slot for a node that cannot serve.
+    expect(service.isReady(), "failed must close the gate").toBe(false);
   });
 
   it("carries apiUp/apiReady forward unless explicitly overridden", () => {
     const service = makeService();
 
-    service.record("driving", "provisioning", { apiUp: true, apiReady: false });
+    service.record("provisioning", "provisioning", { apiUp: true, apiReady: false });
     expect(service.current()).toMatchObject({ apiUp: true, apiReady: false });
 
     // A later transition that says nothing about the API must not silently
@@ -61,7 +89,7 @@ describe("SetupPhaseService", () => {
     // Progress after a failure must NOT erase it: the operator has not seen the
     // error yet, and a background retry that quietly succeeds would hide a real
     // problem.
-    service.record("driving", "retrying");
+    service.record("provisioning", "retrying");
     expect(service.current().phase).toBe("failed");
     expect(service.current().detail).toContain("engine refused");
   });

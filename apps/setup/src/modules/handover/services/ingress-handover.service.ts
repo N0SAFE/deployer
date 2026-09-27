@@ -1,8 +1,19 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { EnvService } from "@/config/env/env.module";
+
+/**
+ * The compose network alias Traefik uses to reach this app.
+ *
+ * A shared literal, not an env var: every profile declares the same alias
+ * (`setup-dev` and `setup-prod` both set `aliases: [setup-dev, setup]`), so a
+ * variable would be configuration with exactly one possible value. It IS a
+ * contract with the compose files — if an alias is ever renamed, this constant
+ * and the two profiles must change together.
+ */
+const SETUP_SERVICE_ALIAS = "setup";
 
 /**
  * Rewrites the two dynamic Traefik config files that decide who owns each
@@ -39,7 +50,7 @@ import { EnvService } from "@/config/env/env.module";
  * "never let a URL change owner by disappearing" rule.
  */
 @Injectable()
-export class IngressHandoverService {
+export class IngressHandoverService implements OnApplicationBootstrap {
   private readonly logger = new Logger(IngressHandoverService.name);
 
   /**
@@ -111,6 +122,85 @@ export class IngressHandoverService {
       ]),
       `api → ${backendUrl}`,
     );
+  }
+
+  /**
+   * Route `setup.<host>` to this app as soon as the process is up.
+   *
+   * ── WHY THIS IS HERE AND NOT IN THE HANDOVER ─────────────────────────────
+   * The handover writes `dynamic-setup.yml` at the END, pointing at the done
+   * page. Nothing wrote it at the START, so `setup.<host>` had no router for the
+   * whole of onboarding — the operator would see a Traefik 404 on the only page
+   * that exists to fix a broken setup.
+   *
+   * ── WHY A FAILURE IS NON-FATAL ───────────────────────────────────────────
+   * Throwing here would restart-loop the container, and a restarted container
+   * still has no route: the failure would be identical on every attempt while
+   * also destroying the wizard's ability to report it. Logging loudly at ERROR
+   * keeps the process serving on its internal port (where compose's healthcheck
+   * and the handover still work) and names the exact path to inspect.
+   *
+   * The handover rewrites the same file later, so a transient failure here is
+   * also self-healing in the common case.
+   */
+  async onApplicationBootstrap(): Promise<void> {
+    try {
+      await this.pointSetupAtSelf();
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Could not publish the wizard route — ${this.setupHostname()} will 404 until the ` +
+          `handover retries. Check that TRAEFIK_CONFIG_BASE_PATH (${this.configDir()}) is ` +
+          `writable and shared with Traefik. Cause: ${detail}`,
+      );
+    }
+  }
+
+  /**
+   * Point `setup.<host>` at THIS app — the wizard itself.
+   *
+   * Called FIRST, at boot, before any cluster or handover work. Without it the
+   * hostname has no router at all until the handover rewrites the file, so the
+   * operator would get a Traefik 404 for the ENTIRE onboarding — the one phase
+   * whose only purpose is to be reachable.
+   *
+   * WHY AT BOOT AND NOT WHEN THE CLUSTER SUCCEEDS: a failed cluster is exactly
+   * when the wizard matters most. It is the only surface that can show the
+   * operator what went wrong and let them retry, so the route must exist before
+   * the first attempt rather than after it succeeds.
+   *
+   * Order-independent with respect to Traefik: the file lands on the shared
+   * volume, and Traefik's file provider reads it on its own start (`watch: true`
+   * also picks up later changes), so neither process needs the other to be up.
+   */
+  async pointSetupAtSelf(): Promise<void> {
+    const file = path.join(this.configDir(), "dynamic-setup.yml");
+    await this.write(
+      file,
+      this.document([
+        {
+          router: "platform-setup",
+          rule: `Host(\`${this.setupHostname()}\`)`,
+          service: "platform-setup-svc",
+          backend: this.selfBackendUrl(),
+          priority: IngressHandoverService.SETUP_ROUTER_PRIORITY,
+        },
+      ]),
+      `setup → this app (${this.selfBackendUrl()})`,
+    );
+  }
+
+  /**
+   * This app's address as Traefik must reach it.
+   *
+   * The HOST is the compose network alias (both profiles declare `setup`), not
+   * a hostname: Traefik resolves it over the docker network, where the public
+   * hostname means nothing. The PORT comes from the env because it is genuinely
+   * configurable, and a hardcoded 3016 would silently disagree with a container
+   * that bound something else.
+   */
+  private selfBackendUrl(): string {
+    return `http://${SETUP_SERVICE_ALIAS}:${String(this.env.get("SETUP_APP_PORT"))}`;
   }
 
   /**
