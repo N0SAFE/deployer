@@ -9,14 +9,14 @@ import http from "node:http";
 import type express from "express";
 
 import { logger } from "@repo/logger";
-import { OrchestratorService } from "./core/orchestrator/orchestrator.service";
+import { READINESS_PROBE, type IReadinessProbe } from "./core/readiness/readiness.port";
 import {
   API_PORT,
   createApiApp,
   createGateway,
 } from "./app.config";
 
-const log = logger.scope("GatewayOrchestrator");
+const log = logger.scope("Api");
 
 /**
  * Maximum time we allow NestJS to spend running `onModuleDestroy` /
@@ -28,52 +28,70 @@ const SHUTDOWN_GRACEFUL_TIMEOUT_MS = 30_000;
 // ─── Bootstrap ──────────────────────────────────────────────────────────────
 async function bootstrap(): Promise<void> {
   // ═══════════════════════════════════════════════════════════════════════════
-  // PHASE 1: Gateway Express Server
+  // PHASE 1: Express server + the two probes
   // ═══════════════════════════════════════════════════════════════════════════
-  // The Express instance and its CORS middleware are built by the shared
-  // factory (see `app.config.ts`), so `compile.ts` validates the same shape.
+  // The Express instance, its CORS middleware and the Vite asset middleware are
+  // built by the shared factory (see `app.config.ts`), so `compile.ts` validates
+  // the same shape.
   //
-  // A single Express server handles:
-  //   1. CORS (all cross-origin traffic)
-  //   2. /health endpoint (immediate, for Docker probes)
-  //   3. NestJS OrchestrationModule (attached via ExpressAdapter) — manages
-  //      the sub-app pipeline and proxies requests to registered sub-apps
+  // What is added HERE is only what must answer BEFORE Nest finishes booting:
+  //   1. /health        — liveness. Docker's liveness probe; never touches the DB.
+  //   2. /health/ready  — readiness. THE platform gate.
   //
-  // The server starts listening before NestJS init so health checks work immediately.
+  // The server starts listening before Nest's `init()` so both probes answer
+  // while the graph is still resolving.
 
   const gateway = createGateway();
 
-  // Health endpoint — immediate response, for Docker health checks
+  // ── Liveness — deliberately dependency-free ──────────────────────────────
+  // 200 from the moment the port is bound, and it must STAY that way: in dev the
+  // API starts before setup has provisioned anything, so a liveness probe that
+  // needed the database would crash-loop the container and leave nothing for
+  // setup to drive (plan §7.3).
   gateway.get("/health", (_req, res) => {
     res.status(200).json({ status: "ok", uptime: process.uptime() });
   });
 
-  // ── Readiness probe — the platform gate ───────────────────────────────────
-  // Registered HERE rather than in the factory for the same reason as `/health`:
-  // it must answer while Nest is still booting, and the gateway catch-all would
-  // otherwise answer 503 "no sub-app registered" for a path that is deliberately
-  // not an API route.
+  // ── Readiness — the gate ─────────────────────────────────────────────────
+  // Registered on Express rather than as a controller because it must answer
+  // while Nest is still resolving the graph, and it must NOT be subject to the
+  // app's auth guard: compose has no session (plan §8.2).
   //
-  // The probe DELEGATES to the orchestrator because the readiness indicators
-  // live in the main-app container (AppModule → HealthModule), which is a
-  // separate Nest application on port 3012. The gateway container deliberately
-  // does NOT own the global Postgres pool or the mesh repositories, so it
-  // cannot answer this itself.
+  // The probe is resolved LAZILY from the container on each request. It cannot be
+  // captured at module scope: the handler is registered before Nest exists. The
+  // `strict: false` lookup returns `null` until the container is up, which is
+  // itself the honest answer ("still starting") and exactly what compose must see
+  // while setup runs.
   //
-  // Pre-setup the main-app does not exist yet and this answers 503 — which is
-  // the truth, and exactly what compose must see while setup runs.
-  let orchestrator: OrchestratorService | null = null;
+  // Previously this delegated to `OrchestratorService`, because the indicators
+  // lived in a DIFFERENT Nest context (the main app on port 3012) that the
+  // gateway could not see. There is one context now, so the port is resolved
+  // directly — same contract, one fewer indirection.
+  let probe: IReadinessProbe | null = null;
   gateway.get("/health/ready", (_req, res) => {
-    if (orchestrator === null) {
+    if (probe === null) {
       res.status(503).json({
         status: "error",
         error: { probe: { reason: "application is still starting" } },
+        checkedAt: new Date().toISOString(),
       });
       return;
     }
-    void orchestrator.probeReadiness().then((result) => {
-      res.status(result.statusCode).json(result.body);
-    });
+    void probe
+      .probe()
+      .then((result: { statusCode: number; body: unknown }) => {
+        res.status(result.statusCode).json(result.body);
+      })
+      .catch((error: unknown) => {
+        // `probe()` is documented never to throw ("a dependency is down" is a
+        // 503 RESULT). If it ever does, the probe must still ANSWER rather than
+        // hang the healthcheck, so the failure becomes an explicit 503.
+        res.status(503).json({
+          status: "error",
+          error: { probe: { reason: error instanceof Error ? error.message : String(error) } },
+          checkedAt: new Date().toISOString(),
+        });
+      });
   });
 
   // Start listening immediately so health checks succeed. The handle is kept
@@ -81,32 +99,31 @@ async function bootstrap(): Promise<void> {
   // (Nest never owns this server: we listen ourselves and hand the Express
   // instance to the adapter, so `app.close()` cannot close it).
   const gatewayServer = gateway.listen(API_PORT, "0.0.0.0");
-  log.info(`🚀 Gateway listening on port ${String(API_PORT)}`);
+  log.info(`🚀 API listening on port ${String(API_PORT)}`);
 
   // Self-test: verify health endpoint responds
   await selfTestHealthEndpoint(API_PORT);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // PHASE 2: NestJS OrchestrationModule
+  // PHASE 2: the Nest application
   // ═══════════════════════════════════════════════════════════════════════════
   // `createApiApp` owns the NestFactory options and the `init()` call, so
   // `compile.ts` exercises the identical construction path.
   //
-  // The OrchestratorService manages the entire sub-app pipeline:
-  //   db-resolver (headless) → [setup-wizard if needed] → main-app (last)
+  // ONE graph (`AppModule`): there is no sub-app pipeline to drive, and no
+  // gateway fallback to swap — onboarding belongs to `apps/setup`.
   //
   // Express middleware order:
-  //   CORS → /health (Express) → NestJS RouterController → NestJS 404/error
+  //   CORS → /vite assets → /health, /health/ready → Nest → Nest 404/error
 
   const app = await createApiApp(gateway);
 
-  // The readiness probe is answered by the ORCHESTRATOR, because the indicators
-  // live in the main-app container (port 3012) — a separate Nest application
-  // this gateway owns and starts after setup. Until it exists the route answers
-  // 503 "still starting", which is accurate.
-  orchestrator = app.get(OrchestratorService);
+  // Resolved with `strict: false` because the token is bound inside the app
+  // graph (health module) rather than in this scope; `null` means the module was
+  // not registered, which the handler above reports as "still starting".
+  probe = app.get<IReadinessProbe | null>(READINESS_PROBE, { strict: false });
 
-  log.info("✅ Orchestrator initialized — sub-app pipeline running");
+  log.info("✅ API application initialized");
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PHASE 3: Signal Handlers
@@ -195,12 +212,17 @@ function registerProcessSignalHandlers(
         //    Done BEFORE `app.close()` so a request can never be routed into a
         //    half-torn-down context.
         await drainHttpServer(gatewayServer);
-        log.info("Gateway stopped accepting connections — draining complete");
+        log.info("API stopped accepting connections — draining complete");
 
-        // 2. Tear down every Nest context. The orchestrator closes the sub-apps
-        //    it started (setup-wizard / mesh-initializer / main-app are separate
-        //    applications, each with its own server and database handles), and
-        //    the database lifecycle services release the pools / SQLite handles.
+        // 2. Tear down the Nest application. `app.close()` runs every shutdown
+        //    hook, which is what releases the database pools and the SQLite
+        //    handles — and, on the supervisor side, stops the convergence work.
+        //
+        //    It used to ALSO close the sub-apps the orchestrator had started
+        //    (setup-wizard / mesh-initializer / main-app were separate
+        //    applications, each with its own server and database handles, so
+        //    closing the gateway did not close them). There is one graph now,
+        //    so `close()` is complete on its own.
         await app.close();
 
         clearTimeout(forceExitTimer);

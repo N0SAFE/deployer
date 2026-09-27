@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TerminusModule } from '@nestjs/terminus';
-import { READINESS_PROBE } from '@/core/orchestrator/readiness.port';
+import { READINESS_PROBE } from '@/core/readiness/readiness.port';
 import { HealthController } from './controllers/health.controller';
 import { HealthService } from './services/health.service';
 import { HealthRepository } from './repositories/health.repository';

@@ -404,15 +404,35 @@ for (const e of diEdges) {
 
 // Roots are derived, not hardcoded: anchor file + class name at the boot call site, then the
 // class is resolved through that anchor's own import bindings (alias or relative both work).
+//
+// THE TWO ENTRIES THIS USED TO HAVE ARE GONE, along with the sub-app pipeline they
+// described. They were:
+//
+//   { main.ts, OrchestrationModule }        — `main.ts` built the gateway; it now
+//                                             builds `AppModule` like everything else.
+//   { orchestrator.service.ts, SetupDevModule / SetupSubAppModule /
+//     MeshInitializerAppModule / AppModule } — the four contexts the orchestrator
+//                                             spawned on ports 3010/3011/3012.
+//   { sub-app-runner.module.ts, SubAppHostModule } — the runtime context factory.
+//
+// Keeping them would have left three anchors permanently `anchor-missing`, which is
+// worse than removing them: a missing anchor reports zero reachability, so the gate
+// would keep SAYING "no cycles" while checking nothing for those roots.
+//
+// What replaces them is the honest description of the new shape: ONE application
+// graph. That means one root, and the graph check is strictly stronger for it —
+// every module is now reachable from that single root, where before a module could
+// hide in a sub-app the anchor list forgot to name.
+//
+// The root is anchored at `app.config.ts`, NOT `main.ts`: the factory is what calls
+// `NestFactory.create(AppModule, …)`, and `main.ts` merely consumes the factory. An
+// anchor on `main.ts` cannot resolve `AppModule` because the identifier is not in
+// that file — which is how this was caught: the gate reported
+// `main.ts:0 AppModule [unresolved]`, i.e. a root that silently contributed no graph.
 type RootDef = { anchorRel: string; cls: string; site: string }
 const ROOT_DEFS: RootDef[] = [
-{ anchorRel: "main.ts", cls: "OrchestrationModule", site: "NestFactory.create(OrchestrationModule)" },
-{ anchorRel: "core/orchestrator/orchestrator.service.ts", cls: "SetupDevModule", site: "createApplicationContext(SetupDevModule)" },
-{ anchorRel: "core/orchestrator/orchestrator.service.ts", cls: "SetupSubAppModule", site: "runSubApp(port 3010)" },
-{ anchorRel: "core/orchestrator/orchestrator.service.ts", cls: "MeshInitializerAppModule", site: "runSubApp(port 3011)" },
-{ anchorRel: "core/orchestrator/orchestrator.service.ts", cls: "AppModule", site: "runSubApp(port 3012)" },
+{ anchorRel: "app.config.ts", cls: "AppModule", site: "NestFactory.create(AppModule) via createApiApp" },
 { anchorRel: "cli.ts", cls: "CLIModule", site: "CommandFactory.run(CLIModule)" },
-{ anchorRel: "core/modules/sub-app-runner/sub-app-runner.module.ts", cls: "SubAppHostModule", site: "createApplicationContext(SubAppHostModule) runtime-generated" },
 ]
 
 function findLine(file: string, needle: string): number {

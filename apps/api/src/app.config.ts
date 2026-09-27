@@ -4,7 +4,7 @@ import { ExpressAdapter } from "@nestjs/platform-express";
 import express from "express";
 
 import { buildAllowedOrigins, resolveCorsDecision, CORS_ALLOWED_HEADERS } from "./core/utils/cors.utils";
-import { OrchestrationModule } from "./core/orchestrator/orchestrator.module";
+import { createViteAssetsMiddleware } from "./core/gateway-assets/vite-assets.middleware";
 import { AppModule } from "./app.module";
 
 /**
@@ -22,35 +22,32 @@ import { AppModule } from "./app.module";
  *   main.ts     -> createApiApp(gateway)   then run
  *   compile.ts  -> createCompileContext()  then close
  *
- * The two functions differ deliberately in WHICH module they build:
+ * BOTH NOW BUILD `AppModule`. They used to differ — `main.ts` built
+ * `OrchestrationModule` (a gateway that spawned sub-apps in their own processes)
+ * while `compile.ts` built `AppModule` — because the API could be launched
+ * before setup had run and therefore needed a pre-setup surface.
  *
- *   createApiApp()          builds `OrchestrationModule` — the gateway that
- *                           owns the sub-app pipeline. This is what ships.
- *   createCompileContext()  builds `AppModule` — the real feature graph (auth,
- *                           ORPC, health, every product module) WITHOUT the
- *                           sub-app orchestration. Assembling the gateway would
- *                           spawn sub-apps in their own processes, which is a
- *                           runtime concern the check must not trigger.
- *
- * `AppModule` is the harder graph (225+ routes, the whole DI surface), so
- * checking it is the stronger guarantee.
+ * That phase belongs to `apps/setup` now, which is its own process. The API only
+ * ever starts AFTER setup, so it is a single normal application: one graph, no
+ * sub-apps, and the entry check exercises exactly what ships.
  */
 
 /**
  * The single externally-visible HTTP port.
  *
- * All feature sub-apps run on their own internal ports and are proxied through
- * the gateway's route graph; only this one is published.
+ * There is no longer any internal per-sub-app port to be distinguished from
+ * this one: the app is one process listening here, and Traefik routes to it.
  */
 export const API_PORT = Number(process.env.API_PORT ?? 3005);
 
 /**
  * `NestFactory` options shared by every entry point.
  *
- * `bodyParser: false` because the gateway attaches Nest to an Express instance
- * it created itself and configures CORS/health on — Express must not parse the
- * body twice. `snapshot` is off in production: it exists to make a dev boot
- * legible, and it costs a trace of the whole bootstrap on every start.
+ * `bodyParser: false` because `main.ts` hands Nest an Express instance it built
+ * itself — with CORS, `/health` and the Vite asset middleware already attached —
+ * so Express must not parse the body twice. `snapshot` is off in production: it
+ * exists to make a dev boot legible, and it costs a trace of the whole bootstrap
+ * on every start.
  */
 export function apiAppOptions(): NestApplicationOptions {
   return {
@@ -109,31 +106,37 @@ export function createCorsMiddleware(): express.RequestHandler {
 }
 
 /**
- * The Express server the gateway runs on, with CORS already applied.
+ * The Express server the app runs on, with its non-Nest middleware applied.
  *
- * Returned unstarted: `main.ts` listens on it immediately (so health probes
- * answer while Nest is still booting) while `compile.ts` never listens at all.
+ * ORDER IS THE CONTRACT:
+ *   1. CORS                      — must answer preflight before anything else.
+ *   2. Vite dev assets (`/vite`) — the SSR views' client bundle. These are NOT
+ *      API routes: they must not reach the controller layer, and they must not
+ *      be subject to the auth guard (they are identical static build output for
+ *      every user). Mounted here, ahead of Nest, which is also what keeps them
+ *      working now that the gateway's catch-all — which used to exempt them
+ *      specially — is gone.
+ *
+ * `main.ts` adds `/health` and `/health/ready` on top of this, because both must
+ * answer while Nest is still booting.
  */
 export function createGateway(): express.Express {
   const gateway = express();
   gateway.use(createCorsMiddleware());
+  gateway.use(createViteAssetsMiddleware());
   return gateway;
 }
 
 /**
- * Create the gateway application, UNSTARTED.
+ * Create the application, UNSTARTED.
  *
  * Deliberately not `createApplicationContext`: that skips the HTTP adapter, so
  * the factory would validate a different construction path than `main.ts` uses.
  * This returns exactly the application `main.ts` runs.
- *
- * `init()` IS called, because that is what resolves the DI graph and fires
- * `onModuleInit` / `onApplicationBootstrap` — without it the check would prove
- * almost nothing.
  */
 export async function createApiApp(gateway: express.Express) {
   const app = await NestFactory.create(
-    OrchestrationModule,
+    AppModule,
     new ExpressAdapter(gateway),
     apiAppOptions(),
   );
@@ -145,11 +148,11 @@ export async function createApiApp(gateway: express.Express) {
 }
 
 /**
- * Build the FEATURE graph (`AppModule`) without starting anything.
+ * Build the graph without an HTTP adapter, listening on nothing.
  *
- * Used by `compile.ts`. `createApplicationContext` resolves modules,
- * providers and `onModuleInit` — the class of failure `tsc` cannot see — while
- * creating no HTTP adapter and listening on no port.
+ * Used by `compile.ts`. `createApplicationContext` resolves modules, providers
+ * and `onModuleInit` — the class of failure `tsc` cannot see — while creating no
+ * server. Same module as `createApiApp`, so the check covers what ships.
  */
 export async function createCompileContext() {
   return NestFactory.createApplicationContext(AppModule, apiAppOptions());

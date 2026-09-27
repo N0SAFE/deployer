@@ -67,6 +67,10 @@ import { ConfigurationCoreModule } from "./core/modules/configuration/configurat
 import { ProjectCoreModule } from "./core/modules/project/project-core.module";
 import { DeploymentCoreModule } from "./core/modules/deployment/deployment-core.module";
 import { SupervisorsModule } from "@repo/nest-supervisor-core/supervisors.module";
+import { SupervisorsDatabaseModule } from "./core/modules/supervisors/database/database-supervisors.module";
+import { SupervisorsPlatformModule } from "./core/modules/supervisors/platform/platform-supervisors.module";
+import { TraefikCoreModule } from "./core/modules/traefik/traefik.module";
+import { SwarmCoreModule } from "./core/modules/swarm/swarm.module";
 import { SwarmInventoryModule } from "./core/modules/swarm/swarm-inventory.module";
 import { CorePlatformIngressModule } from "./core/modules/platform-ingress/platform-ingress.module";
 
@@ -130,19 +134,42 @@ declare module "@orpc/server" {
         DatabaseModule,
         BootstrapModule,
         EventsModule,
-        // Supervisor FRAMEWORK only — the concrete supervisors (Traefik
-        // ingress, failover proxy, DB supervisors) are owned by the GATEWAY
-        // app (OrchestrationModule, main.ts) so they run BEFORE and WHILE the
-        // setup wizard runs. The framework module provides the PROCESS-WIDE
-        // registry + event bus, so health aggregation here observes the
-        // gateway-owned supervisors without a second copy.
+        // ── Platform supervisors (framework + concrete implementations) ──────
+        //
+        // These USED to be owned by the gateway container
+        // (`OrchestrationModule`, booted by `main.ts`) so they could run BEFORE
+        // and WHILE the setup wizard — the gateway was the only thing alive
+        // before the global database existed.
+        //
+        // That is no longer the shape of the platform: onboarding runs in
+        // `apps/setup`, which is its own process, so this app only ever starts
+        // AFTER setup (dev: compose starts it, gated on `/health/ready`; prod:
+        // setup schedules it as a swarm service). The supervisors therefore
+        // belong HERE, in the graph that actually serves the platform — and the
+        // gateway that used to own them is gone.
+        //
+        // `SupervisorsModule` is the lean FRAMEWORK (registry + event bus, no
+        // Docker/Env); the two modules below register the concrete
+        // implementations. Splitting them this way keeps a unit harness that
+        // imports only the framework from dragging in Docker machinery.
         SupervisorsModule.forRoot(),
+        SupervisorsDatabaseModule,
+        SupervisorsPlatformModule,
+        // Traefik CONFIG updates (the supervisors above only ensure the
+        // PROCESS). Owned here for the same reason: config writing needs the
+        // global database, which exists by the time this app boots.
+        TraefikCoreModule,
+        // Swarm init — must run BEFORE the supervisors try overlay networks,
+        // which is why it is ordered ahead of them in intent even though Nest
+        // resolves the graph independently of this list's order.
+        SwarmCoreModule,
         // POST-SETUP swarm half: fleet inventory + shared cluster_nodes
-        // enrolment. Needs the global Postgres, so it lives in the main app
-        // (which boots after migrations), never in the pre-setup gateway.
+        // enrolment. Needs the global Postgres, so it is registered here rather
+        // than in any pre-setup context (there is none anymore).
         SwarmInventoryModule,
         // Platform helper services (hostname, route config, app-instance,
-        // platform settings) — consumed here by the app-instance token plugin.
+        // platform settings) — consumed here by the app-instance token plugin,
+        // and by the platform supervisors imported above.
         CorePlatformIngressModule,
 
         // ── ORPC — Must be before feature modules ────────────────────────────

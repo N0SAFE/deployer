@@ -1,13 +1,13 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { HealthCheckService } from "@nestjs/terminus";
 
-import type { IReadinessProbe, ReadinessResult } from "@/core/orchestrator/readiness.port";
+import type { IReadinessProbe, ReadinessResult } from "@/core/readiness/readiness.port";
 import { ReadinessIndicators } from "../indicators/readiness.indicators";
 
 // Re-exported so existing importers of this module keep working; the contract
 // itself lives in core, because CORE is the consumer (SC7: core must not
 // import a product module, so the interface sits on core's side of the seam).
-export type { ReadinessResult } from "@/core/orchestrator/readiness.port";
+export type { ReadinessResult } from "@/core/readiness/readiness.port";
 
 /**
  * Readiness probe for the platform.

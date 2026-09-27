@@ -1,8 +1,8 @@
 #!/usr/bin/env -S bun
 
-import { build, BuildConfig } from 'bun'
+import { Glob, Transpiler } from 'bun'
 import { spawn } from 'child_process'
-import { existsSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import * as path from 'path'
 
 const __dirname = import.meta.dir
@@ -29,99 +29,137 @@ function cleanup() {
  *
  * `compile.ts` is BUILT (not just type-checked) so `runCompileCheck` can execute
  * the exact artifact the rest of the build produced. A graph that assembles from
- * source but not from the bundle proves nothing; bundling is where module
- * resolution, decorator emission and entry-point shape actually change.
+ * source but not from the built output proves nothing.
+ */
+
+/**
+ * Decorator options that MUST be set explicitly.
+ *
+ * `emitDecoratorMetadata` is what makes bun write `design:paramtypes`. Nest
+ * resolves every plain typed constructor parameter from that metadata, so
+ * without it the whole DI graph collapses to `undefined`:
+ *
+ *   TypeError: undefined is not an object ('this.meshTopology.registerControlEnvelopeHandler')
+ *
+ * `useDefineForClassFields: false` matches the class-field semantics the source
+ * is written for; the ES2022 default (`true`) would define fields AFTER the
+ * constructor parameters are assigned and blank them out.
+ */
+const DECORATOR_TS_CONFIG = {
+  compilerOptions: {
+    experimentalDecorators: true,
+    emitDecoratorMetadata: true,
+    target: 'ES2022',
+    module: 'ES2022',
+    useDefineForClassFields: false,
+    jsx: 'react-jsx',
+    jsxImportSource: 'react',
+  },
+}
+
+/**
+ * `@/a/b` -> the relative specifier reaching the SAME emitted file.
+ *
+ * REQUIRED, NOT COSMETIC. Per-file output makes `@/core/x` and `./x` distinct
+ * module specifiers, and the runtime caches by specifier — so importing one file
+ * both ways loads it TWICE. Two module instances means two class objects: Nest
+ * registers one as a provider and is asked for the other, and reports the
+ * dependency as unresolvable:
+ *
+ *   Nest can't resolve dependencies of the BootstrapOrchestratorService (…, ?)
+ *
+ * That is exactly what happened between `platform-supervisors.module.ts`
+ * (`./swarm-app-wiring.supervisor.service`) and
+ * `bootstrap-orchestrator.service.ts` (`@/core/modules/supervisors/platform/...`).
+ *
+ * Both sides are computed under `dist` so the specifier reaches the EMITTED
+ * file, not the source one.
+ */
+function rewriteAlias(barePath: string, outDir: string): string {
+  const target = path.join(distDir, barePath)
+  let rel = path.relative(outDir, target).split(path.sep).join('/')
+  if (!rel.startsWith('.')) rel = `./${rel}`
+  return rel
+}
+
+/** The specifier inside `from "…"`, `import("…")` and bare `import "…"`. */
+const ALIAS_RX = /(["'])@\/([^"']+)\1/g
+
+/**
+ * Transpile `src/**` 1:1 into `dist/`, rewriting `@/` aliases to relative paths.
+ *
+ * WHY 1:1 AND NOT `bun build`
+ * Bundling does not preserve Nest's constructor metadata. bun emits some classes
+ * through the TC39 decorator path (`__decoratorStart`), which writes NO
+ * `design:paramtypes`, so every plain typed parameter of those classes arrives
+ * `undefined` at runtime. Measured on this app: 31 TC39 sites against 640 legacy
+ * ones, i.e. ~30 broken classes.
+ *
+ * WHICH classes lose it varies with the module graph — the failure moved from
+ * `SystemMeshConfigService` to `SystemMeshTopicService` after phase 8's
+ * deletions — so annotating constructors cannot keep up: fixing the current set
+ * would simply relocate the problem to whichever class the graph breaks next.
+ *
+ * Transpiling per file is how bun runs the source directly, and it emits the
+ * metadata reliably: measured 629 `design:paramtypes` for 729 files, against 561
+ * from the bundler. It also removes the whole class of bundler-ordering bugs
+ * (lazy `__esm` wrappers, hoisting) rather than moving them around.
  */
 async function runBuild(): Promise<void> {
-  // Main entrypoints with code splitting
-  const mainEntrypoints = [
-    path.join(srcDir, 'main.ts'),
-    path.join(srcDir, 'cli.ts'),
-    path.join(srcDir, 'compile.ts'),
-  ]
+  console.log(`🔨 Transpiling ${path.relative(process.cwd(), srcDir)} → dist...`)
 
-  const mainConfig = {
-    entrypoints: mainEntrypoints,
-    outdir: distDir,
-    // MINIFY IS OFF, deliberately — it is a CORRECTNESS setting here, not a
-    // performance one.
-    //
-    // With minify enabled bun emits some modules' decorators as TC39
-    // (`__decoratorStart` / `__decorateElement`) instead of legacy TS, and that
-    // path writes NO `design:paramtypes` metadata. Nest resolves plain
-    // constructor parameters from that metadata, so the affected providers were
-    // constructed with `undefined` for every parameter that had no explicit
-    // `@Inject`:
-    //
-    //   TypeError: undefined is not an object ('this.nodeConfigRepo.find')
-    //   TypeError: undefined is not an object ('this.meshTopology.registerControlEnvelopeHandler')
-    //
-    // WHICH modules get the metadata-less path varies with the bundle graph,
-    // which is why the same file built correctly in isolation and wrongly in the
-    // full graph — and why this went unnoticed: the unit suites run from SOURCE
-    // and never touch the artifact.
-    //
-    // This matches `pkg-build`, which builds every workspace package with
-    // `minify` defaulting to false (`raw.minify === true` is required to turn it
-    // on) and `splitting` on for esm.
-    //
-    // Minify buys nothing for this app anyway: it is one long-lived process that
-    // reads its bundle from local disk, not a payload shipped over a network.
-    minify: false,
-    splitting: true,
-    target: 'bun' as const,
-    // Workspace and node_modules packages stay EXTERNAL, resolved at runtime.
-    //
-    // This is not only about duplication. A workspace package that resolves an
-    // asset from `import.meta.url` gets the WRONG path once inlined, because
-    // `import.meta.url` then points at THIS app's chunk rather than the
-    // package's own dist. `@repo/nest-schema` is exactly that case:
-    // `LOCAL_MIGRATIONS_DIR` is `new URL("../migrations/local", import.meta.url)`,
-    // so bundled it resolved to `apps/api/migrations/local` — a directory
-    // nothing creates — the migrations were silently skipped, and the first
-    // query died with `no such table: node_config`. External, it resolves
-    // inside `packages/nest/schema/dist/`, where the migrations actually live.
-    //
-    // It also keeps `reflect-metadata` and every Nest singleton single-instance,
-    // which DI ordering depends on.
-    packages: 'external',
-    naming: {
-      entry: '[dir]/[name].[ext]',
-      chunk: 'chunk-[hash].[ext]',
-    },
-    // Keep these external — they must be resolved at runtime from node_modules,
-    // not inlined into the bundle:
-    //
-    //   class-transformer, @nestjs/microservices, @nestjs/platform-socket.io
-    //     Optional NestJS peers. @nestjs/core requires them lazily and tolerates
-    //     their absence; bundling turns that optional require into a hard
-    //     build-time failure.
-    //
-    //   vite, @vitejs/plugin-react
-    //     Vite 8 statically references its *optional* peer
-    //     `@vitejs/devtools/config` from inside its own node chunk. Bundling
-    //     vite therefore fails to resolve a package that is legitimately
-    //     absent. Vite is only used by the SSR dev server, which runs from
-    //     node_modules in every environment, so it does not need bundling.
-    external: [
-      "class-transformer",
-      "@nestjs/microservices",
-      "@nestjs/platform-socket.io",
-      "vite",
-      "@vitejs/plugin-react",
-    ]
-  } as BuildConfig
+  const transpiler = new Transpiler({
+    loader: 'tsx',
+    target: 'bun',
+    tsconfig: DECORATOR_TS_CONFIG,
+  })
 
-  console.log(`🔨 Building NestJS entry points...`)
+  let files = 0
+  let metadata = 0
+  let aliases = 0
 
-  const mainResult = await build(mainConfig)
+  for (const rel of new Glob('**/*.{ts,tsx}').scanSync({ cwd: srcDir })) {
+    if (rel.endsWith('.d.ts')) continue
 
-  if (!mainResult.success) {
-    console.error('❌ Main build failed')
-    process.exit(1)
+    const abs = path.join(srcDir, rel)
+    const outDir = path.join(distDir, path.dirname(rel))
+    const out = path.join(distDir, rel).replace(/\.tsx?$/, '.js')
+
+    let source = readFileSync(abs, 'utf8')
+
+    // Rewrite aliases BEFORE transpiling: the transpiler copies import
+    // specifiers through verbatim, so one pass here is the single source of
+    // truth for how a specifier is spelled in the output.
+    source = source.replace(ALIAS_RX, (_m: string, quote: string, bare: string) => {
+      aliases += 1
+      return `${quote}${rewriteAlias(bare, outDir)}${quote}`
+    })
+
+    const code = transpiler.transformSync(source)
+
+    mkdirSync(outDir, { recursive: true })
+    writeFileSync(out, code)
+
+    files += 1
+    metadata += (code.match(/design:paramtypes/g) ?? []).length
   }
 
-  console.log(`✅ Successfully built to ${distDir}`)
+  console.log(
+    `✅ Transpiled ${String(files)} files (${String(metadata)} decorator metadata, ` +
+      `${String(aliases)} aliases resolved)`,
+  )
+
+  // A GUARD, not a statistic. Every Nest provider class needs at least one
+  // `design:paramtypes` entry, so a build producing NONE means `emitDecoratorMetadata`
+  // was lost — which is silent at build time and fatal at boot (`undefined` for
+  // every injected parameter). Failing here turns that into a build error, at the
+  // step that caused it, instead of a confusing DI crash in a running process.
+  if (files > 0 && metadata === 0) {
+    console.error(
+      '❌ No decorator metadata was emitted — Nest dependency injection cannot work.',
+    )
+    process.exit(1)
+  }
 }
 
 /**
@@ -177,7 +215,26 @@ function runCompileCheck(): Promise<void> {
       // developer sees, not the migration/supervisor work of a real deploy.
       env: { ...process.env, NODE_ENV: 'test' },
     })
+
+    // Booting the real graph can leave background handles open after `close()`.
+    // When that happened, the child printed its success line and then never
+    // exited — so `'exit'` never fired, this promise never settled, and `build`
+    // hung until the CI job itself timed out, with no diagnostic pointing here.
+    // The timeout converts that silent hang into a named failure.
+    const TIMEOUT_MS = 120_000
+    const timer = setTimeout(() => {
+      proc.kill('SIGKILL')
+      reject(
+        new Error(
+          `compile check did not exit within ${String(TIMEOUT_MS / 1000)}s ` +
+            `— it printed a result but left the event loop alive. ` +
+            `Ensure apps/api/src/compile.ts ends with process.exit(0).`,
+        ),
+      )
+    }, TIMEOUT_MS)
+
     proc.on('exit', (code) => {
+      clearTimeout(timer)
       if (code === 0) {
         console.log('✅ Nest graph assembles cleanly')
         resolve()
@@ -185,7 +242,10 @@ function runCompileCheck(): Promise<void> {
         reject(new Error(`compile check exited with code ${String(code)}`))
       }
     })
-    proc.on('error', reject)
+    proc.on('error', (err) => {
+      clearTimeout(timer)
+      reject(err)
+    })
   })
 }
 

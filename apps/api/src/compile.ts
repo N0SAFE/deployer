@@ -60,6 +60,20 @@ async function main(): Promise<void> {
   await app.close();
 
   console.log("✅ compile: api feature graph assembled and closed cleanly");
+
+  // Exit EXPLICITLY. `close()` releasing Nest's own resources is not enough:
+  // booting the real graph leaves handles behind (mesh dispatchers, the
+  // supervisor, timers registered by providers) that the shutdown hooks do not
+  // cover. Without this the check printed its success line, then hung forever.
+  //
+  // That hang was not cosmetic: `scripts/build.ts` awaits the child's `exit`
+  // event, so the promise never settled and `build` never returned — the CI
+  // compile step blocked until the job timed out. An explicit exit turns
+  // "cleanly shut down" into an observable completion.
+  //
+  // Zero because reaching this line IS the pass condition: the graph assembled
+  // and closed without throwing.
+  process.exit(0);
 }
 
 main().catch((error: unknown) => {
