@@ -54,7 +54,6 @@ services:
         condition: service_healthy
     environment:
       API_PORT: "3301"
-      SETUP_AUTO: "true"
       MANAGED_GLOBAL_DB_ENABLED: "false"
       MANAGED_REDIS_ENABLED: "false"
       MANAGED_LOCAL_DB_ENABLED: "false"
@@ -83,7 +82,6 @@ services:
         condition: service_healthy
     environment:
       API_PORT: "3302"
-      SETUP_AUTO: "true"
       MANAGED_GLOBAL_DB_ENABLED: "false"
       MANAGED_REDIS_ENABLED: "false"
       MANAGED_LOCAL_DB_ENABLED: "false"
@@ -112,7 +110,6 @@ services:
         condition: service_healthy
     environment:
       API_PORT: "3303"
-      SETUP_AUTO: "true"
       MANAGED_GLOBAL_DB_ENABLED: "false"
       MANAGED_REDIS_ENABLED: "false"
       MANAGED_LOCAL_DB_ENABLED: "false"
@@ -141,7 +138,6 @@ services:
         condition: service_healthy
     environment:
       API_PORT: "3304"
-      SETUP_AUTO: "true"
       MANAGED_GLOBAL_DB_ENABLED: "false"
       MANAGED_REDIS_ENABLED: "false"
       MANAGED_LOCAL_DB_ENABLED: "false"
@@ -170,7 +166,6 @@ services:
         condition: service_healthy
     environment:
       API_PORT: "3305"
-      SETUP_AUTO: "true"
       MANAGED_GLOBAL_DB_ENABLED: "false"
       MANAGED_REDIS_ENABLED: "false"
       MANAGED_LOCAL_DB_ENABLED: "false"
@@ -199,7 +194,6 @@ services:
         condition: service_healthy
     environment:
       API_PORT: "3306"
-      SETUP_AUTO: "true"
       MANAGED_GLOBAL_DB_ENABLED: "false"
       MANAGED_REDIS_ENABLED: "false"
       MANAGED_LOCAL_DB_ENABLED: "false"

@@ -144,6 +144,13 @@ export const apiEnvSchema = zod
         DB_PASSWORD: zod.string().optional(),
         DB_DATABASE: zod.string().optional(),
 
+        // The node's OWN SQLite state file (`node_config`, `cluster_node`).
+        // Exists from the first millisecond, before the swarm and before the
+        // global Postgres, so it is the platform's pre-setup source of truth.
+        // Read by the app and passed to `LocalDatabaseModule.forRoot` — the
+        // shared package no longer reads an env var or guesses a default path.
+        NODE_LOCAL_DB_PATH: zod.string().default("/app/data/local.db"),
+
         // API
         API_PORT: zod.coerce.number().int().min(1).max(65535).default(DEFAULT_API_PORT),
         NEXT_PUBLIC_API_URL: guardedUrl("NEXT_PUBLIC_API_URL", LOCAL_API_FALLBACK),
@@ -341,18 +348,12 @@ export const apiEnvSchema = zod
         // (ingress Traefik, DB, Redis, direct-port proxy) via the topologies
         // in docker-supervisor-runtime.
         //
-        // How this node enters the cluster (resolved at setup; env = first-run
-        // default / operator override, persisted in node_config.swarmConfig):
-        //   SWARM_MODE     create (found a new cluster) | join (existing)
-        //   SWARM_POLICY   auto (mixed manager+worker — small clusters) |
-        //                  manager (dedicated master, drained) |
-        //                  worker (pure worker, join only)
-        SWARM_MODE: zod.enum(["create", "join"]).optional().default("create"),
-        SWARM_POLICY: zod.enum(["auto", "manager", "worker"]).optional().default("auto"),
-        // Join mode: control-plane addresses ("host:port", comma-separated)
-        // + the join token issued by the existing cluster.
-        SWARM_JOIN_ADDRS: zod.string().optional(),
-        SWARM_JOIN_TOKEN: zod.string().optional(),
+        // How this node enters the cluster is decided at SETUP and persisted in
+        // `node_config.swarmConfig` — the wizard always writes it (local → create,
+        // remote → join), so there is no env default to fall back to. What lives
+        // here is the ADDRESS this node advertises, which `docker swarm init`
+        // needs before any participation row exists.
+        //
         // Advertise address forced for `docker swarm init`. When unset the
         // bootstrap falls back to MANAGED_WIREGUARD_IP, then 127.0.0.1:2377 —
         // engine auto-detection fails on hosts whose primary interface carries

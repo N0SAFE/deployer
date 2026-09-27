@@ -1,16 +1,13 @@
-import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import {
   Observable,
   Subject,
   catchError,
   concatMap,
-  filter,
   from,
-  map,
   of,
   shareReplay,
   tap,
-  timer,
 } from "rxjs";
 
 import type { ClusterBootstrapResult, ClusterEntryMode } from "../cluster.types";
@@ -41,7 +38,7 @@ import { SetupPhaseService } from "@/modules/health/setup-phase.service";
  * one execution.
  */
 @Injectable()
-export class ClusterOrchestratorService implements OnApplicationBootstrap {
+export class ClusterOrchestratorService {
   private readonly logger = new Logger(ClusterOrchestratorService.name);
 
   /**
@@ -78,9 +75,19 @@ export class ClusterOrchestratorService implements OnApplicationBootstrap {
       ),
       tap((result) => {
         if (result.ok) {
+          // ── THE GATE OPENS HERE ────────────────────────────────────────────
+          // `launching` means "the platform may start the API", and the swarm
+          // must exist BEFORE it does: the API's own supervisors schedule their
+          // services onto this cluster, and a swarm GLOBAL service cannot be
+          // created on an engine that is not a swarm.
+          //
+          // Reporting `collecting` here (as this did when the cluster converged
+          // at BOOT) would now be wrong: by the time this runs the wizard has
+          // already finished collecting, and the operator is watching a
+          // progress screen, not a form.
           this.phase.record(
-            "collecting",
-            `Cluster active (${result.swarmRole}, ${String(result.nodeCount)} node(s)) — collecting setup details`,
+            "launching",
+            `Cluster active (${result.swarmRole}, ${String(result.nodeCount)} node(s)) — the platform API may start`,
           );
         } else {
           // Sticky failure: the operator must see it until they retry.
@@ -104,19 +111,39 @@ export class ClusterOrchestratorService implements OnApplicationBootstrap {
   }
 
   /**
-   * Automatic startup, once the app is ready.
+   * The cluster phase is STARTED BY THE WIZARD, not by app boot.
    *
-   * `timer(0)` rather than a bare call: it puts the first attempt on the same
-   * pipeline as every retry, so there is exactly one execution path. A direct
-   * `this.start(...)` call would bypass the operator-visible phase transition.
+   * ── WHY THIS IS NOT `onApplicationBootstrap` ANY MORE ───────────────────────
+   * The engine must be untouched until the operator has said how this node joins
+   * the cluster. Founding one is not reversible without destroying Raft state,
+   * so a node that is about to JOIN a fleet must not have already invented a
+   * cluster of its own — and auto-founding at boot is exactly how that happened.
+   *
+   * The wizard is the only thing that knows the answer, so it is the only thing
+   * that may start this. `SetupGateService.open()` calls `start(mode)` with the
+   * operator's choice, which is also what keeps the ordering in ONE place:
+   *
+   *   1. swarm (HERE — the engine must exist before anything can be scheduled)
+   *   2. the API, scheduled onto that swarm
+   *   3. the ingress, which the API converges as a swarm service
+   *
+   * The ordering matters mechanically, not cosmetically: a swarm GLOBAL service
+   * cannot be created on an engine that is not a swarm, so doing any of the later
+   * steps first fails.
+   *
+   * ── THE RESTART PATH ────────────────────────────────────────────────────────
+   * `SetupGateService.onApplicationBootstrap()` opens the gate immediately when
+   * `node_config.setupState` is already `setup_done`, and it calls `start()`
+   * itself — so a restart still converges without a wizard. The difference is
+   * that the decision comes from the PERSISTED row, not from a default.
    */
-  onApplicationBootstrap(): void {
-    timer(0).subscribe(() => {
-      this.start({ kind: "found" });
-    });
-  }
 
-  /** Start (or retry) the cluster phase. Safe to call while one is running. */
+  /**
+   * Start (or retry) the cluster phase.
+   *
+   * Safe to call while one is running: `concatMap` queues it, so a retry clicked
+   * during an in-flight attempt cannot race the engine.
+   */
   start(mode: ClusterEntryMode): void {
     this.attempts$.next(mode);
   }

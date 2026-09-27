@@ -5,6 +5,7 @@ import { EnvModule } from "@/config/env/env.module";
 import { localDatabaseRegistration } from "@/config/database/local-database.module";
 import { NodesModule } from "@repo/nest-nodes";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
+import { SetupClusterModule } from "@/modules/cluster/cluster.module";
 import { SetupGateService } from "./setup-gate.service";
 import { WizardController } from "./wizard.controller";
 import { WizardStateService } from "./wizard-state.service";
@@ -28,6 +29,13 @@ import { WizardUpstreamService } from "./wizard-upstream.service";
   imports: [
     EnvModule,
     SetupHealthModule,
+    // The GATE starts the cluster phase, so this module needs the orchestrator.
+    //
+    // DIRECTION: wizard → cluster, and never the reverse. `SetupClusterModule`
+    // does not import this one — it only publishes phases through
+    // `SetupPhaseService` — which is what keeps the graph acyclic. The DI gate
+    // (`check-di-graph.ts`) enforces that.
+    SetupClusterModule,
     // The gate persists the wizard's choices into the SHARED `node_config` row
     // (the same SQLite file the API reads), so it needs the repositories. The
     // registration is passed in rather than imported ambiently, exactly as

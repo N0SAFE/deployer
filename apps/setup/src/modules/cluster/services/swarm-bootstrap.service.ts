@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { SwarmClusterService, SwarmParticipationService } from "@repo/nest-swarm";
 
+import { EnvService } from "@/config/env/env.module";
 import type { ClusterBootstrapResult, ClusterEntryMode } from "../cluster.types";
 
 /**
@@ -24,6 +25,7 @@ export class SwarmBootstrapService {
   constructor(
     private readonly cluster: SwarmClusterService,
     private readonly participation: SwarmParticipationService,
+    private readonly env: EnvService,
   ) {}
 
   /**
@@ -46,7 +48,10 @@ export class SwarmBootstrapService {
         // `ensureCluster` returns the existing snapshot when the engine is
         // already active, so this is safe on every retry.
         this.logger.log("Ensuring a cluster exists on this node");
-        await this.cluster.ensureCluster({ ListenAddr: "0.0.0.0:2377" });
+        await this.cluster.ensureCluster({
+          ListenAddr: "0.0.0.0:2377",
+          AdvertiseAddr: this.advertiseAddr(),
+        });
       }
 
       // `converge()` applies the node POLICY (role, availability, labels) once
@@ -73,5 +78,42 @@ export class SwarmBootstrapService {
       this.logger.error(`Cluster bootstrap failed: ${detail}`);
       return { ok: false, reason: detail };
     }
+  }
+
+  /**
+   * The address this node advertises for cluster control traffic.
+   *
+   * ── WHY THIS IS NOT OPTIONAL ────────────────────────────────────────────────
+   * `docker swarm init` must publish an address other managers dial. When none is
+   * given, the engine tries to INFER one — and refuses outright on a host with
+   * more than one candidate:
+   *
+   *   could not choose an IP address to advertise since this system has
+   *   multiple addresses on interface wlp1s0
+   *
+   * That is a normal machine (IPv4 + IPv6, or several interfaces), so "let the
+   * engine decide" fails on real hardware while working on a single-NIC CI box —
+   * which is why this must be explicit rather than left to inference.
+   *
+   * ── PRECEDENCE ──────────────────────────────────────────────────────────────
+   * Mirrors the package's own `SwarmParticipationService.initOptions`, and for
+   * the same reason: the operator's explicit `SWARM_ADVERTISE_ADDR` wins, then
+   * the overlay IP (the address peers actually reach on a mesh), then loopback.
+   *
+   * `127.0.0.1` is the correct LAST resort, not a bug: for a single-node dev
+   * cluster nothing dials the manager, and loopback is always valid — whereas an
+   * inferred LAN address is unreachable from inside a container and would make a
+   * one-node swarm fail to form.
+   */
+  private advertiseAddr(): string {
+    const explicit = this.env.get("SWARM_ADVERTISE_ADDR")?.trim();
+    const overlay = this.env.get("MANAGED_WIREGUARD_IP")?.trim();
+    const host = explicit !== undefined && explicit.length > 0
+      ? explicit
+      : overlay !== undefined && overlay.length > 0
+        ? overlay
+        : "127.0.0.1";
+
+    return `${host}:2377`;
   }
 }

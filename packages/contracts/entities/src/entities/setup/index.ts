@@ -82,7 +82,8 @@ export const setupInitializeLocalInputSchema = z.object({
      * Swarm participation chosen when FOUNDING this cluster. Because this node
      * creates the swarm, `mode` is only `create` or `disabled` (see
      * `swarmFoundingSelectionSchema` — `create` + `worker` is rejected as
-     * impossible). Absent → env defaults (SWARM_MODE/SWARM_POLICY).
+     * impossible). Persisted to `node_config.swarmConfig`, which is what the
+     * engine converges from — there is no env fallback.
      */
     swarm: swarmFoundingSelectionSchema.optional(),
 });

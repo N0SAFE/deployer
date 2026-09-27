@@ -85,17 +85,52 @@ export const setupEnvSchema = z.object({
   /** Only read to satisfy the package's scanner contract; setup never scans. */
   SCANNER_RUNNER_IMAGE: z.string().optional(),
 
-  // ─── Swarm participation ──────────────────────────────────────────────────
-  // These are the FIRST-RUN defaults, consulted only until the wizard persists
-  // a choice in `node_config.swarmConfig` — which then wins. They let an
-  // unattended install (`SETUP_AUTO`) converge without touching the UI.
-  SWARM_MODE: z.enum(["create", "join"]).default("create"),
-  SWARM_POLICY: z.enum(["auto", "manager", "worker"]).default("auto"),
-  /** Present means "join this fleet" — the cluster entry mode is derived from it. */
-  SWARM_JOIN_TOKEN: z.string().optional(),
-  /** Comma-separated control-plane addresses the joiner dials. */
-  SWARM_JOIN_ADDRS: z.string().optional(),
+  // ─── Swarm admission ──────────────────────────────────────────────────────
+  //
+  // ── WHAT IS *NOT* HERE, AND WHY ───────────────────────────────────────────
+  // There is deliberately no `SWARM_MODE` / `SWARM_POLICY` / `SWARM_JOIN_TOKEN` /
+  // `SWARM_JOIN_ADDRS`. Those existed as FIRST-RUN DEFAULTS for an unattended
+  // install, and they are unreachable now:
+  //
+  //   - `SwarmBootstrapService.onModuleInit()` REFUSES to converge before
+  //     `setupDone()`, so the engine is never touched on env-derived defaults;
+  //   - the wizard ALWAYS writes the full `node_config.swarmConfig`
+  //     (`local` → create, `remote` → join), and `effectiveConfig()` prefers the
+  //     persisted row, so the env fallback can never be selected;
+  //   - the join path cannot run here at all: `ClusterOrchestratorService` only
+  //     ever starts `{ kind: "found" }`. A joining node gets its token and
+  //     control-plane addresses from the FLEET's grant, consumed by the API's
+  //     
+  //     `RemoteInitializationService` — not from this app's environment.
+  //
+  // Their comment also referenced `SETUP_AUTO`, a flag deleted with the
+  // gate inversion — so they were documented by a mechanism that no longer
+  // exists.
+  //
+  // Leaving them in place was not harmless: compose passes unset optionals as
+  // EMPTY STRINGS, and `"".split(",")` is `[""]` — a one-element list of
+  // nothing — which passed the "do I have addresses?" guard and then failed the
+  // schema's per-item `min(1)`.
+
+  /**
+   * Address this node advertises for cluster control traffic.
+   *
+   * NOT a participation default, which is why it stays: it is read on EVERY
+   * boot by `SwarmBootstrapService.advertiseAddr()`, because `docker swarm init`
+   * refuses to infer one on a host with several candidates
+   * (`could not choose an IP address to advertise`). The wizard collects a value
+   * into `swarmConfig` too, but a FOUNDING node needs an address before that row
+   * exists.
+   */
   SWARM_ADVERTISE_ADDR: z.string().optional(),
+
+  /**
+   * Cap on the number of managers (the election quorum target).
+   *
+   * Also not a participation default: it is not a field of
+   * `node_config.swarmConfig` at all, so the package's `join.quorumMax` can only
+   * come from here. `SwarmJoinGrantService` reads it when issuing a join grant.
+   */
   SWARM_QUORUM_MAX: z.coerce.number().int().min(1).default(3),
   /** Overlay IP peers dial when no explicit advertise address is set. */
   MANAGED_WIREGUARD_IP: z.string().optional(),

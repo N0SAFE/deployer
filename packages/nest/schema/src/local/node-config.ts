@@ -144,9 +144,12 @@ export const nodeConfig = sqliteTable("node_config", {
      * Swarm participation config as JSON (decided at setup, editable later):
      * { mode: "create" | "join", policy: "auto" | "manager" | "worker",
      *   advertiseAddr, joinToken, joinAddrs[] } — see
-     * `@repo/contracts-entities` swarm-config.schema. Null = env defaults
-     * apply (SWARM_MODE/SWARM_POLICY). There is no "off": the deployer always
-     * runs its supervised workloads on Swarm.
+     * `@repo/contracts-entities` swarm-config.schema.
+     *
+     * This row is the SINGLE source of truth: setup always writes it (local →
+     * create, remote → join) and the engine converges from it. There is no env
+     * fallback, and no "off" — the deployer always runs its supervised workloads
+     * on Swarm.
      */
     swarmConfig: text("swarm_config", { mode: "json" }).$type<{
         mode: "create" | "join";

@@ -26,8 +26,10 @@ import {
     dockerodeImageSummarySchema,
     dockerodeNetworkSummarySchema,
     dockerodeVolumeListResponseSchema,
+    dockerodeSwarmInitResponseSchema,
 } from "@repo/contracts-entities";
 import type {
+    DockerodeSwarmInitResponse,
     DockerodeSwarmInfo,
     DockerodeSwarmInspect,
     DockerodeServiceSummary,
@@ -2583,11 +2585,24 @@ CMD ["npm", "start"]
     /**
      * Initialize Swarm mode on the local engine (POST /swarm/init).
      * Callers should gate on `getSwarmInfo().LocalNodeState` for idempotency.
+     *
+     * ── THE RESPONSE IS A STRING, NOT A SWARM OBJECT ────────────────────────
+     * `POST /swarm/init` answers with the bare node id that founded the cluster
+     * (`dockerodeSwarmInitResponseSchema`), whereas `GET /swarm` answers with a
+     * swarm object (`dockerodeSwarmInspectSchema`). This method used to parse the
+     * init response with the INSPECT schema — so every successful init failed
+     * validation with
+     *
+     *   Invalid input: expected object, received string
+     *
+     * and the caller saw "Failed to initialize Swarm cluster" for a cluster that
+     * had in fact been created. The node id is returned so the caller can log or
+     * correlate it.
      */
-    async swarmInit(options: SwarmInitOptions): Promise<DockerodeSwarmInspect> {
+    async swarmInit(options: SwarmInitOptions): Promise<DockerodeSwarmInitResponse> {
         try {
             const raw: unknown = await this.docker.swarmInit(options);
-            return dockerodeSwarmInspectSchema.parse(raw);
+            return dockerodeSwarmInitResponseSchema.parse(raw);
         } catch (error: unknown) {
             const message = DockerService.getErrMsg(error);
             this.logger.error(`Failed to initialize Swarm cluster: ${message}`);

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { SetupGateService } from "./setup-gate.service";
 import { SetupPhaseService } from "@/modules/health/setup-phase.service";
 import type { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
+import type { ClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
 import { makeEnvService } from "@/test-support/env";
 
 /**
@@ -44,37 +45,84 @@ describe("SetupGateService", () => {
   function makeGate(env: Record<string, string> = {}) {
     const phases = new SetupPhaseService();
     const repo = makeRepository(null);
+    // The cluster is stubbed: the gate's job is to ASK for convergence, and the
+    // engine's own spec covers whether that succeeds. What this spec pins down is
+    // the ORDER — that the swarm is started before the gate can open.
+    const cluster = { start: vi.fn() };
     const gate = new SetupGateService(
       phases,
       repo as unknown as NodeConfigRepository,
       makeEnvService(env),
+      cluster as unknown as ClusterOrchestratorService,
     );
-    return { gate, phases, repo };
+    return { gate, phases, repo, cluster };
   }
 
   /** A gate whose repository already holds a row (a restart). */
   function makeRestartGate(row: Record<string, unknown>) {
     const phases = new SetupPhaseService();
     const repo = makeRepository({ ...defaults, ...row });
+    const cluster = { start: vi.fn() };
     const gate = new SetupGateService(
       phases,
       repo as unknown as NodeConfigRepository,
       makeEnvService(),
+      cluster as unknown as ClusterOrchestratorService,
     );
-    return { gate, phases, repo };
+    return { gate, phases, repo, cluster };
   }
 
   describe("opening the gate", () => {
-    it("publishes `launching`, which is what compose reads", async () => {
-      const { gate, phases } = makeGate();
+    it("starts the SWARM and does NOT open the gate itself", async () => {
+      const { gate, phases, cluster } = makeGate();
 
       await gate.open(undefined);
 
-      expect(phases.current().phase).toBe("launching");
-      expect(phases.isReady()).toBe(true);
+      // The swarm must exist before the API can be scheduled onto it — a swarm
+      // GLOBAL service cannot be created on an engine that is not a swarm. So
+      // `open()` asks for convergence and the CLUSTER PIPELINE publishes
+      // `launching` when the engine reports active.
+      expect(cluster.start).toHaveBeenCalledTimes(1);
+      expect(phases.isReady(), "the gate stays closed until the swarm is active").toBe(false);
+      expect(phases.current().phase).toBe("clustering");
     });
 
-    it("persists an operator-supplied database URL before opening", async () => {
+    it("asks for a FOUNDING node when the wizard supplied no join target", async () => {
+      const { gate, cluster } = makeGate();
+
+      await gate.open({ strategy: "local" });
+
+      expect(cluster.start).toHaveBeenCalledWith({ kind: "found" });
+    });
+
+    it("asks to JOIN only when BOTH a token and addresses were supplied", async () => {
+      const { gate, cluster } = makeGate();
+
+      await gate.open({
+        strategy: "remote",
+        swarm: { joinToken: "SWMTKN-1-abc", joinAddrs: ["10.0.0.1:2377"] },
+      });
+
+      expect(cluster.start).toHaveBeenCalledWith({
+        kind: "join",
+        joinToken: "SWMTKN-1-abc",
+        remoteAddrs: ["10.0.0.1:2377"],
+      });
+    });
+
+    it("falls back to FOUNDING when the join payload is incomplete", async () => {
+      const { gate, cluster } = makeGate();
+
+      // A token without addresses (or the reverse) cannot complete a join. Setup
+      // founds the engine so the API has a swarm to be scheduled on, and the API
+      // finishes the join from the fleet's grant — which is where the real
+      // addresses come from anyway.
+      await gate.open({ strategy: "remote", swarm: { joinToken: "SWMTKN-1-abc" } });
+
+      expect(cluster.start).toHaveBeenCalledWith({ kind: "found" });
+    });
+
+    it("persists an operator-supplied database URL before converging", async () => {
       const { gate, repo } = makeGate();
 
       await gate.open({ existingDatabaseUrl: "postgresql://u:p@db:5432/deployer" });
@@ -131,23 +179,23 @@ describe("SetupGateService", () => {
       expect(repo._row()?.databaseUrl).toBeNull();
     });
 
-    it("is idempotent: a second open keeps the row and does not re-publish", async () => {
-      const { gate, phases, repo } = makeGate();
+    it("is idempotent: a second open neither re-persists nor re-converges", async () => {
+      const { gate, repo, cluster } = makeGate();
       await gate.open({ existingDatabaseUrl: "postgresql://u:p@db:5432/deployer" });
 
-      const transitions: string[] = [];
-      phases.events$.subscribe((event) => transitions.push(event.to));
-
+      // Simulate the cluster pipeline reporting success, which is what opens the
+      // gate in production.
+      gate["phases"].record("launching", "cluster active");
       await gate.open({ existingDatabaseUrl: "postgresql://OTHER@db:5432/deployer" });
 
       expect(repo._row()?.databaseUrl).toBe("postgresql://u:p@db:5432/deployer");
-      expect(transitions).toHaveLength(0);
+      expect(cluster.start).toHaveBeenCalledTimes(1);
     });
   });
 
   describe("the restart path", () => {
-    it("opens the gate at boot when a previous run completed setup", () => {
-      const { gate, phases } = makeRestartGate({
+    it("converges the swarm from the PERSISTED row, without the wizard", () => {
+      const { gate, phases, cluster } = makeRestartGate({
         setupState: "setup_done",
         databaseUrl: "postgresql://u:p@db:5432/deployer",
         databaseProvisioning: "local",
@@ -155,10 +203,13 @@ describe("SetupGateService", () => {
 
       gate.onApplicationBootstrap();
 
-      // Same flow as a fresh install minus the wizard — the API restarts,
-      // provisions the delta, and setup hands over and exits.
-      expect(phases.current().phase).toBe("launching");
-      expect(phases.isReady()).toBe(true);
+      // Same flow as a fresh install minus the collecting step. The gate is NOT
+      // open yet: the cluster pipeline opens it once the engine is active, which
+      // is what stops compose scheduling the API onto a swarm that does not
+      // exist.
+      expect(cluster.start).toHaveBeenCalledWith({ kind: "found" });
+      expect(phases.isReady()).toBe(false);
+      expect(phases.current().phase).toBe("clustering");
     });
 
     it("does NOT re-persist on a restart, so the completed row survives", () => {
@@ -178,8 +229,8 @@ describe("SetupGateService", () => {
       expect(repo.upsert).not.toHaveBeenCalled();
     });
 
-    it("keeps the gate CLOSED when a previous run did not finish", () => {
-      const { gate, phases } = makeRestartGate({
+    it("keeps the gate CLOSED and converges NOTHING when a previous run did not finish", () => {
+      const { gate, phases, cluster } = makeRestartGate({
         setupState: "not_started",
         databaseUrl: "postgresql://u:p@db:5432/deployer",
         databaseProvisioning: "external",
@@ -188,22 +239,28 @@ describe("SetupGateService", () => {
       gate.onApplicationBootstrap();
 
       // A `databaseUrl` alone is an UNPROVISIONED candidate. Skipping the wizard
-      // on that basis would leave an empty schema with no surface to fix it.
-      expect(phases.current().phase).toBe("awaiting");
+      // on that basis would leave an empty schema with no surface to fix it — and
+      // converging here would auto-found a cluster before the operator has chosen
+      // how to join, which is exactly what this ordering exists to prevent.
+      expect(cluster.start).not.toHaveBeenCalled();
       expect(phases.isReady()).toBe(false);
+      expect(phases.current().phase).toBe("collecting");
     });
 
-    it("keeps the gate closed when there is no config row at all", () => {
+    it("keeps the gate closed and converges nothing when there is no config row", () => {
       const phases = new SetupPhaseService();
       const repo = makeRepository(null);
+      const cluster = { start: vi.fn() };
       const gate = new SetupGateService(
         phases,
         repo as unknown as NodeConfigRepository,
         makeEnvService(),
+        cluster as unknown as ClusterOrchestratorService,
       );
 
       gate.onApplicationBootstrap();
 
+      expect(cluster.start).not.toHaveBeenCalled();
       expect(phases.isReady()).toBe(false);
     });
   });

@@ -54,12 +54,9 @@ services:
       # place, so a mismatch would make the handover look like "Traefik ignores
       # us" rather than a configuration error.
       TRAEFIK_CONFIG_BASE_PATH: /app/traefik-configs
-      # First-run swarm defaults, consulted only until the wizard persists a
-      # choice in `node_config.swarmConfig`.
-      SWARM_MODE: ${SWARM_MODE:-create}
-      SWARM_POLICY: ${SWARM_POLICY:-auto}
-      SWARM_JOIN_TOKEN: ${SWARM_JOIN_TOKEN:-}
-      SWARM_JOIN_ADDRS: ${SWARM_JOIN_ADDRS:-}
+      # The address this node advertises for cluster control traffic. Docker
+      # refuses to INFER one on a host with several candidates, so a founding
+      # node needs it explicitly (`could not choose an IP address to advertise`).
       SWARM_ADVERTISE_ADDR: ${SWARM_ADVERTISE_ADDR:-}
       SWARM_QUORUM_MAX: ${SWARM_QUORUM_MAX:-3}
       MANAGED_WIREGUARD_IP: ${MANAGED_WIREGUARD_IP:-}

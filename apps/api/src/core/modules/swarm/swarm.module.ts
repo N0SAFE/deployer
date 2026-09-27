@@ -66,14 +66,22 @@ import { EnvModule, EnvService } from "@/config/env/env.module";
                     ],
                     quorumMax: env.get("SWARM_QUORUM_MAX"),
                 },
-                // First-run defaults, consulted ONLY until the wizard persists a
-                // choice in `node_config.swarmConfig` — which then wins.
+                // ONLY `overlayIp`, AND ONLY BECAUSE IT IS AN ADDRESS SOURCE.
+                //
+                // The mode / policy / join-token / join-address defaults are gone:
+                // every path that enters a cluster writes the full
+                // `node_config.swarmConfig` (the wizard's local + remote flows, and
+                // the cluster UI), and `effectiveConfig()` prefers that row — so an
+                // env fallback can never be selected. Their comment also cited
+                // `SETUP_AUTO`, a flag deleted with the gate inversion.
+                //
+                // `overlayIp` is different in kind: not a participation CHOICE but
+                // the WireGuard address peers dial. `initOptions()` resolves the
+                // advertised address as `cfg.advertiseAddr ?? defaults.overlayIp`
+                // and the persisted config stores `advertiseAddr: null` when the
+                // operator leaves the field blank — so without this a mesh node would
+                // advertise `127.0.0.1`, the exact failure `AdvertiseAddr` prevents.
                 participation: {
-                    mode: env.get("SWARM_MODE"),
-                    policy: env.get("SWARM_POLICY"),
-                    advertiseAddr: env.get("SWARM_ADVERTISE_ADDR") ?? null,
-                    joinToken: env.get("SWARM_JOIN_TOKEN") ?? null,
-                    joinAddrs: env.get("SWARM_JOIN_ADDRS")?.split(",") ?? [],
                     overlayIp: env.get("MANAGED_WIREGUARD_IP") ?? null,
                 },
             }),

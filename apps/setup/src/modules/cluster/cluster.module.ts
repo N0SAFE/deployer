@@ -73,25 +73,38 @@ import { SwarmBootstrapService } from "./services/swarm-bootstrap.service";
           heartbeatTtlMs: env.get("SWARM_HEARTBEAT_TTL_MS") ?? 30_000,
           masterGraceMs: env.get("SWARM_MASTER_GRACE_MS") ?? 15_000,
         },
+        // ── ONLY `overlayIp`, AND ONLY BECAUSE IT IS A FALLBACK ────────────
+        // The mode / policy / join-token / join-address defaults are gone: this
+        // app never converges the engine before setup, and the wizard always
+        // writes the full `node_config.swarmConfig`, which `effectiveConfig()`
+        // prefers. Supplying them would be dead configuration.
+        //
+        // `overlayIp` is different in kind — it is not a participation CHOICE but
+        // an ADDRESS SOURCE. `SwarmParticipationService.initOptions()` resolves
+        // the advertised address as
+        //
+        //   cfg.advertiseAddr ?? defaults.advertiseAddr ?? defaults.overlayIp
+        //
+        // and the wizard persists `advertiseAddr: null` whenever the operator
+        // leaves that field blank (it is optional on the form). Without this
+        // fallback a founding node on a mesh would advertise `127.0.0.1`, which is
+        // precisely the multi-address failure `AdvertiseAddr` exists to prevent.
+        //
+        // So the one value kept is the one the persisted config cannot express.
+        participation: {
+          overlayIp: env.get("MANAGED_WIREGUARD_IP") ?? null,
+        },
         join: {
-          // Setup founds or joins as a MANAGER on the first node, so quorum is
-          // capped by the operator's own setting.
+          // Setup founds the cluster, so the advertised address is resolved from
+          // what this node actually answers on. `SwarmBootstrapService` uses the
+          // same precedence when it calls `ensureCluster`; these candidates serve
+          // the grant issuer, which needs to tell OTHER nodes where to dial.
           controlPlaneCandidates: [
             env.get("SWARM_ADVERTISE_ADDR"),
             env.get("MANAGED_WIREGUARD_IP"),
             env.get("APP_URL"),
           ],
           quorumMax: env.get("SWARM_QUORUM_MAX") ?? 3,
-        },
-        // First-run defaults, consulted only until the wizard persists a
-        // choice in `node_config.swarmConfig` — which then wins.
-        participation: {
-          mode: env.get("SWARM_MODE"),
-          policy: env.get("SWARM_POLICY"),
-          advertiseAddr: env.get("SWARM_ADVERTISE_ADDR") ?? null,
-          joinToken: env.get("SWARM_JOIN_TOKEN") ?? null,
-          joinAddrs: env.get("SWARM_JOIN_ADDRS")?.split(",") ?? [],
-          overlayIp: env.get("MANAGED_WIREGUARD_IP") ?? null,
         },
       }),
     }),

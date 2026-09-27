@@ -3,6 +3,8 @@ import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 
 import { EnvService } from "@/config/env/env.module";
 import { SetupPhaseService } from "@/modules/health/setup-phase.service";
+import { ClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
+import type { ClusterEntryMode } from "@/modules/cluster/cluster.types";
 
 /**
  * The gate that decides when the API may start.
@@ -13,23 +15,27 @@ import { SetupPhaseService } from "@/modules/health/setup-phase.service";
  * healthy" means exactly **"the API may start"** — and this service is the only
  * thing that opens it.
  *
- * ── WHY IT OPENS ON THE TRIGGER, NOT ON THE API BEING GREEN ─────────────────
+ * ── WHY IT OPENS ON THE TRIGGER, AND AFTER THE SWARM ────────────────────────
  * An earlier design gated on the API's readiness. That is a cycle: compose starts
  * the API behind this healthcheck, so setup cannot wait for the API before
  * reporting healthy. The escape would be starting the API early in a degraded
  * mode — which is the arrangement this refactor deleted.
  *
- * Opening on the trigger keeps the dependency a straight line
- * (`setup → api → web`) and gives the gate an honest meaning: the operator has
- * supplied everything the API needs, so the API's boot has a database URL to
- * read.
+ * The trigger breaks the cycle, and the SWARM comes first within it:
  *
- * ── WHY IT PERSISTS BEFORE OPENING ──────────────────────────────────────────
+ *   trigger → swarm → gate opens → API scheduled onto that swarm → ingress
+ *
+ * The swarm must precede the gate for a mechanical reason: the API's supervisors
+ * schedule their services onto the cluster, and a swarm GLOBAL service cannot be
+ * created on an engine that is not a swarm. So `open()` does not publish
+ * `launching` itself — it converges the engine, and the CLUSTER PIPELINE opens the
+ * gate when the engine reports active.
+ *
+ * ── WHY IT PERSISTS BEFORE CONVERGING ───────────────────────────────────────
  * The gate's meaning is "the API may start", and the API starts by reading
- * `node_config.databaseUrl`. Opening the gate before that row exists would start
- * an API that immediately finds nothing and reports not-ready — a gate that lies
- * about what it guarantees. So the choices are written first, then the gate
- * opens.
+ * `node_config.databaseUrl` and `node_config.swarmConfig`. Converging the engine
+ * before those rows exist would build a cluster from defaults the operator never
+ * chose. So the choices are written first, then the swarm is converged.
  *
  * ── WHO OWNED THIS BEFORE ───────────────────────────────────────────────────
  * The API did: `SetupDevService` (Phase 0) probed `MANAGED_GLOBAL_DB_*` /
@@ -46,6 +52,7 @@ export class SetupGateService implements OnApplicationBootstrap {
     private readonly phases: SetupPhaseService,
     private readonly nodeConfig: NodeConfigRepository,
     private readonly env: EnvService,
+    private readonly cluster: ClusterOrchestratorService,
   ) {}
 
   /**
@@ -90,24 +97,50 @@ export class SetupGateService implements OnApplicationBootstrap {
     const existing = this.nodeConfig.find();
 
     if (existing?.setupState !== "setup_done") {
+      // Nothing has been collected yet, so the wizard has work to do. The gate
+      // stays CLOSED and `open()` is not called: converging the swarm before the
+      // operator has chosen how to join would be the auto-founding this ordering
+      // exists to prevent.
       this.logger.log(
         existing === null
           ? "No previous setup found — the wizard will collect the details"
           : `Setup state is "${existing.setupState}" — the wizard will collect the details`,
       );
+      this.phases.record("collecting", "Serving the wizard — waiting for the setup details");
       return;
     }
 
-    this.logger.log("Setup already completed on this node — opening the gate without the wizard");
+    this.logger.log("Setup already completed on this node — converging without the wizard");
+    // The same path as a fresh install, minus the collecting step: `open()`
+    // converges the swarm from the PERSISTED participation, and the cluster
+    // pipeline opens the gate when the engine reports active. Skipping straight
+    // to `launching` here would let compose start the API against a swarm that
+    // does not exist yet.
     this.open(undefined);
   }
 
   /**
-   * Open the gate: persist the operator's choices, then publish `launching`.
+   * Open the gate: persist the operator's choices, then converge the SWARM.
    *
-   * Awaited by the controller BEFORE it forwards `/setup/trigger`, because the
-   * forward is the call that needs the API to exist. See the controller for why
-   * that order is forced.
+   * ── THE ORDER, AND WHY IT IS THIS ORDER ─────────────────────────────────────
+   *   1. persist the choices            (so the API finds them when it boots)
+   *   2. converge the swarm             (the engine must exist to schedule on)
+   *   3. the gate opens                 (cluster success publishes `launching`)
+   *   4. the API is started onto it     (compose `depends_on`, or setup in prod)
+   *   5. the API converges the ingress  (traefik becomes a swarm GLOBAL service)
+   *
+   * Step 2 precedes step 3 for a mechanical reason, not a stylistic one: the API's
+   * supervisors schedule their services onto the swarm, and a swarm GLOBAL service
+   * cannot be created on an engine that is not a swarm. Auto-founding at APP BOOT
+   * (what this did before) also broke the opposite case — a node about to join a
+   * fleet had already invented a cluster of its own.
+   *
+   * ── WHY THIS RETURNS IMMEDIATELY ────────────────────────────────────────────
+   * Convergence takes seconds (init, membership settle, policy apply). Blocking
+   * the HTTP request on it would hold the operator's browser open and make a
+   * slow engine look like a hung wizard. Instead the cluster pipeline publishes
+   * the phase, and the wizard watches it — the same event-driven contract every
+   * other phase uses.
    */
   async open(input: unknown): Promise<void> {
     if (this.phases.isReady()) {
@@ -118,7 +151,11 @@ export class SetupGateService implements OnApplicationBootstrap {
       return;
     }
 
-    // Persist FIRST: the gate's promise is "the API will find what it needs".
+    // ── WHY A REPEAT RUN DOES NOT RE-PERSIST ──────────────────────────────
+    // `node_config` is the single source of truth, and a completed setup has
+    // already written it. Overwriting from an EMPTY payload (a restart passes
+    // `undefined`) would erase the swarm participation and the database URL
+    // the API is about to read — turning a healthy restart into a broken node.
     const completed = this.nodeConfig.find()?.setupState === "setup_done";
     if (!completed) {
       this.persist(input);
@@ -129,13 +166,59 @@ export class SetupGateService implements OnApplicationBootstrap {
     // persisted row and the idempotency of migrate/seed.
     this.pendingTrigger = completed ? null : input;
 
-    this.phases.record(
-      "launching",
-      completed
-        ? "Setup already complete — the platform API may start"
-        : "Setup details collected — the platform API may now start",
+    // ── STEP 2: THE SWARM ──────────────────────────────────────────────────
+    // Started here, not at boot. The cluster pipeline publishes `launching` when
+    // the engine reports active, which is what opens the gate — so the API cannot
+    // be scheduled onto a swarm that does not exist yet.
+    this.phases.record("clustering", "Founding the cluster…");
+    this.cluster.start(this.entryModeFrom(input));
+
+    this.logger.log(
+      "🚀 Setup trigger accepted — converging the swarm; the gate opens when it is active",
     );
-    this.logger.log("🚪 Gate OPEN — compose may start the API");
+  }
+
+  /**
+   * How this node enters the cluster, from the operator's wizard payload.
+   *
+   * `found` in both cases, and that is deliberate rather than a stub:
+   *
+   *   - **local** — the node creates the swarm. This is the only mode setup can
+   *     act on, because it needs no external input.
+   *   - **remote** — the node will JOIN a fleet, but the join token and the
+   *     control-plane addresses come from the TARGET cluster's grant, which the
+   *     API obtains via `remoteAuth` during provisioning. Setup does not have
+   *     them yet, so it cannot join; it founds the engine so the API has a swarm
+   *     to be scheduled on, and the API's own `SwarmBootstrapService.converge()`
+   *     LEAVES that lone cluster when it applies the grant's `mode=join`. That
+   *     handling is in `SwarmParticipationService.converge()`, which is
+   *     deliberately restricted to a lone auto-founded cluster — a single
+   *     manager with a single node is by construction this node's own, so no
+   *     peer state can be lost.
+   *
+   * Inventing a join here would mean guessing a token, which is worse than the
+   * (already-handled) two-phase case above.
+   */
+  private entryModeFrom(input: unknown): ClusterEntryMode {
+    const swarm =
+      typeof input === "object" && input !== null
+        ? (input as { swarm?: { joinToken?: unknown; joinAddrs?: unknown } }).swarm
+        : undefined;
+
+    const joinToken = typeof swarm?.joinToken === "string" ? swarm.joinToken.trim() : "";
+    const joinAddrs = Array.isArray(swarm?.joinAddrs)
+      ? swarm.joinAddrs.filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+      : [];
+
+    // Only join when the operator's payload carries BOTH pieces. A token without
+    // addresses (or the reverse) cannot complete a join, so it is treated as
+    // "found" and the API finishes the join from the grant.
+    if (joinToken.length > 0 && joinAddrs.length > 0) {
+      this.logger.log(`Wizard supplied a join target (${joinAddrs.join(", ")})`);
+      return { kind: "join", joinToken, remoteAddrs: joinAddrs };
+    }
+
+    return { kind: "found" };
   }
 
   /**
